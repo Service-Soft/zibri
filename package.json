@@ -1,0 +1,25 @@
+{
+    "name": "catalyx",
+    "version": "1.0.0",
+    "main": "index.js",
+    "engines": {
+        "node": ">20"
+    },
+    "scripts": {
+        "start": "tsup --watch",
+        "build": "tsup",
+        "lint": "eslint ."
+    },
+    "keywords": [],
+    "author": "Tim Fabian",
+    "license": "MIT",
+    "description": "",
+    "devDependencies": {
+        "@types/express": "^5.0.1",
+        "@types/node": "^22.15.3",
+        "eslint": "^9.26.0",
+        "eslint-config-service-soft": "^2.0.8",
+        "tsup": "^8.4.0",
+        "typescript": "^5.8.3"
+    }
+}
