@@ -1,14 +1,24 @@
 {
     "name": "catalyx",
     "version": "1.0.0",
-    "main": "index.js",
+    "main": "./dist/index.js",
+    "module": "./dist/index.mjs",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.mjs",
+            "require": "./dist/index.js"
+        }
+    },
     "engines": {
-        "node": ">20"
+        "node": ">=20"
     },
     "scripts": {
         "start": "tsup --watch",
         "build": "tsup",
-        "lint": "eslint ."
+        "lint": "eslint . --max-warnings=0",
+        "lint:fix": "eslint . --max-warnings=0 --fix",
+        "prepublishOnly": "npm i && npm run build"
     },
     "keywords": [],
     "author": "Tim Fabian",
