@@ -1,0 +1,20 @@
+{
+    "name": "sandbox",
+    "version": "1.0.0",
+    "main": "./dist/index.js",
+    "scripts": {
+        "start": "tsc-watch --target es2017 --outDir ./dist --onSuccess \"node --enable-source-maps .\""
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "description": "",
+    "dependencies": {
+        "catalyx": "file:.."
+    },
+    "devDependencies": {
+        "ts-node": "^10.9.2",
+        "tsc-watch": "^6.2.1",
+        "typescript": "^5.8.3"
+    }
+}
