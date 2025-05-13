@@ -1,11 +1,10 @@
-import { DiProvider } from './di-provider.model';
-import { DiToken } from './di-token.model';
-import { globalInjectables } from '../global';
-import { Newable } from '../types';
-import { NoProviderError } from './no-provider.error';
 import { MetadataUtilities } from '../encapsulation';
-import { CATALYX_DI_TOKENS } from './catalyx-di-tokens';
-import { CLASS_FOR_CATALYX_DI_TOKENS } from './class-for-catalyx-di-tokens';
+import { GlobalRegistry } from '../global';
+import { Newable } from '../types';
+import { ZIBRI_DI_TOKENS } from './default';
+import { ZIBRI_DI_PROVIDERS } from './default/zibri-di-providers.default';
+import { NoProviderError } from './errors/no-provider.error';
+import { DiToken, DiProvider } from './models';
 
 export class DiContainer {
     private readonly providers: Map<DiToken<unknown>, DiProvider<unknown>> = new Map<DiToken<unknown>, DiProvider<unknown>>();
@@ -13,16 +12,12 @@ export class DiContainer {
     private static singleton?: DiContainer;
 
     private constructor() {
-        for (const injectable of globalInjectables) {
+        for (const injectable of GlobalRegistry.injectables) {
             this.register(injectable);
         }
-        for (const key in CATALYX_DI_TOKENS) {
-            // eslint-disable-next-line stylistic/max-len
-            const token: typeof CATALYX_DI_TOKENS[keyof typeof CATALYX_DI_TOKENS] = CATALYX_DI_TOKENS[key as keyof typeof CATALYX_DI_TOKENS];
-            this.register({
-                token,
-                useClass: CLASS_FOR_CATALYX_DI_TOKENS[token]
-            });
+        for (const key in ZIBRI_DI_TOKENS) {
+            const token: typeof ZIBRI_DI_TOKENS[keyof typeof ZIBRI_DI_TOKENS] = ZIBRI_DI_TOKENS[key as keyof typeof ZIBRI_DI_TOKENS];
+            this.register({ token, ...ZIBRI_DI_PROVIDERS[token] });
         }
     }
 

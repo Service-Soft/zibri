@@ -1,0 +1,6 @@
+
+export enum HttpStatus {
+    INTERNAL_SERVER_ERROR = 500,
+    NOT_FOUND_ERROR = 404,
+    BAD_REQUEST = 400
+}

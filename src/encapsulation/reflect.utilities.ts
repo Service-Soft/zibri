@@ -1,4 +1,4 @@
-import { MetadataInjectionKeys } from '../di';
+import { MetadataInjectionKeys } from './metadata-injection-keys.enum';
 
 export abstract class ReflectUtilities {
 
@@ -16,6 +16,7 @@ export abstract class ReflectUtilities {
         propertyKey?: string
     ): void {
         if (propertyKey != undefined) {
+            // eslint-disable-next-line typescript/no-unsafe-argument, typescript/no-unsafe-member-access, typescript/no-explicit-any
             Reflect.defineMetadata(key, value, (target as any).prototype, propertyKey);
         }
         else {
@@ -36,11 +37,15 @@ export abstract class ReflectUtilities {
         propertyKey?: string
     ): T | undefined {
         return propertyKey != undefined
+            // eslint-disable-next-line typescript/no-unsafe-argument, typescript/no-unsafe-member-access, typescript/no-explicit-any
             ? Reflect.getMetadata(key, (target as any).prototype, propertyKey) as T
             : Reflect.getMetadata(key, target) as T;
     }
 
-    static getOwnMetadata<T>(key: MetadataInjectionKeys, target: Object): T {
-        return Reflect.getOwnMetadata(key, target) as T;
+    static getOwnMetadata<T>(key: MetadataInjectionKeys, target: Object, propertyKey?: string): T | undefined {
+        return propertyKey != undefined
+            // eslint-disable-next-line typescript/no-unsafe-argument, typescript/no-unsafe-member-access, typescript/no-explicit-any
+            ? Reflect.getOwnMetadata(key, (target as any).prototype, propertyKey) as T
+            : Reflect.getOwnMetadata(key, target) as T;
     }
 }

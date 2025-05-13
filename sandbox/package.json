@@ -3,18 +3,24 @@
     "version": "1.0.0",
     "main": "./dist/index.js",
     "scripts": {
-        "start": "tsc-watch --target es2017 --outDir ./dist --onSuccess \"node --enable-source-maps .\""
+        "start": "webpack --watch",
+        "build": "webpack",
+        "build:watch": "webpack --watch",
+        "start:old": "tsc-watch --target es2017 --outDir ./dist --onSuccess \"node --enable-source-maps .\""
     },
     "keywords": [],
     "author": "",
     "license": "ISC",
     "description": "",
     "dependencies": {
-        "catalyx": "file:.."
+        "zibri": "file:.."
     },
     "devDependencies": {
-        "ts-node": "^10.9.2",
-        "tsc-watch": "^6.2.1",
-        "typescript": "^5.8.3"
+        "copy-webpack-plugin": "^13.0.0",
+        "source-map-loader": "^5.0.0",
+        "ts-loader": "^9.5.2",
+        "typescript": "^5.8.3",
+        "webpack": "^5.99.8",
+        "webpack-cli": "^6.0.1"
     }
 }

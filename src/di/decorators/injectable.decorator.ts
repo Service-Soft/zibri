@@ -1,7 +1,7 @@
 import { MetadataUtilities } from '../../encapsulation';
-import { globalInjectables } from '../../global';
+import { GlobalRegistry } from '../../global';
 import { Newable } from '../../types';
-import { DiToken } from '../di-token.model';
+import { DiToken } from '../models';
 
 export function Injectable<T>(token?: DiToken<T>): ClassDecorator {
     return target => {
@@ -9,7 +9,7 @@ export function Injectable<T>(token?: DiToken<T>): ClassDecorator {
         // eslint-disable-next-line unicorn/error-message
         const stack: string = new Error().stack ?? '';
         MetadataUtilities.setFilePath(target, stack);
-        globalInjectables.push({
+        GlobalRegistry.injectables.push({
             token: (token ?? target) as DiToken<T>,
             useClass: target as unknown as Newable<unknown>
         });

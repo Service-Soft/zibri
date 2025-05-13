@@ -1,10 +1,11 @@
-import { CatalyxApplication } from "catalyx";
-import { TestService } from "./services/test.service";
+import { inject, LoggerInterface, ZIBRI_DI_TOKENS, ZibriApplication } from "zibri";
+import { TestController } from "./controllers/test.controller";
 
-const app = new CatalyxApplication();
+const app = new ZibriApplication({
+    name: 'Api',
+    controllers: [TestController]
+});
+
+export const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
 
 app.start(3000);
-
-app.di.register({ token: '42', useFactory: () => 42 });
-console.log('catalyx app started')
-console.log('dependency injection:\n', app.di.inject(TestService));

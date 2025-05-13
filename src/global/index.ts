@@ -1,1 +1,1 @@
-export * from './global-injectables.constant';
+export * from './global-registry';

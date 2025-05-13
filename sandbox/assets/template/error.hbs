@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>{{error.title}} | {{name}}</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="icon" type="image/png" href="/assets/favicon.png">
+        <link rel="stylesheet" href="/assets/template/style.css">
+    </head>
+    <body>
+        <div class="container">
+            <div style="display: flex; flex-direction: column; gap: 15px;">
+
+                <div style="display: flex; gap: 30px;">
+                    <div class="box" style="padding-top: 0px; max-width: 250px;">
+                        <a href="/"><img src="/assets/logo.jpg" width="250px" height="250px"></a>
+                        <a href="/"><h2>{{name}}</h2></a>
+                    </div>
+                    <div style="width: 500px; display: flex; flex-direction: column; gap: 15px">
+                        <div class="box" style="margin: 0px; max-width: 100%;">
+                            <h1 style="text-align: left;">{{error.status}}: {{error.title}}</h1>
+                        </div>
+                        <div class="box" style="margin: 0px; max-width: 100%; flex: 1;">
+                            <div style="display: flex; flex-direction: column; gap: 8px;">
+                                {{#each error.paragraphs}}
+                                    <p style="font-size: 110%;">
+                                        {{this}}
+                                    </p>
+                                {{/each}}
+                            </div>
+                        </div>
+                        <div class="box" style="margin: 0px; max-width: 100%; display: flex; align-items: center; gap: 5px;">
+                            <img src="/assets/swagger.png" width="30px" height="30px">
+                            <a href="/explorer"><h2>OpenAPI Explorer</h2></a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </body>
+</html>

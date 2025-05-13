@@ -1,0 +1,65 @@
+body {
+    background-color: #2a2a35;;
+}
+
+svg {
+    filter: brightness(0) saturate(100%) invert(96%) sepia(0%) saturate(0%) hue-rotate(0deg) contrast(1);
+}
+
+.swagger-ui .info .title {
+    text-align: center;
+}
+
+.swagger-ui .json-schema-2020-12-property .json-schema-2020-12__title,
+.swagger-ui .tab li,
+.swagger-ui .parameter__type,
+.swagger-ui .parameter__name,
+.swagger-ui table thead tr th,
+.swagger-ui,
+.swagger-ui .opblock .opblock-section-header h4,
+.swagger-ui .btn,
+.swagger-ui .responses-inner h5,
+.swagger-ui .responses-inner h4,
+.swagger-ui .response-col_links,
+.swagger-ui table thead tr td,
+.swagger-ui .response-col_status,
+.swagger-ui .opblock-description-wrapper p,
+.swagger-ui .opblock-tag,
+.swagger-ui .opblock .opblock-summary-path,
+.swagger-ui .info .title {
+    color: whitesmoke;
+}
+
+.swagger-ui table thead tr th,
+.swagger-ui table thead tr td,
+.swagger-ui .opblock-tag {
+    border-bottom: 1px solid white;
+}
+
+.swagger-ui .tab li:first-of-type::after {
+    background: lightgray;
+}
+
+.swagger-ui .btn {
+    border: 2px solid whitesmoke;
+}
+
+.swagger-ui .opblock .opblock-section-header {
+    background-color: #1a1a26;
+}
+
+.swagger-ui table thead tr td, .swagger-ui .response-col_status {
+    padding-right: 2em;
+}
+
+.swagger-ui .topbar {
+    display: none;
+}
+
+.swagger-ui .json-schema-2020-12-body {
+    border-left: 1px dashed #afaeae;
+}
+
+.swagger-ui .json-schema-2020-12__attribute--primary {
+    color: #019fbe;
+}
