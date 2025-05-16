@@ -1,6 +1,6 @@
-import { MetadataUtilities } from '../../encapsulation';
 import { GlobalRegistry } from '../../global';
 import { Newable } from '../../types';
+import { MetadataUtilities } from '../../utilities';
 import { BodyParserInterface } from '../body-parser.interface';
 
 export function BodyParser(): ClassDecorator {

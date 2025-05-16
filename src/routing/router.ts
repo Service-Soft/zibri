@@ -3,7 +3,7 @@ import express, { NextFunction, Request, RequestHandler, Response } from 'expres
 import { Route, ControllerRouteConfiguration } from './controller-route-configuration.model';
 import { RouterInterface } from './router.interface';
 import { ZIBRI_DI_TOKENS, inject } from '../di';
-import { MetadataUtilities } from '../encapsulation';
+import { MetadataUtilities } from '../utilities';
 import { MissingBaseRouteError } from './missing-base-route.error';
 import { ZibriApplication } from '../application';
 import { GlobalRegistry } from '../global';
@@ -78,10 +78,9 @@ export class Router implements RouterInterface {
     }
 
     private controllerRouteToRequestHandler(controllerClass: Newable<Object>, route: ControllerRouteConfiguration): RequestHandler {
-        const controller: Object = inject(controllerClass);
-
         const handler: RequestHandler = async (req: Request, res: Response, next: NextFunction) => {
             try {
+                const controller: Object = inject(controllerClass);
                 const params: unknown[] = await this.resolveRouteParams(
                     controllerClass,
                     route.controllerMethod,

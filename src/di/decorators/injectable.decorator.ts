@@ -1,6 +1,6 @@
-import { MetadataUtilities } from '../../encapsulation';
 import { GlobalRegistry } from '../../global';
 import { Newable } from '../../types';
+import { MetadataUtilities } from '../../utilities';
 import { DiToken } from '../models';
 
 export function Injectable<T>(token?: DiToken<T>): ClassDecorator {

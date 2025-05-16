@@ -2,7 +2,7 @@ import { ReflectUtilities } from './reflect.utilities';
 import { DiToken } from '../di';
 import { Route, ControllerRouteConfiguration, PathParamMetadata, BodyMetadata, QueryParamMetadata, HeaderParamMetadata } from '../routing';
 import { MetadataInjectionKeys } from './metadata-injection-keys.enum';
-import { PropertyMetadata } from '../entity';
+import { EntityMetadata, PropertyMetadata } from '../entity';
 
 export abstract class MetadataUtilities {
     static setFilePath(target: Object, errorStack: string): void {
@@ -92,5 +92,13 @@ export abstract class MetadataUtilities {
 
     static getModelProperties(model: Object): Record<string, PropertyMetadata> {
         return ReflectUtilities.getMetadata(MetadataInjectionKeys.MODEL_PROPERTIES, model) ?? {};
+    }
+
+    static setEntityMetadata(metadata: EntityMetadata, target: Object): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.ENTITY_METADATA, metadata, target);
+    }
+
+    static getEntityMetadata(target: Object): EntityMetadata | undefined {
+        return ReflectUtilities.getMetadata(MetadataInjectionKeys.ENTITY_METADATA, target);
     }
 }

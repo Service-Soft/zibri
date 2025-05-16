@@ -2,6 +2,7 @@ import express, { Express } from 'express';
 
 import { ZibriApplicationOptions } from './application-options.model';
 import { AssetServiceInterface } from './assets';
+import { DataSourceServiceInterface } from './data-source';
 import { ZIBRI_DI_TOKENS, inject } from './di';
 import { register } from './di/register.function';
 import { UnmatchedRouteError } from './error-handling';
@@ -17,30 +18,34 @@ import { RouterInterface } from './routing';
 export class ZibriApplication {
     readonly express: Express = express();
 
-    readonly router: RouterInterface;
-    private readonly logger: LoggerInterface;
-    private readonly assetService: AssetServiceInterface;
-    private readonly openApiService: OpenApiServiceInterface;
-    private readonly parser: ParserInterface;
+    private _router!: RouterInterface;
+    get router(): RouterInterface {
+        return this._router;
+    }
+    private logger!: LoggerInterface;
+    private assetService!: AssetServiceInterface;
+    private openApiService!: OpenApiServiceInterface;
+    private parser!: ParserInterface;
+    private dataSourceService!: DataSourceServiceInterface;
 
     constructor(private readonly options: ZibriApplicationOptions) {
-        GlobalRegistry.setAppData(options);
-        for (const controller of this.options.controllers) {
-            inject(controller);
-        }
+        GlobalRegistry.markAppAsCreated();
+    }
+
+    async init(): Promise<void> {
+        GlobalRegistry.setAppData(this.options);
         for (const provider of this.options.providers ?? []) {
             register(provider);
         }
-        for (const parser of options.bodyParsers ?? []) {
-            inject(parser);
-        }
         this.logger = inject(ZIBRI_DI_TOKENS.LOGGER);
+        this.dataSourceService = inject(ZIBRI_DI_TOKENS.DATA_SOURCE_SERVICE);
+        await this.dataSourceService.init();
 
         this.parser = inject(ZIBRI_DI_TOKENS.PARSER);
         this.parser.attachTo(this);
 
-        this.router = inject(ZIBRI_DI_TOKENS.ROUTER);
-        this.router.attachTo(this);
+        this._router = inject(ZIBRI_DI_TOKENS.ROUTER);
+        this._router.attachTo(this);
 
         this.assetService = inject(ZIBRI_DI_TOKENS.ASSET_SERVICE);
         this.assetService.attachTo(this);
@@ -50,6 +55,10 @@ export class ZibriApplication {
 
         this.express.use((req, res, next) => next(new UnmatchedRouteError(req.originalUrl)));
         this.express.use(inject(ZIBRI_DI_TOKENS.GLOBAL_ERROR_HANDLER));
+
+        for (const controller of this.options.controllers) {
+            inject(controller);
+        }
 
         GlobalRegistry.markAppAsInitialized();
     }

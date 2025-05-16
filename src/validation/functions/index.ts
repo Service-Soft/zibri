@@ -9,3 +9,4 @@ export * from './validate-boolean-header-param.function';
 export * from './validate-date-header-param.function';
 export * from './validate-boolean-query-param.function';
 export * from './validate-date-query-param.function';
+export * from './validate-date-property.function';

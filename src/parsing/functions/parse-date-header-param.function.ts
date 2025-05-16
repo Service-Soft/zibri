@@ -1,4 +1,4 @@
-import { isDate } from '../../encapsulation';
+import { isDate } from '../../utilities';
 
 export function parseDateHeaderParam(rawValue: unknown): unknown {
     if (isDate(rawValue)) {

@@ -1,5 +1,6 @@
 import { ZIBRI_DI_TOKENS } from './zibri-di-tokens.default';
 import { AssetService, AssetServiceInterface } from '../../assets';
+import { DataSourceService, DataSourceServiceInterface } from '../../data-source';
 import { errorHandler, GlobalErrorHandler } from '../../error-handling';
 import { Logger, LoggerInterface, LogLevel } from '../../logging';
 import { OpenApiService, OpenApiServiceInterface } from '../../open-api';
@@ -19,7 +20,8 @@ type ZibriDiProviders = {
     [ZIBRI_DI_TOKENS.GLOBAL_ERROR_HANDLER]: ZibriDiProvider<GlobalErrorHandler>,
     [ZIBRI_DI_TOKENS.OPEN_API_SERVICE]: ZibriDiProvider<OpenApiServiceInterface>,
     [ZIBRI_DI_TOKENS.PARSER]: ZibriDiProvider<ParserInterface>,
-    [ZIBRI_DI_TOKENS.VALIDATION_SERVICE]: ZibriDiProvider<ValidationServiceInterface>
+    [ZIBRI_DI_TOKENS.VALIDATION_SERVICE]: ZibriDiProvider<ValidationServiceInterface>,
+    [ZIBRI_DI_TOKENS.DATA_SOURCE_SERVICE]: ZibriDiProvider<DataSourceServiceInterface>
 };
 
 export const ZIBRI_DI_PROVIDERS: Record<
@@ -33,5 +35,6 @@ export const ZIBRI_DI_PROVIDERS: Record<
     [ZIBRI_DI_TOKENS.GLOBAL_ERROR_HANDLER]: { useFactory: () => errorHandler },
     [ZIBRI_DI_TOKENS.OPEN_API_SERVICE]: { useClass: OpenApiService },
     [ZIBRI_DI_TOKENS.PARSER]: { useClass: Parser },
-    [ZIBRI_DI_TOKENS.VALIDATION_SERVICE]: { useClass: ValidationService }
+    [ZIBRI_DI_TOKENS.VALIDATION_SERVICE]: { useClass: ValidationService },
+    [ZIBRI_DI_TOKENS.DATA_SOURCE_SERVICE]: { useClass: DataSourceService }
 } satisfies ZibriDiProviders;

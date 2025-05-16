@@ -1,4 +1,4 @@
-import { MetadataUtilities } from '../../encapsulation';
+import { MetadataUtilities } from '../../utilities';
 
 export function getDependencyStackTrace(errorName: string, message: string, resolvingStack: Function[]): string {
     const stackTrace: string[] = ['Dependency resolution stack:'];

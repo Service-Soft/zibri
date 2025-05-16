@@ -1,41 +1,20 @@
-import { MetadataUtilities } from '../../encapsulation';
-import { Newable } from '../../types';
+import { MetadataUtilities } from '../../utilities';
+import { ArrayPropertyMetadata, ArrayPropertyMetadataInput, DatePropertyMetadata, DatePropertyMetadataInput, NumberPropertyMetadata, NumberPropertyMetadataInput, ObjectPropertyMetadata, ObjectPropertyMetadataInput, StringPropertyMetadata, StringPropertyMetadataInput } from '../models';
 
-type SimpleDataType = 'string' | 'number';
+export type PropertyMetadata = StringPropertyMetadata
+    | NumberPropertyMetadata
+    | ObjectPropertyMetadata
+    | ArrayPropertyMetadata
+    | DatePropertyMetadata;
 
-type BasePropertyMetadata = {
-    required: boolean
-};
-
-export type SimplePropertyMetadata = BasePropertyMetadata & {
-    type: SimpleDataType
-};
-
-type SimplePropertyMetadataInput = Partial<BasePropertyMetadata> & Pick<SimplePropertyMetadata, 'type'>;
-
-export type ObjectPropertyMetadata = BasePropertyMetadata & {
-    type: 'object',
-    cls: Newable<unknown>
-};
-
-type ObjectPropertyMetadataInput = Partial<BasePropertyMetadata> & Pick<ObjectPropertyMetadata, 'type' | 'cls'>;
-
-export type ArrayPropertyMetadata = BasePropertyMetadata & {
-    type: 'array',
-    itemType: SimpleDataType | Newable<unknown>
-};
-
-type ArrayPropertyMetadataInput = Partial<BasePropertyMetadata> & Pick<ArrayPropertyMetadata, 'type' | 'itemType'>;
-
-export type PropertyMetadata = SimplePropertyMetadata | ObjectPropertyMetadata | ArrayPropertyMetadata;
-
-type PropertyMetadataInput = SimplePropertyMetadataInput | ObjectPropertyMetadataInput | ArrayPropertyMetadataInput;
+export type PropertyMetadataInput = StringPropertyMetadataInput
+    | NumberPropertyMetadataInput
+    | ObjectPropertyMetadataInput
+    | ArrayPropertyMetadataInput
+    | DatePropertyMetadataInput;
 
 export function Property(data: PropertyMetadataInput): PropertyDecorator {
-    const fullMetadata: PropertyMetadata = {
-        required: true,
-        ...data
-    };
+    const fullMetadata: PropertyMetadata = fillPropertyMetadata(data);
     return (target, key) => {
         const ctor: Function = target.constructor;
         // eslint-disable-next-line unicorn/error-message
@@ -45,4 +24,25 @@ export function Property(data: PropertyMetadataInput): PropertyDecorator {
         propertyMetadata[key as string] = fullMetadata;
         MetadataUtilities.setModelProperties(ctor, propertyMetadata);
     };
+}
+
+function fillPropertyMetadata(data: PropertyMetadataInput): PropertyMetadata {
+    switch (data.type) {
+        case 'number':
+        case 'string': {
+            return {
+                required: true,
+                primary: false,
+                ...data
+            };
+        }
+        case 'date':
+        case 'object':
+        case 'array': {
+            return {
+                required: true,
+                ...data
+            };
+        }
+    }
 }

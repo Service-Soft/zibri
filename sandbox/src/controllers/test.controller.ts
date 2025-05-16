@@ -1,77 +1,54 @@
-import { Controller, Get, Post, Patch, Delete, Param, NotFoundError, Body, Property } from 'zibri';
-import { logger } from '..';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Repository, InjectRepository, OmitType, PickType, IntersectionType } from 'zibri';
+import { Test } from '../models/test.model';
+import { User } from '../models/user.model';
 
-class Test {
-    @Property({ type: 'string' })
-    id!: string;
-    @Property({ type: 'number' })
-    value!: number;
-}
+class CreateDTO extends OmitType(Test, ['id']) {}
 
 @Controller('/tests')
 export class TestController {
-    private readonly testData: Test[] = [
-        {
-            id: '1',
-            value: 42
-        }
-    ];
+    constructor(
+        @InjectRepository(Test)
+        private readonly testRepository: Repository<Test>,
+        @InjectRepository(User)
+        private readonly userRepository: Repository<User>
+    ) {}
 
     @Get()
-    find(
-        @Param.query('filter', { type: 'object', cls: Test })
-        filter: Test,
-        @Param.header('Referer', { required: false })
-        referer?: string,
-        @Param.query('search', { type: 'number', required: false })
-        search?: number,
-    ): Test[] {
-        logger.info('filter', JSON.stringify(filter));
-        if (search != undefined) {
-            return this.testData.filter(t => t.value === search);
-        }
-        return this.testData;
+    async find(): Promise<Test[]> {
+        return await this.testRepository.findAll();
     }
 
     @Get('/:id')
-    findById(
+    async findById(
         @Param.path('id')
         id: string
-    ): Test {
-        const res = this.testData.find(t => t.id === id);
-        if (!res) {
-            throw new NotFoundError(`Could not find test entity with id "${id}"`);
-        }
-        return res;
+    ): Promise<Test> {
+        return await this.testRepository.findById(id);
     }
 
     @Post()
-    create(
-        @Body(Test)
-        test: Test
-    ): Test {
-        this.testData.push(test);
-        return test;
+    async create(
+        @Body(CreateDTO)
+        test: CreateDTO
+    ): Promise<Test> {
+        return await this.testRepository.create(test);
     }
 
     @Patch('/:id')
-    updateById(
+    async updateById(
         @Param.path('id')
         id: string,
         @Body(Test)
-        updateData: Partial<Test>
-    ): Test {
-        const toUpdate: Test = this.findById(id);
-        this.testData[this.testData.indexOf(toUpdate)] = {...toUpdate, ...updateData};
-        return this.testData[this.testData.indexOf(toUpdate)]
+        data: Test
+    ): Promise<Test> {
+        return await this.testRepository.updateById(id, data);
     }
 
     @Delete('/:id')
-    deleteById(
+    async deleteById(
         @Param.path('id')
         id: string
-    ): void {
-        const toDelete: Test = this.findById(id);
-        this.testData.splice(this.testData.indexOf(toDelete), 1);
+    ): Promise<void> {
+        return await this.testRepository.deleteById(id);
     }
 }

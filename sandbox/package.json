@@ -4,9 +4,7 @@
     "main": "./dist/index.js",
     "scripts": {
         "start": "webpack --watch",
-        "build": "webpack",
-        "build:watch": "webpack --watch",
-        "start:old": "tsc-watch --target es2017 --outDir ./dist --onSuccess \"node --enable-source-maps .\""
+        "build": "webpack"
     },
     "keywords": [],
     "author": "",

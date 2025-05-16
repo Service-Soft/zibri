@@ -1,6 +1,6 @@
-import { MetadataUtilities } from '../../encapsulation';
 import { KnownHeader } from '../../http';
 import { Newable, OmitStrict } from '../../types';
+import { MetadataUtilities } from '../../utilities';
 
 export type PathParamMetadata = {
     name: string,

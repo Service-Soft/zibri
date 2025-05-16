@@ -1,5 +1,5 @@
-import { MetadataUtilities } from '../../encapsulation';
-import { Newable } from '../../types';
+import { Newable, OmitStrict } from '../../types';
+import { MetadataUtilities } from '../../utilities';
 
 export type BodyMetadata = {
     modelClass: Newable<unknown>,
@@ -9,7 +9,9 @@ export type BodyMetadata = {
     required: boolean
 };
 
-export function Body(modelClass: Newable<unknown>, options: Partial<Pick<BodyMetadata, 'required'>> = {}): ParameterDecorator {
+export type BodyMetadataInput = Partial<OmitStrict<BodyMetadata, 'modelClass' | 'index' | 'name'>>;
+
+export function Body(modelClass: Newable<unknown>, options: BodyMetadataInput = {}): ParameterDecorator {
     return (target, propertyKey, index) => {
         const fullMetadata: BodyMetadata = {
             index,

@@ -1,9 +1,10 @@
-import { MetadataUtilities } from '../encapsulation';
-import { ArrayPropertyMetadata, PropertyMetadata } from '../entity';
+import { PropertyMetadata } from '../entity';
+import { ArrayPropertyMetadata } from '../entity/models';
 import { ValidationError } from '../error-handling';
 import { ArrayQueryParamMetadata, HeaderParamMetadata, PathParamMetadata, QueryParamMetadata } from '../routing';
 import { Newable } from '../types';
-import { validateBooleanHeaderParam, validateBooleanQueryParam, validateDateHeaderParam, validateDateQueryParam, validateNumberPathParam, validateNumberProperty, validateNumberQueryParam, validateStringHeaderParam, validateStringPathParam, validateStringProperty, validateStringQueryParam } from './functions';
+import { MetadataUtilities } from '../utilities';
+import { validateBooleanHeaderParam, validateBooleanQueryParam, validateDateHeaderParam, validateDateProperty, validateDateQueryParam, validateNumberPathParam, validateNumberProperty, validateNumberQueryParam, validateStringHeaderParam, validateStringPathParam, validateStringProperty, validateStringQueryParam } from './functions';
 import { validateNumberHeaderParam } from './functions/validate-number-header-param.function';
 import { IsRequiredValidationProblem, ValidationProblem } from './validation-problem.model';
 import { ValidationServiceInterface } from './validation-service.interface';
@@ -48,7 +49,8 @@ export class ValidationService implements ValidationServiceInterface {
         object: this.validateObjectProperty.bind(this),
         array: this.validateArrayProperty.bind(this),
         number: validateNumberProperty,
-        string: validateStringProperty
+        string: validateStringProperty,
+        date: validateDateProperty
     };
 
     private validateObjectQueryParam(param: unknown, meta: QueryParamMetadata, parentKey: string | undefined): ValidationProblem[] {
@@ -206,15 +208,12 @@ export class ValidationService implements ValidationServiceInterface {
 
     private getPropertyArrayItemMetadata(metadata: ArrayPropertyMetadata): PropertyMetadata {
         switch (metadata.itemType) {
-            case 'number': {
-                return {
-                    type: 'number',
-                    required: true
-                };
-            }
+            case 'date':
+            case 'number':
             case 'string': {
                 return {
-                    type: 'string',
+                    primary: false,
+                    type: metadata.itemType,
                     required: true
                 };
             }

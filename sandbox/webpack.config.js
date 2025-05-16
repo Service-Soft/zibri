@@ -1,11 +1,13 @@
 const path = require('path');
 const { spawn } = require('child_process');
 const CopyPlugin = require('copy-webpack-plugin');
+const { IgnorePlugin } = require('webpack');
 
 class OnBuildSuccessPlugin {
+    /** @type {import('webpack').WebpackPluginFunction } */
     apply(compiler) {
         compiler.hooks.done.tap('OnBuildSuccessPlugin', stats => {
-            if (stats.hasErrors()) {
+            if (stats.hasErrors() || compiler.watchMode === false) {
                 return;
             }
 
@@ -20,9 +22,7 @@ class OnBuildSuccessPlugin {
     }
 }
 
-/** 
- * @type {import('webpack').Configuration} 
- */
+/** @type {import('webpack').Configuration} */
 module.exports = {
     target: 'node',
     mode: 'none',
@@ -67,5 +67,6 @@ module.exports = {
                 },
             ],
         }),
+        new IgnorePlugin({ resourceRegExp: /^pg-native$|^cloudflare:sockets$/ })
     ]
 };

@@ -1,6 +1,6 @@
 {
     "name": "zibri",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "main": "./dist/index.js",
     "module": "./dist/index.mjs",
     "exports": {
@@ -10,6 +10,7 @@
             "require": "./dist/index.js"
         }
     },
+    "files": ["./dist", "./README.md", "./LICENSE", "./assets"],
     "engines": {
         "node": ">=20"
     },
@@ -45,6 +46,8 @@
         "express": "^5.1.0",
         "handlebars": "^4.7.8",
         "reflect-metadata": "^0.2.2",
-        "swagger-ui-express": "^5.0.1"
+        "swagger-ui-express": "^5.0.1",
+        "typeorm": "^0.3.23",
+        "pg": "^8.16.0"
     }
 }

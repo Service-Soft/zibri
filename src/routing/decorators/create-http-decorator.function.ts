@@ -1,5 +1,5 @@
-import { MetadataUtilities } from '../../encapsulation';
 import { HttpMethod } from '../../http';
+import { MetadataUtilities } from '../../utilities';
 import { Route, ControllerRouteConfiguration } from '../controller-route-configuration.model';
 
 export function createHttpDecorator(method: HttpMethod, path: Route): MethodDecorator {

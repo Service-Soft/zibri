@@ -1,4 +1,4 @@
-import { MetadataUtilities } from '../../encapsulation';
+import { MetadataUtilities } from '../../utilities';
 import { DiToken } from '../models';
 
 export function Inject<T>(token: DiToken<T>): ParameterDecorator {

@@ -1,6 +1,6 @@
-import { MetadataUtilities } from '../encapsulation';
 import { GlobalRegistry } from '../global';
 import { Newable } from '../types';
+import { MetadataUtilities } from '../utilities';
 import { ZIBRI_DI_TOKENS } from './default';
 import { ZIBRI_DI_PROVIDERS } from './default/zibri-di-providers.default';
 import { NoProviderError } from './errors/no-provider.error';

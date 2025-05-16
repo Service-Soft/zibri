@@ -7,8 +7,8 @@ import swaggerUi from 'swagger-ui-express';
 import { ZibriApplication } from '../application';
 import { AssetServiceInterface } from '../assets';
 import { inject, ZIBRI_DI_TOKENS } from '../di';
-import { MetadataUtilities } from '../encapsulation';
-import { ArrayPropertyMetadata, ObjectPropertyMetadata, PropertyMetadata } from '../entity';
+import { PropertyMetadata } from '../entity';
+import { ArrayPropertyMetadata, ObjectPropertyMetadata } from '../entity/models';
 import { GlobalRegistry } from '../global';
 import { MimeType } from '../http';
 import { LoggerInterface } from '../logging';
@@ -17,6 +17,7 @@ import { OpenApiServiceInterface } from './open-api-service.interface';
 import { OpenApiDefinition, OpenApiOperation, OpenApiParameter, OpenApiPaths, OpenApiRequestBodyObject, OpenApiSchemaObject } from './open-api.model';
 import { MissingBaseRouteError } from '../routing/missing-base-route.error';
 import { Newable } from '../types';
+import { MetadataUtilities } from '../utilities';
 
 export class OpenApiService implements OpenApiServiceInterface {
     readonly openApiRoute: Route = '/explorer';
@@ -61,6 +62,7 @@ export class OpenApiService implements OpenApiServiceInterface {
             ].join('\n'));
         });
 
+        app.express.use(this.openApiRoute, swaggerUi.serve);
         app.express.get(
             this.openApiRoute,
             swaggerUi.setup(
@@ -173,6 +175,10 @@ export class OpenApiService implements OpenApiServiceInterface {
                 required.push(key);
             }
             switch (meta.type) {
+                case 'date': {
+                    properties[key] = { type: 'string', format: 'date-time' };
+                    continue;
+                }
                 case 'string':
                 case 'number': {
                     properties[key] = { type: meta.type };
@@ -185,11 +191,19 @@ export class OpenApiService implements OpenApiServiceInterface {
                 }
                 case 'array': {
                     const m: ArrayPropertyMetadata = meta;
+                    let items: OpenApiSchemaObject;
+                    if (typeof m.itemType === 'function') {
+                        items = this.buildOpenApiSchemaForModel(m.itemType);
+                    }
+                    else if (m.itemType === 'date') {
+                        items = { type: 'string', format: 'date-time' };
+                    }
+                    else {
+                        items = { type: m.itemType };
+                    }
                     properties[key] = {
                         type: 'array',
-                        items: typeof m.itemType === 'function'
-                            ? this.buildOpenApiSchemaForModel(m.itemType)
-                            : { type: m.itemType }
+                        items
                     };
                     continue;
                 }

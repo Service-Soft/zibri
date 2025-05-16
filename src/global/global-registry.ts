@@ -1,10 +1,12 @@
 import { ZibriApplicationOptions } from '../application-options.model';
+import { BaseDataSource, BaseEntity } from '../data-source';
 import { DiProvider } from '../di';
 import { BodyParserInterface } from '../parsing';
 import { Newable } from '../types';
 
 export enum AppState {
     OFFLINE = 'offline',
+    CREATED = 'created',
     INITIALIZED = 'initialized',
     RUNNING = 'running'
 }
@@ -20,28 +22,52 @@ export abstract class GlobalRegistry {
     };
     static readonly injectables: DiProvider<unknown>[] = [];
     static readonly controllerClasses: Newable<Object>[] = [];
+    static readonly dataSourceClasses: Newable<BaseDataSource>[] = [];
+    static readonly entityClasses: Newable<BaseEntity>[] = [];
     static readonly bodyParsers: Newable<BodyParserInterface>[] = [];
 
     private static readonly validateAppStateChange: Record<AppState, () => void> = {
         [AppState.OFFLINE]: () => {
             throw new Error(`Cannot manually mark an an app as "${AppState.OFFLINE}".`);
         },
+        [AppState.CREATED]: () => {
+            switch (this.appData.state) {
+                case AppState.OFFLINE: {
+                    return;
+                }
+                case AppState.CREATED: {
+                    throw new Error('The app has already been marked as created.');
+                }
+                case AppState.INITIALIZED: {
+                    throw new Error('The app has already been marked as initialized.');
+                }
+                case AppState.RUNNING: {
+                    throw new Error('The app has already been marked as running.');
+                }
+            }
+        },
         [AppState.INITIALIZED]: () => {
             switch (this.appData.state) {
                 case AppState.OFFLINE: {
+                    throw new Error('The app has not been marked as created yet.');
+                }
+                case AppState.CREATED: {
                     return;
                 }
                 case AppState.INITIALIZED: {
                     throw new Error('The app has already been marked as initialized.');
                 }
                 case AppState.RUNNING: {
-                    throw new Error(`Cannot change the app state from "${AppState.RUNNING}" to "${AppState.INITIALIZED}"`);
+                    throw new Error('The app has already been marked as running');
                 }
             }
         },
         [AppState.RUNNING]: () => {
             switch (this.appData.state) {
                 case AppState.OFFLINE: {
+                    throw new Error('The app has not been marked as initialized yet.');
+                }
+                case AppState.CREATED: {
                     throw new Error('The app has not been marked as initialized yet.');
                 }
                 case AppState.INITIALIZED: {
@@ -62,6 +88,10 @@ export abstract class GlobalRegistry {
         this.appData.name = options.name;
     }
 
+    static markAppAsCreated(): void {
+        this.changeAppState(AppState.CREATED);
+    }
+
     static markAppAsInitialized(): void {
         this.changeAppState(AppState.INITIALIZED);
     }
@@ -76,6 +106,10 @@ export abstract class GlobalRegistry {
 
     static isAppInitialized(): boolean {
         return this.appData.state === AppState.INITIALIZED;
+    }
+
+    static isAppCreated(): boolean {
+        return this.appData.state === AppState.CREATED;
     }
 
     private static changeAppState(state: AppState): void {

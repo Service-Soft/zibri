@@ -1,6 +1,6 @@
-import { MetadataUtilities } from '../../encapsulation';
 import { GlobalRegistry } from '../../global';
 import { Newable } from '../../types';
+import { MetadataUtilities } from '../../utilities';
 import { Route } from '../controller-route-configuration.model';
 
 export function Controller(baseRoute: Route): ClassDecorator {

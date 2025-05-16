@@ -1,4 +1,4 @@
-import { isNumeric } from '../../encapsulation';
+import { isNumeric } from '../../utilities';
 
 export function parseNumberHeaderParam(rawValue: string | undefined): unknown {
     if (!isNumeric(rawValue)) {

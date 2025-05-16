@@ -1,5 +1,5 @@
 import { getDependencyStackTrace } from './get-dependency-stack-trace.function';
-import { MetadataUtilities } from '../../encapsulation';
+import { MetadataUtilities } from '../../utilities';
 import { DiToken } from '../models';
 
 function tokenIsPrimitiveValue(token: DiToken<unknown>): boolean {

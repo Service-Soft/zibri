@@ -14,3 +14,5 @@ export * from './entity';
 export * from './parsing';
 export * from './http';
 export * from './validation';
+export * from './data-source';
+export * from './types/newable.model';
