@@ -1,10 +1,16 @@
-import { Newable } from '../../types';
-import { PropertyMetadata } from '../decorators';
+import { OmitStrict } from '../../types';
+import { PropertyMetadata, PropertyMetadataInput, RelationMetadata } from '../decorators';
+import { BaseEntity } from './base-entity.model';
+import { BasePropertyMetadata } from './base-property-metadata.model';
 
-export type ArrayPropertyMetadata = {
-    required: boolean,
+export type ArrayPropertyMetadata = BasePropertyMetadata & {
     type: 'array',
-    itemType: Exclude<PropertyMetadata['type'], 'object' | 'array'> | Newable<unknown>
+    items: PropertyMetadata
 };
 
-export type ArrayPropertyMetadataInput = Partial<ArrayPropertyMetadata> & Pick<ArrayPropertyMetadata, 'type' | 'itemType'>;
+type ArrayItemPropertyType = Exclude<PropertyMetadata['type'], RelationMetadata<BaseEntity>['type']>;
+
+export type ArrayPropertyItemMetadata = PropertyMetadataInput & { type: ArrayItemPropertyType };
+
+export type ArrayPropertyMetadataInput = Partial<OmitStrict<ArrayPropertyMetadata, 'type' | 'items'>>
+    & { items: ArrayPropertyItemMetadata };

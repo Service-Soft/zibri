@@ -1,19 +1,17 @@
-import { PropertyMetadata } from '../entity';
-import { ArrayPropertyMetadata } from '../entity/models';
+import { BaseEntity, PropertyMetadata, RelationMetadata } from '../entity';
 import { ValidationError } from '../error-handling';
-import { ArrayQueryParamMetadata, HeaderParamMetadata, PathParamMetadata, QueryParamMetadata } from '../routing';
+import { HeaderParamMetadata, PathParamMetadata, QueryParamMetadata } from '../routing';
 import { Newable } from '../types';
 import { MetadataUtilities } from '../utilities';
-import { validateBooleanHeaderParam, validateBooleanQueryParam, validateDateHeaderParam, validateDateProperty, validateDateQueryParam, validateNumberPathParam, validateNumberProperty, validateNumberQueryParam, validateStringHeaderParam, validateStringPathParam, validateStringProperty, validateStringQueryParam } from './functions';
-import { validateNumberHeaderParam } from './functions/validate-number-header-param.function';
-import { IsRequiredValidationProblem, ValidationProblem } from './validation-problem.model';
+import { validateBoolean, validateDate, validateNumber, validateString } from './functions';
+import { IsRequiredValidationProblem, RelationsNotAllowedValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from './validation-problem.model';
 import { ValidationServiceInterface } from './validation-service.interface';
 
-type PathParamValidationFunction = (param: unknown, meta: PathParamMetadata) => ValidationProblem[];
+type PathParamValidationFunction = (param: unknown, meta: PathParamMetadata, parentKey: string | undefined) => ValidationProblem[];
 
 type QueryParamValidationFunction = (param: unknown, meta: QueryParamMetadata, parentKey: string | undefined) => ValidationProblem[];
 
-type HeaderParamValidationFunction = (param: unknown, meta: HeaderParamMetadata) => ValidationProblem[];
+type HeaderParamValidationFunction = (param: unknown, meta: HeaderParamMetadata, parentKey: string | undefined) => ValidationProblem[];
 
 type PropertyValidationFunction = (
     key: string,
@@ -25,87 +23,46 @@ type PropertyValidationFunction = (
 export class ValidationService implements ValidationServiceInterface {
 
     private readonly pathParamValidationFunctions: Record<PathParamMetadata['type'], PathParamValidationFunction> = {
-        string: validateStringPathParam,
-        number: validateNumberPathParam
+        string: (param, meta, parentKey) => validateString(meta.name, param, meta, parentKey),
+        number: (param, meta, parentKey) => validateNumber(meta.name, param, meta, parentKey),
+        boolean: (param, meta, parentKey) => validateBoolean(meta.name, param, meta, parentKey),
+        date: (param, meta, parentKey) => validateDate(meta.name, param, meta, parentKey)
     };
 
     private readonly queryParamValidationFunctions: Record<QueryParamMetadata['type'], QueryParamValidationFunction> = {
-        string: validateStringQueryParam,
-        number: validateNumberQueryParam,
-        boolean: validateBooleanQueryParam,
-        date: validateDateQueryParam,
-        object: this.validateObjectQueryParam.bind(this),
-        array: this.validateArrayQueryParam.bind(this)
+        string: (param, meta, parentKey) => validateString(meta.name, param, meta, parentKey),
+        number: (param, meta, parentKey) => validateNumber(meta.name, param, meta, parentKey),
+        boolean: (param, meta, parentKey) => validateBoolean(meta.name, param, meta, parentKey),
+        date: (param, meta, parentKey) => validateDate(meta.name, param, meta, parentKey),
+        object: (param, meta, parentKey) => this.validateObjectProperty(meta.name, param, meta, parentKey),
+        array: (param, meta, parentKey) => this.validateArrayProperty(meta.name, param, meta, parentKey)
     };
 
     private readonly headerParamValidationFunctions: Record<HeaderParamMetadata['type'], HeaderParamValidationFunction> = {
-        string: validateStringHeaderParam,
-        number: validateNumberHeaderParam,
-        boolean: validateBooleanHeaderParam,
-        date: validateDateHeaderParam
+        string: (param, meta, parentKey) => validateString(meta.name, param, meta, parentKey),
+        number: (param, meta, parentKey) => validateNumber(meta.name, param, meta, parentKey),
+        boolean: (param, meta, parentKey) => validateBoolean(meta.name, param, meta, parentKey),
+        date: (param, meta, parentKey) => validateDate(meta.name, param, meta, parentKey),
+        object: (param, meta, parentKey) => this.validateObjectProperty(meta.name, param, meta, parentKey),
+        array: (param, meta, parentKey) => this.validateArrayProperty(meta.name, param, meta, parentKey)
     };
 
-    private readonly propertyValidationFunctions: Record<PropertyMetadata['type'], PropertyValidationFunction> = {
+    // eslint-disable-next-line stylistic/max-len
+    private readonly propertyValidationFunctions: Record<Exclude<PropertyMetadata, RelationMetadata<BaseEntity>>['type'], PropertyValidationFunction> = {
         object: this.validateObjectProperty.bind(this),
         array: this.validateArrayProperty.bind(this),
-        number: validateNumberProperty,
-        string: validateStringProperty,
-        date: validateDateProperty
+        number: validateNumber,
+        string: validateString,
+        date: validateDate,
+        boolean: validateBoolean
     };
-
-    private validateObjectQueryParam(param: unknown, meta: QueryParamMetadata, parentKey: string | undefined): ValidationProblem[] {
-        const fullKey: string = parentKey ? `${parentKey}.${meta.name}` : meta.name;
-        if (meta.type !== 'object') {
-            throw new Error('Tried to do object based validation on a non object value.');
-        }
-
-        if (param == undefined && meta.required) {
-            return [new IsRequiredValidationProblem(fullKey)];
-        }
-        if (param == undefined && !meta.required) {
-            return [];
-        }
-        if (typeof param !== 'object') {
-            return [{ key: fullKey, message: 'should be an object' }];
-        }
-        return this.validateModel(param, meta.cls, fullKey);
-    }
-
-    private validateArrayQueryParam(param: unknown, meta: QueryParamMetadata, parentKey: string | undefined): ValidationProblem[] {
-        const fullKey: string = parentKey ? `${parentKey}.${meta.name}` : meta.name;
-        if (meta.type !== 'array') {
-            throw new Error('Tried to do array based validation on a non array value.');
-        }
-        if (param == undefined && meta.required) {
-            return [new IsRequiredValidationProblem(fullKey)];
-        }
-        if (param == undefined && !meta.required) {
-            return [];
-        }
-        if (!Array.isArray(param)) {
-            return [{ key: meta.name, message: 'should be an array' }];
-        }
-
-        const res: ValidationProblem[] = [];
-        for (let i: number = 0; i < param.length; i++) {
-            const item: unknown = param[i];
-            const m: QueryParamMetadata = this.getQueryArrayItemMetadata(i, meta);
-            const validate: QueryParamValidationFunction | undefined = this.queryParamValidationFunctions[m.type];
-            if (validate == undefined) {
-                throw new Error(`Unknown type for query parameter "${fullKey}.${m.name}": ${m.type}`);
-            }
-            const errors: ValidationProblem[] = validate(item, m, fullKey);
-            res.push(...errors);
-        }
-        return res;
-    }
 
     validateHeaderParam(param: unknown, meta: HeaderParamMetadata): void {
         const validate: HeaderParamValidationFunction | undefined = this.headerParamValidationFunctions[meta.type];
         if (validate == undefined) {
             throw new Error(`Unknown type for header parameter "${meta.name}": ${meta.type}`);
         }
-        const res: ValidationProblem[] = validate(param, meta);
+        const res: ValidationProblem[] = validate(param, meta, undefined);
         if (res.length) {
             throw new ValidationError('header', res);
         }
@@ -116,7 +73,7 @@ export class ValidationService implements ValidationServiceInterface {
         if (validate == undefined) {
             throw new Error(`Unknown type for path parameter "${meta.name}": ${meta.type}`);
         }
-        const res: ValidationProblem[] = validate(param, meta);
+        const res: ValidationProblem[] = validate(param, meta, undefined);
         if (res.length) {
             throw new ValidationError('path', res);
         }
@@ -167,6 +124,15 @@ export class ValidationService implements ValidationServiceInterface {
     ): ValidationProblem[] {
         const fullKey: string = parentKey ? `${parentKey}.${key}` : key;
 
+        if (
+            metadata.type === 'many-to-one'
+            || metadata.type === 'one-to-many'
+            || metadata.type === 'one-to-one'
+            || metadata.type === 'many-to-many'
+        ) {
+            return [new RelationsNotAllowedValidationProblem(fullKey, metadata, key)];
+        }
+
         const validate: PropertyValidationFunction | undefined = this.propertyValidationFunctions[metadata.type];
         if (validate == undefined) {
             throw new Error(`Unknown type for property "${fullKey}": ${metadata.type}`);
@@ -178,7 +144,7 @@ export class ValidationService implements ValidationServiceInterface {
     private validateArrayProperty(
         key: string,
         property: unknown,
-        metadata: PropertyMetadata,
+        metadata: PropertyMetadata | QueryParamMetadata | HeaderParamMetadata | PathParamMetadata,
         parentKey: string | undefined
     ): ValidationProblem[] {
         if (metadata.type !== 'array') {
@@ -193,67 +159,22 @@ export class ValidationService implements ValidationServiceInterface {
             return [];
         }
         if (!Array.isArray(property)) {
-            return [{ key: fullKey, message: 'should be an array' }];
+            return [new TypeMismatchValidationProblem(fullKey, 'array')];
         }
 
         const res: ValidationProblem[] = [];
         for (let i: number = 0; i < property.length; i++) {
             const item: unknown = property[i];
-            const m: PropertyMetadata = this.getPropertyArrayItemMetadata(metadata);
-            const errors: ValidationProblem[] = this.validateProperty(String(i), item, m, key);
+            const errors: ValidationProblem[] = this.validateProperty(String(i), item, metadata.items, key);
             res.push(...errors);
         }
         return res;
     }
 
-    private getPropertyArrayItemMetadata(metadata: ArrayPropertyMetadata): PropertyMetadata {
-        switch (metadata.itemType) {
-            case 'date':
-            case 'number':
-            case 'string': {
-                return {
-                    primary: false,
-                    type: metadata.itemType,
-                    required: true
-                };
-            }
-            default: {
-                return {
-                    type: 'object',
-                    cls: metadata.itemType,
-                    required: true
-                };
-            }
-        }
-    }
-
-    private getQueryArrayItemMetadata(index: number, metadata: ArrayQueryParamMetadata): QueryParamMetadata {
-        switch (metadata.itemType) {
-            case 'date':
-            case 'string':
-            case 'boolean':
-            case 'number': {
-                return {
-                    name: String(index),
-                    type: metadata.itemType,
-                    required: true
-                };
-            }
-            default: {
-                return {
-                    name: String(index),
-                    type: 'object',
-                    cls: metadata.itemType,
-                    required: true
-                };
-            }
-        }
-    }
-
     private validateObjectProperty(
         key: string,
         property: unknown,
-        metadata: PropertyMetadata,
+        metadata: PropertyMetadata | QueryParamMetadata | HeaderParamMetadata | PathParamMetadata,
         parentKey: string | undefined
     ): ValidationProblem[] {
         if (metadata.type !== 'object') {
@@ -268,7 +189,7 @@ export class ValidationService implements ValidationServiceInterface {
             return [];
         }
         if (typeof property !== 'object') {
-            return [{ key: fullKey, message: 'should be an object' }];
+            return [new TypeMismatchValidationProblem(fullKey, 'object')];
         }
 
         const objectProperties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(metadata.cls);

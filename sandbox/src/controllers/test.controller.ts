@@ -1,6 +1,5 @@
 import { Controller, Get, Post, Patch, Delete, Param, Body, Repository, InjectRepository, OmitType, PickType, IntersectionType } from 'zibri';
-import { Test } from '../models/test.model';
-import { User } from '../models/user.model';
+import { Test, User } from '../models';
 
 class CreateDTO extends OmitType(Test, ['id']) {}
 
@@ -15,12 +14,12 @@ export class TestController {
 
     @Get()
     async find(): Promise<Test[]> {
-        return await this.testRepository.findAll();
+        return await this.testRepository.findAll({ relations: [ '' ] });
     }
 
     @Get('/:id')
     async findById(
-        @Param.path('id')
+        @Param.path('id', { format: 'uuid' })
         id: string
     ): Promise<Test> {
         return await this.testRepository.findById(id);
@@ -36,7 +35,7 @@ export class TestController {
 
     @Patch('/:id')
     async updateById(
-        @Param.path('id')
+        @Param.path('id', { format: 'uuid' })
         id: string,
         @Body(Test)
         data: Test
@@ -46,7 +45,7 @@ export class TestController {
 
     @Delete('/:id')
     async deleteById(
-        @Param.path('id')
+        @Param.path('id', { format: 'uuid' })
         id: string
     ): Promise<void> {
         return await this.testRepository.deleteById(id);

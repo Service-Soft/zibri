@@ -11,7 +11,7 @@ export function PartialType<T>(
     const original: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(Base);
     const partialMeta: Record<string, PropertyMetadata> = {};
     for (const [prop, meta] of Object.entries(original)) {
-        partialMeta[prop] = { ...meta, required: false };
+        partialMeta[prop] = 'required' in meta ? { ...meta, required: false } : meta;
     }
     MetadataUtilities.setModelProperties(PartialClass, partialMeta);
 

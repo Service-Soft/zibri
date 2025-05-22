@@ -1,9 +1,17 @@
 import { Entity, Property } from "zibri";
+import { Company } from "./company.model";
 
 @Entity()
 export class User {
-    @Property({ type: 'string', primary: true })
+    @Property.string({ primary: true })
     id!: string;
-    @Property({ type: 'number' })
+
+    @Property.number()
     value!: number;
+
+    @Property.manyToOne({ target: () => Company, inverseSide: 'users' })
+    company!: Company;
+
+    @Property.boolean()
+    isAdmin!: boolean;
 }

@@ -1,6 +1,5 @@
 import { BaseDataSource, BaseEntity, DataSource, Newable, DataSourceOptions } from "zibri";
-import { Test } from "../models/test.model";
-import { User } from "../models/user.model";
+import { Company, Test, User } from "../models";
 
 @DataSource()
 export class DbDataSource extends BaseDataSource {
@@ -15,6 +14,7 @@ export class DbDataSource extends BaseDataSource {
     };
     entities: Newable<BaseEntity>[] = [
         Test,
-        User
+        User,
+        Company
     ];
 }

@@ -1,60 +1,59 @@
-import { KnownHeader } from '../../http';
-import { Newable, OmitStrict } from '../../types';
+import { Header } from '../../http';
 import { MetadataUtilities } from '../../utilities';
+import { ArrayParamMetadata, ArrayParamMetadataInput, BooleanParamMetadata, BooleanParamMetadataInput, DateParamMetadata, DateParamMetadataInput, NumberParamMetadata, NumberParamMetadataInput, ObjectParamMetadata, ObjectParamMetadataInput, StringParamMetadata, StringParamMetadataInput } from '../models';
 
-export type PathParamMetadata = {
-    name: string,
-    description?: string,
-    required: boolean,
-    type: 'string' | 'number'
+export type PathParamMetadata = StringParamMetadata
+    | NumberParamMetadata
+    | BooleanParamMetadata
+    | DateParamMetadata;
+
+export type PathParamMetadataInput = StringParamMetadataInput
+    | NumberParamMetadataInput
+    | BooleanParamMetadataInput
+    | DateParamMetadataInput;
+
+export type QueryParamMetadata = StringParamMetadata
+    | NumberParamMetadata
+    | BooleanParamMetadata
+    | DateParamMetadata
+    | ObjectParamMetadata
+    | ArrayParamMetadata;
+
+export type QueryParamMetadataInput = StringParamMetadataInput
+    | NumberParamMetadataInput
+    | BooleanParamMetadataInput
+    | DateParamMetadataInput
+    | ObjectParamMetadataInput
+    | ArrayParamMetadataInput;
+
+export type HeaderParamMetadata = (
+    StringParamMetadata
+    | NumberParamMetadata
+    | BooleanParamMetadata
+    | DateParamMetadata
+    | ObjectParamMetadata
+    | ArrayParamMetadata
+) & {
+    name: Header
 };
 
-type BaseQueryParamMetadata = {
-    name: string,
-    description?: string,
-    required: boolean
-};
-
-export type SimpleQueryParamMetadata = BaseQueryParamMetadata & {
-    type: 'string' | 'number' | 'boolean' | 'date'
-};
-
-type SimpleQueryParamMetadataInput = Partial<OmitStrict<SimpleQueryParamMetadata, 'name'>>;
-
-export type ObjectQueryParamMetadata = BaseQueryParamMetadata & {
-    type: 'object',
-    cls: Newable<unknown>
-};
-
-type ObjectQueryParamMetadataInput = OmitStrict<ObjectQueryParamMetadata, 'name' | keyof BaseQueryParamMetadata>
-    & Partial<OmitStrict<BaseQueryParamMetadata, 'name'>>;
-
-export type ArrayQueryParamMetadata = BaseQueryParamMetadata & {
-    type: 'array',
-    itemType: 'string' | 'number' | 'boolean' | 'date' | Newable<unknown>
-};
-
-type ArrayQueryParamMetadataInput = OmitStrict<ArrayQueryParamMetadata, 'name' | keyof BaseQueryParamMetadata>
-    & Partial<OmitStrict<BaseQueryParamMetadata, 'name'>>;
-
-export type QueryParamMetadata = SimpleQueryParamMetadata | ObjectQueryParamMetadata | ArrayQueryParamMetadata;
-
-type QueryParamMetadataInput = SimpleQueryParamMetadataInput | ObjectQueryParamMetadataInput | ArrayQueryParamMetadataInput;
-
-export type HeaderParamMetadata = {
-    name: KnownHeader | Omit<string, KnownHeader>,
-    description?: string,
-    required: boolean,
-    type: 'string' | 'number' | 'boolean' | 'date'
-};
+export type HeaderParamMetadataInput = StringParamMetadataInput
+    | NumberParamMetadataInput
+    | BooleanParamMetadataInput
+    | DateParamMetadataInput
+    | ObjectParamMetadataInput
+    | ArrayParamMetadataInput;
 
 // eslint-disable-next-line typescript/no-namespace
 export namespace Param {
-    export function path(name: string, options: Partial<OmitStrict<PathParamMetadata, 'name'>> = {}): ParameterDecorator {
+    export function path(name: string, options: PathParamMetadataInput = {}): ParameterDecorator {
         const fullMetadata: PathParamMetadata = {
             name: name,
             required: true,
             type: 'string',
+            format: undefined,
+            unique: false,
+            description: undefined,
             ...options
         };
         return (target, propertyKey, parameterIndex) => {
@@ -74,6 +73,9 @@ export namespace Param {
             name: name,
             required: true,
             type: 'string',
+            format: undefined,
+            unique: false,
+            description: undefined,
             ...options
         };
         return (target, propertyKey, parameterIndex) => {
@@ -89,13 +91,16 @@ export namespace Param {
     }
 
     export function header(
-        name: KnownHeader | Omit<string, KnownHeader>,
-        options: Partial<OmitStrict<HeaderParamMetadata, 'name'>> = {}
+        name: Header,
+        options: HeaderParamMetadataInput = {}
     ): ParameterDecorator {
         const fullMetadata: HeaderParamMetadata = {
             name: name,
             required: true,
             type: 'string',
+            format: undefined,
+            unique: false,
+            description: undefined,
             ...options
         };
         return (target, propertyKey, parameterIndex) => {

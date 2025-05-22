@@ -2,8 +2,8 @@ import { Entity, Property } from "zibri";
 
 @Entity()
 export class Test {
-    @Property({ type: 'string', primary: true })
+    @Property.string({ primary: true })
     id!: string;
-    @Property({ type: 'number' })
+    @Property.number()
     value!: number;
 }

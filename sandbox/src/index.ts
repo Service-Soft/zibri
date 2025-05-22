@@ -1,6 +1,6 @@
 import { inject, LoggerInterface, ZIBRI_DI_TOKENS, ZibriApplication } from "zibri";
-import { TestController } from "./controllers/test.controller";
-import { DbDataSource } from "./data-sources/db.data-source";
+import { TestController } from "./controllers";
+import { DbDataSource } from "./data-sources";
 
 export let logger: LoggerInterface;
 

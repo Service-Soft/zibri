@@ -11,5 +11,6 @@ export enum MetadataInjectionKeys {
     ROUTE_HEADER_PARAMS = 'route:header_params',
     ROUTE_BODY = 'route:body',
     MODEL_PROPERTIES = 'model:properties',
+    MODEL_RELATIONS = 'model:relations',
     ENTITY_METADATA = 'entity:metadata'
 }

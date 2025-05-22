@@ -1,6 +1,7 @@
 import { ZibriApplicationOptions } from '../application-options.model';
-import { BaseDataSource, BaseEntity } from '../data-source';
+import { BaseDataSource } from '../data-source';
 import { DiProvider } from '../di';
+import { BaseEntity } from '../entity';
 import { BodyParserInterface } from '../parsing';
 import { Newable } from '../types';
 

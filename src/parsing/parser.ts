@@ -7,7 +7,7 @@ import { isMimeType } from '../http';
 import { ParserInterface } from './parser.interface';
 import { LoggerInterface } from '../logging';
 import { HeaderParamMetadata, PathParamMetadata, QueryParamMetadata } from '../routing';
-import { parseArrayQueryParam, parseBooleanHeaderParam, parseBooleanQueryParam, parseDateHeaderParam, parseDateQueryParam, parseNumberHeaderParam, parseNumberPathParam, parseNumberQueryParam, parseObjectQueryParam, parseStringHeaderParam, parseStringPathParam, parseStringQueryParam } from './functions';
+import { parseArray, parseBoolean, parseDate, parseNumber, parseObject, parseString } from './functions';
 
 type PathParamParseFunction = (rawValue: string | undefined, meta: PathParamMetadata) => unknown;
 
@@ -20,24 +20,28 @@ export class Parser implements ParserInterface {
     private readonly bodyParsers: BodyParserInterface[] = [];
 
     private readonly pathParamParseFunctions: Record<PathParamMetadata['type'], PathParamParseFunction> = {
-        string: parseStringPathParam,
-        number: parseNumberPathParam
+        string: parseString,
+        number: parseNumber,
+        boolean: parseBoolean,
+        date: parseDate
     };
 
     private readonly queryParamParseFunctions: Record<QueryParamMetadata['type'], QueryParamParseFunction> = {
-        string: parseStringQueryParam,
-        number: parseNumberQueryParam,
-        boolean: parseBooleanQueryParam,
-        date: parseDateQueryParam,
-        object: parseObjectQueryParam,
-        array: parseArrayQueryParam
+        string: parseString,
+        number: parseNumber,
+        boolean: parseBoolean,
+        date: parseDate,
+        object: parseObject,
+        array: parseArray
     };
 
     private readonly headerParamParseFunctions: Record<HeaderParamMetadata['type'], HeaderParamParseFunction> = {
-        string: parseStringHeaderParam,
-        number: parseNumberHeaderParam,
-        boolean: parseBooleanHeaderParam,
-        date: parseDateHeaderParam
+        string: parseString,
+        number: parseNumber,
+        boolean: parseBoolean,
+        date: parseDate,
+        object: parseObject,
+        array: parseArray
     };
 
     constructor() {
@@ -45,7 +49,7 @@ export class Parser implements ParserInterface {
     }
 
     parseHeaderParam(req: Request, metadata: HeaderParamMetadata): unknown {
-        const rawValue: string | undefined = req.header(metadata.name as string);
+        const rawValue: string | undefined = req.header(metadata.name);
         return this.headerParamParseFunctions[metadata.type](rawValue, metadata);
     }
 

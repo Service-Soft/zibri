@@ -1,7 +1,10 @@
-export type NumberPropertyMetadata = {
-    required: boolean,
+import { BasePropertyMetadata } from './base-property-metadata.model';
+import { OmitStrict } from '../../types';
+
+export type NumberPropertyMetadata = BasePropertyMetadata & {
     type: 'number',
-    primary: boolean
+    primary: boolean,
+    unique: boolean
 };
 
-export type NumberPropertyMetadataInput = Partial<NumberPropertyMetadata> & Pick<NumberPropertyMetadata, 'type'>;
+export type NumberPropertyMetadataInput = Partial<OmitStrict<NumberPropertyMetadata, 'type'>>;

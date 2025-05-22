@@ -1,9 +1,10 @@
-import { Newable } from '../../types';
+import { BasePropertyMetadata } from './base-property-metadata.model';
+import { Newable, OmitStrict } from '../../types';
 
-export type ObjectPropertyMetadata = {
-    required: boolean,
+export type ObjectPropertyMetadata = BasePropertyMetadata & {
     type: 'object',
     cls: Newable<unknown>
 };
 
-export type ObjectPropertyMetadataInput = Partial<ObjectPropertyMetadata> & Pick<ObjectPropertyMetadata, 'type' | 'cls'>;
+export type ObjectPropertyMetadataInput = Partial<OmitStrict<ObjectPropertyMetadata, 'type'>>
+    & Pick<ObjectPropertyMetadata, 'cls'>;

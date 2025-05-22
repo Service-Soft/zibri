@@ -3,6 +3,7 @@ import { DiToken } from '../di';
 import { Route, ControllerRouteConfiguration, PathParamMetadata, BodyMetadata, QueryParamMetadata, HeaderParamMetadata } from '../routing';
 import { MetadataInjectionKeys } from './metadata-injection-keys.enum';
 import { EntityMetadata, PropertyMetadata } from '../entity';
+import { Newable } from '../types';
 
 export abstract class MetadataUtilities {
     static setFilePath(target: Object, errorStack: string): void {
@@ -86,11 +87,11 @@ export abstract class MetadataUtilities {
         return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.ROUTE_BODY, controller, controllerMethod);
     }
 
-    static setModelProperties(model: Object, metadata: Record<string, PropertyMetadata>): void {
+    static setModelProperties(model: Newable<unknown>, metadata: Record<string, PropertyMetadata>): void {
         ReflectUtilities.setMetadata(MetadataInjectionKeys.MODEL_PROPERTIES, metadata, model);
     }
 
-    static getModelProperties(model: Object): Record<string, PropertyMetadata> {
+    static getModelProperties(model: Newable<unknown>): Record<string, PropertyMetadata> {
         return ReflectUtilities.getMetadata(MetadataInjectionKeys.MODEL_PROPERTIES, model) ?? {};
     }
 

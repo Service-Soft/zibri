@@ -1,22 +1,20 @@
 import path from 'path';
 
 import { Request, Response } from 'express';
-import { TagObject } from 'openapi3-ts/dist/oas31';
+import { ParameterLocation, TagObject } from 'openapi3-ts/dist/oas31';
 import swaggerUi from 'swagger-ui-express';
 
 import { ZibriApplication } from '../application';
 import { AssetServiceInterface } from '../assets';
 import { inject, ZIBRI_DI_TOKENS } from '../di';
-import { PropertyMetadata } from '../entity';
-import { ArrayPropertyMetadata, ObjectPropertyMetadata } from '../entity/models';
+import { PropertyMetadata, Relation } from '../entity';
 import { GlobalRegistry } from '../global';
 import { MimeType } from '../http';
 import { LoggerInterface } from '../logging';
-import { ArrayQueryParamMetadata, BodyMetadata, ControllerRouteConfiguration, HeaderParamMetadata, PathParamMetadata, QueryParamMetadata, Route } from '../routing';
+import { BodyMetadata, ControllerRouteConfiguration, HeaderParamMetadata, PathParamMetadata, QueryParamMetadata, Route } from '../routing';
 import { OpenApiServiceInterface } from './open-api-service.interface';
 import { OpenApiDefinition, OpenApiOperation, OpenApiParameter, OpenApiPaths, OpenApiRequestBodyObject, OpenApiSchemaObject } from './open-api.model';
 import { MissingBaseRouteError } from '../routing/missing-base-route.error';
-import { Newable } from '../types';
 import { MetadataUtilities } from '../utilities';
 
 export class OpenApiService implements OpenApiServiceInterface {
@@ -111,10 +109,6 @@ export class OpenApiService implements OpenApiServiceInterface {
 
             const routes: ControllerRouteConfiguration[] = MetadataUtilities.getControllerRoutes(controllerClass);
             for (const route of routes) {
-                // Build OpenAPI–style path (convert :id → {id})
-                const fullPath: string = `${baseRoute}${route.route}`.replaceAll(/:([^/]+)/g, '{$1}');
-
-                const pathParamNames: string[] = this.extractPathParamNames(fullPath);
                 const pathParams: Record<number, PathParamMetadata> = MetadataUtilities.getRoutePathParams(
                     controllerClass,
                     route.controllerMethod
@@ -132,14 +126,15 @@ export class OpenApiService implements OpenApiServiceInterface {
 
                 const bodyMetadata: BodyMetadata | undefined = MetadataUtilities.getRouteBody(controllerClass, route.controllerMethod);
                 // Ensure an entry exists
+                const fullPath: string = `${baseRoute}${route.route}`.replaceAll(/:([^/]+)/g, '{$1}');
                 res[fullPath] ??= {};
                 const operation: OpenApiOperation = {
                     responses: {},
                     tags: [controllerClass.name],
                     parameters: [
-                        ...this.buildPathParameters(pathParamNames, pathParams),
-                        ...this.buildQueryParameters(queryParams),
-                        ...this.buildHeaderParameters(headerParams)
+                        ...this.buildParameters(pathParams, 'path'),
+                        ...this.buildParameters(queryParams, 'query'),
+                        ...this.buildParameters(headerParams, 'header')
                     ],
                     requestBody: this.buildOpenApiBody(bodyMetadata)
                 };
@@ -154,7 +149,8 @@ export class OpenApiService implements OpenApiServiceInterface {
         if (!metadata) {
             return undefined;
         }
-        const schema: OpenApiSchemaObject = this.buildOpenApiSchemaForModel(metadata.modelClass);
+        const propMeta: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(metadata.modelClass);
+        const schema: OpenApiSchemaObject = this.buildOpenApiSchemaForProperties(propMeta);
         return {
             required: metadata.required,
             description: metadata.description,
@@ -162,47 +158,60 @@ export class OpenApiService implements OpenApiServiceInterface {
         };
     }
 
-    private buildOpenApiSchemaForModel(cls: Newable<unknown>): OpenApiSchemaObject {
-        // 1) Grab all the per‐property metadata for this class
-        const propMeta: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(cls);
-        // 2) Build `properties` and `required` arrays
+    private buildOpenApiSchemaForProperties(propMeta: Record<string, PropertyMetadata>): OpenApiSchemaObject {
         const properties: Record<string, OpenApiSchemaObject> = {};
         const required: string[] = [];
 
         for (const [key, meta] of Object.entries(propMeta)) {
             // mark required
-            if (meta.required) {
+            if ('required' in meta && meta.required) {
                 required.push(key);
             }
             switch (meta.type) {
                 case 'date': {
-                    properties[key] = { type: 'string', format: 'date-time' };
+                    properties[key] = { type: 'string', format: 'date-time', description: meta.description };
                     continue;
                 }
-                case 'string':
-                case 'number': {
-                    properties[key] = { type: meta.type };
+                case 'number':
+                case 'boolean': {
+                    properties[key] = { type: meta.type, description: meta.description };
+                    continue;
+                }
+                case 'string': {
+                    properties[key] = { type: meta.type, format: meta.format, description: meta.description };
                     continue;
                 }
                 case 'object': {
-                    const m: ObjectPropertyMetadata = meta;
-                    properties[key] = this.buildOpenApiSchemaForModel(m.cls);
+                    const objectPropMeta: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(meta.cls);
+                    properties[key] = { ...this.buildOpenApiSchemaForProperties(objectPropMeta), description: meta.description };
+                    continue;
+                }
+                case Relation.ONE_TO_ONE:
+                case Relation.MANY_TO_ONE: {
+                    const objectPropMeta: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(meta.target());
+                    properties[key] = { ...this.buildOpenApiSchemaForProperties(objectPropMeta), description: meta.description };
+                    continue;
+                }
+                case Relation.MANY_TO_MANY: {
+                    // TODO: How to handle this?
+                    continue;
+                }
+                case Relation.ONE_TO_MANY: {
+                    const items: OpenApiSchemaObject = this.buildOpenApiSchemaForProperties({
+                        items: { type: 'object', cls: meta.target(), required: true, description: undefined }
+                    });
+                    properties[key] = {
+                        type: 'array',
+                        description: meta.description,
+                        items
+                    };
                     continue;
                 }
                 case 'array': {
-                    const m: ArrayPropertyMetadata = meta;
-                    let items: OpenApiSchemaObject;
-                    if (typeof m.itemType === 'function') {
-                        items = this.buildOpenApiSchemaForModel(m.itemType);
-                    }
-                    else if (m.itemType === 'date') {
-                        items = { type: 'string', format: 'date-time' };
-                    }
-                    else {
-                        items = { type: m.itemType };
-                    }
+                    const items: OpenApiSchemaObject = this.buildOpenApiSchemaForProperties({ items: meta.items });
                     properties[key] = {
                         type: 'array',
+                        description: meta.description,
                         items
                     };
                     continue;
@@ -217,130 +226,65 @@ export class OpenApiService implements OpenApiServiceInterface {
             type: 'object',
             properties,
             // only include `required` if non-empty
-            ...required.length > 0 ? { required } : {}
+            ...required.length ? { required } : {}
         };
     }
 
-    private extractPathParamNames(path: string): string[] {
-        return [...path.matchAll(/{([^}]+)}/g)].map(match => match[1]);
-    }
-
-    private buildPathParameters(
-        pathParamNames: string[],
-        pathParams: Record<number, PathParamMetadata>
+    private buildParameters(
+        queryParams: Record<number, QueryParamMetadata | HeaderParamMetadata | PathParamMetadata>,
+        location: ParameterLocation
     ): OpenApiParameter[] {
-        return pathParamNames.map(paramName => {
-            // Find if parameter has decorator metadata
-            const metadata: PathParamMetadata | undefined = Object.entries(pathParams)
-                .find(([, metadata]) => metadata.name === paramName)?.[1];
-
-            if (!metadata) {
-                throw new Error(`Error when resolving path parameter "${paramName}": Did you forget to decorate one of the parameters?`);
-            }
-
-            return {
-                name: metadata.name,
-                in: 'path',
-                required: metadata.required,
-                schema: {
-                    type: metadata.type
-                },
-                description: metadata.description
-            };
-        });
-    }
-
-    private buildQueryParameters(queryParams: Record<number, QueryParamMetadata>): OpenApiParameter[] {
         return Object.values(queryParams).map(meta => ({
             name: meta.name,
-            in: 'query',
+            in: location,
             required: meta.required,
             content: meta.type === 'object'
                 ? {
                     [MimeType.JSON]: {
-                        schema: this.queryParamToSchema(meta)
+                        schema: this.paramToSchema(meta)
                     }
                 }
                 : undefined,
-            schema: meta.type === 'object' ? undefined : this.queryParamToSchema(meta),
+            schema: meta.type === 'object' ? undefined : this.paramToSchema(meta),
             description: meta.description
         }));
     }
 
-    private queryParamToSchema(meta: QueryParamMetadata): OpenApiSchemaObject {
+    private paramToSchema(meta: QueryParamMetadata | PathParamMetadata | HeaderParamMetadata): OpenApiSchemaObject {
         switch (meta.type) {
-            case 'boolean':
-            case 'number':
-            case 'string': {
-                return {
-                    type: meta.type
-                };
-            }
-            case 'date': {
-                return {
-                    type: 'string',
-                    format: 'date-time'
-                };
-            }
-            case 'object': {
-                return this.buildOpenApiSchemaForModel(meta.cls);
-            }
-            case 'array': {
-                const m: QueryParamMetadata = this.getQueryArrayItemMetadata(meta);
-                return {
-                    type: 'array',
-                    items: this.queryParamToSchema(m)
-                };
-            }
-        }
-    }
-
-    private getQueryArrayItemMetadata(metadata: ArrayQueryParamMetadata): QueryParamMetadata {
-        switch (metadata.itemType) {
-            case 'date':
-            case 'string':
             case 'boolean':
             case 'number': {
                 return {
-                    name: `${metadata.name}.item`,
-                    type: metadata.itemType,
-                    required: true
+                    type: meta.type,
+                    description: meta.description
                 };
             }
-            default: {
+            case 'string': {
                 return {
-                    name: `${metadata.name}.item`,
-                    type: 'object',
-                    cls: metadata.itemType,
-                    required: true
-                };
-            }
-        }
-    }
-
-    private buildHeaderParameters(headerParams: Record<number, HeaderParamMetadata>): OpenApiParameter[] {
-        return Object.values(headerParams).map(meta => ({
-            name: meta.name as string,
-            in: 'header',
-            required: meta.required,
-            schema: this.headerParamToSchema(meta),
-            description: meta.description
-        }));
-    }
-
-    private headerParamToSchema(meta: HeaderParamMetadata): OpenApiSchemaObject {
-        switch (meta.type) {
-            case 'string':
-            case 'number':
-            case 'boolean': {
-                return {
-                    type: meta.type
+                    type: meta.type,
+                    format: meta.format,
+                    description: meta.description
                 };
             }
             case 'date': {
                 return {
                     type: 'string',
-                    format: 'date-time'
+                    format: 'date-time',
+                    description: meta.description
+                };
+            }
+            case 'object': {
+                const propMeta: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(meta.cls);
+                return {
+                    description: meta.description,
+                    ...this.buildOpenApiSchemaForProperties(propMeta)
+                };
+            }
+            case 'array': {
+                return {
+                    type: 'array',
+                    description: meta.description,
+                    items: this.paramToSchema(meta)
                 };
             }
         }

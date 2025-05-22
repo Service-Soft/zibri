@@ -2,3 +2,5 @@ zibri
 Injectables
 injectables
 paramtypes
+postgres
+timestamptz

@@ -1,6 +1,8 @@
-export type DatePropertyMetadata = {
-    required: boolean,
+import { BasePropertyMetadata } from './base-property-metadata.model';
+import { OmitStrict } from '../../types';
+
+export type DatePropertyMetadata = BasePropertyMetadata & {
     type: 'date'
 };
 
-export type DatePropertyMetadataInput = Partial<DatePropertyMetadata> & Pick<DatePropertyMetadata, 'type'>;
+export type DatePropertyMetadataInput = Partial<OmitStrict<DatePropertyMetadata, 'type'>>;

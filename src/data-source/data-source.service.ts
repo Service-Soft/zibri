@@ -1,10 +1,9 @@
-
 import { GlobalRegistry } from '../global';
 import { DataSourceServiceInterface } from './data-source-service.interface';
 import { inject, ZIBRI_DI_TOKENS } from '../di';
 import { BaseDataSource } from './base-data-source.model';
+import { BaseEntity } from '../entity';
 import { LoggerInterface } from '../logging';
-import { BaseEntity } from './repository.model';
 import { Newable } from '../types';
 
 export class DataSourceService implements DataSourceServiceInterface {
@@ -18,12 +17,17 @@ export class DataSourceService implements DataSourceServiceInterface {
         this.logger.info('initializes', GlobalRegistry.dataSourceClasses.length, 'data sources');
 
         const entitiesInDataSources: Newable<BaseEntity>[] = [];
-        for (const datasourceClass of GlobalRegistry.dataSourceClasses) {
-            const dataSource: BaseDataSource = inject(datasourceClass);
-            this.logger.info(`  - ${datasourceClass.name} (${dataSource.entities.length} entities)`);
+        for (const dataSourceClass of GlobalRegistry.dataSourceClasses) {
+            const dataSource: BaseDataSource = inject(dataSourceClass);
+            this.logger.info(`  - ${dataSourceClass.name} (${dataSource.entities.length} entities)`);
             entitiesInDataSources.push(...dataSource.entities);
             await dataSource.init();
         }
+
+        this.checkForOrphanedEntities(entitiesInDataSources);
+    }
+
+    private checkForOrphanedEntities(entitiesInDataSources: Newable<BaseEntity>[]): void {
         const orphanedEntities: Newable<BaseEntity>[] = GlobalRegistry.entityClasses.filter(e => !entitiesInDataSources.includes(e));
         if (orphanedEntities.length) {
             const message: string[] = ['Error initializing databases.', 'Could not find data source for the following entities:'];

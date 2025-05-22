@@ -1,7 +1,7 @@
-import { BaseEntity } from '../../data-source';
 import { GlobalRegistry } from '../../global';
 import { Newable } from '../../types';
 import { MetadataUtilities } from '../../utilities';
+import { BaseEntity } from '../models';
 
 export type EntityMetadata = {
     tableName: string
