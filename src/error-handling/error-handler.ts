@@ -1,7 +1,7 @@
 import { readFile } from 'fs';
 import path from 'path';
 
-import { NextFunction, Request, Response } from 'express';
+import { NextFunction } from 'express';
 import Handlebars from 'handlebars';
 
 import { GlobalErrorHandler } from './error-handler.model';
@@ -11,9 +11,9 @@ import { HttpError, InternalServerError, isHttpError } from './errors';
 import { isError } from './is-error.function';
 import { AssetServiceInterface } from '../assets';
 import { GlobalRegistry } from '../global';
-import { MimeType } from '../http';
+import { HttpRequest, HttpResponse, MimeType } from '../http';
 
-export const errorHandler: GlobalErrorHandler = (error: unknown, req: Request, res: Response, next: NextFunction) => {
+export const errorHandler: GlobalErrorHandler = (error: unknown, req: HttpRequest, res: HttpResponse, next: NextFunction) => {
     const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
     if (isError(error)) {
         if (!isHttpError(error) || error.status >= 500) {

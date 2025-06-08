@@ -1,8 +1,6 @@
-import { Request } from 'express';
-
-import { MimeType } from '../http';
+import { HttpRequest, MimeType } from '../http';
 
 export interface BodyParserInterface {
     readonly contentType: MimeType,
-    parse: (req: Request) => Promise<unknown>
+    parse: (req: HttpRequest) => Promise<unknown>
 }

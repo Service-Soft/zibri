@@ -1,1 +1,1 @@
-export type BaseEntity = { id: string | number };
+export type BaseEntity = { id: string };

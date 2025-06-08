@@ -1,15 +1,15 @@
-import express, { Request } from 'express';
+import express from 'express';
 
 import { BodyParserInterface } from './body-parser.interface';
 import { BodyParser } from './decorators';
 import { BadRequestError } from '../error-handling';
-import { MimeType } from '../http';
+import { HttpRequest, MimeType } from '../http';
 
 @BodyParser()
 export class JsonBodyParser implements BodyParserInterface {
     readonly contentType: MimeType = MimeType.JSON;
 
-    async parse(req: Request): Promise<unknown> {
+    async parse(req: HttpRequest): Promise<unknown> {
         if (req.body !== undefined) {
             return req.body;
         }

@@ -1,3 +1,5 @@
-import { NextFunction, Request, Response } from 'express';
+import { NextFunction } from 'express';
 
-export type GlobalErrorHandler = (err: unknown, req: Request, res: Response, next: NextFunction) => void;
+import { HttpRequest, HttpResponse } from '../http';
+
+export type GlobalErrorHandler = (err: unknown, req: HttpRequest, res: HttpResponse, next: NextFunction) => void;

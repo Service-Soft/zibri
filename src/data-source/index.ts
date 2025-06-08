@@ -6,3 +6,4 @@ export * from './decorators';
 export * from './repository.model';
 export * from './transaction';
 export * from './models';
+export * from './migration';

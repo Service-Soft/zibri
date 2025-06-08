@@ -12,7 +12,7 @@ const config = {
     modulePathIgnorePatterns: ['tmp'],
     // testPathIgnorePatterns: ['<rootDir>/data-source/transaction/transaction.test.ts'],
     // coverage
-    collectCoverage: true,
+    // collectCoverage: true,
     coverageProvider: 'v8',
     coverageDirectory: '<rootDir>/__testing__/coverage',
     coveragePathIgnorePatterns: [

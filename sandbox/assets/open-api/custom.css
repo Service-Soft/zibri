@@ -1,4 +1,5 @@
-body {
+body,
+.swagger-ui .dialog-ux .modal-ux {
     background-color: #2a2a35;;
 }
 
@@ -26,7 +27,11 @@ svg {
 .swagger-ui .opblock-description-wrapper p,
 .swagger-ui .opblock-tag,
 .swagger-ui .opblock .opblock-summary-path,
-.swagger-ui .info .title {
+.swagger-ui .info .title,
+.swagger-ui .dialog-ux .modal-ux-header h3,
+.swagger-ui .dialog-ux .modal-ux-content h4,
+.swagger-ui .dialog-ux .modal-ux-content p,
+.swagger-ui label {
     color: whitesmoke;
 }
 
@@ -44,11 +49,13 @@ svg {
     border: 2px solid whitesmoke;
 }
 
-.swagger-ui .opblock .opblock-section-header {
+.swagger-ui .opblock .opblock-section-header,
+.swagger-ui .scheme-container {
     background-color: #1a1a26;
 }
 
-.swagger-ui table thead tr td, .swagger-ui .response-col_status {
+.swagger-ui table thead tr td,
+.swagger-ui .response-col_status {
     padding-right: 2em;
 }
 

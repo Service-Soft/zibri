@@ -1,17 +1,26 @@
-import { Entity, Property } from "zibri";
-import { Company } from "./company.model";
+import { BaseUser, Entity, IntersectionType, JwtCredentials, OmitType, Property } from 'zibri';
+
+import { Roles } from './roles.enum';
+import { OmitStrict } from '../types';
 
 @Entity()
-export class User {
+export class User implements BaseUser<Roles> {
     @Property.string({ primary: true })
     id!: string;
 
+    @Property.string({ unique: true })
+    email!: string;
+
+    @Property.array({ items: { type: 'string' } })
+    roles!: Roles[];
+
     @Property.number()
     value!: number;
-
-    @Property.manyToOne({ target: () => Company, inverseSide: 'users' })
-    company!: Company;
-
-    @Property.boolean()
-    isAdmin!: boolean;
 }
+
+export class UserCreateDto extends IntersectionType(
+    OmitType(User, ['id', 'roles']),
+    OmitType(JwtCredentials, ['id', 'userId', 'username'])
+) {}
+
+export type UserCreateData = OmitStrict<User, 'id'>;

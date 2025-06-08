@@ -3,6 +3,7 @@ import 'reflect-metadata';
 
 export * from './application';
 export * from './application-options.model';
+export * from './auth';
 export * from './di';
 export * from './routing';
 export * from './error-handling';
@@ -16,3 +17,6 @@ export * from './http';
 export * from './validation';
 export * from './data-source';
 export * from './types/newable.model';
+export * from './types/version.type';
+export * from './utilities/compare-versions.function';
+export * from './utilities/is-version.function';

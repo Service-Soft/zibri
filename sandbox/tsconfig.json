@@ -1,16 +1,17 @@
 {
     "compilerOptions": {
-        "target": "ES2022",
+        "emitDecoratorMetadata": true,
+        "esModuleInterop": true,
+        "experimentalDecorators": true,
         "module": "NodeNext",
         "moduleResolution": "NodeNext",
         "outDir": "dist",
+        "resolveJsonModule": true,
         "rootDir": "src",
-        "strict": true,
-        "esModuleInterop": true,
         "skipLibCheck": true,
-        "experimentalDecorators": true,
-        "emitDecoratorMetadata": true,
         "sourceMap": true,
+        "strict": true,
+        "target": "ES2022"
     },
     "include": ["src"]
 }

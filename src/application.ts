@@ -2,6 +2,7 @@ import express, { Express } from 'express';
 
 import { ZibriApplicationOptions } from './application-options.model';
 import { AssetServiceInterface } from './assets';
+import { AuthServiceInterface, JwtAuthStrategy } from './auth';
 import { DataSourceServiceInterface } from './data-source';
 import { ZIBRI_DI_TOKENS, inject } from './di';
 import { register } from './di/register.function';
@@ -9,8 +10,10 @@ import { UnmatchedRouteError } from './error-handling';
 import { GlobalRegistry } from './global';
 import { LoggerInterface } from './logging';
 import { OpenApiServiceInterface } from './open-api';
-import { ParserInterface } from './parsing';
+import { JsonBodyParser, ParserInterface } from './parsing';
 import { RouterInterface } from './routing';
+
+type FullZibriApplicationOptions = Required<ZibriApplicationOptions>;
 
 /**
  * A zibri application.
@@ -27,19 +30,44 @@ export class ZibriApplication {
     private openApiService!: OpenApiServiceInterface;
     private parser!: ParserInterface;
     private dataSourceService!: DataSourceServiceInterface;
+    private authService!: AuthServiceInterface;
+    private readonly options: FullZibriApplicationOptions;
 
-    constructor(private readonly options: ZibriApplicationOptions) {
+    constructor(private readonly providedOptions: ZibriApplicationOptions) {
+        this.options = {
+            dataSources: [],
+            authStrategies: [JwtAuthStrategy],
+            bodyParsers: [JsonBodyParser],
+            providers: [],
+            ...providedOptions
+        };
         GlobalRegistry.markAppAsCreated();
     }
 
     async init(): Promise<void> {
         GlobalRegistry.setAppData(this.options);
-        for (const provider of this.options.providers ?? []) {
+        for (const provider of this.options.providers) {
             register(provider);
         }
         this.logger = inject(ZIBRI_DI_TOKENS.LOGGER);
+        if (!this.providedOptions.authStrategies) {
+            this.logger.info('No auth strategies provided, defaults to:');
+            for (const strategy of this.options.authStrategies) {
+                this.logger.info('  -', strategy.name);
+            }
+        }
+        if (!this.providedOptions.bodyParsers) {
+            this.logger.info('No request body parsers provided, defaults to:');
+            for (const bodyParser of this.options.bodyParsers) {
+                this.logger.info('  -', bodyParser.name);
+            }
+        }
+
         this.dataSourceService = inject(ZIBRI_DI_TOKENS.DATA_SOURCE_SERVICE);
         await this.dataSourceService.init();
+
+        this.authService = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
+        this.authService.init(this.options.authStrategies);
 
         this.parser = inject(ZIBRI_DI_TOKENS.PARSER);
         this.parser.attachTo(this);

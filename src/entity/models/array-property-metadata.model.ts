@@ -5,7 +5,7 @@ import { BasePropertyMetadata } from './base-property-metadata.model';
 
 export type ArrayPropertyMetadata = BasePropertyMetadata & {
     type: 'array',
-    items: PropertyMetadata
+    items: Exclude<PropertyMetadata, RelationMetadata<BaseEntity>>
 };
 
 type ArrayItemPropertyType = Exclude<PropertyMetadata['type'], RelationMetadata<BaseEntity>['type']>;

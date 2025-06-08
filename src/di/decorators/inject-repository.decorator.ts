@@ -14,6 +14,6 @@ export function InjectRepository<T extends BaseEntity>(entityClass: Newable<T>):
         MetadataUtilities.setFilePath(target, stack);
         const tokens: Record<number, DiToken<unknown>> = MetadataUtilities.getInjectParamTokens(target);
         tokens[parameterIndex] = repositoryTokenFor(entityClass);
-        MetadataUtilities.setInjectParamTokens(tokens, target);
+        MetadataUtilities.setInjectParamTokens(target, tokens);
     };
 }

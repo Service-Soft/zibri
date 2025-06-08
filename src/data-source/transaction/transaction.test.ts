@@ -9,6 +9,7 @@ import { BaseDataSource } from '../base-data-source.model';
 import { DataSource } from '../decorators';
 import { Repository } from '../repository.model';
 import { Transaction } from './transaction.model';
+import { MigrationEntity } from '../migration';
 import { DataSourceOptions } from '../models';
 
 @Entity()
@@ -30,7 +31,7 @@ class DbDataSource extends BaseDataSource {
         database: 'db',
         synchronize: true
     };
-    entities: Newable<BaseEntity>[] = [Item];
+    entities: Newable<BaseEntity>[] = [MigrationEntity, Item];
 }
 
 let container: StartedTestContainer;

@@ -1,20 +1,24 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, Repository, InjectRepository, OmitType, PickType, IntersectionType } from 'zibri';
-import { Test, User } from '../models';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Repository, InjectRepository, OmitType, Auth } from 'zibri';
+
+import { Roles, Test, User } from '../models';
+import { UserRepository } from '../repositories';
 
 class CreateDTO extends OmitType(Test, ['id']) {}
 
+@Auth.isLoggedIn()
 @Controller('/tests')
 export class TestController {
     constructor(
         @InjectRepository(Test)
         private readonly testRepository: Repository<Test>,
         @InjectRepository(User)
-        private readonly userRepository: Repository<User>
+        private readonly userRepository: UserRepository
     ) {}
 
+    @Auth.isLoggedIn.skip()
     @Get()
     async find(): Promise<Test[]> {
-        return await this.testRepository.findAll({ relations: [ '' ] });
+        return await this.testRepository.findAll();
     }
 
     @Get('/:id')
@@ -25,6 +29,7 @@ export class TestController {
         return await this.testRepository.findById(id);
     }
 
+    @Auth.hasRole([Roles.USER])
     @Post()
     async create(
         @Body(CreateDTO)
@@ -48,6 +53,6 @@ export class TestController {
         @Param.path('id', { format: 'uuid' })
         id: string
     ): Promise<void> {
-        return await this.testRepository.deleteById(id);
+        await this.testRepository.deleteById(id);
     }
 }

@@ -1,49 +1,52 @@
 import path from 'path';
 
-import { Request, Response } from 'express';
 import { ParameterLocation, TagObject } from 'openapi3-ts/dist/oas31';
 import swaggerUi from 'swagger-ui-express';
 
 import { ZibriApplication } from '../application';
 import { AssetServiceInterface } from '../assets';
+import { AuthServiceInterface, HasRoleMetadata, IsLoggedInMetadata } from '../auth';
 import { inject, ZIBRI_DI_TOKENS } from '../di';
 import { PropertyMetadata, Relation } from '../entity';
 import { GlobalRegistry } from '../global';
-import { MimeType } from '../http';
+import { HttpRequest, HttpResponse, MimeType } from '../http';
 import { LoggerInterface } from '../logging';
 import { BodyMetadata, ControllerRouteConfiguration, HeaderParamMetadata, PathParamMetadata, QueryParamMetadata, Route } from '../routing';
 import { OpenApiServiceInterface } from './open-api-service.interface';
-import { OpenApiDefinition, OpenApiOperation, OpenApiParameter, OpenApiPaths, OpenApiRequestBodyObject, OpenApiSchemaObject } from './open-api.model';
+import { OpenApiDefinition, OpenApiOperation, OpenApiParameter, OpenApiPaths, OpenApiRequestBodyObject, OpenApiSchemaObject, OpenApiSecurityRequirementObject, OpenApiSecuritySchemeObject } from './open-api.model';
 import { MissingBaseRouteError } from '../routing/missing-base-route.error';
+import { Newable } from '../types';
 import { MetadataUtilities } from '../utilities';
 
 export class OpenApiService implements OpenApiServiceInterface {
     readonly openApiRoute: Route = '/explorer';
     private readonly logger: LoggerInterface;
     private readonly assetService: AssetServiceInterface;
+    private readonly authService: AuthServiceInterface;
 
     constructor() {
         this.logger = inject(ZIBRI_DI_TOKENS.LOGGER);
         this.assetService = inject(ZIBRI_DI_TOKENS.ASSET_SERVICE);
+        this.authService = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
     }
 
     attachTo(app: ZibriApplication): void {
         const definition: OpenApiDefinition = this.createOpenApiDefinition();
         this.logger.info('registers the OpenAPI Explorer at', this.openApiRoute);
 
-        app.express.get(`${this.openApiRoute}/swagger-ui.css`, (_req: Request, res: Response) => {
+        app.express.get(`${this.openApiRoute}/swagger-ui.css`, (_req: HttpRequest, res: HttpResponse) => {
             const filePath: string = path.join(this.assetService.assetsPath, 'open-api', 'swagger-ui.css');
             res.sendFile(filePath);
         });
-        app.express.get(`${this.openApiRoute}/swagger-ui-bundle.js`, (_req: Request, res: Response) => {
+        app.express.get(`${this.openApiRoute}/swagger-ui-bundle.js`, (_req: HttpRequest, res: HttpResponse) => {
             const filePath: string = path.join(this.assetService.assetsPath, 'open-api', 'swagger-ui-bundle.js');
             res.sendFile(filePath);
         });
-        app.express.get(`${this.openApiRoute}/swagger-ui-standalone-preset.js`, (_req: Request, res: Response) => {
+        app.express.get(`${this.openApiRoute}/swagger-ui-standalone-preset.js`, (_req: HttpRequest, res: HttpResponse) => {
             const filePath: string = path.join(this.assetService.assetsPath, 'open-api', 'swagger-ui-standalone-preset.js');
             res.sendFile(filePath);
         });
-        app.express.get(`${this.openApiRoute}/swagger-ui-init.js`, (_req: Request, res: Response) => {
+        app.express.get(`${this.openApiRoute}/swagger-ui-init.js`, (_req: HttpRequest, res: HttpResponse) => {
             res.type('.js').send([
                 'window.onload = function() {',
                 '    SwaggerUIBundle({',
@@ -71,7 +74,7 @@ export class OpenApiService implements OpenApiServiceInterface {
                     customSiteTitle: definition.info.title,
                     customCssUrl: `${this.assetService.assetsRoute}/open-api/custom.css`,
                     swaggerOptions: {
-                        requestInterceptor: (req: Request) => {
+                        requestInterceptor: (req: HttpRequest) => {
                             req.headers.Accept = MimeType.JSON;
                             req.headers['Content-Type'] = MimeType.JSON;
                             return req;
@@ -90,11 +93,22 @@ export class OpenApiService implements OpenApiServiceInterface {
             openapi: '3.1.0',
             info: {
                 title: `${GlobalRegistry.getAppData('name')} | Explorer`,
-                version: '1.0.0'
+                version: GlobalRegistry.getAppData('version') ?? '0.0.0'
             },
             tags,
+            components: {
+                securitySchemes: this.resolveSecuritySchemes()
+            },
             paths: this.resolveOpenApiPaths()
         };
+        return res;
+    }
+
+    private resolveSecuritySchemes(): Record<string, OpenApiSecuritySchemeObject> {
+        const res: Record<string, OpenApiSecuritySchemeObject> = {};
+        for (const strategy of this.authService.strategies.map(s => inject(s))) {
+            res[strategy.name] = strategy.securityScheme;
+        }
         return res;
     }
 
@@ -128,6 +142,11 @@ export class OpenApiService implements OpenApiServiceInterface {
                 // Ensure an entry exists
                 const fullPath: string = `${baseRoute}${route.route}`.replaceAll(/:([^/]+)/g, '{$1}');
                 res[fullPath] ??= {};
+
+                const hasRoleMetadata: HasRoleMetadata | undefined = this.authService.resolveHasRoleMetadata(
+                    controllerClass,
+                    route.controllerMethod
+                );
                 const operation: OpenApiOperation = {
                     responses: {},
                     tags: [controllerClass.name],
@@ -136,12 +155,39 @@ export class OpenApiService implements OpenApiServiceInterface {
                         ...this.buildParameters(queryParams, 'query'),
                         ...this.buildParameters(headerParams, 'header')
                     ],
-                    requestBody: this.buildOpenApiBody(bodyMetadata)
+                    requestBody: this.buildOpenApiBody(bodyMetadata),
+                    security: this.resolveOperationSecurity(controllerClass, route.controllerMethod),
+                    ['x-roles']: hasRoleMetadata?.allowedRoles
                 };
                 res[fullPath][route.httpMethod] = operation;
             }
         }
 
+        return res;
+    }
+
+    private resolveOperationSecurity(
+        controllerClass: Newable<Object>,
+        controllerMethod: string
+    ): OpenApiSecurityRequirementObject[] | undefined {
+        const res: OpenApiSecurityRequirementObject[] = [];
+        const isLoggedInMetadata: IsLoggedInMetadata | undefined = this.authService.resolveIsLoggedInMetadata(
+            controllerClass,
+            controllerMethod
+        );
+        const hasRoleMetadata: HasRoleMetadata | undefined = this.authService.resolveHasRoleMetadata(
+            controllerClass,
+            controllerMethod
+        );
+
+        // TODO: Add belongs to etc.
+        if (!isLoggedInMetadata && !hasRoleMetadata) {
+            return undefined;
+        }
+
+        for (const strategy of this.authService.strategies.map(s => inject(s))) {
+            res.push({ [strategy.name]: [] });
+        }
         return res;
     }
 

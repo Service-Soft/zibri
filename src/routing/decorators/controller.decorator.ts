@@ -8,7 +8,7 @@ export function Controller(baseRoute: Route): ClassDecorator {
         // eslint-disable-next-line unicorn/error-message
         const stack: string = new Error().stack ?? '';
         MetadataUtilities.setFilePath(target, stack);
-        MetadataUtilities.setControllerBaseRoute(baseRoute, target);
+        MetadataUtilities.setControllerBaseRoute(target, baseRoute);
         GlobalRegistry.injectables.push({
             token: target as unknown as Newable<unknown>,
             useClass: target as unknown as Newable<unknown>

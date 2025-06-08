@@ -4,22 +4,28 @@ import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity
 import { inject, ZIBRI_DI_TOKENS } from '../di';
 import { NotFoundError } from '../error-handling';
 import { LoggerInterface } from '../logging';
-import { DeepPartial, Newable } from '../types';
+import { DeepPartial, Newable, OmitStrict } from '../types';
 import { Transaction } from './transaction';
 import { BaseEntity } from '../entity';
 import { CreateAllOptions, CreateOptions, DeleteAllOptions, DeleteByIdOptions, FindAllOptions, FindByIdOptions, FindOneOptions, UpdateAllOptions, UpdateByIdOptions } from './models';
 
-export class Repository<T extends BaseEntity> {
+export class Repository<
+    T extends BaseEntity,
+    CreateData extends DeepPartial<T> = DeepPartial<T>,
+    UpdateData extends DeepPartial<T> = DeepPartial<T>
+> {
     private readonly logger: LoggerInterface;
-    constructor(private readonly entityClass: Newable<T>, private readonly typeOrmRepository: TORepository<T>) {
+    private readonly typeOrmRepository: TORepository<T>;
+    constructor(private readonly entityClass: Newable<T>, repo: TORepository<T> | Repository<T>) {
         this.logger = inject(ZIBRI_DI_TOKENS.LOGGER);
+        this.typeOrmRepository = repo instanceof Repository ? repo.typeOrmRepository : repo;
     }
 
     private getManager(transaction: Transaction | undefined): EntityManager {
         return transaction ? transaction.queryRunner.manager : this.typeOrmRepository.manager;
     }
 
-    async create(data: DeepPartial<T>, options?: CreateOptions): Promise<T> {
+    async create(data: CreateData, options?: CreateOptions): Promise<T> {
         if (data.id != undefined) {
             this.logger.warn('Found an id on the create data, it will be ignored.');
             delete data.id;
@@ -30,7 +36,7 @@ export class Repository<T extends BaseEntity> {
         return await this.findById(res.identifiers[0].id, options);
     }
 
-    async createAll(data: DeepPartial<T>[], options?: CreateAllOptions): Promise<T[]> {
+    async createAll(data: CreateData[], options?: CreateAllOptions): Promise<T[]> {
         let entitiesWithIdCount: number = 0;
         for (const d of data) {
             if (d.id != undefined) {
@@ -71,7 +77,7 @@ export class Repository<T extends BaseEntity> {
         return await manager.find(this.entityClass, { ...options, transaction: undefined });
     }
 
-    async updateById(id: T['id'], data: DeepPartial<T>, options?: UpdateByIdOptions): Promise<T> {
+    async updateById(id: T['id'], data: UpdateData, options?: UpdateByIdOptions): Promise<T> {
         if (data.id != undefined) {
             this.logger.warn('Found an id on the update data, it will be ignored.');
             delete data.id;
@@ -83,7 +89,7 @@ export class Repository<T extends BaseEntity> {
 
     async updateAll(
         where: FindOptionsWhere<T> | FindOptionsWhere<T>[],
-        data: DeepPartial<T>,
+        data: UpdateData,
         options?: UpdateAllOptions
     ): Promise<T[]> {
         if (data.id != undefined) {
@@ -104,7 +110,7 @@ export class Repository<T extends BaseEntity> {
 
     async deleteAll(
         where: FindOptionsWhere<T> | FindOptionsWhere<T>[],
-        options?: DeleteAllOptions<T>
+        options?: OmitStrict<DeleteAllOptions<T>, 'where'>
     ): Promise<T[]> {
         const toDelete: T[] = await this.findAll({ where, ...options });
         const manager: EntityManager = this.getManager(options?.transaction);

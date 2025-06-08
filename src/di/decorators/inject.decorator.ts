@@ -8,6 +8,6 @@ export function Inject<T>(token: DiToken<T>): ParameterDecorator {
         MetadataUtilities.setFilePath(target, stack);
         const tokens: Record<number, DiToken<unknown>> = MetadataUtilities.getInjectParamTokens(target);
         tokens[parameterIndex] = token;
-        MetadataUtilities.setInjectParamTokens(tokens, target);
+        MetadataUtilities.setInjectParamTokens(target, tokens);
     };
 }

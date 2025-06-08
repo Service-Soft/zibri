@@ -1,9 +1,10 @@
 import { ZibriApplicationOptions } from '../application-options.model';
+import { UserRepositories } from '../auth';
 import { BaseDataSource } from '../data-source';
 import { DiProvider } from '../di';
 import { BaseEntity } from '../entity';
 import { BodyParserInterface } from '../parsing';
-import { Newable } from '../types';
+import { Newable, Version } from '../types';
 
 export enum AppState {
     OFFLINE = 'offline',
@@ -14,7 +15,8 @@ export enum AppState {
 
 export type AppData = {
     state: AppState,
-    name?: string
+    name?: string,
+    version?: Version
 };
 
 export abstract class GlobalRegistry {
@@ -26,6 +28,7 @@ export abstract class GlobalRegistry {
     static readonly dataSourceClasses: Newable<BaseDataSource>[] = [];
     static readonly entityClasses: Newable<BaseEntity>[] = [];
     static readonly bodyParsers: Newable<BodyParserInterface>[] = [];
+    static readonly userRepositories: UserRepositories = [];
 
     private static readonly validateAppStateChange: Record<AppState, () => void> = {
         [AppState.OFFLINE]: () => {

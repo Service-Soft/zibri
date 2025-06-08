@@ -1,3 +1,4 @@
+/* eslint-disable jsdoc/require-description */
 const path = require('path');
 const { spawn } = require('child_process');
 const CopyPlugin = require('copy-webpack-plugin');
@@ -25,6 +26,17 @@ class OnBuildSuccessPlugin {
 /** @type {import('webpack').Configuration} */
 module.exports = {
     target: 'node',
+    ignoreWarnings: [
+        (warning) => {
+            if (
+                warning.message.includes('Critical dependency: the request of a dependency is an expression')
+                || warning.message.includes('require.extensions is not supported by webpack.')
+            ) {
+                return true;
+            }
+            return false;
+        }
+    ],
     mode: 'none',
     entry: './src/index.ts',
     output: {
@@ -41,7 +53,7 @@ module.exports = {
     devtool: 'source-map',
     externals: [],
     resolve: {
-        extensions: ['.ts', '.js'],
+        extensions: ['.ts', '.js']
     },
     module: {
         rules: [
@@ -52,9 +64,9 @@ module.exports = {
             {
                 test: /\.js$/,
                 enforce: 'pre',
-                use: 'source-map-loader',
-            },
-        ],
+                use: 'source-map-loader'
+            }
+        ]
     },
     plugins: [
         new OnBuildSuccessPlugin(),
@@ -63,10 +75,13 @@ module.exports = {
                 {
                     from: path.resolve(__dirname, 'assets'),
                     to: path.resolve(__dirname, 'dist/assets'),
-                    noErrorOnMissing: true,
-                },
-            ],
+                    noErrorOnMissing: true
+                }
+            ]
         }),
-        new IgnorePlugin({ resourceRegExp: /^pg-native$|^cloudflare:sockets$/ })
+        new IgnorePlugin({
+            // eslint-disable-next-line stylistic/max-len
+            resourceRegExp: /^pg-native$|^cloudflare:sockets$|^react-native-sqlite-storage$|^@google-cloud\/spanner$|^mssql$|^sql.js$|^redis$|^pg-query-stream$|^typeorm-aurora-data-api-driver$|^oracledb$|^mysql$|^hdb-pool$|^better-sqlite3$|^ioredis$|^mysql2$|^mongodb$|^@sap\/hana-client$|^@sap\/hana-client\/extension\/Stream$/
+        })
     ]
 };

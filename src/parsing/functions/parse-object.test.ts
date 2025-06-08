@@ -10,6 +10,7 @@ describe('parseObject', () => {
         name: 'myObject',
         type: 'object',
         required: true,
+        description: undefined,
         cls: class Dummy {}
     };
 

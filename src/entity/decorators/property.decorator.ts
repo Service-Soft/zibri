@@ -90,7 +90,7 @@ export namespace Property {
             type: 'array',
             description: undefined,
             ...data,
-            items: fillPropertyMetadata(data.items)
+            items: fillArrayItemPropertyMetadata(data.items)
         };
         return applyData(fullMetadata);
     }
@@ -160,7 +160,7 @@ function applyData(data: PropertyMetadata): PropertyDecorator {
     };
 }
 
-function fillPropertyMetadata(data: ArrayPropertyItemMetadata): PropertyMetadata {
+function fillArrayItemPropertyMetadata(data: ArrayPropertyItemMetadata): Exclude<PropertyMetadata, RelationMetadata<BaseEntity>> {
     switch (data.type) {
         case 'number': {
             return {
@@ -208,7 +208,7 @@ function fillPropertyMetadata(data: ArrayPropertyItemMetadata): PropertyMetadata
                 description: undefined,
                 ...m,
                 type: data.type,
-                items: fillPropertyMetadata(m.items)
+                items: fillArrayItemPropertyMetadata(m.items)
             };
         }
     }

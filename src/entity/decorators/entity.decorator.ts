@@ -12,7 +12,7 @@ export function Entity(tableName?: string): ClassDecorator {
         const metadata: EntityMetadata = {
             tableName: tableName ?? target.name.toLowerCase()
         };
-        MetadataUtilities.setEntityMetadata(metadata, target);
+        MetadataUtilities.setEntityMetadata(target as unknown as Newable<BaseEntity>, metadata);
         GlobalRegistry.entityClasses.push(target as unknown as Newable<BaseEntity>);
     };
 }

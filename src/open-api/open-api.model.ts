@@ -11,3 +11,7 @@ export type OpenApiParameter = (oas31.ParameterObject | oas31.ReferenceObject);
 export type OpenApiRequestBodyObject = oas31.RequestBodyObject;
 
 export type OpenApiSchemaObject = oas31.SchemaObject;
+
+export type OpenApiSecuritySchemeObject = oas31.SecuritySchemeObject;
+
+export type OpenApiSecurityRequirementObject = oas31.SecurityRequirementObject;

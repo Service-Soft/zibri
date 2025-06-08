@@ -9,8 +9,9 @@ describe('parseArray', () => {
     const meta: ArrayParamMetadata = {
         name: 'foo',
         type: 'array',
-        items: { type: 'string', required: true, primary: false },
-        required: true
+        items: { type: 'string', required: true, primary: false, description: undefined, format: undefined, unique: false },
+        required: true,
+        description: undefined
     };
 
     it('returns undefined for undefined input', () => {

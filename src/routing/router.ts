@@ -1,7 +1,8 @@
-import express, { NextFunction, Request, RequestHandler, Response } from 'express';
+import express, { NextFunction, RequestHandler } from 'express';
 
 import { Route, ControllerRouteConfiguration } from './controller-route-configuration.model';
 import { RouterInterface } from './router.interface';
+import { AuthServiceInterface, CurrentUserMetadata } from '../auth';
 import { ZIBRI_DI_TOKENS, inject } from '../di';
 import { MetadataUtilities } from '../utilities';
 import { MissingBaseRouteError } from './missing-base-route.error';
@@ -11,6 +12,7 @@ import { LoggerInterface } from '../logging';
 import { Newable } from '../types';
 import { BodyMetadata, HeaderParamMetadata, PathParamMetadata, QueryParamMetadata } from './decorators';
 import { RouteConfiguration } from './route-configuration.model';
+import { HttpRequest, HttpResponse } from '../http';
 import { ParserInterface } from '../parsing';
 import { ValidationServiceInterface } from '../validation';
 
@@ -19,11 +21,13 @@ export class Router implements RouterInterface {
     private readonly logger: LoggerInterface;
     private readonly parser: ParserInterface;
     private readonly validationService: ValidationServiceInterface;
+    private readonly authService: AuthServiceInterface;
 
     constructor() {
         this.logger = inject(ZIBRI_DI_TOKENS.LOGGER);
         this.parser = inject(ZIBRI_DI_TOKENS.PARSER);
         this.validationService = inject(ZIBRI_DI_TOKENS.VALIDATION_SERVICE);
+        this.authService = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
         this.logger.info('registers', GlobalRegistry.controllerClasses.length, 'controllers:');
         for (const controller of GlobalRegistry.controllerClasses) {
             const routes: ControllerRouteConfiguration[] = MetadataUtilities.getControllerRoutes(controller);
@@ -58,7 +62,7 @@ export class Router implements RouterInterface {
     }
 
     private routeToRequestHandler(route: RouteConfiguration): RequestHandler {
-        const handler: RequestHandler = async (req: Request, res: Response, next: NextFunction) => {
+        const handler: RequestHandler = async (req: HttpRequest, res: HttpResponse, next: NextFunction) => {
             try {
                 const result: unknown = await route.handler(req, res);
                 if (res.headersSent) {
@@ -78,8 +82,9 @@ export class Router implements RouterInterface {
     }
 
     private controllerRouteToRequestHandler(controllerClass: Newable<Object>, route: ControllerRouteConfiguration): RequestHandler {
-        const handler: RequestHandler = async (req: Request, res: Response, next: NextFunction) => {
+        const handler: RequestHandler = async (req: HttpRequest, res: HttpResponse, next: NextFunction) => {
             try {
+                await this.authService.checkAccess(controllerClass, route.controllerMethod, req);
                 const controller: Object = inject(controllerClass);
                 const params: unknown[] = await this.resolveRouteParams(
                     controllerClass,
@@ -111,7 +116,7 @@ export class Router implements RouterInterface {
         controllerClass: Newable<Object>,
         controllerMethod: string,
         totalParamCount: number,
-        req: Request
+        req: HttpRequest
     ): Promise<unknown[]> {
         let resolvedParamCount: number = 0;
         const params: unknown[] = new Array(totalParamCount).fill(undefined);
@@ -150,6 +155,17 @@ export class Router implements RouterInterface {
             this.validationService.validateHeaderParam(params[idx], metadata);
         }
         resolvedParamCount += Object.keys(headerParams).length;
+
+        // 4) CurrentUser decorator
+        const currentUser: CurrentUserMetadata | undefined = MetadataUtilities.getRouteCurrentUser(controllerClass, controllerMethod);
+        if (currentUser) {
+            resolvedParamCount++;
+            params[currentUser.index] = await this.authService.getCurrentUser(
+                req,
+                currentUser.allowedStrategies ?? this.authService.strategies,
+                currentUser.optional
+            );
+        }
 
         if (resolvedParamCount < totalParamCount) {
             throw new Error(

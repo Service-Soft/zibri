@@ -1,9 +1,7 @@
-import { Request } from 'express';
-
 import { inject, ZIBRI_DI_TOKENS } from '../di';
 import { GlobalRegistry } from '../global';
 import { BodyParserInterface } from './body-parser.interface';
-import { isMimeType } from '../http';
+import { HttpRequest, isMimeType } from '../http';
 import { ParserInterface } from './parser.interface';
 import { LoggerInterface } from '../logging';
 import { HeaderParamMetadata, PathParamMetadata, QueryParamMetadata } from '../routing';
@@ -48,22 +46,22 @@ export class Parser implements ParserInterface {
         this.logger = inject(ZIBRI_DI_TOKENS.LOGGER);
     }
 
-    parseHeaderParam(req: Request, metadata: HeaderParamMetadata): unknown {
+    parseHeaderParam(req: HttpRequest, metadata: HeaderParamMetadata): unknown {
         const rawValue: string | undefined = req.header(metadata.name);
         return this.headerParamParseFunctions[metadata.type](rawValue, metadata);
     }
 
-    parseQueryParam(req: Request, metadata: QueryParamMetadata): unknown {
+    parseQueryParam(req: HttpRequest, metadata: QueryParamMetadata): unknown {
         const rawValue: unknown = req.query[metadata.name];
         return this.queryParamParseFunctions[metadata.type](rawValue, metadata);
     }
 
-    parsePathParam(req: Request, metadata: PathParamMetadata): unknown {
+    parsePathParam(req: HttpRequest, metadata: PathParamMetadata): unknown {
         const rawValue: string | undefined = req.params[metadata.name];
         return this.pathParamParseFunctions[metadata.type](rawValue, metadata);
     }
 
-    async parseRequestBody(req: Request): Promise<unknown> {
+    async parseRequestBody(req: HttpRequest): Promise<unknown> {
         const contentType: string = req.headers['content-type']?.split(';')[0]?.trim().toLowerCase() ?? '';
         if (!isMimeType(contentType)) {
             throw new Error(`Unsupported Content-Type: "${contentType}"`);

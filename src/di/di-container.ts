@@ -33,6 +33,10 @@ export class DiContainer {
         this.providers.set(provider.token, provider);
     }
 
+    unregister<T>(token: DiToken<T>): void {
+        this.providers.delete(token);
+    }
+
     inject<T>(token: DiToken<T>, resolvingStack: Function[] = []): T {
         if (this.instances.has(token)) {
             return this.instances.get(token) as T;

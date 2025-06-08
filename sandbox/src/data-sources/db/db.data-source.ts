@@ -1,5 +1,6 @@
-import { BaseDataSource, BaseEntity, DataSource, Newable, DataSourceOptions } from "zibri";
-import { Company, Test, User } from "../models";
+import { BaseDataSource, BaseEntity, DataSource, Newable, DataSourceOptions, MigrationEntity, RefreshToken, JwtCredentials } from 'zibri';
+
+import { Test, User } from '../../models';
 
 @DataSource()
 export class DbDataSource extends BaseDataSource {
@@ -13,8 +14,10 @@ export class DbDataSource extends BaseDataSource {
         synchronize: true
     };
     entities: Newable<BaseEntity>[] = [
+        MigrationEntity,
         Test,
         User,
-        Company
+        RefreshToken,
+        JwtCredentials
     ];
 }

@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "zibri";
+import { Inject, Injectable } from 'zibri';
 
 @Injectable()
 export class DepService {

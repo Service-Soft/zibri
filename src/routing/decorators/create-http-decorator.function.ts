@@ -10,6 +10,6 @@ export function createHttpDecorator(method: HttpMethod, path: Route): MethodDeco
         MetadataUtilities.setFilePath(ctor, stack);
         const routes: ControllerRouteConfiguration[] = MetadataUtilities.getControllerRoutes(ctor);
         routes.push({ httpMethod: method, route: path, controllerMethod: propertyKey.toString() });
-        MetadataUtilities.setControllerRoutes(routes, ctor);
+        MetadataUtilities.setControllerRoutes(ctor, routes);
     };
 }

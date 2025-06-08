@@ -4,7 +4,8 @@
     "main": "./dist/index.js",
     "scripts": {
         "start": "webpack --watch",
-        "build": "webpack"
+        "build": "webpack",
+        "lint": "eslint . --max-warnings 0"
     },
     "keywords": [],
     "author": "",
