@@ -3,6 +3,7 @@ import { DataSourceServiceInterface } from './data-source-service.interface';
 import { inject, ZIBRI_DI_TOKENS } from '../di';
 import { BaseDataSource } from './base-data-source.model';
 import { JwtCredentials, RefreshToken } from '../auth';
+import { CronJobEntity } from '../cron';
 import { BaseEntity } from '../entity';
 import { LoggerInterface } from '../logging';
 import { Newable } from '../types';
@@ -28,6 +29,9 @@ export class DataSourceService implements DataSourceServiceInterface {
         const entitiesInDataSources: Newable<BaseEntity>[] = [];
         for (const dataSourceClass of GlobalRegistry.dataSourceClasses) {
             const dataSource: BaseDataSource = inject(dataSourceClass);
+            if (!dataSource.entities.includes(CronJobEntity)) {
+                dataSource.entities.push(CronJobEntity);
+            }
             this.logger.info(`  - ${dataSourceClass.name} (${dataSource.entities.length} entities)`);
             entitiesInDataSources.push(...dataSource.entities);
             await dataSource.init();

@@ -2,8 +2,9 @@ import { ReflectUtilities } from './reflect.utilities';
 import { DiToken } from '../di';
 import { Route, ControllerRouteConfiguration, PathParamMetadata, BodyMetadata, QueryParamMetadata, HeaderParamMetadata } from '../routing';
 import { MetadataInjectionKeys } from './metadata-injection-keys.enum';
-import { CurrentUserMetadata, HasRoleMetadata, IsLoggedInMetadata, IsNotLoggedInMetadata, SkipHasRoleMetadata, SkipIsLoggedInMetadata, SkipIsNotLoggedInMetadata } from '../auth';
-import { EntityMetadata, PropertyMetadata } from '../entity';
+import { BelongsToMetadata, CurrentUserMetadata, HasRoleMetadata, IsLoggedInMetadata, IsNotLoggedInMetadata, SkipAuthMetadata, SkipBelongsToMetadata, SkipHasRoleMetadata, SkipIsLoggedInMetadata, SkipIsNotLoggedInMetadata } from '../auth';
+import { BaseEntity, EntityMetadata, PropertyMetadata } from '../entity';
+import { OpenApiResponse } from '../open-api';
 import { Newable } from '../types';
 
 export abstract class MetadataUtilities {
@@ -46,6 +47,14 @@ export abstract class MetadataUtilities {
 
     static getControllerRoutes(controller: Object): ControllerRouteConfiguration[] {
         return ReflectUtilities.getMetadata(MetadataInjectionKeys.CONTROLLER_ROUTES, controller) ?? [];
+    }
+
+    static setRouteResponses(controller: Object, data: OpenApiResponse[], controllerMethod: string): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_RESPONSES, data, controller, controllerMethod);
+    }
+
+    static getRouteResponses(controller: Object, controllerMethod: string): OpenApiResponse[] {
+        return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.ROUTE_RESPONSES, controller, controllerMethod) ?? [];
     }
 
     static setControllerBaseRoute(controller: Object, baseRoute: Route): void {
@@ -158,6 +167,53 @@ export abstract class MetadataUtilities {
 
     static getControllerSkipHasRole(controller: Object): SkipHasRoleMetadata | undefined {
         return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.CONTROLLER_SKIP_HAS_ROLE, controller);
+    }
+
+    static setRouteBelongsTo<T extends Newable<BaseEntity>>(
+        controller: Object,
+        data: BelongsToMetadata<T>,
+        controllerMethod: string
+    ): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_BELONGS_TO, data, controller, controllerMethod);
+    }
+
+    static getRouteBelongsTo<T extends Newable<BaseEntity>>(
+        controller: Object,
+        controllerMethod: string
+    ): BelongsToMetadata<T> | undefined {
+        return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.ROUTE_BELONGS_TO, controller, controllerMethod);
+    }
+
+    static setRouteSkipBelongsTo(controller: Object, data: SkipBelongsToMetadata, controllerMethod: string): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_SKIP_BELONGS_TO, data, controller, controllerMethod);
+    }
+
+    static getRouteSkipBelongsTo(controller: Object, controllerMethod: string): SkipBelongsToMetadata | undefined {
+        return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.ROUTE_SKIP_BELONGS_TO, controller, controllerMethod);
+    }
+
+    static setControllerBelongsTo<T extends Newable<BaseEntity>>(controller: Object, data: BelongsToMetadata<T>): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.CONTROLLER_BELONGS_TO, data, controller);
+    }
+
+    static getControllerBelongsTo<T extends Newable<BaseEntity>>(controller: Object): BelongsToMetadata<T> | undefined {
+        return ReflectUtilities.getMetadata(MetadataInjectionKeys.CONTROLLER_BELONGS_TO, controller);
+    }
+
+    static setControllerSkipBelongsTo(controller: Object, data: SkipBelongsToMetadata): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.CONTROLLER_SKIP_BELONGS_TO, data, controller);
+    }
+
+    static getControllerSkipBelongsTo(controller: Object): SkipBelongsToMetadata | undefined {
+        return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.CONTROLLER_SKIP_BELONGS_TO, controller);
+    }
+
+    static setRouteSkipAuth(controller: Object, data: SkipAuthMetadata, controllerMethod: string): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_SKIP_AUTH, data, controller, controllerMethod);
+    }
+
+    static getRouteSkipAuth(controller: Object, controllerMethod: string): SkipAuthMetadata | undefined {
+        return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.ROUTE_SKIP_AUTH, controller, controllerMethod);
     }
 
     static setModelProperties(model: Newable<unknown>, metadata: Record<string, PropertyMetadata>): void {

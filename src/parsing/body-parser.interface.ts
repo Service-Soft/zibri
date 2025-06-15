@@ -1,6 +1,7 @@
 import { HttpRequest, MimeType } from '../http';
+import { BodyMetadata } from '../routing';
 
 export interface BodyParserInterface {
     readonly contentType: MimeType,
-    parse: (req: HttpRequest) => Promise<unknown>
+    parse: (req: HttpRequest, bodyMetadata: BodyMetadata) => Promise<unknown>
 }

@@ -1,9 +1,7 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, Repository, InjectRepository, OmitType, Auth } from 'zibri';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Repository, InjectRepository, Auth, Response } from 'zibri';
 
-import { Roles, Test, User } from '../models';
+import { Roles, Test, TestCreateDTO, User } from '../models';
 import { UserRepository } from '../repositories';
-
-class CreateDTO extends OmitType(Test, ['id']) {}
 
 @Auth.isLoggedIn()
 @Controller('/tests')
@@ -16,11 +14,13 @@ export class TestController {
     ) {}
 
     @Auth.isLoggedIn.skip()
+    @Response.array(Test)
     @Get()
     async find(): Promise<Test[]> {
         return await this.testRepository.findAll();
     }
 
+    @Response.object(Test)
     @Get('/:id')
     async findById(
         @Param.path('id', { format: 'uuid' })
@@ -29,15 +29,26 @@ export class TestController {
         return await this.testRepository.findById(id);
     }
 
+    @Response.file()
+    @Get('/:id/document')
+    async findDocumentFor(
+        @Param.path('id', { format: 'uuid' })
+        id: string
+    ): Promise<Test> {
+        return await this.testRepository.findById(id);
+    }
+
     @Auth.hasRole([Roles.USER])
+    @Response.object(Test)
     @Post()
     async create(
-        @Body(CreateDTO)
-        test: CreateDTO
+        @Body(TestCreateDTO)
+        test: TestCreateDTO
     ): Promise<Test> {
         return await this.testRepository.create(test);
     }
 
+    @Response.object(Test)
     @Patch('/:id')
     async updateById(
         @Param.path('id', { format: 'uuid' })
@@ -48,6 +59,7 @@ export class TestController {
         return await this.testRepository.updateById(id, data);
     }
 
+    @Response.empty()
     @Delete('/:id')
     async deleteById(
         @Param.path('id', { format: 'uuid' })

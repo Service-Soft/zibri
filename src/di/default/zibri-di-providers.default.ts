@@ -1,6 +1,7 @@
 import { ZIBRI_DI_TOKENS } from './zibri-di-tokens.default';
 import { AssetService, AssetServiceInterface } from '../../assets';
 import { AuthService, AuthServiceInterface, UserService, UserServiceInterface } from '../../auth';
+import { CronService, CronServiceInterface } from '../../cron';
 import { DataSourceService, DataSourceServiceInterface } from '../../data-source';
 import { errorHandler, GlobalErrorHandler } from '../../error-handling';
 import { Logger, LoggerInterface, LogLevel } from '../../logging';
@@ -28,7 +29,8 @@ type ZibriDiProviders = {
     [ZIBRI_DI_TOKENS.JWT_ACCESS_TOKEN_SECRET]: ZibriDiProvider<string | undefined>,
     [ZIBRI_DI_TOKENS.JWT_REFRESH_TOKEN_SECRET]: ZibriDiProvider<string | undefined>,
     [ZIBRI_DI_TOKENS.JWT_ACCESS_TOKEN_EXPIRES_IN_MS]: ZibriDiProvider<number>,
-    [ZIBRI_DI_TOKENS.JWT_REFRESH_TOKEN_EXPIRES_IN_MS]: ZibriDiProvider<number>
+    [ZIBRI_DI_TOKENS.JWT_REFRESH_TOKEN_EXPIRES_IN_MS]: ZibriDiProvider<number>,
+    [ZIBRI_DI_TOKENS.CRON_SERVICE]: ZibriDiProvider<CronServiceInterface>
 };
 
 export const ZIBRI_DI_PROVIDERS: Record<
@@ -49,5 +51,6 @@ export const ZIBRI_DI_PROVIDERS: Record<
     [ZIBRI_DI_TOKENS.JWT_ACCESS_TOKEN_SECRET]: { useFactory: () => undefined },
     [ZIBRI_DI_TOKENS.JWT_REFRESH_TOKEN_SECRET]: { useFactory: () => undefined },
     [ZIBRI_DI_TOKENS.JWT_ACCESS_TOKEN_EXPIRES_IN_MS]: { useFactory: () => 3600000 },
-    [ZIBRI_DI_TOKENS.JWT_REFRESH_TOKEN_EXPIRES_IN_MS]: { useFactory: () => 8640000000 }
+    [ZIBRI_DI_TOKENS.JWT_REFRESH_TOKEN_EXPIRES_IN_MS]: { useFactory: () => 8640000000 },
+    [ZIBRI_DI_TOKENS.CRON_SERVICE]: { useClass: CronService }
 } satisfies ZibriDiProviders;

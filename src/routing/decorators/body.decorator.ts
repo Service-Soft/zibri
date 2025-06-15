@@ -1,23 +1,33 @@
 import { BasePropertyMetadata } from '../../entity/models/base-property-metadata.model';
+import { MimeType } from '../../http';
 import { Newable, OmitStrict } from '../../types';
 import { MetadataUtilities } from '../../utilities';
 
-export type BodyMetadata = BasePropertyMetadata & {
+type BaseBodyMetadata = BasePropertyMetadata & {
     modelClass: Newable<unknown>,
-    index: number,
-    name: string
+    index: number
 };
 
-export type BodyMetadataInput = Partial<OmitStrict<BodyMetadata, 'modelClass' | 'index' | 'name'>>;
+export type JsonBodyMetadata = BaseBodyMetadata & {
+    type: MimeType.JSON
+};
+
+export type FormDataBodyMetadata = BaseBodyMetadata & {
+    type: MimeType.FORM_DATA
+};
+
+export type BodyMetadata = JsonBodyMetadata | FormDataBodyMetadata;
+
+export type BodyMetadataInput = Partial<OmitStrict<BodyMetadata, 'modelClass' | 'index'>>;
 
 export function Body(modelClass: Newable<unknown>, options: BodyMetadataInput = {}): ParameterDecorator {
     return (target, propertyKey, index) => {
         const fullMetadata: BodyMetadata = {
             index,
             modelClass,
-            name: modelClass.name,
             required: true,
             description: undefined,
+            type: MimeType.JSON,
             ...options
         };
         const ctor: Function = target.constructor;

@@ -11,7 +11,7 @@ describe('parseObject', () => {
         type: 'object',
         required: true,
         description: undefined,
-        cls: class Dummy {}
+        cls: () => class Dummy {}
     };
 
     it('returns undefined for undefined input', () => {

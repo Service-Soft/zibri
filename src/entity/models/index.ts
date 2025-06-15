@@ -10,3 +10,4 @@ export * from './base-entity.model';
 export * from './one-to-one-property-metadata.model';
 export * from './many-to-many-property-metadata.model';
 export * from './relation.enum';
+export * from './file-property-metadata.model';

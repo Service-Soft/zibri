@@ -1,4 +1,5 @@
-import { BaseEntity, ManyToManyPropertyMetadata, ManyToOnePropertyMetadata, OneToManyPropertyMetadata, OneToOnePropertyMetadata, Relation, RelationMetadata } from '../entity';
+import { BaseEntity, FileSize, ManyToManyPropertyMetadata, ManyToOnePropertyMetadata, OneToManyPropertyMetadata, OneToOnePropertyMetadata, Relation, RelationMetadata } from '../entity';
+import { MimeType } from '../http';
 
 export type ValidationProblem = {
     key: string,
@@ -14,6 +15,22 @@ export class TypeMismatchValidationProblem implements ValidationProblem {
     readonly message: string;
     constructor(readonly key: string, type: string) {
         this.message = `should be of type ${type}`;
+    }
+}
+
+export class MaxFileSizeValidationProblem implements ValidationProblem {
+    readonly message: string;
+    constructor(readonly key: string, maxSize: FileSize) {
+        this.message = `needs to be smaller than ${maxSize}`;
+    }
+}
+
+export class MimeTypeMismatchValidationProblem implements ValidationProblem {
+    readonly message: string;
+    constructor(readonly key: string, allowedMimeTypes: MimeType[]) {
+        this.message = allowedMimeTypes.length > 1
+            ? `the file type needs to be one of: ${allowedMimeTypes.join(', ')}`
+            : `the file type needs to be ${allowedMimeTypes[0]}`;
     }
 }
 

@@ -3,8 +3,8 @@ import { IsolationLevel } from 'typeorm/driver/types/IsolationLevel';
 import { ColumnMetadata } from 'typeorm/metadata/ColumnMetadata';
 
 import { inject, repositoryTokenFor, ZIBRI_DI_TOKENS } from '../di';
-import { BaseEntity, EntityMetadata, PropertyMetadata, Relation, RelationMetadata, StringPropertyMetadata } from '../entity';
-import { Newable, OmitStrict, Version } from '../types';
+import { BaseEntity, EntityMetadata, FilePropertyMetadata, PropertyMetadata, Relation, RelationMetadata, StringPropertyMetadata } from '../entity';
+import { ExcludeStrict, Newable, OmitStrict, Version } from '../types';
 import { compareVersion, MetadataUtilities } from '../utilities';
 import { Migration, MigrationEntity } from './migration';
 import { ColumnType, DataSourceOptions } from './models';
@@ -15,10 +15,12 @@ import { GlobalRegistry } from '../global';
 import { LoggerInterface } from '../logging';
 import { TypeOrmTransaction } from './transaction/typeorm-transaction.model';
 
-export abstract class BaseDataSource {
-    protected readonly columnTypeMappingOverride: Partial<Record<PropertyMetadata['type'], ColumnType>> = {};
+type ToColumnMappableTypes = ExcludeStrict<PropertyMetadata, RelationMetadata<BaseEntity> | FilePropertyMetadata>['type'];
 
-    private get columnTypeMapping(): Record<Exclude<PropertyMetadata, RelationMetadata<BaseEntity>>['type'], ColumnType> {
+export abstract class BaseDataSource {
+    protected readonly columnTypeMappingOverride: Partial<Record<ToColumnMappableTypes, ColumnType>> = {};
+
+    private get columnTypeMapping(): Record<ToColumnMappableTypes, ColumnType> {
         return {
             array: 'array',
             number: Number,
@@ -99,7 +101,10 @@ export abstract class BaseDataSource {
             ) {
                 continue;
             }
-            columns[key] = this.propertyToColumnOptions(m);
+            if (m.type === 'file') {
+                throw new Error(`the property "${cls.name}.${key}" of type file cannot be mapped to a database column.`);
+            }
+            columns[key] = this.propertyToColumnOptions(m, cls, key);
         }
 
         const relations: Record<string, EntitySchemaRelationOptions> = {};
@@ -135,7 +140,11 @@ export abstract class BaseDataSource {
         }
     }
 
-    protected propertyToColumnOptions(metadata: Exclude<PropertyMetadata, RelationMetadata<BaseEntity>>): EntitySchemaColumnOptions {
+    protected propertyToColumnOptions(
+        metadata: ExcludeStrict<PropertyMetadata, RelationMetadata<BaseEntity> | FilePropertyMetadata>,
+        cls: Newable<BaseEntity>,
+        key: string
+    ): EntitySchemaColumnOptions {
         switch (metadata.type) {
             case 'boolean':
             case 'object':
@@ -147,6 +156,9 @@ export abstract class BaseDataSource {
                 };
             }
             case 'array': {
+                if (metadata.items.type === 'file') {
+                    throw new Error(`the property "${cls.name}.${key}" of type file array cannot be mapped to a database column.`);
+                }
                 return {
                     nullable: !metadata.required,
                     ...metadata,

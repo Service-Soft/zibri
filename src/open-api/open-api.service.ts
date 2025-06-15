@@ -1,22 +1,33 @@
 import path from 'path';
 
-import { ParameterLocation, TagObject } from 'openapi3-ts/dist/oas31';
+import { ContentObject, ParameterLocation, ResponseObject, ResponsesObject, TagObject } from 'openapi3-ts/dist/oas31';
 import swaggerUi from 'swagger-ui-express';
 
 import { ZibriApplication } from '../application';
 import { AssetServiceInterface } from '../assets';
-import { AuthServiceInterface, HasRoleMetadata, IsLoggedInMetadata } from '../auth';
+import { AuthServiceInterface, BelongsToMetadata, HasRoleMetadata, IsLoggedInMetadata } from '../auth';
 import { inject, ZIBRI_DI_TOKENS } from '../di';
-import { PropertyMetadata, Relation } from '../entity';
+import { BaseEntity, ManyToManyPropertyMetadata, ManyToOnePropertyMetadata, OmitType, OneToManyPropertyMetadata, OneToOnePropertyMetadata, PropertyMetadata, Relation } from '../entity';
 import { GlobalRegistry } from '../global';
-import { HttpRequest, HttpResponse, MimeType } from '../http';
+import { HttpRequest, HttpResponse, HttpStatus, MimeType } from '../http';
 import { LoggerInterface } from '../logging';
 import { BodyMetadata, ControllerRouteConfiguration, HeaderParamMetadata, PathParamMetadata, QueryParamMetadata, Route } from '../routing';
 import { OpenApiServiceInterface } from './open-api-service.interface';
-import { OpenApiDefinition, OpenApiOperation, OpenApiParameter, OpenApiPaths, OpenApiRequestBodyObject, OpenApiSchemaObject, OpenApiSecurityRequirementObject, OpenApiSecuritySchemeObject } from './open-api.model';
+import { OpenApiDefinition, OpenApiOperation, OpenApiParameter, OpenApiPaths, OpenApiRequestBodyObject, OpenApiResponse, OpenApiSchemaObject, OpenApiSecurityRequirementObject, OpenApiSecuritySchemeObject } from './open-api.model';
 import { MissingBaseRouteError } from '../routing/missing-base-route.error';
 import { Newable } from '../types';
 import { MetadataUtilities } from '../utilities';
+
+const defaultDescriptionForHttpStatus: Record<HttpStatus | 'default', string> = {
+    default: 'Response',
+    [HttpStatus.INTERNAL_SERVER_ERROR]: 'Internal Server Error',
+    [HttpStatus.NOT_FOUND_ERROR]: 'Not Found',
+    [HttpStatus.BAD_REQUEST]: 'Bad Request',
+    [HttpStatus.UNAUTHORIZED]: 'Unauthorized',
+    [HttpStatus.FORBIDDEN]: 'Forbidden',
+    [HttpStatus.OK]: 'Ok',
+    [HttpStatus.CREATED]: 'Created'
+};
 
 export class OpenApiService implements OpenApiServiceInterface {
     readonly openApiRoute: Route = '/explorer';
@@ -143,12 +154,15 @@ export class OpenApiService implements OpenApiServiceInterface {
                 const fullPath: string = `${baseRoute}${route.route}`.replaceAll(/:([^/]+)/g, '{$1}');
                 res[fullPath] ??= {};
 
+                const responses: OpenApiResponse[] = MetadataUtilities.getRouteResponses(controllerClass, route.controllerMethod);
+
                 const hasRoleMetadata: HasRoleMetadata | undefined = this.authService.resolveHasRoleMetadata(
                     controllerClass,
                     route.controllerMethod
                 );
+
                 const operation: OpenApiOperation = {
-                    responses: {},
+                    responses: this.buildResponses(responses),
                     tags: [controllerClass.name],
                     parameters: [
                         ...this.buildParameters(pathParams, 'path'),
@@ -166,6 +180,94 @@ export class OpenApiService implements OpenApiServiceInterface {
         return res;
     }
 
+    private buildResponses(responses: OpenApiResponse[]): ResponsesObject | undefined {
+        const res: ResponsesObject = {};
+
+        const groupedResponses: Record<string, OpenApiResponse[]> = {};
+        for (const response of responses) {
+            if (groupedResponses[response.status ?? 'default'] != undefined) {
+                groupedResponses[response.status ?? 'default'].push(response);
+            }
+            else {
+                groupedResponses[response.status ?? 'default'] = [response];
+            }
+        }
+
+        for (const status in groupedResponses) {
+            const r: OpenApiResponse[] = groupedResponses[status];
+            if (r.length > 1) {
+                const data: ResponseObject = {
+                    description: '',
+                    content: this.buildResponsesContent(r)
+                };
+                res[status] = data;
+            }
+            else {
+                const response: OpenApiResponse = r[0];
+                const data: ResponseObject = {
+                    description: response.description ?? defaultDescriptionForHttpStatus[response.status ?? 'default'],
+                    content: this.buildResponseContent(response)
+                };
+                res[status] = data;
+            }
+        }
+
+        return res;
+    }
+
+    private buildResponseContent(response: OpenApiResponse): ContentObject | undefined {
+        if (response.type === 'file') {
+            const schema: OpenApiSchemaObject = { type: 'string', format: 'binary' };
+            // normalize mimeType into an array; default to octet‑stream
+            const mimeTypes: MimeType[] = Array.isArray(response.mimeType)
+                ? response.mimeType
+                : response.mimeType != undefined
+                    ? [response.mimeType === 'all' ? MimeType.OCTET_STREAM : response.mimeType]
+                    : [MimeType.OCTET_STREAM];
+
+            const content: ContentObject = {};
+            for (const mt of mimeTypes) {
+                content[mt] = { schema };
+            }
+            return content;
+        }
+
+        if (!response.cls) {
+            return undefined;
+        }
+
+        const propMeta: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(response.cls);
+        const schema: OpenApiSchemaObject = this.buildOpenApiSchemaForProperties(propMeta, response.cls);
+
+        if (response.isArray === true) {
+            return { [MimeType.JSON]: { schema: { type: 'array', items: schema } } };
+        }
+
+        return { [MimeType.JSON]: { schema } };
+    }
+
+    private buildResponsesContent(responses: OpenApiResponse[]): ContentObject | undefined {
+        const schemas: OpenApiSchemaObject[] = [];
+        for (const response of responses) {
+            if (response.type === 'file') {
+                schemas.push({ type: 'string', format: 'binary' });
+                continue;
+            }
+            if (!response.cls) {
+                continue;
+            }
+            const propMeta: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(response.cls);
+            const schema: OpenApiSchemaObject = this.buildOpenApiSchemaForProperties(propMeta, response.cls);
+            if (response.isArray === true) {
+                schemas.push({ type: 'array', items: schema });
+                continue;
+            }
+            schemas.push(schema);
+        }
+
+        return { [MimeType.JSON]: { schema: { oneOf: schemas } } };
+    }
+
     private resolveOperationSecurity(
         controllerClass: Newable<Object>,
         controllerMethod: string
@@ -179,9 +281,12 @@ export class OpenApiService implements OpenApiServiceInterface {
             controllerClass,
             controllerMethod
         );
+        const belongsToMetadata: BelongsToMetadata<Newable<BaseEntity>> | undefined = this.authService.resolveBelongsToMetadata(
+            controllerClass,
+            controllerMethod
+        );
 
-        // TODO: Add belongs to etc.
-        if (!isLoggedInMetadata && !hasRoleMetadata) {
+        if (!isLoggedInMetadata && !hasRoleMetadata && !belongsToMetadata) {
             return undefined;
         }
 
@@ -196,15 +301,15 @@ export class OpenApiService implements OpenApiServiceInterface {
             return undefined;
         }
         const propMeta: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(metadata.modelClass);
-        const schema: OpenApiSchemaObject = this.buildOpenApiSchemaForProperties(propMeta);
+        const schema: OpenApiSchemaObject = this.buildOpenApiSchemaForProperties(propMeta, metadata.modelClass);
         return {
             required: metadata.required,
             description: metadata.description,
-            content: { [MimeType.JSON]: { schema } }
+            content: { [metadata.type]: { schema } }
         };
     }
 
-    private buildOpenApiSchemaForProperties(propMeta: Record<string, PropertyMetadata>): OpenApiSchemaObject {
+    private buildOpenApiSchemaForProperties(propMeta: Record<string, PropertyMetadata>, entity: Newable<unknown>): OpenApiSchemaObject {
         const properties: Record<string, OpenApiSchemaObject> = {};
         const required: string[] = [];
 
@@ -223,42 +328,57 @@ export class OpenApiService implements OpenApiServiceInterface {
                     properties[key] = { type: meta.type, description: meta.description };
                     continue;
                 }
+                case 'file': {
+                    properties[key] = { type: 'string', format: 'binary', description: meta.description };
+                    continue;
+                }
                 case 'string': {
                     properties[key] = { type: meta.type, format: meta.format, description: meta.description };
                     continue;
                 }
                 case 'object': {
-                    const objectPropMeta: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(meta.cls);
-                    properties[key] = { ...this.buildOpenApiSchemaForProperties(objectPropMeta), description: meta.description };
+                    const objectPropMeta: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(meta.cls());
+                    properties[key] = { ...this.buildOpenApiSchemaForProperties(objectPropMeta, entity), description: meta.description };
                     continue;
                 }
                 case Relation.ONE_TO_ONE:
                 case Relation.MANY_TO_ONE: {
-                    const objectPropMeta: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(meta.target());
-                    properties[key] = { ...this.buildOpenApiSchemaForProperties(objectPropMeta), description: meta.description };
+                    const targetClass: Newable<BaseEntity> = this.getTargetClassForRelation(meta, entity);
+                    const objectPropMeta: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(targetClass);
+                    properties[key] = { ...this.buildOpenApiSchemaForProperties(objectPropMeta, entity), description: meta.description };
                     continue;
                 }
-                case Relation.MANY_TO_MANY: {
-                    // TODO: How to handle this?
-                    continue;
-                }
+                case Relation.MANY_TO_MANY:
                 case Relation.ONE_TO_MANY: {
-                    const items: OpenApiSchemaObject = this.buildOpenApiSchemaForProperties({
-                        items: { type: 'object', cls: meta.target(), required: true, description: undefined }
-                    });
+                    const targetClass: Newable<BaseEntity> = this.getTargetClassForRelation(meta, entity);
+
+                    const items: OpenApiSchemaObject = this.buildOpenApiSchemaForProperties(
+                        {
+                            items: {
+                                type: 'object',
+                                cls: () => targetClass,
+                                required: true,
+                                description: undefined
+                            }
+                        },
+                        entity
+                    );
                     properties[key] = {
                         type: 'array',
                         description: meta.description,
-                        items
+                        items: items.properties?.['items']
                     };
                     continue;
                 }
                 case 'array': {
-                    const items: OpenApiSchemaObject = this.buildOpenApiSchemaForProperties({ items: meta.items });
+                    if (meta.items.type === 'object') {
+                        entity = meta.items.cls();
+                    }
+                    const items: OpenApiSchemaObject = this.buildOpenApiSchemaForProperties({ items: meta.items }, entity);
                     properties[key] = {
                         type: 'array',
                         description: meta.description,
-                        items
+                        items: items.properties?.['items']
                     };
                     continue;
                 }
@@ -274,6 +394,36 @@ export class OpenApiService implements OpenApiServiceInterface {
             // only include `required` if non-empty
             ...required.length ? { required } : {}
         };
+    }
+
+    private getTargetClassForRelation(
+        meta: OneToManyPropertyMetadata<BaseEntity>
+            | ManyToManyPropertyMetadata<BaseEntity>
+            | ManyToOnePropertyMetadata<BaseEntity>
+            | OneToOnePropertyMetadata<BaseEntity>,
+        entity: Newable<unknown>
+    ): Newable<BaseEntity> {
+        const fullTargetClass: Newable<BaseEntity> = meta.target();
+
+        const excludeKeys: (keyof Newable<unknown>)[] = [];
+        const properties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(fullTargetClass);
+        for (const key in properties) {
+            const property: PropertyMetadata = properties[key];
+            if (
+                property.type !== Relation.ONE_TO_ONE
+                && property.type !== Relation.ONE_TO_MANY
+                && property.type !== Relation.MANY_TO_ONE
+                && property.type !== Relation.MANY_TO_MANY
+            ) {
+                continue;
+            }
+            if (property.target() === entity) {
+                excludeKeys.push(key as keyof Newable<unknown>);
+            }
+        }
+
+        const targetClass: Newable<BaseEntity> = OmitType(fullTargetClass, excludeKeys);
+        return targetClass;
     }
 
     private buildParameters(
@@ -320,10 +470,10 @@ export class OpenApiService implements OpenApiServiceInterface {
                 };
             }
             case 'object': {
-                const propMeta: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(meta.cls);
+                const propMeta: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(meta.cls());
                 return {
                     description: meta.description,
-                    ...this.buildOpenApiSchemaForProperties(propMeta)
+                    ...this.buildOpenApiSchemaForProperties(propMeta, meta.cls())
                 };
             }
             case 'array': {

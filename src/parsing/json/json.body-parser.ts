@@ -1,9 +1,9 @@
 import express from 'express';
 
-import { BodyParserInterface } from './body-parser.interface';
-import { BodyParser } from './decorators';
-import { BadRequestError } from '../error-handling';
-import { HttpRequest, MimeType } from '../http';
+import { BadRequestError } from '../../error-handling';
+import { HttpRequest, MimeType } from '../../http';
+import { BodyParserInterface } from '../body-parser.interface';
+import { BodyParser } from '../decorators';
 
 @BodyParser()
 export class JsonBodyParser implements BodyParserInterface {

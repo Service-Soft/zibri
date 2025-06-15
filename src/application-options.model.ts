@@ -1,4 +1,5 @@
 import { AuthStrategies } from './auth';
+import { CronJob } from './cron';
 import { BaseDataSource } from './data-source';
 import { DiProvider } from './di';
 import { BodyParserInterface } from './parsing';
@@ -11,5 +12,6 @@ export type ZibriApplicationOptions = {
     dataSources?: Newable<BaseDataSource>[],
     providers?: DiProvider<unknown>[],
     bodyParsers?: Newable<BodyParserInterface>[],
-    authStrategies?: AuthStrategies
+    authStrategies?: AuthStrategies,
+    cronJobs?: Newable<CronJob>[]
 };

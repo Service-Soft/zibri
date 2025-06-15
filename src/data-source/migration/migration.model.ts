@@ -2,8 +2,8 @@ import { EntityMetadata as TOEntityMetadata, EntityTarget, TableColumn, TableCol
 import { ColumnMetadata as TOColumnMetadata } from 'typeorm/metadata/ColumnMetadata';
 
 import { inject, repositoryTokenFor } from '../../di';
-import { BaseEntity, PropertyMetadata, PropertyMetadataInput, RelationMetadata } from '../../entity';
-import { Newable, Version } from '../../types';
+import { BaseEntity, FilePropertyMetadata, PropertyMetadata, PropertyMetadataInput, RelationMetadata } from '../../entity';
+import { ExcludeStrict, Newable, Version } from '../../types';
 import { BaseDataSource } from '../base-data-source.model';
 import { Repository } from '../repository.model';
 import { Transaction } from '../transaction';
@@ -70,7 +70,10 @@ export abstract class Migration {
     protected async changeColumn<T extends BaseEntity>(
         entity: Newable<T>,
         oldColumn: keyof T | string & {},
-        newColumn: PropertyMetadataInput & { name?: keyof T, type: Exclude<PropertyMetadata, RelationMetadata<BaseEntity>>['type'] },
+        newColumn: PropertyMetadataInput & {
+            name?: keyof T,
+            type: ExcludeStrict<PropertyMetadata, RelationMetadata<BaseEntity> | FilePropertyMetadata>['type']
+        },
         transaction: Transaction
     ): Promise<void> {
         const entityMetadata: TOEntityMetadata = this.getEntityMetadata(entity, transaction);

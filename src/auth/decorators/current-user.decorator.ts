@@ -3,14 +3,14 @@ import { AuthStrategies } from '../models';
 
 export type CurrentUserMetadata = {
     index: number,
-    optional: boolean,
+    required: boolean,
     allowedStrategies?: AuthStrategies
 };
 
-export function CurrentUser(optional?: boolean, allowedStrategies?: AuthStrategies): ParameterDecorator {
+export function CurrentUser(required?: boolean, allowedStrategies?: AuthStrategies): ParameterDecorator {
     return (target, propertyKey, index) => {
         const fullMetadata: CurrentUserMetadata = {
-            optional: optional ?? false,
+            required: required ?? true,
             index,
             allowedStrategies
         };

@@ -1,8 +1,8 @@
-import { Auth, AuthServiceInterface, Body, Controller, CurrentUser, Get, HashUtilities, Inject, InjectRepository, JwtAuthData, JwtAuthStrategy, JwtCredentials, JwtCredentialsDto, Post, Repository, Transaction, ZIBRI_DI_TOKENS } from 'zibri';
+import { Auth, AuthServiceInterface, Body, Controller, CurrentUser, Get, HashUtilities, Inject, InjectRepository, JwtAuthData, JwtAuthStrategy, JwtCredentials, JwtCredentialsDto, PaginationResult, Param, Post, Repository, Response, Transaction, ZIBRI_DI_TOKENS } from 'zibri';
 
 import { logger } from '..';
 import { DbDataSource } from '../data-sources';
-import { Roles, User, UserCreateDto } from '../models';
+import { Roles, Test, User, UserCreateDto } from '../models';
 import { UserRepository } from '../repositories';
 
 @Controller('/jwt')
@@ -17,6 +17,7 @@ export class JwtController {
         private readonly dataSource: DbDataSource
     ) {}
 
+    @Response.empty()
     @Post('/register')
     async register(
         @Body(UserCreateDto)
@@ -36,11 +37,19 @@ export class JwtController {
         }
     }
 
+    @Auth.belongsTo(Test)
+    @Response.paginated(User)
     @Get('/users')
-    async get(): Promise<User[]> {
-        return await this.userRepository.findAll();
+    async get(
+        @Param.query('page', { type: 'number' })
+        page: number,
+        @Param.query('limit', { type: 'number' })
+        limit: number
+    ): Promise<PaginationResult<User>> {
+        return await this.userRepository.findAllPaginated(page, limit);
     }
 
+    @Response.object(JwtAuthData<Roles>)
     @Post('/login')
     async login(
         @Body(JwtCredentialsDto)
@@ -50,6 +59,7 @@ export class JwtController {
     }
 
     @Auth.isLoggedIn()
+    @Response.object(User)
     @Get('/users/me')
     getCurrentUser(
         @CurrentUser()

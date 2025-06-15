@@ -2,6 +2,7 @@ import { BaseUser, Entity, IntersectionType, JwtCredentials, OmitType, Property 
 
 import { Roles } from './roles.enum';
 import { OmitStrict } from '../types';
+import { Company } from './company.model';
 
 @Entity()
 export class User implements BaseUser<Roles> {
@@ -16,11 +17,14 @@ export class User implements BaseUser<Roles> {
 
     @Property.number()
     value!: number;
+
+    @Property.manyToOne({ target: () => Company })
+    company!: Company;
 }
 
 export class UserCreateDto extends IntersectionType(
-    OmitType(User, ['id', 'roles']),
+    OmitType(User, ['id', 'roles', 'company']),
     OmitType(JwtCredentials, ['id', 'userId', 'username'])
 ) {}
 
-export type UserCreateData = OmitStrict<User, 'id'>;
+export type UserCreateData = OmitStrict<User, 'id' | 'company'>;

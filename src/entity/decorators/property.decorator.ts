@@ -1,6 +1,6 @@
 import { Newable } from '../../types';
 import { MetadataUtilities } from '../../utilities';
-import { ArrayPropertyItemMetadata, ArrayPropertyMetadata, ArrayPropertyMetadataInput, BaseEntity, BooleanPropertyMetadata, BooleanPropertyMetadataInput, DatePropertyMetadata, DatePropertyMetadataInput, ManyToManyPropertyMetadata, ManyToManyPropertyMetadataInput, ManyToOnePropertyMetadata, ManyToOnePropertyMetadataInput, NumberPropertyMetadata, NumberPropertyMetadataInput, ObjectPropertyMetadata, ObjectPropertyMetadataInput, OneToManyPropertyMetadata, OneToManyPropertyMetadataInput, OneToOnePropertyMetadata, OneToOnePropertyMetadataInput, Relation, StringPropertyMetadata, StringPropertyMetadataInput } from '../models';
+import { ArrayPropertyItemMetadata, ArrayPropertyItemMetadataInput, ArrayPropertyMetadata, ArrayPropertyMetadataInput, BaseEntity, BooleanPropertyMetadata, BooleanPropertyMetadataInput, DatePropertyMetadata, DatePropertyMetadataInput, FilePropertyMetadata, FilePropertyMetadataInput, ManyToManyPropertyMetadata, ManyToManyPropertyMetadataInput, ManyToOnePropertyMetadata, ManyToOnePropertyMetadataInput, NumberPropertyMetadata, NumberPropertyMetadataInput, ObjectPropertyMetadata, ObjectPropertyMetadataInput, OneToManyPropertyMetadata, OneToManyPropertyMetadataInput, OneToOnePropertyMetadata, OneToOnePropertyMetadataInput, Relation, StringPropertyMetadata, StringPropertyMetadataInput } from '../models';
 
 export type PropertyMetadata = StringPropertyMetadata
     | NumberPropertyMetadata
@@ -8,6 +8,7 @@ export type PropertyMetadata = StringPropertyMetadata
     | ArrayPropertyMetadata
     | DatePropertyMetadata
     | BooleanPropertyMetadata
+    | FilePropertyMetadata
     | RelationMetadata<BaseEntity>;
 
 export type RelationMetadata<T extends BaseEntity> = ManyToOnePropertyMetadata<T>
@@ -20,6 +21,7 @@ export type PropertyMetadataInput = StringPropertyMetadataInput
     | ObjectPropertyMetadataInput
     | ArrayPropertyMetadataInput
     | DatePropertyMetadataInput
+    | FilePropertyMetadataInput
     | BooleanPropertyMetadataInput;
 
 export type RelationMetadataInput<T extends BaseEntity> = ManyToOnePropertyMetadataInput<T>
@@ -84,15 +86,50 @@ export namespace Property {
         return applyData(fullMetadata);
     }
 
-    export function array(data: ArrayPropertyMetadataInput): PropertyDecorator {
-        const fullMetadata: ArrayPropertyMetadata = {
-            required: true,
-            type: 'array',
-            description: undefined,
-            ...data,
-            items: fillArrayItemPropertyMetadata(data.items)
+    export function file(data?: FilePropertyMetadataInput): PropertyDecorator {
+        return (target, key) => {
+            if (data?.allowedMimeTypes == undefined) {
+                // const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
+                // logger.warn(
+                //     `Did not specify allowedMimeTypes on property "${target.constructor.name}.${key.toString()}"`,
+                //     'Defaults to allowing any file type.'
+                // );
+            }
+            const fullMetadata: FilePropertyMetadata = {
+                required: true,
+                type: 'file',
+                description: undefined,
+                allowedMimeTypes: 'all',
+                maxSize: '5mb',
+                ...data
+            };
+            const ctor: Newable<unknown> = target.constructor as Newable<unknown>;
+            // eslint-disable-next-line unicorn/error-message
+            const stack: string = new Error().stack ?? '';
+            MetadataUtilities.setFilePath(ctor, stack);
+            const propertyMetadata: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(ctor);
+            propertyMetadata[key as string] = fullMetadata;
+            MetadataUtilities.setModelProperties(ctor, propertyMetadata);
         };
-        return applyData(fullMetadata);
+    }
+
+    export function array(data: ArrayPropertyMetadataInput): PropertyDecorator {
+        return (target, key) => {
+            const fullMetadata: ArrayPropertyMetadata = {
+                required: true,
+                type: 'array',
+                description: undefined,
+                ...data,
+                items: fillArrayItemPropertyMetadata(data.items, target, key.toString())
+            };
+            const ctor: Newable<unknown> = target.constructor as Newable<unknown>;
+            // eslint-disable-next-line unicorn/error-message
+            const stack: string = new Error().stack ?? '';
+            MetadataUtilities.setFilePath(ctor, stack);
+            const propertyMetadata: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(ctor);
+            propertyMetadata[key as string] = fullMetadata;
+            MetadataUtilities.setModelProperties(ctor, propertyMetadata);
+        };
     }
 
     export function manyToOne<T extends BaseEntity>(metadata: ManyToOnePropertyMetadataInput<T>): PropertyDecorator {
@@ -160,7 +197,11 @@ function applyData(data: PropertyMetadata): PropertyDecorator {
     };
 }
 
-function fillArrayItemPropertyMetadata(data: ArrayPropertyItemMetadata): Exclude<PropertyMetadata, RelationMetadata<BaseEntity>> {
+function fillArrayItemPropertyMetadata(
+    data: ArrayPropertyItemMetadataInput,
+    target: Object,
+    key: string
+): ArrayPropertyItemMetadata {
     switch (data.type) {
         case 'number': {
             return {
@@ -208,7 +249,25 @@ function fillArrayItemPropertyMetadata(data: ArrayPropertyItemMetadata): Exclude
                 description: undefined,
                 ...m,
                 type: data.type,
-                items: fillArrayItemPropertyMetadata(m.items)
+                items: fillArrayItemPropertyMetadata(m.items, target, key)
+            };
+        }
+        case 'file': {
+            const m: FilePropertyMetadataInput = data as FilePropertyMetadataInput;
+            if (m.allowedMimeTypes == undefined) {
+                // const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
+                // logger.warn(
+                //     `Did not specify allowedMimeTypes on property "${target.constructor.name}.${key}"`,
+                //     'Defaults to allowing any file type.'
+                // );
+            }
+            return {
+                required: true,
+                description: undefined,
+                allowedMimeTypes: 'all',
+                maxSize: '5mb',
+                ...m,
+                type: data.type
             };
         }
     }

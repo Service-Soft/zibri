@@ -7,7 +7,9 @@ import { LoggerInterface } from '../logging';
 import { DeepPartial, Newable, OmitStrict } from '../types';
 import { Transaction } from './transaction';
 import { BaseEntity } from '../entity';
-import { CreateAllOptions, CreateOptions, DeleteAllOptions, DeleteByIdOptions, FindAllOptions, FindByIdOptions, FindOneOptions, UpdateAllOptions, UpdateByIdOptions } from './models';
+import { CreateAllOptions, CreateOptions, DeleteAllOptions, DeleteByIdOptions, FindAllOptions, FindAllPaginatedOptions, FindByIdOptions, FindOneOptions, UpdateAllOptions, UpdateByIdOptions, Where } from './models';
+import { PaginationResult } from '../open-api';
+import { whereFilterToFindOptionsWhere } from './models/where/where-filter-to-find-options-where.function';
 
 export class Repository<
     T extends BaseEntity,
@@ -23,6 +25,13 @@ export class Repository<
 
     private getManager(transaction: Transaction | undefined): EntityManager {
         return transaction ? transaction.queryRunner.manager : this.typeOrmRepository.manager;
+    }
+
+    private resolveFindOptionsWhere(where: Where<T> | undefined): FindOptionsWhere<T> | FindOptionsWhere<T>[] | undefined {
+        if (!where) {
+            return undefined;
+        }
+        return whereFilterToFindOptionsWhere(where, this.entityClass);
     }
 
     async create(data: CreateData, options?: CreateOptions): Promise<T> {
@@ -65,7 +74,8 @@ export class Repository<
 
     async findOne(options: FindOneOptions<T>): Promise<T> {
         const manager: EntityManager = this.getManager(options?.transaction);
-        const res: T | null = await manager.findOne(this.entityClass, options);
+        const where: FindOptionsWhere<T> | FindOptionsWhere<T>[] | undefined = this.resolveFindOptionsWhere(options.where);
+        const res: T | null = await manager.findOne(this.entityClass, { ...options, where, transaction: undefined });
         if (!res) {
             throw new NotFoundError(`Could not find ${this.entityClass.name}.`);
         }
@@ -74,7 +84,23 @@ export class Repository<
 
     async findAll(options?: FindAllOptions<T>): Promise<T[]> {
         const manager: EntityManager = this.getManager(options?.transaction);
-        return await manager.find(this.entityClass, { ...options, transaction: undefined });
+        const where: FindOptionsWhere<T> | FindOptionsWhere<T>[] | undefined = this.resolveFindOptionsWhere(options?.where);
+        return await manager.find(this.entityClass, { ...options, where, transaction: undefined });
+    }
+
+    async findAllPaginated(page: number, limit: number, options?: FindAllPaginatedOptions<T>): Promise<PaginationResult<T>> {
+        const items: T[] = await this.findAll({
+            skip: (page - 1) * limit,
+            take: limit,
+            ...options
+        });
+        const manager: EntityManager = this.getManager(options?.transaction);
+        const where: FindOptionsWhere<T> | FindOptionsWhere<T>[] | undefined = this.resolveFindOptionsWhere(options?.where);
+
+        return {
+            items,
+            totalAmount: await manager.count(this.entityClass, { ...options, where, transaction: undefined })
+        };
     }
 
     async updateById(id: T['id'], data: UpdateData, options?: UpdateByIdOptions): Promise<T> {
@@ -88,7 +114,7 @@ export class Repository<
     }
 
     async updateAll(
-        where: FindOptionsWhere<T> | FindOptionsWhere<T>[],
+        where: Where<T>,
         data: UpdateData,
         options?: UpdateAllOptions
     ): Promise<T[]> {
@@ -109,7 +135,7 @@ export class Repository<
     }
 
     async deleteAll(
-        where: FindOptionsWhere<T> | FindOptionsWhere<T>[],
+        where: Where<T>,
         options?: OmitStrict<DeleteAllOptions<T>, 'where'>
     ): Promise<T[]> {
         const toDelete: T[] = await this.findAll({ where, ...options });

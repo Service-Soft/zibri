@@ -1,6 +1,6 @@
 import { BaseDataSource, BaseEntity, DataSource, Newable, DataSourceOptions, MigrationEntity, RefreshToken, JwtCredentials } from 'zibri';
 
-import { Test, User } from '../../models';
+import { Company, Test, User } from '../../models';
 
 @DataSource()
 export class DbDataSource extends BaseDataSource {
@@ -18,6 +18,7 @@ export class DbDataSource extends BaseDataSource {
         Test,
         User,
         RefreshToken,
-        JwtCredentials
+        JwtCredentials,
+        Company
     ];
 }

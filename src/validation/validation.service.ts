@@ -1,9 +1,9 @@
 import { BaseEntity, PropertyMetadata, RelationMetadata } from '../entity';
 import { ValidationError } from '../error-handling';
 import { HeaderParamMetadata, PathParamMetadata, QueryParamMetadata } from '../routing';
-import { Newable } from '../types';
+import { ExcludeStrict, Newable } from '../types';
 import { MetadataUtilities } from '../utilities';
-import { validateBoolean, validateDate, validateNumber, validateString } from './functions';
+import { validateBoolean, validateDate, validateFile, validateNumber, validateString } from './functions';
 import { IsRequiredValidationProblem, RelationsNotAllowedValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from './validation-problem.model';
 import { ValidationServiceInterface } from './validation-service.interface';
 
@@ -48,13 +48,14 @@ export class ValidationService implements ValidationServiceInterface {
     };
 
     // eslint-disable-next-line stylistic/max-len
-    private readonly propertyValidationFunctions: Record<Exclude<PropertyMetadata, RelationMetadata<BaseEntity>>['type'], PropertyValidationFunction> = {
+    private readonly propertyValidationFunctions: Record<ExcludeStrict<PropertyMetadata, RelationMetadata<BaseEntity>>['type'], PropertyValidationFunction> = {
         object: this.validateObjectProperty.bind(this),
         array: this.validateArrayProperty.bind(this),
         number: validateNumber,
         string: validateString,
         date: validateDate,
-        boolean: validateBoolean
+        boolean: validateBoolean,
+        file: validateFile
     };
 
     validateHeaderParam(param: unknown, meta: HeaderParamMetadata): void {
@@ -192,7 +193,7 @@ export class ValidationService implements ValidationServiceInterface {
             return [new TypeMismatchValidationProblem(fullKey, 'object')];
         }
 
-        const objectProperties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(metadata.cls);
+        const objectProperties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(metadata.cls());
         const keysOfBody: string[] = Object.keys(property as Record<string, unknown>);
         const keysOfModel: string[] = Object.keys(objectProperties);
         const unknownKeys: string[] = keysOfBody.filter(k => !keysOfModel.includes(k));

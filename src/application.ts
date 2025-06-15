@@ -3,6 +3,7 @@ import express, { Express } from 'express';
 import { ZibriApplicationOptions } from './application-options.model';
 import { AssetServiceInterface } from './assets';
 import { AuthServiceInterface, JwtAuthStrategy } from './auth';
+import { CronServiceInterface } from './cron';
 import { DataSourceServiceInterface } from './data-source';
 import { ZIBRI_DI_TOKENS, inject } from './di';
 import { register } from './di/register.function';
@@ -10,7 +11,7 @@ import { UnmatchedRouteError } from './error-handling';
 import { GlobalRegistry } from './global';
 import { LoggerInterface } from './logging';
 import { OpenApiServiceInterface } from './open-api';
-import { JsonBodyParser, ParserInterface } from './parsing';
+import { FormDataBodyParser, JsonBodyParser, ParserInterface } from './parsing';
 import { RouterInterface } from './routing';
 
 type FullZibriApplicationOptions = Required<ZibriApplicationOptions>;
@@ -31,14 +32,16 @@ export class ZibriApplication {
     private parser!: ParserInterface;
     private dataSourceService!: DataSourceServiceInterface;
     private authService!: AuthServiceInterface;
+    private cronService!: CronServiceInterface;
     private readonly options: FullZibriApplicationOptions;
 
     constructor(private readonly providedOptions: ZibriApplicationOptions) {
         this.options = {
             dataSources: [],
             authStrategies: [JwtAuthStrategy],
-            bodyParsers: [JsonBodyParser],
+            bodyParsers: [JsonBodyParser, FormDataBodyParser],
             providers: [],
+            cronJobs: [],
             ...providedOptions
         };
         GlobalRegistry.markAppAsCreated();
@@ -81,12 +84,15 @@ export class ZibriApplication {
         this.openApiService = inject(ZIBRI_DI_TOKENS.OPEN_API_SERVICE);
         this.openApiService.attachTo(this);
 
-        this.express.use((req, res, next) => next(new UnmatchedRouteError(req.originalUrl)));
+        this.express.use((req, _, next) => next(new UnmatchedRouteError(req.originalUrl)));
         this.express.use(inject(ZIBRI_DI_TOKENS.GLOBAL_ERROR_HANDLER));
 
         for (const controller of this.options.controllers) {
             inject(controller);
         }
+
+        this.cronService = inject(ZIBRI_DI_TOKENS.CRON_SERVICE);
+        await this.cronService.init(this.options.cronJobs);
 
         GlobalRegistry.markAppAsInitialized();
     }

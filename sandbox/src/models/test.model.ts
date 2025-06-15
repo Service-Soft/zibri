@@ -1,4 +1,4 @@
-import { Entity, Property } from 'zibri';
+import { Entity, OmitType, Property } from 'zibri';
 
 @Entity()
 export class Test {
@@ -7,4 +7,12 @@ export class Test {
 
     @Property.string()
     value!: string;
+
+    // @Property.file()
+    // file!: File;
+
+    // @Property.array({ items: { type: 'file' }, totalFileSize: '5mb' })
+    // files!: File;
 }
+
+export class TestCreateDTO extends OmitType(Test, ['id']) {}

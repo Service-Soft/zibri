@@ -13,6 +13,7 @@ import { Newable } from '../types';
 import { BodyMetadata, HeaderParamMetadata, PathParamMetadata, QueryParamMetadata } from './decorators';
 import { RouteConfiguration } from './route-configuration.model';
 import { HttpRequest, HttpResponse } from '../http';
+import { OpenApiResponse } from '../open-api';
 import { ParserInterface } from '../parsing';
 import { ValidationServiceInterface } from '../validation';
 
@@ -82,6 +83,10 @@ export class Router implements RouterInterface {
     }
 
     private controllerRouteToRequestHandler(controllerClass: Newable<Object>, route: ControllerRouteConfiguration): RequestHandler {
+        const responses: OpenApiResponse[] = MetadataUtilities.getRouteResponses(controllerClass, route.controllerMethod);
+        if (!responses.length) {
+            this.logger.warn(`No responses defined on route ${controllerClass.name}.${route.controllerMethod}`);
+        }
         const handler: RequestHandler = async (req: HttpRequest, res: HttpResponse, next: NextFunction) => {
             try {
                 await this.authService.checkAccess(controllerClass, route.controllerMethod, req);
@@ -134,7 +139,7 @@ export class Router implements RouterInterface {
         const requestBody: BodyMetadata | undefined = MetadataUtilities.getRouteBody(controllerClass, controllerMethod);
         if (requestBody) {
             resolvedParamCount++;
-            params[requestBody.index] = await this.parser.parseRequestBody(req);
+            params[requestBody.index] = await this.parser.parseRequestBody(req, requestBody);
             this.validationService.validateRequestBody(params[requestBody.index], requestBody.modelClass);
         }
 
@@ -163,7 +168,7 @@ export class Router implements RouterInterface {
             params[currentUser.index] = await this.authService.getCurrentUser(
                 req,
                 currentUser.allowedStrategies ?? this.authService.strategies,
-                currentUser.optional
+                currentUser.required
             );
         }
 

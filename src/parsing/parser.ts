@@ -4,7 +4,7 @@ import { BodyParserInterface } from './body-parser.interface';
 import { HttpRequest, isMimeType } from '../http';
 import { ParserInterface } from './parser.interface';
 import { LoggerInterface } from '../logging';
-import { HeaderParamMetadata, PathParamMetadata, QueryParamMetadata } from '../routing';
+import { BodyMetadata, HeaderParamMetadata, PathParamMetadata, QueryParamMetadata } from '../routing';
 import { parseArray, parseBoolean, parseDate, parseNumber, parseObject, parseString } from './functions';
 
 type PathParamParseFunction = (rawValue: string | undefined, meta: PathParamMetadata) => unknown;
@@ -61,9 +61,12 @@ export class Parser implements ParserInterface {
         return this.pathParamParseFunctions[metadata.type](rawValue, metadata);
     }
 
-    async parseRequestBody(req: HttpRequest): Promise<unknown> {
+    async parseRequestBody(req: HttpRequest, metadata: BodyMetadata): Promise<unknown> {
         const contentType: string = req.headers['content-type']?.split(';')[0]?.trim().toLowerCase() ?? '';
         if (!isMimeType(contentType)) {
+            throw new Error(`Unsupported Content-Type: "${contentType}"`);
+        }
+        if (metadata.type !== contentType) {
             throw new Error(`Unsupported Content-Type: "${contentType}"`);
         }
         const fittingParsers: BodyParserInterface[] = this.bodyParsers.filter(p => p.contentType === contentType);
@@ -73,7 +76,7 @@ export class Parser implements ParserInterface {
         if (fittingParsers.length > 1) {
             throw new Error(`There has been more than one body parser provided for the Content-Type "${contentType}"`);
         }
-        return await fittingParsers[0].parse(req);
+        return await fittingParsers[0].parse(req, metadata);
     }
 
     attachTo(): void {

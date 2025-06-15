@@ -18,6 +18,7 @@ import { RefreshToken, RefreshTokenCreateDto } from './refresh-token.model';
 import { BaseDataSource, Repository } from '../../data-source';
 import { BaseEntity } from '../../entity';
 import { GlobalRegistry } from '../../global';
+import { LoggerInterface } from '../../logging';
 import { Newable } from '../../types';
 import { NO_USER_REPOSITORIES_PROVIDED_ERROR_MESSAGE } from '../user.service';
 
@@ -40,6 +41,7 @@ implements AuthStrategyInterface<RoleType, UserType, JwtAuthData<RoleType>, JwtC
     private readonly refreshTokenSecret: string;
     private readonly refreshTokenExpiresInMs: number;
     private readonly userService: UserServiceInterface;
+    private readonly logger: LoggerInterface;
 
     constructor() {
         this.accessTokenSecret = inject(ZIBRI_DI_TOKENS.JWT_ACCESS_TOKEN_SECRET);
@@ -47,6 +49,7 @@ implements AuthStrategyInterface<RoleType, UserType, JwtAuthData<RoleType>, JwtC
         this.refreshTokenSecret = inject(ZIBRI_DI_TOKENS.JWT_REFRESH_TOKEN_SECRET);
         this.refreshTokenExpiresInMs = inject(ZIBRI_DI_TOKENS.JWT_REFRESH_TOKEN_EXPIRES_IN_MS);
         this.userService = inject(ZIBRI_DI_TOKENS.USER_SERVICE);
+        this.logger = inject(ZIBRI_DI_TOKENS.LOGGER);
     }
 
     init(): void {
@@ -152,6 +155,35 @@ implements AuthStrategyInterface<RoleType, UserType, JwtAuthData<RoleType>, JwtC
             return false;
         }
         return !!allowedRoles.find(r => data.payload.roles.includes(r));
+    }
+
+    async belongsTo<TargetEntity extends Newable<BaseEntity>>(
+        request: HttpRequest,
+        targetEntity: TargetEntity,
+        targetUserIdKey: keyof InstanceType<TargetEntity>,
+        targetIdParamKey: string
+    ): Promise<boolean> {
+        const jwt: string | undefined = this.extractTokenFromRequest(request);
+        if (!jwt) {
+            return false;
+        }
+        const jwtData: EncodedAccessToken<RoleType> | undefined = await JwtUtilities.verify(jwt, this.accessTokenSecret);
+        if (!jwtData) {
+            return false;
+        }
+        try {
+            const repo: Repository<InstanceType<TargetEntity>> = inject(repositoryTokenFor(targetEntity));
+            const foundTarget: InstanceType<TargetEntity> = await repo.findById(request.params[targetIdParamKey]);
+            const userIdProperty: unknown = foundTarget[targetUserIdKey];
+            if (Array.isArray(userIdProperty)) {
+                return userIdProperty.includes(jwtData.payload.id);
+            }
+            return userIdProperty === jwtData.payload.id;
+        }
+        catch (error) {
+            this.logger.error(error as Error);
+            return false;
+        }
     }
 
     private extractTokenFromRequest(request: HttpRequest): string | undefined {
