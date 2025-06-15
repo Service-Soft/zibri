@@ -52,7 +52,7 @@ describe('transaction', () => {
         };
         await dataSource.init();
         repo = dataSource.getRepository(Item);
-    });
+    }, 10000);
 
     it('should see changes inside transaction, but not outside until committed', async () => {
         const transaction: Transaction = await dataSource.startTransaction();
