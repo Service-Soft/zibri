@@ -14,7 +14,7 @@ import { BodyMetadata, HeaderParamMetadata, PathParamMetadata, QueryParamMetadat
 import { RouteConfiguration } from './route-configuration.model';
 import { HttpRequest, HttpResponse } from '../http';
 import { OpenApiResponse } from '../open-api';
-import { ParserInterface } from '../parsing';
+import { FileResponse, ParserInterface } from '../parsing';
 import { ValidationServiceInterface } from '../validation';
 
 export class Router implements RouterInterface {
@@ -66,14 +66,7 @@ export class Router implements RouterInterface {
         const handler: RequestHandler = async (req: HttpRequest, res: HttpResponse, next: NextFunction) => {
             try {
                 const result: unknown = await route.handler(req, res);
-                if (res.headersSent) {
-                    return;
-                }
-                if (result != undefined) {
-                    res.json(result);
-                    return;
-                }
-                res.end();
+                this.returnResult(res, result);
             }
             catch (error) {
                 next(error);
@@ -101,20 +94,52 @@ export class Router implements RouterInterface {
 
                 // eslint-disable-next-line typescript/no-unsafe-call, typescript/no-explicit-any, typescript/no-unsafe-member-access
                 const result: unknown = await ((controller as any)[route.controllerMethod] as Function)(...params);
-                if (res.headersSent) {
-                    return;
-                }
-                if (result != undefined) {
-                    res.json(result);
-                    return;
-                }
-                res.end();
+                this.returnResult(res, result);
             }
             catch (error) {
                 next(error);
             }
         };
         return handler;
+    }
+
+    private returnResult(res: HttpResponse, result: unknown): void {
+        if (res.headersSent) {
+            return;
+        }
+
+        if (result instanceof FileResponse) {
+            // set headers
+            res.setHeader('Content-Type', result.mimeType);
+            if (result.forceDownload) {
+                res.setHeader(
+                    'Content-Disposition',
+                    `attachment; filename="${encodeURIComponent(result.filename)}"`
+                );
+            }
+
+            // send file from disk
+            if (typeof result.data === 'string') {
+                res.sendFile(result.data);
+                return;
+            }
+
+            // send Buffer
+            if (Buffer.isBuffer(result.data)) {
+                res.send(result.data);
+                return;
+            }
+
+            result.data.pipe(res);
+            return;
+        }
+
+        if (result != undefined) {
+            res.json(result);
+            return;
+        }
+
+        res.end();
     }
 
     private async resolveRouteParams(

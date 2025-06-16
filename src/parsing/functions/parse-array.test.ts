@@ -9,7 +9,16 @@ describe('parseArray', () => {
     const meta: ArrayParamMetadata = {
         name: 'foo',
         type: 'array',
-        items: { type: 'string', required: true, primary: false, description: undefined, format: undefined, unique: false },
+        items: {
+            type: 'string',
+            required: true,
+            primary: false,
+            description: undefined,
+            format: undefined,
+            unique: false,
+            maxLength: undefined,
+            minLength: undefined
+        },
         required: true,
         description: undefined
     };

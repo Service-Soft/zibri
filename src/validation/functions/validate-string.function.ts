@@ -26,6 +26,12 @@ export function validateString(
     if (meta.format && !isFormatValid(meta.format, property)) {
         return [{ key: fullKey, message: `should be in format "${meta.format}"` }];
     }
+    if (meta.minLength && meta.minLength > property.length) {
+        return [{ key: fullKey, message: `needs to be at least ${meta.minLength} characters long` }];
+    }
+    if (meta.maxLength && property.length > meta.maxLength) {
+        return [{ key: fullKey, message: `needs to be shorter than ${meta.maxLength + 1} characters` }];
+    }
     return [];
 }
 

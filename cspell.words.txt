@@ -5,3 +5,7 @@ paramtypes
 postgres
 timestamptz
 fieldname
+openxmlformats
+officedocument
+spreadsheetml
+wordprocessingml
