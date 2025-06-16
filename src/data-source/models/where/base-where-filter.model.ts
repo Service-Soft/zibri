@@ -1,0 +1,1 @@
+export type BaseWhereFilter<T> = T | null;

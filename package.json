@@ -1,0 +1,70 @@
+{
+    "name": "zibri",
+    "version": "1.4.0",
+    "main": "./dist/index.js",
+    "module": "./dist/index.mjs",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.mjs",
+            "require": "./dist/index.js"
+        }
+    },
+    "files": [
+        "./dist",
+        "./README.md",
+        "./LICENSE",
+        "./assets"
+    ],
+    "engines": {
+        "node": ">=20"
+    },
+    "scripts": {
+        "test": "jest",
+        "start": "tsup --watch",
+        "sandbox": "cd sandbox && npm run start",
+        "build": "tsup",
+        "lint": "eslint . --max-warnings=0",
+        "lint:fix": "eslint . --max-warnings=0 --fix",
+        "prepublishOnly": "npm i && npm run lint && npm run test && npm run build"
+    },
+    "keywords": [],
+    "author": "Tim Fabian",
+    "license": "MIT",
+    "description": "",
+    "devDependencies": {
+        "@jest/globals": "^29.7.0",
+        "@swc/core": "^1.11.24",
+        "@testcontainers/postgresql": "^10.26.0",
+        "@types/express": "^5.0.1",
+        "@types/jsonwebtoken": "^9.0.9",
+        "@types/multer": "^1.4.13",
+        "@types/node": "^22.15.3",
+        "@types/reflect-metadata": "^0.0.5",
+        "@types/swagger-ui-express": "^4.1.8",
+        "eslint": "^9.26.0",
+        "eslint-config-service-soft": "^2.0.8",
+        "jest": "^29.7.0",
+        "openapi3-ts": "^4.4.0",
+        "testcontainers": "^10.26.0",
+        "ts-jest": "^29.3.2",
+        "tsup": "^8.4.0",
+        "typescript": "^5.8.3"
+    },
+    "peerDependencies": {
+        "bcryptjs": "^3.0.2",
+        "handlebars": "^4.7.8",
+        "jsonwebtoken": "^9.0.2",
+        "uuid": "^11.1.0"
+    },
+    "dependencies": {
+        "express": "^5.1.0",
+        "multer": "^2.0.1",
+        "node-cron": "^4.1.0",
+        "typeorm": "^0.3.23",
+        "pg": "^8.16.0",
+        "reflect-metadata": "^0.2.2",
+        "sqlite3": "^5.1.7",
+        "swagger-ui-express": "^5.0.1"
+    }
+}
