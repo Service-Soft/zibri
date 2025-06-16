@@ -54,6 +54,8 @@ export namespace Param {
             format: undefined,
             unique: false,
             description: undefined,
+            maxLength: undefined,
+            minLength: undefined,
             ...options
         };
         return (target, propertyKey, parameterIndex) => {
@@ -76,6 +78,8 @@ export namespace Param {
             format: undefined,
             unique: false,
             description: undefined,
+            maxLength: undefined,
+            minLength: undefined,
             ...options
         };
         return (target, propertyKey, parameterIndex) => {
@@ -101,6 +105,8 @@ export namespace Param {
             format: undefined,
             unique: false,
             description: undefined,
+            maxLength: undefined,
+            minLength: undefined,
             ...options
         };
         return (target, propertyKey, parameterIndex) => {

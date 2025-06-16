@@ -39,6 +39,8 @@ export namespace Property {
             unique: false,
             description: undefined,
             format: data?.primary === true ? 'uuid' : undefined,
+            maxLength: undefined,
+            minLength: undefined,
             ...data
         };
         return applyData(fullMetadata);
@@ -220,6 +222,8 @@ function fillArrayItemPropertyMetadata(
                 unique: false,
                 format: undefined,
                 description: undefined,
+                maxLength: undefined,
+                minLength: undefined,
                 ...data,
                 type: data.type
             };

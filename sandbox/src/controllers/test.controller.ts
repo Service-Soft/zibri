@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, Repository, InjectRepository, Auth, Response } from 'zibri';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Repository, InjectRepository, Auth, Response, FileResponse } from 'zibri';
 
 import { Roles, Test, TestCreateDTO, User } from '../models';
 import { UserRepository } from '../repositories';
@@ -29,13 +29,14 @@ export class TestController {
         return await this.testRepository.findById(id);
     }
 
+    @Auth.skip()
     @Response.file()
     @Get('/:id/document')
-    async findDocumentFor(
+    findDocumentFor(
         @Param.path('id', { format: 'uuid' })
         id: string
-    ): Promise<Test> {
-        return await this.testRepository.findById(id);
+    ): FileResponse {
+        return new FileResponse(Buffer.from([]), 'asd.pdf');
     }
 
     @Auth.hasRole([Roles.USER])

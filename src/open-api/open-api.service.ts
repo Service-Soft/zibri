@@ -333,7 +333,13 @@ export class OpenApiService implements OpenApiServiceInterface {
                     continue;
                 }
                 case 'string': {
-                    properties[key] = { type: meta.type, format: meta.format, description: meta.description };
+                    properties[key] = {
+                        type: meta.type,
+                        format: meta.format,
+                        description: meta.description,
+                        minLength: meta.minLength,
+                        maxLength: meta.maxLength
+                    };
                     continue;
                 }
                 case 'object': {

@@ -5,7 +5,6 @@ import { Property } from '../../entity';
  * Has the same properties as the File from multer but adds property metadata.
  */
 export class File implements Omit<Express.Multer.File, 'stream'> {
-
     @Property.string()
     fieldname!: string;
 

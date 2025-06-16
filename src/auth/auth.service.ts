@@ -85,11 +85,11 @@ export class AuthService implements AuthServiceInterface {
         const skip: SkipAuthMetadata | undefined = MetadataUtilities.getRouteSkipAuth(controllerClass, controllerMethod);
 
         if (
-            !isLoggedInMetadata
-            && !isNotLoggedInMetadata
-            && !hasRoleMetadata
-            && !belongsToMetadata
-            && skip
+            skip
+            && !MetadataUtilities.getControllerIsLoggedIn(controllerClass)
+            && !MetadataUtilities.getControllerIsNotLoggedIn(controllerClass)
+            && !MetadataUtilities.getControllerHasRole(controllerClass)
+            && !MetadataUtilities.getControllerBelongsTo(controllerClass)
         ) {
             this.logger.warn(`Useless @Auth.skip on route ${controllerClass.name}.${controllerMethod}`);
         }

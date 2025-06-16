@@ -7,7 +7,9 @@ export type StringPropertyMetadata = BasePropertyMetadata & {
     type: 'string',
     primary: boolean,
     format: StringFormat | undefined,
-    unique: boolean
+    unique: boolean,
+    minLength: number | undefined,
+    maxLength: number | undefined
 };
 
 export type StringPropertyMetadataInput = Partial<OmitStrict<StringPropertyMetadata, 'type'>>;
