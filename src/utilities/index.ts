@@ -5,4 +5,3 @@ export * from './is-date.function';
 export * from './compare-versions.function';
 export * from './is-version.function';
 export * from './file-exists.function';
-export * from './resolve-mime-type.function';

@@ -13,7 +13,8 @@ export type JsonBodyMetadata = BaseBodyMetadata & {
 };
 
 export type FormDataBodyMetadata = BaseBodyMetadata & {
-    type: MimeType.FORM_DATA
+    type: MimeType.FORM_DATA,
+    cleanupAfterMs: number
 };
 
 export type BodyMetadata = JsonBodyMetadata | FormDataBodyMetadata;
@@ -28,6 +29,7 @@ export function Body(modelClass: Newable<unknown>, options: BodyMetadataInput = 
             required: true,
             description: undefined,
             type: MimeType.JSON,
+            cleanupAfterMs: 86400000,
             ...options
         };
         const ctor: Function = target.constructor;

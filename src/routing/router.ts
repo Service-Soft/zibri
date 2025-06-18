@@ -1,3 +1,5 @@
+import { Readable } from 'stream';
+
 import express, { NextFunction, RequestHandler } from 'express';
 
 import { Route, ControllerRouteConfiguration } from './controller-route-configuration.model';
@@ -66,7 +68,7 @@ export class Router implements RouterInterface {
         const handler: RequestHandler = async (req: HttpRequest, res: HttpResponse, next: NextFunction) => {
             try {
                 const result: unknown = await route.handler(req, res);
-                this.returnResult(res, result);
+                this.returnResult(res, result, next);
             }
             catch (error) {
                 next(error);
@@ -94,7 +96,7 @@ export class Router implements RouterInterface {
 
                 // eslint-disable-next-line typescript/no-unsafe-call, typescript/no-explicit-any, typescript/no-unsafe-member-access
                 const result: unknown = await ((controller as any)[route.controllerMethod] as Function)(...params);
-                this.returnResult(res, result);
+                this.returnResult(res, result, next);
             }
             catch (error) {
                 next(error);
@@ -103,19 +105,16 @@ export class Router implements RouterInterface {
         return handler;
     }
 
-    private returnResult(res: HttpResponse, result: unknown): void {
+    private returnResult(res: HttpResponse, result: unknown, next: NextFunction): void {
         if (res.headersSent) {
             return;
         }
 
         if (result instanceof FileResponse) {
-            // set headers
             res.setHeader('Content-Type', result.mimeType);
-            if (result.forceDownload) {
-                res.setHeader(
-                    'Content-Disposition',
-                    `attachment; filename="${encodeURIComponent(result.filename)}"`
-                );
+            res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(result.filename)}"`);
+            if (result.size != undefined) {
+                res.setHeader('Content-Length', result.size);
             }
 
             // send file from disk
@@ -124,13 +123,14 @@ export class Router implements RouterInterface {
                 return;
             }
 
-            // send Buffer
-            if (Buffer.isBuffer(result.data)) {
-                res.send(result.data);
-                return;
-            }
-
-            result.data.pipe(res);
+            res.on('close', () => (result.data as Readable).destroy());
+            // send file as stream
+            result.data.on('error', err => {
+                res.removeHeader('Content-Type');
+                res.removeHeader('Content-Length');
+                res.removeHeader('Content-Disposition');
+                next(err);
+            }).pipe(res);
             return;
         }
 
@@ -165,7 +165,7 @@ export class Router implements RouterInterface {
         if (requestBody) {
             resolvedParamCount++;
             params[requestBody.index] = await this.parser.parseRequestBody(req, requestBody);
-            this.validationService.validateRequestBody(params[requestBody.index], requestBody.modelClass);
+            this.validationService.validateRequestBody(params[requestBody.index], requestBody);
         }
 
         // 3) Query decorators

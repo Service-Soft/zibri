@@ -1,41 +1,47 @@
+import { stat } from 'fs/promises';
 import path from 'path';
 import { Readable } from 'stream';
 
-import { LooseMimeType } from '../../http';
-import { fileExistsSync, resolveMimeType } from '../../utilities';
+import { inject, ZIBRI_DI_TOKENS } from '../../di';
+import { LooseFileMimeType, resolveMimeType } from '../../http';
+import { LoggerInterface } from '../../logging';
+import { OmitStrict } from '../../types';
+import { fileExists } from '../../utilities';
 
-type BaseFileResponseData = { mimeType?: LooseMimeType, forceDownload?: boolean };
+type BaseFileResponseData = { mimeType?: LooseFileMimeType };
 
-type FileResponseData = BaseFileResponseData & { path: string }
-    | BaseFileResponseData & { data: Buffer | Readable, filename: `${string}.${string}` };
+type PathFileResponseData = BaseFileResponseData & { path: string, filename?: `${string}.${string}`, size?: number };
+type StreamFileResponseData = BaseFileResponseData & { stream: Readable, filename: `${string}.${string}`, size?: number };
 
 export class FileResponse {
-    readonly data: Buffer | Readable | string;
-    readonly filename: `${string}.${string}`;
-    readonly mimeType: LooseMimeType;
-    readonly forceDownload: boolean;
 
-    constructor(data: FileResponseData) {
-        if ('path' in data) {
-            this.data = data.path;
-            this.filename = path.basename(data.path) as `${string}.${string}`;
+    private constructor(
+        readonly data: Readable | string,
+        readonly filename: string,
+        readonly mimeType: LooseFileMimeType,
+        readonly size: number | undefined
+    ) {}
+
+    static async fromPath(p: string, options?: OmitStrict<PathFileResponseData, 'path'>): Promise<FileResponse> {
+        const fullPath: string = path.resolve(p);
+        const fileName: string = options?.filename ?? path.basename(fullPath);
+        const mimeType: string = options?.mimeType ?? resolveMimeType(fileName);
+
+        if (!await fileExists(p)) {
+            throw new Error(`the file at path "${p}" does not exist.`);
         }
-        else {
-            this.data = data.data;
-            this.filename = data.filename;
+        if (!fileName.includes('.') && options?.mimeType == undefined) {
+            const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
+            logger.warn('the file name does not include a extension and no mimetype was provided.');
         }
 
-        this.mimeType = data.mimeType ?? resolveMimeType(this.filename);
-        this.forceDownload = data.forceDownload ?? false;
-        this.validate();
+        const size: number = options?.size ?? (await stat(fullPath)).size;
+
+        return new this(fullPath, fileName, mimeType, size);
     }
 
-    private validate(): void {
-        if (typeof this.data === 'string' && !fileExistsSync(this.data)) {
-            throw new Error(`the file at path "${this.data}" does not exist.`);
-        }
-        if (!this.filename.includes('.')) {
-            throw new Error('the file name does not include a file extension.');
-        }
+    static fromStream(input: StreamFileResponseData): FileResponse {
+        const mimeType: string = input.mimeType ?? resolveMimeType(input.filename);
+        return new this(input.stream, input.filename, mimeType, input.size);
     }
 }

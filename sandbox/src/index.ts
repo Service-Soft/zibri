@@ -1,6 +1,6 @@
 import { inject, isVersion, LoggerInterface, ZIBRI_DI_TOKENS, ZibriApplication } from 'zibri';
 
-import { JwtController, TestController } from './controllers';
+import { FileController, JwtController, TestController } from './controllers';
 import { DbDataSource } from './data-sources';
 import { version } from '../package.json';
 import { StatusCronJob } from './cron';
@@ -15,7 +15,7 @@ async function start(): Promise<void> {
 
     const app: ZibriApplication = new ZibriApplication({
         name: 'Api',
-        controllers: [TestController, JwtController],
+        controllers: [TestController, JwtController, FileController],
         dataSources: [DbDataSource],
         cronJobs: [StatusCronJob],
         version,

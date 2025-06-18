@@ -8,41 +8,41 @@ import { OmitStrict } from '../types';
 import { CreateCronJobEntityData, CronJobEntity } from './cron-job-entity.model';
 import { unknownToErrorString } from '../error-handling/unknown-to-error-string.function';
 import { LoggerInterface } from '../logging';
+import { CronUpdateData } from './cron.service';
 
 export type CronConfig = OmitStrict<CronJobEntity, 'id' | 'lastRun' | 'errorMessage'> & { syncToDb: boolean };
 
 export abstract class CronJob {
-    abstract readonly config: Partial<CronConfig> & Pick<CronConfig, 'name' | 'cron'>;
+    abstract readonly initialConfig: Partial<CronConfig> & Pick<CronConfig, 'name' | 'cron'>;
 
     protected entity: CronJobEntity | undefined;
 
-    protected scheduledTask: ScheduledTask | undefined;
+    protected task: ScheduledTask | undefined;
 
     protected readonly cronJobRepository: Repository<CronJobEntity, CreateCronJobEntityData>;
     protected readonly logger: LoggerInterface;
 
-    protected get fullConfig(): CronConfig {
+    protected get fullInitialConfig(): CronConfig {
         return {
             active: true,
             runOnInit: true,
             syncToDb: true,
             stopOnError: true,
-            ...this.config,
-            name: this.overrideName ?? this.config.name
+            ...this.initialConfig,
+            name: this.overrideName ?? this.initialConfig.name
         };
     }
 
     get name(): string {
-        return this.fullConfig.name;
-    }
-
-    get task(): ScheduledTask | undefined {
-        return this.scheduledTask;
+        if (!this.entity) {
+            // eslint-disable-next-line sonar/no-duplicate-string
+            throw new Error('the cron job needs to be initialized before it can be used.');
+        }
+        return this.entity.name;
     }
 
     get active(): boolean {
         if (!this.entity) {
-            // eslint-disable-next-line sonar/no-duplicate-string
             throw new Error('the cron job needs to be initialized before it can be used.');
         }
         return this.entity.active;
@@ -57,43 +57,48 @@ export abstract class CronJob {
         if (this.entity) {
             throw new Error('the cron job has already been initialized.');
         }
-        const isValid: boolean = cron.validate(this.fullConfig.cron);
-        if (!isValid) {
-            throw new Error(`the provided cron expression "${this.fullConfig.cron}" is not valid.`);
+        if (!cron.validate(this.fullInitialConfig.cron)) {
+            throw new Error(`the provided cron expression "${this.fullInitialConfig.cron}" is not valid.`);
         }
 
         this.entity = await this.resolveEntity();
 
-        this.scheduledTask = cron.createTask(this.fullConfig.cron, this.runOnTick.bind(this), { maxRandomDelay: 1000 });
+        await this.initTask();
+    }
+
+    protected async initTask(): Promise<void> {
+        if (!this.entity) {
+            throw new Error('the cron job needs to be initialized before it can be used.');
+        }
+        this.task = cron.createTask(this.entity.cron, this.runOnTick.bind(this), { maxRandomDelay: 1000 });
         if (!this.entity.active) {
             return;
         }
         if (this.entity.runOnInit) {
-            await this.scheduledTask.execute();
+            await this.task.execute();
         }
-        await this.scheduledTask.start();
+        await this.task.start();
     }
 
     protected async resolveEntity(): Promise<CronJobEntity> {
-        if (!this.fullConfig.syncToDb) {
+        if (!this.fullInitialConfig.syncToDb) {
             return {
                 id: v4(),
                 lastRun: undefined,
                 errorMessage: undefined,
-                ...this.fullConfig
+                ...this.fullInitialConfig
             };
         }
         try {
-            return await this.cronJobRepository.findOne({ where: { name: this.fullConfig.name } });
+            return await this.cronJobRepository.findOne({ where: { name: this.fullInitialConfig.name } });
         }
         catch {
-            return await this.cronJobRepository.create({ ...this.fullConfig, lastRun: undefined, errorMessage: undefined });
+            return await this.cronJobRepository.create({ ...this.fullInitialConfig, lastRun: undefined, errorMessage: undefined });
         }
     }
 
     async runOnTick(): Promise<boolean> {
         if (!this.entity) {
-
             throw new Error('the cron job needs to be initialized before it can be used.');
         }
 
@@ -106,8 +111,8 @@ export abstract class CronJob {
         }
         finally {
             this.entity.lastRun = new Date();
-            if (this.fullConfig.syncToDb) {
-                await this.cronJobRepository.updateAll({ name: this.fullConfig.name }, { lastRun: this.entity.lastRun });
+            if (this.fullInitialConfig.syncToDb) {
+                await this.cronJobRepository.updateAll({ name: this.fullInitialConfig.name }, { lastRun: this.entity.lastRun });
             }
         }
 
@@ -131,8 +136,8 @@ export abstract class CronJob {
             this.logger.info(`Stopping cron job "${this.name}"`);
             await this.disable();
         }
-        if (this.fullConfig.syncToDb) {
-            await this.cronJobRepository.updateAll({ name: this.fullConfig.name }, { errorMessage: this.entity.errorMessage });
+        if (this.fullInitialConfig.syncToDb) {
+            await this.cronJobRepository.updateAll({ name: this.fullInitialConfig.name }, { errorMessage: this.entity.errorMessage });
         }
 
         await this.onError(error);
@@ -144,8 +149,8 @@ export abstract class CronJob {
         }
 
         this.entity.active = true;
-        if (this.fullConfig.syncToDb) {
-            await this.cronJobRepository.updateAll({ name: this.fullConfig.name }, { active: this.entity.active });
+        if (this.fullInitialConfig.syncToDb) {
+            await this.cronJobRepository.updateAll({ name: this.fullInitialConfig.name }, { active: this.entity.active });
         }
         await this.task.start();
     }
@@ -155,11 +160,44 @@ export abstract class CronJob {
             throw new Error('the cron job needs to be initialized before it can be used.');
         }
 
+        await this.task.stop();
         this.entity.active = false;
-        if (this.fullConfig.syncToDb) {
-            await this.cronJobRepository.updateAll({ name: this.fullConfig.name }, { active: this.entity.active });
+        if (this.fullInitialConfig.syncToDb) {
+            await this.cronJobRepository.updateAll({ name: this.fullInitialConfig.name }, { active: this.entity.active });
+        }
+    }
+
+    async changeCron(cronExpression: string): Promise<void> {
+        if (!this.entity || !this.task) {
+            throw new Error('the cron job needs to be initialized before it can be used.');
+        }
+        if (!cron.validate(cronExpression)) {
+            throw new Error(`the provided cron expression "${cronExpression}" is not valid.`);
+        }
+
+        this.entity.cron = cronExpression;
+        if (this.fullInitialConfig.syncToDb) {
+            await this.cronJobRepository.updateAll({ name: this.fullInitialConfig.name }, { cron: this.entity.cron });
         }
         await this.task.stop();
+        await this.task.destroy();
+        await this.initTask();
+    }
+
+    async update(data: CronUpdateData): Promise<void> {
+        if (!this.entity || !this.task) {
+            throw new Error('the cron job needs to be initialized before it can be used.');
+        }
+        this.entity = {
+            ...this.entity,
+            ...data
+        };
+        if (this.fullInitialConfig.syncToDb) {
+            await this.cronJobRepository.updateAll({ name: this.fullInitialConfig.name }, { ...data });
+        }
+        await this.task.stop();
+        await this.task.destroy();
+        await this.initTask();
     }
 
     // eslint-disable-next-line unusedImports/no-unused-vars
