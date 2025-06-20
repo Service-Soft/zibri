@@ -1,32 +1,55 @@
 
-import { readFile, rm } from 'fs/promises';
+import { rm } from 'fs/promises';
 import path from 'path';
 
 import { RequestHandler } from 'express';
 import multer, { StorageEngine } from 'multer';
 import { v4 } from 'uuid';
 
-import { HttpRequest, HttpResponse, MimeType } from '../../http';
+import { FileExtension, HttpRequest, HttpResponse, MimeType, resolveFileExtension } from '../../http';
 import { BodyMetadata } from '../../routing';
 import { BodyParserInterface } from '../body-parser.interface';
 import { BodyParser } from '../decorators';
-import { File } from './file.model';
+import { FormDataBodyParserCleanupCronJob } from './cleanup.cron-job';
+import { File, MulterFile } from './file.model';
 import { FormData, FormDataValue } from './form-data.model';
+import { ZibriApplication } from '../../application';
+import { inject, ZIBRI_DI_TOKENS } from '../../di';
 import { PropertyMetadata } from '../../entity';
 import { MetadataUtilities } from '../../utilities';
 
 @BodyParser()
 export class FormDataBodyParser implements BodyParserInterface {
     readonly contentType: MimeType = MimeType.FORM_DATA;
-    readonly tempPath: string = path.join(__dirname, 'temp');
+
+    attachTo(app: ZibriApplication): void {
+        app['options'].cronJobs.push(FormDataBodyParserCleanupCronJob);
+    }
 
     async parse(req: HttpRequest, metadata: BodyMetadata): Promise<FormData<object>> {
         if (req.body !== undefined) {
             return req.body as FormData<object>;
         }
+        if (metadata.type !== MimeType.FORM_DATA) {
+            throw new Error(`${metadata.type} is not supported`);
+        }
 
-        const tempFolder: string = path.join(this.tempPath, `temp-${v4()}`);
-        const storage: StorageEngine = multer.diskStorage({ destination: tempFolder });
+        const tempPath: string = inject(ZIBRI_DI_TOKENS.FILE_UPLOAD_TEMP_FOLDER);
+        const tempFolder: string = path.join(tempPath, `temp-${v4()}`);
+        const storage: StorageEngine = multer.diskStorage({
+            destination: tempFolder,
+            // eslint-disable-next-line promise/prefer-await-to-callbacks
+            filename: (_, file, callback) => {
+                const id: string = v4();
+                const ext: FileExtension | undefined = resolveFileExtension(file.mimetype);
+                if (ext) {
+                    // eslint-disable-next-line promise/prefer-await-to-callbacks, unicorn/no-null
+                    callback(null, `${id}${ext}`);
+                }
+                // eslint-disable-next-line promise/prefer-await-to-callbacks, unicorn/no-null
+                callback(null, id);
+            }
+        });
         const upload: RequestHandler = multer({ storage: storage }).any();
 
         return new Promise<FormData<object>>((resolve, reject) => {
@@ -41,8 +64,8 @@ export class FormDataBodyParser implements BodyParserInterface {
                     reject('The request body is not an object');
                 }
                 try {
-                    const formDataValue: object = await this.requestToDataObject(req, metadata);
-                    const formData: FormData<object> = await FormData.create(formDataValue, tempFolder);
+                    const formDataValue: object = this.requestToDataObject(req, metadata);
+                    const formData: FormData<object> = await FormData.create(formDataValue, tempFolder, metadata.cleanupAfterMs);
                     // Update cleanup cron job.
                     resolve(formData);
                 }
@@ -64,10 +87,10 @@ export class FormDataBodyParser implements BodyParserInterface {
         }
     }
 
-    private async requestToDataObject<T extends object>(request: HttpRequest, metadata: BodyMetadata): Promise<T> {
+    private requestToDataObject<T extends object>(request: HttpRequest, metadata: BodyMetadata): T {
         const multiPartMap: Map<keyof T, FormDataValue> = new Map();
         this.addStringValuesToMap(request, multiPartMap);
-        await this.addFilesToMap<T>(request, multiPartMap, metadata);
+        this.addFilesToMap<T>(request, multiPartMap, metadata);
 
         const res: Partial<Record<keyof T, T[keyof T]>> = {};
         for (const [key, value] of multiPartMap) {
@@ -83,11 +106,11 @@ export class FormDataBodyParser implements BodyParserInterface {
         return res as T;
     }
 
-    private async addFilesToMap<T extends object>(
+    private addFilesToMap<T extends object>(
         request: HttpRequest,
         values: Map<keyof T, FormDataValue>,
         metadata: BodyMetadata
-    ): Promise<void> {
+    ): void {
         if (!request.files) {
             return;
         }
@@ -96,7 +119,7 @@ export class FormDataBodyParser implements BodyParserInterface {
             for (const file of request.files) {
                 const formDataProperties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(metadata.modelClass);
                 const property: PropertyMetadata = formDataProperties[file.fieldname];
-                await this.addSingleFileToMap(file, values, property);
+                this.addSingleFileToMap(file, values, property);
             }
             return;
         }
@@ -106,11 +129,12 @@ export class FormDataBodyParser implements BodyParserInterface {
         }
     }
 
-    private addFileArrayToMap<T extends object>(key: string, files: File[], values: Map<keyof T, FormDataValue>): void {
+    private addFileArrayToMap<T extends object>(key: string, multerFiles: MulterFile[], values: Map<keyof T, FormDataValue>): void {
         const existingValue: FormDataValue = values.get(key as keyof T);
         if (typeof existingValue === 'string') {
             throw new Error('Your form-data contains files and strings for the same key.');
         }
+        const files: File[] = multerFiles.map(f => new File(f));
         if (existingValue == undefined) {
             values.set(key as keyof T, files);
             return;
@@ -122,16 +146,16 @@ export class FormDataBodyParser implements BodyParserInterface {
         values.set(key as keyof T, [existingValue, ...files]);
     }
 
-    private async addSingleFileToMap<T extends object>(
-        file: File,
+    private addSingleFileToMap<T extends object>(
+        multerFile: MulterFile,
         values: Map<keyof T, FormDataValue>,
         propertyMetadata: PropertyMetadata
-    ): Promise<void> {
-        const existingValue: FormDataValue | undefined = values.get(file.fieldname as keyof T);
+    ): void {
+        const existingValue: FormDataValue | undefined = values.get(multerFile.fieldname as keyof T);
         if (typeof existingValue === 'string') {
             throw new Error('Your form-data contains files and strings for the same key.');
         }
-        file.buffer = await readFile(file.path);
+        const file: File = new File(multerFile);
         if (existingValue == undefined) {
             if (propertyMetadata.type === 'array') {
                 values.set(file.fieldname as keyof T, [file]);

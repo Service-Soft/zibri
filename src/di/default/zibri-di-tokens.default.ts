@@ -16,5 +16,6 @@ export const ZIBRI_DI_TOKENS = {
     JWT_REFRESH_TOKEN_SECRET: 'zi.jwt_refresh_token_secret',
     JWT_REFRESH_TOKEN_EXPIRES_IN_MS: 'zi.jwt_refresh_token_expires_in_ms',
     USER_SERVICE: 'zi.user_service',
-    CRON_SERVICE: 'zi.cron_service'
+    CRON_SERVICE: 'zi.cron_service',
+    FILE_UPLOAD_TEMP_FOLDER: 'zi.file_upload_temp_folder'
 } as const satisfies Record<string, `zi.${string}`>;

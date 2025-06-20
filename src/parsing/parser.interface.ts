@@ -7,5 +7,5 @@ export interface ParserInterface {
     parsePathParam: (req: HttpRequest, metadata: PathParamMetadata) => unknown,
     parseQueryParam: (req: HttpRequest, metadata: QueryParamMetadata) => unknown,
     parseHeaderParam: (req: HttpRequest, metadata: HeaderParamMetadata) => unknown,
-    attachTo: (app: ZibriApplication) => void
+    attachTo: (app: ZibriApplication) => Promise<void> | void
 }

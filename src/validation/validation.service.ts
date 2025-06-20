@@ -1,7 +1,9 @@
-import { BaseEntity, PropertyMetadata, RelationMetadata } from '../entity';
+import { BaseEntity, Property, PropertyMetadata, RelationMetadata } from '../entity';
 import { ValidationError } from '../error-handling';
-import { HeaderParamMetadata, PathParamMetadata, QueryParamMetadata } from '../routing';
-import { ExcludeStrict, Newable } from '../types';
+import { MimeType } from '../http';
+import { FormData } from '../parsing';
+import { BodyMetadata, HeaderParamMetadata, PathParamMetadata, QueryParamMetadata } from '../routing';
+import { ExcludeStrict, Newable, OmitStrict } from '../types';
 import { MetadataUtilities } from '../utilities';
 import { validateBoolean, validateDate, validateFile, validateNumber, validateString } from './functions';
 import { IsRequiredValidationProblem, RelationsNotAllowedValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from './validation-problem.model';
@@ -91,17 +93,26 @@ export class ValidationService implements ValidationServiceInterface {
         }
     }
 
-    validateRequestBody(model: unknown, cls: Newable<unknown>): void {
-        const res: ValidationProblem[] = this.validateModel(model, cls, undefined);
+    validateRequestBody(body: unknown, meta: BodyMetadata): void {
+        class Temp implements OmitStrict<FormData<typeof meta.modelClass>, 'cleanup'> {
+            @Property.object({ cls: () => meta.modelClass, description: 'the actual data from the request body' })
+            value!: typeof meta.modelClass;
+
+            @Property.string({ description: 'the path to the temporary folder where uploaded files are cached' })
+            tempFolder!: string;
+        }
+
+        const cls: Newable<unknown> = meta.type === MimeType.FORM_DATA ? Temp : meta.modelClass;
+        const res: ValidationProblem[] = this.validateModel(body, cls, undefined);
         if (res.length) {
             throw new ValidationError('body', res);
         }
     }
 
-    private validateModel(model: unknown, cls: Newable<unknown>, parentKey: string | undefined): ValidationProblem[] {
+    private validateModel(body: unknown, cls: Newable<unknown>, parentKey: string | undefined): ValidationProblem[] {
         const modelProperties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(cls);
 
-        const keysOfBody: string[] = Object.keys(model as Record<string, unknown>);
+        const keysOfBody: string[] = Object.keys(body as Record<string, unknown>);
         const keysOfModel: string[] = Object.keys(modelProperties);
         const unknownKeys: string[] = keysOfBody.filter(k => !keysOfModel.includes(k));
         const res: ValidationProblem[] = [];
@@ -110,7 +121,7 @@ export class ValidationService implements ValidationServiceInterface {
             res.push({ key: fullKey, message: 'this key is unknown' });
         }
         for (const [propertyKey, metadata] of Object.entries(modelProperties)) {
-            const property: unknown = (model as Record<string, unknown>)[propertyKey];
+            const property: unknown = (body as Record<string, unknown>)[propertyKey];
             const errors: ValidationProblem[] = this.validateProperty(propertyKey, property, metadata, parentKey);
             res.push(...errors);
         }

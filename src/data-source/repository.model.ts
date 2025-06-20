@@ -16,8 +16,9 @@ export class Repository<
     CreateData extends DeepPartial<T> = DeepPartial<T>,
     UpdateData extends DeepPartial<T> = DeepPartial<T>
 > {
-    private readonly logger: LoggerInterface;
+    protected readonly logger: LoggerInterface;
     private readonly typeOrmRepository: TORepository<T>;
+
     constructor(private readonly entityClass: Newable<T>, repo: TORepository<T> | Repository<T>) {
         this.logger = inject(ZIBRI_DI_TOKENS.LOGGER);
         this.typeOrmRepository = repo instanceof Repository ? repo.typeOrmRepository : repo;

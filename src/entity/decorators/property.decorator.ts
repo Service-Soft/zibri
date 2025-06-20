@@ -1,3 +1,4 @@
+import { warn } from '../../logging/logger.helpers';
 import { Newable } from '../../types';
 import { MetadataUtilities } from '../../utilities';
 import { ArrayPropertyItemMetadata, ArrayPropertyItemMetadataInput, ArrayPropertyMetadata, ArrayPropertyMetadataInput, BaseEntity, BooleanPropertyMetadata, BooleanPropertyMetadataInput, DatePropertyMetadata, DatePropertyMetadataInput, FilePropertyMetadata, FilePropertyMetadataInput, ManyToManyPropertyMetadata, ManyToManyPropertyMetadataInput, ManyToOnePropertyMetadata, ManyToOnePropertyMetadataInput, NumberPropertyMetadata, NumberPropertyMetadataInput, ObjectPropertyMetadata, ObjectPropertyMetadataInput, OneToManyPropertyMetadata, OneToManyPropertyMetadataInput, OneToOnePropertyMetadata, OneToOnePropertyMetadataInput, Relation, StringPropertyMetadata, StringPropertyMetadataInput } from '../models';
@@ -91,11 +92,10 @@ export namespace Property {
     export function file(data?: FilePropertyMetadataInput): PropertyDecorator {
         return (target, key) => {
             if (data?.allowedMimeTypes == undefined) {
-                // const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
-                // logger.warn(
-                //     `Did not specify allowedMimeTypes on property "${target.constructor.name}.${key.toString()}"`,
-                //     'Defaults to allowing any file type.'
-                // );
+                warn(
+                    `Did not specify allowedMimeTypes on property "${target.constructor.name}.${key.toString()}"`,
+                    'Defaults to allowing any file type.'
+                );
             }
             const fullMetadata: FilePropertyMetadata = {
                 required: true,
@@ -259,11 +259,10 @@ function fillArrayItemPropertyMetadata(
         case 'file': {
             const m: FilePropertyMetadataInput = data as FilePropertyMetadataInput;
             if (m.allowedMimeTypes == undefined) {
-                // const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
-                // logger.warn(
-                //     `Did not specify allowedMimeTypes on property "${target.constructor.name}.${key}"`,
-                //     'Defaults to allowing any file type.'
-                // );
+                warn(
+                    `Did not specify allowedMimeTypes on property "${target.constructor.name}.${key.toString()}"`,
+                    'Defaults to allowing any file type.'
+                );
             }
             return {
                 required: true,

@@ -9,9 +9,9 @@ import { File } from './file.model';
 export type FormDataValue = string | File | File[] | undefined;
 
 /**
- * The name of the file that contains information about when a file was uploaded.
+ * The name of the file that contains information about when a uploaded file should be cleaned up.
  */
-export const CREATED_AT_FILE_NAME: string = '.createdAt';
+export const CLEANUP_AT_FILE_NAME: string = '.cleanupAt';
 
 /**
  * The result when parsing multipart/form-data request bodies.
@@ -35,11 +35,15 @@ export class FormData<FormDataType extends object> {
         this.tempFolder = tempFolder;
     }
 
-    static async create<FormDataType extends object>(value: FormDataType, tempFolder: string): Promise<FormData<FormDataType>> {
+    static async create<FormDataType extends object>(
+        value: FormDataType,
+        tempFolder: string,
+        cleanupAfterMs: number
+    ): Promise<FormData<FormDataType>> {
         const res: FormData<FormDataType> = new this(value, tempFolder);
         await writeFile(
-            path.join(res.tempFolder, CREATED_AT_FILE_NAME),
-            `${Date.now()}`,
+            path.join(res.tempFolder, CLEANUP_AT_FILE_NAME),
+            `${Date.now() + cleanupAfterMs}`,
             { encoding: 'utf8' }
         );
         return res;
