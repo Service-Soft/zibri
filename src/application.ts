@@ -20,7 +20,7 @@ type FullZibriApplicationOptions = Required<ZibriApplicationOptions>;
  * A zibri application.
  */
 export class ZibriApplication {
-    readonly express: Express = express();
+    readonly express: Express = express().disable('x-powered-by');
 
     private _router!: RouterInterface;
     get router(): RouterInterface {
@@ -73,7 +73,7 @@ export class ZibriApplication {
         this.authService.init(this.options.authStrategies);
 
         this.parser = inject(ZIBRI_DI_TOKENS.PARSER);
-        this.parser.attachTo(this);
+        await this.parser.attachTo(this);
 
         this._router = inject(ZIBRI_DI_TOKENS.ROUTER);
         this._router.attachTo(this);

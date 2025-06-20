@@ -6,6 +6,7 @@ import { ParserInterface } from './parser.interface';
 import { LoggerInterface } from '../logging';
 import { BodyMetadata, HeaderParamMetadata, PathParamMetadata, QueryParamMetadata } from '../routing';
 import { parseArray, parseBoolean, parseDate, parseNumber, parseObject, parseString } from './functions';
+import { ZibriApplication } from '../application';
 
 type PathParamParseFunction = (rawValue: string | undefined, meta: PathParamMetadata) => unknown;
 
@@ -79,12 +80,13 @@ export class Parser implements ParserInterface {
         return await fittingParsers[0].parse(req, metadata);
     }
 
-    attachTo(): void {
+    async attachTo(app: ZibriApplication): Promise<void> {
         this.logger.info('registers', GlobalRegistry.bodyParsers.length, 'request body parsers:');
         for (const parserClass of GlobalRegistry.bodyParsers) {
             const parser: BodyParserInterface = inject(parserClass);
             this.bodyParsers.push(parser);
             this.logger.info(`  - ${parserClass.name} (${parser.contentType})`);
+            await parser.attachTo?.(app);
         }
     }
 }

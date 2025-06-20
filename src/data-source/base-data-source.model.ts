@@ -179,7 +179,8 @@ export abstract class BaseDataSource {
                     nullable: !metadata.required,
                     generated: metadata.primary ? 'uuid' : undefined,
                     ...metadata,
-                    type: metadata.format === 'uuid' || metadata.primary ? 'uuid' : this.columnTypeMapping[metadata.type]
+                    type: metadata.format === 'uuid' || metadata.primary ? 'uuid' : this.columnTypeMapping[metadata.type],
+                    length: metadata.maxLength
                 };
             }
         }
