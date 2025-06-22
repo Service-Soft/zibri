@@ -152,7 +152,8 @@ export abstract class BaseDataSource {
                 return {
                     nullable: !metadata.required,
                     ...metadata,
-                    type: this.columnTypeMapping[metadata.type]
+                    type: this.columnTypeMapping[metadata.type],
+                    default: undefined
                 };
             }
             case 'array': {
@@ -163,7 +164,8 @@ export abstract class BaseDataSource {
                     nullable: !metadata.required,
                     ...metadata,
                     type: this.columnTypeMapping[metadata.items.type],
-                    array: true
+                    array: true,
+                    default: undefined
                 };
             }
             case 'number': {
@@ -171,7 +173,8 @@ export abstract class BaseDataSource {
                     nullable: !metadata.required,
                     generated: metadata.primary ? 'increment' : undefined,
                     ...metadata,
-                    type: this.columnTypeMapping[metadata.type]
+                    type: this.columnTypeMapping[metadata.type],
+                    default: undefined
                 };
             }
             case 'string': {
@@ -180,7 +183,9 @@ export abstract class BaseDataSource {
                     generated: metadata.primary ? 'uuid' : undefined,
                     ...metadata,
                     type: metadata.format === 'uuid' || metadata.primary ? 'uuid' : this.columnTypeMapping[metadata.type],
-                    length: metadata.maxLength
+                    length: metadata.maxLength,
+                    enum: metadata.enum ? Object.values(metadata.enum) : undefined,
+                    default: undefined
                 };
             }
         }

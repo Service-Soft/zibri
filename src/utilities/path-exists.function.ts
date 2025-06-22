@@ -1,7 +1,7 @@
 import { accessSync, PathLike } from 'fs';
 import { access } from 'fs/promises';
 
-export async function fileExists(path: PathLike): Promise<boolean> {
+export async function pathExists(path: PathLike): Promise<boolean> {
     try {
         await access(path);
         return true;
@@ -11,7 +11,7 @@ export async function fileExists(path: PathLike): Promise<boolean> {
     }
 }
 
-export function fileExistsSync(path: PathLike): boolean {
+export function pathExistsSync(path: PathLike): boolean {
     try {
         accessSync(path);
         return true;

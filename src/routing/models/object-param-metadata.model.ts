@@ -4,4 +4,4 @@ import { OmitStrict } from '../../types';
 
 export type ObjectParamMetadata = BaseParamMetadata & ObjectPropertyMetadata;
 
-export type ObjectParamMetadataInput = Partial<OmitStrict<ObjectParamMetadata, 'name'>> & Pick<ObjectParamMetadata, 'cls'>;
+export type ObjectParamMetadataInput = Partial<OmitStrict<ObjectParamMetadata, 'name'>> & Pick<ObjectParamMetadata, 'cls' | 'type'>;

@@ -6,9 +6,10 @@ import { NotFoundError } from '../error-handling';
 import { LoggerInterface } from '../logging';
 import { DeepPartial, Newable, OmitStrict } from '../types';
 import { Transaction } from './transaction';
-import { BaseEntity } from '../entity';
+import { BaseEntity, PropertyMetadata } from '../entity';
 import { CreateAllOptions, CreateOptions, DeleteAllOptions, DeleteByIdOptions, FindAllOptions, FindAllPaginatedOptions, FindByIdOptions, FindOneOptions, UpdateAllOptions, UpdateByIdOptions, Where } from './models';
 import { PaginationResult } from '../open-api';
+import { MetadataUtilities } from '../utilities';
 import { whereFilterToFindOptionsWhere } from './models/where/where-filter-to-find-options-where.function';
 
 export class Repository<
@@ -35,11 +36,33 @@ export class Repository<
         return whereFilterToFindOptionsWhere(where, this.entityClass);
     }
 
+    private async setDefaultValues(data: CreateData): Promise<void> {
+        const props: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(this.entityClass);
+        for (const key in props) {
+            const property: PropertyMetadata = props[key];
+            if (!('default' in property) || property.default == undefined) {
+                continue;
+            }
+
+            if (
+                typeof property.default === 'string'
+                || typeof property.default === 'number'
+                || typeof property.default === 'boolean'
+                || property.default instanceof Date
+            ) {
+                data[key as keyof CreateData] = property.default as CreateData[keyof CreateData];
+                continue;
+            }
+            data[key as keyof CreateData] = await property.default(data) as CreateData[keyof CreateData];
+        }
+    }
+
     async create(data: CreateData, options?: CreateOptions): Promise<T> {
         if (data.id != undefined) {
             this.logger.warn('Found an id on the create data, it will be ignored.');
             delete data.id;
         }
+        await this.setDefaultValues(data);
         const manager: EntityManager = this.getManager(options?.transaction);
         const res: InsertResult = await manager.insert(this.entityClass, data as QueryDeepPartialEntity<T>);
         // eslint-disable-next-line typescript/no-unsafe-argument
@@ -53,6 +76,7 @@ export class Repository<
                 delete d.id;
                 entitiesWithIdCount++;
             }
+            await this.setDefaultValues(d);
         }
         if (entitiesWithIdCount) {
             this.logger.warn(

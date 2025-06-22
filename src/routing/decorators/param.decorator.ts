@@ -1,3 +1,4 @@
+import { fillArrayItemPropertyMetadata } from '../../entity';
 import { Header } from '../../http';
 import { MetadataUtilities } from '../../utilities';
 import { ArrayParamMetadata, ArrayParamMetadataInput, BooleanParamMetadata, BooleanParamMetadataInput, DateParamMetadata, DateParamMetadataInput, NumberParamMetadata, NumberParamMetadataInput, ObjectParamMetadata, ObjectParamMetadataInput, StringParamMetadata, StringParamMetadataInput } from '../models';
@@ -46,18 +47,8 @@ export type HeaderParamMetadataInput = StringParamMetadataInput
 
 // eslint-disable-next-line typescript/no-namespace
 export namespace Param {
-    export function path(name: string, options: PathParamMetadataInput = {}): ParameterDecorator {
-        const fullMetadata: PathParamMetadata = {
-            name: name,
-            required: true,
-            type: 'string',
-            format: undefined,
-            unique: false,
-            description: undefined,
-            maxLength: undefined,
-            minLength: undefined,
-            ...options
-        };
+    export function path(name: string, options: PathParamMetadataInput = { type: 'string' }): ParameterDecorator {
+        const fullMetadata: PathParamMetadata = resolvePathParamMetadata(name, options);
         return (target, propertyKey, parameterIndex) => {
             const ctor: Function = target.constructor;
             // eslint-disable-next-line unicorn/error-message
@@ -70,18 +61,8 @@ export namespace Param {
         };
     }
 
-    export function query(name: string, options: QueryParamMetadataInput = {}): ParameterDecorator {
-        const fullMetadata: QueryParamMetadata = {
-            name: name,
-            required: true,
-            type: 'string',
-            format: undefined,
-            unique: false,
-            description: undefined,
-            maxLength: undefined,
-            minLength: undefined,
-            ...options
-        };
+    export function query(name: string, options: QueryParamMetadataInput = { type: 'string' }): ParameterDecorator {
+        const fullMetadata: QueryParamMetadata = resolveQueryParamMetadata(name, options);
         return (target, propertyKey, parameterIndex) => {
             const ctor: Function = target.constructor;
             // eslint-disable-next-line unicorn/error-message
@@ -94,21 +75,8 @@ export namespace Param {
         };
     }
 
-    export function header(
-        name: Header,
-        options: HeaderParamMetadataInput = {}
-    ): ParameterDecorator {
-        const fullMetadata: HeaderParamMetadata = {
-            name: name,
-            required: true,
-            type: 'string',
-            format: undefined,
-            unique: false,
-            description: undefined,
-            maxLength: undefined,
-            minLength: undefined,
-            ...options
-        };
+    export function header(name: Header, options: HeaderParamMetadataInput = { type: 'string' }): ParameterDecorator {
+        const fullMetadata: HeaderParamMetadata = resolveHeaderParamMetadata(name, options);
         return (target, propertyKey, parameterIndex) => {
             const ctor: Function = target.constructor;
             // eslint-disable-next-line unicorn/error-message
@@ -120,4 +88,114 @@ export namespace Param {
             MetadataUtilities.setRouteHeaderParams(ctor, headerParams, key);
         };
     }
+}
+
+function resolvePathParamMetadata(name: string, data: PathParamMetadataInput): PathParamMetadata {
+    switch (data.type) {
+        case 'string': {
+            return {
+                name,
+                required: true,
+                unique: false,
+                format: undefined,
+                description: undefined,
+                maxLength: undefined,
+                minLength: undefined,
+                regex: undefined,
+                enum: undefined,
+                ...data
+            };
+        }
+        case 'number': {
+            return {
+                name,
+                required: true,
+                unique: false,
+                description: undefined,
+                min: undefined,
+                max: undefined,
+                ...data
+            };
+        }
+        case 'boolean': {
+            return {
+                name,
+                required: true,
+                description: undefined,
+                ...data
+            };
+        }
+        case 'date': {
+            return {
+                name,
+                required: true,
+                description: undefined,
+                after: undefined,
+                before: undefined,
+                ...data
+            };
+        }
+    }
+}
+
+function resolveQueryParamMetadata(name: string, data: QueryParamMetadataInput): QueryParamMetadata {
+    switch (data.type) {
+        case 'string': {
+            return {
+                name,
+                required: true,
+                unique: false,
+                format: undefined,
+                description: undefined,
+                maxLength: undefined,
+                minLength: undefined,
+                regex: undefined,
+                enum: undefined,
+                ...data
+            };
+        }
+        case 'number': {
+            return {
+                name,
+                required: true,
+                unique: false,
+                description: undefined,
+                min: undefined,
+                max: undefined,
+                ...data
+            };
+        }
+        case 'date': {
+            return {
+                name,
+                required: true,
+                description: undefined,
+                after: undefined,
+                before: undefined,
+                ...data
+            };
+        }
+        case 'boolean':
+        case 'object': {
+            return {
+                name,
+                required: true,
+                description: undefined,
+                ...data
+            };
+        }
+        case 'array': {
+            return {
+                name,
+                required: true,
+                description: undefined,
+                ...data,
+                items: fillArrayItemPropertyMetadata(data.items, name)
+            };
+        }
+    }
+}
+
+function resolveHeaderParamMetadata(name: string, data: HeaderParamMetadataInput): HeaderParamMetadata {
+    return resolveQueryParamMetadata(name, data);
 }

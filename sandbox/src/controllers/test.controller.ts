@@ -23,7 +23,7 @@ export class TestController {
     @Response.object(Test)
     @Get('/:id')
     async findById(
-        @Param.path('id', { format: 'uuid' })
+        @Param.path('id', { type: 'string', format: 'uuid' })
         id: string
     ): Promise<Test> {
         return await this.testRepository.findById(id);
@@ -42,7 +42,7 @@ export class TestController {
     @Response.object(Test)
     @Patch('/:id')
     async updateById(
-        @Param.path('id', { format: 'uuid' })
+        @Param.path('id', { type: 'string', format: 'uuid' })
         id: string,
         @Body(Test)
         data: Test
@@ -53,7 +53,7 @@ export class TestController {
     @Response.empty()
     @Delete('/:id')
     async deleteById(
-        @Param.path('id', { format: 'uuid' })
+        @Param.path('id', { type: 'string', format: 'uuid' })
         id: string
     ): Promise<void> {
         await this.testRepository.deleteById(id);

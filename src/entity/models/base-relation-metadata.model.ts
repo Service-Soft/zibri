@@ -6,10 +6,10 @@ import { Newable } from '../../types';
 
 export type BaseRelationMetadata<T extends BaseEntity> = BasePropertyMetadata
     & Required<Pick<EntitySchemaRelationOptions, 'cascade' | 'persistence'>> & {
-    /**
-     * A function returning the target class,
-     * used to avoid circular import issues.
-     */
+        /**
+         * A function returning the target class,
+         * used to avoid circular import issues.
+         */
         target: () => Newable<T>,
         /**
          * The name of the inverse property on the target,

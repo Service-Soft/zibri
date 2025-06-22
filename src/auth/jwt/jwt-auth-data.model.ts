@@ -14,14 +14,3 @@ export class JwtAuthData<Role extends string> {
     @Property.array({ items: { type: 'string' } })
     roles!: Role[];
 }
-
-// export class JwtAuthData<Role extends string> {
-//     @Property.object({ cls: Jwt })
-//     accessToken!: Jwt;
-
-//     @Property.object({ cls: Jwt })
-//     refreshToken!: Jwt;
-
-//     @Property.array({ items: { type: 'string' } })
-//     roles!: Role[];
-// }
