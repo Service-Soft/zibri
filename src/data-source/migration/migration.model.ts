@@ -81,8 +81,12 @@ export abstract class Migration {
 
         const col: TableColumnOptions = {
             ...columnMetadata,
-            enum: columnMetadata.enum ? columnMetadata.enum?.map(v => String(v)) : undefined,
             ...newColumn,
+            enum: 'enum' in newColumn && newColumn.enum
+                ? Object.values(newColumn.enum).map(v => String(v))
+                : columnMetadata.enum
+                    ? columnMetadata.enum.map(v => String(v))
+                    : undefined,
             name: String(newColumn.name ?? oldColumn),
             type: this.dataSource.normalizeColumnType({
                 precision: undefined,

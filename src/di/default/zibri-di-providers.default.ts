@@ -11,6 +11,7 @@ import { OpenApiService, OpenApiServiceInterface } from '../../open-api';
 import { Parser, ParserInterface } from '../../parsing';
 import { Router, RouterInterface } from '../../routing';
 import { OmitStrict } from '../../types';
+import { formatDate } from '../../utilities';
 import { ValidationService, ValidationServiceInterface } from '../../validation';
 import { DiProvider } from '../models';
 
@@ -33,7 +34,8 @@ type ZibriDiProviders = {
     [ZIBRI_DI_TOKENS.JWT_ACCESS_TOKEN_EXPIRES_IN_MS]: ZibriDiProvider<number>,
     [ZIBRI_DI_TOKENS.JWT_REFRESH_TOKEN_EXPIRES_IN_MS]: ZibriDiProvider<number>,
     [ZIBRI_DI_TOKENS.CRON_SERVICE]: ZibriDiProvider<CronServiceInterface>,
-    [ZIBRI_DI_TOKENS.FILE_UPLOAD_TEMP_FOLDER]: ZibriDiProvider<string>
+    [ZIBRI_DI_TOKENS.FILE_UPLOAD_TEMP_FOLDER]: ZibriDiProvider<string>,
+    [ZIBRI_DI_TOKENS.FORMAT_DATE]: ZibriDiProvider<(value: Date, includeTime?: boolean) => string>
 };
 
 export const ZIBRI_DI_PROVIDERS: Record<
@@ -56,5 +58,6 @@ export const ZIBRI_DI_PROVIDERS: Record<
     [ZIBRI_DI_TOKENS.JWT_ACCESS_TOKEN_EXPIRES_IN_MS]: { useFactory: () => 3600000 },
     [ZIBRI_DI_TOKENS.JWT_REFRESH_TOKEN_EXPIRES_IN_MS]: { useFactory: () => 8640000000 },
     [ZIBRI_DI_TOKENS.CRON_SERVICE]: { useClass: CronService },
-    [ZIBRI_DI_TOKENS.FILE_UPLOAD_TEMP_FOLDER]: { useFactory: () => path.join(__dirname, 'temp') }
+    [ZIBRI_DI_TOKENS.FILE_UPLOAD_TEMP_FOLDER]: { useFactory: () => path.join(__dirname, 'temp') },
+    [ZIBRI_DI_TOKENS.FORMAT_DATE]: { useFactory: () => formatDate }
 } satisfies ZibriDiProviders;

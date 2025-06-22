@@ -1,7 +1,7 @@
-import { BasePropertyMetadata } from './base-property-metadata.model';
+import { BasePropertyMetadata, WithDefaultMetadata } from './base-property-metadata.model';
 import { OmitStrict } from '../../types';
 
-export type BooleanPropertyMetadata = BasePropertyMetadata & {
+export type BooleanPropertyMetadata = BasePropertyMetadata & WithDefaultMetadata<boolean> & {
     type: 'boolean'
 };
 

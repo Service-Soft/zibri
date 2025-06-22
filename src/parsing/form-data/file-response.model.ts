@@ -6,7 +6,7 @@ import { inject, ZIBRI_DI_TOKENS } from '../../di';
 import { LooseFileMimeType, resolveMimeType } from '../../http';
 import { LoggerInterface } from '../../logging';
 import { OmitStrict } from '../../types';
-import { fileExists } from '../../utilities';
+import { pathExists } from '../../utilities';
 
 type BaseFileResponseData = { mimeType?: LooseFileMimeType };
 
@@ -27,7 +27,7 @@ export class FileResponse {
         const fileName: string = options?.filename ?? path.basename(fullPath);
         const mimeType: string = options?.mimeType ?? resolveMimeType(fileName);
 
-        if (!await fileExists(p)) {
+        if (!await pathExists(p)) {
             throw new Error(`the file at path "${p}" does not exist.`);
         }
         if (!fileName.includes('.') && options?.mimeType == undefined) {

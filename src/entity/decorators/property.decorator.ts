@@ -2,6 +2,7 @@ import { warn } from '../../logging/logger.helpers';
 import { Newable } from '../../types';
 import { MetadataUtilities } from '../../utilities';
 import { ArrayPropertyItemMetadata, ArrayPropertyItemMetadataInput, ArrayPropertyMetadata, ArrayPropertyMetadataInput, BaseEntity, BooleanPropertyMetadata, BooleanPropertyMetadataInput, DatePropertyMetadata, DatePropertyMetadataInput, FilePropertyMetadata, FilePropertyMetadataInput, ManyToManyPropertyMetadata, ManyToManyPropertyMetadataInput, ManyToOnePropertyMetadata, ManyToOnePropertyMetadataInput, NumberPropertyMetadata, NumberPropertyMetadataInput, ObjectPropertyMetadata, ObjectPropertyMetadataInput, OneToManyPropertyMetadata, OneToManyPropertyMetadataInput, OneToOnePropertyMetadata, OneToOnePropertyMetadataInput, Relation, StringPropertyMetadata, StringPropertyMetadataInput } from '../models';
+import { WithDefaultMetadata } from '../models/base-property-metadata.model';
 
 export type PropertyMetadata = StringPropertyMetadata
     | NumberPropertyMetadata
@@ -42,9 +43,12 @@ export namespace Property {
             format: data?.primary === true ? 'uuid' : undefined,
             maxLength: undefined,
             minLength: undefined,
+            regex: undefined,
+            enum: undefined,
+            default: undefined,
             ...data
         };
-        return applyData(fullMetadata);
+        return applyData(fullMetadata, data);
     }
 
     export function number(data?: NumberPropertyMetadataInput): PropertyDecorator {
@@ -54,9 +58,12 @@ export namespace Property {
             unique: false,
             type: 'number',
             description: undefined,
+            min: undefined,
+            max: undefined,
+            default: undefined,
             ...data
         };
-        return applyData(fullMetadata);
+        return applyData(fullMetadata, data);
     }
 
     export function boolean(data?: BooleanPropertyMetadataInput): PropertyDecorator {
@@ -64,9 +71,10 @@ export namespace Property {
             required: true,
             type: 'boolean',
             description: undefined,
+            default: undefined,
             ...data
         };
-        return applyData(fullMetadata);
+        return applyData(fullMetadata, data);
     }
 
     export function date(data?: DatePropertyMetadataInput): PropertyDecorator {
@@ -74,9 +82,12 @@ export namespace Property {
             required: true,
             type: 'date',
             description: undefined,
+            after: undefined,
+            before: undefined,
+            default: undefined,
             ...data
         };
-        return applyData(fullMetadata);
+        return applyData(fullMetadata, data);
     }
 
     export function object(data: ObjectPropertyMetadataInput): PropertyDecorator {
@@ -86,7 +97,7 @@ export namespace Property {
             description: undefined,
             ...data
         };
-        return applyData(fullMetadata);
+        return applyData(fullMetadata, data);
     }
 
     export function file(data?: FilePropertyMetadataInput): PropertyDecorator {
@@ -122,7 +133,7 @@ export namespace Property {
                 type: 'array',
                 description: undefined,
                 ...data,
-                items: fillArrayItemPropertyMetadata(data.items, target, key.toString())
+                items: fillArrayItemPropertyMetadata(data.items, `${target.constructor.name}.${key.toString()}`)
             };
             const ctor: Newable<unknown> = target.constructor as Newable<unknown>;
             // eslint-disable-next-line unicorn/error-message
@@ -144,7 +155,7 @@ export namespace Property {
             persistence: false,
             ...metadata
         };
-        return applyData(fullMetadata as PropertyMetadata);
+        return applyData(fullMetadata as PropertyMetadata, metadata);
     }
 
     export function oneToMany<T extends BaseEntity>(metadata: OneToManyPropertyMetadataInput<T>): PropertyDecorator {
@@ -157,7 +168,7 @@ export namespace Property {
             persistence: false,
             ...metadata
         };
-        return applyData(fullMetadata as PropertyMetadata);
+        return applyData(fullMetadata as PropertyMetadata, metadata);
     }
 
     export function oneToOne<T extends BaseEntity>(metadata: OneToOnePropertyMetadataInput<T>): PropertyDecorator {
@@ -170,7 +181,7 @@ export namespace Property {
             persistence: false,
             ...metadata
         };
-        return applyData(fullMetadata as PropertyMetadata);
+        return applyData(fullMetadata as PropertyMetadata, metadata);
     }
 
     export function manyToMany<T extends BaseEntity>(metadata: ManyToManyPropertyMetadataInput<T>): PropertyDecorator {
@@ -183,12 +194,16 @@ export namespace Property {
             persistence: false,
             ...metadata
         };
-        return applyData(fullMetadata as PropertyMetadata);
+        return applyData(fullMetadata as PropertyMetadata, metadata);
     }
 }
 
-function applyData(data: PropertyMetadata): PropertyDecorator {
+function applyData(data: PropertyMetadata, inputData: PropertyMetadataInput | undefined): PropertyDecorator {
     return (target, key) => {
+        if (inputData?.required != undefined && (inputData as WithDefaultMetadata<string>).default != undefined) {
+            // eslint-disable-next-line stylistic/max-len
+            warn(`setting "required" on ${target.constructor.name}.${key.toString()} won't have any effect, because "default" is also set.`);
+        }
         const ctor: Newable<unknown> = target.constructor as Newable<unknown>;
         // eslint-disable-next-line unicorn/error-message
         const stack: string = new Error().stack ?? '';
@@ -199,10 +214,9 @@ function applyData(data: PropertyMetadata): PropertyDecorator {
     };
 }
 
-function fillArrayItemPropertyMetadata(
+export function fillArrayItemPropertyMetadata(
     data: ArrayPropertyItemMetadataInput,
-    target: Object,
-    key: string
+    fullPropertyKey: string
 ): ArrayPropertyItemMetadata {
     switch (data.type) {
         case 'number': {
@@ -211,8 +225,10 @@ function fillArrayItemPropertyMetadata(
                 primary: false,
                 unique: false,
                 description: undefined,
-                ...data,
-                type: data.type
+                min: undefined,
+                max: undefined,
+                default: undefined,
+                ...data
             };
         }
         case 'string': {
@@ -224,43 +240,49 @@ function fillArrayItemPropertyMetadata(
                 description: undefined,
                 maxLength: undefined,
                 minLength: undefined,
-                ...data,
-                type: data.type
+                regex: undefined,
+                enum: undefined,
+                default: undefined,
+                ...data
             };
         }
-        case 'boolean':
+        case 'object': {
+            return {
+                required: true,
+                description: undefined,
+                ...data
+            };
+        }
+        case 'boolean': {
+            return {
+                required: true,
+                description: undefined,
+                default: undefined,
+                ...data
+            };
+        }
         case 'date': {
             return {
                 required: true,
                 description: undefined,
-                ...data,
-                type: data.type
-            };
-        }
-        case 'object': {
-            const m: ObjectPropertyMetadataInput = data as ObjectPropertyMetadata;
-            return {
-                required: true,
-                description: undefined,
-                ...m,
-                type: data.type
+                after: undefined,
+                before: undefined,
+                default: undefined,
+                ...data
             };
         }
         case 'array': {
-            const m: ArrayPropertyMetadataInput = data as ArrayPropertyMetadataInput;
             return {
                 required: true,
                 description: undefined,
-                ...m,
-                type: data.type,
-                items: fillArrayItemPropertyMetadata(m.items, target, key)
+                ...data,
+                items: fillArrayItemPropertyMetadata(data.items, fullPropertyKey)
             };
         }
         case 'file': {
-            const m: FilePropertyMetadataInput = data as FilePropertyMetadataInput;
-            if (m.allowedMimeTypes == undefined) {
+            if (data.allowedMimeTypes == undefined) {
                 warn(
-                    `Did not specify allowedMimeTypes on property "${target.constructor.name}.${key.toString()}"`,
+                    `Did not specify allowedMimeTypes on property "${fullPropertyKey}"`,
                     'Defaults to allowing any file type.'
                 );
             }
@@ -269,8 +291,7 @@ function fillArrayItemPropertyMetadata(
                 description: undefined,
                 allowedMimeTypes: 'all',
                 maxSize: '5mb',
-                ...m,
-                type: data.type
+                ...data
             };
         }
     }

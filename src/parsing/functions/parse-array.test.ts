@@ -17,7 +17,10 @@ describe('parseArray', () => {
             format: undefined,
             unique: false,
             maxLength: undefined,
-            minLength: undefined
+            minLength: undefined,
+            default: undefined,
+            regex: undefined,
+            enum: undefined
         },
         required: true,
         description: undefined

@@ -33,14 +33,12 @@ function singleWhereFilterToFindOptionsWhere<T extends Object>(
 ): ToFindOptionsWhere<T> {
     const res: ToFindOptionsWhere<T> = {};
     for (const key of Object.keys(filter) as (keyof WhereFilter<T>)[]) {
-        type P = typeof key;
-        const prop: WhereFilterProperty<T[P]> | WhereFilterProperty<T[P]>[] | undefined = filter[key];
+        const prop: WhereFilterProperty<T[typeof key]> | WhereFilterProperty<T[typeof key]>[] | undefined = filter[key];
         if (prop === undefined) {
             continue;
         }
 
         const propertyMetadata: PropertyMetadata = properties[key];
-        // eslint-disable-next-line typescript/switch-exhaustiveness-check
         switch (propertyMetadata.type) {
             case 'object': {
                 properties = MetadataUtilities.getModelProperties(propertyMetadata.cls());
@@ -51,6 +49,14 @@ function singleWhereFilterToFindOptionsWhere<T extends Object>(
                 properties = MetadataUtilities.getModelProperties(propertyMetadata.target());
                 break;
             }
+            case 'string':
+            case 'number':
+            case 'boolean':
+            case Relation.ONE_TO_MANY:
+            case Relation.MANY_TO_MANY:
+            case 'array':
+            case 'date':
+            case 'file':
             default: {
                 break;
             }
@@ -58,7 +64,7 @@ function singleWhereFilterToFindOptionsWhere<T extends Object>(
         res[key] = propertyToFindOperator(
             prop,
             propertyMetadata
-        ) as typeof key extends 'toString' ? unknown : ToFindOptionsWhereProperty<NonNullable<T[P]>>;
+        ) as typeof key extends 'toString' ? unknown : ToFindOptionsWhereProperty<NonNullable<T[typeof key]>>;
     }
     return res;
 }

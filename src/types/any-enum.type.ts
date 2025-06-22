@@ -1,0 +1,1 @@
+export type AnyEnum<T extends string | number = string | number> = { [key: string]: T };

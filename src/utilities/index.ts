@@ -4,4 +4,7 @@ export * from './is-numeric.function';
 export * from './is-date.function';
 export * from './compare-versions.function';
 export * from './is-version.function';
-export * from './file-exists.function';
+export * from './path-exists.function';
+export * from './format-date.function';
+export * from './format-date-fn.model';
+export * from './chunked-promise-all.function';

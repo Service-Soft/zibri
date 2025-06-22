@@ -1,10 +1,12 @@
-import { BasePropertyMetadata } from './base-property-metadata.model';
+import { BasePropertyMetadata, WithDefaultMetadata } from './base-property-metadata.model';
 import { OmitStrict } from '../../types';
 
-export type NumberPropertyMetadata = BasePropertyMetadata & {
+export type NumberPropertyMetadata = BasePropertyMetadata & WithDefaultMetadata<number> & {
     type: 'number',
     primary: boolean,
-    unique: boolean
+    unique: boolean,
+    min: number | undefined,
+    max: number | undefined
 };
 
 export type NumberPropertyMetadataInput = Partial<OmitStrict<NumberPropertyMetadata, 'type'>>;

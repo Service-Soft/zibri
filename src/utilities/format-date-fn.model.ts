@@ -1,0 +1,1 @@
+export type FormatDateFn = (date: Date, includeTime?: boolean) => string;
