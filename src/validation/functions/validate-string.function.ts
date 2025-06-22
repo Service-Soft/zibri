@@ -6,6 +6,7 @@ import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationP
 const UUID_REGEX: RegExp = /^[\dA-Fa-f]{8}-[\dA-Fa-f]{4}-[1-5][\dA-Fa-f]{3}-[89ABab][\dA-Fa-f]{3}-[\dA-Fa-f]{12}$/;
 const EMAIL_REGEX: RegExp = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// eslint-disable-next-line sonar/cognitive-complexity
 export function validateString(
     key: string,
     property: unknown,
