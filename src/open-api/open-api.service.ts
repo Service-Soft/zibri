@@ -315,17 +315,33 @@ export class OpenApiService implements OpenApiServiceInterface {
 
         for (const [key, meta] of Object.entries(propMeta)) {
             // mark required
-            if ('required' in meta && meta.required) {
+            if (
+                meta.required
+                && (!('default' in meta) || meta.default == undefined)
+            ) {
                 required.push(key);
             }
             switch (meta.type) {
                 case 'date': {
-                    properties[key] = { type: 'string', format: 'date-time', description: meta.description };
+                    properties[key] = {
+                        type: 'string',
+                        format: 'date-time',
+                        description: meta.description
+                        // default: meta.default
+                    };
                     continue;
                 }
-                case 'number':
+                case 'number': {
+                    properties[key] = {
+                        ...meta,
+                        required: undefined,
+                        minimum: meta.min,
+                        maximum: meta.max
+                    };
+                    continue;
+                }
                 case 'boolean': {
-                    properties[key] = { type: meta.type, description: meta.description };
+                    properties[key] = { ...meta, required: undefined };
                     continue;
                 }
                 case 'file': {
@@ -334,11 +350,10 @@ export class OpenApiService implements OpenApiServiceInterface {
                 }
                 case 'string': {
                     properties[key] = {
-                        type: meta.type,
-                        format: meta.format,
-                        description: meta.description,
-                        minLength: meta.minLength,
-                        maxLength: meta.maxLength
+                        ...meta,
+                        required: undefined,
+                        pattern: meta.regex?.toString(),
+                        enum: meta.enum ? Object.values(meta.enum) : undefined
                     };
                     continue;
                 }
@@ -454,18 +469,23 @@ export class OpenApiService implements OpenApiServiceInterface {
 
     private paramToSchema(meta: QueryParamMetadata | PathParamMetadata | HeaderParamMetadata): OpenApiSchemaObject {
         switch (meta.type) {
-            case 'boolean':
+            case 'boolean': {
+                return { ...meta, required: undefined };
+            }
             case 'number': {
                 return {
-                    type: meta.type,
-                    description: meta.description
+                    ...meta,
+                    required: undefined,
+                    minimum: meta.min,
+                    maximum: meta.max
                 };
             }
             case 'string': {
                 return {
-                    type: meta.type,
-                    format: meta.format,
-                    description: meta.description
+                    ...meta,
+                    required: undefined,
+                    pattern: meta.regex?.toString(),
+                    enum: meta.enum ? Object.values(meta.enum) : undefined
                 };
             }
             case 'date': {

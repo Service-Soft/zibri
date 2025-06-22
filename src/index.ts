@@ -21,3 +21,5 @@ export * from './types/newable.model';
 export * from './types/version.type';
 export * from './utilities/compare-versions.function';
 export * from './utilities/is-version.function';
+export * from './utilities/format-date-fn.model';
+export * from './utilities/chunked-promise-all.function';

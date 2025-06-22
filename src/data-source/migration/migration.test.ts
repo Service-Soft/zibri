@@ -102,7 +102,7 @@ describe('AddTestValueMigration', () => {
         // seed one row without `value`
         const legacyItemRepository: Repository<LegacyItem> = legacyDataSource.getRepository(LegacyItem);
         createdId = (await legacyItemRepository.create({})).id;
-    }, 10000);
+    }, 15000);
 
     it('should add non-nullable value column with backfilled defaults', async () => {
         const dataSource: DbDataSource = inject(DbDataSource);

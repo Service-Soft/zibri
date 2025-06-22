@@ -6,4 +6,5 @@ import { QueryParamMetadata, QueryParamMetadataInput } from '../decorators';
 export type ArrayParamMetadata = BaseParamMetadata & ArrayPropertyMetadata;
 
 export type ArrayParamMetadataInput = Partial<OmitStrict<ArrayParamMetadata, 'type' | 'items'>>
+    & Pick<ArrayParamMetadata, 'type'>
     & { items: QueryParamMetadataInput & Pick<QueryParamMetadata, 'type'> };
