@@ -6,11 +6,13 @@ import { JwtCredentials, RefreshToken } from '../auth';
 import { CronJobEntity } from '../cron';
 import { BaseEntity } from '../entity';
 import { LoggerInterface } from '../logging';
+import { Mail } from '../mail';
 import { Newable } from '../types';
 
 export class DataSourceService implements DataSourceServiceInterface {
     private readonly logger: LoggerInterface;
 
+    private readonly defaultEntities: Newable<BaseEntity>[] = [CronJobEntity, Mail];
     private readonly allowedOrphans: Newable<BaseEntity>[] = [RefreshToken, JwtCredentials];
 
     constructor() {
@@ -29,8 +31,10 @@ export class DataSourceService implements DataSourceServiceInterface {
         const entitiesInDataSources: Newable<BaseEntity>[] = [];
         for (const dataSourceClass of GlobalRegistry.dataSourceClasses) {
             const dataSource: BaseDataSource = inject(dataSourceClass);
-            if (!dataSource.entities.includes(CronJobEntity)) {
-                dataSource.entities.push(CronJobEntity);
+            for (const entity of this.defaultEntities) {
+                if (!dataSource.entities.includes(entity)) {
+                    dataSource.entities.push(entity);
+                }
             }
             this.logger.info(`  - ${dataSourceClass.name} (${dataSource.entities.length} entities)`);
             entitiesInDataSources.push(...dataSource.entities);

@@ -2,12 +2,12 @@ import { readdir, rm, readFile } from 'fs/promises';
 import path from 'path';
 
 import { CLEANUP_AT_FILE_NAME } from './form-data.model';
-import { CronJob, CronConfig } from '../../cron';
+import { CronJob, InitialCronConfig } from '../../cron';
 import { inject, Injectable, ZIBRI_DI_TOKENS } from '../../di';
 
 @Injectable()
 export class FormDataBodyParserCleanupCronJob extends CronJob {
-    initialConfig: Partial<CronConfig> & Pick<CronConfig, 'name' | 'cron'> = {
+    initialConfig: InitialCronConfig = {
         name: 'FormDataBodyParser Cleanup',
         cron: '0 0 * * *',
         runOnInit: false

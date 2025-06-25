@@ -10,6 +10,7 @@ import { register } from './di/register.function';
 import { UnmatchedRouteError } from './error-handling';
 import { GlobalRegistry } from './global';
 import { LoggerInterface } from './logging';
+import { MailServiceInterface } from './mail';
 import { OpenApiServiceInterface } from './open-api';
 import { FormDataBodyParser, JsonBodyParser, ParserInterface } from './parsing';
 import { RouterInterface } from './routing';
@@ -33,6 +34,7 @@ export class ZibriApplication {
     private dataSourceService!: DataSourceServiceInterface;
     private authService!: AuthServiceInterface;
     private cronService!: CronServiceInterface;
+    private mailService!: MailServiceInterface;
     private readonly options: FullZibriApplicationOptions;
 
     constructor(private readonly providedOptions: ZibriApplicationOptions) {
@@ -80,6 +82,9 @@ export class ZibriApplication {
 
         this.assetService = inject(ZIBRI_DI_TOKENS.ASSET_SERVICE);
         this.assetService.attachTo(this);
+
+        this.mailService = inject(ZIBRI_DI_TOKENS.MAIL_SERVICE);
+        this.mailService.attachTo(this);
 
         this.openApiService = inject(ZIBRI_DI_TOKENS.OPEN_API_SERVICE);
         this.openApiService.attachTo(this);

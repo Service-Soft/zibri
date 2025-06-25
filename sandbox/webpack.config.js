@@ -3,6 +3,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 const CopyPlugin = require('copy-webpack-plugin');
 const { IgnorePlugin } = require('webpack');
+const { generateHandlebarTypes } = require('zibri');
 
 class OnBuildSuccessPlugin {
     /** @type {import('webpack').WebpackPluginFunction } */
@@ -20,6 +21,17 @@ class OnBuildSuccessPlugin {
                 shell: true
             });
         });
+    }
+}
+
+class HandlebarsTypegenPlugin {
+    /** @type {import('webpack').WebpackPluginFunction } */
+    apply(compiler) {
+        // on every rebuild (and initial build), run our stub generator first
+        compiler.hooks.beforeCompile.tapPromise(
+            'HandlebarsTypegenPlugin',
+            () => generateHandlebarTypes()
+        );
     }
 }
 
@@ -65,10 +77,24 @@ module.exports = {
                 test: /\.js$/,
                 enforce: 'pre',
                 use: 'source-map-loader'
+            },
+            {
+                test: /\.hbs$/,
+                use: [
+                    {
+                        loader: 'handlebars-loader',
+                        options: {
+                            // if you want to precompile
+                            runtime: 'handlebars/runtime',
+                            knownHelpersOnly: false
+                        }
+                    }
+                ]
             }
         ]
     },
     plugins: [
+        new HandlebarsTypegenPlugin(),
         new OnBuildSuccessPlugin(),
         new CopyPlugin({
             patterns: [

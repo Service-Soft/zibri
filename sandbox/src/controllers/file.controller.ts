@@ -3,6 +3,9 @@ import { stat } from 'fs/promises';
 
 import { Body, Controller, File, FileResponse, FormData, Get, MimeType, Post, Property, Response } from 'zibri';
 
+import { logger } from '..';
+import renderExampleTemplate from '../templates/example.hbs';
+
 export class FileCreateDTO {
     @Property.file({ allowedMimeTypes: [MimeType.JSON] })
     file!: File;
@@ -29,5 +32,12 @@ export class FileController {
             filename: 'logo.jpg',
             size: (await stat('assets/logo.jpg')).size
         });
+    }
+
+    @Response.empty()
+    @Get('/hbs')
+    async getHbs(): Promise<void> {
+        const content: string = renderExampleTemplate({ user: { name: 'MAx Muster' }, tasks: [] });
+        logger.info('content:\n', content);
     }
 }

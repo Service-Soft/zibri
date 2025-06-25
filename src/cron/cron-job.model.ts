@@ -12,8 +12,10 @@ import { CronUpdateData } from './cron.service';
 
 export type CronConfig = OmitStrict<CronJobEntity, 'id' | 'lastRun' | 'errorMessage'> & { syncToDb: boolean };
 
+export type InitialCronConfig = Partial<CronConfig> & Pick<CronConfig, 'name' | 'cron'>;
+
 export abstract class CronJob {
-    abstract readonly initialConfig: Partial<CronConfig> & Pick<CronConfig, 'name' | 'cron'>;
+    abstract readonly initialConfig: InitialCronConfig;
 
     protected entity: CronJobEntity | undefined;
 

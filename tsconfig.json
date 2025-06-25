@@ -13,5 +13,5 @@
         "sourceMap": true,
         "forceConsistentCasingInFileNames": true
     },
-    "include": ["src"]
+    "include": ["src", "sandbox/declarations.d.ts"]
 }  

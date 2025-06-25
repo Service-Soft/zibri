@@ -1,4 +1,4 @@
-import { inject, isVersion, LoggerInterface, ZIBRI_DI_TOKENS, ZibriApplication } from 'zibri';
+import { inject, isVersion, LoggerInterface, MailConfig, ZIBRI_DI_TOKENS, ZibriApplication } from 'zibri';
 
 import { FileController, JwtController, TestController } from './controllers';
 import { DbDataSource } from './data-sources';
@@ -27,6 +27,20 @@ async function start(): Promise<void> {
             {
                 token: ZIBRI_DI_TOKENS.JWT_REFRESH_TOKEN_SECRET,
                 useFactory: () => 'test'
+            },
+            {
+                token: ZIBRI_DI_TOKENS.MAIL_CONFIG,
+                useFactory: (): MailConfig => {
+                    return {
+                        maxEmailsPerHour: 0,
+                        host: '',
+                        port: 0,
+                        auth: {
+                            user: '',
+                            pass: ''
+                        }
+                    };
+                }
             }
         ]
     });

@@ -2,7 +2,7 @@ import { readFile } from 'fs';
 import path from 'path';
 
 import { NextFunction } from 'express';
-import Handlebars from 'handlebars';
+import handlebars from 'handlebars';
 
 import { GlobalErrorHandler } from './error-handler.model';
 import { inject, ZIBRI_DI_TOKENS } from '../di';
@@ -44,7 +44,7 @@ export const errorHandler: GlobalErrorHandler = (error: unknown, req: HttpReques
 
     const assetService: AssetServiceInterface = inject(ZIBRI_DI_TOKENS.ASSET_SERVICE);
     // eslint-disable-next-line promise/prefer-await-to-callbacks
-    readFile(path.join(assetService.assetsPath, 'template', 'error.hbs'), 'utf8', (err, source) => {
+    readFile(path.join(assetService.assetsPath, 'pages', 'error.hbs'), 'utf8', (err, source) => {
         if (err) {
             res.status(httpError.status).json({
                 status: httpError.status,
@@ -56,7 +56,7 @@ export const errorHandler: GlobalErrorHandler = (error: unknown, req: HttpReques
         }
 
         // compile the template
-        const template: HandlebarsTemplateDelegate = Handlebars.compile(source);
+        const template: HandlebarsTemplateDelegate = handlebars.compile(source);
         const html: string = template({ error: httpError, name: GlobalRegistry.getAppData('name') });
 
         res.setHeader('Content-Type', 'text/html');

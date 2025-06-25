@@ -3,7 +3,7 @@ import { readdir, readFile } from 'fs/promises';
 import path from 'path';
 
 import express from 'express';
-import Handlebars from 'handlebars';
+import handlebars from 'handlebars';
 
 import { AssetServiceInterface } from './asset-service.interface';
 import { ZibriApplication } from '../application';
@@ -45,8 +45,8 @@ export class AssetService implements AssetServiceInterface {
             httpMethod: HttpMethod.GET,
             route: '/',
             handler: async (req, res) => {
-                const source: string = await readFile(path.join(this.assetsPath, 'template', 'index.hbs'), { encoding: 'utf8' });
-                const template: HandlebarsTemplateDelegate = Handlebars.compile(source);
+                const source: string = await readFile(path.join(this.assetsPath, 'pages', 'index.hbs'), { encoding: 'utf8' });
+                const template: HandlebarsTemplateDelegate = handlebars.compile(source);
                 const html: string = template({ name: GlobalRegistry.getAppData('name') });
                 res.setHeader('Content-Type', 'text/html');
                 res.send(html);
@@ -56,8 +56,8 @@ export class AssetService implements AssetServiceInterface {
             httpMethod: HttpMethod.GET,
             route: '/assets',
             handler: async (req, res) => {
-                const source: string = await readFile(path.join(this.assetsPath, 'template', 'assets.hbs'), { encoding: 'utf8' });
-                const template: HandlebarsTemplateDelegate = Handlebars.compile(source);
+                const source: string = await readFile(path.join(this.assetsPath, 'pages', 'assets.hbs'), { encoding: 'utf8' });
+                const template: HandlebarsTemplateDelegate = handlebars.compile(source);
                 const tree: TreeNode[] = await this.buildFileTree();
                 const html: string = template({ name: GlobalRegistry.getAppData('name'), tree });
                 res.setHeader('Content-Type', 'text/html');
@@ -146,26 +146,26 @@ export class AssetService implements AssetServiceInterface {
 }
 
 // 1) Define the helper with a `this` parameter
-Handlebars.registerHelper(
+handlebars.registerHelper(
     'renderTree',
     function(
-        this: Handlebars.HelperOptions, // ← explicitly type `this`
+        this: handlebars.HelperOptions, // ← explicitly type `this`
         nodes: TreeNode[]
-    ): Handlebars.SafeString {
+    ): handlebars.SafeString {
         let out: string = '';
         for (const node of nodes) {
             if (node.type === 'directory') {
-                out += `<details><summary>${Handlebars.escapeExpression(node.name)
+                out += `<details><summary>${handlebars.escapeExpression(node.name)
                 }</summary>`;
                 // 2) Call the helper recursively using `apply` so `this` stays typed
-                out += (Handlebars.helpers.renderTree as Function).apply(this, [node.children]);
+                out += (handlebars.helpers.renderTree as Function).apply(this, [node.children]);
                 out += '</details>';
             }
             else {
-                out += `<a class="file-link" href="${Handlebars.escapeExpression(node.route)
-                }">${Handlebars.escapeExpression(node.name)}</a>`;
+                out += `<a class="file-link" href="${handlebars.escapeExpression(node.route)
+                }">${handlebars.escapeExpression(node.name)}</a>`;
             }
         }
-        return new Handlebars.SafeString(out);
+        return new handlebars.SafeString(out);
     }
 );
