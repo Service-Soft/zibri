@@ -2,6 +2,7 @@ import { AstBlockStatement, AstExpression } from './ast.model';
 import { resolveKeyForPathExpression } from './resolve-key-for-path-expression.function';
 import { resolveAllKeys } from './resolve-tree.function';
 
+// eslint-disable-next-line jsdoc/require-jsdoc
 export function resolveKeysForBlockStatement(element: AstBlockStatement, parentKey: string | undefined): string[] {
     const res: string[] = [];
     // eg. if, each etc.
@@ -15,10 +16,15 @@ export function resolveKeysForBlockStatement(element: AstBlockStatement, parentK
         case 'if': {
             const key: string = getKeyFromIfParams(element.params, parentKey);
             res.push(key);
-            res.push(...resolveAllKeys(element.program, key));
+            res.push(...resolveAllKeys(element.program, parentKey));
             break;
         }
-        case 'unless':
+        case 'unless': {
+            const key: string = getKeyFromUnlessParams(element.params, parentKey);
+            res.push(key);
+            res.push(...resolveAllKeys(element.program, parentKey));
+            break;
+        }
         case 'with':
         case 'log': {
             throw new Error(`Not implemented yet "${element.path.original}"`);
@@ -32,6 +38,7 @@ export function resolveKeysForBlockStatement(element: AstBlockStatement, parentK
     return res;
 }
 
+// eslint-disable-next-line jsdoc/require-jsdoc
 function getKeyFromArrayParams(params: AstExpression[], parentKey: string | undefined): string {
     if (params.length !== 1) {
         throw new Error(`Got more than 1 param ${JSON.stringify(params)}`);
@@ -40,6 +47,42 @@ function getKeyFromArrayParams(params: AstExpression[], parentKey: string | unde
     switch (params[0].type) {
         case 'PathExpression': {
             return resolveKeyForPathExpression(params[0], parentKey);
+        }
+        case 'SubExpression': {
+            if (params[0].params.length < 1) {
+                throw new Error('SubExpression has no params');
+            }
+            // recursively pick the first param of the sub‐expression
+            return getKeyFromArrayParams([params[0].params[0]], parentKey);
+        }
+        case 'StringLiteral':
+        case 'NumberLiteral':
+        case 'BooleanLiteral':
+        case 'UndefinedLiteral':
+        case 'NullLiteral':
+        default: {
+            throw new Error(`Unknown AST param for if block "${params[0].type}"`);
+        }
+
+    }
+}
+
+// eslint-disable-next-line jsdoc/require-jsdoc
+function getKeyFromIfParams(params: AstExpression[], parentKey: string | undefined): string {
+    if (params.length !== 1) {
+        throw new Error(`Got more than 1 param ${JSON.stringify(params)}`);
+    }
+
+    switch (params[0].type) {
+        case 'PathExpression': {
+            return resolveKeyForPathExpression(params[0], parentKey);
+        }
+        case 'SubExpression': {
+            if (params[0].params.length < 1) {
+                throw new Error('SubExpression has no params');
+            }
+            // recursively pick the first param of the sub‐expression
+            return getKeyFromIfParams([params[0].params[0]], parentKey);
         }
         case 'StringLiteral':
         case 'NumberLiteral':
@@ -53,26 +96,7 @@ function getKeyFromArrayParams(params: AstExpression[], parentKey: string | unde
     }
 }
 
-function getKeyFromIfParams(params: AstExpression[], parentKey: string | undefined): string {
-    if (params.length !== 1) {
-        throw new Error(`Got more than 1 param ${JSON.stringify(params)}`);
-    }
-
-    switch (params[0].type) {
-        case 'PathExpression': {
-            return resolveKeyForPathExpression(params[0], parentKey);
-        }
-        case 'SubExpression': {
-            
-        }
-        case 'StringLiteral':
-        case 'NumberLiteral':
-        case 'BooleanLiteral':
-        case 'UndefinedLiteral':
-        case 'NullLiteral':
-        default: {
-            throw new Error(`Unknown AST param for each block "${params[0].type}"`);
-        }
-
-    }
+// eslint-disable-next-line jsdoc/require-jsdoc
+function getKeyFromUnlessParams(params: AstExpression[], parentKey: string | undefined): string {
+    return getKeyFromIfParams(params, parentKey);
 }

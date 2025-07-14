@@ -1,5 +1,8 @@
 import { ExcludeStrict } from '../types';
 
+/**
+ * All known mime types.
+ */
 export enum MimeType {
     JSON = 'application/json',
     HTML = 'text/html',
@@ -18,6 +21,12 @@ export enum MimeType {
     TXT = 'text/plain'
 }
 
+/**
+ * File mime types.
+ */
 export type FileMimeType = ExcludeStrict<MimeType, MimeType.OCTET_STREAM | MimeType.FORM_DATA>;
 
+/**
+ * File mime types with the possibility to provide custom mime types.
+ */
 export type LooseFileMimeType = FileMimeType | string & {};

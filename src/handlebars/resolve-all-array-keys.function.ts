@@ -1,6 +1,7 @@
 import { AstBlockStatement, AstExpression, AstProgram } from './ast.model';
 import { resolveKeyForPathExpression } from './resolve-key-for-path-expression.function';
 
+// eslint-disable-next-line jsdoc/require-jsdoc
 export function resolveAllArrayKeys(ast: AstProgram, parentKey: string | undefined): string[] {
     const res: string[] = [];
     for (const element of ast.body) {
@@ -26,6 +27,7 @@ export function resolveAllArrayKeys(ast: AstProgram, parentKey: string | undefin
     return res;
 }
 
+// eslint-disable-next-line jsdoc/require-jsdoc
 function resolveArrayKeysForBlockStatement(element: AstBlockStatement, parentKey: string | undefined): string[] {
     const res: string[] = [];
     // eg. if, each etc.
@@ -50,6 +52,7 @@ function resolveArrayKeysForBlockStatement(element: AstBlockStatement, parentKey
     return res;
 }
 
+// eslint-disable-next-line jsdoc/require-jsdoc
 function getArrayKeyFromArrayParams(params: AstExpression[], parentKey: string | undefined): string {
     if (params.length !== 1) {
         throw new Error(`Got more than 1 param ${JSON.stringify(params)}`);

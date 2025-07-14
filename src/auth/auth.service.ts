@@ -10,15 +10,23 @@ import { AuthServiceInterface } from './auth-service.interface';
 import { AuthStrategyInterface } from './auth-strategy.interface';
 import { AuthStrategies, BaseUser, BelongsToMetadata, HasRoleMetadata, IsLoggedInMetadata, IsNotLoggedInMetadata, SkipAuthMetadata, SkipBelongsToMetadata, SkipHasRoleMetadata, SkipIsLoggedInMetadata, SkipIsNotLoggedInMetadata } from './models';
 
+/**
+ * Default auth service implementation of Zibri.
+ */
 export class AuthService implements AuthServiceInterface {
-    private readonly logger: LoggerInterface;
+    /**
+     * A logger.
+     */
+    protected readonly logger: LoggerInterface;
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
     readonly strategies: AuthStrategies = [];
 
     constructor() {
         this.logger = inject(ZIBRI_DI_TOKENS.LOGGER);
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
     init(authStrategies: AuthStrategies): void {
         for (const strategy of authStrategies) {
             register({ token: strategy, useClass: strategy });
@@ -47,31 +55,134 @@ export class AuthService implements AuthServiceInterface {
         // this.checkForOrphanedEntities(entitiesInDataSources);
     }
 
-    async login<Role extends string, UserType extends BaseUser<Role>, AuthDataType, CredentialsType>(
-        strategy: Newable<AuthStrategyInterface<Role, UserType, AuthDataType, CredentialsType>>,
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async login<
+        Role extends string,
+        UserType extends BaseUser<Role>,
+        AuthDataType,
+        CredentialsType,
+        RequestPasswordResetDataType,
+        ConfirmPasswordResetDataType,
+        RefreshLoginDataType
+    >(
+        strategy: Newable<
+            AuthStrategyInterface<
+                Role,
+                UserType,
+                AuthDataType,
+                CredentialsType,
+                RequestPasswordResetDataType,
+                ConfirmPasswordResetDataType,
+                RefreshLoginDataType
+            >
+        >,
         credentials: CredentialsType
     ): Promise<AuthDataType> {
         return await inject(strategy).login(credentials);
     }
 
-    async getCurrentUser<Role extends string, UserType extends BaseUser<Role>, B extends boolean = false>(
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async refreshLogin<
+        Role extends string,
+        UserType extends BaseUser<Role>,
+        RefreshLoginDataType,
+        AuthDataType,
+        CredentialsType,
+        RequestPasswordResetDataType,
+        ConfirmPasswordResetDataType
+    >(
+        strategy: Newable<
+            AuthStrategyInterface<
+                Role,
+                UserType,
+                AuthDataType,
+                CredentialsType,
+                RequestPasswordResetDataType,
+                ConfirmPasswordResetDataType,
+                RefreshLoginDataType
+            >
+        >,
+        data: RefreshLoginDataType
+    ): Promise<AuthDataType> {
+        return await inject(strategy).refreshLogin(data);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async getCurrentUser<Role extends string, UserType extends BaseUser<Role>, B extends boolean = true>(
         request: HttpRequest,
         allowedStrategies: AuthStrategies,
         required: B
     ): Promise<B extends false ? UserType | undefined : UserType> {
         // eslint-disable-next-line stylistic/max-len
-        const strategies: AuthStrategyInterface<Role, UserType, unknown, unknown>[] = allowedStrategies.map(s => inject(s)) as unknown as AuthStrategyInterface<Role, UserType, unknown, unknown>[];
+        const strategies: AuthStrategyInterface<Role, UserType, unknown, unknown, unknown, unknown, unknown>[] = allowedStrategies.map(s => inject(s)) as unknown as AuthStrategyInterface<Role, UserType, unknown, unknown, unknown, unknown, unknown>[];
         const res: PromiseSettledResult<UserType | undefined>[] = await Promise.allSettled(strategies.map(s => s.resolveUser(request)));
         const currentUser: UserType | undefined = (
             res.find(r => r.status === 'fulfilled' && r.value !== undefined) as PromiseFulfilledResult<UserType> | undefined
         )?.value;
-        if (currentUser === undefined && !required) {
+        if (currentUser === undefined && required) {
             throw new UnauthorizedError('Could not resolve the currently logged in user.');
         }
         return currentUser as B extends false ? UserType | undefined : UserType;
     }
 
-    async checkAccess(controllerClass: Newable<Object>, controllerMethod: string, request: HttpRequest): Promise<void> {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async requestPasswordReset<
+        Role extends string,
+        UserType extends BaseUser<Role>,
+        AuthDataType,
+        CredentialsType,
+        RequestPasswordResetDataType,
+        ConfirmPasswordResetDataType,
+        RefreshLoginDataType
+    >(
+        strategy: Newable<
+            AuthStrategyInterface<
+                Role,
+                UserType,
+                AuthDataType,
+                CredentialsType,
+                RequestPasswordResetDataType,
+                ConfirmPasswordResetDataType,
+                RefreshLoginDataType
+            >
+        >,
+        data: RequestPasswordResetDataType
+    ): Promise<void> {
+        await inject(strategy).requestPasswordReset(data);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async confirmPasswordReset<
+        Role extends string,
+        UserType extends BaseUser<Role>,
+        AuthDataType,
+        CredentialsType,
+        RequestPasswordResetDataType,
+        ConfirmPasswordResetDataType,
+        RefreshLoginDataType
+    >(
+        strategy: Newable<
+            AuthStrategyInterface<
+                Role,
+                UserType,
+                AuthDataType,
+                CredentialsType,
+                RequestPasswordResetDataType,
+                ConfirmPasswordResetDataType,
+                RefreshLoginDataType
+            >
+        >,
+        data: ConfirmPasswordResetDataType
+    ): Promise<void> {
+        await inject(strategy).confirmPasswordReset(data);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async checkAccess(
+        controllerClass: Newable<unknown>,
+        controllerMethod: string,
+        request: HttpRequest
+    ): Promise<void> {
         const isLoggedInMetadata: IsLoggedInMetadata | undefined = this.resolveIsLoggedInMetadata(controllerClass, controllerMethod);
         const isNotLoggedInMetadata: IsNotLoggedInMetadata | undefined = this.resolveIsNotLoggedInMetadata(
             controllerClass,
@@ -127,7 +238,7 @@ export class AuthService implements AuthServiceInterface {
                 belongsToMetadata.targetIdParamKey
             )
         ) {
-            const targetId: string = request.params[belongsToMetadata.targetIdParamKey];
+            const targetId: string | undefined = request.params[belongsToMetadata.targetIdParamKey];
             throw new UnauthorizedError(
                 // eslint-disable-next-line stylistic/max-len
                 `You need to to have access to the ${belongsToMetadata.targetEntity.name} entity with the id ${targetId} to access this route.`
@@ -135,11 +246,13 @@ export class AuthService implements AuthServiceInterface {
         }
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async isLoggedIn(
         request: HttpRequest,
         allowedStrategies: AuthStrategies
     ): Promise<boolean> {
-        const strategies: AuthStrategyInterface<string, BaseUser<string>, unknown, unknown>[] = allowedStrategies.map(s => inject(s));
+        // eslint-disable-next-line stylistic/max-len
+        const strategies: AuthStrategyInterface<string, BaseUser<string>, unknown, unknown, unknown, unknown, unknown>[] = allowedStrategies.map(s => inject(s));
         try {
             return await Promise.any(strategies.map(s => s.isLoggedIn(request)));
         }
@@ -148,8 +261,10 @@ export class AuthService implements AuthServiceInterface {
         }
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async hasRole(request: HttpRequest, allowedStrategies: AuthStrategies, allowedRoles: string[]): Promise<boolean> {
-        const strategies: AuthStrategyInterface<string, BaseUser<string>, unknown, unknown>[] = allowedStrategies.map(s => inject(s));
+        // eslint-disable-next-line stylistic/max-len
+        const strategies: AuthStrategyInterface<string, BaseUser<string>, unknown, unknown, unknown, unknown, unknown>[] = allowedStrategies.map(s => inject(s));
         try {
             return await Promise.any(strategies.map(s => s.hasRole(request, allowedRoles)));
         }
@@ -158,6 +273,7 @@ export class AuthService implements AuthServiceInterface {
         }
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async belongsTo<TargetEntity extends Newable<BaseEntity>>(
         request: HttpRequest,
         allowedStrategies: AuthStrategies,
@@ -165,7 +281,8 @@ export class AuthService implements AuthServiceInterface {
         targetUserIdKey: keyof InstanceType<TargetEntity>,
         targetIdParamKey: string
     ): Promise<boolean> {
-        const strategies: AuthStrategyInterface<string, BaseUser<string>, unknown, unknown>[] = allowedStrategies.map(s => inject(s));
+        // eslint-disable-next-line stylistic/max-len
+        const strategies: AuthStrategyInterface<string, BaseUser<string>, unknown, unknown, unknown, unknown, unknown>[] = allowedStrategies.map(s => inject(s));
         try {
             return await Promise.any(strategies.map(s => s.belongsTo(request, targetEntity, targetUserIdKey, targetIdParamKey)));
         }
@@ -174,7 +291,8 @@ export class AuthService implements AuthServiceInterface {
         }
     }
 
-    resolveIsLoggedInMetadata(controllerClass: Newable<Object>, controllerMethod: string): IsLoggedInMetadata | undefined {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    resolveIsLoggedInMetadata(controllerClass: Newable<unknown>, controllerMethod: string): IsLoggedInMetadata | undefined {
         const controllerIsLoggedIn: IsLoggedInMetadata | undefined = MetadataUtilities.getControllerIsLoggedIn(controllerClass);
         const routeIsLoggedIn: IsLoggedInMetadata | undefined = MetadataUtilities.getRouteIsLoggedIn(
             controllerClass,
@@ -225,7 +343,8 @@ export class AuthService implements AuthServiceInterface {
         return controllerIsLoggedIn;
     }
 
-    resolveIsNotLoggedInMetadata(controllerClass: Newable<Object>, controllerMethod: string): IsNotLoggedInMetadata | undefined {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    resolveIsNotLoggedInMetadata(controllerClass: Newable<unknown>, controllerMethod: string): IsNotLoggedInMetadata | undefined {
         const controllerIsNotLoggedIn: IsNotLoggedInMetadata | undefined = MetadataUtilities.getControllerIsNotLoggedIn(controllerClass);
         const routeIsNotLoggedIn: IsNotLoggedInMetadata | undefined = MetadataUtilities.getRouteIsNotLoggedIn(
             controllerClass,
@@ -278,7 +397,8 @@ export class AuthService implements AuthServiceInterface {
         return controllerIsNotLoggedIn;
     }
 
-    resolveHasRoleMetadata(controllerClass: Newable<Object>, controllerMethod: string): HasRoleMetadata | undefined {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    resolveHasRoleMetadata(controllerClass: Newable<unknown>, controllerMethod: string): HasRoleMetadata | undefined {
         const controllerHasRole: HasRoleMetadata | undefined = MetadataUtilities.getControllerHasRole(controllerClass);
         const routeHasRole: HasRoleMetadata | undefined = MetadataUtilities.getRouteHasRole(
             controllerClass,
@@ -330,8 +450,9 @@ export class AuthService implements AuthServiceInterface {
         return controllerHasRole;
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
     resolveBelongsToMetadata(
-        controllerClass: Newable<Object>,
+        controllerClass: Newable<unknown>,
         controllerMethod: string
     ): BelongsToMetadata<Newable<BaseEntity>> | undefined {
         const controllerBelongsTo: BelongsToMetadata<Newable<BaseEntity>> | undefined = MetadataUtilities.getControllerBelongsTo(

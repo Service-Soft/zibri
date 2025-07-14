@@ -1,4 +1,7 @@
 
+/**
+ * All known http methods.
+ */
 export enum HttpMethod {
     GET = 'get',
     POST = 'post',

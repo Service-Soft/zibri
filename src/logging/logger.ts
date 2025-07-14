@@ -12,28 +12,39 @@ const LOG_LEVEL_VALUES = {
     critical: 4
 } as const;
 
-export type LogLevels = typeof LOG_LEVEL_VALUES;
+// eslint-disable-next-line jsdoc/require-jsdoc
+type LogLevels = typeof LOG_LEVEL_VALUES;
 
+/**
+ * The possible log levels.
+ */
 export type LogLevel = keyof LogLevels;
 
+/**
+ * Default logger implementation of Zibri.
+ */
 export class Logger implements LoggerInterface {
-
+    // eslint-disable-next-line jsdoc/require-jsdoc
     debug(...messages: (string | number)[]): void {
         this.log('debug', ...messages);
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
     info(...messages: (string | number)[]): void {
         this.log('info', ...messages);
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
     warn(...messages: (string | number)[]): void {
         this.log('warn', ...messages);
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
     error(...messages: (string | number | Error)[]): void {
         this.log('error', ...messages);
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
     critical(...messages: (string | number | Error)[]): void {
         this.log('critical', ...messages);
     }

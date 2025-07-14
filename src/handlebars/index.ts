@@ -1,1 +1,2 @@
-export * from './generate-handlebar-types.function';
+export * from './generate-handlebar-type-files.function';
+export * from './render-template.function';

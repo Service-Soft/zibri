@@ -4,6 +4,9 @@ import { MetadataUtilities } from '../../utilities';
 import { ArrayPropertyItemMetadata, ArrayPropertyItemMetadataInput, ArrayPropertyMetadata, ArrayPropertyMetadataInput, BaseEntity, BooleanPropertyMetadata, BooleanPropertyMetadataInput, DatePropertyMetadata, DatePropertyMetadataInput, FilePropertyMetadata, FilePropertyMetadataInput, ManyToManyPropertyMetadata, ManyToManyPropertyMetadataInput, ManyToOnePropertyMetadata, ManyToOnePropertyMetadataInput, NumberPropertyMetadata, NumberPropertyMetadataInput, ObjectPropertyMetadata, ObjectPropertyMetadataInput, OneToManyPropertyMetadata, OneToManyPropertyMetadataInput, OneToOnePropertyMetadata, OneToOnePropertyMetadataInput, Relation, StringPropertyMetadata, StringPropertyMetadataInput } from '../models';
 import { WithDefaultMetadata } from '../models/base-property-metadata.model';
 
+/**
+ * The metadata of a property.
+ */
 export type PropertyMetadata = StringPropertyMetadata
     | NumberPropertyMetadata
     | ObjectPropertyMetadata
@@ -13,11 +16,17 @@ export type PropertyMetadata = StringPropertyMetadata
     | FilePropertyMetadata
     | RelationMetadata<BaseEntity>;
 
+/**
+ * The metadata of relation properties.
+ */
 export type RelationMetadata<T extends BaseEntity> = ManyToOnePropertyMetadata<T>
     | OneToManyPropertyMetadata<T>
     | OneToOnePropertyMetadata<T>
     | ManyToManyPropertyMetadata<T>;
 
+/**
+ * The metadata input to define a property.
+ */
 export type PropertyMetadataInput = StringPropertyMetadataInput
     | NumberPropertyMetadataInput
     | ObjectPropertyMetadataInput
@@ -26,13 +35,24 @@ export type PropertyMetadataInput = StringPropertyMetadataInput
     | FilePropertyMetadataInput
     | BooleanPropertyMetadataInput;
 
+/**
+ * The metadata input to define a relation property.
+ */
 export type RelationMetadataInput<T extends BaseEntity> = ManyToOnePropertyMetadataInput<T>
     | OneToManyPropertyMetadataInput<T>
     | OneToOnePropertyMetadataInput<T>
     | ManyToManyPropertyMetadataInput<T>;
 
+/**
+ * Bundles decorators for properties.
+ */
 // eslint-disable-next-line typescript/no-namespace
 export namespace Property {
+    // eslint-disable-next-line jsdoc/require-returns
+    /**
+     * Defines a string property.
+     * @param data - Additional data to specify the property.
+     */
     export function string(data?: StringPropertyMetadataInput): PropertyDecorator {
         const fullMetadata: StringPropertyMetadata = {
             required: true,
@@ -51,6 +71,11 @@ export namespace Property {
         return applyData(fullMetadata, data);
     }
 
+    // eslint-disable-next-line jsdoc/require-returns
+    /**
+     * Defines a number property.
+     * @param data - Additional data to specify the property.
+     */
     export function number(data?: NumberPropertyMetadataInput): PropertyDecorator {
         const fullMetadata: NumberPropertyMetadata = {
             required: true,
@@ -66,6 +91,11 @@ export namespace Property {
         return applyData(fullMetadata, data);
     }
 
+    // eslint-disable-next-line jsdoc/require-returns
+    /**
+     * Defines a boolean property.
+     * @param data - Additional data to specify the property.
+     */
     export function boolean(data?: BooleanPropertyMetadataInput): PropertyDecorator {
         const fullMetadata: BooleanPropertyMetadata = {
             required: true,
@@ -77,6 +107,11 @@ export namespace Property {
         return applyData(fullMetadata, data);
     }
 
+    // eslint-disable-next-line jsdoc/require-returns
+    /**
+     * Defines a date property.
+     * @param data - Additional data to specify the property.
+     */
     export function date(data?: DatePropertyMetadataInput): PropertyDecorator {
         const fullMetadata: DatePropertyMetadata = {
             required: true,
@@ -90,6 +125,11 @@ export namespace Property {
         return applyData(fullMetadata, data);
     }
 
+    // eslint-disable-next-line jsdoc/require-returns
+    /**
+     * Defines an object property.
+     * @param data - Additional data to specify the property.
+     */
     export function object(data: ObjectPropertyMetadataInput): PropertyDecorator {
         const fullMetadata: ObjectPropertyMetadata = {
             required: true,
@@ -100,6 +140,11 @@ export namespace Property {
         return applyData(fullMetadata, data);
     }
 
+    // eslint-disable-next-line jsdoc/require-returns
+    /**
+     * Defines a file property.
+     * @param data - Additional data to specify the property.
+     */
     export function file(data?: FilePropertyMetadataInput): PropertyDecorator {
         return (target, key) => {
             if (data?.allowedMimeTypes == undefined) {
@@ -126,6 +171,11 @@ export namespace Property {
         };
     }
 
+    // eslint-disable-next-line jsdoc/require-returns
+    /**
+     * Defines an array property.
+     * @param data - Additional data to specify the property.
+     */
     export function array(data: ArrayPropertyMetadataInput): PropertyDecorator {
         return (target, key) => {
             const fullMetadata: ArrayPropertyMetadata = {
@@ -133,7 +183,7 @@ export namespace Property {
                 type: 'array',
                 description: undefined,
                 ...data,
-                items: fillArrayItemPropertyMetadata(data.items, `${target.constructor.name}.${key.toString()}`)
+                items: createArrayItemPropertyMetadata(data.items, `${target.constructor.name}.${key.toString()}`)
             };
             const ctor: Newable<unknown> = target.constructor as Newable<unknown>;
             // eslint-disable-next-line unicorn/error-message
@@ -145,11 +195,16 @@ export namespace Property {
         };
     }
 
+    // eslint-disable-next-line jsdoc/require-returns
+    /**
+     * Defines a many to one property.
+     * @param metadata - Additional data to specify the property.
+     */
     export function manyToOne<T extends BaseEntity>(metadata: ManyToOnePropertyMetadataInput<T>): PropertyDecorator {
         const fullMetadata: ManyToOnePropertyMetadata<T> = {
             required: true,
             type: Relation.MANY_TO_ONE,
-            cascade: ['remove'],
+            cascade: [],
             inverseSide: undefined,
             description: undefined,
             persistence: false,
@@ -158,11 +213,16 @@ export namespace Property {
         return applyData(fullMetadata as PropertyMetadata, metadata);
     }
 
+    // eslint-disable-next-line jsdoc/require-returns
+    /**
+     * Defines a one to many property.
+     * @param metadata - Additional data to specify the property.
+     */
     export function oneToMany<T extends BaseEntity>(metadata: OneToManyPropertyMetadataInput<T>): PropertyDecorator {
         const fullMetadata: OneToManyPropertyMetadata<T> = {
             required: true,
             type: Relation.ONE_TO_MANY,
-            cascade: ['remove'],
+            cascade: ['remove', 'insert', 'update'],
             inverseSide: undefined,
             description: undefined,
             persistence: false,
@@ -171,6 +231,11 @@ export namespace Property {
         return applyData(fullMetadata as PropertyMetadata, metadata);
     }
 
+    // eslint-disable-next-line jsdoc/require-returns
+    /**
+     * Defines a one to one property.
+     * @param metadata - Additional data to specify the property.
+     */
     export function oneToOne<T extends BaseEntity>(metadata: OneToOnePropertyMetadataInput<T>): PropertyDecorator {
         const fullMetadata: OneToOnePropertyMetadata<T> = {
             required: true,
@@ -184,6 +249,11 @@ export namespace Property {
         return applyData(fullMetadata as PropertyMetadata, metadata);
     }
 
+    // eslint-disable-next-line jsdoc/require-returns
+    /**
+     * Defines a many to many property.
+     * @param metadata - Additional data to specify the property.
+     */
     export function manyToMany<T extends BaseEntity>(metadata: ManyToManyPropertyMetadataInput<T>): PropertyDecorator {
         const fullMetadata: ManyToManyPropertyMetadata<T> = {
             required: true,
@@ -191,13 +261,14 @@ export namespace Property {
             cascade: [],
             inverseSide: undefined,
             description: undefined,
-            persistence: false,
+            persistence: true,
             ...metadata
         };
         return applyData(fullMetadata as PropertyMetadata, metadata);
     }
 }
 
+// eslint-disable-next-line jsdoc/require-jsdoc
 function applyData(data: PropertyMetadata, inputData: PropertyMetadataInput | undefined): PropertyDecorator {
     return (target, key) => {
         if (inputData?.required != undefined && (inputData as WithDefaultMetadata<string>).default != undefined) {
@@ -214,7 +285,13 @@ function applyData(data: PropertyMetadata, inputData: PropertyMetadataInput | un
     };
 }
 
-export function fillArrayItemPropertyMetadata(
+/**
+ * Creates full metadata for an array property item.
+ * @param data - The array item input data.
+ * @param fullPropertyKey - The full key of the property.
+ * @returns The full metadata.
+ */
+export function createArrayItemPropertyMetadata(
     data: ArrayPropertyItemMetadataInput,
     fullPropertyKey: string
 ): ArrayPropertyItemMetadata {
@@ -276,7 +353,7 @@ export function fillArrayItemPropertyMetadata(
                 required: true,
                 description: undefined,
                 ...data,
-                items: fillArrayItemPropertyMetadata(data.items, fullPropertyKey)
+                items: createArrayItemPropertyMetadata(data.items, fullPropertyKey)
             };
         }
         case 'file': {

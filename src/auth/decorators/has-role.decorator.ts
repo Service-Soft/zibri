@@ -1,11 +1,22 @@
 import { MetadataUtilities } from '../../utilities';
 import { AuthStrategies, HasRoleMetadata } from '../models';
 
+/**
+ * The type of the has role decorator.
+ */
 export interface HasRoleFn {
     (allowedRoles: string[], allowedStrategies?: AuthStrategies): MethodDecorator & ClassDecorator,
+    /**
+     * This skips the has role validation.
+     */
     skip: () => MethodDecorator & ClassDecorator
 }
 
+/**
+ * Marks an endpoint to be only reachable when the logged in user has one of the provided roles.
+ * @param allowedRoles - All roles that are allowed to access this endpoint.
+ * @param allowedStrategies - The auth strategies that are allowed to be used to check that.
+ */
 export const hasRoleDecorator: HasRoleFn = (
     (allowedRoles: string[], allowedStrategies?: AuthStrategies): MethodDecorator | ClassDecorator => {
         const fullMetadata: HasRoleMetadata = { allowedStrategies, allowedRoles };

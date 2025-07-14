@@ -1,6 +1,7 @@
 import { BadRequestError } from '../../error-handling';
 import { QueryParamMetadata } from '../../routing';
 
+// eslint-disable-next-line jsdoc/require-jsdoc
 export function parseArray(rawValue: unknown, meta: QueryParamMetadata): unknown {
     if (rawValue == undefined || typeof rawValue !== 'string') {
         return rawValue;

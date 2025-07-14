@@ -1,9 +1,10 @@
 import { AstProgram, AstStatement } from './ast.model';
-import { PathTree } from './generate-handlebar-types.function';
+import { PathTree } from './generate-handlebar-type-files.function';
 import { resolveKeyForMustacheStatement } from './resolve-key-for-mustache-statement.function';
 import { resolveKeysForBlockStatement } from './resolve-keys-for-block-statement.function';
-import { resolveKeysForPartialStatement } from './resolve-keys-for-partial-statement.function';
+import { resolveKeysForExpression, resolveKeysForPartialStatement } from './resolve-keys-for-partial-statement.function';
 
+// eslint-disable-next-line jsdoc/require-jsdoc
 export function resolveTree(ast: AstProgram, arrayKeys: string[]): PathTree {
     const allKeys: string[] = [...new Set(resolveAllKeys(ast, undefined))];
 
@@ -32,6 +33,7 @@ export function resolveTree(ast: AstProgram, arrayKeys: string[]): PathTree {
     return root;
 }
 
+// eslint-disable-next-line jsdoc/require-jsdoc
 function isParentArray(parts: string[], arrayKeys: string[]): boolean {
     if (parts.length <= 1) {
         return false;
@@ -40,6 +42,7 @@ function isParentArray(parts: string[], arrayKeys: string[]): boolean {
     return arrayKeys.includes(parent);
 }
 
+// eslint-disable-next-line jsdoc/require-jsdoc
 export function resolveAllKeys(ast: AstProgram, parentKey: string | undefined): string[] {
     const res: string[] = [];
     for (const element of ast.body) {
@@ -50,12 +53,21 @@ export function resolveAllKeys(ast: AstProgram, parentKey: string | undefined): 
             }
             case 'MustacheStatement': {
                 // reached leaf
-                if (element.path.original === 'this') {
-                    // the statement is a reference to an item of string[], so no need to include it in keys.
-                    continue;
+                // 1) record the direct lookup, if any
+                if (
+                    element.path.original !== 'this'
+                    && !element.params.length
+                    && !element.hash?.pairs.length
+                ) {
+                    res.push(resolveKeyForMustacheStatement(element, parentKey));
                 }
-                const key: string = resolveKeyForMustacheStatement(element, parentKey);
-                res.push(key);
+                // 2) now dive into any helper arguments to find nested keys!
+                for (const param of element.params) {
+                    res.push(...resolveKeysForExpression(param, parentKey));
+                }
+                for (const pair of element.hash?.pairs ?? []) {
+                    res.push(...resolveKeysForExpression(pair.value, parentKey));
+                }
                 break;
             }
             case 'PartialStatement': {

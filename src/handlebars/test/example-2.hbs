@@ -13,16 +13,15 @@
 
 <main>
     {{!-- Featured posts --}}
-    {{#with featuredPosts as |posts|}}
     <section id="featured">
         <h2>Featured</h2>
-        {{#if posts.length}}
+        {{#if featuredPosts.length}}
         <ul>
-            {{#each posts}}
+            {{#each featuredPosts}}
             <li>
-                <a href="/posts/{{id}}">{{title}}</a>
-                {{#if summary}}
-                <p>{{summary}}</p>
+                <a href="/posts/{{this.id}}">{{this.title}}</a>
+                {{#if this.summary}}
+                <p>{{this.summary}}</p>
                 {{else}}
                 <p><em>No summary available</em></p>
                 {{/if}}
@@ -33,23 +32,22 @@
         <p>No featured posts right now.</p>
         {{/if}}
     </section>
-    {{/with}}
 
     {{!-- Recent comments --}}
     <section id="comments">
         <h2>Recent Comments</h2>
-        {{#each (slice comments 0 5) as |comment|}}
+        {{#each (slice comments 0 5)}}
         <article class="comment">
             <header>
-                <strong>{{comment.author}}</strong>
-                <time datetime="{{formatDate comment.date " YYYY-MM-DD"}}">
-                    {{formatDate comment.date "MMM D, YYYY"}}
+                <strong>{{this.author}}</strong>
+                <time datetime="{{formatDate this.date " YYYY-MM-DD"}}">
+                    {{formatDate this.date "MMM D, YYYY"}}
                 </time>
             </header>
-            <p>{{comment.body}}</p>
-            {{#if comment.replies}}
+            <p>{{this.body}}</p>
+            {{#if this.replies}}
             <ul class="replies">
-                {{#each comment.replies}}
+                {{#each this.replies}}
                 <li>{{this}}</li>
                 {{/each}}
             </ul>

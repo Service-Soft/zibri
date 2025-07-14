@@ -5,17 +5,28 @@ import { CronJobEntity } from './cron-job-entity.model';
 import { CronJob } from './cron-job.model';
 import { CronServiceInterface } from './cron-service.interface';
 
+/**
+ * Data that can be used to update a cron job.
+ */
 export type CronUpdateData = Partial<OmitStrict<CronJobEntity, 'id' | 'cron' | 'active' | 'errorMessage' | 'lastRun'>>;
 
+/**
+ * Default cron service implementation of Zibri.
+ */
 export class CronService implements CronServiceInterface {
 
+    /**
+     * A logger.
+     */
     protected readonly logger: LoggerInterface;
+    // eslint-disable-next-line jsdoc/require-jsdoc
     readonly cronJobs: CronJob[] = [];
 
     constructor() {
         this.logger = inject(ZIBRI_DI_TOKENS.LOGGER);
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async init(cronJobs: Newable<CronJob>[]): Promise<void> {
         if (this.cronJobs.length) {
             throw new Error('has already been initialized');
@@ -31,11 +42,13 @@ export class CronService implements CronServiceInterface {
         }
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async schedule(cronJob: CronJob): Promise<void> {
         await cronJob.init();
         this.cronJobs.push(cronJob);
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async enable(name: string): Promise<void> {
         const foundJob: CronJob | undefined = this.cronJobs.find(c => c.name === name);
         if (!foundJob) {
@@ -44,6 +57,7 @@ export class CronService implements CronServiceInterface {
         await foundJob.enable();
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async disable(name: string): Promise<void> {
         const foundJob: CronJob | undefined = this.cronJobs.find(c => c.name === name);
         if (!foundJob) {
@@ -52,6 +66,7 @@ export class CronService implements CronServiceInterface {
         await foundJob.disable();
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async changeCron(name: string, cron: string): Promise<void> {
         const foundJob: CronJob | undefined = this.cronJobs.find(c => c.name === name);
         if (!foundJob) {
@@ -60,6 +75,7 @@ export class CronService implements CronServiceInterface {
         await foundJob.changeCron(cron);
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async update(
         name: string,
         data: CronUpdateData

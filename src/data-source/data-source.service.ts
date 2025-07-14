@@ -2,23 +2,33 @@ import { GlobalRegistry } from '../global';
 import { DataSourceServiceInterface } from './data-source-service.interface';
 import { inject, ZIBRI_DI_TOKENS } from '../di';
 import { BaseDataSource } from './base-data-source.model';
-import { JwtCredentials, RefreshToken } from '../auth';
+import { JwtCredentials, PasswordResetToken, JwtRefreshToken } from '../auth';
 import { CronJobEntity } from '../cron';
+import { Email, MailingList, MailingListSubscriber } from '../email';
 import { BaseEntity } from '../entity';
 import { LoggerInterface } from '../logging';
-import { Mail } from '../mail';
 import { Newable } from '../types';
 
+/**
+ * Default data source service implementation of Zibri.
+ */
 export class DataSourceService implements DataSourceServiceInterface {
     private readonly logger: LoggerInterface;
 
-    private readonly defaultEntities: Newable<BaseEntity>[] = [CronJobEntity, Mail];
-    private readonly allowedOrphans: Newable<BaseEntity>[] = [RefreshToken, JwtCredentials];
+    private readonly defaultEntities: Newable<BaseEntity>[] = [CronJobEntity, Email];
+    private readonly allowedOrphans: Newable<BaseEntity>[] = [
+        JwtRefreshToken,
+        JwtCredentials,
+        PasswordResetToken,
+        MailingList,
+        MailingListSubscriber
+    ];
 
     constructor() {
         this.logger = inject(ZIBRI_DI_TOKENS.LOGGER);
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async init(): Promise<void> {
         if (GlobalRegistry.dataSourceClasses.length) {
             this.logger.info(

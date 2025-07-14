@@ -9,12 +9,24 @@ import { validateBoolean, validateDate, validateFile, validateNumber, validateSt
 import { IsRequiredValidationProblem, RelationsNotAllowedValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from './validation-problem.model';
 import { ValidationServiceInterface } from './validation-service.interface';
 
+/**
+ * Function for validating a path parameter.
+ */
 type PathParamValidationFunction = (param: unknown, meta: PathParamMetadata, parentKey: string | undefined) => ValidationProblem[];
 
+/**
+ * Function for validating a query parameter.
+ */
 type QueryParamValidationFunction = (param: unknown, meta: QueryParamMetadata, parentKey: string | undefined) => ValidationProblem[];
 
+/**
+ * Function for validating a header parameter.
+ */
 type HeaderParamValidationFunction = (param: unknown, meta: HeaderParamMetadata, parentKey: string | undefined) => ValidationProblem[];
 
+/**
+ * Function for validating a single property.
+ */
 type PropertyValidationFunction = (
     key: string,
     property: unknown,
@@ -22,6 +34,9 @@ type PropertyValidationFunction = (
     parentKey: string | undefined
 ) => ValidationProblem[];
 
+/**
+ * The default validation service implementation of Zibri.
+ */
 export class ValidationService implements ValidationServiceInterface {
 
     private readonly pathParamValidationFunctions: Record<PathParamMetadata['type'], PathParamValidationFunction> = {
@@ -60,6 +75,7 @@ export class ValidationService implements ValidationServiceInterface {
         file: validateFile
     };
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
     validateHeaderParam(param: unknown, meta: HeaderParamMetadata): void {
         const validate: HeaderParamValidationFunction | undefined = this.headerParamValidationFunctions[meta.type];
         if (validate == undefined) {
@@ -71,6 +87,7 @@ export class ValidationService implements ValidationServiceInterface {
         }
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
     validatePathParam(param: unknown, meta: PathParamMetadata): void {
         const validate: PathParamValidationFunction | undefined = this.pathParamValidationFunctions[meta.type];
         if (validate == undefined) {
@@ -82,6 +99,7 @@ export class ValidationService implements ValidationServiceInterface {
         }
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
     validateQueryParam(param: unknown, meta: QueryParamMetadata): void {
         const validate: QueryParamValidationFunction | undefined = this.queryParamValidationFunctions[meta.type];
         if (validate == undefined) {
@@ -93,11 +111,14 @@ export class ValidationService implements ValidationServiceInterface {
         }
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
     validateRequestBody(body: unknown, meta: BodyMetadata): void {
+        // eslint-disable-next-line jsdoc/require-jsdoc
         class Temp implements OmitStrict<FormData<typeof meta.modelClass>, 'cleanup'> {
+            // eslint-disable-next-line jsdoc/require-jsdoc
             @Property.object({ cls: () => meta.modelClass, description: 'the actual data from the request body' })
             value!: typeof meta.modelClass;
-
+            // eslint-disable-next-line jsdoc/require-jsdoc
             @Property.string({ description: 'the path to the temporary folder where uploaded files are cached' })
             tempFolder!: string;
         }

@@ -8,3 +8,4 @@ export * from './path-exists.function';
 export * from './format-date.function';
 export * from './format-date-fn.model';
 export * from './chunked-promise-all.function';
+export * from './ms';

@@ -3,7 +3,7 @@ import { IsolationLevel } from 'typeorm/driver/types/IsolationLevel';
 import { ColumnMetadata } from 'typeorm/metadata/ColumnMetadata';
 
 import { inject, repositoryTokenFor, ZIBRI_DI_TOKENS } from '../di';
-import { BaseEntity, EntityMetadata, FilePropertyMetadata, PropertyMetadata, Relation, RelationMetadata, StringPropertyMetadata } from '../entity';
+import { BaseEntity, EntityMetadata, FilePropertyMetadata, ManyToManyPropertyMetadata, ManyToOnePropertyMetadata, PropertyMetadata, Relation, RelationMetadata, StringPropertyMetadata } from '../entity';
 import { ExcludeStrict, Newable, OmitStrict, Version } from '../types';
 import { compareVersion, MetadataUtilities } from '../utilities';
 import { Migration, MigrationEntity } from './migration';
@@ -15,9 +15,20 @@ import { GlobalRegistry } from '../global';
 import { LoggerInterface } from '../logging';
 import { TypeOrmTransaction } from './transaction/typeorm-transaction.model';
 
+// eslint-disable-next-line jsdoc/require-jsdoc
 type ToColumnMappableTypes = ExcludeStrict<PropertyMetadata, RelationMetadata<BaseEntity> | FilePropertyMetadata>['type'];
 
+// eslint-disable-next-line jsdoc/require-jsdoc
+type MigrationWithName = { migration: Migration, name: string };
+
+/**
+ * A base data source definition.
+ * Configured for postgres by default.
+ */
 export abstract class BaseDataSource {
+    /**
+     * Mapping from a Zibri property type to a typeorm column type.
+     */
     protected readonly columnTypeMappingOverride: Partial<Record<ToColumnMappableTypes, ColumnType>> = {};
 
     private get columnTypeMapping(): Record<ToColumnMappableTypes, ColumnType> {
@@ -34,15 +45,27 @@ export abstract class BaseDataSource {
 
     abstract readonly options: OmitStrict<DataSourceOptions, 'entities'>;
     abstract readonly entities: Newable<BaseEntity>[];
+    /**
+     * All migrations that belong to this data source.
+     */
     readonly migrations: Newable<Migration>[] = [];
 
+    /**
+     * The internal typeorm data source.
+     */
     protected ds?: TODataSource;
+    /**
+     * A logger.
+     */
     protected readonly logger: LoggerInterface;
 
     constructor() {
         this.logger = inject(ZIBRI_DI_TOKENS.LOGGER);
     }
 
+    /**
+     * Initializes the data source.
+     */
     async init(): Promise<void> {
         if (this.ds) {
             throw new Error(`The ${this.options.type} data source has already been initialized.`);
@@ -71,11 +94,21 @@ export abstract class BaseDataSource {
         }
     }
 
+    /**
+     * Gets entity schemas for the entities of this data source.
+     * @returns Typeorm entity schemas.
+     */
     protected getEntitySchemas(): EntitySchema[] {
         const schemas: EntitySchema[] = this.entities.map(e => this.createSchemaForEntity(e));
         return schemas;
     }
 
+    /**
+     * Creates a typeorm entity schema for a single entity.
+     * @param cls - The entity class to create the schema for.
+     * @returns A typeorm entity schema.
+     * @throws When the provided entity was configured incorrectly.
+     */
     protected createSchemaForEntity(cls: Newable<BaseEntity>): EntitySchema {
         const entityMetadata: EntityMetadata | undefined = MetadataUtilities.getEntityMetadata(cls);
         if (!entityMetadata) {
@@ -109,7 +142,10 @@ export abstract class BaseDataSource {
 
         const relations: Record<string, EntitySchemaRelationOptions> = {};
         for (const [key, m] of Object.entries(props)) {
-            if (m.type !== 'many-to-one') {
+            if (
+                m.type !== Relation.MANY_TO_ONE
+                && m.type !== Relation.MANY_TO_MANY
+            ) {
                 continue;
             }
             relations[key] = this.propertyToRelationOptions(m);
@@ -124,11 +160,22 @@ export abstract class BaseDataSource {
         });
     }
 
-    protected propertyToRelationOptions<T extends BaseEntity>(metadata: RelationMetadata<T>): EntitySchemaRelationOptions {
+    /**
+     * Transforms the given relation metadata to typeorm relation options.
+     * @param metadata - The relation metadata to transform.
+     * @returns Typeorm relation options.
+     */
+    protected propertyToRelationOptions<T extends BaseEntity>(
+        metadata: ManyToOnePropertyMetadata<T> | ManyToManyPropertyMetadata<T>
+    ): EntitySchemaRelationOptions {
         switch (metadata.type) {
-            case Relation.MANY_TO_MANY:
-            case Relation.ONE_TO_ONE:
-            case Relation.ONE_TO_MANY:
+            case Relation.MANY_TO_MANY: {
+                return {
+                    nullable: !metadata.required,
+                    ...metadata,
+                    inverseSide: metadata.inverseSide as string | undefined
+                };
+            }
             case Relation.MANY_TO_ONE: {
                 return {
                     nullable: !metadata.required,
@@ -140,6 +187,14 @@ export abstract class BaseDataSource {
         }
     }
 
+    /**
+     * Transforms the given property metadata to typeorm column options.
+     * @param metadata - The property metadata to transform.
+     * @param cls - The entity class.
+     * @param key - The key of the property on the entity class.
+     * @returns Typeorm column options.
+     * @throws When the metadata is incorrect.
+     */
     protected propertyToColumnOptions(
         metadata: ExcludeStrict<PropertyMetadata, RelationMetadata<BaseEntity> | FilePropertyMetadata>,
         cls: Newable<BaseEntity>,
@@ -191,6 +246,12 @@ export abstract class BaseDataSource {
         }
     }
 
+    /**
+     * Gets a repository to access the table of the provided entity class.
+     * @param cls - The entity class to get the repository for.
+     * @returns A repository for the provided entity class.
+     * @throws When the data source has not been initialized yet or the provided entity does not belong to this data source.
+     */
     getRepository<T extends BaseEntity>(cls: Newable<T>): Repository<T> {
         if (!this.ds) {
             throw new Error(`The ${this.options.type} data source needs to be initialized before it can be used.`);
@@ -202,6 +263,11 @@ export abstract class BaseDataSource {
         return new Repository(cls, repo);
     }
 
+    /**
+     * Starts a new transaction.
+     * @param isolationLevel - The isolation level of the transaction.
+     * @returns A new transaction that can be passed to any repository methods.
+     */
     async startTransaction(isolationLevel?: IsolationLevel): Promise<Transaction> {
         if (!this.ds) {
             throw new Error(`The ${this.options.type} data source needs to be initialized before it can be used.`);
@@ -219,6 +285,11 @@ export abstract class BaseDataSource {
         }
     }
 
+    /**
+     * Creates a typeorm query runner.
+     * @returns A typeorm query runner.
+     * @throws When the data source has not been initialized yet.
+     */
     createQueryRunner(): QueryRunner {
         if (!this.ds) {
             throw new Error(`The ${this.options.type} data source needs to be initialized before it can be used.`);
@@ -226,19 +297,22 @@ export abstract class BaseDataSource {
         return this.ds.createQueryRunner();
     }
 
+    /**
+     * Runs migrations for the data source.
+     */
     async runMigrations(): Promise<void> {
         await this.createMigrationTableIfNotExists();
 
         const migrationsRepository: Repository<MigrationEntity> = this.getRepository(MigrationEntity);
         const finishedMigrationVersions: string[] = (await migrationsRepository.findAll()).map(m => m.version);
-        const allMigrations: { migration: Migration, name: string }[] = this.migrations.map(m => ({ migration: inject(m), name: m.name }));
+        const allMigrations: MigrationWithName[] = this.migrations.map(m => ({ migration: inject(m), name: m.name }));
 
-        const migrationsToRunUp: { migration: Migration, name: string }[] = allMigrations.filter(m => {
+        const migrationsToRunUp: MigrationWithName[] = allMigrations.filter(m => {
             return !finishedMigrationVersions.includes(m.migration.version)
                 && compareVersion(m.migration.version, GlobalRegistry.getAppData('version') as Version) !== 'bigger';
         });
 
-        const migrationsToRunDown: { migration: Migration, name: string }[] = allMigrations.filter(m => {
+        const migrationsToRunDown: MigrationWithName[] = allMigrations.filter(m => {
             return finishedMigrationVersions.includes(m.migration.version)
                 && compareVersion(m.migration.version, GlobalRegistry.getAppData('version') as Version) === 'bigger';
         });
@@ -259,6 +333,9 @@ export abstract class BaseDataSource {
         }
     }
 
+    /**
+     * Creates a table for migrations if it does not exist already.
+     */
     protected async createMigrationTableIfNotExists(): Promise<void> {
         if (!this.ds) {
             throw new Error(`The ${this.options.type} data source needs to be initialized before it can be used.`);
@@ -287,6 +364,13 @@ export abstract class BaseDataSource {
         }
     }
 
+    /**
+     * Transforms the property on the given entity class to typeorm column options.
+     * @param entity - The entity class which property should be transformed.
+     * @param property - The key of the actual property that should be transformed.
+     * @returns Typeorm column options.
+     * @throws When no data source has been provided or no column metadata could be found.
+     */
     propertyToTableColumnOptions<T extends BaseEntity>(entity: Newable<T>, property: keyof T): TableColumnOptions {
         if (!this.ds) {
             throw new Error(`The ${this.options.type} data source needs to be initialized before it can be used.`);
@@ -313,12 +397,22 @@ export abstract class BaseDataSource {
         };
     }
 
+    // eslint-disable-next-line jsdoc/require-returns, jsdoc/require-param
+    /**
+     * Normalizes the provided column.
+     * @throws When the data source has not been initialized yet.
+     */
     normalizeColumnType(
         column: {
+            // eslint-disable-next-line jsdoc/require-jsdoc
             type: ColumnType | string & {} | undefined,
+            // eslint-disable-next-line jsdoc/require-jsdoc
             length: number | string | undefined,
+            // eslint-disable-next-line jsdoc/require-jsdoc
             precision: number | null | undefined,
+            // eslint-disable-next-line jsdoc/require-jsdoc
             scale: number | undefined,
+            // eslint-disable-next-line jsdoc/require-jsdoc
             isArray: boolean | undefined
         }
     ): string {

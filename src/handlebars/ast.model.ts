@@ -1,3 +1,4 @@
+/* eslint-disable jsdoc/require-jsdoc */
 import { OmitStrict } from '../types';
 
 export type AstProgram = OmitStrict<hbs.AST.Program, 'body'> & { body: AstStatement[] };
@@ -76,7 +77,7 @@ export type AstMustacheStatement = OmitStrict<
 > & {
     path: AstPathExpression,
     params: AstExpression[],
-    hash: AstHash
+    hash?: AstHash
 };
 
 export type AstPartialBlockStatement = OmitStrict<

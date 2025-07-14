@@ -6,3 +6,4 @@ export * from './has-role-metadata.model';
 export * from './is-not-logged-in-metadata.model';
 export * from './belongs-to-metadata.model';
 export * from './skip-auth-metadata.model';
+export * from './password-reset-token.model';

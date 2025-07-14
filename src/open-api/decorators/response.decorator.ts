@@ -1,15 +1,25 @@
+/* eslint-disable jsdoc/require-returns */
 import { Property } from '../../entity';
 import { HttpStatus } from '../../http';
 import { ExcludeStrict, Newable, OmitStrict } from '../../types';
 import { MetadataUtilities } from '../../utilities';
-import { DefaultOpenApiResponse, FileOpenApiResponse, OpenApiResponse } from '../open-api.model';
+import { JsonOpenApiResponse, ErrorOpenApiResponse, FileOpenApiResponse, OpenApiResponse, HtmlOpenApiResponse } from '../open-api.model';
 import { PaginationResult } from '../pagination-result.model';
 
+/**
+ * Bundles decorators for http responses.
+ */
 // eslint-disable-next-line typescript/no-namespace
 export namespace Response {
+
+    /**
+     * A single object json response.
+     * @param entityClass - The class that defines the response objects structure.
+     * @param data - Additional configuration, like status or description.
+     */
     export function object(
         entityClass: Newable<unknown>,
-        data?: OmitStrict<DefaultOpenApiResponse, 'isArray' | 'type' | 'cls'>
+        data?: OmitStrict<JsonOpenApiResponse, 'isArray' | 'type' | 'cls'>
     ): MethodDecorator {
         return (target, propertyKey) => {
             const ctor: Function = target.constructor;
@@ -20,7 +30,7 @@ export namespace Response {
             const responses: OpenApiResponse[] = MetadataUtilities.getRouteResponses(ctor, propertyKey.toString());
             responses.push({
                 ...data,
-                type: 'default',
+                type: 'json',
                 isArray: false,
                 cls: entityClass
             });
@@ -29,9 +39,14 @@ export namespace Response {
         };
     }
 
+    /**
+     * An array json response.
+     * @param entityClass - The class that defines the items in the response array.
+     * @param data - Additional configuration, like status or description.
+     */
     export function array(
         entityClass: Newable<unknown>,
-        data?: OmitStrict<DefaultOpenApiResponse, 'isArray' | 'type' | 'cls'>
+        data?: OmitStrict<JsonOpenApiResponse, 'isArray' | 'type' | 'cls'>
     ): MethodDecorator {
         return (target, propertyKey) => {
             const ctor: Function = target.constructor;
@@ -43,16 +58,21 @@ export namespace Response {
             responses.push({
                 ...data,
                 isArray: true,
-                type: 'default',
+                type: 'json',
                 cls: entityClass
             });
             MetadataUtilities.setRouteResponses(ctor, responses, propertyKey.toString());
         };
     }
 
+    /**
+     * A paginated result json response.
+     * @param entityClass - The class that defines the paginated items response structure.
+     * @param data - Additional configuration, like status or description.
+     */
     export function paginated(
         entityClass: Newable<unknown>,
-        data?: OmitStrict<DefaultOpenApiResponse, 'isArray' | 'type' | 'cls'>
+        data?: OmitStrict<JsonOpenApiResponse, 'isArray' | 'type' | 'cls'>
     ): MethodDecorator {
         return (target, propertyKey) => {
             const ctor: Function = target.constructor;
@@ -61,10 +81,12 @@ export namespace Response {
             MetadataUtilities.setFilePath(ctor, stack);
 
             const responses: OpenApiResponse[] = MetadataUtilities.getRouteResponses(ctor, propertyKey.toString());
+            // eslint-disable-next-line jsdoc/require-jsdoc
             class Temp implements PaginationResult<typeof entityClass> {
+                // eslint-disable-next-line jsdoc/require-jsdoc
                 @Property.array({ items: { type: 'object', cls: () => entityClass }, description: 'the paginated items' })
                 items!: (typeof entityClass)[];
-
+                // eslint-disable-next-line jsdoc/require-jsdoc
                 @Property.number({ description: 'the total amount of items' })
                 totalAmount!: number;
             }
@@ -74,15 +96,20 @@ export namespace Response {
                 ...data,
                 isArray: false,
                 cls: Temp,
-                type: 'default'
+                type: 'json'
             });
             MetadataUtilities.setRouteResponses(ctor, responses, propertyKey.toString());
         };
     }
 
+    /**
+     * An empty response where nothing is returned.
+     * @param status - The status of the response, defaults to 200.
+     * @param data - Additional configuration, like description.
+     */
     export function empty(
         status: HttpStatus = HttpStatus.OK,
-        data?: OmitStrict<DefaultOpenApiResponse, 'isArray' | 'type' | 'status' | 'cls'>
+        data?: OmitStrict<JsonOpenApiResponse, 'isArray' | 'type' | 'status' | 'cls'>
     ): MethodDecorator {
         return (target, propertyKey) => {
             const ctor: Function = target.constructor;
@@ -95,13 +122,17 @@ export namespace Response {
                 ...data,
                 cls: undefined,
                 isArray: undefined,
-                type: 'default',
+                type: 'json',
                 status
             });
             MetadataUtilities.setRouteResponses(ctor, responses, propertyKey.toString());
         };
     }
 
+    /**
+     * A response where a file is returned.
+     * @param data - Additional data, like mime type or description.
+     */
     export function file(data?: OmitStrict<FileOpenApiResponse, 'type'>): MethodDecorator {
         return (target, propertyKey) => {
             const ctor: Function = target.constructor;
@@ -118,9 +149,35 @@ export namespace Response {
         };
     }
 
+    /**
+     * A response that returns html.
+     * @param data - Additional data, like status or description.
+     */
+    export function html(data?: OmitStrict<HtmlOpenApiResponse, 'type'>): MethodDecorator {
+        return (target, propertyKey) => {
+            const ctor: Function = target.constructor;
+            // eslint-disable-next-line unicorn/error-message
+            const stack: string = new Error().stack ?? '';
+            MetadataUtilities.setFilePath(ctor, stack);
+
+            const responses: OpenApiResponse[] = MetadataUtilities.getRouteResponses(ctor, propertyKey.toString());
+            responses.push({
+                ...data,
+                type: 'html'
+            });
+            MetadataUtilities.setRouteResponses(ctor, responses, propertyKey.toString());
+
+        };
+    }
+
+    /**
+     * An error response.
+     * @param status - The status of the response.
+     * @param data - Additional data like description etc.
+     */
     export function error(
         status: ExcludeStrict<HttpStatus, HttpStatus.OK | HttpStatus.CREATED>,
-        data?: OmitStrict<DefaultOpenApiResponse, 'isArray' | 'type' | 'status' | 'cls'>
+        data?: OmitStrict<ErrorOpenApiResponse, 'type' | 'status'>
     ): MethodDecorator {
         return (target, propertyKey) => {
             const ctor: Function = target.constructor;
@@ -131,7 +188,7 @@ export namespace Response {
             const responses: OpenApiResponse[] = MetadataUtilities.getRouteResponses(ctor, propertyKey.toString());
             responses.push({
                 ...data,
-                type: 'default',
+                type: 'json',
                 cls: undefined,
                 isArray: undefined,
                 status

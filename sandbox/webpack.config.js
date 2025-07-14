@@ -1,9 +1,8 @@
-/* eslint-disable jsdoc/require-description */
 const path = require('path');
 const { spawn } = require('child_process');
 const CopyPlugin = require('copy-webpack-plugin');
 const { IgnorePlugin } = require('webpack');
-const { generateHandlebarTypes } = require('zibri');
+const { generateHandlebarTypeFiles } = require('zibri');
 
 class OnBuildSuccessPlugin {
     /** @type {import('webpack').WebpackPluginFunction } */
@@ -30,7 +29,7 @@ class HandlebarsTypegenPlugin {
         // on every rebuild (and initial build), run our stub generator first
         compiler.hooks.beforeCompile.tapPromise(
             'HandlebarsTypegenPlugin',
-            () => generateHandlebarTypes()
+            () => generateHandlebarTypeFiles()
         );
     }
 }
@@ -100,7 +99,12 @@ module.exports = {
             patterns: [
                 {
                     from: path.resolve(__dirname, 'assets'),
-                    to: path.resolve(__dirname, 'dist/assets'),
+                    to: path.resolve(__dirname, 'dist', 'assets'),
+                    noErrorOnMissing: true
+                },
+                {
+                    from: path.resolve(__dirname, 'src', 'templates'),
+                    to: path.resolve(__dirname, 'dist', 'assets', 'templates'),
                     noErrorOnMissing: true
                 }
             ]

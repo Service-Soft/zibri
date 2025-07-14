@@ -6,6 +6,14 @@ import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationP
 const UUID_REGEX: RegExp = /^[\dA-Fa-f]{8}-[\dA-Fa-f]{4}-[1-5][\dA-Fa-f]{3}-[89ABab][\dA-Fa-f]{3}-[\dA-Fa-f]{12}$/;
 const EMAIL_REGEX: RegExp = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/**
+ * Validates the given string property.
+ * @param key - The key of the property.
+ * @param property - The actual value.
+ * @param metadata - The metadata of the property.
+ * @param parentKey - The key of the parent, if it exists.
+ * @returns All validation problems found.
+ */
 // eslint-disable-next-line sonar/cognitive-complexity
 export function validateString(
     key: string,
@@ -42,6 +50,7 @@ export function validateString(
     return [];
 }
 
+// eslint-disable-next-line jsdoc/require-jsdoc
 function isFormatValid(format: StringFormat, value: string): boolean {
     switch (format) {
         case 'uuid': {

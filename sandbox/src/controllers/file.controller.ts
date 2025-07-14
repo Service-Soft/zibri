@@ -1,10 +1,8 @@
 import { createReadStream } from 'fs';
 import { stat } from 'fs/promises';
+import path from 'path';
 
-import { Body, Controller, File, FileResponse, FormData, Get, MimeType, Post, Property, Response } from 'zibri';
-
-import { logger } from '..';
-import renderExampleTemplate from '../templates/example.hbs';
+import { AssetService, Body, Controller, File, FileResponse, FormData, Get, Inject, MimeType, Post, Property, Response, ZIBRI_DI_TOKENS } from 'zibri';
 
 export class FileCreateDTO {
     @Property.file({ allowedMimeTypes: [MimeType.JSON] })
@@ -13,6 +11,11 @@ export class FileCreateDTO {
 
 @Controller('/files')
 export class FileController {
+    constructor(
+        @Inject(ZIBRI_DI_TOKENS.ASSET_SERVICE)
+        private readonly assetService: AssetService
+    ) {}
+
     @Response.file()
     @Post()
     async putThrough(
@@ -26,18 +29,11 @@ export class FileController {
     @Response.file()
     @Get('/stream')
     async findDocumentFor(): Promise<FileResponse> {
-        // return new FileResponse({ data: 'assets/logo.jpg' });
+        const assetPath: string = path.join(this.assetService.publicAssetsPath, 'logo.jpg');
         return FileResponse.fromStream({
-            stream: createReadStream('assets/logo.jpg'),
+            stream: createReadStream(assetPath),
             filename: 'logo.jpg',
-            size: (await stat('assets/logo.jpg')).size
+            size: (await stat(assetPath)).size
         });
-    }
-
-    @Response.empty()
-    @Get('/hbs')
-    async getHbs(): Promise<void> {
-        const content: string = renderExampleTemplate({ user: { name: 'MAx Muster' }, tasks: [] });
-        logger.info('content:\n', content);
     }
 }

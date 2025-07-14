@@ -4,6 +4,14 @@ import { QueryParamMetadata, HeaderParamMetadata, PathParamMetadata, DateParamMe
 import { FormatDateFn } from '../../utilities';
 import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from '../validation-problem.model';
 
+/**
+ * Validates the given date property.
+ * @param key - The key of the property.
+ * @param property - The actual value.
+ * @param metadata - The metadata of the property.
+ * @param parentKey - The key of the parent, if it exists.
+ * @returns All validation problems found.
+ */
 export function validateDate(
     key: string,
     property: unknown,

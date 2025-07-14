@@ -1,5 +1,13 @@
 import { configs } from 'eslint-config-service-soft';
 
-// eslint-disable-next-line jsdoc/require-description
 /** @type {import('eslint').Linter.Config} */
-export default [...configs, { ignores: ['tsconfig.json', 'tsup.config.ts', 'sandbox'] }, { rules: { 'jsdoc/require-jsdoc': 'off' } }];
+export default [
+    ...configs,
+    { ignores: ['tsconfig.json', 'tsup.config.ts', 'sandbox'] },
+    {
+        files: ['*.js', '*.mjs'],
+        rules: {
+            'jsdoc/require-description': 'off'
+        }
+    }
+];

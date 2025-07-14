@@ -1,4 +1,7 @@
 
+/**
+ * Injection Tokens used and provided by Zibri.
+ */
 // eslint-disable-next-line typescript/typedef
 export const ZIBRI_DI_TOKENS = {
     ROUTER: 'zi.router',
@@ -15,10 +18,14 @@ export const ZIBRI_DI_TOKENS = {
     JWT_ACCESS_TOKEN_EXPIRES_IN_MS: 'zi.jwt_access_token_expires_in_ms',
     JWT_REFRESH_TOKEN_SECRET: 'zi.jwt_refresh_token_secret',
     JWT_REFRESH_TOKEN_EXPIRES_IN_MS: 'zi.jwt_refresh_token_expires_in_ms',
+    JWT_PASSWORD_RESET_TOKEN_EXPIRES_IN_MS: 'zi.jwt_password_reset_token_expires_in_ms',
+    JWT_CONFIRM_PASSWORD_RESET_URL: 'zi.jwt_confirm_password_reset_url',
+    MAILING_LIST_SUBSCRIPTION_CONFIRMATION_TOKEN_EXPIRES_IN_MS: 'zi.mailing_list_subscription_confirmation_token_expires_in_ms',
     USER_SERVICE: 'zi.user_service',
     CRON_SERVICE: 'zi.cron_service',
     FILE_UPLOAD_TEMP_FOLDER: 'zi.file_upload_temp_folder',
     FORMAT_DATE: 'zi.format_date',
-    MAIL_SERVICE: 'zi.mail_service',
-    MAIL_CONFIG: 'zi.mail_config'
+    EMAIL_SERVICE: 'zi.email_service',
+    EMAIL_CONFIG: 'zi.email_config',
+    MAILING_LIST_SERVICE: 'zi.mailing_list_service'
 } as const satisfies Record<string, `zi.${string}`>;

@@ -1,55 +1,167 @@
 import { Readable } from 'stream';
 
-import express, { NextFunction, RequestHandler } from 'express';
+import { NextFunction, RequestHandler, Router as ExpressRouter } from 'express';
 
 import { Route, ControllerRouteConfiguration } from './controller-route-configuration.model';
 import { RouterInterface } from './router.interface';
-import { AuthServiceInterface, CurrentUserMetadata } from '../auth';
+import { AuthServiceInterface, CurrentUserMetadata, JwtAuthController } from '../auth';
 import { ZIBRI_DI_TOKENS, inject } from '../di';
-import { MetadataUtilities } from '../utilities';
+import { MetadataUtilities, Ms } from '../utilities';
 import { MissingBaseRouteError } from './missing-base-route.error';
 import { ZibriApplication } from '../application';
 import { GlobalRegistry } from '../global';
 import { LoggerInterface } from '../logging';
 import { Newable } from '../types';
-import { BodyMetadata, HeaderParamMetadata, PathParamMetadata, QueryParamMetadata } from './decorators';
-import { RouteConfiguration } from './route-configuration.model';
-import { HttpRequest, HttpResponse } from '../http';
+import { BodyMetadata, HeaderParamMetadata, HeaderParamMetadataInput, PathParamMetadata, PathParamMetadataInput, QueryParamMetadata, QueryParamMetadataInput } from './decorators';
+import { OpenApiRouteConfiguration, RouteConfiguration, RouteConfigurationInput } from './route-configuration.model';
+import { HttpMethod, HttpRequest, HttpResponse, KnownHeader, MimeType } from '../http';
 import { OpenApiResponse } from '../open-api';
-import { FileResponse, ParserInterface } from '../parsing';
+import { FileResponse, HtmlResponse, ParserInterface } from '../parsing';
 import { ValidationServiceInterface } from '../validation';
+import { createHeaderParamMetadata, createPathParamMetadata, createQueryParamMetadata } from './param-metdata.helpers';
 
+/**
+ * Default router implementation of Zibri.
+ */
 export class Router implements RouterInterface {
-    private readonly router: express.Router = express.Router();
+    private readonly expressRouter: ExpressRouter = ExpressRouter();
     private readonly logger: LoggerInterface;
     private readonly parser: ParserInterface;
     private readonly validationService: ValidationServiceInterface;
     private readonly authService: AuthServiceInterface;
+    private readonly allowedOrphans: Newable<unknown>[] = [JwtAuthController];
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly manuallyRegisteredRoutes: RouteConfiguration<
+        Newable<unknown>,
+        Record<string, PathParamMetadata>,
+        Record<string, QueryParamMetadata>,
+        Record<string, HeaderParamMetadata>
+    >[] = [];
 
     constructor() {
         this.logger = inject(ZIBRI_DI_TOKENS.LOGGER);
         this.parser = inject(ZIBRI_DI_TOKENS.PARSER);
         this.validationService = inject(ZIBRI_DI_TOKENS.VALIDATION_SERVICE);
         this.authService = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
-        this.logger.info('registers', GlobalRegistry.controllerClasses.length, 'controllers:');
-        for (const controller of GlobalRegistry.controllerClasses) {
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    init(app: ZibriApplication): void {
+        this.logger.info('registers', app.options.controllers.length, 'controllers:');
+        for (const controller of app.options.controllers) {
             const routes: ControllerRouteConfiguration[] = MetadataUtilities.getControllerRoutes(controller);
             this.logger.info(`  - ${controller.name} (${routes.length} routes)`);
             this.registerController(controller);
         }
+        this.checkForOrphanedControllers(app.options.controllers);
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
     attachTo(app: ZibriApplication): void {
-        app.express.use(this.router);
+        app.use(this.expressRouter);
     }
 
-    register(route: RouteConfiguration): void {
+    private checkForOrphanedControllers(controllers: Newable<unknown>[]): void {
+        const orphanedControllers: Newable<unknown>[] = GlobalRegistry.controllerClasses.filter(c => {
+            return !controllers.includes(c) && !this.allowedOrphans.includes(c);
+        });
+        if (orphanedControllers.length) {
+            const message: string[] = ['Error initializing router.', 'Found orphaned controllers:'];
+            for (const controller of orphanedControllers) {
+                message.push(`  - ${controller.name}`);
+            }
+            message.push('Did you forget to add them to your controllers array?');
+            throw new Error(message.join('\n'));
+        }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    register<
+        T extends Newable<unknown>,
+        PathMetaInputObject extends Record<string, PathParamMetadataInput>,
+        QueryMetaInputObject extends Record<string, QueryParamMetadataInput>,
+        HeaderMetaInputObject extends Record<string, HeaderParamMetadataInput>
+    >(input: RouteConfigurationInput<T, PathMetaInputObject, QueryMetaInputObject, HeaderMetaInputObject>): void {
+        const pathParams: Record<string, PathParamMetadata> = {};
+        for (const key in input.pathParams) {
+            pathParams[key] = createPathParamMetadata(key, input.pathParams[key]);
+        }
+        const queryParams: Record<string, QueryParamMetadata> = {};
+        for (const key in input.queryParams) {
+            queryParams[key] = createQueryParamMetadata(key, input.queryParams[key]);
+        }
+        const headerParams: Record<string, HeaderParamMetadata> = {};
+        for (const key in input.headerParams) {
+            headerParams[key] = createHeaderParamMetadata(key, input.headerParams[key]);
+        }
+
+        // eslint-disable-next-line typescript/no-explicit-any
+        const route: RouteConfiguration<T, any, any, any> = {
+            ...input,
+            openApi: this.createOpenApiRouteConfiguration(input.openApi, input.httpMethod),
+            bodyMetadata: input.bodyMetadata
+                ? {
+                    index: 0,
+                    required: true,
+                    description: undefined,
+                    type: MimeType.JSON,
+                    cleanupAfterMs: Ms.DAY,
+                    ...input.bodyMetadata
+                }
+                : undefined,
+            pathParams,
+            queryParams,
+            headerParams
+
+        };
         const handler: RequestHandler = this.routeToRequestHandler(route);
         this.logger.debug('- mounting', route.httpMethod.toUpperCase(), `${route.route}`);
-        this.router[route.httpMethod](route.route, handler);
+        this.manuallyRegisteredRoutes.push(
+            route as RouteConfiguration<
+                Newable<unknown>,
+                Record<string, PathParamMetadata>,
+                Record<string, QueryParamMetadata>,
+                Record<string, HeaderParamMetadata>
+            >
+        );
+        this.expressRouter[route.httpMethod](route.route, handler);
     }
 
-    registerController<T extends Object>(controllerClass: Newable<T>): void {
+    private createOpenApiRouteConfiguration(
+        input: Partial<OpenApiRouteConfiguration> & Pick<OpenApiRouteConfiguration, 'useInOpenApi'> | undefined,
+        httpMethod: HttpMethod
+    ): OpenApiRouteConfiguration {
+        if (input?.useInOpenApi === true) {
+            return {
+                responses: [],
+                tags: [],
+                ...input
+            };
+        }
+
+        if (input) {
+            return input;
+        }
+
+        switch (httpMethod) {
+            case HttpMethod.GET: {
+                return { useInOpenApi: false };
+            }
+            case HttpMethod.POST:
+            case HttpMethod.PUT:
+            case HttpMethod.PATCH:
+            case HttpMethod.DELETE: {
+                return {
+                    responses: [],
+                    tags: [],
+                    useInOpenApi: true
+                };
+            }
+        }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    registerController(controllerClass: Newable<unknown>): void {
         const baseRoute: Route | undefined = MetadataUtilities.getControllerBaseRoute(controllerClass);
         if (baseRoute == undefined) {
             throw new MissingBaseRouteError(controllerClass);
@@ -60,32 +172,64 @@ export class Router implements RouterInterface {
             const handler: RequestHandler = this.controllerRouteToRequestHandler(controllerClass, route);
             const finalRoute: string = `${baseRoute}${route.route}`;
             this.logger.debug('- mounting', route.httpMethod.toUpperCase(), `${finalRoute}`);
-            this.router[route.httpMethod](baseRoute + route.route, handler);
+            this.expressRouter[route.httpMethod](baseRoute + route.route, handler);
         }
     }
 
-    private routeToRequestHandler(route: RouteConfiguration): RequestHandler {
-        const handler: RequestHandler = async (req: HttpRequest, res: HttpResponse, next: NextFunction) => {
+    private routeToRequestHandler<
+        T extends Newable<unknown>,
+        PathMetaObject extends Record<string, PathParamMetadata>,
+        QueryMetaObject extends Record<string, QueryParamMetadata>,
+        HeaderMetaObject extends Record<string, HeaderParamMetadata>
+    >(route: RouteConfiguration<T, PathMetaObject, QueryMetaObject, HeaderMetaObject>): RequestHandler {
+        const handler: RequestHandler = (async (
+            req: HttpRequest,
+            res: HttpResponse,
+            next: NextFunction
+        ) => {
             try {
-                const result: unknown = await route.handler(req, res);
+                if (route.bodyMetadata) {
+                    req.body = await this.parser.parseRequestBody(req, route.bodyMetadata);
+                    this.validationService.validateRequestBody(req.body, route.bodyMetadata);
+                }
+                for (const key in route.pathParams) {
+                    (req.params[key] as unknown) = this.parser.parsePathParam(req, route.pathParams[key]);
+                    this.validationService.validatePathParam(req.params[key], route.pathParams[key]);
+                }
+                for (const key in route.queryParams) {
+                    (req.query[key] as unknown) = this.parser.parseQueryParam(
+                        req,
+                        route.queryParams[key]
+                    );
+                    this.validationService.validateQueryParam(req.query[key], route.queryParams[key]);
+                }
+                for (const key in route.headerParams) {
+                    (req.headers[key] as unknown) = this.parser.parseHeaderParam(
+                        req,
+                        route.headerParams[key]
+                    );
+                    this.validationService.validateHeaderParam(req.headers[key], route.headerParams[key]);
+                }
+                // eslint-disable-next-line typescript/no-explicit-any
+                const result: unknown = await route.handler(req as HttpRequest<any, any, any, any>, res, next);
                 this.returnResult(res, result, next);
             }
             catch (error) {
                 next(error);
             }
-        };
+        }) as RequestHandler;
         return handler;
     }
 
-    private controllerRouteToRequestHandler(controllerClass: Newable<Object>, route: ControllerRouteConfiguration): RequestHandler {
+    private controllerRouteToRequestHandler(controllerClass: Newable<unknown>, route: ControllerRouteConfiguration): RequestHandler {
         const responses: OpenApiResponse[] = MetadataUtilities.getRouteResponses(controllerClass, route.controllerMethod);
         if (!responses.length) {
             this.logger.warn(`No responses defined on route ${controllerClass.name}.${route.controllerMethod}`);
         }
-        const handler: RequestHandler = async (req: HttpRequest, res: HttpResponse, next: NextFunction) => {
+        const handler: RequestHandler = (async (req: HttpRequest, res: HttpResponse, next: NextFunction) => {
             try {
                 await this.authService.checkAccess(controllerClass, route.controllerMethod, req);
-                const controller: Object = inject(controllerClass);
+                const controller: unknown = inject(controllerClass);
                 const params: unknown[] = await this.resolveRouteParams(
                     controllerClass,
                     route.controllerMethod,
@@ -101,7 +245,7 @@ export class Router implements RouterInterface {
             catch (error) {
                 next(error);
             }
-        };
+        }) as RequestHandler;
         return handler;
     }
 
@@ -109,12 +253,40 @@ export class Router implements RouterInterface {
         if (res.headersSent) {
             return;
         }
+        if (result == undefined) {
+            res.end();
+            return;
+        }
+
+        // if (
+        //     responses.length // all non error responses are json responses
+        //     && responses.filter(r => r.type !== 'error').length === responses.filter(r => r.type === 'json').length
+        //     && ((result instanceof FileResponse) || (result instanceof HtmlResponse))
+        // ) {
+        //     throw new Error('Invalid return value, json cannot be FileResponse or HtmlResponse');
+        // }
+
+        // if (
+        //     responses.length // all non error responses are file responses
+        //     && responses.filter(r => r.type !== 'error').length === responses.filter(r => r.type === 'file').length
+        //     && !(result instanceof FileResponse)
+        // ) {
+        //     throw new Error('Invalid return value, needs to be a FileResponse');
+        // }
+
+        // if (
+        //     responses.length // all non error responses are html responses
+        //     && responses.filter(r => r.type !== 'error').length === responses.filter(r => r.type === 'html').length
+        //     && !(result instanceof FileResponse)
+        // ) {
+        //     throw new Error('Invalid return value, needs to be a HtmlResponse');
+        // }
 
         if (result instanceof FileResponse) {
-            res.setHeader('Content-Type', result.mimeType);
-            res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(result.filename)}"`);
+            res.setHeader(KnownHeader.CONTENT_TYPE, result.mimeType as MimeType);
+            res.setHeader(KnownHeader.CONTENT_DISPOSITION, `attachment; filename="${encodeURIComponent(result.filename)}"`);
             if (result.size != undefined) {
-                res.setHeader('Content-Length', result.size);
+                res.setHeader(KnownHeader.CONTENT_LENGTH, result.size);
             }
 
             // send file from disk
@@ -123,27 +295,38 @@ export class Router implements RouterInterface {
                 return;
             }
 
-            res.on('close', () => (result.data as Readable).destroy());
             // send file as stream
+            res.on('close', () => (result.data as Readable).destroy());
             result.data.on('error', err => {
-                res.removeHeader('Content-Type');
-                res.removeHeader('Content-Length');
-                res.removeHeader('Content-Disposition');
+                res.removeHeader(KnownHeader.CONTENT_TYPE);
+                res.removeHeader(KnownHeader.CONTENT_LENGTH);
+                res.removeHeader(KnownHeader.CONTENT_DISPOSITION);
                 next(err);
             }).pipe(res);
             return;
         }
 
-        if (result != undefined) {
-            res.json(result);
+        if (result instanceof HtmlResponse) {
+            res.setHeader(KnownHeader.CONTENT_TYPE, MimeType.HTML);
+            // send html as string
+            if (typeof result.data === 'string') {
+                res.type('.html').send(result.data);
+                return;
+            }
+            // send html as stream
+            res.on('close', () => (result.data as Readable).destroy());
+            result.data.on('error', err => {
+                res.removeHeader(KnownHeader.CONTENT_TYPE);
+                next(err);
+            }).pipe(res);
             return;
         }
 
-        res.end();
+        res.json(result);
     }
 
     private async resolveRouteParams(
-        controllerClass: Newable<Object>,
+        controllerClass: Newable<unknown>,
         controllerMethod: string,
         totalParamCount: number,
         req: HttpRequest

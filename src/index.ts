@@ -17,7 +17,7 @@ export * from './http';
 export * from './validation';
 export * from './data-source';
 export * from './cron';
-export * from './mail';
+export * from './email';
 export * from './rate-limiting';
 export * from './handlebars';
 

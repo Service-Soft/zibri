@@ -1,5 +1,11 @@
 import { Version } from '../types';
 
+/**
+ * Compares the given versions and check if the first one is bigger, equal or smaller than the second one.
+ * @param v1 - The first version.
+ * @param v2 - The second version to compare against.
+ * @returns 'bigger', 'equal' or 'smaller'.
+ */
 export function compareVersion(v1: Version, v2: Version): 'bigger' | 'equal' | 'smaller' {
     const [v1One, v1Two, v1Three] = v1;
     const [v2One, v2Two, v2Three] = v2;

@@ -1,6 +1,11 @@
 import { MetadataUtilities } from '../../utilities';
 import { DiToken } from '../models';
 
+// eslint-disable-next-line jsdoc/require-returns
+/**
+ * Marks the parameter to be injected.
+ * @param token - The token that should be used to inject the parameter.
+ */
 export function Inject<T>(token: DiToken<T>): ParameterDecorator {
     return (target, _propertyKey, parameterIndex) => {
         // eslint-disable-next-line unicorn/error-message

@@ -1,6 +1,6 @@
-import { inject, isVersion, LoggerInterface, MailConfig, ZIBRI_DI_TOKENS, ZibriApplication } from 'zibri';
+import { inject, isVersion, JwtAuthController, LoggerInterface, ZIBRI_DI_TOKENS, ZibriApplication, EmailConfigInput } from 'zibri';
 
-import { FileController, JwtController, TestController } from './controllers';
+import { CronController, FileController, TemplateController, TestController } from './controllers';
 import { DbDataSource } from './data-sources';
 import { version } from '../package.json';
 import { StatusCronJob } from './cron';
@@ -15,7 +15,14 @@ async function start(): Promise<void> {
 
     const app: ZibriApplication = new ZibriApplication({
         name: 'Api',
-        controllers: [TestController, JwtController, FileController],
+        baseUrl: 'http://localhost:3000',
+        controllers: [
+            TestController,
+            FileController,
+            TemplateController,
+            CronController,
+            JwtAuthController
+        ],
         dataSources: [DbDataSource],
         cronJobs: [StatusCronJob],
         version,
@@ -29,10 +36,11 @@ async function start(): Promise<void> {
                 useFactory: () => 'test'
             },
             {
-                token: ZIBRI_DI_TOKENS.MAIL_CONFIG,
-                useFactory: (): MailConfig => {
+                token: ZIBRI_DI_TOKENS.EMAIL_CONFIG,
+                useFactory: (): EmailConfigInput => {
                     return {
                         maxEmailsPerHour: 0,
+                        defaultSender: 'Max Mustermann',
                         host: '',
                         port: 0,
                         auth: {
@@ -41,6 +49,10 @@ async function start(): Promise<void> {
                         }
                     };
                 }
+            },
+            {
+                token: ZIBRI_DI_TOKENS.JWT_CONFIRM_PASSWORD_RESET_URL,
+                useFactory: () => 'http://localhost:4200/confirm-password-reset'
             }
         ]
     });

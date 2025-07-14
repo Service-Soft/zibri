@@ -1,4 +1,5 @@
-import express, { Express } from 'express';
+import cors from 'cors';
+import express, { RequestHandler } from 'express';
 
 import { ZibriApplicationOptions } from './application-options.model';
 import { AssetServiceInterface } from './assets';
@@ -7,23 +8,33 @@ import { CronServiceInterface } from './cron';
 import { DataSourceServiceInterface } from './data-source';
 import { ZIBRI_DI_TOKENS, inject } from './di';
 import { register } from './di/register.function';
+import { EmailServiceInterface, MailingListServiceInterface } from './email';
 import { UnmatchedRouteError } from './error-handling';
 import { GlobalRegistry } from './global';
 import { LoggerInterface } from './logging';
-import { MailServiceInterface } from './mail';
 import { OpenApiServiceInterface } from './open-api';
 import { FormDataBodyParser, JsonBodyParser, ParserInterface } from './parsing';
-import { RouterInterface } from './routing';
+import { Route, RouterInterface } from './routing';
 
+// eslint-disable-next-line jsdoc/require-jsdoc
 type FullZibriApplicationOptions = Required<ZibriApplicationOptions>;
 
 /**
- * A zibri application.
+ * A Zibri application.
  */
 export class ZibriApplication {
-    readonly express: Express = express().disable('x-powered-by');
+    /**
+     * The internal express app.
+     */
+    private readonly express: express.Express = express()
+        .disable('x-powered-by')
+        .use(cors());
 
     private _router!: RouterInterface;
+    // eslint-disable-next-line jsdoc/require-returns
+    /**
+     * The router used by the application.
+     */
     get router(): RouterInterface {
         return this._router;
     }
@@ -34,8 +45,12 @@ export class ZibriApplication {
     private dataSourceService!: DataSourceServiceInterface;
     private authService!: AuthServiceInterface;
     private cronService!: CronServiceInterface;
-    private mailService!: MailServiceInterface;
-    private readonly options: FullZibriApplicationOptions;
+    private emailService!: EmailServiceInterface;
+    private mailingListService?: MailingListServiceInterface;
+    /**
+     * The options of which the application was build.
+     */
+    readonly options: FullZibriApplicationOptions;
 
     constructor(private readonly providedOptions: ZibriApplicationOptions) {
         this.options = {
@@ -49,6 +64,23 @@ export class ZibriApplication {
         GlobalRegistry.markAppAsCreated();
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    use(handler: RequestHandler): express.Express;
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    use(...handlers: RequestHandler[]): void;
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    use(path: Route, ...handlers: RequestHandler[]): void;
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    use(path: Route, handlers: RequestHandler[]): void;
+    // eslint-disable-next-line jsdoc/require-jsdoc, typescript/no-explicit-any
+    use(...args: any[]): express.Express {
+        // eslint-disable-next-line typescript/no-unsafe-argument
+        return this.express.use(...args);
+    }
+
+    /**
+     * Initializes the app.
+     */
     async init(): Promise<void> {
         GlobalRegistry.setAppData(this.options);
         for (const provider of this.options.providers) {
@@ -78,19 +110,19 @@ export class ZibriApplication {
         await this.parser.attachTo(this);
 
         this._router = inject(ZIBRI_DI_TOKENS.ROUTER);
-        this._router.attachTo(this);
+        this._router.init(this);
 
         this.assetService = inject(ZIBRI_DI_TOKENS.ASSET_SERVICE);
         this.assetService.attachTo(this);
 
-        this.mailService = inject(ZIBRI_DI_TOKENS.MAIL_SERVICE);
-        this.mailService.attachTo(this);
+        this.emailService = inject(ZIBRI_DI_TOKENS.EMAIL_SERVICE);
+        this.emailService.attachTo(this);
+
+        this.mailingListService = inject(ZIBRI_DI_TOKENS.MAILING_LIST_SERVICE);
+        this.mailingListService?.attachTo(this);
 
         this.openApiService = inject(ZIBRI_DI_TOKENS.OPEN_API_SERVICE);
         this.openApiService.attachTo(this);
-
-        this.express.use((req, _, next) => next(new UnmatchedRouteError(req.originalUrl)));
-        this.express.use(inject(ZIBRI_DI_TOKENS.GLOBAL_ERROR_HANDLER));
 
         for (const controller of this.options.controllers) {
             inject(controller);
@@ -114,6 +146,9 @@ export class ZibriApplication {
             // and then this.app.listen fails.
             throw new Error('The application has already been started');
         }
+        this.router.attachTo(this);
+        this.use((req, _, next) => next(new UnmatchedRouteError(req.originalUrl)));
+        this.use(inject(ZIBRI_DI_TOKENS.GLOBAL_ERROR_HANDLER));
         this.express.listen(port);
         GlobalRegistry.markAppAsRunning();
         this.logger.info(this.options.name, 'is running on port', port);

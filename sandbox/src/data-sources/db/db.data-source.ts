@@ -1,4 +1,4 @@
-import { BaseDataSource, BaseEntity, DataSource, Newable, DataSourceOptions, MigrationEntity, RefreshToken, JwtCredentials } from 'zibri';
+import { BaseDataSource, BaseEntity, DataSource, Newable, DataSourceOptions, MigrationEntity, JwtRefreshToken, JwtCredentials, PasswordResetToken, MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken } from 'zibri';
 
 import { Company, Test, User } from '../../models';
 
@@ -17,8 +17,12 @@ export class DbDataSource extends BaseDataSource {
         MigrationEntity,
         Test,
         User,
-        RefreshToken,
+        JwtRefreshToken,
         JwtCredentials,
-        Company
+        PasswordResetToken,
+        Company,
+        MailingList,
+        MailingListSubscriber,
+        MailingListSubscriptionConfirmationToken
     ];
 }

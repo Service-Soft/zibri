@@ -4,6 +4,9 @@ import { BasePropertyMetadata } from './base-property-metadata.model';
 import { BaseEntity } from '../../entity';
 import { Newable } from '../../types';
 
+/**
+ * Metadata shared by all relation properties.
+ */
 export type BaseRelationMetadata<T extends BaseEntity> = BasePropertyMetadata
     & Required<Pick<EntitySchemaRelationOptions, 'cascade' | 'persistence'>> & {
         /**

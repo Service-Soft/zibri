@@ -5,14 +5,19 @@ import { CLEANUP_AT_FILE_NAME } from './form-data.model';
 import { CronJob, InitialCronConfig } from '../../cron';
 import { inject, Injectable, ZIBRI_DI_TOKENS } from '../../di';
 
+/**
+ * CronJob that cleans up the temp folder of the form data body parser.
+ */
 @Injectable()
 export class FormDataBodyParserCleanupCronJob extends CronJob {
+    // eslint-disable-next-line jsdoc/require-jsdoc
     initialConfig: InitialCronConfig = {
         name: 'FormDataBodyParser Cleanup',
         cron: '0 0 * * *',
         runOnInit: false
     };
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async onTick(): Promise<void> {
         const tempPath: string = inject(ZIBRI_DI_TOKENS.FILE_UPLOAD_TEMP_FOLDER);
 

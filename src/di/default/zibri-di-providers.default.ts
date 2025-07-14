@@ -1,3 +1,4 @@
+/* eslint-disable jsdoc/require-jsdoc */
 import path from 'path';
 
 import { ZIBRI_DI_TOKENS } from './zibri-di-tokens.default';
@@ -5,14 +6,14 @@ import { AssetService, AssetServiceInterface } from '../../assets';
 import { AuthService, AuthServiceInterface, UserService, UserServiceInterface } from '../../auth';
 import { CronService, CronServiceInterface } from '../../cron';
 import { DataSourceService, DataSourceServiceInterface } from '../../data-source';
+import { EmailConfigInput, EmailService, EmailServiceInterface, MailingListService, MailingListServiceInterface } from '../../email';
 import { errorHandler, GlobalErrorHandler } from '../../error-handling';
 import { Logger, LoggerInterface, LogLevel } from '../../logging';
-import { MailConfig, MailService, MailServiceInterface } from '../../mail';
 import { OpenApiService, OpenApiServiceInterface } from '../../open-api';
 import { Parser, ParserInterface } from '../../parsing';
 import { Router, RouterInterface } from '../../routing';
 import { OmitStrict } from '../../types';
-import { formatDate } from '../../utilities';
+import { formatDate, Ms } from '../../utilities';
 import { ValidationService, ValidationServiceInterface } from '../../validation';
 import { DiProvider } from '../models';
 
@@ -34,11 +35,15 @@ type ZibriDiProviders = {
     [ZIBRI_DI_TOKENS.JWT_REFRESH_TOKEN_SECRET]: ZibriDiProvider<string | undefined>,
     [ZIBRI_DI_TOKENS.JWT_ACCESS_TOKEN_EXPIRES_IN_MS]: ZibriDiProvider<number>,
     [ZIBRI_DI_TOKENS.JWT_REFRESH_TOKEN_EXPIRES_IN_MS]: ZibriDiProvider<number>,
+    [ZIBRI_DI_TOKENS.JWT_PASSWORD_RESET_TOKEN_EXPIRES_IN_MS]: ZibriDiProvider<number>,
+    [ZIBRI_DI_TOKENS.JWT_CONFIRM_PASSWORD_RESET_URL]: ZibriDiProvider<string | undefined>,
     [ZIBRI_DI_TOKENS.CRON_SERVICE]: ZibriDiProvider<CronServiceInterface>,
     [ZIBRI_DI_TOKENS.FILE_UPLOAD_TEMP_FOLDER]: ZibriDiProvider<string>,
     [ZIBRI_DI_TOKENS.FORMAT_DATE]: ZibriDiProvider<(value: Date, includeTime?: boolean) => string>,
-    [ZIBRI_DI_TOKENS.MAIL_SERVICE]: ZibriDiProvider<MailServiceInterface>,
-    [ZIBRI_DI_TOKENS.MAIL_CONFIG]: ZibriDiProvider<MailConfig | undefined>
+    [ZIBRI_DI_TOKENS.EMAIL_SERVICE]: ZibriDiProvider<EmailServiceInterface>,
+    [ZIBRI_DI_TOKENS.EMAIL_CONFIG]: ZibriDiProvider<EmailConfigInput | undefined>,
+    [ZIBRI_DI_TOKENS.MAILING_LIST_SERVICE]: ZibriDiProvider<MailingListServiceInterface | undefined>,
+    [ZIBRI_DI_TOKENS.MAILING_LIST_SUBSCRIPTION_CONFIRMATION_TOKEN_EXPIRES_IN_MS]: ZibriDiProvider<number>
 };
 
 export const ZIBRI_DI_PROVIDERS: Record<
@@ -58,11 +63,15 @@ export const ZIBRI_DI_PROVIDERS: Record<
     [ZIBRI_DI_TOKENS.USER_SERVICE]: { useFactory: () => new UserService() },
     [ZIBRI_DI_TOKENS.JWT_ACCESS_TOKEN_SECRET]: { useFactory: () => undefined },
     [ZIBRI_DI_TOKENS.JWT_REFRESH_TOKEN_SECRET]: { useFactory: () => undefined },
-    [ZIBRI_DI_TOKENS.JWT_ACCESS_TOKEN_EXPIRES_IN_MS]: { useFactory: () => 3600000 },
-    [ZIBRI_DI_TOKENS.JWT_REFRESH_TOKEN_EXPIRES_IN_MS]: { useFactory: () => 8640000000 },
+    [ZIBRI_DI_TOKENS.JWT_ACCESS_TOKEN_EXPIRES_IN_MS]: { useFactory: () => Ms.HOUR },
+    [ZIBRI_DI_TOKENS.JWT_REFRESH_TOKEN_EXPIRES_IN_MS]: { useFactory: () => 100 * Ms.DAY },
     [ZIBRI_DI_TOKENS.CRON_SERVICE]: { useClass: CronService },
-    [ZIBRI_DI_TOKENS.MAIL_SERVICE]: { useClass: MailService },
+    [ZIBRI_DI_TOKENS.EMAIL_SERVICE]: { useClass: EmailService },
+    [ZIBRI_DI_TOKENS.MAILING_LIST_SERVICE]: { useClass: MailingListService },
+    [ZIBRI_DI_TOKENS.MAILING_LIST_SUBSCRIPTION_CONFIRMATION_TOKEN_EXPIRES_IN_MS]: { useFactory: () => Ms.DAY },
     [ZIBRI_DI_TOKENS.FILE_UPLOAD_TEMP_FOLDER]: { useFactory: () => path.join(__dirname, 'temp') },
     [ZIBRI_DI_TOKENS.FORMAT_DATE]: { useFactory: () => formatDate },
-    [ZIBRI_DI_TOKENS.MAIL_CONFIG]: { useFactory: () => undefined }
+    [ZIBRI_DI_TOKENS.EMAIL_CONFIG]: { useFactory: () => undefined },
+    [ZIBRI_DI_TOKENS.JWT_PASSWORD_RESET_TOKEN_EXPIRES_IN_MS]: { useFactory: () => 300000 },
+    [ZIBRI_DI_TOKENS.JWT_CONFIRM_PASSWORD_RESET_URL]: { useFactory: () => undefined }
 } satisfies ZibriDiProviders;

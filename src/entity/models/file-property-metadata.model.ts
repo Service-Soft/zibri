@@ -2,8 +2,16 @@ import { BasePropertyMetadata } from './base-property-metadata.model';
 import { MimeType } from '../../http';
 import { OmitStrict } from '../../types';
 
+/**
+ * Possible file size values.
+ */
 export type FileSize = `${number}b` | `${number}kb` | `${number}mb` | `${number}gb`;
 
+/**
+ * Resolves a file size to bytes.
+ * @param size - The file size to resolve to bytes.
+ * @returns The amount of bytes.
+ */
 export function fileSizeToBytes(size: FileSize): number {
     if (size.endsWith('gb')) {
         const [amount] = size.split('gb');
@@ -21,10 +29,25 @@ export function fileSizeToBytes(size: FileSize): number {
     return Number(amount);
 }
 
+/**
+ * Metadata for file properties.
+ */
 export type FilePropertyMetadata = BasePropertyMetadata & {
+    /**
+     * The type of the property.
+     */
     type: 'file',
+    /**
+     * The allowed mime types.
+     */
     allowedMimeTypes: MimeType[] | 'all',
+    /**
+     * The maximum file size.
+     */
     maxSize: FileSize
 };
 
+/**
+ * Input Metadata for file properties.
+ */
 export type FilePropertyMetadataInput = Partial<OmitStrict<FilePropertyMetadata, 'type'>>;

@@ -2,6 +2,14 @@ import { NumberPropertyMetadata, PropertyMetadata } from '../../entity';
 import { QueryParamMetadata, HeaderParamMetadata, PathParamMetadata, NumberParamMetadata } from '../../routing';
 import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from '../validation-problem.model';
 
+/**
+ * Validates the given number property.
+ * @param key - The key of the property.
+ * @param property - The actual value.
+ * @param metadata - The metadata of the property.
+ * @param parentKey - The key of the parent, if it exists.
+ * @returns All validation problems found.
+ */
 export function validateNumber(
     key: string,
     property: unknown,
