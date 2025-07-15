@@ -12,7 +12,7 @@ import { ZibriApplication } from '../application';
 import { GlobalRegistry } from '../global';
 import { LoggerInterface } from '../logging';
 import { Newable } from '../types';
-import { BodyMetadata, HeaderParamMetadata, HeaderParamMetadataInput, PathParamMetadata, PathParamMetadataInput, QueryParamMetadata, QueryParamMetadataInput } from './decorators';
+import { BodyMetadata, BodyMetadataInput, HeaderParamMetadata, HeaderParamMetadataInput, PathParamMetadata, PathParamMetadataInput, QueryParamMetadata, QueryParamMetadataInput } from './decorators';
 import { OpenApiRouteConfiguration, RouteConfiguration, RouteConfigurationInput } from './route-configuration.model';
 import { HttpMethod, HttpRequest, HttpResponse, KnownHeader, MimeType } from '../http';
 import { OpenApiResponse } from '../open-api';
@@ -32,7 +32,7 @@ export class Router implements RouterInterface {
     private readonly allowedOrphans: Newable<unknown>[] = [JwtAuthController];
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly manuallyRegisteredRoutes: RouteConfiguration<
-        Newable<unknown>,
+        BodyMetadata,
         Record<string, PathParamMetadata>,
         Record<string, QueryParamMetadata>,
         Record<string, HeaderParamMetadata>
@@ -77,11 +77,12 @@ export class Router implements RouterInterface {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     register<
-        T extends Newable<unknown>,
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        BodyMetaInputObject extends BodyMetadataInput & { modelClass: Newable<unknown> },
         PathMetaInputObject extends Record<string, PathParamMetadataInput>,
         QueryMetaInputObject extends Record<string, QueryParamMetadataInput>,
         HeaderMetaInputObject extends Record<string, HeaderParamMetadataInput>
-    >(input: RouteConfigurationInput<T, PathMetaInputObject, QueryMetaInputObject, HeaderMetaInputObject>): void {
+    >(input: RouteConfigurationInput<BodyMetaInputObject, PathMetaInputObject, QueryMetaInputObject, HeaderMetaInputObject>): void {
         const pathParams: Record<string, PathParamMetadata> = {};
         for (const key in input.pathParams) {
             pathParams[key] = createPathParamMetadata(key, input.pathParams[key]);
@@ -96,7 +97,7 @@ export class Router implements RouterInterface {
         }
 
         // eslint-disable-next-line typescript/no-explicit-any
-        const route: RouteConfiguration<T, any, any, any> = {
+        const route: RouteConfiguration<any, any, any, any> = {
             ...input,
             openApi: this.createOpenApiRouteConfiguration(input.openApi, input.httpMethod),
             bodyMetadata: input.bodyMetadata
@@ -118,7 +119,7 @@ export class Router implements RouterInterface {
         this.logger.debug('- mounting', route.httpMethod.toUpperCase(), `${route.route}`);
         this.manuallyRegisteredRoutes.push(
             route as RouteConfiguration<
-                Newable<unknown>,
+                BodyMetadata,
                 Record<string, PathParamMetadata>,
                 Record<string, QueryParamMetadata>,
                 Record<string, HeaderParamMetadata>
@@ -177,11 +178,11 @@ export class Router implements RouterInterface {
     }
 
     private routeToRequestHandler<
-        T extends Newable<unknown>,
+        BodyMetaObject extends BodyMetadata,
         PathMetaObject extends Record<string, PathParamMetadata>,
         QueryMetaObject extends Record<string, QueryParamMetadata>,
         HeaderMetaObject extends Record<string, HeaderParamMetadata>
-    >(route: RouteConfiguration<T, PathMetaObject, QueryMetaObject, HeaderMetaObject>): RequestHandler {
+    >(route: RouteConfiguration<BodyMetaObject, PathMetaObject, QueryMetaObject, HeaderMetaObject>): RequestHandler {
         const handler: RequestHandler = (async (
             req: HttpRequest,
             res: HttpResponse,

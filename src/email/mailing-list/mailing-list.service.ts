@@ -128,7 +128,7 @@ export class MailingListService implements MailingListServiceInterface {
             httpMethod: HttpMethod.PATCH,
             route: `${this.mailingListBaseRoute}/preferences`,
             openApi: { useInOpenApi: true, tags: ['MailingLists'] },
-            bodyMetadata: { modelClass: UpdateMailingListPreferences, required: false },
+            bodyMetadata: { modelClass: UpdateMailingListPreferences },
             queryParams: {
                 subscriberId: { type: 'string' }
             },

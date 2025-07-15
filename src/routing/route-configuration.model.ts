@@ -25,6 +25,11 @@ type HeaderMetaObjectToParamsObject<HeaderMetaObject extends Record<string, Head
 };
 
 // eslint-disable-next-line jsdoc/require-jsdoc
+type BodyMetaInputObjectToMetaObject<BodyMetaInputObject extends BodyMetadataInput & { modelClass: Newable<unknown> }> =
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    MergeRequired<BodyMetaInputObject, BodyMetadata & { modelClass: BodyMetaInputObject['modelClass'] }>;
+
+// eslint-disable-next-line jsdoc/require-jsdoc
 type PathMetaInputObjectToMetaObject<PathMetaInputObject extends Record<string, PathParamMetadataInput>> = {
     [K in keyof PathMetaInputObject]: MergeRequired<
         PathMetaInputObject[K],
@@ -90,6 +95,42 @@ type ParamMetadataToType<M extends (PathParamMetadata | QueryParamMetadata | Hea
         ? RawParamMetadataToType<M> | undefined
         : RawParamMetadataToType<M>;
 
+// eslint-disable-next-line jsdoc/require-jsdoc
+type InferModel<T> =
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    T extends { modelClass: Newable<infer U> }
+        ? U
+        : never;
+
+// // eslint-disable-next-line jsdoc/require-jsdoc
+// class MyDto {
+//     // eslint-disable-next-line jsdoc/require-jsdoc
+//     foo!: string;
+// }
+
+// // Check 1: Does the 'required: false' survive into the body metadata object?
+// // eslint-disable-next-line typescript/typedef, unusedImports/no-unused-vars
+// const bodyInput = {
+//     modelClass: MyDto,
+//     required: false
+// // eslint-disable-next-line jsdoc/require-jsdoc
+// } as const satisfies BodyMetadataInput & { modelClass: Newable<MyDto> };
+
+// // Check 2: Convert input into full metadata (should preserve required: false)
+// // eslint-disable-next-line jsdoc/require-jsdoc
+// type BodyMeta = BodyMetaInputObjectToMetaObject<typeof bodyInput>;
+// //       ^-- Does BodyMetadata have required: false?
+
+// // Check 3: Route handler typing should infer req.body as MyDto | undefined if required: false
+// // eslint-disable-next-line jsdoc/require-jsdoc
+// type Handler = RouteHandler<
+//     BodyMeta,
+//     {},
+//     {},
+//     {}
+// >;
+// //       ^-- Is the body param typed as MyDto | undefined?
+
 /**
  * Configuration on how to handle open api for the route.
  */
@@ -117,12 +158,18 @@ export type OpenApiRouteConfiguration = {
  * The handler used when manually registering a route.
  */
 export type RouteHandler<
-    T extends Newable<unknown>,
+    BodyMetaObject extends BodyMetadata,
     PathParamsObject extends Record<string, unknown>,
     QueryParamsObject extends Record<string, unknown>,
     HeaderParamsObject extends Record<string, unknown>
 > = (
-    req: HttpRequest<InstanceType<T>, PathParamsObject, QueryParamsObject, HeaderParamsObject>,
+    req: HttpRequest<
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        BodyMetaObject extends { required: false } ? InferModel<BodyMetaObject> | undefined : InferModel<BodyMetaObject>,
+        PathParamsObject,
+        QueryParamsObject,
+        HeaderParamsObject
+    >,
     res: HttpResponse,
     next: NextFunction
 ) => unknown | Promise<unknown>;
@@ -131,7 +178,7 @@ export type RouteHandler<
  * Configuration for a single endpoint route.
  */
 export type RouteConfiguration<
-    T extends Newable<unknown>,
+    BodyMetaObject extends BodyMetadata,
     PathMetaObject extends Record<string, PathParamMetadata>,
     QueryMetaObject extends Record<string, QueryParamMetadata>,
     HeaderMetaObject extends Record<string, HeaderParamMetadata>
@@ -148,7 +195,7 @@ export type RouteConfiguration<
      * The handler that is responsible for handling requests on the route.
      */
     handler: RouteHandler<
-        T,
+        MergeRequired<BodyMetaObject, BodyMetaObject>,
         PathMetaObjectToParamsObject<PathMetaObject>,
         QueryMetaObjectToParamsObject<QueryMetaObject>,
         HeaderMetaObjectToParamsObject<HeaderMetaObject>
@@ -179,13 +226,14 @@ export type RouteConfiguration<
  * The input to create a new route configuration.
  */
 export type RouteConfigurationInput<
-    T extends Newable<unknown>,
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    BodyMetaInputObject extends BodyMetadataInput & { modelClass: Newable<unknown> },
     PathMetaInputObject extends Record<string, PathParamMetadataInput>,
     QueryMetaInputObject extends Record<string, QueryParamMetadataInput>,
     HeaderMetaInputObject extends Record<string, HeaderParamMetadataInput>
 > = OmitStrict<
     RouteConfiguration<
-        T,
+        BodyMetaInputObjectToMetaObject<BodyMetaInputObject>,
         PathMetaInputObjectToMetaObject<PathMetaInputObject>,
         QueryMetaInputObjectToMetaObject<QueryMetaInputObject>,
         HeaderMetaInputObjectToMetaObject<HeaderMetaInputObject>
@@ -195,12 +243,7 @@ export type RouteConfigurationInput<
     /**
      * The input metadata for the request body.
      */
-    bodyMetadata?: BodyMetadataInput & {
-        /**
-         * The class that defines the structure of the body metadata.
-         */
-        modelClass: T
-    },
+    bodyMetadata?: BodyMetaInputObject,
     /**
      * An object of metadata input for the path parameters.
      */

@@ -115,7 +115,7 @@ export class OpenApiService implements OpenApiServiceInterface {
                     customSiteTitle: definition.info.title,
                     customCssUrl: `${this.assetService.assetsRoute}/open-api/custom.css`
                 }
-            ) as RouteHandler<never, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>
+            ) as RouteHandler<BodyMetadata, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>
         });
     }
 
