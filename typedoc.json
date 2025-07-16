@@ -1,0 +1,19 @@
+{
+    "entryPointStrategy": "expand",
+    "entryPoints": ["src"],
+    "exclude": [
+        "src/index.ts",
+        "src/jest.setup.ts",
+        "src/**/*.test.ts"
+    ],
+    "excludePrivate": true,
+    "excludeProtected": true,
+    "excludeReferences": true,
+    "out": "docs/generated",
+    "projectDocuments": [
+        "./docs/getting-started.md",
+        "./docs/creating-endpoints.md"
+    ],
+    "readme": "none",
+    "tsconfig": "tsconfig.json"
+}

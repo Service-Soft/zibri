@@ -3,6 +3,11 @@ import { Newable } from '../../types';
 import { MetadataUtilities } from '../../utilities';
 import { Route } from '../controller-route-configuration.model';
 
+// eslint-disable-next-line jsdoc/require-returns
+/**
+ * Marks a controller class to be registered under the provided base route.
+ * @param baseRoute - The base route of the controller. Any endpoints inside this class will be prefixed with this.
+ */
 export function Controller(baseRoute: Route): ClassDecorator {
     return target => {
         // eslint-disable-next-line unicorn/error-message
@@ -13,6 +18,6 @@ export function Controller(baseRoute: Route): ClassDecorator {
             token: target as unknown as Newable<unknown>,
             useClass: target as unknown as Newable<unknown>
         });
-        GlobalRegistry.controllerClasses.push(target as unknown as Newable<Object>);
+        GlobalRegistry.controllerClasses.push(target as unknown as Newable<unknown>);
     };
 }

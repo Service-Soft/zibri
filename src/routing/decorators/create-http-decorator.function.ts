@@ -2,6 +2,7 @@ import { HttpMethod } from '../../http';
 import { MetadataUtilities } from '../../utilities';
 import { Route, ControllerRouteConfiguration } from '../controller-route-configuration.model';
 
+// eslint-disable-next-line jsdoc/require-jsdoc
 export function createHttpDecorator(method: HttpMethod, path: Route): MethodDecorator {
     return (target, propertyKey) => {
         const ctor: Function = target.constructor;

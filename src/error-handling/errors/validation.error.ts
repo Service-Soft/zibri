@@ -1,6 +1,7 @@
 import { BadRequestError } from './bad-request.error';
 import { ValidationProblem } from '../../validation';
 
+// eslint-disable-next-line jsdoc/require-jsdoc
 type ValidationErrorType = 'body' | 'path' | 'query' | 'header';
 
 const startMessage: Record<ValidationErrorType, string> = {
@@ -10,6 +11,9 @@ const startMessage: Record<ValidationErrorType, string> = {
     header: 'Validation failed for header parameter'
 };
 
+/**
+ * An error with validation.
+ */
 export class ValidationError extends BadRequestError {
     constructor(type: ValidationErrorType, problems: ValidationProblem[], options?: ErrorOptions) {
         const paragraphs: string[] = [startMessage[type]];

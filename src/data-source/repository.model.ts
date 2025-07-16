@@ -1,5 +1,4 @@
-import { Repository as TORepository, FindOptionsWhere, EntityManager, InsertResult } from 'typeorm';
-import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
+import { Repository as TORepository, FindOptionsWhere, EntityManager } from 'typeorm';
 
 import { inject, ZIBRI_DI_TOKENS } from '../di';
 import { NotFoundError } from '../error-handling';
@@ -12,11 +11,15 @@ import { PaginationResult } from '../open-api';
 import { MetadataUtilities } from '../utilities';
 import { whereFilterToFindOptionsWhere } from './models/where/where-filter-to-find-options-where.function';
 
+/**
+ * A repository that handles database related things for its entity.
+ */
 export class Repository<
     T extends BaseEntity,
     CreateData extends DeepPartial<T> = DeepPartial<T>,
     UpdateData extends DeepPartial<T> = DeepPartial<T>
 > {
+    // eslint-disable-next-line jsdoc/require-jsdoc
     protected readonly logger: LoggerInterface;
     private readonly typeOrmRepository: TORepository<T>;
 
@@ -57,6 +60,13 @@ export class Repository<
         }
     }
 
+    /**
+     * Creates a new entity from the given data.
+     * Internally this uses insert.
+     * @param data - The create data.
+     * @param options - Additional options, like a transaction etc.
+     * @returns The newly created entity.
+     */
     async create(data: CreateData, options?: CreateOptions): Promise<T> {
         if (data.id != undefined) {
             this.logger.warn('Found an id on the create data, it will be ignored.');
@@ -64,11 +74,15 @@ export class Repository<
         }
         await this.setDefaultValues(data);
         const manager: EntityManager = this.getManager(options?.transaction);
-        const res: InsertResult = await manager.insert(this.entityClass, data as QueryDeepPartialEntity<T>);
-        // eslint-disable-next-line typescript/no-unsafe-argument
-        return await this.findById(res.identifiers[0].id, options);
+        return await manager.save(manager.create(this.entityClass, data));
     }
 
+    /**
+     * Creates all entities from the provided data array.
+     * @param data - An array of create data, which each creates a new entity.
+     * @param options - Additional options, eg. A transaction.
+     * @returns All newly created entities.
+     */
     async createAll(data: CreateData[], options?: CreateAllOptions): Promise<T[]> {
         let entitiesWithIdCount: number = 0;
         for (const d of data) {
@@ -88,31 +102,57 @@ export class Repository<
         return await manager.save(this.entityClass, data);
     }
 
-    async findById(id: T['id'], options?: FindByIdOptions): Promise<T> {
-        const manager: EntityManager = this.getManager(options?.transaction);
-        const res: T | null = await manager.findOneBy(this.entityClass, { id } as FindOptionsWhere<T>);
+    /**
+     * Finds an entity by the given id.
+     * @param id - The id of the entity to find.
+     * @param options - Additional options, eg. Transaction.
+     * @returns The found entity.
+     */
+    async findById(id: T['id'], options?: FindByIdOptions<T>): Promise<T> {
+        const res: T | undefined = await this.findOne({ where: { id } as Where<T>, ...options }, false);
         if (!res) {
             throw new NotFoundError(`Could not find ${this.entityClass.name} with id "${id}".`);
         }
         return res;
     }
 
-    async findOne(options: FindOneOptions<T>): Promise<T> {
+    /**
+     * Finds a single entity with the given options.
+     * @param options - The options, including the where filter etc.
+     * @param required - Whether or not a result is required. Defaults to true.
+     * @returns The found result. If required is set to false, also undefined.
+     */
+    async findOne<B extends boolean = true>(
+        options: FindOneOptions<T>,
+        required: B = true as B
+    ): Promise<B extends false ? T | undefined : T> {
         const manager: EntityManager = this.getManager(options?.transaction);
         const where: FindOptionsWhere<T> | FindOptionsWhere<T>[] | undefined = this.resolveFindOptionsWhere(options.where);
         const res: T | null = await manager.findOne(this.entityClass, { ...options, where, transaction: undefined });
-        if (!res) {
+        if (!res && required) {
             throw new NotFoundError(`Could not find ${this.entityClass.name}.`);
         }
-        return res;
+        return (res ?? undefined) as B extends false ? T | undefined : T;
     }
 
+    /**
+     * Finds all entities with the given options.
+     * @param options - The options, including the where filter etc.
+     * @returns An array of found entities.
+     */
     async findAll(options?: FindAllOptions<T>): Promise<T[]> {
         const manager: EntityManager = this.getManager(options?.transaction);
         const where: FindOptionsWhere<T> | FindOptionsWhere<T>[] | undefined = this.resolveFindOptionsWhere(options?.where);
         return await manager.find(this.entityClass, { ...options, where, transaction: undefined });
     }
 
+    /**
+     * Finds all entities with the given options, in paginated form.
+     * @param page - The page for which the entities should be found.
+     * @param limit - The limit of entities to receive for that page.
+     * @param options - Additional options including where filter etc.
+     * @returns A paginated result of the found entities.
+     */
     async findAllPaginated(page: number, limit: number, options?: FindAllPaginatedOptions<T>): Promise<PaginationResult<T>> {
         const items: T[] = await this.findAll({
             skip: (page - 1) * limit,
@@ -128,6 +168,13 @@ export class Repository<
         };
     }
 
+    /**
+     * Updates an entity with the provided id.
+     * @param id - The id of the entity to update.
+     * @param data - The data to update the entity with.
+     * @param options - Additional options, like a transaction.
+     * @returns The updated entity.
+     */
     async updateById(id: T['id'], data: UpdateData, options?: UpdateByIdOptions): Promise<T> {
         if (data.id != undefined) {
             this.logger.warn('Found an id on the update data, it will be ignored.');
@@ -138,6 +185,13 @@ export class Repository<
         return await manager.save(this.entityClass, dataWithId);
     }
 
+    /**
+     * Updates all entities that match the provided where filter.
+     * @param where - The where filter to find the entities that should be updated.
+     * @param data - The data to update the entities with.
+     * @param options - Additional options, like a transaction.
+     * @returns An array of all the updated entities.
+     */
     async updateAll(
         where: Where<T>,
         data: UpdateData,
@@ -153,12 +207,23 @@ export class Repository<
         return await manager.save(this.entityClass, toUpdate);
     }
 
+    /**
+     * Deletes an entity with the provided id.
+     * @param id - The id of the entity to deleted.
+     * @param options - Additional options, like a transaction.
+     */
     async deleteById(id: T['id'], options?: DeleteByIdOptions): Promise<void> {
         const entityToDelete: T = await this.findById(id, options);
         const manager: EntityManager = this.getManager(options?.transaction);
         await manager.remove(this.entityClass, entityToDelete);
     }
 
+    /**
+     * Deletes all entities that match the provided where filter.
+     * @param where - The where filter to find the entities that should be deleted.
+     * @param options - Additional options, like a transaction.
+     * @returns An array of all the updated entities.
+     */
     async deleteAll(
         where: Where<T>,
         options?: OmitStrict<DeleteAllOptions<T>, 'where'>

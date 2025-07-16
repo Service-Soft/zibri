@@ -4,3 +4,4 @@ export * from './parser';
 export * from './json';
 export * from './parser.interface';
 export * from './form-data';
+export * from './html';

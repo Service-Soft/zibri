@@ -1,10 +1,22 @@
 import { BasePropertyMetadata } from './base-property-metadata.model';
 import { Newable, OmitStrict } from '../../types';
 
+/**
+ * Metadata for object properties.
+ */
 export type ObjectPropertyMetadata = BasePropertyMetadata & {
+    /**
+     * The type of the property.
+     */
     type: 'object',
+    /**
+     * The class that defines the structure of the object.
+     */
     cls: () => Newable<unknown>
 };
 
+/**
+ * Input Metadata for object properties.
+ */
 export type ObjectPropertyMetadataInput = Partial<OmitStrict<ObjectPropertyMetadata, 'type'>>
     & Pick<ObjectPropertyMetadata, 'cls'>;

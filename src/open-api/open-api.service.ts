@@ -9,11 +9,12 @@ import { AuthServiceInterface, BelongsToMetadata, HasRoleMetadata, IsLoggedInMet
 import { inject, ZIBRI_DI_TOKENS } from '../di';
 import { BaseEntity, ManyToManyPropertyMetadata, ManyToOnePropertyMetadata, OmitType, OneToManyPropertyMetadata, OneToOnePropertyMetadata, PropertyMetadata, Relation } from '../entity';
 import { GlobalRegistry } from '../global';
-import { HttpRequest, HttpResponse, HttpStatus, MimeType } from '../http';
+import { HttpMethod, HttpStatus, MimeType } from '../http';
 import { LoggerInterface } from '../logging';
-import { BodyMetadata, ControllerRouteConfiguration, HeaderParamMetadata, PathParamMetadata, QueryParamMetadata, Route } from '../routing';
+import { BodyMetadata, ControllerRouteConfiguration, HeaderParamMetadata, PathParamMetadata, QueryParamMetadata, Route, RouteHandler } from '../routing';
 import { OpenApiServiceInterface } from './open-api-service.interface';
 import { OpenApiDefinition, OpenApiOperation, OpenApiParameter, OpenApiPaths, OpenApiRequestBodyObject, OpenApiResponse, OpenApiSchemaObject, OpenApiSecurityRequirementObject, OpenApiSecuritySchemeObject } from './open-api.model';
+import { FileResponse } from '../parsing';
 import { MissingBaseRouteError } from '../routing/missing-base-route.error';
 import { Newable } from '../types';
 import { MetadataUtilities } from '../utilities';
@@ -25,11 +26,16 @@ const defaultDescriptionForHttpStatus: Record<HttpStatus | 'default', string> = 
     [HttpStatus.BAD_REQUEST]: 'Bad Request',
     [HttpStatus.UNAUTHORIZED]: 'Unauthorized',
     [HttpStatus.FORBIDDEN]: 'Forbidden',
+    [HttpStatus.TOO_MANY_REQUESTS]: 'Too Many Requests',
     [HttpStatus.OK]: 'Ok',
     [HttpStatus.CREATED]: 'Created'
 };
 
+/**
+ * Default open api service implementation of Zibri.
+ */
 export class OpenApiService implements OpenApiServiceInterface {
+    // eslint-disable-next-line jsdoc/require-jsdoc
     readonly openApiRoute: Route = '/explorer';
     private readonly logger: LoggerInterface;
     private readonly assetService: AssetServiceInterface;
@@ -41,65 +47,81 @@ export class OpenApiService implements OpenApiServiceInterface {
         this.authService = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
     attachTo(app: ZibriApplication): void {
-        const definition: OpenApiDefinition = this.createOpenApiDefinition();
+        const definition: OpenApiDefinition = this.createOpenApiDefinition(app);
         this.logger.info('registers the OpenAPI Explorer at', this.openApiRoute);
 
-        app.express.get(`${this.openApiRoute}/swagger-ui.css`, (_req: HttpRequest, res: HttpResponse) => {
-            const filePath: string = path.join(this.assetService.assetsPath, 'open-api', 'swagger-ui.css');
-            res.sendFile(filePath);
+        app.router.register({
+            httpMethod: HttpMethod.GET,
+            route: `${this.openApiRoute}/swagger-ui.css`,
+            handler: () => {
+                const filePath: string = path.join(this.assetService.publicAssetsPath, 'open-api', 'swagger-ui.css');
+                return FileResponse.fromPath(filePath);
+            }
         });
-        app.express.get(`${this.openApiRoute}/swagger-ui-bundle.js`, (_req: HttpRequest, res: HttpResponse) => {
-            const filePath: string = path.join(this.assetService.assetsPath, 'open-api', 'swagger-ui-bundle.js');
-            res.sendFile(filePath);
+        app.router.register({
+            httpMethod: HttpMethod.GET,
+            route: `${this.openApiRoute}/swagger-ui-bundle.js`,
+            handler: () => {
+                const filePath: string = path.join(this.assetService.publicAssetsPath, 'open-api', 'swagger-ui-bundle.js');
+                return FileResponse.fromPath(filePath);
+            }
         });
-        app.express.get(`${this.openApiRoute}/swagger-ui-standalone-preset.js`, (_req: HttpRequest, res: HttpResponse) => {
-            const filePath: string = path.join(this.assetService.assetsPath, 'open-api', 'swagger-ui-standalone-preset.js');
-            res.sendFile(filePath);
+        app.router.register({
+            httpMethod: HttpMethod.GET,
+            route: `${this.openApiRoute}/swagger-ui-standalone-preset.js`,
+            handler: () => {
+                const filePath: string = path.join(this.assetService.publicAssetsPath, 'open-api', 'swagger-ui-standalone-preset.js');
+                return FileResponse.fromPath(filePath);
+            }
         });
-        app.express.get(`${this.openApiRoute}/swagger-ui-init.js`, (_req: HttpRequest, res: HttpResponse) => {
-            res.type('.js').send([
-                'window.onload = function() {',
-                '    SwaggerUIBundle({',
-                `        spec: ${JSON.stringify(definition)},`,
-                '        dom_id: \'#swagger-ui\',',
-                '        presets: [',
-                '            SwaggerUIBundle.presets.apis,',
-                '            SwaggerUIStandalonePreset',
-                '        ],',
-                '        layout: "StandaloneLayout"',
-                '    });',
-                '};'
+        app.router.register({
+            httpMethod: HttpMethod.GET,
+            route: `${this.openApiRoute}/swagger-ui-init.js`,
+            handler: (_, res) => {
+                res.type('.js').send([
+                    'window.onload = function() {',
+                    '    SwaggerUIBundle({',
+                    `        spec: ${JSON.stringify(definition)},`,
+                    '        dom_id: \'#swagger-ui\',',
+                    '        presets: [',
+                    '            SwaggerUIBundle.presets.apis,',
+                    '            SwaggerUIStandalonePreset',
+                    '        ],',
+                    '        layout: "StandaloneLayout",',
+                    '        requestInterceptor: (req) => {',
+                    '            req.headers.Accept = \'application/json\'',
+                    '            req.headers[\'Content-Type\'] = \'application/json\'',
+                    '            return req;',
+                    '        },',
+                    '        defaultModelRendering: \'model\'',
+                    '    });',
+                    '};'
 
-            ].join('\n'));
+                ].join('\n'));
+            }
         });
 
-        app.express.use(this.openApiRoute, swaggerUi.serve);
-        app.express.get(
-            this.openApiRoute,
-            swaggerUi.setup(
+        app.use(this.openApiRoute, swaggerUi.serve);
+        app.router.register({
+            httpMethod: HttpMethod.GET,
+            route: this.openApiRoute,
+            handler: swaggerUi.setup(
                 definition,
                 {
-                    // eslint-disable-next-line cspell/spellchecker
+                // eslint-disable-next-line cspell/spellchecker
                     customfavIcon: `${this.assetService.assetsRoute}/favicon.png`,
                     customSiteTitle: definition.info.title,
-                    customCssUrl: `${this.assetService.assetsRoute}/open-api/custom.css`,
-                    swaggerOptions: {
-                        requestInterceptor: (req: HttpRequest) => {
-                            req.headers.Accept = MimeType.JSON;
-                            req.headers['Content-Type'] = MimeType.JSON;
-                            return req;
-                        },
-                        // Ensure Swagger UI doesn't add format suffixes
-                        defaultModelRendering: 'model'
-                    }
+                    customCssUrl: `${this.assetService.assetsRoute}/open-api/custom.css`
                 }
-            )
-        );
+            ) as RouteHandler<BodyMetadata, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>
+        });
     }
 
-    createOpenApiDefinition(): OpenApiDefinition {
-        const tags: TagObject[] = GlobalRegistry.controllerClasses.map(cls => ({ name: cls.name }));
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    createOpenApiDefinition(app: ZibriApplication): OpenApiDefinition {
+        const tags: TagObject[] = app.options.controllers.map(cls => ({ name: cls.name }));
         const res: OpenApiDefinition = {
             openapi: '3.1.0',
             info: {
@@ -110,7 +132,7 @@ export class OpenApiService implements OpenApiServiceInterface {
             components: {
                 securitySchemes: this.resolveSecuritySchemes()
             },
-            paths: this.resolveOpenApiPaths()
+            paths: this.resolveOpenApiPaths(app)
         };
         return res;
     }
@@ -123,10 +145,10 @@ export class OpenApiService implements OpenApiServiceInterface {
         return res;
     }
 
-    private resolveOpenApiPaths(): OpenApiPaths {
+    private resolveOpenApiPaths(app: ZibriApplication): OpenApiPaths {
         const res: OpenApiPaths = {};
 
-        for (const controllerClass of GlobalRegistry.controllerClasses) {
+        for (const controllerClass of app.options.controllers) {
             const baseRoute: Route | undefined = MetadataUtilities.getControllerBaseRoute(controllerClass);
             if (!baseRoute) {
                 throw new MissingBaseRouteError(controllerClass);
@@ -177,6 +199,30 @@ export class OpenApiService implements OpenApiServiceInterface {
             }
         }
 
+        for (const route of app.router.manuallyRegisteredRoutes.filter(r => r.openApi.useInOpenApi)) {
+            // Ensure an entry exists
+            const fullPath: string = `${route.route}`.replaceAll(/:([^/]+)/g, '{$1}');
+            res[fullPath] ??= {};
+
+            if (!route.openApi.useInOpenApi) {
+                throw new Error(`Invalid open api configuration on route ${route.route}`);
+            }
+
+            const operation: OpenApiOperation = {
+                responses: this.buildResponses(route.openApi.responses),
+                tags: route.openApi.tags,
+                parameters: [
+                    ...this.buildParameters(route.pathParams, 'path'),
+                    ...this.buildParameters(route.queryParams, 'query'),
+                    ...this.buildParameters(route.headerParams, 'header')
+                ],
+                requestBody: this.buildOpenApiBody(route.bodyMetadata)
+                // security: this.resolveOperationSecurity(controllerClass, route.controllerMethod),
+                // ['x-roles']: hasRoleMetadata?.allowedRoles
+            };
+            res[fullPath][route.httpMethod] = operation;
+        }
+
         return res;
     }
 
@@ -215,61 +261,93 @@ export class OpenApiService implements OpenApiServiceInterface {
         return res;
     }
 
+    // eslint-disable-next-line sonar/cognitive-complexity
     private buildResponseContent(response: OpenApiResponse): ContentObject | undefined {
-        if (response.type === 'file') {
-            const schema: OpenApiSchemaObject = { type: 'string', format: 'binary' };
-            // normalize mimeType into an array; default to octet‑stream
-            const mimeTypes: MimeType[] = Array.isArray(response.mimeType)
-                ? response.mimeType
-                : response.mimeType != undefined
-                    ? [response.mimeType === 'all' ? MimeType.OCTET_STREAM : response.mimeType]
-                    : [MimeType.OCTET_STREAM];
+        switch (response.type) {
+            case 'file': {
+                const schema: OpenApiSchemaObject = { type: 'string', format: 'binary' };
+                // normalize mimeType into an array; default to octet‑stream
+                const mimeTypes: MimeType[] = Array.isArray(response.mimeType)
+                    ? response.mimeType
+                    : response.mimeType != undefined
+                        ? [response.mimeType === 'all' ? MimeType.OCTET_STREAM : response.mimeType]
+                        : [MimeType.OCTET_STREAM];
 
-            const content: ContentObject = {};
-            for (const mt of mimeTypes) {
-                content[mt] = { schema };
+                const content: ContentObject = {};
+                for (const mt of mimeTypes) {
+                    content[mt] = { schema };
+                }
+                return content;
             }
-            return content;
+            case 'json': {
+                if (!response.cls) {
+                    return undefined;
+                }
+                const propMeta: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(response.cls);
+                const schema: OpenApiSchemaObject = this.buildOpenApiSchemaForProperties(propMeta, response.cls);
+
+                if (response.isArray === true) {
+                    return { [MimeType.JSON]: { schema: { type: 'array', items: schema } } };
+                }
+
+                return { [MimeType.JSON]: { schema } };
+            }
+            case 'html': {
+                const schema: OpenApiSchemaObject = {
+                    type: 'string',
+                    format: 'html'
+                };
+                return { [MimeType.HTML]: { schema } };
+            }
+            case 'error': {
+                return undefined;
+            }
+            default: {
+                throw new Error(`Unknown response type ${(response as OpenApiResponse).type}`);
+            }
         }
 
-        if (!response.cls) {
-            return undefined;
-        }
-
-        const propMeta: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(response.cls);
-        const schema: OpenApiSchemaObject = this.buildOpenApiSchemaForProperties(propMeta, response.cls);
-
-        if (response.isArray === true) {
-            return { [MimeType.JSON]: { schema: { type: 'array', items: schema } } };
-        }
-
-        return { [MimeType.JSON]: { schema } };
     }
 
     private buildResponsesContent(responses: OpenApiResponse[]): ContentObject | undefined {
         const schemas: OpenApiSchemaObject[] = [];
         for (const response of responses) {
-            if (response.type === 'file') {
-                schemas.push({ type: 'string', format: 'binary' });
-                continue;
+            switch (response.type) {
+                case 'file': {
+                    schemas.push({ type: 'string', format: 'binary' });
+                    continue;
+                }
+                case 'html': {
+                    schemas.push({ type: 'string', format: 'html' });
+                    continue;
+                }
+                case 'json': {
+                    if (!response.cls) {
+                        continue;
+                    }
+                    const propMeta: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(response.cls);
+                    const schema: OpenApiSchemaObject = this.buildOpenApiSchemaForProperties(propMeta, response.cls);
+                    if (response.isArray === true) {
+                        schemas.push({ type: 'array', items: schema });
+                        continue;
+                    }
+                    schemas.push(schema);
+                }
+                case 'error': {
+                    continue;
+                }
+                default: {
+                    throw new Error(`Unknown response type ${(response as OpenApiResponse).type}`);
+                }
             }
-            if (!response.cls) {
-                continue;
-            }
-            const propMeta: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(response.cls);
-            const schema: OpenApiSchemaObject = this.buildOpenApiSchemaForProperties(propMeta, response.cls);
-            if (response.isArray === true) {
-                schemas.push({ type: 'array', items: schema });
-                continue;
-            }
-            schemas.push(schema);
+
         }
 
         return { [MimeType.JSON]: { schema: { oneOf: schemas } } };
     }
 
     private resolveOperationSecurity(
-        controllerClass: Newable<Object>,
+        controllerClass: Newable<unknown>,
         controllerMethod: string
     ): OpenApiSecurityRequirementObject[] | undefined {
         const res: OpenApiSecurityRequirementObject[] = [];
@@ -448,10 +526,10 @@ export class OpenApiService implements OpenApiServiceInterface {
     }
 
     private buildParameters(
-        queryParams: Record<number, QueryParamMetadata | HeaderParamMetadata | PathParamMetadata>,
+        params: Record<number, QueryParamMetadata | HeaderParamMetadata | PathParamMetadata>,
         location: ParameterLocation
     ): OpenApiParameter[] {
-        return Object.values(queryParams).map(meta => ({
+        return Object.values(params).map(meta => ({
             name: meta.name,
             in: location,
             required: meta.required,

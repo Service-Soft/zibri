@@ -1,31 +1,56 @@
 import { BaseEntity, FileSize, ManyToManyPropertyMetadata, ManyToOnePropertyMetadata, OneToManyPropertyMetadata, OneToOnePropertyMetadata, Relation, RelationMetadata } from '../entity';
 import { MimeType } from '../http';
 
+/**
+ * A validation problem, consisting of the key where the problem is located and a description of the problem.
+ */
 export type ValidationProblem = {
+    /**
+     * The key where the problem is located.
+     */
     key: string,
+    /**
+     * The validation problem message.
+     */
     message: string
 };
 
+/**
+ * The validation problem that the property is required and no value has been provided.
+ */
 export class IsRequiredValidationProblem implements ValidationProblem {
+    // eslint-disable-next-line jsdoc/require-jsdoc
     readonly message: string = 'is required';
     constructor(readonly key: string) {}
 }
 
+/**
+ * The validation problem that the provided value has an incorrect type.
+ */
 export class TypeMismatchValidationProblem implements ValidationProblem {
+    // eslint-disable-next-line jsdoc/require-jsdoc
     readonly message: string;
     constructor(readonly key: string, type: string) {
         this.message = `should be of type ${type}`;
     }
 }
 
+/**
+ * The validation problem that the provided file is too big.
+ */
 export class MaxFileSizeValidationProblem implements ValidationProblem {
+    // eslint-disable-next-line jsdoc/require-jsdoc
     readonly message: string;
     constructor(readonly key: string, maxSize: FileSize) {
         this.message = `needs to be smaller than ${maxSize}`;
     }
 }
 
+/**
+ * The validation problem that the provided file has an incorrect mime type.
+ */
 export class MimeTypeMismatchValidationProblem implements ValidationProblem {
+    // eslint-disable-next-line jsdoc/require-jsdoc
     readonly message: string;
     constructor(readonly key: string, allowedMimeTypes: MimeType[]) {
         this.message = allowedMimeTypes.length > 1
@@ -34,7 +59,11 @@ export class MimeTypeMismatchValidationProblem implements ValidationProblem {
     }
 }
 
+/**
+ * The validation problem that the provided value has relation data on it, which is not supported.
+ */
 export class RelationsNotAllowedValidationProblem implements ValidationProblem {
+    // eslint-disable-next-line jsdoc/require-jsdoc
     readonly message: string;
     constructor(readonly key: string, metadata: RelationMetadata<BaseEntity>, relationKey: string) {
         this.message = [

@@ -1,6 +1,11 @@
 import { FormatDateFn } from './format-date-fn.model';
 
-export const formatDate: FormatDateFn = (date, includeTime: boolean = false) => {
+/**
+ * Default implementation for formatting dates.
+ * @param date - The date to format.
+ * @param includeTime - Whether or not time should be included. Defaults to false.
+ */
+export const formatDate: FormatDateFn = (date: Date, includeTime: boolean = false) => {
     if (includeTime) {
         return new Date(date).toLocaleDateString(
             'de',

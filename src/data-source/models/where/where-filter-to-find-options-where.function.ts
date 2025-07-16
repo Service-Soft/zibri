@@ -11,6 +11,12 @@ import { BaseEntity, ManyToOnePropertyMetadata, ObjectPropertyMetadata, OneToOne
 import { ExcludeStrict, Newable } from '../../../types';
 import { MetadataUtilities } from '../../../utilities';
 
+/**
+ * Transforms the given Zibri where filter to typeorm's FindOptionsWhere.
+ * @param filter - The filter to transform.
+ * @param entityClass - The entity class that the where filter is for.
+ * @returns Typeorm's FindOptionsWhere.
+ */
 export function whereFilterToFindOptionsWhere<T extends object>(
     filter: Where<T>,
     entityClass: Newable<T>
@@ -27,6 +33,12 @@ export function whereFilterToFindOptionsWhere<T extends object>(
     return singleWhereFilterToFindOptionsWhere(filter, properties) as Where<T> extends WhereFilter<T>[] ? ToFindOptionsWhere<T>[] : ToFindOptionsWhere<T>;
 }
 
+/**
+ * Transforms a single Zibri where filter to typeorm FindOptionsWhere.
+ * @param filter - The filter to transform.
+ * @param properties - The properties of the entity that the filter is for.
+ * @returns Typeorm FindOptionsWhere.
+ */
 function singleWhereFilterToFindOptionsWhere<T extends Object>(
     filter: WhereFilter<T>,
     properties: Record<string, PropertyMetadata>
@@ -69,6 +81,12 @@ function singleWhereFilterToFindOptionsWhere<T extends Object>(
     return res;
 }
 
+/**
+ * Transforms a property filter or multiple property filters to a typeorm FindOperator.
+ * @param property - The property filter to transform.
+ * @param propertyMetadata - The metadata of the property.
+ * @returns The typeorm FindOperator.
+ */
 function propertyToFindOperator<T>(
     property: WhereFilterProperty<T> | WhereFilterProperty<T>[],
     propertyMetadata: PropertyMetadata
@@ -79,10 +97,31 @@ function propertyToFindOperator<T>(
     return singlePropertyToFindOperator(property, propertyMetadata);
 }
 
-// eslint-disable-next-line stylistic/max-len
-type ObjectWhereFilterKeys = (keyof ExcludeStrict<ObjectWhereFilter<object>, null | { equals: object } | { where: Where<object> }>) | 'equals' | 'where';
-type ArrayWhereFilterKeys = (keyof ExcludeStrict<ArrayWhereFilter<object>, null | { equals: object[] }>) | 'equals';
+/**
+ * Where filter keys of object properties.
+ */
+type ObjectWhereFilterKeys = (
+    keyof ExcludeStrict<
+        ObjectWhereFilter<object>,
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        null | { equals: object } | { where: Where<object> }
+    >
+) | 'equals' | 'where';
 
+/**
+ * Where filter keys of array properties.
+ */
+type ArrayWhereFilterKeys = (
+    keyof ExcludeStrict<
+        ArrayWhereFilter<object>,
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        null | { equals: object[] }
+    >
+) | 'equals';
+
+/**
+ * All where filter keys.
+ */
 type WhereFilterKeys = ArrayWhereFilterKeys
     | keyof ExcludeStrict<DateWhereFilter, BaseWhereFilter<Date>>
     | keyof ExcludeStrict<NumberWhereFilter, BaseWhereFilter<number>>
@@ -109,6 +148,13 @@ const whereFilterKeysRecord: Record<WhereFilterKeys, WhereFilterKeys> = {
 
 const whereFilterKeys: WhereFilterKeys[] = Object.values(whereFilterKeysRecord);
 
+/**
+ * Transforms a single where filter property to a typeorm FindOperator.
+ * @param property - The where filter property to transform.
+ * @param propertyMetadata - The metadata of the where filter property.
+ * @returns A typeorm FindOperator.
+ * @throws When the where filter property is invalid.
+ */
 // eslint-disable-next-line sonar/cognitive-complexity
 function singlePropertyToFindOperator<T>(
     property: WhereFilterProperty<T>,
@@ -194,6 +240,7 @@ function singlePropertyToFindOperator<T>(
                 break;
             }
             case 'where': {
+                // eslint-disable-next-line jsdoc/require-jsdoc
                 const whereFilter: { where: Where<Record<string, unknown>> } = property as { where: Where<Record<string, unknown>> };
                 const isJson: boolean = propertyMetadata.type === 'object';
                 if (isJson) {
@@ -235,6 +282,11 @@ function singlePropertyToFindOperator<T>(
     return And(...operators) as FindOperator<T>;
 }
 
+// eslint-disable-next-line jsdoc/require-returns
+/**
+ * Checks if the given key is a where filter key.
+ * @param key - The key to check.
+ */
 function isWhereFilterKey(key: unknown): key is WhereFilterKeys {
     return whereFilterKeys.includes(key as WhereFilterKeys);
 }

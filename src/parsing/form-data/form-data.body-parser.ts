@@ -2,7 +2,7 @@
 import { rm } from 'fs/promises';
 import path from 'path';
 
-import { RequestHandler } from 'express';
+import { Request, RequestHandler } from 'express';
 import multer, { StorageEngine } from 'multer';
 import { v4 } from 'uuid';
 
@@ -18,14 +18,20 @@ import { inject, ZIBRI_DI_TOKENS } from '../../di';
 import { PropertyMetadata } from '../../entity';
 import { MetadataUtilities } from '../../utilities';
 
+/**
+ * Body parser for form data.
+ */
 @BodyParser()
 export class FormDataBodyParser implements BodyParserInterface {
+    // eslint-disable-next-line jsdoc/require-jsdoc
     readonly contentType: MimeType = MimeType.FORM_DATA;
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
     attachTo(app: ZibriApplication): void {
-        app['options'].cronJobs.push(FormDataBodyParserCleanupCronJob);
+        app.options.cronJobs.push(FormDataBodyParserCleanupCronJob);
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async parse(req: HttpRequest, metadata: BodyMetadata): Promise<FormData<object>> {
         if (req.body !== undefined) {
             return req.body as FormData<object>;
@@ -54,7 +60,7 @@ export class FormDataBodyParser implements BodyParserInterface {
 
         return new Promise<FormData<object>>((resolve, reject) => {
             // eslint-disable-next-line typescript/no-misused-promises, promise/prefer-await-to-callbacks
-            void upload(req, {} as HttpResponse, async (err: unknown) => {
+            void upload(req as Request, {} as HttpResponse, async (err: unknown) => {
                 if (err != undefined) {
                     await this.removeTempFolder(tempFolder);
                     reject(err);
@@ -172,12 +178,11 @@ export class FormDataBodyParser implements BodyParserInterface {
     }
 
     private addStringValuesToMap<T extends object>(request: HttpRequest, values: Map<keyof T, FormDataValue>): void {
-        if (request.body == undefined) {
+        if (request.body == undefined || typeof request.body !== 'object') {
             return;
         }
         for (const key in request.body) {
-            // eslint-disable-next-line typescript/no-unsafe-member-access
-            values.set(key as keyof T, request.body[key] as string);
+            values.set(key as keyof T, (request.body as Record<string, string>)[key]);
         }
     }
 }

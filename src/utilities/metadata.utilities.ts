@@ -1,3 +1,4 @@
+/* eslint-disable jsdoc/require-jsdoc */
 import { ReflectUtilities } from './reflect.utilities';
 import { DiToken } from '../di';
 import { Route, ControllerRouteConfiguration, PathParamMetadata, BodyMetadata, QueryParamMetadata, HeaderParamMetadata } from '../routing';
@@ -7,9 +8,12 @@ import { BaseEntity, EntityMetadata, PropertyMetadata } from '../entity';
 import { OpenApiResponse } from '../open-api';
 import { Newable } from '../types';
 
+/**
+ * Utilities for handling Metadata.
+ */
 export abstract class MetadataUtilities {
     static setFilePath(target: Object, errorStack: string): void {
-        const callerLine: string = errorStack.split('\n')[5]; // Adjust based on your stack trace
+        const callerLine: string = errorStack.split('\n')[5];
         const filePath: string = callerLine.match(/\((.*):\d+:\d+\)/)?.[1] ?? 'unknown';
 
         // Store the file path in metadata

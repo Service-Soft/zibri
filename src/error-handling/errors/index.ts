@@ -5,3 +5,4 @@ export * from './unmatched-route.error';
 export * from './bad-request.error';
 export * from './validation.error';
 export * from './unauthorized.error';
+export * from './too-many-requests.error';

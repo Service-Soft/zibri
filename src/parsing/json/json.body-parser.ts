@@ -5,10 +5,15 @@ import { HttpRequest, MimeType } from '../../http';
 import { BodyParserInterface } from '../body-parser.interface';
 import { BodyParser } from '../decorators';
 
+/**
+ * Body parser for json.
+ */
 @BodyParser()
 export class JsonBodyParser implements BodyParserInterface {
+    // eslint-disable-next-line jsdoc/require-jsdoc
     readonly contentType: MimeType = MimeType.JSON;
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async parse(req: HttpRequest): Promise<unknown> {
         if (req.body !== undefined) {
             return req.body;

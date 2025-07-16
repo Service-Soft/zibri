@@ -1,5 +1,8 @@
 import { FileMimeType, LooseFileMimeType, MimeType } from './mime-type.enum';
 
+/**
+ * All possible file extensions.
+ */
 export type FileExtension = typeof mimeTypeToExtension[FileMimeType] | '.jpg';
 
 // eslint-disable-next-line typescript/typedef
@@ -36,6 +39,11 @@ const extensionToMimeType: Record<FileExtension, MimeType | undefined> = {
     '.html': MimeType.HTML
 } as const;
 
+/**
+ * Resolves the mime type of the file at the given path.
+ * @param path - The path to resolve the mime type for.
+ * @returns The resolved mimetype.
+ */
 export function resolveMimeType(path: string): MimeType {
     const index: number = path.lastIndexOf('.');
     const extension: FileExtension = path.substring(index).toLowerCase() as FileExtension;
@@ -43,11 +51,21 @@ export function resolveMimeType(path: string): MimeType {
     return mimeType ?? MimeType.OCTET_STREAM;
 }
 
+/**
+ * Resolves the file extension from the given loose file mime type.
+ * @param type - The mime type to resolve the file extension for.
+ * @returns The resolved file extension or undefined if it could not be resolved.
+ */
 export function resolveFileExtension(type: LooseFileMimeType): FileExtension | undefined {
     const extension: FileExtension | undefined = mimeTypeToExtension[type as FileMimeType];
     return extension;
 }
 
+// eslint-disable-next-line jsdoc/require-returns
+/**
+ * Checks if the given value is a known mime type.
+ * @param value - The value to check.
+ */
 export function isMimeType(value: string): value is MimeType {
     return Object.values(MimeType).includes(value as MimeType);
 }

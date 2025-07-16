@@ -2,14 +2,25 @@ import { getDependencyStackTrace } from './get-dependency-stack-trace.function';
 import { MetadataUtilities } from '../../utilities';
 import { DiToken } from '../models';
 
+// eslint-disable-next-line jsdoc/require-jsdoc
 function tokenIsPrimitiveValue(token: DiToken<unknown>): boolean {
     return [String, Number, Boolean, Date].includes(
         token as unknown as StringConstructor | NumberConstructor | BooleanConstructor | DateConstructor
     );
 }
 
+/**
+ * Get the no providers error message from the provided token and stack.
+ * @param token - The token for which no provider was found.
+ * @param resolvingStack - The stack of the DI trail.
+ * @returns The message as a string.
+ */
 function getNoProviderMessage(token: DiToken<unknown>, resolvingStack: Function[]): string {
     if (typeof token === 'string') {
+        if (token.startsWith('Repository<') && token.endsWith('>')) {
+            const entity: string = token.split('Repository<')[1].split('>')[0];
+            return `No provider for repository token "${token}". Did you forget to register the entity "${entity}" in a data source?`;
+        }
         return `No provider for custom token "${token}"`;
     }
     if (tokenIsPrimitiveValue(token)) {
@@ -24,6 +35,9 @@ function getNoProviderMessage(token: DiToken<unknown>, resolvingStack: Function[
     return `No provider for class "${token.name}". Did you forget to decorate it with @Injectable()?`;
 }
 
+/**
+ * An error to throw when there was no provider found for injecting the provided DI token.
+ */
 export class NoProviderError extends Error {
     constructor(token: DiToken<unknown>, resolvingStack: Function[]) {
         const message: string = getNoProviderMessage(token, resolvingStack);

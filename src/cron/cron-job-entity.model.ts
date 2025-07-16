@@ -1,31 +1,59 @@
 import { BaseEntity, Entity, Property } from '../entity';
 import { OmitStrict } from '../types';
 
+/**
+ * The cron job entity that is stored in the db.
+ */
 @Entity()
 export class CronJobEntity implements BaseEntity {
+    // eslint-disable-next-line jsdoc/require-jsdoc
     @Property.string({ primary: true })
     id!: string;
 
+    /**
+     * The name of the cron job.
+     */
     @Property.string({ unique: true })
     name!: string;
 
+    /**
+     * The cron expression.
+     */
     @Property.string()
     cron!: string;
 
+    /**
+     * Whether or not the cron job is currently active.
+     */
     @Property.boolean()
     active!: boolean;
 
+    /**
+     * Whether or not the cron job should run on app start.
+     */
     @Property.boolean()
     runOnInit!: boolean;
 
+    /**
+     * Whether or not the cron job should stop on an error.
+     */
     @Property.boolean()
     stopOnError!: boolean;
 
+    /**
+     * The timestamp at which this cron job has been last run.
+     */
     @Property.date({ required: false })
     lastRun!: Date | undefined;
 
+    /**
+     * The error message that this cron job failed with.
+     */
     @Property.string({ required: false })
     errorMessage!: string | undefined;
 }
 
+/**
+ * The data for creating a new cron job entity.
+ */
 export type CreateCronJobEntityData = OmitStrict<CronJobEntity, 'id'>;

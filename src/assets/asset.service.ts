@@ -1,79 +1,104 @@
 import { Dirent } from 'fs';
-import { readdir, readFile } from 'fs/promises';
+import { readdir } from 'fs/promises';
 import path from 'path';
 
 import express from 'express';
-import Handlebars from 'handlebars';
+import handlebars from 'handlebars';
 
 import { AssetServiceInterface } from './asset-service.interface';
 import { ZibriApplication } from '../application';
 import { inject, ZIBRI_DI_TOKENS } from '../di';
 import { GlobalRegistry } from '../global';
+import { renderPageTemplate } from '../handlebars';
 import { HttpMethod } from '../http';
 import { LoggerInterface } from '../logging';
+import { FileResponse, HtmlResponse } from '../parsing';
 import { Route } from '../routing';
 
-type FileNode = {
-    type: 'file',
-    name: string,
-    route: string
-};
+// eslint-disable-next-line jsdoc/require-jsdoc
+type FileNode = { type: 'file', name: string, route: string };
 
-type DirectoryNode = {
-    type: 'directory',
-    name: string,
-    children: TreeNode[]
-};
+// eslint-disable-next-line jsdoc/require-jsdoc
+type DirectoryNode = { type: 'directory', name: string, children: TreeNode[] };
 
+// eslint-disable-next-line jsdoc/require-jsdoc
 type TreeNode = FileNode | DirectoryNode;
 
+// eslint-disable-next-line jsdoc/require-jsdoc
 type NodeMap = Record<string, { directory?: NodeMap, fileRoute?: string } | undefined>;
 
+// eslint-disable-next-line jsdoc/require-jsdoc
+type WalkedPath = { relPath: string, isFile: boolean };
+
+/**
+ * Default asset service implementation of Zibri.
+ */
 export class AssetService implements AssetServiceInterface {
     private readonly logger: LoggerInterface;
+    // eslint-disable-next-line jsdoc/require-jsdoc
     readonly assetsPath: string = path.join(__dirname, 'assets');
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly publicAssetsPath: string = path.join(this.assetsPath, 'public');
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly pageTemplatePath: string = path.join(this.assetsPath, 'templates', 'pages');
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly emailTemplatePath: string = path.join(this.assetsPath, 'templates', 'emails');
+    // eslint-disable-next-line jsdoc/require-jsdoc
     readonly assetsRoute: Route = '/assets';
 
     constructor() {
         this.logger = inject(ZIBRI_DI_TOKENS.LOGGER);
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
     attachTo(app: ZibriApplication): void {
-        this.logger.info(`registers static assets from folder "${this.assetsPath}" at ${this.assetsRoute}`);
-        app.express.use('/assets', express.static(this.assetsPath));
+        this.logger.info(`registers public static assets from folder "${this.publicAssetsPath}" at ${this.assetsRoute}`);
+        app.use(this.assetsRoute, express.static(this.publicAssetsPath));
         app.router.register({
             httpMethod: HttpMethod.GET,
             route: '/',
-            handler: async (req, res) => {
-                const source: string = await readFile(path.join(this.assetsPath, 'template', 'index.hbs'), { encoding: 'utf8' });
-                const template: HandlebarsTemplateDelegate = Handlebars.compile(source);
-                const html: string = template({ name: GlobalRegistry.getAppData('name') });
-                res.setHeader('Content-Type', 'text/html');
-                res.send(html);
+            handler: async () => {
+                const html: string = await renderPageTemplate(
+                    'index.hbs',
+                    {
+                        name: GlobalRegistry.getAppData('name'),
+                        base: {
+                            title: GlobalRegistry.getAppData('name') ?? ''
+                        }
+                    }
+                );
+                return HtmlResponse.fromString(html);
             }
         });
         app.router.register({
             httpMethod: HttpMethod.GET,
-            route: '/assets',
-            handler: async (req, res) => {
-                const source: string = await readFile(path.join(this.assetsPath, 'template', 'assets.hbs'), { encoding: 'utf8' });
-                const template: HandlebarsTemplateDelegate = Handlebars.compile(source);
+            route: this.assetsRoute,
+            handler: async () => {
                 const tree: TreeNode[] = await this.buildFileTree();
-                const html: string = template({ name: GlobalRegistry.getAppData('name'), tree });
-                res.setHeader('Content-Type', 'text/html');
-                res.send(html);
+                const html: string = await renderPageTemplate(
+                    'assets.hbs',
+                    {
+                        name: GlobalRegistry.getAppData('name'),
+                        base: {
+                            title: GlobalRegistry.getAppData('name') ?? ''
+                        },
+                        tree
+                    }
+                );
+                return HtmlResponse.fromString(html);
             }
         });
         app.router.register({
             httpMethod: HttpMethod.GET,
             route: '/favicon.ico',
-            handler: (req, res) => res.sendFile(path.join(this.assetsPath, 'favicon.png'))
+            handler: () => FileResponse.fromPath(path.join(this.publicAssetsPath, 'favicon.png'))
         });
+
     }
 
     private async buildFileTree(): Promise<TreeNode[]> {
         // 1) Gather every path relative to assetsPath
-        const items: { relPath: string, isFile: boolean }[] = await this.walk(this.assetsPath);
+        const items: WalkedPath[] = await this.walk(this.publicAssetsPath);
 
         // Intermediate map structure for building
         const root: NodeMap = {};
@@ -127,9 +152,9 @@ export class AssetService implements AssetServiceInterface {
     private async walk(
         dir: string,
         base: string = dir
-    ): Promise<{ relPath: string, isFile: boolean }[]> {
+    ): Promise<WalkedPath[]> {
         const entries: Dirent[] = await readdir(dir, { withFileTypes: true });
-        const results: { relPath: string, isFile: boolean }[] = [];
+        const results: WalkedPath[] = [];
         for (const entry of entries) {
             const abs: string = path.join(dir, entry.name);
             const rel: string = path.relative(base, abs);
@@ -146,26 +171,26 @@ export class AssetService implements AssetServiceInterface {
 }
 
 // 1) Define the helper with a `this` parameter
-Handlebars.registerHelper(
+handlebars.registerHelper(
     'renderTree',
     function(
-        this: Handlebars.HelperOptions, // ← explicitly type `this`
+        this: handlebars.HelperOptions, // ← explicitly type `this`
         nodes: TreeNode[]
-    ): Handlebars.SafeString {
+    ): handlebars.SafeString {
         let out: string = '';
         for (const node of nodes) {
             if (node.type === 'directory') {
-                out += `<details><summary>${Handlebars.escapeExpression(node.name)
+                out += `<details><summary>${handlebars.escapeExpression(node.name)
                 }</summary>`;
                 // 2) Call the helper recursively using `apply` so `this` stays typed
-                out += (Handlebars.helpers.renderTree as Function).apply(this, [node.children]);
+                out += (handlebars.helpers.renderTree as Function).apply(this, [node.children]);
                 out += '</details>';
             }
             else {
-                out += `<a class="file-link" href="${Handlebars.escapeExpression(node.route)
-                }">${Handlebars.escapeExpression(node.name)}</a>`;
+                out += `<a class="file-link" href="${handlebars.escapeExpression(node.route)
+                }">${handlebars.escapeExpression(node.name)}</a>`;
             }
         }
-        return new Handlebars.SafeString(out);
+        return new handlebars.SafeString(out);
     }
 );

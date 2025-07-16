@@ -8,8 +8,8 @@ export class Test {
     @Property.string({ minLength: 28 })
     value!: string;
 
-    // @Property.array({ items: { type: 'file' }, totalFileSize: '5mb' })
-    // files!: File;
+    @Property.array({ items: { type: 'file' } })
+    files!: File[];
 }
 
 export class TestCreateDTO extends OmitType(Test, ['id']) {

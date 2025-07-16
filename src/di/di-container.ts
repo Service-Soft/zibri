@@ -6,6 +6,9 @@ import { ZIBRI_DI_PROVIDERS } from './default/zibri-di-providers.default';
 import { NoProviderError } from './errors/no-provider.error';
 import { DiToken, DiProvider } from './models';
 
+/**
+ * The dependency injection container.
+ */
 export class DiContainer {
     private readonly providers: Map<DiToken<unknown>, DiProvider<unknown>> = new Map<DiToken<unknown>, DiProvider<unknown>>();
     private readonly instances: Map<DiToken<unknown>, unknown> = new Map<DiToken<unknown>, unknown>();
@@ -21,11 +24,20 @@ export class DiContainer {
         }
     }
 
+    /**
+     * Gets the DI Container instance.
+     * @returns The instance.
+     */
     static getInstance(): DiContainer {
         this.singleton ??= new DiContainer();
         return this.singleton;
     }
 
+    /**
+     * Registers the provider for dependency injection.
+     * @param provider - The provider to register.
+     * @throws When the provider is invalid.
+     */
     register<T>(provider: DiProvider<T>): void {
         if (!provider.useClass && !provider.useFactory) {
             throw new Error(`Provider for token ${provider.token.toString()} must specify useClass or useFactory`);
@@ -33,10 +45,22 @@ export class DiContainer {
         this.providers.set(provider.token, provider);
     }
 
+    /**
+     * Removes the provided token from the dependency injection system.
+     * @param token - The token to unregister.
+     * @throws When the app is initialized or running.
+     */
     unregister<T>(token: DiToken<T>): void {
         this.providers.delete(token);
     }
 
+    /**
+     * Injects the registered value for the provided token.
+     * @param token - The token to inject the registered value from.
+     * @param resolvingStack - The stack of the dependency injection.
+     * @returns The injected value.
+     * @throws When no provider for the token could be found or when the found provider is invalid.
+     */
     inject<T>(token: DiToken<T>, resolvingStack: Function[] = []): T {
         if (this.instances.has(token)) {
             return this.instances.get(token) as T;

@@ -1,3 +1,4 @@
+// eslint-disable-next-line jsdoc/require-jsdoc
 export type DeepPartial<T> = T | (T extends (infer U)[]
     ? DeepPartial<U>[]
     : T extends Map<infer K, infer V>

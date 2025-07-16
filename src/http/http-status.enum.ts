@@ -1,4 +1,7 @@
 
+/**
+ * Known http status.
+ */
 export enum HttpStatus {
     // Success
     OK = 200,
@@ -8,6 +11,7 @@ export enum HttpStatus {
     UNAUTHORIZED = 401,
     FORBIDDEN = 403,
     NOT_FOUND_ERROR = 404,
+    TOO_MANY_REQUESTS = 429,
     // Server Error
     INTERNAL_SERVER_ERROR = 500
 }

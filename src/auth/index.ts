@@ -8,3 +8,4 @@ export * from './user.service';
 export * from './user-service.interface';
 export * from './user-repository.interface';
 export * from './hash.utilities';
+export * from './auth-controller.interface';

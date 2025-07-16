@@ -1,11 +1,21 @@
 import { MetadataUtilities } from '../../utilities';
 import { AuthStrategies, IsLoggedInMetadata } from '../models';
 
+/**
+ * The type of the is logged in decorator.
+ */
 export interface IsLoggedInFn {
     (allowedStrategies?: AuthStrategies): MethodDecorator & ClassDecorator,
+    /**
+     * This skips the is logged in validation.
+     */
     skip: () => MethodDecorator & ClassDecorator
 }
 
+/**
+ * Marks an endpoint to be only reachable when there is a logged in user.
+ * @param allowedStrategies - The auth strategies that are allowed to be used to check that.
+ */
 export const isLoggedInDecorator: IsLoggedInFn = ((allowedStrategies?: AuthStrategies) => {
     const fullMetadata: IsLoggedInMetadata = { allowedStrategies };
 

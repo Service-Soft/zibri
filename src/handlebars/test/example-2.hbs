@@ -1,0 +1,96 @@
+{{!-- Page header --}}
+<header>
+    {{> navbar user=currentUser}}
+    <h1>Welcome back, {{currentUser.name}}!</h1>
+    {{#if (eq currentUser.role "admin")}}
+    <small>(Admin Dashboard)</small>
+    {{else if (eq currentUser.role "editor")}}
+    <small>(Editor Panel)</small>
+    {{else}}
+    <small>(User Homepage)</small>
+    {{/if}}
+</header>
+
+<main>
+    {{!-- Featured posts --}}
+    <section id="featured">
+        <h2>Featured</h2>
+        {{#if featuredPosts.length}}
+        <ul>
+            {{#each featuredPosts}}
+            <li>
+                <a href="/posts/{{this.id}}">{{this.title}}</a>
+                {{#if this.summary}}
+                <p>{{this.summary}}</p>
+                {{else}}
+                <p><em>No summary available</em></p>
+                {{/if}}
+            </li>
+            {{/each}}
+        </ul>
+        {{else}}
+        <p>No featured posts right now.</p>
+        {{/if}}
+    </section>
+
+    {{!-- Recent comments --}}
+    <section id="comments">
+        <h2>Recent Comments</h2>
+        {{#each (slice comments 0 5)}}
+        <article class="comment">
+            <header>
+                <strong>{{this.author}}</strong>
+                <time datetime="{{formatDate this.date " YYYY-MM-DD"}}">
+                    {{formatDate this.date "MMM D, YYYY"}}
+                </time>
+            </header>
+            <p>{{this.body}}</p>
+            {{#if this.replies}}
+            <ul class="replies">
+                {{#each this.replies}}
+                <li>{{this}}</li>
+                {{/each}}
+            </ul>
+            {{/if}}
+        </article>
+        {{else}}
+        <p>No comments yet. Be the first to leave one!</p>
+        {{/each}}
+    </section>
+
+    {{!-- User settings form --}}
+    {{#unless currentUser.isGuest}}
+    <section id="settings">
+        <h2>Account Settings</h2>
+        <form method="post" action="/settings">
+            <label>
+                Email:
+                <input type="email" name="email" value="{{currentUser.email}}" />
+            </label>
+            <label>
+                Display name:
+                <input type="text" name="displayName" value="{{currentUser.displayName}}" />
+            </label>
+            {{!-- show extra options for admins --}}
+            {{#if (contains currentUser.permissions "manage_users")}}
+            <fieldset>
+                <legend>Admin Controls</legend>
+                <label>
+                    Site mode:
+                    <select name="siteMode">
+                        <option value="live" {{#if (eq site.mode "live" )}}selected{{/if}}>Live</option>
+                        <option value="maintenance" {{#if (eq site.mode "maintenance" )}}selected{{/if}}>Maintenance
+                        </option>
+                    </select>
+                </label>
+            </fieldset>
+            {{/if}}
+            <button type="submit">Save Settings</button>
+        </form>
+    </section>
+    {{/unless}}
+</main>
+
+<footer>
+    <p>&copy; {{year}} Acme Corp</p>
+</footer>
