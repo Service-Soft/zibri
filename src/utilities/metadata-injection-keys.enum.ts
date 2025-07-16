@@ -1,3 +1,6 @@
+/**
+ * The keys used for defining metadata.
+ */
 export enum MetadataInjectionKeys {
     FILE_LOCATION = 'file:location',
     PARAM_TYPES = 'design:paramtypes',

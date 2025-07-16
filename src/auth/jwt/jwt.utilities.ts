@@ -1,6 +1,6 @@
 import { sign, verify, Secret, SignOptions } from 'jsonwebtoken';
 
-import { EncodedAccessToken } from './encoded-access-token.model';
+import { EncodedJwtAccessToken } from './encoded-jwt-access-token.model';
 
 /**
  * Encapsulates functionality of the jsonwebtoken package.
@@ -38,10 +38,10 @@ export abstract class JwtUtilities {
     static async verify<Role extends string>(
         token: string,
         secret: Secret
-    ): Promise<EncodedAccessToken<Role> | undefined> {
+    ): Promise<EncodedJwtAccessToken<Role> | undefined> {
         return new Promise((resolve) => {
             try {
-                const jwt: EncodedAccessToken<Role> = verify(token, secret, { complete: true }) as EncodedAccessToken<Role>;
+                const jwt: EncodedJwtAccessToken<Role> = verify(token, secret, { complete: true }) as EncodedJwtAccessToken<Role>;
                 resolve(jwt);
             }
             catch {

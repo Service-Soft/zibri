@@ -1,4 +1,4 @@
-import { BaseUser, Entity, IntersectionType, JwtCredentials, OmitType, Property } from 'zibri';
+import { BaseUser, Entity, CombinedType, JwtCredentials, OmitType, Property } from 'zibri';
 
 import { Roles } from './roles.enum';
 import { OmitStrict } from '../types';
@@ -22,9 +22,9 @@ export class User implements BaseUser<Roles> {
     company!: Company;
 }
 
-export class UserCreateDto extends IntersectionType(
+export class UserCreateDto extends CombinedType(
     OmitType(User, ['id', 'roles', 'company']),
-    OmitType(JwtCredentials, ['id', 'userId', 'username'])
+    OmitType(JwtCredentials, ['id', 'userId', 'email'])
 ) {}
 
 export type UserCreateData = OmitStrict<User, 'id' | 'company'>;

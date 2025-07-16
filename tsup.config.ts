@@ -9,5 +9,6 @@ export default defineConfig({
     splitting: false,
     sourcemap: true,
     clean: true,
-    dts: true
+    dts: true,
+    onSuccess: 'typedoc'
 });

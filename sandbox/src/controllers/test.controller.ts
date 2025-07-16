@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, Repository, InjectRepository, Auth, Response } from 'zibri';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Repository, InjectRepository, Auth, Response, KnownHeader } from 'zibri';
 
 import { Roles, Test, TestCreateDTO, User } from '../models';
 import { UserRepository } from '../repositories';
@@ -44,6 +44,7 @@ export class TestController {
     async updateById(
         @Param.path('id', { type: 'string', format: 'uuid' })
         id: string,
+        @Param.header(KnownHeader.USER_AGENT)
         @Body(Test)
         data: Test
     ): Promise<Test> {

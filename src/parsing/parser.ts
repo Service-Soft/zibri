@@ -8,12 +8,24 @@ import { BodyMetadata, HeaderParamMetadata, PathParamMetadata, QueryParamMetadat
 import { parseArray, parseBoolean, parseDate, parseNumber, parseObject, parseString } from './functions';
 import { ZibriApplication } from '../application';
 
+/**
+ * Function for parsing path parameters.
+ */
 type PathParamParseFunction = (rawValue: string | undefined, meta: PathParamMetadata) => unknown;
 
+/**
+ * Function for parsing query parameters.
+ */
 type QueryParamParseFunction = (rawValue: unknown, meta: QueryParamMetadata) => unknown;
 
+/**
+ * Function for parsing header parameters.
+ */
 type HeaderParamParseFunction = (rawValue: string | undefined, meta: HeaderParamMetadata) => unknown;
 
+/**
+ * Default parser implementation of Zibri.
+ */
 export class Parser implements ParserInterface {
     private readonly logger: LoggerInterface;
     private readonly bodyParsers: BodyParserInterface[] = [];
@@ -47,23 +59,27 @@ export class Parser implements ParserInterface {
         this.logger = inject(ZIBRI_DI_TOKENS.LOGGER);
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
     parseHeaderParam(req: HttpRequest, metadata: HeaderParamMetadata): unknown {
         const rawValue: string | undefined = req.header(metadata.name);
         return this.headerParamParseFunctions[metadata.type](rawValue, metadata);
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
     parseQueryParam(req: HttpRequest, metadata: QueryParamMetadata): unknown {
-        const rawValue: unknown = req.query[metadata.name];
+        const rawValue: string | undefined = req.query[metadata.name];
         return this.queryParamParseFunctions[metadata.type](rawValue, metadata);
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
     parsePathParam(req: HttpRequest, metadata: PathParamMetadata): unknown {
         const rawValue: string | undefined = req.params[metadata.name];
         return this.pathParamParseFunctions[metadata.type](rawValue, metadata);
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async parseRequestBody(req: HttpRequest, metadata: BodyMetadata): Promise<unknown> {
-        const contentType: string = req.headers['content-type']?.split(';')[0]?.trim().toLowerCase() ?? '';
+        const contentType: string = req.headers['Content-Type']?.split(';')[0]?.trim().toLowerCase() ?? '';
         if (!isMimeType(contentType)) {
             throw new Error(`Unsupported Content-Type: "${contentType}"`);
         }
@@ -80,6 +96,7 @@ export class Parser implements ParserInterface {
         return await fittingParsers[0].parse(req, metadata);
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async attachTo(app: ZibriApplication): Promise<void> {
         this.logger.info('registers', GlobalRegistry.bodyParsers.length, 'request body parsers:');
         for (const parserClass of GlobalRegistry.bodyParsers) {

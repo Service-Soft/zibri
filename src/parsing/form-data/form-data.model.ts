@@ -35,6 +35,13 @@ export class FormData<FormDataType extends object> {
         this.tempFolder = tempFolder;
     }
 
+    /**
+     * Creates a new form data object from the given input.
+     * @param value - The actual value of the form data.
+     * @param tempFolder - The temporary folder that was created on uploading the form data.
+     * @param cleanupAfterMs - A timeout after which the temporary folder is save to delete.
+     * @returns A new FormData object.
+     */
     static async create<FormDataType extends object>(
         value: FormDataType,
         tempFolder: string,

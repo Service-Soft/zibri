@@ -18,7 +18,7 @@ import { BaseUser, UserRepositories } from '../models';
  *
  *     constructor(
  *         \@InjectRepository(User)
- *         repo: Repository<User> // <-- The built in repository from zibri
+ *         repo: Repository<User> // <-- The built in repository from Zibri
  *     ) {
  *         super(User, repo);
  *     }

@@ -1,8 +1,8 @@
-import { CronConfig, CronJob, inject, Injectable, LoggerInterface, ZIBRI_DI_TOKENS } from 'zibri';
+import { CronJob, inject, Injectable, LoggerInterface, ZIBRI_DI_TOKENS, InitialCronConfig } from 'zibri';
 
 @Injectable()
 export class StatusCronJob extends CronJob {
-    readonly initialConfig: Partial<CronConfig> & Pick<CronConfig, | 'cron' | 'name'> = {
+    readonly initialConfig: InitialCronConfig = {
         name: 'Status',
         cron: '* * * * * *'
     };

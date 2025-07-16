@@ -1,34 +1,58 @@
+import { randomBytes } from 'crypto';
+
 import { SecuritySchemeObject } from 'openapi3-ts/dist/oas31';
 import { v4 } from 'uuid';
 
 import { inject, repositoryTokenFor, ZIBRI_DI_TOKENS } from '../../di';
 import { HttpRequest } from '../../http';
 import { AuthStrategyInterface } from '../auth-strategy.interface';
-import { BaseUser } from '../models';
+import { BaseUser, PasswordResetToken, PasswordResetTokenCreateData } from '../models';
 import { UserServiceInterface } from '../user-service.interface';
-import { EncodedAccessToken } from './encoded-access-token.model';
+import { EncodedJwtAccessToken } from './encoded-jwt-access-token.model';
+import { JwtAccessTokenPayload } from './jwt-access-token-payload.model';
 import { JwtAuthData } from './jwt-auth-data.model';
+import { JwtConfirmPasswordResetData } from './jwt-confirm-password-reset-data.model';
 import { JwtCredentials, JwtCredentialsDto } from './jwt-credentials.model';
+import { JwtRefreshLoginData } from './jwt-refresh-login-data.model';
+import { JwtRefreshTokenPayload } from './jwt-refresh-token-payload.model';
+import { JwtRefreshToken, JwtRefreshTokenCreateDto } from './jwt-refresh-token.model';
+import { JwtRequestPasswordResetData } from './jwt-request-password-reset-data.model';
 import { JwtUtilities } from './jwt.utilities';
-import { UnauthorizedError } from '../../error-handling';
-import { HashUtilities } from '../hash.utilities';
-import { AccessTokenPayload } from './access-token-payload.model';
-import { RefreshTokenPayload } from './refresh-token-payload.model';
-import { RefreshToken, RefreshTokenCreateDto } from './refresh-token.model';
 import { BaseDataSource, Repository } from '../../data-source';
+import { EmailPriority, EmailServiceInterface } from '../../email';
 import { BaseEntity } from '../../entity';
+import { TooManyRequestsError, UnauthorizedError } from '../../error-handling';
 import { GlobalRegistry } from '../../global';
+import { renderEmailTemplate } from '../../handlebars';
 import { LoggerInterface } from '../../logging';
 import { Newable } from '../../types';
+import { Ms } from '../../utilities';
+import { HashUtilities } from '../hash.utilities';
 import { NO_USER_REPOSITORIES_PROVIDED_ERROR_MESSAGE } from '../user.service';
 
+const INITIALIZE_ERROR_MESSAGE: string = 'Error initializing JwtAuthStrategy.';
+const INITIALIZE_ERROR_QUESTION: string = 'Did you forget to add it to your data source entities array?';
+
+/**
+ * Jwt auth strategy implementation of Zibri.
+ */
 export class JwtAuthStrategy<
     RoleType extends string,
     UserType extends BaseUser<RoleType> = BaseUser<RoleType>
 >
-implements AuthStrategyInterface<RoleType, UserType, JwtAuthData<RoleType>, JwtCredentialsDto> {
+implements AuthStrategyInterface<
+    RoleType,
+    UserType,
+    JwtAuthData<RoleType>,
+    JwtCredentialsDto,
+    JwtRequestPasswordResetData<RoleType, UserType>,
+    JwtConfirmPasswordResetData,
+    JwtRefreshLoginData
+> {
+    // eslint-disable-next-line jsdoc/require-jsdoc
     readonly name: string = 'jwt';
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
     readonly securityScheme: SecuritySchemeObject = {
         type: 'http',
         scheme: 'bearer',
@@ -40,24 +64,34 @@ implements AuthStrategyInterface<RoleType, UserType, JwtAuthData<RoleType>, JwtC
     private readonly accessTokenExpiresInMs: number;
     private readonly refreshTokenSecret: string;
     private readonly refreshTokenExpiresInMs: number;
+    private readonly passwordResetTokenExpiresInMs: number;
     private readonly userService: UserServiceInterface;
     private readonly logger: LoggerInterface;
+    private readonly emailService: EmailServiceInterface;
+    private readonly confirmPasswordResetUrl: string;
 
     constructor() {
         this.accessTokenSecret = inject(ZIBRI_DI_TOKENS.JWT_ACCESS_TOKEN_SECRET);
         this.accessTokenExpiresInMs = inject(ZIBRI_DI_TOKENS.JWT_ACCESS_TOKEN_EXPIRES_IN_MS);
         this.refreshTokenSecret = inject(ZIBRI_DI_TOKENS.JWT_REFRESH_TOKEN_SECRET);
         this.refreshTokenExpiresInMs = inject(ZIBRI_DI_TOKENS.JWT_REFRESH_TOKEN_EXPIRES_IN_MS);
+        this.passwordResetTokenExpiresInMs = inject(ZIBRI_DI_TOKENS.JWT_PASSWORD_RESET_TOKEN_EXPIRES_IN_MS);
         this.userService = inject(ZIBRI_DI_TOKENS.USER_SERVICE);
         this.logger = inject(ZIBRI_DI_TOKENS.LOGGER);
+        this.emailService = inject(ZIBRI_DI_TOKENS.EMAIL_SERVICE);
+        this.confirmPasswordResetUrl = inject(ZIBRI_DI_TOKENS.JWT_CONFIRM_PASSWORD_RESET_URL);
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
     init(): void {
         if (!this.accessTokenSecret) {
-            throw new Error(`No value provided for ${ZIBRI_DI_TOKENS.JWT_ACCESS_TOKEN_SECRET}`);
+            throw new Error('No value provided for ZIBRI_DI_TOKENS.JWT_ACCESS_TOKEN_SECRET');
         }
         if (!this.refreshTokenSecret) {
-            throw new Error(`No value provided for ${ZIBRI_DI_TOKENS.JWT_REFRESH_TOKEN_SECRET}`);
+            throw new Error('No value provided for ZIBRI_DI_TOKENS.JWT_REFRESH_TOKEN_SECRET');
+        }
+        if (!this.confirmPasswordResetUrl) {
+            throw new Error('No value provided for ZIBRI_DI_TOKENS.JWT_CONFIRM_PASSWORD_RESET_URL');
         }
         if (!GlobalRegistry.userRepositories.length) {
             throw new Error(NO_USER_REPOSITORIES_PROVIDED_ERROR_MESSAGE);
@@ -72,46 +106,52 @@ implements AuthStrategyInterface<RoleType, UserType, JwtAuthData<RoleType>, JwtC
             const dataSource: BaseDataSource = inject(dataSourceClass);
             entitiesInDataSources.push(...dataSource.entities);
         }
-        if (!entitiesInDataSources.includes(RefreshToken)) {
-            const message: string[] = ['Error initializing JwtAuthStrategy.', 'Could not find data source for the RefreshToken entity:'];
-            message.push('Did you forget to add it to your data source entities array?');
+        if (!entitiesInDataSources.includes(JwtRefreshToken)) {
+            const message: string[] = [
+                INITIALIZE_ERROR_MESSAGE,
+                'Could not find data source for the JwtRefreshToken entity:',
+                INITIALIZE_ERROR_QUESTION
+            ];
             throw new Error(message.join('\n'));
         }
         if (!entitiesInDataSources.includes(JwtCredentials)) {
-            const message: string[] = ['Error initializing JwtAuthStrategy.', 'Could not find data source for the JwtCredentials entity:'];
-            message.push('Did you forget to add it to your data source entities array?');
+            const message: string[] = [
+                INITIALIZE_ERROR_MESSAGE,
+                'Could not find data source for the JwtCredentials entity:',
+                INITIALIZE_ERROR_QUESTION
+            ];
+            throw new Error(message.join('\n'));
+        }
+        if (!entitiesInDataSources.includes(PasswordResetToken)) {
+            const message: string[] = [
+                INITIALIZE_ERROR_MESSAGE,
+                'Could not find data source for the PasswordResetToken entity:',
+                INITIALIZE_ERROR_QUESTION
+            ];
             throw new Error(message.join('\n'));
         }
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async login(credentials: JwtCredentialsDto): Promise<JwtAuthData<RoleType>> {
         try {
-            const foundUser: UserType = await this.userService.findByEmail(credentials.username);
+            const foundUser: UserType = await this.userService.findByEmail(credentials.email);
             const credentialsFound: JwtCredentials = await this.userService.resolveCredentialsFor(foundUser);
             const passwordMatched: boolean = await HashUtilities.equal(credentials.password, credentialsFound.password);
             if (!passwordMatched) {
                 throw new UnauthorizedError('Invalid email or password.');
             }
-            const accessToken: string = await this.generateAccessToken(foundUser);
-            const refreshToken: string = await this.generateRefreshToken(foundUser);
-
-            const refreshTokenRepository: Repository<RefreshToken> = inject(repositoryTokenFor(RefreshToken));
-            const data: RefreshTokenCreateDto = {
-                userId: foundUser.id,
-                value: refreshToken,
-                familyId: v4(),
-                blacklisted: false,
-                expirationDate: new Date(Date.now() + this.refreshTokenExpiresInMs)
-            };
-            await refreshTokenRepository.create(data);
+            const accessTokenValue: string = await this.generateAccessToken(foundUser);
+            const refreshTokenValue: string = await this.generateRefreshToken(foundUser);
+            await this.createRefreshToken(foundUser, refreshTokenValue);
 
             return {
                 accessToken: {
-                    value: accessToken,
+                    value: accessTokenValue,
                     expirationDate: new Date(Date.now() + this.accessTokenExpiresInMs)
                 },
                 refreshToken: {
-                    value: refreshToken,
+                    value: refreshTokenValue,
                     expirationDate: new Date(Date.now() + this.refreshTokenExpiresInMs)
                 },
                 userId: foundUser.id,
@@ -123,12 +163,155 @@ implements AuthStrategyInterface<RoleType, UserType, JwtAuthData<RoleType>, JwtC
         }
     }
 
+    private async createRefreshToken(foundUser: UserType, refreshTokenValue: string): Promise<JwtRefreshToken> {
+        const refreshTokenRepository: Repository<JwtRefreshToken> = inject(repositoryTokenFor(JwtRefreshToken));
+        const data: JwtRefreshTokenCreateDto = {
+            userId: foundUser.id,
+            value: refreshTokenValue,
+            familyId: v4(),
+            blacklisted: false,
+            expirationDate: new Date(Date.now() + this.refreshTokenExpiresInMs)
+        };
+        return await refreshTokenRepository.create(data);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async refreshLogin(data: JwtRefreshLoginData): Promise<JwtAuthData<RoleType>> {
+        const refreshToken: JwtRefreshToken = await this.verifyAndResolveRefreshToken(data.refreshToken);
+        const user: UserType = await this.userService.findById(refreshToken.userId);
+        const accessTokenValue: string = await this.generateAccessToken(user);
+
+        return {
+            userId: user.id,
+            roles: user.roles,
+            refreshToken: {
+                value: refreshToken.value,
+                expirationDate: refreshToken.expirationDate
+            },
+            accessToken: {
+                value: accessTokenValue,
+                expirationDate: new Date(Date.now() + this.accessTokenExpiresInMs)
+            }
+        };
+    }
+
+    private async verifyAndResolveRefreshToken(tokenValue: string): Promise<JwtRefreshToken> {
+        await JwtUtilities.verify(tokenValue, this.refreshTokenSecret);
+        const refreshTokenRepository: Repository<JwtRefreshToken> = inject(repositoryTokenFor(JwtRefreshToken));
+        const refreshToken: JwtRefreshToken | undefined = await refreshTokenRepository.findOne({ where: { value: tokenValue } }, false);
+
+        if (!refreshToken) {
+            throw new UnauthorizedError('Error verifying token: Invalid Token');
+        }
+        if (refreshToken.blacklisted) {
+            await refreshTokenRepository.deleteAll({ familyId: refreshToken.familyId });
+            throw new UnauthorizedError('The given refresh token has already been used.');
+        }
+
+        if (!this.isRefreshTokenExpired(refreshToken)) {
+            return refreshToken;
+        }
+
+        const user: UserType = await this.userService.findById(refreshToken.userId);
+        const refreshTokenValue: string = await this.generateRefreshToken(user);
+
+        const res: JwtRefreshToken = await this.createRefreshToken(user, refreshTokenValue);
+        await refreshTokenRepository.updateById(refreshToken.id, { blacklisted: true });
+        await refreshTokenRepository.deleteAll({ expirationDate: { before: new Date() } });
+        return res;
+    }
+
+    private isRefreshTokenExpired(refreshToken: JwtRefreshToken): boolean {
+        const createdAt: Date = new Date(new Date(refreshToken.expirationDate).getTime() - this.refreshTokenExpiresInMs);
+        const refreshTokenLifeTimeInMs: number = Date.now() - createdAt.getTime();
+        return refreshTokenLifeTimeInMs > this.refreshTokenExpiresInMs;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async requestPasswordReset(data: JwtRequestPasswordResetData<RoleType, UserType>): Promise<void> {
+        if (await this.activePasswordResetTokenAlreadyExists(data.user)) {
+            throw new TooManyRequestsError('A password reset has already been requested for this account.');
+        }
+
+        const passwordResetTokenRepository: Repository<
+            PasswordResetToken,
+            PasswordResetTokenCreateData
+        > = inject(repositoryTokenFor(PasswordResetToken));
+        const resetTokenData: PasswordResetTokenCreateData = {
+            value: randomBytes(16).toString('hex'),
+            userId: data.user.id,
+            expirationDate: new Date(Date.now() + this.passwordResetTokenExpiresInMs)
+        };
+        const resetToken: PasswordResetToken = await passwordResetTokenRepository.create(resetTokenData);
+
+        await this.emailService.queue({
+            recipients: [data.user.email],
+            subject: 'Password Reset',
+            html: await renderEmailTemplate(
+                'password-reset.hbs',
+                {
+                    user: data.user,
+                    confirmPasswordResetUrl: data.emailData?.confirmPasswordResetUrl ?? this.confirmPasswordResetUrl,
+                    resetToken,
+                    base: {
+                        title: 'Password Reset'
+                    }
+                }
+            ),
+            priority: EmailPriority.HIGH,
+            ...data
+        });
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async confirmPasswordReset(data: JwtConfirmPasswordResetData): Promise<void> {
+        const passwordResetTokenRepository: Repository<PasswordResetToken> = inject(repositoryTokenFor(PasswordResetToken));
+        const refreshTokenRepository: Repository<JwtRefreshToken> = inject(repositoryTokenFor(JwtRefreshToken));
+        const credentialsRepository: Repository<JwtCredentials> = inject(repositoryTokenFor(JwtCredentials));
+
+        // eslint-disable-next-line stylistic/max-len
+        const resetToken: PasswordResetToken | undefined = await passwordResetTokenRepository.findOne({ where: { value: data.resetToken } }, false);
+        if (!resetToken) {
+            throw new UnauthorizedError('Link invalid');
+        }
+        if (new Date(resetToken.expirationDate).getTime() <= Date.now()) {
+            await passwordResetTokenRepository.deleteById(resetToken.id);
+            throw new UnauthorizedError('Link expired');
+        }
+
+        const user: UserType = await this.userService.findById(resetToken.userId);
+        const credentials: JwtCredentials = await this.userService.resolveCredentialsFor(user);
+        const hashedPassword: string = await HashUtilities.hash(data.newPassword);
+        credentials.password = hashedPassword;
+
+        await credentialsRepository.updateById(credentials.id, credentials);
+        await passwordResetTokenRepository.deleteById(resetToken.id);
+        await refreshTokenRepository.deleteAll({ userId: resetToken.userId });
+        // TODO set require password change to false
+    }
+
+    private async activePasswordResetTokenAlreadyExists(user: BaseUser<RoleType>): Promise<boolean> {
+        const passwordResetTokenRepository: Repository<PasswordResetToken> = inject(repositoryTokenFor(PasswordResetToken));
+        const existingToken: PasswordResetToken | undefined = await passwordResetTokenRepository.findOne(
+            { where: { userId: user.id } },
+            false
+        );
+        if (existingToken) {
+            if (new Date(existingToken.expirationDate).getTime() > Date.now()) {
+                return true;
+            }
+            await passwordResetTokenRepository.deleteById(existingToken.id);
+        }
+        return false;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async resolveUser(request: HttpRequest): Promise<UserType | undefined> {
-        const jwt: string | undefined = this.extractTokenFromRequest(request);
+        const jwt: string | undefined = this.extractAccessTokenFromRequest(request);
         if (!jwt) {
             return undefined;
         }
-        const data: EncodedAccessToken<RoleType> | undefined = await JwtUtilities.verify(jwt, this.accessTokenSecret);
+        const data: EncodedJwtAccessToken<RoleType> | undefined = await JwtUtilities.verify(jwt, this.accessTokenSecret);
         if (!data) {
             return undefined;
         }
@@ -136,44 +319,51 @@ implements AuthStrategyInterface<RoleType, UserType, JwtAuthData<RoleType>, JwtC
         return await this.userService.findById<RoleType, UserType>(data.payload.id);
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async isLoggedIn(request: HttpRequest): Promise<boolean> {
-        const jwt: string | undefined = this.extractTokenFromRequest(request);
+        const jwt: string | undefined = this.extractAccessTokenFromRequest(request);
         if (!jwt) {
             return false;
         }
-        const data: EncodedAccessToken<RoleType> | undefined = await JwtUtilities.verify(jwt, this.accessTokenSecret);
+        const data: EncodedJwtAccessToken<RoleType> | undefined = await JwtUtilities.verify(jwt, this.accessTokenSecret);
         return !!data;
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async hasRole(request: HttpRequest, allowedRoles: RoleType[]): Promise<boolean> {
-        const jwt: string | undefined = this.extractTokenFromRequest(request);
+        const jwt: string | undefined = this.extractAccessTokenFromRequest(request);
         if (!jwt) {
             return false;
         }
-        const data: EncodedAccessToken<RoleType> | undefined = await JwtUtilities.verify(jwt, this.accessTokenSecret);
+        const data: EncodedJwtAccessToken<RoleType> | undefined = await JwtUtilities.verify(jwt, this.accessTokenSecret);
         if (!data) {
             return false;
         }
         return !!allowedRoles.find(r => data.payload.roles.includes(r));
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async belongsTo<TargetEntity extends Newable<BaseEntity>>(
         request: HttpRequest,
         targetEntity: TargetEntity,
         targetUserIdKey: keyof InstanceType<TargetEntity>,
         targetIdParamKey: string
     ): Promise<boolean> {
-        const jwt: string | undefined = this.extractTokenFromRequest(request);
+        const jwt: string | undefined = this.extractAccessTokenFromRequest(request);
         if (!jwt) {
             return false;
         }
-        const jwtData: EncodedAccessToken<RoleType> | undefined = await JwtUtilities.verify(jwt, this.accessTokenSecret);
+        const jwtData: EncodedJwtAccessToken<RoleType> | undefined = await JwtUtilities.verify(jwt, this.accessTokenSecret);
         if (!jwtData) {
             return false;
         }
         try {
             const repo: Repository<InstanceType<TargetEntity>> = inject(repositoryTokenFor(targetEntity));
-            const foundTarget: InstanceType<TargetEntity> = await repo.findById(request.params[targetIdParamKey]);
+            const targetId: string | undefined = request.params[targetIdParamKey];
+            if (targetId == undefined) {
+                throw new Error(`Could not find the target id specified as path param "${targetId}"`);
+            }
+            const foundTarget: InstanceType<TargetEntity> = await repo.findById(targetId);
             const userIdProperty: unknown = foundTarget[targetUserIdKey];
             if (Array.isArray(userIdProperty)) {
                 return userIdProperty.includes(jwtData.payload.id);
@@ -186,8 +376,8 @@ implements AuthStrategyInterface<RoleType, UserType, JwtAuthData<RoleType>, JwtC
         }
     }
 
-    private extractTokenFromRequest(request: HttpRequest): string | undefined {
-        const authHeader: string | string[] | undefined = request.headers.authorization;
+    private extractAccessTokenFromRequest(request: HttpRequest): string | undefined {
+        const authHeader: string | string[] | undefined = request.headers.Authorization;
         if (authHeader == undefined || typeof authHeader !== 'string') {
             return undefined;
         }
@@ -199,7 +389,7 @@ implements AuthStrategyInterface<RoleType, UserType, JwtAuthData<RoleType>, JwtC
     }
 
     private async generateAccessToken(user: UserType): Promise<string> {
-        const payload: AccessTokenPayload<RoleType, UserType> = {
+        const payload: JwtAccessTokenPayload<RoleType, UserType> = {
             id: user.id,
             roles: user.roles,
             email: user.email
@@ -209,7 +399,7 @@ implements AuthStrategyInterface<RoleType, UserType, JwtAuthData<RoleType>, JwtC
             return await JwtUtilities.sign(
                 payload,
                 this.accessTokenSecret,
-                { expiresIn: this.accessTokenExpiresInMs / 1000 }
+                { expiresIn: this.accessTokenExpiresInMs / Ms.SECOND }
             );
         }
         catch (error) {
@@ -218,12 +408,12 @@ implements AuthStrategyInterface<RoleType, UserType, JwtAuthData<RoleType>, JwtC
     }
 
     private async generateRefreshToken(user: UserType): Promise<string> {
-        const payload: RefreshTokenPayload<RoleType, UserType> = {
+        const payload: JwtRefreshTokenPayload<RoleType, UserType> = {
             userId: user.id
         };
 
         return await JwtUtilities.sign(payload, this.refreshTokenSecret, {
-            expiresIn: this.refreshTokenExpiresInMs / 1000,
+            expiresIn: this.refreshTokenExpiresInMs / Ms.SECOND,
             issuer: GlobalRegistry.getAppData('name')
         });
     }

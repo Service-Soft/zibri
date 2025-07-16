@@ -1,0 +1,39 @@
+<h1>Task List for {{user.name}}</h1>
+
+{{#if tasks.length}}
+    <ul>
+        {{#each tasks}}
+            <li>
+                {{#if this.completed}}
+                    ✔️
+                {{else}}
+                    🔲
+                {{/if}}
+                {{this.title}}
+
+                {{#if this.subTasks.length}}
+                    sub tasks
+                {{/if}}
+                {{#each this.subTasks}}
+                    {{#if this.completed}}
+                        ✔️
+                    {{else}}
+                        🔲
+                    {{/if}}
+                    {{this.title}}
+                    {{this.length}}
+
+                    {{#each this.data.categories}}
+                        {{this}}
+                    {{/each}}
+                {{/each}}
+
+                {{#each categories}}
+                    {{this}}
+                {{/each}}
+            </li>
+        {{/each}}
+    </ul>
+{{else}}
+    <p>No tasks found—enjoy your day off! 🎉</p>
+{{/if}}

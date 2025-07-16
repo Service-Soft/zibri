@@ -1,18 +1,27 @@
-import { fillArrayItemPropertyMetadata } from '../../entity';
 import { Header } from '../../http';
 import { MetadataUtilities } from '../../utilities';
 import { ArrayParamMetadata, ArrayParamMetadataInput, BooleanParamMetadata, BooleanParamMetadataInput, DateParamMetadata, DateParamMetadataInput, NumberParamMetadata, NumberParamMetadataInput, ObjectParamMetadata, ObjectParamMetadataInput, StringParamMetadata, StringParamMetadataInput } from '../models';
+import { createHeaderParamMetadata, createPathParamMetadata, createQueryParamMetadata } from '../param-metdata.helpers';
 
+/**
+ * Metadata of path parameters.
+ */
 export type PathParamMetadata = StringParamMetadata
     | NumberParamMetadata
     | BooleanParamMetadata
     | DateParamMetadata;
 
+/**
+ * Metadata Input of path parameters.
+ */
 export type PathParamMetadataInput = StringParamMetadataInput
     | NumberParamMetadataInput
     | BooleanParamMetadataInput
     | DateParamMetadataInput;
 
+/**
+ * Metadata of query parameters.
+ */
 export type QueryParamMetadata = StringParamMetadata
     | NumberParamMetadata
     | BooleanParamMetadata
@@ -20,6 +29,9 @@ export type QueryParamMetadata = StringParamMetadata
     | ObjectParamMetadata
     | ArrayParamMetadata;
 
+/**
+ * Metadata Input of query parameters.
+ */
 export type QueryParamMetadataInput = StringParamMetadataInput
     | NumberParamMetadataInput
     | BooleanParamMetadataInput
@@ -27,6 +39,9 @@ export type QueryParamMetadataInput = StringParamMetadataInput
     | ObjectParamMetadataInput
     | ArrayParamMetadataInput;
 
+/**
+ * Metadata of header parameters.
+ */
 export type HeaderParamMetadata = (
     StringParamMetadata
     | NumberParamMetadata
@@ -35,9 +50,15 @@ export type HeaderParamMetadata = (
     | ObjectParamMetadata
     | ArrayParamMetadata
 ) & {
+    /**
+     * The name of the header.
+     */
     name: Header
 };
 
+/**
+ * Metadata Input of path parameters.
+ */
 export type HeaderParamMetadataInput = StringParamMetadataInput
     | NumberParamMetadataInput
     | BooleanParamMetadataInput
@@ -45,10 +66,19 @@ export type HeaderParamMetadataInput = StringParamMetadataInput
     | ObjectParamMetadataInput
     | ArrayParamMetadataInput;
 
+/**
+ * Bundles decorators for injecting path, query and header parameters.
+ */
 // eslint-disable-next-line typescript/no-namespace
 export namespace Param {
+    // eslint-disable-next-line jsdoc/require-returns
+    /**
+     * Marks a path parameter.
+     * @param name - The name of the path parameter.
+     * @param options - Additional options like the type of the parameter etc.
+     */
     export function path(name: string, options: PathParamMetadataInput = { type: 'string' }): ParameterDecorator {
-        const fullMetadata: PathParamMetadata = resolvePathParamMetadata(name, options);
+        const fullMetadata: PathParamMetadata = createPathParamMetadata(name, options);
         return (target, propertyKey, parameterIndex) => {
             const ctor: Function = target.constructor;
             // eslint-disable-next-line unicorn/error-message
@@ -61,8 +91,14 @@ export namespace Param {
         };
     }
 
+    // eslint-disable-next-line jsdoc/require-returns
+    /**
+     * Marks a query parameter.
+     * @param name - The name of the query parameter.
+     * @param options - Additional options, like the type etc.
+     */
     export function query(name: string, options: QueryParamMetadataInput = { type: 'string' }): ParameterDecorator {
-        const fullMetadata: QueryParamMetadata = resolveQueryParamMetadata(name, options);
+        const fullMetadata: QueryParamMetadata = createQueryParamMetadata(name, options);
         return (target, propertyKey, parameterIndex) => {
             const ctor: Function = target.constructor;
             // eslint-disable-next-line unicorn/error-message
@@ -75,8 +111,14 @@ export namespace Param {
         };
     }
 
+    // eslint-disable-next-line jsdoc/require-returns
+    /**
+     * Marks a header parameter.
+     * @param name - The name of the header parameter.
+     * @param options - Additional options, like the type etc.
+     */
     export function header(name: Header, options: HeaderParamMetadataInput = { type: 'string' }): ParameterDecorator {
-        const fullMetadata: HeaderParamMetadata = resolveHeaderParamMetadata(name, options);
+        const fullMetadata: HeaderParamMetadata = createHeaderParamMetadata(name, options);
         return (target, propertyKey, parameterIndex) => {
             const ctor: Function = target.constructor;
             // eslint-disable-next-line unicorn/error-message
@@ -88,114 +130,4 @@ export namespace Param {
             MetadataUtilities.setRouteHeaderParams(ctor, headerParams, key);
         };
     }
-}
-
-function resolvePathParamMetadata(name: string, data: PathParamMetadataInput): PathParamMetadata {
-    switch (data.type) {
-        case 'string': {
-            return {
-                name,
-                required: true,
-                unique: false,
-                format: undefined,
-                description: undefined,
-                maxLength: undefined,
-                minLength: undefined,
-                regex: undefined,
-                enum: undefined,
-                ...data
-            };
-        }
-        case 'number': {
-            return {
-                name,
-                required: true,
-                unique: false,
-                description: undefined,
-                min: undefined,
-                max: undefined,
-                ...data
-            };
-        }
-        case 'boolean': {
-            return {
-                name,
-                required: true,
-                description: undefined,
-                ...data
-            };
-        }
-        case 'date': {
-            return {
-                name,
-                required: true,
-                description: undefined,
-                after: undefined,
-                before: undefined,
-                ...data
-            };
-        }
-    }
-}
-
-function resolveQueryParamMetadata(name: string, data: QueryParamMetadataInput): QueryParamMetadata {
-    switch (data.type) {
-        case 'string': {
-            return {
-                name,
-                required: true,
-                unique: false,
-                format: undefined,
-                description: undefined,
-                maxLength: undefined,
-                minLength: undefined,
-                regex: undefined,
-                enum: undefined,
-                ...data
-            };
-        }
-        case 'number': {
-            return {
-                name,
-                required: true,
-                unique: false,
-                description: undefined,
-                min: undefined,
-                max: undefined,
-                ...data
-            };
-        }
-        case 'date': {
-            return {
-                name,
-                required: true,
-                description: undefined,
-                after: undefined,
-                before: undefined,
-                ...data
-            };
-        }
-        case 'boolean':
-        case 'object': {
-            return {
-                name,
-                required: true,
-                description: undefined,
-                ...data
-            };
-        }
-        case 'array': {
-            return {
-                name,
-                required: true,
-                description: undefined,
-                ...data,
-                items: fillArrayItemPropertyMetadata(data.items, name)
-            };
-        }
-    }
-}
-
-function resolveHeaderParamMetadata(name: string, data: HeaderParamMetadataInput): HeaderParamMetadata {
-    return resolveQueryParamMetadata(name, data);
 }

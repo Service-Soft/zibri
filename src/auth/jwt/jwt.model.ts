@@ -1,5 +1,8 @@
 import { Property } from '../../entity';
 
+/**
+ * A Jwt, consisting of the token value and the expiration date.
+ */
 export class Jwt {
     /**
      * The token value.

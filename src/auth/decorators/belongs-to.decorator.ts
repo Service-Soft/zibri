@@ -3,6 +3,9 @@ import { Newable } from '../../types';
 import { MetadataUtilities } from '../../utilities';
 import { AuthStrategies, BelongsToMetadata } from '../models';
 
+/**
+ * The type of the belongs to decorator.
+ */
 export interface BelongsToFn {
     <T extends Newable<BaseEntity>>(
         targetEntity: T,
@@ -10,9 +13,19 @@ export interface BelongsToFn {
         targetUserIdKey?: keyof InstanceType<T>,
         allowedStrategies?: AuthStrategies
     ): MethodDecorator & ClassDecorator,
+    /**
+     * This skips the belongs to validation.
+     */
     skip: () => MethodDecorator & ClassDecorator
 }
 
+/**
+ * Marks an endpoint to be only reachable when the logged in user belongs to the requested resource somehow.
+ * @param targetEntity - The target entity that needs to be checked to belong to the user.
+ * @param targetIdParamKey - The key of the id path parameter in the endpoint.
+ * @param targetUserIdKey - The key on the target, that defines to which user it belongs.
+ * @param allowedStrategies - The auth strategies that are allowed to be used to check that.
+ */
 export const belongsToDecorator: BelongsToFn = (
     <T extends Newable<BaseEntity>>(
         targetEntity: T,

@@ -2,7 +2,7 @@ import { readFile } from 'fs';
 import path from 'path';
 
 import { NextFunction } from 'express';
-import Handlebars from 'handlebars';
+import handlebars from 'handlebars';
 
 import { GlobalErrorHandler } from './error-handler.model';
 import { inject, ZIBRI_DI_TOKENS } from '../di';
@@ -11,8 +11,15 @@ import { HttpError, InternalServerError, isHttpError } from './errors';
 import { isError } from './is-error.function';
 import { AssetServiceInterface } from '../assets';
 import { GlobalRegistry } from '../global';
-import { HttpRequest, HttpResponse, MimeType } from '../http';
+import { HttpRequest, HttpResponse, KnownHeader, MimeType } from '../http';
 
+/**
+ * The default error handler implementation of Zibri.
+ * @param error - The error that was caught.
+ * @param req - The http request.
+ * @param res - The http response.
+ * @param next - The express next function.
+ */
 export const errorHandler: GlobalErrorHandler = (error: unknown, req: HttpRequest, res: HttpResponse, next: NextFunction) => {
     const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
     if (isError(error)) {
@@ -32,7 +39,7 @@ export const errorHandler: GlobalErrorHandler = (error: unknown, req: HttpReques
 
     const preferred: string | false = req.accepts(MimeType.JSON, MimeType.HTML);
 
-    if (preferred !== 'html') {
+    if (preferred !== 'html' && preferred !== 'text/html') {
         res.status(httpError.status).json({
             status: httpError.status,
             name: httpError.name,
@@ -44,7 +51,7 @@ export const errorHandler: GlobalErrorHandler = (error: unknown, req: HttpReques
 
     const assetService: AssetServiceInterface = inject(ZIBRI_DI_TOKENS.ASSET_SERVICE);
     // eslint-disable-next-line promise/prefer-await-to-callbacks
-    readFile(path.join(assetService.assetsPath, 'template', 'error.hbs'), 'utf8', (err, source) => {
+    readFile(path.join(assetService.pageTemplatePath, 'error.hbs'), 'utf8', (err, source) => {
         if (err) {
             res.status(httpError.status).json({
                 status: httpError.status,
@@ -56,14 +63,19 @@ export const errorHandler: GlobalErrorHandler = (error: unknown, req: HttpReques
         }
 
         // compile the template
-        const template: HandlebarsTemplateDelegate = Handlebars.compile(source);
+        const template: HandlebarsTemplateDelegate = handlebars.compile(source);
         const html: string = template({ error: httpError, name: GlobalRegistry.getAppData('name') });
 
-        res.setHeader('Content-Type', 'text/html');
+        res.setHeader(KnownHeader.CONTENT_TYPE, MimeType.HTML);
         res.status(httpError.status).send(html);
     });
 };
 
+/**
+ * Converts the given value to an http error.
+ * @param value - The value to transform.
+ * @returns Value if it was a http error, a new internal server error otherwise.
+ */
 function toHttpError(value: unknown): HttpError {
     if (isHttpError(value)) {
         return value;

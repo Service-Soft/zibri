@@ -3,6 +3,10 @@ import { Newable } from '../../types';
 import { MetadataUtilities } from '../../utilities';
 import { BodyParserInterface } from '../body-parser.interface';
 
+// eslint-disable-next-line jsdoc/require-returns
+/**
+ * Marks a request body parser.
+ */
 export function BodyParser(): ClassDecorator {
     return target => {
         // eslint-disable-next-line unicorn/error-message

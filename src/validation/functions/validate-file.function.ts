@@ -3,6 +3,15 @@ import { MimeType } from '../../http';
 import { File } from '../../parsing';
 import { MaxFileSizeValidationProblem, IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationProblem, MimeTypeMismatchValidationProblem } from '../validation-problem.model';
 
+/**
+ * Validates the given file property.
+ * @param key - The key of the property.
+ * @param property - The actual value.
+ * @param metadata - The metadata of the property.
+ * @param parentKey - The key of the parent, if it exists.
+ * @returns All validation problems found.
+ * @throws When the property is not a file property.
+ */
 export function validateFile(
     key: string,
     property: unknown,

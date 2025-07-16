@@ -1,7 +1,9 @@
 import { MetadataInjectionKeys } from './metadata-injection-keys.enum';
 
+/**
+ * Utilities for dealing with reflection.
+ */
 export abstract class ReflectUtilities {
-
     /**
      * Set metadata on a target (class or prototype+property).
      * @param key - Unique metadata key (symbol or string).
@@ -42,6 +44,13 @@ export abstract class ReflectUtilities {
             : Reflect.getMetadata(key, target) as T;
     }
 
+    /**
+     * Read the own metadata from a target (class or prototype+property).
+     * @param key - Metadata key.
+     * @param target - Class constructor or prototype object.
+     * @param propertyKey - Optional property name.
+     * @returns The stored value or undefined.
+     */
     static getOwnMetadata<T>(key: MetadataInjectionKeys, target: Object, propertyKey?: string): T | undefined {
         return propertyKey != undefined
             // eslint-disable-next-line typescript/no-unsafe-argument, typescript/no-unsafe-member-access, typescript/no-explicit-any

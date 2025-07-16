@@ -3,6 +3,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 const CopyPlugin = require('copy-webpack-plugin');
 const { IgnorePlugin } = require('webpack');
+const { generateHandlebarTypeFiles } = require('zibri');
 
 class OnBuildSuccessPlugin {
     /** @type {import('webpack').WebpackPluginFunction } */
@@ -20,6 +21,17 @@ class OnBuildSuccessPlugin {
                 shell: true
             });
         });
+    }
+}
+
+class HandlebarsTypegenPlugin {
+    /** @type {import('webpack').WebpackPluginFunction } */
+    apply(compiler) {
+        // on every rebuild (and initial build), run our stub generator first
+        compiler.hooks.beforeCompile.tapPromise(
+            'HandlebarsTypegenPlugin',
+            () => generateHandlebarTypeFiles()
+        );
     }
 }
 
@@ -64,17 +76,37 @@ module.exports = {
             {
                 test: /\.js$/,
                 enforce: 'pre',
-                use: 'source-map-loader'
+                use: 'source-map-loader',
+                exclude: [/node_modules[\/\\]node-cron/]
+            },
+            {
+                test: /\.hbs$/,
+                use: [
+                    {
+                        loader: 'handlebars-loader',
+                        options: {
+                            // if you want to precompile
+                            runtime: 'handlebars/runtime',
+                            knownHelpersOnly: false
+                        }
+                    }
+                ]
             }
         ]
     },
     plugins: [
+        new HandlebarsTypegenPlugin(),
         new OnBuildSuccessPlugin(),
         new CopyPlugin({
             patterns: [
                 {
                     from: path.resolve(__dirname, 'assets'),
-                    to: path.resolve(__dirname, 'dist/assets'),
+                    to: path.resolve(__dirname, 'dist', 'assets'),
+                    noErrorOnMissing: true
+                },
+                {
+                    from: path.resolve(__dirname, 'src', 'templates'),
+                    to: path.resolve(__dirname, 'dist', 'assets', 'templates'),
                     noErrorOnMissing: true
                 }
             ]

@@ -17,6 +17,10 @@ export * from './http';
 export * from './validation';
 export * from './data-source';
 export * from './cron';
+export * from './email';
+export * from './rate-limiting';
+export * from './handlebars';
+
 export * from './types/newable.model';
 export * from './types/version.type';
 export * from './utilities/compare-versions.function';

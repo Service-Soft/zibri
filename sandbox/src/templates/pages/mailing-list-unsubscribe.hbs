@@ -1,0 +1,25 @@
+<div class="box" style="text-align: center; display: flex; flex-direction: column; gap: 24px;">
+    <img src="/assets/logo.jpg" width="200px" height="200px" style="display: block; margin-left: auto; margin-right: auto;">
+    <p>{{maskEmail subscriber.email}}</p>
+    <h1 style="margin-bottom: 8px; margin-top: 8px;">
+        You've unsubscribed from
+        <br>
+        {{mailingList.name}}
+    </h1>
+    <p style="margin-bottom: 16px">
+        We are sad to see you go 😕
+    </p>
+    <!-- <p>
+        If you have any feedback for us, we would be happy to hear it:
+    </p>
+    <textarea style="margin-left: 16px; margin-right: 16px;"></textarea>
+    <button style="margin-left: auto; margin-right: auto;" onclick="console.debug('Hello World')">Send</button> -->
+    <div>
+        <hr>
+    </div>
+    <p>
+        Unsubscribed by accident?
+        <br>
+        <a href="">Subscribe again</a> or <a href="/mailing-lists/preferences">manage other email preferences</a>
+    </p>
+</div>

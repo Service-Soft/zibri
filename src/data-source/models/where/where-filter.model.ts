@@ -5,12 +5,21 @@ import { NumberWhereFilter } from './number-where-filter.model';
 import { ObjectWhereFilter } from './object-where-filter.model';
 import { StringWhereFilter } from './string-where-filter.model';
 
+/**
+ * The type for a where property. Can either be a single where filter or an array of where filters.
+ */
 export type Where<T extends Object> = WhereFilter<T> | WhereFilter<T>[];
 
+/**
+ * A single where filter.
+ */
 export type WhereFilter<T extends Object> = {
     [P in keyof T]?: WhereFilterProperty<T[P]> | WhereFilterProperty<T[P]>[]
 };
 
+/**
+ * The definition for a single where filter property.
+ */
 export type WhereFilterProperty<T> = T extends string
     ? StringWhereFilter
     : T extends number

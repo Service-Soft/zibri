@@ -3,6 +3,10 @@ import { Newable } from '../../types';
 import { MetadataUtilities } from '../../utilities';
 import { BaseDataSource } from '../base-data-source.model';
 
+// eslint-disable-next-line jsdoc/require-returns
+/**
+ * Marks a class to be a data source.
+ */
 export function DataSource(): ClassDecorator {
     return target => {
         // eslint-disable-next-line unicorn/error-message

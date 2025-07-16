@@ -17,3 +17,18 @@ jobs:
             - uses: JS-DevTools/npm-publish@v3
               with:
                 token: ${{ secrets.NPM_TOKEN }}
+
+    updateDocs:
+        if: github.event.pull_request.merged
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                ref: release
+            - run: npm ci
+            - run: npm run build
+            - uses: actions/configure-pages@v5
+            - uses: actions/upload-pages-artifact@v3
+              with:
+                path: docs/generated
+            - uses: actions/deploy-pages@v4
