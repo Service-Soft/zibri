@@ -37,7 +37,7 @@ export class CronService implements CronServiceInterface {
         for (const cronJobClass of cronJobs) {
             const cronJob: CronJob = inject(cronJobClass);
             await cronJob.init();
-            this.logger.info(`-  ${cronJobClass.name} (${cronJob.active ? 'active' : 'not active'})`);
+            this.logger.info(`  -  ${cronJobClass.name} (${cronJob.active ? 'active' : 'not active'})`);
             this.cronJobs.push(cronJob);
         }
     }

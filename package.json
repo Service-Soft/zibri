@@ -13,8 +13,7 @@
     "files": [
         "./dist",
         "./README.md",
-        "./LICENSE",
-        "./assets"
+        "./LICENSE"
     ],
     "engines": {
         "node": ">=20"
@@ -51,6 +50,7 @@
         "testcontainers": "^10.26.0",
         "ts-jest": "^29.3.2",
         "tsup": "^8.4.0",
+        "typedoc": "^0.28.7",
         "typescript": "^5.8.3"
     },
     "peerDependencies": {

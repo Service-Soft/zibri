@@ -2,3 +2,4 @@ node_modules
 dist
 coverage
 *.hbs.ts
+docs/generated

@@ -1,3 +1,4 @@
+/* eslint-disable jsdoc/require-description */
 const path = require('path');
 const { spawn } = require('child_process');
 const CopyPlugin = require('copy-webpack-plugin');
@@ -75,7 +76,8 @@ module.exports = {
             {
                 test: /\.js$/,
                 enforce: 'pre',
-                use: 'source-map-loader'
+                use: 'source-map-loader',
+                exclude: [/node_modules[\/\\]node-cron/]
             },
             {
                 test: /\.hbs$/,
