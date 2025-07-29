@@ -69,6 +69,7 @@ function singleWhereFilterToFindOptionsWhere<T extends Object>(
             case 'array':
             case 'date':
             case 'file':
+            case 'unknown':
             default: {
                 break;
             }
@@ -255,7 +256,8 @@ function singlePropertyToFindOperator<T>(
                 }
                 return whereFilterToFindOptionsWhere(
                     whereFilter.where,
-                    (propertyMetadata as OneToOnePropertyMetadata<BaseEntity> | ManyToOnePropertyMetadata<BaseEntity>).target()
+                    (propertyMetadata as OneToOnePropertyMetadata<BaseEntity> | ManyToOnePropertyMetadata<BaseEntity>)
+                        .target() as unknown as Newable<Record<string, unknown>>
                 ) as unknown as FindOperator<T>;
             }
             case 'includes': {

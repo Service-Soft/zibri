@@ -20,6 +20,7 @@ export * from './cron';
 export * from './email';
 export * from './rate-limiting';
 export * from './handlebars';
+export * from './metrics';
 
 export * from './types/newable.model';
 export * from './types/version.type';

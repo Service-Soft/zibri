@@ -1,21 +1,16 @@
 import { randomBytes } from 'crypto';
 import path from 'path';
 
-import handlebars from 'handlebars';
-
 import { MailingListSubscriberCreateData, MailingListQueueEmailData, MailingListServiceInterface, BaseMailingListEmailTemplateData } from './mailing-list-service.interface';
-import { ZibriApplication } from '../../application';
 import { AssetServiceInterface } from '../../assets';
 import { BaseDataSource, Repository } from '../../data-source';
 import { inject, repositoryTokenFor, ZIBRI_DI_TOKENS } from '../../di';
 import { BaseEntity } from '../../entity';
 import { GlobalRegistry } from '../../global';
-import { BaseEmailTemplateData, renderPageTemplate, renderTemplate, renderTemplateString } from '../../handlebars';
-import { HttpMethod } from '../../http';
+import { BaseEmailTemplateData, renderTemplate, renderTemplateString } from '../../handlebars';
 import { Route } from '../../routing';
 import { EmailServiceInterface } from '../email-service.interface';
-import { MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken, MailingListSubscriptionConfirmationTokenCreateData, UpdateMailingListPreferences } from './models';
-import { HtmlResponse } from '../../parsing';
+import { MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken, MailingListSubscriptionConfirmationTokenCreateData } from './models';
 import { Newable } from '../../types';
 import { chunkedPromiseAll } from '../../utilities';
 import { EmailPriority } from '../models';
@@ -56,6 +51,14 @@ export class MailingListService implements MailingListServiceInterface {
         return inject(repositoryTokenFor(MailingListSubscriber));
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    protected get confirmationTokenRepository(): Repository<
+        MailingListSubscriptionConfirmationToken,
+        MailingListSubscriptionConfirmationTokenCreateData
+    > {
+        return inject(repositoryTokenFor(MailingListSubscriptionConfirmationToken));
+    }
+
     constructor() {
         this.emailService = inject(ZIBRI_DI_TOKENS.EMAIL_SERVICE);
         this.assetService = inject(ZIBRI_DI_TOKENS.ASSET_SERVICE);
@@ -65,83 +68,8 @@ export class MailingListService implements MailingListServiceInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    attachTo(app: ZibriApplication): void {
+    attachTo(): void {
         this.validate();
-        this.registerRoutes(app);
-    }
-
-    private registerRoutes(app: ZibriApplication): void {
-        app.router.register({
-            httpMethod: HttpMethod.GET,
-            route: `${this.mailingListBaseRoute}/:id/unsubscribe`,
-            pathParams: {
-                id: { type: 'string', format: 'uuid' }
-            },
-            queryParams: {
-                subscriberId: { type: 'string', format: 'uuid' }
-            },
-            handler: async (req) => {
-                const mailingList: MailingList = await this.mailingListRepository.findById(req.params.id);
-                const subscriber: MailingListSubscriber = await this.subscriberRepository.findById(req.query.subscriberId);
-                await this.unsubscribeFromList(req.params.id, req.query.subscriberId);
-                const html: string = await renderPageTemplate(
-                    'mailing-list-unsubscribe.hbs',
-                    {
-                        base: { title: 'Unsubscribe' },
-                        mailingList,
-                        subscriber
-                    }
-                );
-                return HtmlResponse.fromString(html);
-            }
-        });
-        app.router.register({
-            httpMethod: HttpMethod.GET,
-            route: `${this.mailingListBaseRoute}/preferences`,
-            queryParams: {
-                subscriberId: { type: 'string', format: 'uuid' }
-            },
-            handler: async (req) => {
-                const subscriber: MailingListSubscriber = await this.subscriberRepository.findById(
-                    req.query.subscriberId,
-                    { relations: ['mailingLists'] }
-                );
-                const mailingLists: MailingList[] = await this.mailingListRepository.findAll();
-                const html: string = await renderPageTemplate(
-                    'mailing-list-preferences.hbs',
-                    {
-                        base: { title: 'Preferences' },
-                        mailingListBaseRoute: this.mailingListBaseRoute,
-                        mailingLists: mailingLists.map(l => (
-                            {
-                                data: l,
-                                isSubscribedTo: subscriber.mailingLists.find(sl => sl.id === l.id)
-                            }
-                        )),
-                        subscriber
-                    }
-                );
-                return HtmlResponse.fromString(html);
-            }
-        });
-        app.router.register({
-            httpMethod: HttpMethod.PATCH,
-            route: `${this.mailingListBaseRoute}/preferences`,
-            openApi: { useInOpenApi: true, tags: ['MailingLists'] },
-            bodyMetadata: { modelClass: UpdateMailingListPreferences },
-            queryParams: {
-                subscriberId: { type: 'string' }
-            },
-            handler: async (req) => {
-                const updatedSubscriber: MailingListSubscriber = await this.subscriberRepository.updateById(
-                    req.query.subscriberId,
-                    {
-                        mailingLists: req.body.mailingListIds.map(id => ({ id }))
-                    }
-                );
-                return updatedSubscriber;
-            }
-        });
     }
 
     private validate(): void {
@@ -215,10 +143,6 @@ export class MailingListService implements MailingListServiceInterface {
         subscriber: MailingListSubscriberCreateData,
         emailData: MailingListQueueEmailData<T>
     ): Promise<void> {
-        const confirmationTokenRepository: Repository<
-            MailingListSubscriptionConfirmationToken,
-            MailingListSubscriptionConfirmationTokenCreateData
-        > = inject(repositoryTokenFor(MailingListSubscriptionConfirmationToken));
 
         const foundSubscriber: MailingListSubscriber | undefined = await this.subscriberRepository.findOne(
             { where: { email: subscriber.email } },
@@ -230,7 +154,7 @@ export class MailingListService implements MailingListServiceInterface {
             return;
         }
 
-        await confirmationTokenRepository.create({
+        await this.confirmationTokenRepository.create({
             email: subscriber.email,
             value: randomBytes(16).toString('hex'),
             expirationDate: new Date(Date.now() + this.mailingListSubscriptionConfirmationTokenExpiresInMs),
@@ -251,12 +175,7 @@ export class MailingListService implements MailingListServiceInterface {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async confirmSubscribeToList(confirmationTokenValue: string): Promise<void> {
-        const confirmationTokenRepository: Repository<
-            MailingListSubscriptionConfirmationToken,
-            MailingListSubscriptionConfirmationTokenCreateData
-        > = inject(repositoryTokenFor(MailingListSubscriptionConfirmationToken));
-
-        const foundToken: MailingListSubscriptionConfirmationToken = await confirmationTokenRepository.findOne(
+        const foundToken: MailingListSubscriptionConfirmationToken = await this.confirmationTokenRepository.findOne(
             { where: { value: confirmationTokenValue } }
         );
         const mailingList: MailingList = await this.mailingListRepository.findById(foundToken.listId);
@@ -289,21 +208,3 @@ export class MailingListService implements MailingListServiceInterface {
         await this.subscriberRepository.updateById(subscriberId, { mailingLists: newMailingLists });
     }
 }
-
-// eslint-disable-next-line jsdoc/require-jsdoc
-function maskEmail(email: string): string {
-    const [local, domain] = email.split('@');
-    if (!domain) {
-        return email;
-    }
-    const visible: string = local.slice(0, 2);
-    const stars: string = '*'.repeat(Math.max(0, local.length - 2));
-    return `${visible}${stars}@${domain}`;
-}
-
-handlebars.registerHelper('maskEmail', (email: unknown) => {
-    if (typeof email !== 'string') {
-        return '';
-    }
-    return new handlebars.SafeString(maskEmail(email));
-});

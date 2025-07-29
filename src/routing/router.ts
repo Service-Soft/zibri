@@ -47,7 +47,7 @@ export class Router implements RouterInterface {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     init(app: ZibriApplication): void {
-        this.logger.info('registers', app.options.controllers.length, 'controllers:');
+        this.logger.info(`registers ${app.options.controllers.length} controllers:`);
         for (const controller of app.options.controllers) {
             const routes: ControllerRouteConfiguration[] = MetadataUtilities.getControllerRoutes(controller);
             this.logger.info(`  - ${controller.name} (${routes.length} routes)`);
@@ -116,7 +116,7 @@ export class Router implements RouterInterface {
 
         };
         const handler: RequestHandler = this.routeToRequestHandler(route);
-        this.logger.debug('- mounting', route.httpMethod.toUpperCase(), `${route.route}`);
+        this.logger.debug(`- mounting ${route.httpMethod.toUpperCase()} ${route.route}`);
         this.manuallyRegisteredRoutes.push(
             route as RouteConfiguration<
                 BodyMetadata,
@@ -145,6 +145,9 @@ export class Router implements RouterInterface {
         }
 
         switch (httpMethod) {
+            case HttpMethod.HEAD:
+            case HttpMethod.OPTIONS:
+            case HttpMethod.TRACE:
             case HttpMethod.GET: {
                 return { useInOpenApi: false };
             }
@@ -172,7 +175,7 @@ export class Router implements RouterInterface {
         for (const route of routes) {
             const handler: RequestHandler = this.controllerRouteToRequestHandler(controllerClass, route);
             const finalRoute: string = `${baseRoute}${route.route}`;
-            this.logger.debug('- mounting', route.httpMethod.toUpperCase(), `${finalRoute}`);
+            this.logger.debug(`- mounting ${route.httpMethod.toUpperCase()} ${finalRoute}`);
             this.expressRouter[route.httpMethod](baseRoute + route.route, handler);
         }
     }

@@ -1,26 +1,37 @@
+import { ZibriApplication } from '../application';
+import { LogContextInput } from './log-context.model';
+import { BaseLoggerTransportConfig, LoggerTransport } from './transport/logger-transport.model';
 
 /**
  * Interface for a logger.
  */
 export interface LoggerInterface {
     /**
+     * The transports to be used by the logger.
+     */
+    transports: LoggerTransport<BaseLoggerTransportConfig>[],
+    /**
+     * Attaches the service to the Zibri application.
+     */
+    attachTo: (app: ZibriApplication) => void | Promise<void>,
+    /**
      * Logs a debug message.
      */
-    debug: (...messages: (string | number)[]) => void,
+    debug: (message: string, context?: LogContextInput) => void,
     /**
      * Logs a info message.
      */
-    info: (...messages: (string | number)[]) => void,
+    info: (message: string, context?: LogContextInput) => void,
     /**
      * Logs a warning.
      */
-    warn: (...messages: (string | number)[]) => void,
+    warn: (message: string, context?: LogContextInput) => void,
     /**
      * Logs a error.
      */
-    error: (...messages: (string | number | Error)[]) => void,
+    error: (error: Error, context?: LogContextInput) => void,
     /**
      * Logs a critical error.
      */
-    critical: (...messages: (string | number | Error)[]) => void
+    critical: (error: Error, context?: LogContextInput) => void
 }

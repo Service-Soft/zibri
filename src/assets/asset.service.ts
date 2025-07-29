@@ -3,7 +3,6 @@ import { readdir } from 'fs/promises';
 import path from 'path';
 
 import express from 'express';
-import handlebars from 'handlebars';
 
 import { AssetServiceInterface } from './asset-service.interface';
 import { ZibriApplication } from '../application';
@@ -22,7 +21,7 @@ type FileNode = { type: 'file', name: string, route: string };
 type DirectoryNode = { type: 'directory', name: string, children: TreeNode[] };
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-type TreeNode = FileNode | DirectoryNode;
+export type TreeNode = FileNode | DirectoryNode;
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 type NodeMap = Record<string, { directory?: NodeMap, fileRoute?: string } | undefined>;
@@ -169,28 +168,3 @@ export class AssetService implements AssetServiceInterface {
         return results;
     }
 }
-
-// 1) Define the helper with a `this` parameter
-handlebars.registerHelper(
-    'renderTree',
-    function(
-        this: handlebars.HelperOptions, // ← explicitly type `this`
-        nodes: TreeNode[]
-    ): handlebars.SafeString {
-        let out: string = '';
-        for (const node of nodes) {
-            if (node.type === 'directory') {
-                out += `<details><summary>${handlebars.escapeExpression(node.name)
-                }</summary>`;
-                // 2) Call the helper recursively using `apply` so `this` stays typed
-                out += (handlebars.helpers.renderTree as Function).apply(this, [node.children]);
-                out += '</details>';
-            }
-            else {
-                out += `<a class="file-link" href="${handlebars.escapeExpression(node.route)
-                }">${handlebars.escapeExpression(node.name)}</a>`;
-            }
-        }
-        return new handlebars.SafeString(out);
-    }
-);

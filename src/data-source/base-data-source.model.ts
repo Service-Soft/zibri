@@ -34,11 +34,12 @@ export abstract class BaseDataSource {
     private get columnTypeMapping(): Record<ToColumnMappableTypes, ColumnType> {
         return {
             array: 'array',
-            number: Number,
-            string: String,
+            number: 'decimal',
+            string: 'varchar',
             object: 'jsonb',
             date: 'timestamptz',
             boolean: 'boolean',
+            unknown: 'jsonb',
             ...this.columnTypeMappingOverride
         };
     }
@@ -203,6 +204,7 @@ export abstract class BaseDataSource {
         switch (metadata.type) {
             case 'boolean':
             case 'object':
+            case 'unknown':
             case 'date': {
                 return {
                     nullable: !metadata.required,
@@ -318,18 +320,18 @@ export abstract class BaseDataSource {
         });
 
         for (const migration of migrationsToRunUp) {
-            this.logger.info('    > runs up migration', migration.name);
+            this.logger.info(`    > runs up migration ${migration.name}`);
             await migration.migration.runUp();
         }
 
         for (const migration of migrationsToRunDown) {
-            this.logger.info('    > runs down migration', migration.name);
+            this.logger.info(`    > runs down migration ${migration.name}`);
             await migration.migration.runDown();
         }
 
         const skipped: number = allMigrations.length - migrationsToRunDown.length - migrationsToRunUp.length;
         if (skipped) {
-            this.logger.info('    > skipped', skipped, 'migrations that have already been applied');
+            this.logger.info(`    > skipped ${skipped} migrations that have already been applied`);
         }
     }
 

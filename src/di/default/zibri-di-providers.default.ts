@@ -8,12 +8,14 @@ import { CronService, CronServiceInterface } from '../../cron';
 import { DataSourceService, DataSourceServiceInterface } from '../../data-source';
 import { EmailConfigInput, EmailService, EmailServiceInterface, MailingListService, MailingListServiceInterface } from '../../email';
 import { errorHandler, GlobalErrorHandler } from '../../error-handling';
-import { Logger, LoggerInterface, LogLevel } from '../../logging';
+import { BaseLoggerTransportConfig, Logger, LoggerInterface, LoggerTransport, LogLevel } from '../../logging';
+import { MetricsServiceInterface, PrometheusMetricsService } from '../../metrics';
 import { OpenApiService, OpenApiServiceInterface } from '../../open-api';
 import { Parser, ParserInterface } from '../../parsing';
 import { Router, RouterInterface } from '../../routing';
 import { OmitStrict } from '../../types';
-import { formatDate, Ms } from '../../utilities';
+import { Ms } from '../../utilities';
+import { formatDate } from '../../utilities/format-date.function';
 import { ValidationService, ValidationServiceInterface } from '../../validation';
 import { DiProvider } from '../models';
 
@@ -21,8 +23,10 @@ type ZibriDiProvider<T> = OmitStrict<DiProvider<T>, 'token'>;
 
 type ZibriDiProviders = {
     [ZIBRI_DI_TOKENS.ROUTER]: ZibriDiProvider<RouterInterface>,
-    [ZIBRI_DI_TOKENS.LOG_LEVEL]: ZibriDiProvider<LogLevel>,
     [ZIBRI_DI_TOKENS.LOGGER]: ZibriDiProvider<LoggerInterface>,
+    [ZIBRI_DI_TOKENS.LOGGER_TRANSPORTS]: ZibriDiProvider<LoggerTransport<BaseLoggerTransportConfig>[]>,
+    [ZIBRI_DI_TOKENS.LOGGER_CLEANUP_AFTER_MS]: ZibriDiProvider<Record<LogLevel, number>>,
+    [ZIBRI_DI_TOKENS.METRICS_SERVICE]: ZibriDiProvider<MetricsServiceInterface>,
     [ZIBRI_DI_TOKENS.ASSET_SERVICE]: ZibriDiProvider<AssetServiceInterface>,
     [ZIBRI_DI_TOKENS.GLOBAL_ERROR_HANDLER]: ZibriDiProvider<GlobalErrorHandler>,
     [ZIBRI_DI_TOKENS.OPEN_API_SERVICE]: ZibriDiProvider<OpenApiServiceInterface>,
@@ -51,8 +55,23 @@ export const ZIBRI_DI_PROVIDERS: Record<
     ZibriDiProvider<unknown>
 > = {
     [ZIBRI_DI_TOKENS.ROUTER]: { useClass: Router },
-    [ZIBRI_DI_TOKENS.LOG_LEVEL]: { useFactory: () => 'info' },
     [ZIBRI_DI_TOKENS.LOGGER]: { useClass: Logger },
+    [ZIBRI_DI_TOKENS.LOGGER_TRANSPORTS]: {
+        useFactory: () => [
+            LoggerTransport.db(LogLevel.INFO),
+            LoggerTransport.console(LogLevel.INFO)
+        ]
+    },
+    [ZIBRI_DI_TOKENS.LOGGER_CLEANUP_AFTER_MS]: {
+        useFactory: () => ({
+            [LogLevel.DEBUG]: Ms.WEEK * 2,
+            [LogLevel.INFO]: Ms.WEEK * 2,
+            [LogLevel.WARN]: Ms.WEEK * 2,
+            [LogLevel.ERROR]: Ms.WEEK * 2,
+            [LogLevel.CRITICAL]: Ms.WEEK * 2
+        })
+    },
+    [ZIBRI_DI_TOKENS.METRICS_SERVICE]: { useClass: PrometheusMetricsService },
     [ZIBRI_DI_TOKENS.ASSET_SERVICE]: { useClass: AssetService },
     [ZIBRI_DI_TOKENS.GLOBAL_ERROR_HANDLER]: { useFactory: () => errorHandler },
     [ZIBRI_DI_TOKENS.OPEN_API_SERVICE]: { useClass: OpenApiService },

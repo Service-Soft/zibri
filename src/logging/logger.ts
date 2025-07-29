@@ -1,80 +1,94 @@
-/* eslint-disable no-console */
+import { v4 } from 'uuid';
+
 import { ZIBRI_DI_TOKENS, inject } from '../di';
-import { blue, bright, getTimestamp, green, purple, red, reset, spacing, warn } from './logger.helpers';
+import { errorToLoggedError } from './error-to-logged-error.function';
+import { LogCleanupCronJob } from './log-cleanup.cron-job';
+import { LogContextInput } from './log-context.model';
+import { LogLevel } from './log-level.enum';
+import { Log } from './log.model';
 import { LoggerInterface } from './logger.interface';
-
-// eslint-disable-next-line typescript/typedef
-const LOG_LEVEL_VALUES = {
-    debug: 0,
-    info: 1,
-    warn: 2,
-    error: 3,
-    critical: 4
-} as const;
-
-// eslint-disable-next-line jsdoc/require-jsdoc
-type LogLevels = typeof LOG_LEVEL_VALUES;
-
-/**
- * The possible log levels.
- */
-export type LogLevel = keyof LogLevels;
+import { ZibriApplication } from '../application';
+import { GlobalRegistry } from '../global';
+import { BaseLoggerTransportConfig, LoggerTransport } from './transport/logger-transport.model';
 
 /**
  * Default logger implementation of Zibri.
  */
 export class Logger implements LoggerInterface {
+
     // eslint-disable-next-line jsdoc/require-jsdoc
-    debug(...messages: (string | number)[]): void {
-        this.log('debug', ...messages);
+    transports: LoggerTransport<BaseLoggerTransportConfig>[];
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    protected cleanupAfterMs: Record<LogLevel, number>;
+
+    constructor() {
+        this.transports = inject(ZIBRI_DI_TOKENS.LOGGER_TRANSPORTS);
+        this.cleanupAfterMs = inject(ZIBRI_DI_TOKENS.LOGGER_CLEANUP_AFTER_MS);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    info(...messages: (string | number)[]): void {
-        this.log('info', ...messages);
+    attachTo(app: ZibriApplication): void {
+        app.options.cronJobs.push(LogCleanupCronJob);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    warn(...messages: (string | number)[]): void {
-        this.log('warn', ...messages);
+    debug(message: string, context?: LogContextInput): void {
+        void this.log(LogLevel.DEBUG, message, undefined, context);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    error(...messages: (string | number | Error)[]): void {
-        this.log('error', ...messages);
+    info(message: string, context?: LogContextInput): void {
+        void this.log(LogLevel.INFO, message, undefined, context);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    critical(...messages: (string | number | Error)[]): void {
-        this.log('critical', ...messages);
+    warn(message: string, context?: LogContextInput): void {
+        void this.log(LogLevel.WARN, message, undefined, context);
     }
 
-    private log(level: LogLevel, ...messages: (string | number | Error)[]): void {
-        const logLevel: LogLevel = inject(ZIBRI_DI_TOKENS.LOG_LEVEL);
-        if (LOG_LEVEL_VALUES[logLevel] > LOG_LEVEL_VALUES[level]) {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    error(error: Error, context?: LogContextInput): void {
+        void this.log(LogLevel.ERROR, error.message, error, context);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    critical(error: Error, context?: LogContextInput): void {
+        void this.log(LogLevel.CRITICAL, error.message, error, context);
+    }
+
+    private async log(level: LogLevel, message: string, error: Error | undefined, context: LogContextInput | undefined): Promise<void> {
+        if (!this.transports.find(t => t.config.level <= level)) {
             return;
         }
-        const timeStamp: string = getTimestamp();
 
-        switch (level) {
-            case 'debug': {
-                console.debug(timeStamp, `${green}${bright}DEBUG${reset}${spacing}`, ...messages);
-                return;
+        // eslint-disable-next-line unicorn/error-message
+        const line: string = (new Error().stack ?? '').split('\n')[3];
+        const matches: RegExpMatchArray | null = line.match(/\((.*):\d+:\d+\)/);
+        const origin: string = matches?.[0].split('(')[1].split(')')[0] ?? 'unknown';
+        const log: Log = {
+            id: v4(),
+            createdAt: new Date(),
+            cleanupAt: new Date(Date.now() + this.cleanupAfterMs[level]),
+            message,
+            error: error ? errorToLoggedError(error) : undefined,
+            context: { ...context, origin },
+            level
+        };
+
+        for (const transport of this.transports) {
+            if (transport.config.level > level) {
+                continue;
             }
-            case 'info': {
-                console.info(timeStamp, `${blue}${bright}INFO${reset} ${spacing}`, ...messages);
-                return;
+            if (transport.config.register !== 'directly' && !GlobalRegistry.isAppInitialized() && !GlobalRegistry.isAppRunning()) {
+                continue;
             }
-            case 'warn': {
-                warn(...messages);
-                return;
+
+            try {
+                await transport.send(log, transport.config);
             }
-            case 'error': {
-                console.error(timeStamp, `${red}${bright}ERROR${reset}${spacing}`, ...messages);
-                return;
-            }
-            case 'critical': {
-                console.error(timeStamp, `${purple}${bright}FATAL${reset}${spacing}`, ...messages);
+            catch (error) {
+                // eslint-disable-next-line no-console
+                console.error(`There was an error when logging on the transport ${transport.config.name}`, error);
             }
         }
     }

@@ -11,7 +11,9 @@ import { register } from './di/register.function';
 import { EmailServiceInterface, MailingListServiceInterface } from './email';
 import { UnmatchedRouteError } from './error-handling';
 import { GlobalRegistry } from './global';
+import { HandlebarUtilities } from './handlebars/handlebar.utilities';
 import { LoggerInterface } from './logging';
+import { MetricsServiceInterface } from './metrics';
 import { OpenApiServiceInterface } from './open-api';
 import { FormDataBodyParser, JsonBodyParser, ParserInterface } from './parsing';
 import { Route, RouterInterface } from './routing';
@@ -39,6 +41,7 @@ export class ZibriApplication {
         return this._router;
     }
     private logger!: LoggerInterface;
+    private metricsService!: MetricsServiceInterface;
     private assetService!: AssetServiceInterface;
     private openApiService!: OpenApiServiceInterface;
     private parser!: ParserInterface;
@@ -80,23 +83,32 @@ export class ZibriApplication {
 
     /**
      * Initializes the app.
+     * @param H - The global handlebars instance, needed to provide some helpers used in templating.
      */
-    async init(): Promise<void> {
+    async init(H: typeof Handlebars): Promise<void> {
+        HandlebarUtilities.init(H);
         GlobalRegistry.setAppData(this.options);
+
         for (const provider of this.options.providers) {
             register(provider);
         }
+
         this.logger = inject(ZIBRI_DI_TOKENS.LOGGER);
+        await this.logger.attachTo(this);
+
+        this.metricsService = inject(ZIBRI_DI_TOKENS.METRICS_SERVICE);
+        await this.metricsService.attachTo(this);
+
         if (!this.providedOptions.authStrategies) {
             this.logger.info('No auth strategies provided, defaults to:');
             for (const strategy of this.options.authStrategies) {
-                this.logger.info('  -', strategy.name);
+                this.logger.info(`  - ${strategy.name}`);
             }
         }
         if (!this.providedOptions.bodyParsers) {
             this.logger.info('No request body parsers provided, defaults to:');
             for (const bodyParser of this.options.bodyParsers) {
-                this.logger.info('  -', bodyParser.name);
+                this.logger.info(`  - ${bodyParser.name}`);
             }
         }
 
@@ -151,6 +163,6 @@ export class ZibriApplication {
         this.use(inject(ZIBRI_DI_TOKENS.GLOBAL_ERROR_HANDLER));
         this.express.listen(port);
         GlobalRegistry.markAppAsRunning();
-        this.logger.info(this.options.name, 'is running on port', port);
+        this.logger.info(`${this.options.name} is running on port ${port}`);
     }
 }

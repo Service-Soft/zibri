@@ -1,11 +1,13 @@
-
 /**
  * All known http methods.
  */
 export enum HttpMethod {
     GET = 'get',
+    HEAD = 'head',
     POST = 'post',
     PUT = 'put',
     PATCH = 'patch',
-    DELETE = 'delete'
+    DELETE = 'delete',
+    OPTIONS = 'options',
+    TRACE = 'trace'
 }

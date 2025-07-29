@@ -8,6 +8,6 @@ export class StatusCronJob extends CronJob {
     };
 
     onTick(): void {
-        inject<LoggerInterface>(ZIBRI_DI_TOKENS.LOGGER).info('is running', this.name);
+        inject<LoggerInterface>(ZIBRI_DI_TOKENS.LOGGER).info(`is running ${this.name}`);
     }
 }
