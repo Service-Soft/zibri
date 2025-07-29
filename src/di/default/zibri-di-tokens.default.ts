@@ -5,8 +5,10 @@
 // eslint-disable-next-line typescript/typedef
 export const ZIBRI_DI_TOKENS = {
     ROUTER: 'zi.router',
-    LOG_LEVEL: 'zi.log_level',
     LOGGER: 'zi.logger',
+    LOGGER_TRANSPORTS: 'zi.logger_transports',
+    LOGGER_CLEANUP_AFTER_MS: 'zi.logger_cleanup_after_ms',
+    METRICS_SERVICE: 'zi.metrics_service',
     ASSET_SERVICE: 'zi.asset_service',
     GLOBAL_ERROR_HANDLER: 'zi.global_error_handler',
     OPEN_API_SERVICE: 'zi.open_api_service',

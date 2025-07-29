@@ -21,7 +21,7 @@ export class FormDataBodyParserCleanupCronJob extends CronJob {
     async onTick(): Promise<void> {
         const tempPath: string = inject(ZIBRI_DI_TOKENS.FILE_UPLOAD_TEMP_FOLDER);
 
-        this.logger.info('cleans up temp folder', tempPath);
+        this.logger.info(`cleans up temp folder ${tempPath}`);
 
         try {
             const folders: string[] = await readdir(tempPath);
@@ -44,7 +44,7 @@ export class FormDataBodyParserCleanupCronJob extends CronJob {
                 }
             }
 
-            this.logger.info('removed', folders.length - foldersToPreserve, 'out of', folders.length, 'folders');
+            this.logger.info(`removed ${folders.length - foldersToPreserve} out of ${folders.length} folders`);
         }
         catch {
             // Do nothing

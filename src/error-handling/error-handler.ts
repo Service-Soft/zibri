@@ -22,13 +22,15 @@ import { HttpRequest, HttpResponse, KnownHeader, MimeType } from '../http';
  */
 export const errorHandler: GlobalErrorHandler = (error: unknown, req: HttpRequest, res: HttpResponse, next: NextFunction) => {
     const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
+    const globalError: Error = new Error('Global Error', { cause: error });
+    globalError.stack = undefined;
     if (isError(error)) {
         if (!isHttpError(error) || error.status >= 500) {
-            logger.error(error);
+            logger.error(globalError);
         }
     }
     else {
-        logger.error(`There was an unknown error:\n${JSON.stringify(error, undefined, 2)}`);
+        logger.critical(globalError);
     }
     if (res.headersSent) {
         next(error);

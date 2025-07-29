@@ -9,10 +9,10 @@ export class User implements BaseUser<Roles> {
     @Property.string({ primary: true })
     id!: string;
 
-    @Property.string({ unique: true })
+    @Property.string({ unique: true, format: 'email' })
     email!: string;
 
-    @Property.array({ items: { type: 'string' } })
+    @Property.array({ items: { type: 'string', enum: Roles } })
     roles!: Roles[];
 
     @Property.number()

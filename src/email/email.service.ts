@@ -103,7 +103,7 @@ export class EmailService implements EmailServiceInterface {
 
         if (status === EmailStatus.FAILED) {
             const rejectedRecipients: string[] = res.rejected.map((e) => typeof e === 'string' ? e : e.address);
-            this.logger.error(`mail to ${rejectedRecipients.join(', ')} was rejected`);
+            this.logger.warn(`mail to ${rejectedRecipients.join(', ')} was rejected`);
         }
 
         if (email.persist) {

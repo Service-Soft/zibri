@@ -1,0 +1,32 @@
+<h1>{{levelName}} from {{appName}}:</h1>
+
+<div style="padding: 15px; border-radius: 5px; background-color: {{boxBgColor}}; color: black;">
+    <div><b>id:</b> {{log.id}}</div>
+    <div><b>createdAt</b>: {{createdAtString}}</div>
+    <div><b>origin:</b> {{log.context.origin}}</div>
+    <br>
+
+    {{#if log.context.request}}
+        <div><b>request:</b></div>
+        <pre style="margin: 0px; font-size: 14px; white-space: normal;">id: {{log.context.request.id}}</pre>
+        <pre style="margin: 0px; font-size: 14px; white-space: normal;">endpoint: {{log.context.request.method}} {{log.context.request.url}}</pre>
+        <pre style="margin: 0px; font-size: 14px; white-space: normal;">clientIp: {{log.context.request.clientIp}}</pre>
+        <pre style="margin: 0px; font-size: 14px; white-space: normal;">userAgent: {{log.context.request.userAgent}}</pre>
+
+        {{#if (and log.context.request.status log.context.request.durationInMs)}}
+            <pre style="margin: 0px; font-size: 14px; white-space: normal;">response: {{log.context.request.status}} after {{log.context.request.durationInMs}} ms</pre>
+        {{/if}}
+        <br>
+    {{/if}}
+
+    <div><b>message:</b></div>
+    <div>{{log.message}}</div>
+    <br>
+
+    {{#if log.error}}
+        <div><b>error:</b></div>
+        {{#each log.error.paragraphs}}
+            <pre style="margin: 0px; font-size: 14px; white-space: normal;">{{this}}</pre>
+        {{/each}}
+    {{/if}}
+</div>

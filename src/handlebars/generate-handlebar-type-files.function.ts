@@ -14,29 +14,6 @@ export type PathTree = {
     [key: string]: PathTree
 };
 
-// // eslint-disable-next-line jsdoc/require-jsdoc
-// type BaseEmailTemplateTree = Record<keyof BaseEmailTemplateData['base'], PathTree>;
-
-// // eslint-disable-next-line jsdoc/require-jsdoc
-// type BasePageTemplateTree = Record<keyof BasePageTemplateData['base'], PathTree>;
-
-// const baseEmailTemplateTree: BaseEmailTemplateTree = {
-//     title: {},
-//     baseUrl: {},
-//     mailingListRoute: {},
-//     mailingList: {
-//         id: {},
-//         name: {},
-//         unsubscribeLink: {}
-//     },
-//     subscriber: {
-//         id: {},
-//         name: {},
-//         email: {}
-//     }
-// };
-// const basePageTemplateTree: BasePageTemplateTree = { title: {} };
-
 /**
  * Generate type files for handlebar files (.hbs), so that they expose a correctly typed "renderTemplate" function.
  */

@@ -8,6 +8,7 @@ import { FilePropertyMetadataInput, FileSize } from './file-property-metadata.mo
 import { NumberPropertyMetadataInput } from './number-property-metadata.model';
 import { ObjectPropertyMetadataInput } from './object-property-metadata.model';
 import { StringPropertyMetadataInput } from './string-property-metadata.model';
+import { UnknownPropertyMetadataInput } from './unknown-property-metadata.model';
 
 /**
  * Metadata for array properties.
@@ -43,6 +44,8 @@ export type ArrayPropertyItemMetadataInput = StringPropertyMetadataInput & { typ
     | DatePropertyMetadataInput & { type: 'date' }
     // eslint-disable-next-line jsdoc/require-jsdoc
     | BooleanPropertyMetadataInput & { type: 'boolean' }
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    | UnknownPropertyMetadataInput & { type: 'unknown' }
     // eslint-disable-next-line jsdoc/require-jsdoc
     | FilePropertyMetadataInput & { type: 'file' };
 

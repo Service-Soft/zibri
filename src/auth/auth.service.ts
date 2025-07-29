@@ -33,13 +33,9 @@ export class AuthService implements AuthServiceInterface {
             this.strategies.push(strategy);
         }
         if (authStrategies.length) {
-            this.logger.info(
-                'initializes',
-                authStrategies.length,
-                authStrategies.length > 1 ? 'auth strategies' : 'auth strategy'
-            );
+            this.logger.info(`initializes ${authStrategies.length} ${authStrategies.length > 1 ? 'auth strategies' : 'auth strategy'}`);
             for (const strategy of authStrategies) {
-                this.logger.info('  -', strategy.name);
+                this.logger.info(`  - ${strategy.name}`);
                 inject(strategy).init();
             }
         }

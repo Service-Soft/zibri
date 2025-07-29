@@ -72,7 +72,8 @@ export class ValidationService implements ValidationServiceInterface {
         string: validateString,
         date: validateDate,
         boolean: validateBoolean,
-        file: validateFile
+        file: validateFile,
+        unknown: () => []
     };
 
     // eslint-disable-next-line jsdoc/require-jsdoc

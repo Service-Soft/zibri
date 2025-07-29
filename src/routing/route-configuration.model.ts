@@ -102,35 +102,6 @@ type InferModel<T> =
         ? U
         : never;
 
-// // eslint-disable-next-line jsdoc/require-jsdoc
-// class MyDto {
-//     // eslint-disable-next-line jsdoc/require-jsdoc
-//     foo!: string;
-// }
-
-// // Check 1: Does the 'required: false' survive into the body metadata object?
-// // eslint-disable-next-line typescript/typedef, unusedImports/no-unused-vars
-// const bodyInput = {
-//     modelClass: MyDto,
-//     required: false
-// // eslint-disable-next-line jsdoc/require-jsdoc
-// } as const satisfies BodyMetadataInput & { modelClass: Newable<MyDto> };
-
-// // Check 2: Convert input into full metadata (should preserve required: false)
-// // eslint-disable-next-line jsdoc/require-jsdoc
-// type BodyMeta = BodyMetaInputObjectToMetaObject<typeof bodyInput>;
-// //       ^-- Does BodyMetadata have required: false?
-
-// // Check 3: Route handler typing should infer req.body as MyDto | undefined if required: false
-// // eslint-disable-next-line jsdoc/require-jsdoc
-// type Handler = RouteHandler<
-//     BodyMeta,
-//     {},
-//     {},
-//     {}
-// >;
-// //       ^-- Is the body param typed as MyDto | undefined?
-
 /**
  * Configuration on how to handle open api for the route.
  */

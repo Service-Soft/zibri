@@ -1,6 +1,7 @@
+import H from 'handlebars/runtime';
 import { inject, isVersion, JwtAuthController, LoggerInterface, ZIBRI_DI_TOKENS, ZibriApplication, EmailConfigInput } from 'zibri';
 
-import { CronController, FileController, TemplateController, TestController } from './controllers';
+import { CronController, FileController, MetricsController, TemplateController, TestController } from './controllers';
 import { DbDataSource } from './data-sources';
 import { version } from '../package.json';
 import { StatusCronJob } from './cron';
@@ -21,7 +22,8 @@ async function start(): Promise<void> {
             FileController,
             TemplateController,
             CronController,
-            JwtAuthController
+            JwtAuthController,
+            MetricsController
         ],
         dataSources: [DbDataSource],
         cronJobs: [StatusCronJob],
@@ -56,7 +58,7 @@ async function start(): Promise<void> {
             }
         ]
     });
-    await app.init();
+    await app.init(H);
 
     logger = inject(ZIBRI_DI_TOKENS.LOGGER);
 

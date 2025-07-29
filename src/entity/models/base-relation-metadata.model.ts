@@ -1,7 +1,7 @@
 import { EntitySchemaRelationOptions } from 'typeorm';
 
+import { BaseEntity } from './base-entity.model';
 import { BasePropertyMetadata } from './base-property-metadata.model';
-import { BaseEntity } from '../../entity';
 import { Newable } from '../../types';
 
 /**

@@ -68,7 +68,7 @@ export class Repository<
      * @returns The newly created entity.
      */
     async create(data: CreateData, options?: CreateOptions): Promise<T> {
-        if (data.id != undefined) {
+        if (data.id != undefined && options?.allowId != true) {
             this.logger.warn('Found an id on the create data, it will be ignored.');
             delete data.id;
         }
@@ -86,7 +86,7 @@ export class Repository<
     async createAll(data: CreateData[], options?: CreateAllOptions): Promise<T[]> {
         let entitiesWithIdCount: number = 0;
         for (const d of data) {
-            if (d.id != undefined) {
+            if (d.id != undefined && options?.allowId != true) {
                 delete d.id;
                 entitiesWithIdCount++;
             }
@@ -176,7 +176,7 @@ export class Repository<
      * @returns The updated entity.
      */
     async updateById(id: T['id'], data: UpdateData, options?: UpdateByIdOptions): Promise<T> {
-        if (data.id != undefined) {
+        if (data.id != undefined && options?.allowId != true) {
             this.logger.warn('Found an id on the update data, it will be ignored.');
             delete data.id;
         }
@@ -197,7 +197,7 @@ export class Repository<
         data: UpdateData,
         options?: UpdateAllOptions
     ): Promise<T[]> {
-        if (data.id != undefined) {
+        if (data.id != undefined && options?.allowId != true) {
             this.logger.warn('Found an id on the update data, it will be ignored.');
             delete data.id;
         }

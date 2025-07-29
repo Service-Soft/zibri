@@ -6,7 +6,7 @@ import { JwtCredentials, PasswordResetToken, JwtRefreshToken } from '../auth';
 import { CronJobEntity } from '../cron';
 import { Email, MailingList, MailingListSubscriber } from '../email';
 import { BaseEntity } from '../entity';
-import { LoggerInterface } from '../logging';
+import { Log, LoggerInterface } from '../logging';
 import { Newable } from '../types';
 
 /**
@@ -21,7 +21,8 @@ export class DataSourceService implements DataSourceServiceInterface {
         JwtCredentials,
         PasswordResetToken,
         MailingList,
-        MailingListSubscriber
+        MailingListSubscriber,
+        Log
     ];
 
     constructor() {
@@ -31,11 +32,8 @@ export class DataSourceService implements DataSourceServiceInterface {
     // eslint-disable-next-line jsdoc/require-jsdoc
     async init(): Promise<void> {
         if (GlobalRegistry.dataSourceClasses.length) {
-            this.logger.info(
-                'initializes',
-                GlobalRegistry.dataSourceClasses.length,
-                GlobalRegistry.dataSourceClasses.length > 1 ? 'data sources' : 'data source'
-            );
+            // eslint-disable-next-line stylistic/max-len
+            this.logger.info(`initializes ${GlobalRegistry.dataSourceClasses.length} ${GlobalRegistry.dataSourceClasses.length > 1 ? 'data sources' : 'data source'}`);
         }
 
         const entitiesInDataSources: Newable<BaseEntity>[] = [];

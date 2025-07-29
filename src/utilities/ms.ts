@@ -17,4 +17,8 @@ export abstract class Ms {
      * The amount of ms in a day.
      */
     static DAY = 86_400_000 as const;
+    /**
+     * The amount of ms in a week.
+     */
+    static WEEK = 604_800_000 as const;
 }

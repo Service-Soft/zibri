@@ -66,9 +66,20 @@ implements AuthStrategyInterface<
     private readonly refreshTokenExpiresInMs: number;
     private readonly passwordResetTokenExpiresInMs: number;
     private readonly userService: UserServiceInterface;
-    private readonly logger: LoggerInterface;
     private readonly emailService: EmailServiceInterface;
     private readonly confirmPasswordResetUrl: string;
+
+    private get refreshTokenRepository(): Repository<JwtRefreshToken> {
+        return inject(repositoryTokenFor(JwtRefreshToken));
+    }
+
+    private get passwordResetTokenRepository(): Repository<PasswordResetToken, PasswordResetTokenCreateData> {
+        return inject(repositoryTokenFor(PasswordResetToken));
+    }
+
+    private get credentialsRepository(): Repository<JwtCredentials> {
+        return inject(repositoryTokenFor(JwtCredentials));
+    }
 
     constructor() {
         this.accessTokenSecret = inject(ZIBRI_DI_TOKENS.JWT_ACCESS_TOKEN_SECRET);
@@ -77,7 +88,6 @@ implements AuthStrategyInterface<
         this.refreshTokenExpiresInMs = inject(ZIBRI_DI_TOKENS.JWT_REFRESH_TOKEN_EXPIRES_IN_MS);
         this.passwordResetTokenExpiresInMs = inject(ZIBRI_DI_TOKENS.JWT_PASSWORD_RESET_TOKEN_EXPIRES_IN_MS);
         this.userService = inject(ZIBRI_DI_TOKENS.USER_SERVICE);
-        this.logger = inject(ZIBRI_DI_TOKENS.LOGGER);
         this.emailService = inject(ZIBRI_DI_TOKENS.EMAIL_SERVICE);
         this.confirmPasswordResetUrl = inject(ZIBRI_DI_TOKENS.JWT_CONFIRM_PASSWORD_RESET_URL);
     }
@@ -164,7 +174,6 @@ implements AuthStrategyInterface<
     }
 
     private async createRefreshToken(foundUser: UserType, refreshTokenValue: string): Promise<JwtRefreshToken> {
-        const refreshTokenRepository: Repository<JwtRefreshToken> = inject(repositoryTokenFor(JwtRefreshToken));
         const data: JwtRefreshTokenCreateDto = {
             userId: foundUser.id,
             value: refreshTokenValue,
@@ -172,7 +181,7 @@ implements AuthStrategyInterface<
             blacklisted: false,
             expirationDate: new Date(Date.now() + this.refreshTokenExpiresInMs)
         };
-        return await refreshTokenRepository.create(data);
+        return await this.refreshTokenRepository.create(data);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -197,14 +206,16 @@ implements AuthStrategyInterface<
 
     private async verifyAndResolveRefreshToken(tokenValue: string): Promise<JwtRefreshToken> {
         await JwtUtilities.verify(tokenValue, this.refreshTokenSecret);
-        const refreshTokenRepository: Repository<JwtRefreshToken> = inject(repositoryTokenFor(JwtRefreshToken));
-        const refreshToken: JwtRefreshToken | undefined = await refreshTokenRepository.findOne({ where: { value: tokenValue } }, false);
+        const refreshToken: JwtRefreshToken | undefined = await this.refreshTokenRepository.findOne(
+            { where: { value: tokenValue } },
+            false
+        );
 
         if (!refreshToken) {
             throw new UnauthorizedError('Error verifying token: Invalid Token');
         }
         if (refreshToken.blacklisted) {
-            await refreshTokenRepository.deleteAll({ familyId: refreshToken.familyId });
+            await this.refreshTokenRepository.deleteAll({ familyId: refreshToken.familyId });
             throw new UnauthorizedError('The given refresh token has already been used.');
         }
 
@@ -216,8 +227,8 @@ implements AuthStrategyInterface<
         const refreshTokenValue: string = await this.generateRefreshToken(user);
 
         const res: JwtRefreshToken = await this.createRefreshToken(user, refreshTokenValue);
-        await refreshTokenRepository.updateById(refreshToken.id, { blacklisted: true });
-        await refreshTokenRepository.deleteAll({ expirationDate: { before: new Date() } });
+        await this.refreshTokenRepository.updateById(refreshToken.id, { blacklisted: true });
+        await this.refreshTokenRepository.deleteAll({ expirationDate: { before: new Date() } });
         return res;
     }
 
@@ -233,16 +244,12 @@ implements AuthStrategyInterface<
             throw new TooManyRequestsError('A password reset has already been requested for this account.');
         }
 
-        const passwordResetTokenRepository: Repository<
-            PasswordResetToken,
-            PasswordResetTokenCreateData
-        > = inject(repositoryTokenFor(PasswordResetToken));
         const resetTokenData: PasswordResetTokenCreateData = {
             value: randomBytes(16).toString('hex'),
             userId: data.user.id,
             expirationDate: new Date(Date.now() + this.passwordResetTokenExpiresInMs)
         };
-        const resetToken: PasswordResetToken = await passwordResetTokenRepository.create(resetTokenData);
+        const resetToken: PasswordResetToken = await this.passwordResetTokenRepository.create(resetTokenData);
 
         await this.emailService.queue({
             recipients: [data.user.email],
@@ -265,17 +272,13 @@ implements AuthStrategyInterface<
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async confirmPasswordReset(data: JwtConfirmPasswordResetData): Promise<void> {
-        const passwordResetTokenRepository: Repository<PasswordResetToken> = inject(repositoryTokenFor(PasswordResetToken));
-        const refreshTokenRepository: Repository<JwtRefreshToken> = inject(repositoryTokenFor(JwtRefreshToken));
-        const credentialsRepository: Repository<JwtCredentials> = inject(repositoryTokenFor(JwtCredentials));
-
         // eslint-disable-next-line stylistic/max-len
-        const resetToken: PasswordResetToken | undefined = await passwordResetTokenRepository.findOne({ where: { value: data.resetToken } }, false);
+        const resetToken: PasswordResetToken | undefined = await this.passwordResetTokenRepository.findOne({ where: { value: data.resetToken } }, false);
         if (!resetToken) {
             throw new UnauthorizedError('Link invalid');
         }
         if (new Date(resetToken.expirationDate).getTime() <= Date.now()) {
-            await passwordResetTokenRepository.deleteById(resetToken.id);
+            await this.passwordResetTokenRepository.deleteById(resetToken.id);
             throw new UnauthorizedError('Link expired');
         }
 
@@ -284,15 +287,14 @@ implements AuthStrategyInterface<
         const hashedPassword: string = await HashUtilities.hash(data.newPassword);
         credentials.password = hashedPassword;
 
-        await credentialsRepository.updateById(credentials.id, credentials);
-        await passwordResetTokenRepository.deleteById(resetToken.id);
-        await refreshTokenRepository.deleteAll({ userId: resetToken.userId });
+        await this.credentialsRepository.updateById(credentials.id, credentials);
+        await this.passwordResetTokenRepository.deleteById(resetToken.id);
+        await this.refreshTokenRepository.deleteAll({ userId: resetToken.userId });
         // TODO set require password change to false
     }
 
     private async activePasswordResetTokenAlreadyExists(user: BaseUser<RoleType>): Promise<boolean> {
-        const passwordResetTokenRepository: Repository<PasswordResetToken> = inject(repositoryTokenFor(PasswordResetToken));
-        const existingToken: PasswordResetToken | undefined = await passwordResetTokenRepository.findOne(
+        const existingToken: PasswordResetToken | undefined = await this.passwordResetTokenRepository.findOne(
             { where: { userId: user.id } },
             false
         );
@@ -300,7 +302,7 @@ implements AuthStrategyInterface<
             if (new Date(existingToken.expirationDate).getTime() > Date.now()) {
                 return true;
             }
-            await passwordResetTokenRepository.deleteById(existingToken.id);
+            await this.passwordResetTokenRepository.deleteById(existingToken.id);
         }
         return false;
     }
@@ -370,8 +372,7 @@ implements AuthStrategyInterface<
             }
             return userIdProperty === jwtData.payload.id;
         }
-        catch (error) {
-            this.logger.error(error as Error);
+        catch {
             return false;
         }
     }
