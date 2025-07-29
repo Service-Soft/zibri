@@ -32,7 +32,7 @@ export class CronService implements CronServiceInterface {
             throw new Error('has already been initialized');
         }
         if (cronJobs.length) {
-            this.logger.info('registers', cronJobs.length, cronJobs.length > 1 ? 'cron jobs' : 'cron job');
+            this.logger.info(`registers ${cronJobs.length} ${cronJobs.length > 1 ? 'cron jobs' : 'cron job'}`);
         }
         for (const cronJobClass of cronJobs) {
             const cronJob: CronJob = inject(cronJobClass);

@@ -98,7 +98,7 @@ export class Parser implements ParserInterface {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async attachTo(app: ZibriApplication): Promise<void> {
-        this.logger.info('registers', GlobalRegistry.bodyParsers.length, 'request body parsers:');
+        this.logger.info(`registers ${GlobalRegistry.bodyParsers.length} request body parsers:`);
         for (const parserClass of GlobalRegistry.bodyParsers) {
             const parser: BodyParserInterface = inject(parserClass);
             this.bodyParsers.push(parser);

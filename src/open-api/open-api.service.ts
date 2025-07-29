@@ -28,7 +28,36 @@ const defaultDescriptionForHttpStatus: Record<HttpStatus | 'default', string> = 
     [HttpStatus.FORBIDDEN]: 'Forbidden',
     [HttpStatus.TOO_MANY_REQUESTS]: 'Too Many Requests',
     [HttpStatus.OK]: 'Ok',
-    [HttpStatus.CREATED]: 'Created'
+    [HttpStatus.CREATED]: 'Created',
+    [HttpStatus.CONTINUE]: 'Continue',
+    [HttpStatus.SWITCHING_PROTOCOLS]: '',
+    [HttpStatus.PROCESSING]: '',
+    [HttpStatus.ACCEPTED]: '',
+    [HttpStatus.NON_AUTHORITATIVE_INFORMATION]: '',
+    [HttpStatus.NO_CONTENT]: '',
+    [HttpStatus.RESET_CONTENT]: '',
+    [HttpStatus.PARTIAL_CONTENT]: '',
+    [HttpStatus.MULTIPLE_CHOICES]: '',
+    [HttpStatus.MOVED_PERMANENTLY]: '',
+    [HttpStatus.FOUND]: '',
+    [HttpStatus.SEE_OTHER]: '',
+    [HttpStatus.NOT_MODIFIED]: '',
+    [HttpStatus.TEMPORARY_REDIRECT]: '',
+    [HttpStatus.PERMANENT_REDIRECT]: '',
+    [HttpStatus.PAYMENT_REQUIRED]: '',
+    [HttpStatus.METHOD_NOT_ALLOWED]: '',
+    [HttpStatus.NOT_ACCEPTABLE]: '',
+    [HttpStatus.CONFLICT]: '',
+    [HttpStatus.GONE]: '',
+    [HttpStatus.PAYLOAD_TOO_LARGE]: '',
+    [HttpStatus.URI_TOO_LONG]: '',
+    [HttpStatus.UNSUPPORTED_MEDIA_TYPE]: '',
+    [HttpStatus.UNPROCESSABLE_ENTITY]: '',
+    [HttpStatus.NOT_IMPLEMENTED]: '',
+    [HttpStatus.BAD_GATEWAY]: '',
+    [HttpStatus.SERVICE_UNAVAILABLE]: '',
+    [HttpStatus.GATEWAY_TIMEOUT]: '',
+    [HttpStatus.HTTP_VERSION_NOT_SUPPORTED]: ''
 };
 
 /**
@@ -50,7 +79,7 @@ export class OpenApiService implements OpenApiServiceInterface {
     // eslint-disable-next-line jsdoc/require-jsdoc
     attachTo(app: ZibriApplication): void {
         const definition: OpenApiDefinition = this.createOpenApiDefinition(app);
-        this.logger.info('registers the OpenAPI Explorer at', this.openApiRoute);
+        this.logger.info(`registers the OpenAPI Explorer at ${this.openApiRoute}`);
 
         app.router.register({
             httpMethod: HttpMethod.GET,
@@ -478,6 +507,14 @@ export class OpenApiService implements OpenApiServiceInterface {
                         type: 'array',
                         description: meta.description,
                         items: items.properties?.['items']
+                    };
+                    continue;
+                }
+                case 'unknown': {
+                    properties[key] = {
+                        ...meta,
+                        type: undefined,
+                        required: undefined
                     };
                     continue;
                 }

@@ -1,7 +1,7 @@
 import { warn } from '../../logging/logger.helpers';
 import { Newable } from '../../types';
 import { MetadataUtilities } from '../../utilities';
-import { ArrayPropertyItemMetadata, ArrayPropertyItemMetadataInput, ArrayPropertyMetadata, ArrayPropertyMetadataInput, BaseEntity, BooleanPropertyMetadata, BooleanPropertyMetadataInput, DatePropertyMetadata, DatePropertyMetadataInput, FilePropertyMetadata, FilePropertyMetadataInput, ManyToManyPropertyMetadata, ManyToManyPropertyMetadataInput, ManyToOnePropertyMetadata, ManyToOnePropertyMetadataInput, NumberPropertyMetadata, NumberPropertyMetadataInput, ObjectPropertyMetadata, ObjectPropertyMetadataInput, OneToManyPropertyMetadata, OneToManyPropertyMetadataInput, OneToOnePropertyMetadata, OneToOnePropertyMetadataInput, Relation, StringPropertyMetadata, StringPropertyMetadataInput } from '../models';
+import { ArrayPropertyItemMetadata, ArrayPropertyItemMetadataInput, ArrayPropertyMetadata, ArrayPropertyMetadataInput, BaseEntity, BooleanPropertyMetadata, BooleanPropertyMetadataInput, DatePropertyMetadata, DatePropertyMetadataInput, FilePropertyMetadata, FilePropertyMetadataInput, ManyToManyPropertyMetadata, ManyToManyPropertyMetadataInput, ManyToOnePropertyMetadata, ManyToOnePropertyMetadataInput, NumberPropertyMetadata, NumberPropertyMetadataInput, ObjectPropertyMetadata, ObjectPropertyMetadataInput, OneToManyPropertyMetadata, OneToManyPropertyMetadataInput, OneToOnePropertyMetadata, OneToOnePropertyMetadataInput, Relation, StringPropertyMetadata, StringPropertyMetadataInput, UnknownPropertyMetadata, UnknownPropertyMetadataInput } from '../models';
 import { WithDefaultMetadata } from '../models/base-property-metadata.model';
 
 /**
@@ -14,6 +14,7 @@ export type PropertyMetadata = StringPropertyMetadata
     | DatePropertyMetadata
     | BooleanPropertyMetadata
     | FilePropertyMetadata
+    | UnknownPropertyMetadata
     | RelationMetadata<BaseEntity>;
 
 /**
@@ -33,7 +34,8 @@ export type PropertyMetadataInput = StringPropertyMetadataInput
     | ArrayPropertyMetadataInput
     | DatePropertyMetadataInput
     | FilePropertyMetadataInput
-    | BooleanPropertyMetadataInput;
+    | BooleanPropertyMetadataInput
+    | UnknownPropertyMetadataInput;
 
 /**
  * The metadata input to define a relation property.
@@ -148,10 +150,10 @@ export namespace Property {
     export function file(data?: FilePropertyMetadataInput): PropertyDecorator {
         return (target, key) => {
             if (data?.allowedMimeTypes == undefined) {
-                warn(
+                warn([
                     `Did not specify allowedMimeTypes on property "${target.constructor.name}.${key.toString()}"`,
                     'Defaults to allowing any file type.'
-                );
+                ].join('\n'));
             }
             const fullMetadata: FilePropertyMetadata = {
                 required: true,
@@ -193,6 +195,21 @@ export namespace Property {
             propertyMetadata[key as string] = fullMetadata;
             MetadataUtilities.setModelProperties(ctor, propertyMetadata);
         };
+    }
+
+    // eslint-disable-next-line jsdoc/require-returns
+    /**
+     * Defines an unknown property.
+     * @param data - Additional data to specify the property.
+     */
+    export function unknown(data?: UnknownPropertyMetadataInput): PropertyDecorator {
+        const fullMetadata: UnknownPropertyMetadata = {
+            required: true,
+            type: 'unknown',
+            description: undefined,
+            ...data
+        };
+        return applyData(fullMetadata, data);
     }
 
     // eslint-disable-next-line jsdoc/require-returns
@@ -323,6 +340,7 @@ export function createArrayItemPropertyMetadata(
                 ...data
             };
         }
+        case 'unknown':
         case 'object': {
             return {
                 required: true,
@@ -358,10 +376,10 @@ export function createArrayItemPropertyMetadata(
         }
         case 'file': {
             if (data.allowedMimeTypes == undefined) {
-                warn(
+                warn([
                     `Did not specify allowedMimeTypes on property "${fullPropertyKey}"`,
                     'Defaults to allowing any file type.'
-                );
+                ].join('\n'));
             }
             return {
                 required: true,

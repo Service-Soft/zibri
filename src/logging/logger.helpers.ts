@@ -10,15 +10,20 @@ export const bold: string = '\x1B[1m';
 export const bright: string = '\x1B[1m';
 export const spacing: string = ' ';
 
-export function warn(...messages: (string | number | Error)[]): void {
+export function warn(message: string): void {
     // eslint-disable-next-line no-console
-    console.warn(getTimestamp(), `${yellow}${bright}WARN${reset} ${spacing}`, ...messages);
+    console.warn(getTimestamp(), `${yellow}${bright}WARN${reset} ${spacing}`, message);
 }
 
 export function getTimestamp(): string {
     const date: Date = new Date();
-    const hours: string = date.getHours() < 10 ? `0${date.getHours()}` : `${date.getHours()}`;
-    const minutes: string = date.getMinutes() < 10 ? `0${date.getMinutes()}` : `${date.getMinutes()}`;
-    const seconds: string = date.getSeconds() < 10 ? `0${date.getSeconds()}` : `${date.getSeconds()}`;
-    return `${bold}${bright}${hours}:${minutes}:${seconds}${reset}`;
+    const hours: string = date.getHours().toString()
+        .padStart(2, '0');
+    const minutes: string = date.getMinutes().toString()
+        .padStart(2, '0');
+    const seconds: string = date.getSeconds().toString()
+        .padStart(2, '0');
+    const ms: string = date.getMilliseconds().toString()
+        .padStart(3, '0');
+    return `${bold}${bright}${hours}:${minutes}:${seconds}.${ms}${reset}`;
 }

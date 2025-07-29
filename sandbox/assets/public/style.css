@@ -121,3 +121,9 @@ details:hover {
     box-shadow: 0 0 8px 4px rgba(0, 0, 0, 0.15);
     color: whitesmoke;
 }
+
+.metrics-container {
+    background-color: #1a1a26;
+    padding: 15px;
+    border-radius: 5px;
+}
