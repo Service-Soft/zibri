@@ -3,22 +3,6 @@ import { HttpMethod, HttpStatus } from '../http';
 import { OmitStrict } from '../types';
 
 /**
- * Context for the log, like the request, the id of the user if applicable and the stack trace.
- */
-export class LogContext {
-    /**
-     * The path of the file where the log originated from.
-     */
-    @Property.string()
-    origin!: string;
-    /**
-     * Context information about the request that triggered the log.
-     */
-    @Property.object({ cls: () => LogRequestContext, required: false })
-    request?: LogRequestContext;
-}
-
-/**
  * Context information about a request that triggered a log.
  */
 export class LogRequestContext {
@@ -52,6 +36,22 @@ export class LogRequestContext {
      */
     @Property.number({ required: false })
     durationInMs?: number;
+}
+
+/**
+ * Context for the log, like the request, the id of the user if applicable and the stack trace.
+ */
+export class LogContext {
+    /**
+     * The path of the file where the log originated from.
+     */
+    @Property.string()
+    origin!: string;
+    /**
+     * Context information about the request that triggered the log.
+     */
+    @Property.object({ cls: () => LogRequestContext, required: false })
+    request?: LogRequestContext;
 }
 
 /**

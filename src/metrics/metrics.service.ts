@@ -13,9 +13,7 @@ import { ScrapeMetricsCronJob } from './scrape-metrics.cron-job';
 import { AssetServiceInterface } from '../assets';
 import { inject, ZIBRI_DI_TOKENS } from '../di';
 
-/**
- *
- */
+// eslint-disable-next-line jsdoc/require-jsdoc
 class PromCounter implements CounterInterface {
     constructor(private readonly inner: Counter<string>) {}
 
@@ -25,9 +23,7 @@ class PromCounter implements CounterInterface {
     }
 }
 
-/**
- *
- */
+// eslint-disable-next-line jsdoc/require-jsdoc
 class PromGauge implements GaugeInterface {
     constructor(private readonly inner: Gauge<string>) {}
 
@@ -47,9 +43,7 @@ class PromGauge implements GaugeInterface {
     }
 }
 
-/**
- *
- */
+// eslint-disable-next-line jsdoc/require-jsdoc
 class PromHistogram implements HistogramInterface {
     constructor(private readonly inner: Histogram<string>) {}
 

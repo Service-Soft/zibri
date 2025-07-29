@@ -6,30 +6,30 @@ import { HistogramInterface } from './histogram.interface';
 import { Metric } from './metric.model';
 
 /**
- *
+ * Name of a counter metric.
  */
 export type CounterMetricName = 'http_requests_total' | string & {};
 
 /**
- *
+ * The name of a gauge metric.
  */
 export type GaugeMetricName = string;
 
 /**
- *
+ * The name of a histogram metric.
  */
 export type HistogramMetricName = 'http_request_duration_ms' | string & {};
 
 /**
- *
+ * A collected snapshot of all metrics.
  */
 export type MetricsSnapshot = {
     /**
-     *
+     * The time at which the snapshot was taken.
      */
     timestamp: Date,
     /**
-     *
+     * All metrics at the timestamp.
      */
     metrics: Metric[]
 };
@@ -67,7 +67,9 @@ export interface MetricsServiceInterface {
      */
     collect: () => Promise<void>,
     /**
+     * Returns all 60 buffered snapshots.
      *
+     * IF YOU WANT A LONGER HISTORY YOU SHOULD USE AN EXTERNAL TOOL LIKE PROMETHEUS TO SCRAPE THE DATA.
      */
     getMetricSnapshots: () => MetricsSnapshot[]
 }

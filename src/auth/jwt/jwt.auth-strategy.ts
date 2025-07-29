@@ -24,7 +24,6 @@ import { BaseEntity } from '../../entity';
 import { TooManyRequestsError, UnauthorizedError } from '../../error-handling';
 import { GlobalRegistry } from '../../global';
 import { renderEmailTemplate } from '../../handlebars';
-import { LoggerInterface } from '../../logging';
 import { Newable } from '../../types';
 import { Ms } from '../../utilities';
 import { HashUtilities } from '../hash.utilities';
