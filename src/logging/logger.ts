@@ -17,9 +17,9 @@ import { BaseLoggerTransportConfig, LoggerTransport } from './transport/logger-t
 export class Logger implements LoggerInterface {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    transports: LoggerTransport<BaseLoggerTransportConfig>[];
+    readonly transports: LoggerTransport<BaseLoggerTransportConfig>[];
     // eslint-disable-next-line jsdoc/require-jsdoc
-    protected cleanupAfterMs: Record<LogLevel, number>;
+    protected readonly cleanupAfterMs: Record<LogLevel, number>;
 
     constructor() {
         this.transports = inject(ZIBRI_DI_TOKENS.LOGGER_TRANSPORTS);
@@ -32,28 +32,28 @@ export class Logger implements LoggerInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    debug(message: string, context?: LogContextInput): void {
-        void this.log(LogLevel.DEBUG, message, undefined, context);
+    async debug(message: string, context?: LogContextInput): Promise<void> {
+        await this.log(LogLevel.DEBUG, message, undefined, context);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    info(message: string, context?: LogContextInput): void {
-        void this.log(LogLevel.INFO, message, undefined, context);
+    async info(message: string, context?: LogContextInput): Promise<void> {
+        await this.log(LogLevel.INFO, message, undefined, context);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    warn(message: string, context?: LogContextInput): void {
-        void this.log(LogLevel.WARN, message, undefined, context);
+    async warn(message: string, context?: LogContextInput): Promise<void> {
+        await this.log(LogLevel.WARN, message, undefined, context);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    error(error: Error, context?: LogContextInput): void {
-        void this.log(LogLevel.ERROR, error.message, error, context);
+    async error(error: Error, context?: LogContextInput): Promise<void> {
+        await this.log(LogLevel.ERROR, error.message, error, context);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    critical(error: Error, context?: LogContextInput): void {
-        void this.log(LogLevel.CRITICAL, error.message, error, context);
+    async critical(error: Error, context?: LogContextInput): Promise<void> {
+        await this.log(LogLevel.CRITICAL, error.message, error, context);
     }
 
     private async log(level: LogLevel, message: string, error: Error | undefined, context: LogContextInput | undefined): Promise<void> {
@@ -75,12 +75,12 @@ export class Logger implements LoggerInterface {
             level
         };
 
-        for (const transport of this.transports) {
+        await Promise.all(this.transports.map(async transport => {
             if (transport.config.level > level) {
-                continue;
+                return;
             }
             if (transport.config.register !== 'directly' && !GlobalRegistry.isAppInitialized() && !GlobalRegistry.isAppRunning()) {
-                continue;
+                return;
             }
 
             try {
@@ -90,6 +90,6 @@ export class Logger implements LoggerInterface {
                 // eslint-disable-next-line no-console
                 console.error(`There was an error when logging on the transport ${transport.config.name}`, error);
             }
-        }
+        }));
     }
 }

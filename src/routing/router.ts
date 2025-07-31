@@ -46,12 +46,12 @@ export class Router implements RouterInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    init(app: ZibriApplication): void {
-        this.logger.info(`registers ${app.options.controllers.length} controllers:`);
+    async init(app: ZibriApplication): Promise<void> {
+        await this.logger.info(`registers ${app.options.controllers.length} controllers:`);
         for (const controller of app.options.controllers) {
             const routes: ControllerRouteConfiguration[] = MetadataUtilities.getControllerRoutes(controller);
-            this.logger.info(`  - ${controller.name} (${routes.length} routes)`);
-            this.registerController(controller);
+            await this.logger.info(`  - ${controller.name} (${routes.length} routes)`);
+            await this.registerController(controller);
         }
         this.checkForOrphanedControllers(app.options.controllers);
     }
@@ -76,13 +76,15 @@ export class Router implements RouterInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    register<
+    async register<
         // eslint-disable-next-line jsdoc/require-jsdoc
         BodyMetaInputObject extends BodyMetadataInput & { modelClass: Newable<unknown> },
         PathMetaInputObject extends Record<string, PathParamMetadataInput>,
         QueryMetaInputObject extends Record<string, QueryParamMetadataInput>,
         HeaderMetaInputObject extends Record<string, HeaderParamMetadataInput>
-    >(input: RouteConfigurationInput<BodyMetaInputObject, PathMetaInputObject, QueryMetaInputObject, HeaderMetaInputObject>): void {
+    >(
+        input: RouteConfigurationInput<BodyMetaInputObject, PathMetaInputObject, QueryMetaInputObject, HeaderMetaInputObject>
+    ): Promise<void> {
         const pathParams: Record<string, PathParamMetadata> = {};
         for (const key in input.pathParams) {
             pathParams[key] = createPathParamMetadata(key, input.pathParams[key]);
@@ -116,7 +118,7 @@ export class Router implements RouterInterface {
 
         };
         const handler: RequestHandler = this.routeToRequestHandler(route);
-        this.logger.debug(`- mounting ${route.httpMethod.toUpperCase()} ${route.route}`);
+        await this.logger.debug(`- mounting ${route.httpMethod.toUpperCase()} ${route.route}`);
         this.manuallyRegisteredRoutes.push(
             route as RouteConfiguration<
                 BodyMetadata,
@@ -165,7 +167,7 @@ export class Router implements RouterInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    registerController(controllerClass: Newable<unknown>): void {
+    async registerController(controllerClass: Newable<unknown>): Promise<void> {
         const baseRoute: Route | undefined = MetadataUtilities.getControllerBaseRoute(controllerClass);
         if (baseRoute == undefined) {
             throw new MissingBaseRouteError(controllerClass);
@@ -173,9 +175,9 @@ export class Router implements RouterInterface {
         const routes: ControllerRouteConfiguration[] = MetadataUtilities.getControllerRoutes(controllerClass);
 
         for (const route of routes) {
-            const handler: RequestHandler = this.controllerRouteToRequestHandler(controllerClass, route);
+            const handler: RequestHandler = await this.controllerRouteToRequestHandler(controllerClass, route);
             const finalRoute: string = `${baseRoute}${route.route}`;
-            this.logger.debug(`- mounting ${route.httpMethod.toUpperCase()} ${finalRoute}`);
+            await this.logger.debug(`- mounting ${route.httpMethod.toUpperCase()} ${finalRoute}`);
             this.expressRouter[route.httpMethod](baseRoute + route.route, handler);
         }
     }
@@ -225,10 +227,13 @@ export class Router implements RouterInterface {
         return handler;
     }
 
-    private controllerRouteToRequestHandler(controllerClass: Newable<unknown>, route: ControllerRouteConfiguration): RequestHandler {
+    private async controllerRouteToRequestHandler(
+        controllerClass: Newable<unknown>,
+        route: ControllerRouteConfiguration
+    ): Promise<RequestHandler> {
         const responses: OpenApiResponse[] = MetadataUtilities.getRouteResponses(controllerClass, route.controllerMethod);
         if (!responses.length) {
-            this.logger.warn(`No responses defined on route ${controllerClass.name}.${route.controllerMethod}`);
+            await this.logger.warn(`No responses defined on route ${controllerClass.name}.${route.controllerMethod}`);
         }
         const handler: RequestHandler = (async (req: HttpRequest, res: HttpResponse, next: NextFunction) => {
             try {

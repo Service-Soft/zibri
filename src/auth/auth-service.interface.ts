@@ -15,7 +15,7 @@ export interface AuthServiceInterface {
     /**
      * Initializes the service.
      */
-    init: (strategies: AuthStrategies) => void,
+    init: (strategies: AuthStrategies) => void | Promise<void>,
     /**
      * Checks if the provided method on the provided controller can be accessed by the current user.
      */
@@ -42,17 +42,26 @@ export interface AuthServiceInterface {
      * Resolves the is logged in metadata for the provided controller method.
      * (Whether it's required to be logged in, etc.).
      */
-    resolveIsLoggedInMetadata: (controllerClass: Newable<unknown>, controllerMethod: string) => IsLoggedInMetadata | undefined,
+    resolveIsLoggedInMetadata: (
+        controllerClass: Newable<unknown>,
+        controllerMethod: string
+    ) => IsLoggedInMetadata | undefined | Promise<IsLoggedInMetadata | undefined>,
     /**
      * Resolves the is not logged in metadata for the provided controller method.
      * (Whether it's required to be logged out, etc.).
      */
-    resolveIsNotLoggedInMetadata: (controllerClass: Newable<unknown>, controllerMethod: string) => IsNotLoggedInMetadata | undefined,
+    resolveIsNotLoggedInMetadata: (
+        controllerClass: Newable<unknown>,
+        controllerMethod: string
+    ) => IsNotLoggedInMetadata | undefined | Promise<IsNotLoggedInMetadata | undefined>,
     /**
      * Resolves the has role metadata for the provided controller method.
      * (Whether it's required for the user to have a certain role etc.).
      */
-    resolveHasRoleMetadata: (controllerClass: Newable<unknown>, controllerMethod: string) => HasRoleMetadata | undefined,
+    resolveHasRoleMetadata: (
+        controllerClass: Newable<unknown>,
+        controllerMethod: string
+    ) => HasRoleMetadata | undefined | Promise<HasRoleMetadata | undefined>,
     /**
      * Resolves the belongs to metadata for the provided controller method.
      * (Whether it's required for the user to somehow belong to the requested entity, etc.).
@@ -60,7 +69,7 @@ export interface AuthServiceInterface {
     resolveBelongsToMetadata: (
         controllerClass: Newable<unknown>,
         controllerMethod: string
-    ) => BelongsToMetadata<Newable<BaseEntity>> | undefined,
+    ) => BelongsToMetadata<Newable<BaseEntity>> | undefined | Promise<BelongsToMetadata<Newable<BaseEntity>> | undefined>,
     /**
      * Logs in a user using the provided auth strategy and credentials.
      */

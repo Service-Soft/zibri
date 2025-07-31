@@ -33,7 +33,7 @@ export class DataSourceService implements DataSourceServiceInterface {
     async init(): Promise<void> {
         if (GlobalRegistry.dataSourceClasses.length) {
             // eslint-disable-next-line stylistic/max-len
-            this.logger.info(`initializes ${GlobalRegistry.dataSourceClasses.length} ${GlobalRegistry.dataSourceClasses.length > 1 ? 'data sources' : 'data source'}`);
+            await this.logger.info(`initializes ${GlobalRegistry.dataSourceClasses.length} ${GlobalRegistry.dataSourceClasses.length > 1 ? 'data sources' : 'data source'}`);
         }
 
         const entitiesInDataSources: Newable<BaseEntity>[] = [];
@@ -44,7 +44,7 @@ export class DataSourceService implements DataSourceServiceInterface {
                     dataSource.entities.push(entity);
                 }
             }
-            this.logger.info(`  - ${dataSourceClass.name} (${dataSource.entities.length} entities)`);
+            await this.logger.info(`  - ${dataSourceClass.name} (${dataSource.entities.length} entities)`);
             entitiesInDataSources.push(...dataSource.entities);
             await dataSource.init();
         }

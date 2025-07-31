@@ -14,9 +14,9 @@ export interface OpenApiServiceInterface {
     /**
      * Attaches the service to the Zibri application.
      */
-    attachTo: (app: ZibriApplication) => void,
+    attachTo: (app: ZibriApplication) => void | Promise<void>,
     /**
      * Creates the open api definition.
      */
-    createOpenApiDefinition: (app: ZibriApplication) => OpenApiDefinition
+    createOpenApiDefinition: (app: ZibriApplication) => OpenApiDefinition | Promise<OpenApiDefinition>
 }

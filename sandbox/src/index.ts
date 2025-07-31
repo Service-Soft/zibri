@@ -4,6 +4,7 @@ import { inject, isVersion, JwtAuthController, LoggerInterface, ZIBRI_DI_TOKENS,
 import { CronController, FileController, MetricsController, TemplateController, TestController } from './controllers';
 import { DbDataSource } from './data-sources';
 import { version } from '../package.json';
+import { createDefaultData } from './create-default-data.function';
 import { StatusCronJob } from './cron';
 
 export let logger: LoggerInterface;
@@ -62,7 +63,9 @@ async function start(): Promise<void> {
 
     logger = inject(ZIBRI_DI_TOKENS.LOGGER);
 
-    app.start(3000);
+    await createDefaultData(DbDataSource);
+
+    await app.start(3000);
 }
 
 void start();

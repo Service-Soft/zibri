@@ -17,21 +17,21 @@ export interface LoggerInterface {
     /**
      * Logs a debug message.
      */
-    debug: (message: string, context?: LogContextInput) => void,
+    debug: (message: string, context?: LogContextInput) => void | Promise<void>,
     /**
      * Logs a info message.
      */
-    info: (message: string, context?: LogContextInput) => void,
+    info: (message: string, context?: LogContextInput) => void | Promise<void>,
     /**
      * Logs a warning.
      */
-    warn: (message: string, context?: LogContextInput) => void,
+    warn: (message: string, context?: LogContextInput) => void | Promise<void>,
     /**
      * Logs a error.
      */
-    error: (error: Error, context?: LogContextInput) => void,
+    error: (error: Error, context?: LogContextInput) => void | Promise<void>,
     /**
      * Logs a critical error.
      */
-    critical: (error: Error, context?: LogContextInput) => void
+    critical: (error: Error, context?: LogContextInput) => void | Promise<void>
 }

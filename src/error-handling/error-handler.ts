@@ -20,17 +20,17 @@ import { HttpRequest, HttpResponse, KnownHeader, MimeType } from '../http';
  * @param res - The http response.
  * @param next - The express next function.
  */
-export const errorHandler: GlobalErrorHandler = (error: unknown, req: HttpRequest, res: HttpResponse, next: NextFunction) => {
+export const errorHandler: GlobalErrorHandler = async (error: unknown, req: HttpRequest, res: HttpResponse, next: NextFunction) => {
     const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
     const globalError: Error = new Error('Global Error', { cause: error });
     globalError.stack = undefined;
     if (isError(error)) {
         if (!isHttpError(error) || error.status >= 500) {
-            logger.error(globalError);
+            await logger.error(globalError);
         }
     }
     else {
-        logger.critical(globalError);
+        await logger.critical(globalError);
     }
     if (res.headersSent) {
         next(error);

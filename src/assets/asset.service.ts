@@ -50,10 +50,10 @@ export class AssetService implements AssetServiceInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    attachTo(app: ZibriApplication): void {
-        this.logger.info(`registers public static assets from folder "${this.publicAssetsPath}" at ${this.assetsRoute}`);
+    async attachTo(app: ZibriApplication): Promise<void> {
+        await this.logger.info(`registers public static assets from folder "${this.publicAssetsPath}" at ${this.assetsRoute}`);
         app.use(this.assetsRoute, express.static(this.publicAssetsPath));
-        app.router.register({
+        await app.router.register({
             httpMethod: HttpMethod.GET,
             route: '/',
             handler: async () => {
@@ -69,7 +69,7 @@ export class AssetService implements AssetServiceInterface {
                 return HtmlResponse.fromString(html);
             }
         });
-        app.router.register({
+        await app.router.register({
             httpMethod: HttpMethod.GET,
             route: this.assetsRoute,
             handler: async () => {
@@ -87,7 +87,7 @@ export class AssetService implements AssetServiceInterface {
                 return HtmlResponse.fromString(html);
             }
         });
-        app.router.register({
+        await app.router.register({
             httpMethod: HttpMethod.GET,
             route: '/favicon.ico',
             handler: () => FileResponse.fromPath(path.join(this.publicAssetsPath, 'favicon.png'))

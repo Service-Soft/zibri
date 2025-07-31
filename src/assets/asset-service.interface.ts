@@ -30,5 +30,5 @@ export interface AssetServiceInterface {
      * Attaches the service to the application.
      */
     // eslint-disable-next-line typescript/no-explicit-any
-    attachTo: (app: ZibriApplication, ...params: any[]) => void
+    attachTo: (app: ZibriApplication, ...params: any[]) => void | Promise<void>
 }
