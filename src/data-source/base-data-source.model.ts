@@ -320,18 +320,18 @@ export abstract class BaseDataSource {
         });
 
         for (const migration of migrationsToRunUp) {
-            this.logger.info(`    > runs up migration ${migration.name}`);
+            await this.logger.info(`    > runs up migration ${migration.name}`);
             await migration.migration.runUp();
         }
 
         for (const migration of migrationsToRunDown) {
-            this.logger.info(`    > runs down migration ${migration.name}`);
+            await this.logger.info(`    > runs down migration ${migration.name}`);
             await migration.migration.runDown();
         }
 
         const skipped: number = allMigrations.length - migrationsToRunDown.length - migrationsToRunUp.length;
         if (skipped) {
-            this.logger.info(`    > skipped ${skipped} migrations that have already been applied`);
+            await this.logger.info(`    > skipped ${skipped} migrations that have already been applied`);
         }
     }
 

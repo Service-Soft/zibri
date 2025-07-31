@@ -7,7 +7,7 @@ export class StatusCronJob extends CronJob {
         cron: '* * * * * *'
     };
 
-    onTick(): void {
-        inject<LoggerInterface>(ZIBRI_DI_TOKENS.LOGGER).info(`is running ${this.name}`);
+    async onTick(): Promise<void> {
+        await inject<LoggerInterface>(ZIBRI_DI_TOKENS.LOGGER).info(`is running ${this.name}`);
     }
 }

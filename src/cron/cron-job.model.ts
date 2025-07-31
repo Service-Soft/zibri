@@ -187,11 +187,11 @@ export abstract class CronJob {
             throw new Error(NOT_INITIALIZED_MESSAGE);
         }
 
-        this.logger.error(new Error(`Error running cron job "${this.name}":`, { cause: error }));
+        await this.logger.error(new Error(`Error running cron job "${this.name}":`, { cause: error }));
 
         this.entity.errorMessage = unknownToErrorString(error);
         if (this.entity.stopOnError) {
-            this.logger.info(`Stopping cron job "${this.name}"`);
+            await this.logger.info(`Stopping cron job "${this.name}"`);
             await this.disable();
         }
         if (this.fullInitialConfig.syncToDb) {

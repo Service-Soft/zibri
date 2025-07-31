@@ -11,7 +11,7 @@ export interface RouterInterface {
      * Register a controller.
      */
     // eslint-disable-next-line typescript/no-explicit-any
-    registerController: (controllerClass: Newable<unknown>, ...params: any[]) => void,
+    registerController: (controllerClass: Newable<unknown>, ...params: any[]) => void | Promise<void>,
 
     /**
      * Register a route.
@@ -26,19 +26,19 @@ export interface RouterInterface {
         route: RouteConfigurationInput<BodyMetaInputObject, PathMetaInputObject, QueryMetaInputObject, HeaderMetaInputObject>,
         // eslint-disable-next-line typescript/no-explicit-any
         ...params: any[]
-    ) => void,
+    ) => void | Promise<void>,
 
     /**
      * Initializes the router, registers controllers etc.
      */
     // eslint-disable-next-line typescript/no-explicit-any
-    init: (app: ZibriApplication, ...params: any[]) => void,
+    init: (app: ZibriApplication, ...params: any[]) => void | Promise<void>,
 
     /**
      * Attaches the router to the app.
      */
     // eslint-disable-next-line typescript/no-explicit-any
-    attachTo: (app: ZibriApplication, ...params: any[]) => void,
+    attachTo: (app: ZibriApplication, ...params: any[]) => void | Promise<void>,
 
     /**
      * All routes that have been manually registered by calling the .register method.
