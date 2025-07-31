@@ -77,11 +77,11 @@ export class OpenApiService implements OpenApiServiceInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    attachTo(app: ZibriApplication): void {
-        const definition: OpenApiDefinition = this.createOpenApiDefinition(app);
-        this.logger.info(`registers the OpenAPI Explorer at ${this.openApiRoute}`);
+    async attachTo(app: ZibriApplication): Promise<void> {
+        const definition: OpenApiDefinition = await this.createOpenApiDefinition(app);
+        await this.logger.info(`registers the OpenAPI Explorer at ${this.openApiRoute}`);
 
-        app.router.register({
+        await app.router.register({
             httpMethod: HttpMethod.GET,
             route: `${this.openApiRoute}/swagger-ui.css`,
             handler: () => {
@@ -89,7 +89,7 @@ export class OpenApiService implements OpenApiServiceInterface {
                 return FileResponse.fromPath(filePath);
             }
         });
-        app.router.register({
+        await app.router.register({
             httpMethod: HttpMethod.GET,
             route: `${this.openApiRoute}/swagger-ui-bundle.js`,
             handler: () => {
@@ -97,7 +97,7 @@ export class OpenApiService implements OpenApiServiceInterface {
                 return FileResponse.fromPath(filePath);
             }
         });
-        app.router.register({
+        await app.router.register({
             httpMethod: HttpMethod.GET,
             route: `${this.openApiRoute}/swagger-ui-standalone-preset.js`,
             handler: () => {
@@ -105,7 +105,7 @@ export class OpenApiService implements OpenApiServiceInterface {
                 return FileResponse.fromPath(filePath);
             }
         });
-        app.router.register({
+        await app.router.register({
             httpMethod: HttpMethod.GET,
             route: `${this.openApiRoute}/swagger-ui-init.js`,
             handler: (_, res) => {
@@ -133,7 +133,7 @@ export class OpenApiService implements OpenApiServiceInterface {
         });
 
         app.use(this.openApiRoute, swaggerUi.serve);
-        app.router.register({
+        await app.router.register({
             httpMethod: HttpMethod.GET,
             route: this.openApiRoute,
             handler: swaggerUi.setup(
@@ -149,7 +149,7 @@ export class OpenApiService implements OpenApiServiceInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    createOpenApiDefinition(app: ZibriApplication): OpenApiDefinition {
+    async createOpenApiDefinition(app: ZibriApplication): Promise<OpenApiDefinition> {
         const tags: TagObject[] = app.options.controllers.map(cls => ({ name: cls.name }));
         const res: OpenApiDefinition = {
             openapi: '3.1.0',
@@ -161,7 +161,7 @@ export class OpenApiService implements OpenApiServiceInterface {
             components: {
                 securitySchemes: this.resolveSecuritySchemes()
             },
-            paths: this.resolveOpenApiPaths(app)
+            paths: await this.resolveOpenApiPaths(app)
         };
         return res;
     }
@@ -174,7 +174,7 @@ export class OpenApiService implements OpenApiServiceInterface {
         return res;
     }
 
-    private resolveOpenApiPaths(app: ZibriApplication): OpenApiPaths {
+    private async resolveOpenApiPaths(app: ZibriApplication): Promise<OpenApiPaths> {
         const res: OpenApiPaths = {};
 
         for (const controllerClass of app.options.controllers) {
@@ -207,7 +207,7 @@ export class OpenApiService implements OpenApiServiceInterface {
 
                 const responses: OpenApiResponse[] = MetadataUtilities.getRouteResponses(controllerClass, route.controllerMethod);
 
-                const hasRoleMetadata: HasRoleMetadata | undefined = this.authService.resolveHasRoleMetadata(
+                const hasRoleMetadata: HasRoleMetadata | undefined = await this.authService.resolveHasRoleMetadata(
                     controllerClass,
                     route.controllerMethod
                 );
@@ -221,7 +221,7 @@ export class OpenApiService implements OpenApiServiceInterface {
                         ...this.buildParameters(headerParams, 'header')
                     ],
                     requestBody: this.buildOpenApiBody(bodyMetadata),
-                    security: this.resolveOperationSecurity(controllerClass, route.controllerMethod),
+                    security: await this.resolveOperationSecurity(controllerClass, route.controllerMethod),
                     ['x-roles']: hasRoleMetadata?.allowedRoles
                 };
                 res[fullPath][route.httpMethod] = operation;
@@ -375,20 +375,20 @@ export class OpenApiService implements OpenApiServiceInterface {
         return { [MimeType.JSON]: { schema: { oneOf: schemas } } };
     }
 
-    private resolveOperationSecurity(
+    private async resolveOperationSecurity(
         controllerClass: Newable<unknown>,
         controllerMethod: string
-    ): OpenApiSecurityRequirementObject[] | undefined {
+    ): Promise<OpenApiSecurityRequirementObject[] | undefined> {
         const res: OpenApiSecurityRequirementObject[] = [];
-        const isLoggedInMetadata: IsLoggedInMetadata | undefined = this.authService.resolveIsLoggedInMetadata(
+        const isLoggedInMetadata: IsLoggedInMetadata | undefined = await this.authService.resolveIsLoggedInMetadata(
             controllerClass,
             controllerMethod
         );
-        const hasRoleMetadata: HasRoleMetadata | undefined = this.authService.resolveHasRoleMetadata(
+        const hasRoleMetadata: HasRoleMetadata | undefined = await this.authService.resolveHasRoleMetadata(
             controllerClass,
             controllerMethod
         );
-        const belongsToMetadata: BelongsToMetadata<Newable<BaseEntity>> | undefined = this.authService.resolveBelongsToMetadata(
+        const belongsToMetadata: BelongsToMetadata<Newable<BaseEntity>> | undefined = await this.authService.resolveBelongsToMetadata(
             controllerClass,
             controllerMethod
         );

@@ -33,3 +33,8 @@ export class JwtCredentials implements Pick<BaseUser<string>, 'id' | 'email'> {
  * The actual credentials sent over http.
  */
 export class JwtCredentialsDto extends OmitType(JwtCredentials, ['id', 'userId']) {}
+
+/**
+ * The data for creating new jwt credentials.
+ */
+export class JwtCredentialsCreateData extends OmitType(JwtCredentials, ['id']) {}

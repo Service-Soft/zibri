@@ -24,7 +24,7 @@ export class ScrapeMetricsCronJob extends CronJob {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async onTick(): Promise<void> {
-        this.logger.debug('scrapes metrics');
+        await this.logger.debug('scrapes metrics');
         await this.metricsService.collect();
     }
 }

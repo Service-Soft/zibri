@@ -58,8 +58,8 @@ export const ZIBRI_DI_PROVIDERS: Record<
     [ZIBRI_DI_TOKENS.LOGGER]: { useClass: Logger },
     [ZIBRI_DI_TOKENS.LOGGER_TRANSPORTS]: {
         useFactory: () => [
-            LoggerTransport.db(LogLevel.INFO),
-            LoggerTransport.console(LogLevel.INFO)
+            LoggerTransport.console(LogLevel.INFO),
+            LoggerTransport.db(LogLevel.INFO)
         ]
     },
     [ZIBRI_DI_TOKENS.LOGGER_CLEANUP_AFTER_MS]: {

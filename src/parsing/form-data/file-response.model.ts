@@ -80,7 +80,7 @@ export class FileResponse {
         }
         if (!fileName.includes('.') && options?.mimeType == undefined) {
             const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
-            logger.warn('the file name does not include a extension and no mimetype was provided.');
+            await logger.warn('the file name does not include a extension and no mimetype was provided.');
         }
 
         const size: number = options?.size ?? (await stat(fullPath)).size;

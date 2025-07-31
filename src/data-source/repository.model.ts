@@ -69,7 +69,7 @@ export class Repository<
      */
     async create(data: CreateData, options?: CreateOptions): Promise<T> {
         if (data.id != undefined && options?.allowId != true) {
-            this.logger.warn('Found an id on the create data, it will be ignored.');
+            await this.logger.warn('Found an id on the create data, it will be ignored.');
             delete data.id;
         }
         await this.setDefaultValues(data);
@@ -93,7 +93,7 @@ export class Repository<
             await this.setDefaultValues(d);
         }
         if (entitiesWithIdCount) {
-            this.logger.warn(
+            await this.logger.warn(
                 `Found an id on ${entitiesWithIdCount} out of ${data.length} entries of the create data. They will be ignored.`
             );
         }
@@ -177,7 +177,7 @@ export class Repository<
      */
     async updateById(id: T['id'], data: UpdateData, options?: UpdateByIdOptions): Promise<T> {
         if (data.id != undefined && options?.allowId != true) {
-            this.logger.warn('Found an id on the update data, it will be ignored.');
+            await this.logger.warn('Found an id on the update data, it will be ignored.');
             delete data.id;
         }
         const manager: EntityManager = this.getManager(options?.transaction);
@@ -198,7 +198,7 @@ export class Repository<
         options?: UpdateAllOptions
     ): Promise<T[]> {
         if (data.id != undefined && options?.allowId != true) {
-            this.logger.warn('Found an id on the update data, it will be ignored.');
+            await this.logger.warn('Found an id on the update data, it will be ignored.');
             delete data.id;
         }
         const toUpdate: DeepPartial<T>[] = (await this.findAll({ where, ...options })).map(t => ({ id: t.id, ...data }));

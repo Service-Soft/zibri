@@ -27,15 +27,17 @@ export class AuthService implements AuthServiceInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    init(authStrategies: AuthStrategies): void {
+    async init(authStrategies: AuthStrategies): Promise<void> {
         for (const strategy of authStrategies) {
             register({ token: strategy, useClass: strategy });
             this.strategies.push(strategy);
         }
         if (authStrategies.length) {
-            this.logger.info(`initializes ${authStrategies.length} ${authStrategies.length > 1 ? 'auth strategies' : 'auth strategy'}`);
+            await this.logger.info(
+                `initializes ${authStrategies.length} ${authStrategies.length > 1 ? 'auth strategies' : 'auth strategy'}`
+            );
             for (const strategy of authStrategies) {
-                this.logger.info(`  - ${strategy.name}`);
+                await this.logger.info(`  - ${strategy.name}`);
                 inject(strategy).init();
             }
         }
@@ -179,13 +181,13 @@ export class AuthService implements AuthServiceInterface {
         controllerMethod: string,
         request: HttpRequest
     ): Promise<void> {
-        const isLoggedInMetadata: IsLoggedInMetadata | undefined = this.resolveIsLoggedInMetadata(controllerClass, controllerMethod);
-        const isNotLoggedInMetadata: IsNotLoggedInMetadata | undefined = this.resolveIsNotLoggedInMetadata(
+        const isLoggedInMetadata: IsLoggedInMetadata | undefined = await this.resolveIsLoggedInMetadata(controllerClass, controllerMethod);
+        const isNotLoggedInMetadata: IsNotLoggedInMetadata | undefined = await this.resolveIsNotLoggedInMetadata(
             controllerClass,
             controllerMethod
         );
-        const hasRoleMetadata: HasRoleMetadata | undefined = this.resolveHasRoleMetadata(controllerClass, controllerMethod);
-        const belongsToMetadata: BelongsToMetadata<Newable<BaseEntity>> | undefined = this.resolveBelongsToMetadata(
+        const hasRoleMetadata: HasRoleMetadata | undefined = await this.resolveHasRoleMetadata(controllerClass, controllerMethod);
+        const belongsToMetadata: BelongsToMetadata<Newable<BaseEntity>> | undefined = await this.resolveBelongsToMetadata(
             controllerClass,
             controllerMethod
         );
@@ -198,7 +200,7 @@ export class AuthService implements AuthServiceInterface {
             && !MetadataUtilities.getControllerHasRole(controllerClass)
             && !MetadataUtilities.getControllerBelongsTo(controllerClass)
         ) {
-            this.logger.warn(`Useless @Auth.skip on route ${controllerClass.name}.${controllerMethod}`);
+            await this.logger.warn(`Useless @Auth.skip on route ${controllerClass.name}.${controllerMethod}`);
         }
 
         // isLoggedIn
@@ -288,7 +290,7 @@ export class AuthService implements AuthServiceInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    resolveIsLoggedInMetadata(controllerClass: Newable<unknown>, controllerMethod: string): IsLoggedInMetadata | undefined {
+    async resolveIsLoggedInMetadata(controllerClass: Newable<unknown>, controllerMethod: string): Promise<IsLoggedInMetadata | undefined> {
         const controllerIsLoggedIn: IsLoggedInMetadata | undefined = MetadataUtilities.getControllerIsLoggedIn(controllerClass);
         const routeIsLoggedIn: IsLoggedInMetadata | undefined = MetadataUtilities.getRouteIsLoggedIn(
             controllerClass,
@@ -321,10 +323,10 @@ export class AuthService implements AuthServiceInterface {
         }
 
         if (!routeIsLoggedIn && !controllerIsLoggedIn && routeSkipIsLoggedIn) {
-            this.logger.warn(`Useless @Auth.isLoggedIn.skip on route ${controllerClass.name}.${controllerMethod}`);
+            await this.logger.warn(`Useless @Auth.isLoggedIn.skip on route ${controllerClass.name}.${controllerMethod}`);
         }
         if (!controllerIsLoggedIn && controllerSkipIsLoggedIn) {
-            this.logger.warn(`Useless @Auth.isLoggedIn.skip on controller ${controllerClass.name}`);
+            await this.logger.warn(`Useless @Auth.isLoggedIn.skip on controller ${controllerClass.name}`);
         }
 
         if (routeSkipIsLoggedIn || routeSkip) {
@@ -340,7 +342,10 @@ export class AuthService implements AuthServiceInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    resolveIsNotLoggedInMetadata(controllerClass: Newable<unknown>, controllerMethod: string): IsNotLoggedInMetadata | undefined {
+    async resolveIsNotLoggedInMetadata(
+        controllerClass: Newable<unknown>,
+        controllerMethod: string
+    ): Promise<IsNotLoggedInMetadata | undefined> {
         const controllerIsNotLoggedIn: IsNotLoggedInMetadata | undefined = MetadataUtilities.getControllerIsNotLoggedIn(controllerClass);
         const routeIsNotLoggedIn: IsNotLoggedInMetadata | undefined = MetadataUtilities.getRouteIsNotLoggedIn(
             controllerClass,
@@ -375,10 +380,10 @@ export class AuthService implements AuthServiceInterface {
         }
 
         if (!routeIsNotLoggedIn && !controllerIsNotLoggedIn && routeSkipIsNotLoggedIn) {
-            this.logger.warn(`Useless @Auth.isNotLoggedIn.skip on route ${controllerClass.name}.${controllerMethod}`);
+            await this.logger.warn(`Useless @Auth.isNotLoggedIn.skip on route ${controllerClass.name}.${controllerMethod}`);
         }
         if (!controllerIsNotLoggedIn && controllerSkipIsNotLoggedIn) {
-            this.logger.warn(`Useless @Auth.isNotLoggedIn.skip on controller ${controllerClass.name}`);
+            await this.logger.warn(`Useless @Auth.isNotLoggedIn.skip on controller ${controllerClass.name}`);
         }
 
         if (routeSkipIsNotLoggedIn || routeSkip) {
@@ -394,7 +399,7 @@ export class AuthService implements AuthServiceInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    resolveHasRoleMetadata(controllerClass: Newable<unknown>, controllerMethod: string): HasRoleMetadata | undefined {
+    async resolveHasRoleMetadata(controllerClass: Newable<unknown>, controllerMethod: string): Promise<HasRoleMetadata | undefined> {
         const controllerHasRole: HasRoleMetadata | undefined = MetadataUtilities.getControllerHasRole(controllerClass);
         const routeHasRole: HasRoleMetadata | undefined = MetadataUtilities.getRouteHasRole(
             controllerClass,
@@ -428,10 +433,10 @@ export class AuthService implements AuthServiceInterface {
         }
 
         if (!routeHasRole && !controllerHasRole && routeSkipHasRole) {
-            this.logger.warn(`Useless @Auth.hasRole.skip on route ${controllerClass.name}.${controllerMethod}`);
+            await this.logger.warn(`Useless @Auth.hasRole.skip on route ${controllerClass.name}.${controllerMethod}`);
         }
         if (!controllerHasRole && controllerSkipHasRole) {
-            this.logger.warn(`Useless @Auth.hasRole.skip on controller ${controllerClass.name}`);
+            await this.logger.warn(`Useless @Auth.hasRole.skip on controller ${controllerClass.name}`);
         }
 
         if (routeSkipHasRole || routeSkip) {
@@ -447,10 +452,10 @@ export class AuthService implements AuthServiceInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    resolveBelongsToMetadata(
+    async resolveBelongsToMetadata(
         controllerClass: Newable<unknown>,
         controllerMethod: string
-    ): BelongsToMetadata<Newable<BaseEntity>> | undefined {
+    ): Promise<BelongsToMetadata<Newable<BaseEntity>> | undefined> {
         const controllerBelongsTo: BelongsToMetadata<Newable<BaseEntity>> | undefined = MetadataUtilities.getControllerBelongsTo(
             controllerClass
         );
@@ -485,10 +490,10 @@ export class AuthService implements AuthServiceInterface {
         }
 
         if (!routeBelongsTo && !controllerBelongsTo && routeSkipBelongsTo) {
-            this.logger.warn(`Useless @Auth.belongsTo.skip on route ${controllerClass.name}.${controllerMethod}`);
+            await this.logger.warn(`Useless @Auth.belongsTo.skip on route ${controllerClass.name}.${controllerMethod}`);
         }
         if (!controllerBelongsTo && controllerSkipBelongsTo) {
-            this.logger.warn(`Useless @Auth.belongsTo.skip on controller ${controllerClass.name}`);
+            await this.logger.warn(`Useless @Auth.belongsTo.skip on controller ${controllerClass.name}`);
         }
 
         if (routeSkipBelongsTo || routeSkip) {
