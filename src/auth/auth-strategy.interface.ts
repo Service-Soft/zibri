@@ -2,7 +2,7 @@ import { BaseEntity } from '../entity';
 import { HttpRequest } from '../http';
 import { OpenApiSecuritySchemeObject } from '../open-api';
 import { Newable } from '../types';
-import { BaseUser } from './models/base-user.model';
+import { BaseUser } from './models';
 
 /**
  * Interface for an auth strategy.
@@ -14,7 +14,8 @@ export interface AuthStrategyInterface<
     CredentialType,
     RequestPasswordResetDataType,
     ConfirmPasswordResetDataType,
-    RefreshLoginDataType
+    RefreshLoginDataType,
+    LogoutData
 > {
     /**
      * Initializes the strategy.
@@ -28,6 +29,10 @@ export interface AuthStrategyInterface<
      * Logs in a user.
      */
     login: (credentials: CredentialType) => Promise<AuthDataType>,
+    /**
+     * Logs out the current user.
+     */
+    logout: (data: LogoutData) => Promise<void>,
     /**
      * Refreshes the login of a user.
      */

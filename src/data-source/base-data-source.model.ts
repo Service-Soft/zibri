@@ -1,15 +1,18 @@
 import { DataSource as TODataSource, Repository as TORepository, EntityMetadata as TOEntityMetadata, EntitySchema, EntitySchemaColumnOptions, QueryRunner, EntitySchemaRelationOptions, Table, TableColumnOptions } from 'typeorm';
 import { IsolationLevel } from 'typeorm/driver/types/IsolationLevel';
 import { ColumnMetadata } from 'typeorm/metadata/ColumnMetadata';
+import { OnDeleteType } from 'typeorm/metadata/types/OnDeleteType';
+import { OnUpdateType } from 'typeorm/metadata/types/OnUpdateType';
 
 import { inject, repositoryTokenFor, ZIBRI_DI_TOKENS } from '../di';
-import { BaseEntity, EntityMetadata, FilePropertyMetadata, ManyToManyPropertyMetadata, ManyToOnePropertyMetadata, PropertyMetadata, Relation, RelationMetadata, StringPropertyMetadata } from '../entity';
+import { BaseEntity, EntityMetadata, FilePropertyMetadata, PropertyMetadata, Relation, RelationMetadata, StringPropertyMetadata } from '../entity';
 import { ExcludeStrict, Newable, OmitStrict, Version } from '../types';
 import { compareVersion, MetadataUtilities } from '../utilities';
 import { Migration, MigrationEntity } from './migration';
 import { ColumnType, DataSourceOptions } from './models';
 import { Repository } from './repository.model';
 import { Transaction } from './transaction';
+import { ChangeSetEntity, ChangeSetRepository, isChangeSetEntityNewable, isSoftDeleteEntityNewable, SoftDeleteEntity, SoftDeleteRepository } from '../change-sets';
 import { register } from '../di/register.function';
 import { GlobalRegistry } from '../global';
 import { LoggerInterface } from '../logging';
@@ -146,6 +149,8 @@ export abstract class BaseDataSource {
             if (
                 m.type !== Relation.MANY_TO_ONE
                 && m.type !== Relation.MANY_TO_MANY
+                && m.type !== Relation.ONE_TO_MANY
+                && m.type !== Relation.ONE_TO_ONE
             ) {
                 continue;
             }
@@ -166,15 +171,36 @@ export abstract class BaseDataSource {
      * @param metadata - The relation metadata to transform.
      * @returns Typeorm relation options.
      */
-    protected propertyToRelationOptions<T extends BaseEntity>(
-        metadata: ManyToOnePropertyMetadata<T> | ManyToManyPropertyMetadata<T>
-    ): EntitySchemaRelationOptions {
+    protected propertyToRelationOptions<T extends BaseEntity>(metadata: RelationMetadata<T>): EntitySchemaRelationOptions {
+        const thisHasRemove: boolean = this.hasCascadeFlag(metadata.cascade, 'remove');
+        const thisHasUpdate: boolean = this.hasCascadeFlag(metadata.cascade, 'update');
+
+        // try to inspect inverse property's cascade (if inverseSide provided)
+        const targetClass: Newable<T> = metadata.target();
+        const targetProps: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(targetClass);
+        const inv: RelationMetadata<BaseEntity> = targetProps[metadata.inverseSide] as RelationMetadata<BaseEntity>;
+        const inverseHasRemove: boolean = this.hasCascadeFlag(inv.cascade, 'remove');
+        const inverseHasUpdate: boolean = this.hasCascadeFlag(inv.cascade, 'update');
+
+        let onDelete: OnDeleteType | undefined;
+        let onUpdate: OnUpdateType | undefined;
+        if (thisHasRemove || inverseHasRemove) {
+            onDelete = 'CASCADE';
+        }
+        if (thisHasUpdate || inverseHasUpdate) {
+            onUpdate = 'CASCADE';
+        }
+
         switch (metadata.type) {
+            case Relation.ONE_TO_ONE:
+            case Relation.ONE_TO_MANY:
             case Relation.MANY_TO_MANY: {
                 return {
                     nullable: !metadata.required,
                     ...metadata,
-                    inverseSide: metadata.inverseSide as string | undefined
+                    inverseSide: metadata.inverseSide as string,
+                    onDelete,
+                    onUpdate
                 };
             }
             case Relation.MANY_TO_ONE: {
@@ -182,10 +208,22 @@ export abstract class BaseDataSource {
                     nullable: !metadata.required,
                     joinColumn: true,
                     ...metadata,
-                    inverseSide: metadata.inverseSide as string | undefined
+                    inverseSide: metadata.inverseSide as string,
+                    onDelete,
+                    onUpdate
                 };
             }
         }
+    }
+
+    private hasCascadeFlag(c: RelationMetadata<BaseEntity>['cascade'], flag: 'remove' | 'update'): boolean {
+        if (c === true) {
+            return true;
+        }
+        if (Array.isArray(c)) {
+            return c.includes(flag);
+        }
+        return false;
     }
 
     /**
@@ -262,6 +300,13 @@ export abstract class BaseDataSource {
             throw new Error(`The entity "${cls.name}" is not in this database. Did you forget to include it in the entities array?`);
         }
         const repo: TORepository<T> = this.ds.getRepository(cls);
+
+        if (isSoftDeleteEntityNewable(cls)) {
+            return new SoftDeleteRepository(cls, repo as unknown as TORepository<SoftDeleteEntity>) as unknown as Repository<T>;
+        }
+        if (isChangeSetEntityNewable(cls)) {
+            return new ChangeSetRepository(cls, repo as unknown as TORepository<ChangeSetEntity>) as unknown as Repository<T>;
+        }
         return new Repository(cls, repo);
     }
 

@@ -5,6 +5,12 @@ export default [
     ...configs,
     { ignores: ['tsconfig.json', 'tsup.config.ts', 'sandbox', 'docs'] },
     {
+        files: ['**/__testing__/**/*.ts'],
+        rules: {
+            'jsdoc/require-jsdoc': 'off'
+        }
+    },
+    {
         files: ['*.js', '*.mjs'],
         rules: {
             'jsdoc/require-description': 'off'

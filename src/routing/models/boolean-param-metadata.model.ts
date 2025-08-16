@@ -5,7 +5,7 @@ import { OmitStrict } from '../../types';
 /**
  * Metadata for boolean parameters.
  */
-export type BooleanParamMetadata = BaseParamMetadata & OmitStrict<BooleanPropertyMetadata, 'default'>;
+export type BooleanParamMetadata = BaseParamMetadata & OmitStrict<BooleanPropertyMetadata, 'default' | 'excludeFromChangeSets'>;
 
 /**
  * Metadata Input for boolean parameters.

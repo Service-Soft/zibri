@@ -486,7 +486,8 @@ export class OpenApiService implements OpenApiServiceInterface {
                                 type: 'object',
                                 cls: () => targetClass,
                                 required: true,
-                                description: undefined
+                                description: undefined,
+                                excludeFromChangeSets: false
                             }
                         },
                         entity

@@ -5,7 +5,7 @@ import { OmitStrict } from '../../types';
 /**
  * Metadata for number parameters.
  */
-export type NumberParamMetadata = BaseParamMetadata & OmitStrict<NumberPropertyMetadata, 'primary' | 'default'>;
+export type NumberParamMetadata = BaseParamMetadata & OmitStrict<NumberPropertyMetadata, 'primary' | 'default' | 'excludeFromChangeSets'>;
 
 /**
  * Metadata Input for number parameters.

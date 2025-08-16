@@ -6,7 +6,7 @@ import { MetadataUtilities, Ms } from '../../utilities';
 /**
  * Base metadata shared by all possible http request body properties.
  */
-type BaseBodyMetadata = BasePropertyMetadata & {
+type BaseBodyMetadata = OmitStrict<BasePropertyMetadata, 'excludeFromChangeSets'> & {
     /**
      * The class that defines the structure of the body metadata.
      */

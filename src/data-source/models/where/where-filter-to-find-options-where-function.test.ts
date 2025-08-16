@@ -1,46 +1,10 @@
 /* eslint-disable unicorn/no-null */
-
 import { describe, expect, it } from '@jest/globals';
 import { EqualOperator, FindOptionsWhere, FindOperator, Equal, Raw } from 'typeorm';
 
 import { whereFilterToFindOptionsWhere } from './where-filter-to-find-options-where.function';
 import { Where } from './where-filter.model';
-import { BaseEntity, Property } from '../../../entity';
-
-class Address {
-    @Property.string()
-    street!: string;
-    @Property.string()
-    city!: string;
-}
-
-class Company implements BaseEntity {
-    @Property.string({ primary: true })
-    id!: string;
-}
-
-class User {
-    @Property.string()
-    name!: string;
-
-    @Property.number()
-    age!: number;
-
-    @Property.boolean()
-    active!: boolean;
-
-    @Property.array({ items: { type: 'string' } })
-    tags!: string[];
-
-    @Property.date()
-    created!: Date;
-
-    @Property.object({ cls: () => Address })
-    address!: Address;
-
-    @Property.oneToOne({ target: () => Company })
-    company!: Company;
-}
+import { Address, User } from '../../../__testing__';
 
 describe('whereFilterToFindOptionsWhere - primitive filters', () => {
     it('string equality', () => {

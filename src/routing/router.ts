@@ -19,6 +19,7 @@ import { OpenApiResponse } from '../open-api';
 import { FileResponse, HtmlResponse, ParserInterface } from '../parsing';
 import { ValidationServiceInterface } from '../validation';
 import { createHeaderParamMetadata, createPathParamMetadata, createQueryParamMetadata } from './param-metdata.helpers';
+import { runWithRequest } from './request.context';
 
 /**
  * Default router implementation of Zibri.
@@ -59,6 +60,7 @@ export class Router implements RouterInterface {
     // eslint-disable-next-line jsdoc/require-jsdoc
     attachTo(app: ZibriApplication): void {
         app.use(this.expressRouter);
+        app.use((req, _res, next) => runWithRequest(req as HttpRequest, () => next()));
     }
 
     private checkForOrphanedControllers(controllers: Newable<unknown>[]): void {

@@ -1,4 +1,5 @@
 import { AuthStrategies } from './auth-strategies.model';
+import { SkipAuthMetadata } from './skip-auth-metadata.model';
 import { BaseEntity } from '../../entity';
 import { Newable } from '../../types';
 
@@ -29,4 +30,4 @@ export type BelongsToMetadata<TargetEntity extends Newable<BaseEntity>> = {
 /**
  * Metadata for the \@Auth.belongsTo.skip decorator.
  */
-export type SkipBelongsToMetadata = {};
+export type SkipBelongsToMetadata = SkipAuthMetadata;

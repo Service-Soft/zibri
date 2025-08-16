@@ -46,6 +46,7 @@ implements AuthStrategyInterface<
     JwtCredentialsDto,
     JwtRequestPasswordResetData<RoleType, UserType>,
     JwtConfirmPasswordResetData,
+    JwtRefreshLoginData,
     JwtRefreshLoginData
 > {
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -169,6 +170,21 @@ implements AuthStrategyInterface<
         }
         catch {
             throw new UnauthorizedError('Invalid email or password.');
+        }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async logout(data: JwtRefreshLoginData): Promise<void> {
+        try {
+            const refreshToken: JwtRefreshToken | undefined
+                = await this.refreshTokenRepository.findOne({ where: { value: data.refreshToken } }, false);
+            if (!refreshToken) {
+                return;
+            }
+            await this.refreshTokenRepository.deleteAll({ familyId: refreshToken.familyId });
+        }
+        catch {
+            // ignore
         }
     }
 
