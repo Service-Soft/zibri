@@ -10,7 +10,11 @@ export type BasePropertyMetadata = {
     /**
      * A description of the property.
      */
-    description: string | undefined
+    description: string | undefined,
+    /**
+     * Whether or not this property should be excluded when generating change sets.
+     */
+    excludeFromChangeSets: boolean
 };
 
 /**

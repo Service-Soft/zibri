@@ -18,5 +18,5 @@ export type BaseRelationMetadata<T extends BaseEntity> = BasePropertyMetadata
          * The name of the inverse property on the target,
          * e.g. 'user' if Posts has `@ManyToOne(() => User, 'post')`.
          */
-        inverseSide: keyof T | undefined
+        inverseSide: keyof T
     };

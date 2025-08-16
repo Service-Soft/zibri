@@ -110,13 +110,19 @@ export class JwtAuthController implements AuthControllerInterface<
 
     @Response.empty()
     @Post('/confirm-password-reset')
-    async confirmPasswordReset(data: JwtConfirmPasswordResetData): Promise<void> {
+    async confirmPasswordReset(
+        @Body(JwtConfirmPasswordResetData)
+        data: JwtConfirmPasswordResetData
+    ): Promise<void> {
         await this.authService.confirmPasswordReset(JwtAuthStrategy, data);
     }
 
     @Response.empty()
     @Post('/logout')
-    async logout(data: JwtRefreshLoginData): Promise<void> {
+    async logout(
+        @Body(JwtRefreshLoginData)
+        data: JwtRefreshLoginData
+    ): Promise<void> {
         try {
             const refreshToken: JwtRefreshToken | undefined
                 = await this.refreshTokenRepository.findOne({ where: { value: data.refreshToken } }, false);

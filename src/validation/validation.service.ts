@@ -199,7 +199,7 @@ export class ValidationService implements ValidationServiceInterface {
         const res: ValidationProblem[] = [];
         for (let i: number = 0; i < property.length; i++) {
             const item: unknown = property[i];
-            const errors: ValidationProblem[] = this.validateProperty(String(i), item, metadata.items, key);
+            const errors: ValidationProblem[] = this.validateProperty(String(i), item, metadata.items as PropertyMetadata, key);
             res.push(...errors);
         }
         return res;

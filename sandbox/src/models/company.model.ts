@@ -7,6 +7,6 @@ export class Company implements BaseEntity {
     @Property.string({ primary: true })
     id!: string;
 
-    @Property.oneToMany({ target: () => User })
+    @Property.oneToMany({ target: () => User, inverseSide: 'company' })
     workers!: User[];
 }

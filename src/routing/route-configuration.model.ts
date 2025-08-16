@@ -73,7 +73,10 @@ type ParamMetadataInputToMeta<M extends (PathParamMetadataInput | QueryParamMeta
 type MergeRequired<I, M> = I extends { required: false } ? M & { required: false } : M & { required: true };
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-type RawParamMetadataToType<M extends (PathParamMetadata | QueryParamMetadata | HeaderParamMetadata | ArrayPropertyItemMetadata)> =
+type RawParamMetadataToType<M extends (
+    PathParamMetadata | QueryParamMetadata | HeaderParamMetadata | ArrayPropertyItemMetadata
+    | OmitStrict<PathParamMetadata, 'name'> | OmitStrict<QueryParamMetadata, 'name'> | OmitStrict<HeaderParamMetadata, 'name'>
+)> =
     M extends StringParamMetadata
         ? string
         : M extends NumberParamMetadata
@@ -89,7 +92,10 @@ type RawParamMetadataToType<M extends (PathParamMetadata | QueryParamMetadata | 
                             : never;
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-type ParamMetadataToType<M extends (PathParamMetadata | QueryParamMetadata | HeaderParamMetadata | ArrayPropertyItemMetadata)> =
+type ParamMetadataToType<M extends (
+    PathParamMetadata | QueryParamMetadata | HeaderParamMetadata | ArrayPropertyItemMetadata
+    | OmitStrict<PathParamMetadata, 'name'> | OmitStrict<QueryParamMetadata, 'name'> | OmitStrict<HeaderParamMetadata, 'name'>
+)> =
     // eslint-disable-next-line jsdoc/require-jsdoc
     M extends { required: false }
         ? RawParamMetadataToType<M> | undefined

@@ -1,4 +1,5 @@
 import { AuthStrategies } from './auth-strategies.model';
+import { SkipAuthMetadata } from './skip-auth-metadata.model';
 
 /**
  * Metadata for the \@Auth.isLoggedIn decorator.
@@ -15,4 +16,4 @@ export type IsLoggedInMetadata = {
 /**
  * Metadata for the \@Auth.isLoggedIn.skip decorator.
  */
-export type SkipIsLoggedInMetadata = {};
+export type SkipIsLoggedInMetadata = SkipAuthMetadata;

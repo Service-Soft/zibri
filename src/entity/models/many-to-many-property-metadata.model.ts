@@ -12,7 +12,7 @@ export type ManyToManyPropertyMetadata<T extends BaseEntity> = BaseRelationMetad
      */
     type: Relation.MANY_TO_MANY,
     /**
-     * Whether or not this entity should have a join table.
+     * Whether or not this entity should own the join table.
      */
     joinTable: boolean
 };
@@ -21,4 +21,4 @@ export type ManyToManyPropertyMetadata<T extends BaseEntity> = BaseRelationMetad
  * Input Metadata for many to many properties.
  */
 export type ManyToManyPropertyMetadataInput<T extends BaseEntity> = Partial<OmitStrict<ManyToManyPropertyMetadata<T>, 'type'>>
-    & Pick<ManyToManyPropertyMetadata<T>, 'target' | 'joinTable'>;
+    & Pick<ManyToManyPropertyMetadata<T>, 'target' | 'joinTable' | 'inverseSide'>;

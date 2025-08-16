@@ -9,9 +9,13 @@ import { Where } from '../where';
  * Options for finding a single entity.
  */
 export type FindOneOptions<T extends BaseEntity> = BaseRepositoryOptions
-    & OmitStrict<TOFindOneOptions<T>, 'where' | 'transaction'> & {
+    & OmitStrict<TOFindOneOptions<T>, 'where' | 'transaction' | 'relations' | 'withDeleted'> & {
         /**
          * The where filter to find the entity by.
          */
-        where?: Where<T>
+        where?: Where<T>,
+        /**
+         * The relations to include in the found entity.
+         */
+        relations?: (keyof T)[]
     };

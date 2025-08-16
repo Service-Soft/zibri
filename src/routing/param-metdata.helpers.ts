@@ -1,5 +1,5 @@
-import { createArrayItemPropertyMetadata } from '../entity';
 import { PathParamMetadataInput, PathParamMetadata, QueryParamMetadataInput, QueryParamMetadata, HeaderParamMetadataInput, HeaderParamMetadata } from './decorators';
+import { ArrayParamItemMetadata, ArrayParamItemMetadataInput } from './models';
 
 /**
  * Creates path parameter metadata for the parameter with the given name and input.
@@ -113,7 +113,7 @@ export function createQueryParamMetadata(name: string, data: QueryParamMetadataI
                 required: true,
                 description: undefined,
                 ...data,
-                items: createArrayItemPropertyMetadata(data.items, name)
+                items: createArrayParamItemMetadata(data.items, name)
             };
         }
     }
@@ -122,4 +122,66 @@ export function createQueryParamMetadata(name: string, data: QueryParamMetadataI
 // eslint-disable-next-line jsdoc/require-jsdoc
 export function createHeaderParamMetadata(name: string, data: HeaderParamMetadataInput): HeaderParamMetadata {
     return createQueryParamMetadata(name, data);
+}
+
+/**
+ * Creates full metadata for an array property item.
+ * @param data - The array item input data.
+ * @param fullPropertyKey - The full key of the property.
+ * @returns The full metadata.
+ */
+export function createArrayParamItemMetadata(
+    data: ArrayParamItemMetadataInput,
+    fullPropertyKey: string
+): ArrayParamItemMetadata {
+    switch (data.type) {
+        case 'number': {
+            return {
+                required: true,
+                unique: false,
+                description: undefined,
+                min: undefined,
+                max: undefined,
+                ...data
+            };
+        }
+        case 'string': {
+            return {
+                required: true,
+                unique: false,
+                format: undefined,
+                description: undefined,
+                maxLength: undefined,
+                minLength: undefined,
+                regex: undefined,
+                enum: undefined,
+                ...data
+            };
+        }
+        case 'object':
+        case 'boolean': {
+            return {
+                required: true,
+                description: undefined,
+                ...data
+            };
+        }
+        case 'date': {
+            return {
+                required: true,
+                description: undefined,
+                after: undefined,
+                before: undefined,
+                ...data
+            };
+        }
+        case 'array': {
+            return {
+                required: true,
+                description: undefined,
+                ...data,
+                items: createArrayParamItemMetadata(data.items, fullPropertyKey)
+            };
+        }
+    }
 }

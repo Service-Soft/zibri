@@ -1,7 +1,7 @@
 import { warn } from '../../logging/logger.helpers';
 import { Newable } from '../../types';
 import { MetadataUtilities } from '../../utilities';
-import { ArrayPropertyItemMetadata, ArrayPropertyItemMetadataInput, ArrayPropertyMetadata, ArrayPropertyMetadataInput, BaseEntity, BooleanPropertyMetadata, BooleanPropertyMetadataInput, DatePropertyMetadata, DatePropertyMetadataInput, FilePropertyMetadata, FilePropertyMetadataInput, ManyToManyPropertyMetadata, ManyToManyPropertyMetadataInput, ManyToOnePropertyMetadata, ManyToOnePropertyMetadataInput, NumberPropertyMetadata, NumberPropertyMetadataInput, ObjectPropertyMetadata, ObjectPropertyMetadataInput, OneToManyPropertyMetadata, OneToManyPropertyMetadataInput, OneToOnePropertyMetadata, OneToOnePropertyMetadataInput, Relation, StringPropertyMetadata, StringPropertyMetadataInput, UnknownPropertyMetadata, UnknownPropertyMetadataInput } from '../models';
+import { ArrayPropertyItemMetadata, ArrayPropertyItemMetadataInput, ArrayPropertyMetadata, ArrayPropertyMetadataInput, BaseEntity, BelongsToOnePropertyMetadataInput, BooleanPropertyMetadata, BooleanPropertyMetadataInput, DatePropertyMetadata, DatePropertyMetadataInput, FilePropertyMetadata, FilePropertyMetadataInput, HasOnePropertyMetadataInput, ManyToManyPropertyMetadata, ManyToManyPropertyMetadataInput, ManyToOnePropertyMetadata, ManyToOnePropertyMetadataInput, NumberPropertyMetadata, NumberPropertyMetadataInput, ObjectPropertyMetadata, ObjectPropertyMetadataInput, OneToManyPropertyMetadata, OneToManyPropertyMetadataInput, OneToOnePropertyMetadata, OneToOnePropertyMetadataInput, Relation, StringPropertyMetadata, StringPropertyMetadataInput, UnknownPropertyMetadata, UnknownPropertyMetadataInput } from '../models';
 import { WithDefaultMetadata } from '../models/base-property-metadata.model';
 
 /**
@@ -43,6 +43,8 @@ export type PropertyMetadataInput = StringPropertyMetadataInput
 export type RelationMetadataInput<T extends BaseEntity> = ManyToOnePropertyMetadataInput<T>
     | OneToManyPropertyMetadataInput<T>
     | OneToOnePropertyMetadataInput<T>
+    | HasOnePropertyMetadataInput<T>
+    | BelongsToOnePropertyMetadataInput<T>
     | ManyToManyPropertyMetadataInput<T>;
 
 /**
@@ -68,6 +70,7 @@ export namespace Property {
             regex: undefined,
             enum: undefined,
             default: undefined,
+            excludeFromChangeSets: false,
             ...data
         };
         return applyData(fullMetadata, data);
@@ -88,6 +91,7 @@ export namespace Property {
             min: undefined,
             max: undefined,
             default: undefined,
+            excludeFromChangeSets: false,
             ...data
         };
         return applyData(fullMetadata, data);
@@ -104,6 +108,7 @@ export namespace Property {
             type: 'boolean',
             description: undefined,
             default: undefined,
+            excludeFromChangeSets: false,
             ...data
         };
         return applyData(fullMetadata, data);
@@ -122,6 +127,7 @@ export namespace Property {
             after: undefined,
             before: undefined,
             default: undefined,
+            excludeFromChangeSets: false,
             ...data
         };
         return applyData(fullMetadata, data);
@@ -137,6 +143,7 @@ export namespace Property {
             required: true,
             type: 'object',
             description: undefined,
+            excludeFromChangeSets: false,
             ...data
         };
         return applyData(fullMetadata, data);
@@ -161,6 +168,7 @@ export namespace Property {
                 description: undefined,
                 allowedMimeTypes: 'all',
                 maxSize: '5mb',
+                excludeFromChangeSets: false,
                 ...data
             };
             const ctor: Newable<unknown> = target.constructor as Newable<unknown>;
@@ -184,6 +192,7 @@ export namespace Property {
                 required: true,
                 type: 'array',
                 description: undefined,
+                excludeFromChangeSets: false,
                 ...data,
                 items: createArrayItemPropertyMetadata(data.items, `${target.constructor.name}.${key.toString()}`)
             };
@@ -207,6 +216,7 @@ export namespace Property {
             required: true,
             type: 'unknown',
             description: undefined,
+            excludeFromChangeSets: false,
             ...data
         };
         return applyData(fullMetadata, data);
@@ -222,9 +232,9 @@ export namespace Property {
             required: true,
             type: Relation.MANY_TO_ONE,
             cascade: [],
-            inverseSide: undefined,
             description: undefined,
             persistence: false,
+            excludeFromChangeSets: false,
             ...metadata
         };
         return applyData(fullMetadata as PropertyMetadata, metadata);
@@ -240,9 +250,9 @@ export namespace Property {
             required: true,
             type: Relation.ONE_TO_MANY,
             cascade: ['remove', 'insert', 'update'],
-            inverseSide: undefined,
             description: undefined,
             persistence: false,
+            excludeFromChangeSets: false,
             ...metadata
         };
         return applyData(fullMetadata as PropertyMetadata, metadata);
@@ -250,17 +260,37 @@ export namespace Property {
 
     // eslint-disable-next-line jsdoc/require-returns
     /**
-     * Defines a one to one property.
+     * Defines a has one property.
      * @param metadata - Additional data to specify the property.
      */
-    export function oneToOne<T extends BaseEntity>(metadata: OneToOnePropertyMetadataInput<T>): PropertyDecorator {
+    export function hasOne<T extends BaseEntity>(metadata: HasOnePropertyMetadataInput<T>): PropertyDecorator {
         const fullMetadata: OneToOnePropertyMetadata<T> = {
             required: true,
             type: Relation.ONE_TO_ONE,
-            cascade: ['remove'],
-            inverseSide: undefined,
+            cascade: ['remove', 'insert', 'update'],
+            joinColumn: false,
             description: undefined,
             persistence: false,
+            excludeFromChangeSets: false,
+            ...metadata
+        };
+        return applyData(fullMetadata as PropertyMetadata, metadata);
+    }
+
+    // eslint-disable-next-line jsdoc/require-returns
+    /**
+     * Defines a belongs to one property.
+     * @param metadata - Additional data to specify the property.
+     */
+    export function belongsToOne<T extends BaseEntity>(metadata: BelongsToOnePropertyMetadataInput<T>): PropertyDecorator {
+        const fullMetadata: OneToOnePropertyMetadata<T> = {
+            required: true,
+            type: Relation.ONE_TO_ONE,
+            cascade: [],
+            joinColumn: true,
+            description: undefined,
+            persistence: false,
+            excludeFromChangeSets: false,
             ...metadata
         };
         return applyData(fullMetadata as PropertyMetadata, metadata);
@@ -276,9 +306,9 @@ export namespace Property {
             required: true,
             type: Relation.MANY_TO_MANY,
             cascade: [],
-            inverseSide: undefined,
             description: undefined,
             persistence: true,
+            excludeFromChangeSets: false,
             ...metadata
         };
         return applyData(fullMetadata as PropertyMetadata, metadata);
@@ -322,6 +352,7 @@ export function createArrayItemPropertyMetadata(
                 min: undefined,
                 max: undefined,
                 default: undefined,
+                excludeFromChangeSets: false,
                 ...data
             };
         }
@@ -337,6 +368,7 @@ export function createArrayItemPropertyMetadata(
                 regex: undefined,
                 enum: undefined,
                 default: undefined,
+                excludeFromChangeSets: false,
                 ...data
             };
         }
@@ -345,6 +377,7 @@ export function createArrayItemPropertyMetadata(
             return {
                 required: true,
                 description: undefined,
+                excludeFromChangeSets: false,
                 ...data
             };
         }
@@ -353,6 +386,7 @@ export function createArrayItemPropertyMetadata(
                 required: true,
                 description: undefined,
                 default: undefined,
+                excludeFromChangeSets: false,
                 ...data
             };
         }
@@ -363,6 +397,7 @@ export function createArrayItemPropertyMetadata(
                 after: undefined,
                 before: undefined,
                 default: undefined,
+                excludeFromChangeSets: false,
                 ...data
             };
         }
@@ -370,6 +405,7 @@ export function createArrayItemPropertyMetadata(
             return {
                 required: true,
                 description: undefined,
+                excludeFromChangeSets: false,
                 ...data,
                 items: createArrayItemPropertyMetadata(data.items, fullPropertyKey)
             };
@@ -386,6 +422,7 @@ export function createArrayItemPropertyMetadata(
                 description: undefined,
                 allowedMimeTypes: 'all',
                 maxSize: '5mb',
+                excludeFromChangeSets: false,
                 ...data
             };
         }

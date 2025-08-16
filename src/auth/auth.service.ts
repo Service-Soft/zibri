@@ -41,16 +41,6 @@ export class AuthService implements AuthServiceInterface {
                 inject(strategy).init();
             }
         }
-
-        // const entitiesInDataSources: Newable<BaseEntity>[] = [];
-        // for (const dataSourceClass of GlobalRegistry.dataSourceClasses) {
-        //     const dataSource: BaseDataSource = inject(dataSourceClass);
-        //     this.logger.info(`  - ${dataSourceClass.name} (${dataSource.entities.length} entities)`);
-        //     entitiesInDataSources.push(...dataSource.entities);
-        //     await dataSource.init();
-        // }
-
-        // this.checkForOrphanedEntities(entitiesInDataSources);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -61,7 +51,8 @@ export class AuthService implements AuthServiceInterface {
         CredentialsType,
         RequestPasswordResetDataType,
         ConfirmPasswordResetDataType,
-        RefreshLoginDataType
+        RefreshLoginDataType,
+        LogoutDataType
     >(
         strategy: Newable<
             AuthStrategyInterface<
@@ -71,7 +62,8 @@ export class AuthService implements AuthServiceInterface {
                 CredentialsType,
                 RequestPasswordResetDataType,
                 ConfirmPasswordResetDataType,
-                RefreshLoginDataType
+                RefreshLoginDataType,
+                LogoutDataType
             >
         >,
         credentials: CredentialsType
@@ -87,7 +79,8 @@ export class AuthService implements AuthServiceInterface {
         AuthDataType,
         CredentialsType,
         RequestPasswordResetDataType,
-        ConfirmPasswordResetDataType
+        ConfirmPasswordResetDataType,
+        LogoutDataType
     >(
         strategy: Newable<
             AuthStrategyInterface<
@@ -97,7 +90,8 @@ export class AuthService implements AuthServiceInterface {
                 CredentialsType,
                 RequestPasswordResetDataType,
                 ConfirmPasswordResetDataType,
-                RefreshLoginDataType
+                RefreshLoginDataType,
+                LogoutDataType
             >
         >,
         data: RefreshLoginDataType
@@ -112,7 +106,9 @@ export class AuthService implements AuthServiceInterface {
         required: B
     ): Promise<B extends false ? UserType | undefined : UserType> {
         // eslint-disable-next-line stylistic/max-len
-        const strategies: AuthStrategyInterface<Role, UserType, unknown, unknown, unknown, unknown, unknown>[] = allowedStrategies.map(s => inject(s)) as unknown as AuthStrategyInterface<Role, UserType, unknown, unknown, unknown, unknown, unknown>[];
+        const strategies: AuthStrategyInterface<Role, UserType, unknown, unknown, unknown, unknown, unknown, unknown>[] = allowedStrategies.map(
+            s => inject(s)
+        ) as unknown as AuthStrategyInterface<Role, UserType, unknown, unknown, unknown, unknown, unknown, unknown>[];
         const res: PromiseSettledResult<UserType | undefined>[] = await Promise.allSettled(strategies.map(s => s.resolveUser(request)));
         const currentUser: UserType | undefined = (
             res.find(r => r.status === 'fulfilled' && r.value !== undefined) as PromiseFulfilledResult<UserType> | undefined
@@ -131,7 +127,8 @@ export class AuthService implements AuthServiceInterface {
         CredentialsType,
         RequestPasswordResetDataType,
         ConfirmPasswordResetDataType,
-        RefreshLoginDataType
+        RefreshLoginDataType,
+        LogoutDataType
     >(
         strategy: Newable<
             AuthStrategyInterface<
@@ -141,7 +138,8 @@ export class AuthService implements AuthServiceInterface {
                 CredentialsType,
                 RequestPasswordResetDataType,
                 ConfirmPasswordResetDataType,
-                RefreshLoginDataType
+                RefreshLoginDataType,
+                LogoutDataType
             >
         >,
         data: RequestPasswordResetDataType
@@ -157,7 +155,8 @@ export class AuthService implements AuthServiceInterface {
         CredentialsType,
         RequestPasswordResetDataType,
         ConfirmPasswordResetDataType,
-        RefreshLoginDataType
+        RefreshLoginDataType,
+        LogoutDataType
     >(
         strategy: Newable<
             AuthStrategyInterface<
@@ -167,7 +166,8 @@ export class AuthService implements AuthServiceInterface {
                 CredentialsType,
                 RequestPasswordResetDataType,
                 ConfirmPasswordResetDataType,
-                RefreshLoginDataType
+                RefreshLoginDataType,
+                LogoutDataType
             >
         >,
         data: ConfirmPasswordResetDataType
@@ -250,7 +250,7 @@ export class AuthService implements AuthServiceInterface {
         allowedStrategies: AuthStrategies
     ): Promise<boolean> {
         // eslint-disable-next-line stylistic/max-len
-        const strategies: AuthStrategyInterface<string, BaseUser<string>, unknown, unknown, unknown, unknown, unknown>[] = allowedStrategies.map(s => inject(s));
+        const strategies: AuthStrategyInterface<string, BaseUser<string>, unknown, unknown, unknown, unknown, unknown, unknown>[] = allowedStrategies.map(s => inject(s));
         try {
             return await Promise.any(strategies.map(s => s.isLoggedIn(request)));
         }
@@ -262,7 +262,7 @@ export class AuthService implements AuthServiceInterface {
     // eslint-disable-next-line jsdoc/require-jsdoc
     async hasRole(request: HttpRequest, allowedStrategies: AuthStrategies, allowedRoles: string[]): Promise<boolean> {
         // eslint-disable-next-line stylistic/max-len
-        const strategies: AuthStrategyInterface<string, BaseUser<string>, unknown, unknown, unknown, unknown, unknown>[] = allowedStrategies.map(s => inject(s));
+        const strategies: AuthStrategyInterface<string, BaseUser<string>, unknown, unknown, unknown, unknown, unknown, unknown>[] = allowedStrategies.map(s => inject(s));
         try {
             return await Promise.any(strategies.map(s => s.hasRole(request, allowedRoles)));
         }
@@ -280,7 +280,7 @@ export class AuthService implements AuthServiceInterface {
         targetIdParamKey: string
     ): Promise<boolean> {
         // eslint-disable-next-line stylistic/max-len
-        const strategies: AuthStrategyInterface<string, BaseUser<string>, unknown, unknown, unknown, unknown, unknown>[] = allowedStrategies.map(s => inject(s));
+        const strategies: AuthStrategyInterface<string, BaseUser<string>, unknown, unknown, unknown, unknown, unknown, unknown>[] = allowedStrategies.map(s => inject(s));
         try {
             return await Promise.any(strategies.map(s => s.belongsTo(request, targetEntity, targetUserIdKey, targetIdParamKey)));
         }
@@ -506,5 +506,40 @@ export class AuthService implements AuthServiceInterface {
             return undefined;
         }
         return controllerBelongsTo;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async logout<
+        Role extends string,
+        UserType extends BaseUser<Role>,
+        RefreshLoginDataType,
+        AuthDataType,
+        CredentialsType,
+        RequestPasswordResetDataType,
+        ConfirmPasswordResetDataType,
+        LogoutDataType
+    >(
+        strategy: Newable<
+            AuthStrategyInterface<
+                Role,
+                UserType,
+                AuthDataType,
+                CredentialsType,
+                RequestPasswordResetDataType,
+                ConfirmPasswordResetDataType,
+                RefreshLoginDataType,
+                LogoutDataType
+            >
+        >,
+        data: LogoutDataType
+    ): Promise<void> {
+
+        try {
+            await inject(strategy).logout(data);
+            return;
+        }
+        catch {
+            // do nothing
+        }
     }
 }
