@@ -29,5 +29,6 @@ export const ZIBRI_DI_TOKENS = {
     FORMAT_DATE: 'zi.format_date',
     EMAIL_SERVICE: 'zi.email_service',
     EMAIL_CONFIG: 'zi.email_config',
-    MAILING_LIST_SERVICE: 'zi.mailing_list_service'
+    MAILING_LIST_SERVICE: 'zi.mailing_list_service',
+    CURRENT_REQUEST: 'zi.current_request'
 } as const satisfies Record<string, `zi.${string}`>;

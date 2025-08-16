@@ -1,4 +1,5 @@
 import { AuthStrategies } from './auth-strategies.model';
+import { SkipAuthMetadata } from './skip-auth-metadata.model';
 
 /**
  * Metadata for the \@Auth.hasRole decorator.
@@ -19,4 +20,4 @@ export type HasRoleMetadata = {
 /**
  * Metadata for the \@Auth.hasRole.skip decorator.
  */
-export type SkipHasRoleMetadata = {};
+export type SkipHasRoleMetadata = SkipAuthMetadata;

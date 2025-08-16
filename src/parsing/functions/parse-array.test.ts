@@ -12,13 +12,11 @@ describe('parseArray', () => {
         items: {
             type: 'string',
             required: true,
-            primary: false,
             description: undefined,
             format: undefined,
             unique: false,
             maxLength: undefined,
             minLength: undefined,
-            default: undefined,
             regex: undefined,
             enum: undefined
         },

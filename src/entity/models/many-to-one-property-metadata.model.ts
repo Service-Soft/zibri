@@ -17,4 +17,4 @@ export type ManyToOnePropertyMetadata<T extends BaseEntity> = BaseRelationMetada
  * Input Metadata for many to one properties.
  */
 export type ManyToOnePropertyMetadataInput<T extends BaseEntity> = Partial<OmitStrict<ManyToOnePropertyMetadata<T>, 'type'>>
-    & Pick<ManyToOnePropertyMetadata<T>, 'target'>;
+    & Pick<ManyToOnePropertyMetadata<T>, 'target' | 'inverseSide'>;

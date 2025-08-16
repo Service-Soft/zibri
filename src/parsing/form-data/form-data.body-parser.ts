@@ -1,4 +1,3 @@
-
 import { rm } from 'fs/promises';
 import path from 'path';
 

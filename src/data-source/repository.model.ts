@@ -3,7 +3,7 @@ import { Repository as TORepository, FindOptionsWhere, EntityManager } from 'typ
 import { inject, ZIBRI_DI_TOKENS } from '../di';
 import { NotFoundError } from '../error-handling';
 import { LoggerInterface } from '../logging';
-import { DeepPartial, Newable, OmitStrict } from '../types';
+import { DeepPartial, Newable } from '../types';
 import { Transaction } from './transaction';
 import { BaseEntity, PropertyMetadata } from '../entity';
 import { CreateAllOptions, CreateOptions, DeleteAllOptions, DeleteByIdOptions, FindAllOptions, FindAllPaginatedOptions, FindByIdOptions, FindOneOptions, UpdateAllOptions, UpdateByIdOptions, Where } from './models';
@@ -23,7 +23,7 @@ export class Repository<
     protected readonly logger: LoggerInterface;
     private readonly typeOrmRepository: TORepository<T>;
 
-    constructor(private readonly entityClass: Newable<T>, repo: TORepository<T> | Repository<T>) {
+    constructor(protected readonly entityClass: Newable<T>, repo: TORepository<T> | Repository<T>) {
         this.logger = inject(ZIBRI_DI_TOKENS.LOGGER);
         this.typeOrmRepository = repo instanceof Repository ? repo.typeOrmRepository : repo;
     }
@@ -128,7 +128,10 @@ export class Repository<
     ): Promise<B extends false ? T | undefined : T> {
         const manager: EntityManager = this.getManager(options?.transaction);
         const where: FindOptionsWhere<T> | FindOptionsWhere<T>[] | undefined = this.resolveFindOptionsWhere(options.where);
-        const res: T | null = await manager.findOne(this.entityClass, { ...options, where, transaction: undefined });
+        const res: T | null = await manager.findOne(
+            this.entityClass,
+            { ...options, relations: options.relations as string[], where, transaction: undefined }
+        );
         if (!res && required) {
             throw new NotFoundError(`Could not find ${this.entityClass.name}.`);
         }
@@ -143,7 +146,10 @@ export class Repository<
     async findAll(options?: FindAllOptions<T>): Promise<T[]> {
         const manager: EntityManager = this.getManager(options?.transaction);
         const where: FindOptionsWhere<T> | FindOptionsWhere<T>[] | undefined = this.resolveFindOptionsWhere(options?.where);
-        return await manager.find(this.entityClass, { ...options, where, transaction: undefined });
+        return await manager.find(
+            this.entityClass,
+            { ...options, where, relations: options?.relations as string[], transaction: undefined }
+        );
     }
 
     /**
@@ -164,7 +170,7 @@ export class Repository<
 
         return {
             items,
-            totalAmount: await manager.count(this.entityClass, { ...options, where, transaction: undefined })
+            totalAmount: await manager.count(this.entityClass, { ...options, where, relations: undefined, transaction: undefined })
         };
     }
 
@@ -226,7 +232,7 @@ export class Repository<
      */
     async deleteAll(
         where: Where<T>,
-        options?: OmitStrict<DeleteAllOptions<T>, 'where'>
+        options?: DeleteAllOptions<T>
     ): Promise<T[]> {
         const toDelete: T[] = await this.findAll({ where, ...options });
         const manager: EntityManager = this.getManager(options?.transaction);

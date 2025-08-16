@@ -8,11 +8,12 @@ import { CronService, CronServiceInterface } from '../../cron';
 import { DataSourceService, DataSourceServiceInterface } from '../../data-source';
 import { EmailConfigInput, EmailService, EmailServiceInterface, MailingListService, MailingListServiceInterface } from '../../email';
 import { errorHandler, GlobalErrorHandler } from '../../error-handling';
+import { HttpRequest } from '../../http';
 import { BaseLoggerTransportConfig, Logger, LoggerInterface, LoggerTransport, LogLevel } from '../../logging';
 import { MetricsServiceInterface, PrometheusMetricsService } from '../../metrics';
 import { OpenApiService, OpenApiServiceInterface } from '../../open-api';
 import { Parser, ParserInterface } from '../../parsing';
-import { Router, RouterInterface } from '../../routing';
+import { getCurrentRequest, Router, RouterInterface } from '../../routing';
 import { OmitStrict } from '../../types';
 import { Ms } from '../../utilities';
 import { formatDate } from '../../utilities/format-date.function';
@@ -47,7 +48,8 @@ type ZibriDiProviders = {
     [ZIBRI_DI_TOKENS.EMAIL_SERVICE]: ZibriDiProvider<EmailServiceInterface>,
     [ZIBRI_DI_TOKENS.EMAIL_CONFIG]: ZibriDiProvider<EmailConfigInput | undefined>,
     [ZIBRI_DI_TOKENS.MAILING_LIST_SERVICE]: ZibriDiProvider<MailingListServiceInterface | undefined>,
-    [ZIBRI_DI_TOKENS.MAILING_LIST_SUBSCRIPTION_CONFIRMATION_TOKEN_EXPIRES_IN_MS]: ZibriDiProvider<number>
+    [ZIBRI_DI_TOKENS.MAILING_LIST_SUBSCRIPTION_CONFIRMATION_TOKEN_EXPIRES_IN_MS]: ZibriDiProvider<number>,
+    [ZIBRI_DI_TOKENS.CURRENT_REQUEST]: ZibriDiProvider<HttpRequest>
 };
 
 export const ZIBRI_DI_PROVIDERS: Record<
@@ -92,5 +94,6 @@ export const ZIBRI_DI_PROVIDERS: Record<
     [ZIBRI_DI_TOKENS.FORMAT_DATE]: { useFactory: () => formatDate },
     [ZIBRI_DI_TOKENS.EMAIL_CONFIG]: { useFactory: () => undefined },
     [ZIBRI_DI_TOKENS.JWT_PASSWORD_RESET_TOKEN_EXPIRES_IN_MS]: { useFactory: () => 300000 },
-    [ZIBRI_DI_TOKENS.JWT_CONFIRM_PASSWORD_RESET_URL]: { useFactory: () => undefined }
+    [ZIBRI_DI_TOKENS.JWT_CONFIRM_PASSWORD_RESET_URL]: { useFactory: () => undefined },
+    [ZIBRI_DI_TOKENS.CURRENT_REQUEST]: { useFactory: () => getCurrentRequest() }
 } satisfies ZibriDiProviders;

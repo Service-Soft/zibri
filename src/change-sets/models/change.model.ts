@@ -1,0 +1,43 @@
+import { ChangeSet } from './change-set.model';
+import { BaseEntity, Entity, Property } from '../../entity';
+import { OmitStrict } from '../../types';
+
+/**
+ * Defines a single value change of an change set.
+ */
+@Entity()
+export class Change<T = unknown> implements BaseEntity {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    @Property.string({ primary: true })
+    id!: string;
+    /**
+     * The key of the value that has been changed.
+     */
+    @Property.string()
+    key!: string;
+    /**
+     * The value before it was changed.
+     */
+    @Property.unknown({ required: false })
+    previousValue?: T;
+    /**
+     * The value after it was changed.
+     */
+    @Property.unknown({ required: false })
+    newValue?: T;
+    /**
+     * The id of the change set that this change belongs to.
+     */
+    @Property.manyToOne({ target: () => ChangeSet, inverseSide: 'changes' })
+    changeSet!: ChangeSet;
+}
+
+/**
+ * The data required to create a change.
+ */
+export type CreateChangeData = OmitStrict<Change, 'id'>;
+
+/**
+ * A new change.
+ */
+export type NewChange = OmitStrict<Change, 'id' | 'changeSet'>;

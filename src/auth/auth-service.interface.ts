@@ -80,7 +80,8 @@ export interface AuthServiceInterface {
         CredentialsType,
         RequestPasswordResetDataType,
         ConfirmPasswordResetDataType,
-        RefreshLoginDataType
+        RefreshLoginDataType,
+        LogoutDataType
     >(
         strategy: Newable<
             AuthStrategyInterface<
@@ -90,7 +91,8 @@ export interface AuthServiceInterface {
                 CredentialsType,
                 RequestPasswordResetDataType,
                 ConfirmPasswordResetDataType,
-                RefreshLoginDataType
+                RefreshLoginDataType,
+                LogoutDataType
             >
         >,
         credentials: CredentialsType
@@ -105,7 +107,8 @@ export interface AuthServiceInterface {
         CredentialsType,
         RequestPasswordResetDataType,
         ConfirmPasswordResetDataType,
-        RefreshLoginDataType
+        RefreshLoginDataType,
+        LogoutDataType
     >(
         strategy: Newable<
             AuthStrategyInterface<
@@ -115,7 +118,8 @@ export interface AuthServiceInterface {
                 CredentialsType,
                 RequestPasswordResetDataType,
                 ConfirmPasswordResetDataType,
-                RefreshLoginDataType
+                RefreshLoginDataType,
+                LogoutDataType
             >
         >,
         data: RefreshLoginDataType
@@ -125,7 +129,7 @@ export interface AuthServiceInterface {
      */
     getCurrentUser: <Role extends string, UserType extends BaseUser<Role>, B extends boolean = true>(
         request: HttpRequest,
-        strategies: AuthStrategies,
+        allowedStrategies: AuthStrategies,
         required: B
     ) => Promise<B extends false ? UserType | undefined : UserType>,
     /**
@@ -138,7 +142,8 @@ export interface AuthServiceInterface {
         CredentialsType,
         RequestPasswordResetDataType,
         ConfirmPasswordResetDataType,
-        RefreshLoginDataType
+        RefreshLoginDataType,
+        LogoutDataType
     >(
         strategy: Newable<
             AuthStrategyInterface<
@@ -148,7 +153,8 @@ export interface AuthServiceInterface {
                 CredentialsType,
                 RequestPasswordResetDataType,
                 ConfirmPasswordResetDataType,
-                RefreshLoginDataType
+                RefreshLoginDataType,
+                LogoutDataType
             >
         >,
         data: RequestPasswordResetDataType
@@ -163,7 +169,8 @@ export interface AuthServiceInterface {
         CredentialsType,
         RequestPasswordResetDataType,
         ConfirmPasswordResetDataType,
-        RefreshLoginDataType
+        RefreshLoginDataType,
+        LogoutDataType
     >(
         strategy: Newable<
             AuthStrategyInterface<
@@ -173,9 +180,37 @@ export interface AuthServiceInterface {
                 CredentialsType,
                 RequestPasswordResetDataType,
                 ConfirmPasswordResetDataType,
-                RefreshLoginDataType
+                RefreshLoginDataType,
+                LogoutDataType
             >
         >,
         data: ConfirmPasswordResetDataType
+    ) => void | Promise<void>,
+    /**
+     * Logs out the current user.
+     */
+    logout: <
+        Role extends string,
+        UserType extends BaseUser<Role>,
+        AuthDataType,
+        CredentialsType,
+        RequestPasswordResetDataType,
+        ConfirmPasswordResetDataType,
+        RefreshLoginDataType,
+        LogoutDataType
+    >(
+        strategy: Newable<
+            AuthStrategyInterface<
+                Role,
+                UserType,
+                AuthDataType,
+                CredentialsType,
+                RequestPasswordResetDataType,
+                ConfirmPasswordResetDataType,
+                RefreshLoginDataType,
+                LogoutDataType
+            >
+        >,
+        data: LogoutDataType
     ) => void | Promise<void>
 }

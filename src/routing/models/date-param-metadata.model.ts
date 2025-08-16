@@ -5,7 +5,7 @@ import { OmitStrict } from '../../types';
 /**
  * Metadata for Date parameters.
  */
-export type DateParamMetadata = BaseParamMetadata & OmitStrict<DatePropertyMetadata, 'default'>;
+export type DateParamMetadata = BaseParamMetadata & OmitStrict<DatePropertyMetadata, 'default' | 'excludeFromChangeSets'>;
 
 /**
  * Metadata Input for Date parameters.
