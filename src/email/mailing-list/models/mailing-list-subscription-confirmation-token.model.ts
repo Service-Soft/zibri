@@ -4,11 +4,7 @@ import { BaseEntity, Entity, OmitType, Property } from '../../../entity';
  * A short lived token used to confirm a mailing list subscription.
  */
 @Entity()
-export class MailingListSubscriptionConfirmationToken implements BaseEntity {
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    @Property.string({ primary: true })
-    id!: string;
-
+export class MailingListSubscriptionConfirmationToken extends BaseEntity {
     /**
      * The expiration date of the confirmation token.
      */

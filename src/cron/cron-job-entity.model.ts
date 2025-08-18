@@ -5,11 +5,7 @@ import { OmitStrict } from '../types';
  * The cron job entity that is stored in the db.
  */
 @Entity()
-export class CronJobEntity implements BaseEntity {
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    @Property.string({ primary: true })
-    id!: string;
-
+export class CronJobEntity extends BaseEntity {
     /**
      * The name of the cron job.
      */

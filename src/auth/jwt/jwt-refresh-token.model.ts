@@ -4,11 +4,7 @@ import { BaseEntity, Entity, OmitType, Property } from '../../entity';
  * The jwt refresh token that gets stored in the database.
  */
 @Entity()
-export class JwtRefreshToken implements BaseEntity {
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    @Property.string({ primary: true })
-    id!: string;
-
+export class JwtRefreshToken extends BaseEntity {
     /**
      * The id of the user that this token belongs to.
      */

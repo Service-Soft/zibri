@@ -123,16 +123,6 @@ export class JwtAuthController implements AuthControllerInterface<
         @Body(JwtRefreshLoginData)
         data: JwtRefreshLoginData
     ): Promise<void> {
-        try {
-            const refreshToken: JwtRefreshToken | undefined
-                = await this.refreshTokenRepository.findOne({ where: { value: data.refreshToken } }, false);
-            if (!refreshToken) {
-                return;
-            }
-            await this.refreshTokenRepository.deleteAll({ familyId: refreshToken.familyId });
-        }
-        catch {
-            // ignore
-        }
+        await this.authService.logout(JwtAuthStrategy, data);
     }
 }

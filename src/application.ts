@@ -17,9 +17,10 @@ import { MetricsServiceInterface } from './metrics';
 import { OpenApiServiceInterface } from './open-api';
 import { FormDataBodyParser, JsonBodyParser, ParserInterface } from './parsing';
 import { Route, RouterInterface } from './routing';
+import { OmitStrict } from './types';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-type FullZibriApplicationOptions = Required<ZibriApplicationOptions>;
+type FullZibriApplicationOptions = Required<OmitStrict<ZibriApplicationOptions, 'plugins'>>;
 
 /**
  * A Zibri application.
@@ -56,14 +57,7 @@ export class ZibriApplication {
     readonly options: FullZibriApplicationOptions;
 
     constructor(private readonly providedOptions: ZibriApplicationOptions) {
-        this.options = {
-            dataSources: [],
-            authStrategies: [JwtAuthStrategy],
-            bodyParsers: [JsonBodyParser, FormDataBodyParser],
-            providers: [],
-            cronJobs: [],
-            ...providedOptions
-        };
+        this.options = this.createFullOptions();
         GlobalRegistry.markAppAsCreated();
     }
 
@@ -164,5 +158,32 @@ export class ZibriApplication {
         this.express.listen(port);
         GlobalRegistry.markAppAsRunning();
         await this.logger.info(`${this.options.name} is running on port ${port}`);
+    }
+
+    private createFullOptions(): FullZibriApplicationOptions {
+        const res: FullZibriApplicationOptions = {
+            dataSources: [],
+            authStrategies: [],
+            bodyParsers: [],
+            providers: [],
+            cronJobs: [],
+            ...this.providedOptions
+        };
+        for (const plugin of this.providedOptions.plugins ?? []) {
+            res.authStrategies.push(...plugin.authStrategies ?? []);
+            res.bodyParsers.push(...plugin.bodyParsers ?? []);
+            res.controllers.push(...plugin.controllers ?? []);
+            res.cronJobs.push(...plugin.cronJobs ?? []);
+            res.providers.push(...plugin.providers ?? []);
+        }
+
+        if (!res.authStrategies.length) {
+            res.authStrategies.push(JwtAuthStrategy);
+        }
+        if (!res.bodyParsers.length) {
+            res.bodyParsers.push(JsonBodyParser, FormDataBodyParser);
+        }
+
+        return res;
     }
 }
