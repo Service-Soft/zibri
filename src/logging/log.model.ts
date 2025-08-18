@@ -7,10 +7,7 @@ import { LoggedError } from './logged-error.model';
  * The data saved for a log entry.
  */
 @Entity()
-export class Log implements BaseEntity {
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    @Property.string({ primary: true })
-    id!: string;
+export class Log extends BaseEntity {
     /**
      * The log level.
      */

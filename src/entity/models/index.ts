@@ -6,7 +6,6 @@ export * from './date-property-metadata.model';
 export * from './boolean-property-metadata.model';
 export * from './many-to-one-property-metadata.model';
 export * from './one-to-many-property-metadata.model';
-export * from './base-entity.model';
 export * from './one-to-one-property-metadata.model';
 export * from './many-to-many-property-metadata.model';
 export * from './relation.enum';

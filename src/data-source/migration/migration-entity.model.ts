@@ -5,11 +5,7 @@ import { type Version } from '../../types';
  * The migration entity that is stored in the db.
  */
 @Entity()
-export class MigrationEntity implements BaseEntity {
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    @Property.string({ primary: true })
-    id!: string;
-
+export class MigrationEntity extends BaseEntity {
     /**
      * The name of the migration.
      */

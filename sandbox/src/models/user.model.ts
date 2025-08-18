@@ -1,20 +1,11 @@
-import { BaseUser, Entity, CombinedType, JwtCredentials, OmitType, Property } from 'zibri';
+import { Entity, CombinedType, JwtCredentials, OmitType, Property, BaseUserEntity } from 'zibri';
 
 import { Company } from './company.model';
 import { Roles } from './roles.enum';
 import { OmitStrict } from '../types';
 
 @Entity()
-export class User implements BaseUser<Roles> {
-    @Property.string({ primary: true })
-    id!: string;
-
-    @Property.string({ unique: true, format: 'email' })
-    email!: string;
-
-    @Property.array({ items: { type: 'string', enum: Roles } })
-    roles!: Roles[];
-
+export class User extends BaseUserEntity(Roles) {
     @Property.manyToOne({ target: () => Company, inverseSide: 'workers', required: false })
     company?: Company;
 }

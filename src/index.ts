@@ -22,6 +22,7 @@ export * from './rate-limiting';
 export * from './handlebars';
 export * from './metrics';
 export * from './change-sets';
+export * from './plugin';
 
 export * from './types/newable.model';
 export * from './types/version.type';

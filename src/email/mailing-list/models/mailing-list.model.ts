@@ -5,11 +5,7 @@ import { BaseEntity, Entity, Property } from '../../../entity';
  * A mailing list like a newsletter that people can easily subscribe and unsubscribe to.
  */
 @Entity()
-export class MailingList implements BaseEntity {
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    @Property.string({ primary: true })
-    id!: string;
-
+export class MailingList extends BaseEntity {
     /**
      * The name of the mailing list.
      */

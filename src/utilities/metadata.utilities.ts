@@ -8,6 +8,8 @@ import { BaseEntity, EntityMetadata, PropertyMetadata } from '../entity';
 import { OpenApiResponse } from '../open-api';
 import { Newable } from '../types';
 
+const modelPropertiesStore: WeakMap<Function, Record<string, PropertyMetadata>> = new WeakMap();
+
 /**
  * Utilities for handling Metadata.
  */
@@ -220,12 +222,35 @@ export abstract class MetadataUtilities {
         return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.ROUTE_SKIP_AUTH, controller, controllerMethod);
     }
 
-    static setModelProperties(model: Newable<unknown>, metadata: Record<string, PropertyMetadata>): void {
-        ReflectUtilities.setMetadata(MetadataInjectionKeys.MODEL_PROPERTIES, metadata, model);
+    static setModelProperties<T extends Newable<unknown>>(ctor: T, properties: Record<string, PropertyMetadata>): void {
+        // store a shallow clone to avoid callers keeping a reference that could be mutated externally
+        modelPropertiesStore.set(ctor, Object.assign({}, properties));
     }
 
-    static getModelProperties(model: Newable<unknown>): Record<string, PropertyMetadata> {
-        return ReflectUtilities.getMetadata(MetadataInjectionKeys.MODEL_PROPERTIES, model) ?? {};
+    static getModelProperties<T extends Newable<unknown>>(ctor: T): Record<string, PropertyMetadata> {
+        let props: Record<string, PropertyMetadata> | undefined = modelPropertiesStore.get(ctor);
+        if (props === undefined) {
+            const parentCtor: Newable<unknown> | undefined = MetadataUtilities.getParentConstructor(ctor);
+            const parentProps: Record<string, PropertyMetadata> = parentCtor
+                ? MetadataUtilities.getModelProperties(parentCtor)
+                : {};
+            // create a shallow clone so child modifications don't mutate parent
+            props = Object.assign({}, parentProps);
+            modelPropertiesStore.set(ctor, props);
+        }
+        return props;
+    }
+
+    private static getParentConstructor<T extends Newable<unknown>>(ctor: T): Newable<unknown> | undefined {
+        const proto: unknown = Object.getPrototypeOf(ctor.prototype);
+        if (proto == undefined || proto === Object.prototype) {
+            return undefined;
+        }
+        const parentCtor: Newable<unknown> | undefined = (proto as { constructor?: Function }).constructor as Newable<unknown> | undefined;
+        if (parentCtor == undefined || parentCtor === Object) {
+            return undefined;
+        }
+        return parentCtor;
     }
 
     static setEntityMetadata(entity: Newable<unknown>, metadata: EntityMetadata): void {
