@@ -7,11 +7,7 @@ import { BaseEntity, Entity, Property } from '../../entity';
  * Definition of a Email.
  */
 @Entity()
-export class Email implements BaseEntity {
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    @Property.string({ primary: true })
-    id!: string;
-
+export class Email extends BaseEntity {
     /**
      * The createdAt date. Is set to now by default.
      */

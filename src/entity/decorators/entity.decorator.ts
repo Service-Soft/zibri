@@ -1,7 +1,7 @@
+import { BaseEntity } from './property.decorator';
 import { GlobalRegistry } from '../../global';
 import { Newable } from '../../types';
 import { MetadataUtilities } from '../../utilities';
-import { BaseEntity } from '../models';
 
 /**
  * Metadata for an Entity.

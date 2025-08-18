@@ -9,10 +9,7 @@ import { OmitStrict } from '../../types';
  * Gets automatically created for configured entities whenever they are changed.
  */
 @Entity()
-export class ChangeSet implements BaseEntity {
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    @Property.string({ primary: true })
-    id!: string;
+export class ChangeSet extends BaseEntity {
     /**
      * Whether this change set was initialized on creating, updating or deleting the entity.
      */

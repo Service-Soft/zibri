@@ -3,6 +3,7 @@ import { CronJob } from './cron';
 import { BaseDataSource } from './data-source';
 import { DiProvider } from './di';
 import { BodyParserInterface } from './parsing';
+import { ZibriPlugin } from './plugin';
 import { Newable, Version } from './types';
 
 /**
@@ -51,5 +52,9 @@ export type ZibriApplicationOptions = {
     /**
      * The cron jobs to register in the app.
      */
-    cronJobs?: Newable<CronJob>[]
+    cronJobs?: Newable<CronJob>[],
+    /**
+     * The plugins to be used.
+     */
+    plugins?: ZibriPlugin[]
 };

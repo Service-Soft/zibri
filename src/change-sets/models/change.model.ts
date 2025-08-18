@@ -6,10 +6,7 @@ import { OmitStrict } from '../../types';
  * Defines a single value change of an change set.
  */
 @Entity()
-export class Change<T = unknown> implements BaseEntity {
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    @Property.string({ primary: true })
-    id!: string;
+export class Change<T = unknown> extends BaseEntity {
     /**
      * The key of the value that has been changed.
      */
@@ -26,9 +23,9 @@ export class Change<T = unknown> implements BaseEntity {
     @Property.unknown({ required: false })
     newValue?: T;
     /**
-     * The id of the change set that this change belongs to.
+     * The change set that this change belongs to.
      */
-    @Property.manyToOne({ target: () => ChangeSet, inverseSide: 'changes' })
+    @Property.manyToOne({ target: () => ChangeSet, inverseSide: 'changes', required: false })
     changeSet!: ChangeSet;
 }
 

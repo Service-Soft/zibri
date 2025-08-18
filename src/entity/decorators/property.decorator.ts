@@ -1,7 +1,7 @@
 import { warn } from '../../logging/logger.helpers';
 import { Newable } from '../../types';
 import { MetadataUtilities } from '../../utilities';
-import { ArrayPropertyItemMetadata, ArrayPropertyItemMetadataInput, ArrayPropertyMetadata, ArrayPropertyMetadataInput, BaseEntity, BelongsToOnePropertyMetadataInput, BooleanPropertyMetadata, BooleanPropertyMetadataInput, DatePropertyMetadata, DatePropertyMetadataInput, FilePropertyMetadata, FilePropertyMetadataInput, HasOnePropertyMetadataInput, ManyToManyPropertyMetadata, ManyToManyPropertyMetadataInput, ManyToOnePropertyMetadata, ManyToOnePropertyMetadataInput, NumberPropertyMetadata, NumberPropertyMetadataInput, ObjectPropertyMetadata, ObjectPropertyMetadataInput, OneToManyPropertyMetadata, OneToManyPropertyMetadataInput, OneToOnePropertyMetadata, OneToOnePropertyMetadataInput, Relation, StringPropertyMetadata, StringPropertyMetadataInput, UnknownPropertyMetadata, UnknownPropertyMetadataInput } from '../models';
+import { ArrayPropertyItemMetadata, ArrayPropertyItemMetadataInput, ArrayPropertyMetadata, ArrayPropertyMetadataInput, BelongsToOnePropertyMetadataInput, BooleanPropertyMetadata, BooleanPropertyMetadataInput, DatePropertyMetadata, DatePropertyMetadataInput, FilePropertyMetadata, FilePropertyMetadataInput, HasOnePropertyMetadataInput, ManyToManyPropertyMetadata, ManyToManyPropertyMetadataInput, ManyToOnePropertyMetadata, ManyToOnePropertyMetadataInput, NumberPropertyMetadata, NumberPropertyMetadataInput, ObjectPropertyMetadata, ObjectPropertyMetadataInput, OneToManyPropertyMetadata, OneToManyPropertyMetadataInput, OneToOnePropertyMetadata, OneToOnePropertyMetadataInput, Relation, StringPropertyMetadata, StringPropertyMetadataInput, UnknownPropertyMetadata, UnknownPropertyMetadataInput } from '../models';
 import { WithDefaultMetadata } from '../models/base-property-metadata.model';
 
 /**
@@ -313,6 +313,15 @@ export namespace Property {
         };
         return applyData(fullMetadata as PropertyMetadata, metadata);
     }
+}
+
+/**
+ * The base entity that all db entities need to extend from.
+ */
+export class BaseEntity {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    @Property.string({ primary: true })
+    id!: string;
 }
 
 // eslint-disable-next-line jsdoc/require-jsdoc

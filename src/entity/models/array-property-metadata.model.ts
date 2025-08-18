@@ -1,6 +1,5 @@
 import { ExcludeStrict } from '../../types';
-import { PropertyMetadata, RelationMetadata } from '../decorators';
-import { BaseEntity } from './base-entity.model';
+import { BaseEntity, PropertyMetadata, RelationMetadata } from '../decorators';
 import { BasePropertyMetadata } from './base-property-metadata.model';
 import { BooleanPropertyMetadataInput } from './boolean-property-metadata.model';
 import { DatePropertyMetadataInput } from './date-property-metadata.model';
