@@ -25,9 +25,9 @@ type HeaderMetaObjectToParamsObject<HeaderMetaObject extends Record<string, Head
 };
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-type BodyMetaInputObjectToMetaObject<BodyMetaInputObject extends BodyMetadataInput & { modelClass: Newable<unknown> }> =
+type BodyMetaInputObjectToMetaObject<BodyMetaInputObject extends BodyMetadataInput & { modelClass: Newable<unknown> }>
     // eslint-disable-next-line jsdoc/require-jsdoc
-    MergeRequired<BodyMetaInputObject, BodyMetadata & { modelClass: BodyMetaInputObject['modelClass'] }>;
+    = MergeRequired<BodyMetaInputObject, BodyMetadata & { modelClass: BodyMetaInputObject['modelClass'] }>;
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 type PathMetaInputObjectToMetaObject<PathMetaInputObject extends Record<string, PathParamMetadataInput>> = {
@@ -54,8 +54,8 @@ type HeaderMetaInputObjectToMetaObject<HeaderMetaInputObject extends Record<stri
 };
 
 // eslint-disable-next-line stylistic/max-len, jsdoc/require-jsdoc
-type ParamMetadataInputToMeta<M extends (PathParamMetadataInput | QueryParamMetadataInput | HeaderParamMetadataInput | ArrayPropertyItemMetadataInput)> =
-    M extends StringParamMetadataInput
+type ParamMetadataInputToMeta<M extends (PathParamMetadataInput | QueryParamMetadataInput | HeaderParamMetadataInput | ArrayPropertyItemMetadataInput)>
+    = M extends StringParamMetadataInput
         ? StringParamMetadata
         : M extends NumberParamMetadataInput
             ? NumberParamMetadata
@@ -76,8 +76,8 @@ type MergeRequired<I, M> = I extends { required: false } ? M & { required: false
 type RawParamMetadataToType<M extends (
     PathParamMetadata | QueryParamMetadata | HeaderParamMetadata | ArrayPropertyItemMetadata
     | OmitStrict<PathParamMetadata, 'name'> | OmitStrict<QueryParamMetadata, 'name'> | OmitStrict<HeaderParamMetadata, 'name'>
-)> =
-    M extends StringParamMetadata
+)>
+    = M extends StringParamMetadata
         ? string
         : M extends NumberParamMetadata
             ? number
@@ -95,16 +95,16 @@ type RawParamMetadataToType<M extends (
 type ParamMetadataToType<M extends (
     PathParamMetadata | QueryParamMetadata | HeaderParamMetadata | ArrayPropertyItemMetadata
     | OmitStrict<PathParamMetadata, 'name'> | OmitStrict<QueryParamMetadata, 'name'> | OmitStrict<HeaderParamMetadata, 'name'>
-)> =
+)>
     // eslint-disable-next-line jsdoc/require-jsdoc
-    M extends { required: false }
+    = M extends { required: false }
         ? RawParamMetadataToType<M> | undefined
         : RawParamMetadataToType<M>;
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-type InferModel<T> =
+type InferModel<T>
     // eslint-disable-next-line jsdoc/require-jsdoc
-    T extends { modelClass: Newable<infer U> }
+    = T extends { modelClass: Newable<infer U> }
         ? U
         : never;
 

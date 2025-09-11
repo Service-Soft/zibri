@@ -1,6 +1,5 @@
 
 import cron, { ScheduledTask } from 'node-cron';
-import { v4 } from 'uuid';
 
 import { Repository } from '../data-source';
 import { inject, repositoryTokenFor, ZIBRI_DI_TOKENS } from '../di';
@@ -9,7 +8,7 @@ import { CreateCronJobEntityData, CronJobEntity } from './cron-job-entity.model'
 import { unknownToErrorString } from '../error-handling/unknown-to-error-string.function';
 import { LoggerInterface } from '../logging';
 import { CronUpdateData } from './cron.service';
-import { Ms } from '../utilities';
+import { Ms, UUIDUtilities } from '../utilities';
 
 /**
  * The full initial configuration of a cron job.
@@ -139,7 +138,7 @@ export abstract class CronJob {
     protected async resolveEntity(): Promise<CronJobEntity> {
         if (!this.fullInitialConfig.syncToDb) {
             return {
-                id: v4(),
+                id: UUIDUtilities.generate(),
                 lastRun: undefined,
                 errorMessage: undefined,
                 ...this.fullInitialConfig

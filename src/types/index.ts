@@ -1,3 +1,4 @@
+export * from './percentage.type';
 export * from './newable.model';
 export * from './deep-partial.type';
 export * from './omit-strict.type';

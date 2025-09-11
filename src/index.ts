@@ -23,10 +23,15 @@ export * from './handlebars';
 export * from './metrics';
 export * from './change-sets';
 export * from './plugin';
+export * from './localization';
+export * from './multithreading';
 
 export * from './types/newable.model';
 export * from './types/version.type';
 export * from './utilities/compare-versions.function';
 export * from './utilities/is-version.function';
-export * from './utilities/format-date-fn.model';
 export * from './utilities/chunked-promise-all.function';
+export * from './utilities/ms';
+export * from './utilities/big-number.utilities';
+export * from './utilities/validate-entities-registered.function';
+export * from './utilities/uuid.utilities';

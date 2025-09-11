@@ -3,9 +3,8 @@ import path from 'path';
 
 import { Request, RequestHandler } from 'express';
 import multer, { StorageEngine } from 'multer';
-import { v4 } from 'uuid';
 
-import { File, MulterFile } from './file.model';
+import { File, type MulterFile } from './file.model';
 import { ZibriApplication } from '../../application';
 import { inject, ZIBRI_DI_TOKENS } from '../../di';
 import { FileExtension, HttpRequest, HttpResponse, MimeType, resolveFileExtension } from '../../http';
@@ -15,7 +14,7 @@ import { BodyParser } from '../decorators';
 import { FormDataBodyParserCleanupCronJob } from './form-data-body-parser-cleanup.cron-job';
 import { FormData, FormDataValue } from './form-data.model';
 import { PropertyMetadata } from '../../entity';
-import { MetadataUtilities } from '../../utilities';
+import { MetadataUtilities, UUIDUtilities } from '../../utilities';
 
 /**
  * Body parser for form data.
@@ -40,12 +39,12 @@ export class FormDataBodyParser implements BodyParserInterface {
         }
 
         const tempPath: string = inject(ZIBRI_DI_TOKENS.FILE_UPLOAD_TEMP_FOLDER);
-        const tempFolder: string = path.join(tempPath, `temp-${v4()}`);
+        const tempFolder: string = path.join(tempPath, `temp-${UUIDUtilities.generate()}`);
         const storage: StorageEngine = multer.diskStorage({
             destination: tempFolder,
             // eslint-disable-next-line promise/prefer-await-to-callbacks
             filename: (_, file, callback) => {
-                const id: string = v4();
+                const id: string = UUIDUtilities.generate();
                 const ext: FileExtension | undefined = resolveFileExtension(file.mimetype);
                 if (ext) {
                     // eslint-disable-next-line promise/prefer-await-to-callbacks, unicorn/no-null

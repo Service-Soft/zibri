@@ -31,6 +31,8 @@ export class Router implements RouterInterface {
     private readonly validationService: ValidationServiceInterface;
     private readonly authService: AuthServiceInterface;
     private readonly allowedOrphans: Newable<unknown>[] = [JwtAuthController];
+    private readonly allBaseRoutes: string[] = [];
+    private readonly allFinalRoutes: string[] = [];
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly manuallyRegisteredRoutes: RouteConfiguration<
         BodyMetadata,
@@ -87,6 +89,11 @@ export class Router implements RouterInterface {
     >(
         input: RouteConfigurationInput<BodyMetaInputObject, PathMetaInputObject, QueryMetaInputObject, HeaderMetaInputObject>
     ): Promise<void> {
+        if (this.allFinalRoutes.includes(`${input.httpMethod.toUpperCase()} ${input.route}`)) {
+            throw new Error(`The route "${input.httpMethod.toUpperCase()} ${input.route}" has been defined more than once.`);
+        }
+        this.allFinalRoutes.push(`${input.httpMethod.toUpperCase()} ${input.route}`);
+
         const pathParams: Record<string, PathParamMetadata> = {};
         for (const key in input.pathParams) {
             pathParams[key] = createPathParamMetadata(key, input.pathParams[key]);
@@ -174,11 +181,22 @@ export class Router implements RouterInterface {
         if (baseRoute == undefined) {
             throw new MissingBaseRouteError(controllerClass);
         }
+        if (this.allBaseRoutes.includes(baseRoute)) {
+            throw new Error(`The base route "${baseRoute}" has been defined on more than one controller.`);
+        }
+        this.allBaseRoutes.push(baseRoute);
         const routes: ControllerRouteConfiguration[] = MetadataUtilities.getControllerRoutes(controllerClass);
 
         for (const route of routes) {
             const handler: RequestHandler = await this.controllerRouteToRequestHandler(controllerClass, route);
             const finalRoute: string = `${baseRoute}${route.route}`;
+            if (this.allFinalRoutes.includes(`${route.httpMethod.toUpperCase()} ${finalRoute}`)) {
+                throw new Error(
+                    `The route "${route.httpMethod.toUpperCase()} ${finalRoute}" has been defined more than once.`,
+                    { cause: controllerClass }
+                );
+            }
+            this.allFinalRoutes.push(`${route.httpMethod.toUpperCase()} ${finalRoute}`);
             await this.logger.debug(`- mounting ${route.httpMethod.toUpperCase()} ${finalRoute}`);
             this.expressRouter[route.httpMethod](baseRoute + route.route, handler);
         }

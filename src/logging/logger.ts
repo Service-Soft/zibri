@@ -1,6 +1,4 @@
-import { v4 } from 'uuid';
-
-import { ZIBRI_DI_TOKENS, inject } from '../di';
+import { Inject, ZIBRI_DI_TOKENS } from '../di';
 import { errorToLoggedError } from './error-to-logged-error.function';
 import { LogCleanupCronJob } from './log-cleanup.cron-job';
 import { LogContextInput } from './log-context.model';
@@ -9,6 +7,7 @@ import { Log } from './log.model';
 import { LoggerInterface } from './logger.interface';
 import { ZibriApplication } from '../application';
 import { GlobalRegistry } from '../global';
+import { UUIDUtilities } from '../utilities';
 import { BaseLoggerTransportConfig, LoggerTransport } from './transport/logger-transport.model';
 
 /**
@@ -16,15 +15,12 @@ import { BaseLoggerTransportConfig, LoggerTransport } from './transport/logger-t
  */
 export class Logger implements LoggerInterface {
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly transports: LoggerTransport<BaseLoggerTransportConfig>[];
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    protected readonly cleanupAfterMs: Record<LogLevel, number>;
-
-    constructor() {
-        this.transports = inject(ZIBRI_DI_TOKENS.LOGGER_TRANSPORTS);
-        this.cleanupAfterMs = inject(ZIBRI_DI_TOKENS.LOGGER_CLEANUP_AFTER_MS);
-    }
+    constructor(
+        @Inject(ZIBRI_DI_TOKENS.LOGGER_TRANSPORTS)
+        readonly transports: LoggerTransport<BaseLoggerTransportConfig>[],
+        @Inject(ZIBRI_DI_TOKENS.LOGGER_CLEANUP_AFTER_MS)
+        protected readonly cleanupAfterMs: Record<LogLevel, number>
+    ) {}
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     attachTo(app: ZibriApplication): void {
@@ -66,7 +62,7 @@ export class Logger implements LoggerInterface {
         const matches: RegExpMatchArray | null = line.match(/\((.*):\d+:\d+\)/);
         const origin: string = matches?.[0].split('(')[1].split(')')[0] ?? 'unknown';
         const log: Log = {
-            id: v4(),
+            id: UUIDUtilities.generate(),
             createdAt: new Date(),
             cleanupAt: new Date(Date.now() + this.cleanupAfterMs[level]),
             message,

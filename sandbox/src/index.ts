@@ -1,16 +1,16 @@
 import H from 'handlebars/runtime';
-import { inject, isVersion, JwtAuthController, LoggerInterface, ZIBRI_DI_TOKENS, ZibriApplication, EmailConfigInput } from 'zibri';
+import { inject, isVersion, JwtAuthController, LoggerInterface, ZIBRI_DI_TOKENS, ZibriApplication, ZibriInvoicingPlugin } from 'zibri';
 
-import { CronController, FileController, MetricsController, TemplateController, TestController } from './controllers';
+import { CronController, FileController, MetricsController, TemplateController, TestController, TestCrudController } from './controllers';
 import { DbDataSource } from './data-sources';
 import { version } from '../package.json';
 import { createDefaultData } from './create-default-data.function';
 import { StatusCronJob } from './cron';
+import { providers } from './providers';
 
 export let logger: LoggerInterface;
 
 async function start(): Promise<void> {
-
     if (!isVersion(version)) {
         throw new Error('The version of the package.json is not valid.');
     }
@@ -18,46 +18,20 @@ async function start(): Promise<void> {
     const app: ZibriApplication = new ZibriApplication({
         name: 'Api',
         baseUrl: 'http://localhost:3000',
+        plugins: [ZibriInvoicingPlugin],
         controllers: [
             TestController,
             FileController,
             TemplateController,
             CronController,
             JwtAuthController,
-            MetricsController
+            MetricsController,
+            TestCrudController
         ],
         dataSources: [DbDataSource],
         cronJobs: [StatusCronJob],
         version,
-        providers: [
-            {
-                token: ZIBRI_DI_TOKENS.JWT_ACCESS_TOKEN_SECRET,
-                useFactory: () => 'test'
-            },
-            {
-                token: ZIBRI_DI_TOKENS.JWT_REFRESH_TOKEN_SECRET,
-                useFactory: () => 'test'
-            },
-            {
-                token: ZIBRI_DI_TOKENS.EMAIL_CONFIG,
-                useFactory: (): EmailConfigInput => {
-                    return {
-                        maxEmailsPerHour: 0,
-                        defaultSender: 'Max Mustermann',
-                        host: '',
-                        port: 0,
-                        auth: {
-                            user: '',
-                            pass: ''
-                        }
-                    };
-                }
-            },
-            {
-                token: ZIBRI_DI_TOKENS.JWT_CONFIRM_PASSWORD_RESET_URL,
-                useFactory: () => 'http://localhost:4200/confirm-password-reset'
-            }
-        ]
+        providers
     });
     await app.init(H);
 

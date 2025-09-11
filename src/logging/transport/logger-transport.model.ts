@@ -54,7 +54,7 @@ export class LoggerTransport<T extends BaseLoggerTransportConfig> {
     }
 
     /**
-     * Creates a new logger transport that prints the log to the console.
+     * Creates a new logger transport that prints the log to the terminal.
      * @param level - The log level at which the transport should be active.
      * @returns The newly created transport.
      */

@@ -1,7 +1,7 @@
 import { inject, ZIBRI_DI_TOKENS } from '../../di';
 import { DatePropertyMetadata, PropertyMetadata } from '../../entity';
+import { FormatDateFn } from '../../localization';
 import { QueryParamMetadata, HeaderParamMetadata, PathParamMetadata, DateParamMetadata } from '../../routing';
-import { FormatDateFn } from '../../utilities';
 import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from '../validation-problem.model';
 
 /**

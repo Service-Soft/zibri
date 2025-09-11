@@ -92,10 +92,24 @@ export class DiContainer {
 
         const explicitTokens: Record<number, DiToken<unknown>> = MetadataUtilities.getInjectParamTokens(provide);
         const paramTypes: unknown[] = MetadataUtilities.getParamTypes(provide);
-        const deps: unknown[] = paramTypes.map((inferred, idx) => {
-            const token: DiToken<unknown> = explicitTokens[idx] ?? inferred;
-            return this.inject(token, resolvingStack);
-        });
+
+        // compute max number of parameters to resolve
+        const highestExplicitIndex: number = Object.keys(explicitTokens).reduce((acc, k) => {
+            const idx: number = Number(k);
+            return Number.isFinite(idx) ? Math.max(acc, idx) : acc;
+        }, -1);
+        const paramCount: number = Math.max(paramTypes.length, highestExplicitIndex + 1);
+
+        const deps: unknown[] = [];
+        for (let idx: number = 0; idx < paramCount; idx++) {
+            const token: DiToken<unknown> | undefined = explicitTokens[idx] ?? paramTypes[idx];
+            if (token === undefined) {
+                throw new Error('Could not find token');
+            }
+            else {
+                deps.push(this.inject(token, resolvingStack));
+            }
+        }
 
         if (provider.useClass) {
             return new provider.useClass(...deps);

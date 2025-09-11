@@ -3,7 +3,7 @@ import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import { StartedTestContainer } from 'testcontainers';
 import { PostgresConnectionCredentialsOptions } from 'typeorm/driver/postgres/PostgresConnectionCredentialsOptions';
 
-import { BaseEntity, Entity, Property } from '../../entity';
+import { type BaseEntity, Entity, Property } from '../../entity';
 import { Newable } from '../../types';
 import { BaseDataSource } from '../base-data-source.model';
 import { DataSource } from '../decorators';

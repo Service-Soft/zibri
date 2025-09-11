@@ -1,8 +1,10 @@
 import { warn } from '../../logging/logger.helpers';
-import { Newable } from '../../types';
-import { MetadataUtilities } from '../../utilities';
-import { ArrayPropertyItemMetadata, ArrayPropertyItemMetadataInput, ArrayPropertyMetadata, ArrayPropertyMetadataInput, BelongsToOnePropertyMetadataInput, BooleanPropertyMetadata, BooleanPropertyMetadataInput, DatePropertyMetadata, DatePropertyMetadataInput, FilePropertyMetadata, FilePropertyMetadataInput, HasOnePropertyMetadataInput, ManyToManyPropertyMetadata, ManyToManyPropertyMetadataInput, ManyToOnePropertyMetadata, ManyToOnePropertyMetadataInput, NumberPropertyMetadata, NumberPropertyMetadataInput, ObjectPropertyMetadata, ObjectPropertyMetadataInput, OneToManyPropertyMetadata, OneToManyPropertyMetadataInput, OneToOnePropertyMetadata, OneToOnePropertyMetadataInput, Relation, StringPropertyMetadata, StringPropertyMetadataInput, UnknownPropertyMetadata, UnknownPropertyMetadataInput } from '../models';
-import { WithDefaultMetadata } from '../models/base-property-metadata.model';
+import type { Newable } from '../../types';
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import type { BaseEntity } from '../base-entity.model';
+import type { ArrayPropertyItemMetadata, ArrayPropertyItemMetadataInput, ArrayPropertyMetadata, ArrayPropertyMetadataInput, BelongsToOnePropertyMetadataInput, BooleanPropertyMetadata, BooleanPropertyMetadataInput, DatePropertyMetadata, DatePropertyMetadataInput, FilePropertyMetadata, FilePropertyMetadataInput, HasOnePropertyMetadataInput, ManyToManyPropertyMetadata, ManyToManyPropertyMetadataInput, ManyToOnePropertyMetadata, ManyToOnePropertyMetadataInput, NumberPropertyMetadata, NumberPropertyMetadataInput, ObjectPropertyMetadata, ObjectPropertyMetadataInput, OneToManyPropertyMetadata, OneToManyPropertyMetadataInput, OneToOnePropertyMetadata, OneToOnePropertyMetadataInput, StringPropertyMetadata, StringPropertyMetadataInput, UnknownPropertyMetadata, UnknownPropertyMetadataInput } from '../models';
+import type { WithDefaultMetadata } from '../models/base-property-metadata.model';
+import { Relation } from '../models/relation.enum';
 
 /**
  * The metadata of a property.
@@ -313,15 +315,6 @@ export namespace Property {
         };
         return applyData(fullMetadata as PropertyMetadata, metadata);
     }
-}
-
-/**
- * The base entity that all db entities need to extend from.
- */
-export class BaseEntity {
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    @Property.string({ primary: true })
-    id!: string;
 }
 
 // eslint-disable-next-line jsdoc/require-jsdoc

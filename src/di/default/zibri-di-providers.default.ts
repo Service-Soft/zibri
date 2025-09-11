@@ -1,5 +1,6 @@
 /* eslint-disable jsdoc/require-jsdoc */
-import path from 'path';
+import os from 'node:os';
+import path from 'node:path';
 
 import { ZIBRI_DI_TOKENS } from './zibri-di-tokens.default';
 import { AssetService, AssetServiceInterface } from '../../assets';
@@ -9,16 +10,31 @@ import { DataSourceService, DataSourceServiceInterface } from '../../data-source
 import { EmailConfigInput, EmailService, EmailServiceInterface, MailingListService, MailingListServiceInterface } from '../../email';
 import { errorHandler, GlobalErrorHandler } from '../../error-handling';
 import { HttpRequest } from '../../http';
+import { FormatDateFn, FormatPercentFn, FormatPriceFn, LocalizeOptions, LocalizeOptionsInput } from '../../localization';
+import { formatDate } from '../../localization/formatting/format-date.function';
+import { formatPercent } from '../../localization/formatting/format-percent.function';
+import { formatPrice } from '../../localization/formatting/format-price.function';
 import { BaseLoggerTransportConfig, Logger, LoggerInterface, LoggerTransport, LogLevel } from '../../logging';
 import { MetricsServiceInterface, PrometheusMetricsService } from '../../metrics';
+import { MultithreadingOptions, MultithreadingService, MultithreadingServiceInterface } from '../../multithreading';
 import { OpenApiService, OpenApiServiceInterface } from '../../open-api';
 import { Parser, ParserInterface } from '../../parsing';
 import { getCurrentRequest, Router, RouterInterface } from '../../routing';
 import { OmitStrict } from '../../types';
 import { Ms } from '../../utilities';
-import { formatDate } from '../../utilities/format-date.function';
 import { ValidationService, ValidationServiceInterface } from '../../validation';
+import { inject } from '../inject.function';
 import { DiProvider } from '../models';
+
+const allThreads: number = os.availableParallelism();
+
+const reserveThreadsMain: number = 1;
+const reserveThreadsLibUv: number = Number(process.env.UV_THREADPOOL_SIZE ?? '4');
+
+const availableThreads: number = allThreads - reserveThreadsLibUv - reserveThreadsMain;
+
+const maxThreads: number = Math.max(1, availableThreads - 1);
+const maxPriorityThreads: number = availableThreads <= 1 ? 0 : 1;
 
 type ZibriDiProvider<T> = OmitStrict<DiProvider<T>, 'token'>;
 
@@ -44,12 +60,18 @@ type ZibriDiProviders = {
     [ZIBRI_DI_TOKENS.JWT_CONFIRM_PASSWORD_RESET_URL]: ZibriDiProvider<string | undefined>,
     [ZIBRI_DI_TOKENS.CRON_SERVICE]: ZibriDiProvider<CronServiceInterface>,
     [ZIBRI_DI_TOKENS.FILE_UPLOAD_TEMP_FOLDER]: ZibriDiProvider<string>,
-    [ZIBRI_DI_TOKENS.FORMAT_DATE]: ZibriDiProvider<(value: Date, includeTime?: boolean) => string>,
+    [ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS_INPUT]: ZibriDiProvider<LocalizeOptionsInput>,
+    [ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS]: ZibriDiProvider<LocalizeOptions>,
+    [ZIBRI_DI_TOKENS.FORMAT_DATE]: ZibriDiProvider<FormatDateFn>,
+    [ZIBRI_DI_TOKENS.FORMAT_PRICE]: ZibriDiProvider<FormatPriceFn>,
+    [ZIBRI_DI_TOKENS.FORMAT_PERCENT]: ZibriDiProvider<FormatPercentFn>,
     [ZIBRI_DI_TOKENS.EMAIL_SERVICE]: ZibriDiProvider<EmailServiceInterface>,
     [ZIBRI_DI_TOKENS.EMAIL_CONFIG]: ZibriDiProvider<EmailConfigInput | undefined>,
     [ZIBRI_DI_TOKENS.MAILING_LIST_SERVICE]: ZibriDiProvider<MailingListServiceInterface | undefined>,
     [ZIBRI_DI_TOKENS.MAILING_LIST_SUBSCRIPTION_CONFIRMATION_TOKEN_EXPIRES_IN_MS]: ZibriDiProvider<number>,
-    [ZIBRI_DI_TOKENS.CURRENT_REQUEST]: ZibriDiProvider<HttpRequest>
+    [ZIBRI_DI_TOKENS.CURRENT_REQUEST]: ZibriDiProvider<HttpRequest>,
+    [ZIBRI_DI_TOKENS.MULTITHREADING_OPTIONS]: ZibriDiProvider<MultithreadingOptions>,
+    [ZIBRI_DI_TOKENS.MULTITHREADING_SERVICE]: ZibriDiProvider<MultithreadingServiceInterface>
 };
 
 export const ZIBRI_DI_PROVIDERS: Record<
@@ -91,9 +113,31 @@ export const ZIBRI_DI_PROVIDERS: Record<
     [ZIBRI_DI_TOKENS.MAILING_LIST_SERVICE]: { useClass: MailingListService },
     [ZIBRI_DI_TOKENS.MAILING_LIST_SUBSCRIPTION_CONFIRMATION_TOKEN_EXPIRES_IN_MS]: { useFactory: () => Ms.DAY },
     [ZIBRI_DI_TOKENS.FILE_UPLOAD_TEMP_FOLDER]: { useFactory: () => path.join(__dirname, 'temp') },
+    [ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS_INPUT]: { useFactory: () => ({}) },
+    [ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS]: {
+        useFactory: () => {
+            const input: LocalizeOptionsInput = inject(ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS_INPUT);
+            return {
+                currency: 'EUR',
+                language: 'de',
+                ...input
+            };
+        }
+    },
     [ZIBRI_DI_TOKENS.FORMAT_DATE]: { useFactory: () => formatDate },
+    [ZIBRI_DI_TOKENS.FORMAT_PRICE]: { useFactory: () => formatPrice },
+    [ZIBRI_DI_TOKENS.FORMAT_PERCENT]: { useFactory: () => formatPercent },
     [ZIBRI_DI_TOKENS.EMAIL_CONFIG]: { useFactory: () => undefined },
     [ZIBRI_DI_TOKENS.JWT_PASSWORD_RESET_TOKEN_EXPIRES_IN_MS]: { useFactory: () => 300000 },
     [ZIBRI_DI_TOKENS.JWT_CONFIRM_PASSWORD_RESET_URL]: { useFactory: () => undefined },
-    [ZIBRI_DI_TOKENS.CURRENT_REQUEST]: { useFactory: () => getCurrentRequest() }
+    [ZIBRI_DI_TOKENS.CURRENT_REQUEST]: { useFactory: () => getCurrentRequest() },
+    [ZIBRI_DI_TOKENS.MULTITHREADING_OPTIONS]: {
+        useFactory: () => ({
+            maxThreads,
+            maxPriorityThreads,
+            defaultTimeoutMs: Ms.HOUR,
+            defaultTimeoutPriorityMs: Ms.MINUTE * 5
+        })
+    },
+    [ZIBRI_DI_TOKENS.MULTITHREADING_SERVICE]: { useClass: MultithreadingService }
 } satisfies ZibriDiProviders;

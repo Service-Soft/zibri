@@ -6,12 +6,13 @@ import express from 'express';
 
 import { AssetServiceInterface } from './asset-service.interface';
 import { ZibriApplication } from '../application';
-import { inject, ZIBRI_DI_TOKENS } from '../di';
+import { Inject, ZIBRI_DI_TOKENS } from '../di';
 import { GlobalRegistry } from '../global';
 import { renderPageTemplate } from '../handlebars';
 import { HttpMethod } from '../http';
-import { LoggerInterface } from '../logging';
-import { FileResponse, HtmlResponse } from '../parsing';
+import type { LoggerInterface } from '../logging';
+import { FileResponse } from '../parsing/form-data/file-response.model';
+import { HtmlResponse } from '../parsing/html/html-response.model';
 import { Route } from '../routing';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
@@ -33,7 +34,6 @@ type WalkedPath = { relPath: string, isFile: boolean };
  * Default asset service implementation of Zibri.
  */
 export class AssetService implements AssetServiceInterface {
-    private readonly logger: LoggerInterface;
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly assetsPath: string = path.join(__dirname, 'assets');
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -45,9 +45,10 @@ export class AssetService implements AssetServiceInterface {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly assetsRoute: Route = '/assets';
 
-    constructor() {
-        this.logger = inject(ZIBRI_DI_TOKENS.LOGGER);
-    }
+    constructor(
+        @Inject(ZIBRI_DI_TOKENS.LOGGER)
+        private readonly logger: LoggerInterface
+    ) {}
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async attachTo(app: ZibriApplication): Promise<void> {

@@ -1,4 +1,4 @@
-import { BaseEntity, Entity, OmitType, Property } from '../../entity';
+import { BaseEntity, Entity, OmitClass, Property } from '../../entity';
 
 /**
  * The jwt refresh token that gets stored in the database.
@@ -44,4 +44,4 @@ export class JwtRefreshToken extends BaseEntity {
 /**
  * Data for creating a new jwt refresh token.
  */
-export class JwtRefreshTokenCreateDto extends OmitType(JwtRefreshToken, ['id']) {}
+export class JwtRefreshTokenCreateDto extends OmitClass(JwtRefreshToken, ['id']) {}

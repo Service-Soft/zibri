@@ -66,6 +66,30 @@ You can try the example above and navigate to your applications open api explore
 
 You should now see a new route get `/users` with the correctly defined return type.
 
+## Inheritance for controllers
+You can use inheritance for controllers using generics and even with the provided helper types like "OmitType", "PickType" etc. Zibri additionally provides a helper type for defining base crud endpoints that you can also extend from:
+
+```ts
+// example
+import { CombinedType, Controller, CrudController, OmitType, PickType } from 'zibri';
+
+import { Test, TestCreateDTO, TestUpdateDTO } from '../models';
+import { MetricsController } from './metrics.controller';
+
+@Controller('/tests-crud')
+export class TestCrudController extends CombinedType(
+    OmitType(CrudController(Test, TestCreateDTO, TestUpdateDTO), ['deleteById']),
+    PickType(MetricsController, ['dashboard'])
+) {}
+```
+
+The above will expose the endpoints
+- `POST /tests-crud` (coming from CrudController, with TestCreateDTO as body)
+- `GET /tests-crud` (coming from CrudController, which returns a PaginatedResponse of Test)
+- `GET /tests-crud/:id` (coming from CrudController, which returns a single Test)
+- `PATCH /tests-crud/:id` (coming from CrudController, which updates a single Test with TestUpdateDTO)
+- `GET /tests-crud` (coming from MetricsController, which in this example returns a html dashboard)
+
 ## Accessing request data
 
 ### request body

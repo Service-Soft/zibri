@@ -1,6 +1,5 @@
-
 import { Property } from '../../entity';
-import { OmitStrict } from '../../types';
+import type { OmitStrict } from '../../types';
 
 /**
  * The Multer file type.

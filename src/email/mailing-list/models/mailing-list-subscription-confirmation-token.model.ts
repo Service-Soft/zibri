@@ -1,4 +1,4 @@
-import { BaseEntity, Entity, OmitType, Property } from '../../../entity';
+import { BaseEntity, Entity, OmitClass, Property } from '../../../entity';
 
 /**
  * A short lived token used to confirm a mailing list subscription.
@@ -39,4 +39,4 @@ export class MailingListSubscriptionConfirmationToken extends BaseEntity {
 /**
  * The data to create a new mailing list subscription confirmation token.
  */
-export class MailingListSubscriptionConfirmationTokenCreateData extends OmitType(MailingListSubscriptionConfirmationToken, ['id']) {}
+export class MailingListSubscriptionConfirmationTokenCreateData extends OmitClass(MailingListSubscriptionConfirmationToken, ['id']) {}

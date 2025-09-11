@@ -1,7 +1,7 @@
 import { BaseRelationMetadata } from './base-relation-metadata.model';
 import { Relation } from './relation.enum';
 import { OmitStrict } from '../../types';
-import { BaseEntity } from '../decorators';
+import { type BaseEntity } from '../base-entity.model';
 
 /**
  * Metadata for one to one properties.
@@ -26,8 +26,8 @@ export type OneToOnePropertyMetadataInput<T extends BaseEntity> = Partial<OmitSt
 /**
  * Input Metadata for has one properties.
  */
-export type HasOnePropertyMetadataInput<T extends BaseEntity> = OmitStrict<OneToOnePropertyMetadataInput<T>, 'cascade' | 'joinColumn'> &
-    Partial<Pick<OneToOnePropertyMetadataInput<T>, 'cascade'>>;
+export type HasOnePropertyMetadataInput<T extends BaseEntity> = OmitStrict<OneToOnePropertyMetadataInput<T>, 'cascade' | 'joinColumn'>
+    & Partial<Pick<OneToOnePropertyMetadataInput<T>, 'cascade'>>;
 
 /**
  * Input Metadata for belongs to one properties.
