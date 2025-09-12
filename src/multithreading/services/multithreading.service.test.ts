@@ -89,7 +89,7 @@ describe('MultithreadingService - performance vs main event loop', () => {
         console.debug('allThreads', allThreads);
         multithreadingService = new MultithreadingService(options, repo, assetService, logger);
         await multithreadingService.init();
-    }, (options.maxThreads * tSingle) * 3);
+    }, 30000);
     afterAll(async () => {
         if (allThreads <= 2) {
             return;
