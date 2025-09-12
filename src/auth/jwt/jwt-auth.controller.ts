@@ -11,7 +11,6 @@ import { JwtAuthData } from './jwt-auth-data.model';
 import { JwtConfirmPasswordResetData } from './jwt-confirm-password-reset-data.model';
 import { JwtCredentialsDto } from './jwt-credentials.model';
 import { JwtRefreshLoginData } from './jwt-refresh-login-data.model';
-import { JwtRefreshToken } from './jwt-refresh-token.model';
 import { JwtAuthStrategy } from './jwt.auth-strategy';
 
 class JwtRequestPasswordResetInput {
@@ -42,8 +41,6 @@ export class JwtAuthController implements AuthControllerInterface<
         private readonly authService: AuthServiceInterface,
         @Inject(ZIBRI_DI_TOKENS.USER_SERVICE)
         private readonly userService: UserServiceInterface,
-        @InjectRepository(JwtRefreshToken)
-        private readonly refreshTokenRepository: Repository<JwtRefreshToken>,
         @InjectRepository(PasswordResetToken)
         private readonly passwordResetTokenRepository: Repository<PasswordResetToken>
     ) {}

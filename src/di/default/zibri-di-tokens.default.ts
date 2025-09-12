@@ -26,9 +26,15 @@ export const ZIBRI_DI_TOKENS = {
     USER_SERVICE: 'zi.user_service',
     CRON_SERVICE: 'zi.cron_service',
     FILE_UPLOAD_TEMP_FOLDER: 'zi.file_upload_temp_folder',
+    LOCALIZE_OPTIONS_INPUT: 'zi.localize_options_input',
+    LOCALIZE_OPTIONS: 'zi.localize_options',
     FORMAT_DATE: 'zi.format_date',
+    FORMAT_PRICE: 'zi.format_price',
+    FORMAT_PERCENT: 'zi.format_percent',
     EMAIL_SERVICE: 'zi.email_service',
     EMAIL_CONFIG: 'zi.email_config',
     MAILING_LIST_SERVICE: 'zi.mailing_list_service',
-    CURRENT_REQUEST: 'zi.current_request'
+    CURRENT_REQUEST: 'zi.current_request',
+    MULTITHREADING_SERVICE: 'zi.multithreading_service',
+    MULTITHREADING_OPTIONS: 'zi.multithreading_options'
 } as const satisfies Record<string, `zi.${string}`>;

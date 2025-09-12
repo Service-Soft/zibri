@@ -140,8 +140,8 @@ export type HtmlOpenApiResponse = {
 /**
  * Union of all supported OpenAPI response descriptors.
  */
-export type OpenApiResponse =
-    | JsonOpenApiResponse
-    | HtmlOpenApiResponse
-    | ErrorOpenApiResponse
-    | FileOpenApiResponse;
+export type OpenApiResponse
+    = | JsonOpenApiResponse
+        | HtmlOpenApiResponse
+        | ErrorOpenApiResponse
+        | FileOpenApiResponse;

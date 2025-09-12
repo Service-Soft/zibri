@@ -4,7 +4,8 @@
     "exclude": [
         "src/index.ts",
         "src/jest.setup.ts",
-        "src/**/*.test.ts"
+        "src/**/*.test.ts",
+        "src/__testing__/**"
     ],
     "excludePrivate": true,
     "excludeProtected": true,
@@ -12,7 +13,10 @@
     "out": "docs/generated",
     "projectDocuments": [
         "./docs/getting-started.md",
-        "./docs/creating-endpoints.md"
+        "./docs/creating-endpoints.md",
+        "./docs/authentication-and-authorization.md",
+        "./docs/multithreading.md",
+        "./docs/plugins"
     ],
     "readme": "none",
     "tsconfig": "tsconfig.json"

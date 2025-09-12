@@ -1,15 +1,11 @@
-import { Entity, OmitType, Property } from '../../entity';
+import { BaseEntity, Entity, Property, OmitClass } from '../../entity';
 import { BaseUser } from '../models';
 
 /**
  * The credentials used by the jwt auth strategy.
  */
 @Entity()
-export class JwtCredentials implements Pick<BaseUser<string>, 'id' | 'email'> {
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    @Property.string({ primary: true })
-    id!: string;
-
+export class JwtCredentials extends BaseEntity implements Pick<BaseUser<string>, 'id' | 'email'> {
     /**
      * The id of the user that this credentials belong to.
      */
@@ -32,9 +28,9 @@ export class JwtCredentials implements Pick<BaseUser<string>, 'id' | 'email'> {
 /**
  * The actual credentials sent over http.
  */
-export class JwtCredentialsDto extends OmitType(JwtCredentials, ['id', 'userId']) {}
+export class JwtCredentialsDto extends OmitClass(JwtCredentials, ['id', 'userId']) {}
 
 /**
  * The data for creating new jwt credentials.
  */
-export class JwtCredentialsCreateData extends OmitType(JwtCredentials, ['id']) {}
+export class JwtCredentialsCreateData extends OmitClass(JwtCredentials, ['id']) {}

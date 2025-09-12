@@ -14,8 +14,10 @@ import { GlobalRegistry } from './global';
 import { HandlebarUtilities } from './handlebars/handlebar.utilities';
 import { LoggerInterface } from './logging';
 import { MetricsServiceInterface } from './metrics';
+import { MultithreadingServiceInterface } from './multithreading';
 import { OpenApiServiceInterface } from './open-api';
 import { FormDataBodyParser, JsonBodyParser, ParserInterface } from './parsing';
+import { ZibriPlugin } from './plugin';
 import { Route, RouterInterface } from './routing';
 import { OmitStrict } from './types';
 
@@ -49,6 +51,7 @@ export class ZibriApplication {
     private dataSourceService!: DataSourceServiceInterface;
     private authService!: AuthServiceInterface;
     private cronService!: CronServiceInterface;
+    private multithreadingService!: MultithreadingServiceInterface;
     private emailService!: EmailServiceInterface;
     private mailingListService?: MailingListServiceInterface;
     /**
@@ -137,6 +140,14 @@ export class ZibriApplication {
         this.cronService = inject(ZIBRI_DI_TOKENS.CRON_SERVICE);
         await this.cronService.init(this.options.cronJobs);
 
+        this.multithreadingService = inject(ZIBRI_DI_TOKENS.MULTITHREADING_SERVICE);
+        await this.multithreadingService.init();
+
+        for (const plugin of this.providedOptions.plugins ?? []) {
+            const p: ZibriPlugin = inject(plugin);
+            await p.validate(this);
+        }
+
         GlobalRegistry.markAppAsInitialized();
     }
 
@@ -170,11 +181,13 @@ export class ZibriApplication {
             ...this.providedOptions
         };
         for (const plugin of this.providedOptions.plugins ?? []) {
-            res.authStrategies.push(...plugin.authStrategies ?? []);
-            res.bodyParsers.push(...plugin.bodyParsers ?? []);
-            res.controllers.push(...plugin.controllers ?? []);
-            res.cronJobs.push(...plugin.cronJobs ?? []);
-            res.providers.push(...plugin.providers ?? []);
+            const p: ZibriPlugin = inject(plugin);
+            // TODO: handle order of plugin initialization so that everything is available for DI inside the plugin constructor.
+            res.authStrategies = [...p.authStrategies, ...res.authStrategies];
+            res.bodyParsers = [...p.bodyParsers, ...res.bodyParsers];
+            res.controllers = [...p.controllers, ...res.controllers];
+            res.cronJobs = [...p.cronJobs, ...res.cronJobs];
+            res.providers = [...p.providers, ...res.providers];
         }
 
         if (!res.authStrategies.length) {

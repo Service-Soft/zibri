@@ -1,6 +1,6 @@
 import { MailingListSubscriber } from './models';
 import { ZibriApplication } from '../../application';
-import { OmitType } from '../../entity';
+import { OmitClass } from '../../entity';
 import { BaseEmailTemplateData } from '../../handlebars';
 import { Route } from '../../routing';
 import { OmitStrict } from '../../types';
@@ -26,7 +26,7 @@ export type MailingListQueueEmailData<T extends Record<string, unknown>> = OmitS
 /**
  * The required data to create a new mailing list subscriber.
  */
-export class MailingListSubscriberCreateData extends OmitType(MailingListSubscriber, ['id']) {}
+export class MailingListSubscriberCreateData extends OmitClass(MailingListSubscriber, ['id']) {}
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 export type BaseMailingListEmailTemplateData = OmitStrict<BaseEmailTemplateData, 'base'> & {

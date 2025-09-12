@@ -29,14 +29,14 @@ export type AstUndefinedLiteral = hbs.AST.UndefinedLiteral;
 export type AstNullLiteral = hbs.AST.NullLiteral;
 
 // Union of everything that can appear as `param` or in a hash:
-export type AstExpression =
-    | AstPathExpression
-    | AstStringLiteral
-    | AstNumberLiteral
-    | AstBooleanLiteral
-    | AstUndefinedLiteral
-    | AstNullLiteral
-    | AstSubExpression;
+export type AstExpression
+    = | AstPathExpression
+        | AstStringLiteral
+        | AstNumberLiteral
+        | AstBooleanLiteral
+        | AstUndefinedLiteral
+        | AstNullLiteral
+        | AstSubExpression;
 
 export type AstHashPair = OmitStrict<
     hbs.AST.HashPair,

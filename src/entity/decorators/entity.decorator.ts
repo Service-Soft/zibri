@@ -1,7 +1,8 @@
-import { BaseEntity } from './property.decorator';
 import { GlobalRegistry } from '../../global';
 import { Newable } from '../../types';
-import { MetadataUtilities } from '../../utilities';
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { toSnakeCase } from '../../utilities/to-snake-case.function';
+import { type BaseEntity } from '../base-entity.model';
 
 /**
  * Metadata for an Entity.
@@ -21,7 +22,7 @@ export type EntityMetadata = {
 export function Entity(tableName?: string): ClassDecorator {
     return target => {
         const metadata: EntityMetadata = {
-            tableName: tableName ?? target.name.toLowerCase()
+            tableName: tableName ?? toSnakeCase(target.name)
         };
         MetadataUtilities.setEntityMetadata(target as unknown as Newable<BaseEntity>, metadata);
         GlobalRegistry.entityClasses.push(target as unknown as Newable<BaseEntity>);

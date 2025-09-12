@@ -14,6 +14,57 @@ const modelPropertiesStore: WeakMap<Function, Record<string, PropertyMetadata>> 
  * Utilities for handling Metadata.
  */
 export abstract class MetadataUtilities {
+    // ---------- helpers ----------
+    private static structuredCloneSafe<T>(value: T): T {
+        if (Array.isArray(value)) {
+            return [...value] as T;
+        }
+        return { ...value };
+    }
+
+    private static ensureInheritedStore<T extends Record<string, unknown>>(store: WeakMap<Function, T>, ctor: Newable<unknown>): T {
+        let entry: T | undefined = store.get(ctor);
+        if (entry !== undefined) {
+            return entry;
+        }
+
+        const parentCtor: Newable<unknown> | undefined = MetadataUtilities.getParentConstructor(ctor);
+        const parentEntry: T | undefined = parentCtor
+            ? MetadataUtilities.ensureInheritedStore(store, parentCtor)
+            : undefined;
+
+        // shallow clone parent's entry so child gets its own object
+        entry = parentEntry ? Object.assign({}, parentEntry) : ({} as T);
+        store.set(ctor, entry);
+        return entry;
+    }
+
+    private static ensureInheritedReflectMetadata<T>(
+        metadataKey: MetadataInjectionKeys,
+        ctor: Function,
+        controllerMethod?: string
+    ): T | undefined {
+        // if child has its own metadata, return clone immediately
+        const own: T | undefined = ReflectUtilities.getOwnMetadata(metadataKey, ctor, controllerMethod);
+        if (own !== undefined) {
+            return MetadataUtilities.structuredCloneSafe(own);
+        }
+
+        // walk parents and clone+cache the first parent value found
+        let parentCtor: Newable<unknown> | undefined = MetadataUtilities.getParentConstructor(ctor);
+        while (parentCtor) {
+            const parentOwn: T | undefined = ReflectUtilities.getOwnMetadata(metadataKey, parentCtor, controllerMethod);
+            if (parentOwn !== undefined) {
+                const clone: T | undefined = MetadataUtilities.structuredCloneSafe(parentOwn);
+                ReflectUtilities.setMetadata(metadataKey, clone, ctor, controllerMethod);
+                return clone;
+            }
+            parentCtor = MetadataUtilities.getParentConstructor(parentCtor);
+        }
+        return undefined;
+    }
+
+    // ---------- file path ----------
     static setFilePath(target: Object, errorStack: string): void {
         const callerLine: string = errorStack.split('\n')[5];
         const filePath: string = callerLine.match(/\((.*):\d+:\d+\)/)?.[1] ?? 'unknown';
@@ -31,6 +82,7 @@ export abstract class MetadataUtilities {
         return ReflectUtilities.getMetadata(MetadataInjectionKeys.FILE_LOCATION, target);
     }
 
+    // ---------- param types / DI ----------
     static getParamTypes(target: Object): unknown[] {
         return ReflectUtilities.getMetadata(MetadataInjectionKeys.PARAM_TYPES, target) ?? [];
     }
@@ -47,136 +99,183 @@ export abstract class MetadataUtilities {
         return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.DI_INJECT_PARAM_TOKENS, target) ?? {};
     }
 
-    static setControllerRoutes(controller: Object, routes: ControllerRouteConfiguration[]): void {
+    // ---------- controller routes ----------
+    static setControllerRoutes(controller: Function, routes: ControllerRouteConfiguration[]): void {
         ReflectUtilities.setMetadata(MetadataInjectionKeys.CONTROLLER_ROUTES, routes, controller);
     }
 
-    static getControllerRoutes(controller: Object): ControllerRouteConfiguration[] {
+    static getControllerRoutes(controller: Function): ControllerRouteConfiguration[] {
         return ReflectUtilities.getMetadata(MetadataInjectionKeys.CONTROLLER_ROUTES, controller) ?? [];
     }
 
-    static setRouteResponses(controller: Object, data: OpenApiResponse[], controllerMethod: string): void {
+    // ---------- route responses (method-level, inherit) ----------
+    static setRouteResponses(controller: Function, data: OpenApiResponse[], controllerMethod: string): void {
         ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_RESPONSES, data, controller, controllerMethod);
     }
 
-    static getRouteResponses(controller: Object, controllerMethod: string): OpenApiResponse[] {
-        return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.ROUTE_RESPONSES, controller, controllerMethod) ?? [];
+    static getRouteResponses(controller: Function, controllerMethod: string): OpenApiResponse[] {
+        return MetadataUtilities.ensureInheritedReflectMetadata<OpenApiResponse[]>(
+            MetadataInjectionKeys.ROUTE_RESPONSES,
+            controller,
+            controllerMethod
+        ) ?? [];
     }
 
-    static setControllerBaseRoute(controller: Object, baseRoute: Route): void {
+    // ---------- controller base route ----------
+    static setControllerBaseRoute(controller: Function, baseRoute: Route): void {
         ReflectUtilities.setMetadata(MetadataInjectionKeys.CONTROLLER_BASE_ROUTE, baseRoute, controller);
     }
 
-    static getControllerBaseRoute(controller: Object): Route | undefined {
+    static getControllerBaseRoute(controller: Function): Route | undefined {
         return ReflectUtilities.getMetadata(MetadataInjectionKeys.CONTROLLER_BASE_ROUTE, controller);
     }
 
-    static setRoutePathParams(controller: Object, params: Record<number, PathParamMetadata>, controllerMethod: string): void {
+    // ---------- route params / body / current user (method-level, inherit) ----------
+    static setRoutePathParams(controller: Function, params: Record<number, PathParamMetadata>, controllerMethod: string): void {
         ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_PATH_PARAMS, params, controller, controllerMethod);
     }
 
-    static getRoutePathParams(controller: Object, controllerMethod: string): Record<number, PathParamMetadata> {
-        return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.ROUTE_PATH_PARAMS, controller, controllerMethod) ?? {};
+    static getRoutePathParams(controller: Function, controllerMethod: string): Record<number, PathParamMetadata> {
+        return MetadataUtilities.ensureInheritedReflectMetadata<Record<number, PathParamMetadata>>(
+            MetadataInjectionKeys.ROUTE_PATH_PARAMS,
+            controller,
+            controllerMethod
+        ) ?? {};
     }
 
-    static setRouteQueryParams(controller: Object, params: Record<number, QueryParamMetadata>, controllerMethod: string): void {
+    static setRouteQueryParams(controller: Function, params: Record<number, QueryParamMetadata>, controllerMethod: string): void {
         ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_QUERY_PARAMS, params, controller, controllerMethod);
     }
 
-    static getRouteQueryParams(controller: Object, controllerMethod: string): Record<number, QueryParamMetadata> {
-        return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.ROUTE_QUERY_PARAMS, controller, controllerMethod) ?? {};
+    static getRouteQueryParams(controller: Function, controllerMethod: string): Record<number, QueryParamMetadata> {
+        return MetadataUtilities.ensureInheritedReflectMetadata<Record<number, QueryParamMetadata>>(
+            MetadataInjectionKeys.ROUTE_QUERY_PARAMS,
+            controller,
+            controllerMethod
+        ) ?? {};
     }
 
-    static setRouteHeaderParams(controller: Object, params: Record<number, HeaderParamMetadata>, controllerMethod: string): void {
+    static setRouteHeaderParams(controller: Function, params: Record<number, HeaderParamMetadata>, controllerMethod: string): void {
         ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_HEADER_PARAMS, params, controller, controllerMethod);
     }
 
-    static getRouteHeaderParams(controller: Object, controllerMethod: string): Record<number, HeaderParamMetadata> {
-        return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.ROUTE_HEADER_PARAMS, controller, controllerMethod) ?? {};
+    static getRouteHeaderParams(controller: Function, controllerMethod: string): Record<number, HeaderParamMetadata> {
+        return MetadataUtilities.ensureInheritedReflectMetadata<Record<number, HeaderParamMetadata>>(
+            MetadataInjectionKeys.ROUTE_HEADER_PARAMS,
+            controller,
+            controllerMethod
+        ) ?? {};
     }
 
-    static setRouteBody(controller: Object, body: BodyMetadata, controllerMethod: string): void {
+    static setRouteBody(controller: Function, body: BodyMetadata, controllerMethod: string): void {
         ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_BODY, body, controller, controllerMethod);
     }
 
-    static getRouteBody(controller: Object, controllerMethod: string): BodyMetadata | undefined {
-        return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.ROUTE_BODY, controller, controllerMethod);
+    static getRouteBody(controller: Function, controllerMethod: string): BodyMetadata | undefined {
+        return MetadataUtilities.ensureInheritedReflectMetadata<BodyMetadata>(
+            MetadataInjectionKeys.ROUTE_BODY,
+            controller,
+            controllerMethod
+        );
     }
 
-    static setRouteCurrentUser(controller: Object, body: CurrentUserMetadata, controllerMethod: string): void {
+    static setRouteCurrentUser(controller: Function, body: CurrentUserMetadata, controllerMethod: string): void {
         ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_CURRENT_USER, body, controller, controllerMethod);
     }
 
-    static getRouteCurrentUser(controller: Object, controllerMethod: string): CurrentUserMetadata | undefined {
-        return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.ROUTE_CURRENT_USER, controller, controllerMethod);
+    static getRouteCurrentUser(controller: Function, controllerMethod: string): CurrentUserMetadata | undefined {
+        return MetadataUtilities.ensureInheritedReflectMetadata<CurrentUserMetadata>(
+            MetadataInjectionKeys.ROUTE_CURRENT_USER,
+            controller,
+            controllerMethod
+        );
     }
 
-    static setRouteIsLoggedIn(controller: Object, data: IsLoggedInMetadata, controllerMethod: string): void {
+    // ---------- route auth flags (method-level, inherit) ----------
+    static setRouteIsLoggedIn(controller: Function, data: IsLoggedInMetadata, controllerMethod: string): void {
         ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_IS_LOGGED_IN, data, controller, controllerMethod);
     }
 
-    static getRouteIsLoggedIn(controller: Object, controllerMethod: string): IsLoggedInMetadata | undefined {
-        return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.ROUTE_IS_LOGGED_IN, controller, controllerMethod);
+    static getRouteIsLoggedIn(controller: Function, controllerMethod: string): IsLoggedInMetadata | undefined {
+        return MetadataUtilities.ensureInheritedReflectMetadata<IsLoggedInMetadata>(
+            MetadataInjectionKeys.ROUTE_IS_LOGGED_IN,
+            controller,
+            controllerMethod
+        );
     }
 
-    static setRouteSkipIsLoggedIn(controller: Object, data: SkipIsLoggedInMetadata, controllerMethod: string): void {
+    static setRouteSkipIsLoggedIn(controller: Function, data: SkipIsLoggedInMetadata, controllerMethod: string): void {
         ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_SKIP_IS_LOGGED_IN, data, controller, controllerMethod);
     }
 
-    static getRouteSkipIsLoggedIn(controller: Object, controllerMethod: string): SkipIsLoggedInMetadata | undefined {
-        return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.ROUTE_SKIP_IS_LOGGED_IN, controller, controllerMethod);
+    static getRouteSkipIsLoggedIn(controller: Function, controllerMethod: string): SkipIsLoggedInMetadata | undefined {
+        return MetadataUtilities.ensureInheritedReflectMetadata<SkipIsLoggedInMetadata>(
+            MetadataInjectionKeys.ROUTE_SKIP_IS_LOGGED_IN,
+            controller,
+            controllerMethod
+        );
     }
 
-    static setControllerIsLoggedIn(controller: Object, data: IsLoggedInMetadata): void {
+    static setControllerIsLoggedIn(controller: Function, data: IsLoggedInMetadata): void {
         ReflectUtilities.setMetadata(MetadataInjectionKeys.CONTROLLER_IS_LOGGED_IN, data, controller);
     }
 
-    static getControllerIsLoggedIn(controller: Object): IsLoggedInMetadata | undefined {
+    static getControllerIsLoggedIn(controller: Function): IsLoggedInMetadata | undefined {
         return ReflectUtilities.getMetadata(MetadataInjectionKeys.CONTROLLER_IS_LOGGED_IN, controller);
     }
 
-    static setControllerSkipIsLoggedIn(controller: Object, data: SkipIsLoggedInMetadata): void {
+    static setControllerSkipIsLoggedIn(controller: Function, data: SkipIsLoggedInMetadata): void {
         ReflectUtilities.setMetadata(MetadataInjectionKeys.CONTROLLER_SKIP_IS_LOGGED_IN, data, controller);
     }
 
-    static getControllerSkipIsLoggedIn(controller: Object): SkipIsLoggedInMetadata | undefined {
+    static getControllerSkipIsLoggedIn(controller: Function): SkipIsLoggedInMetadata | undefined {
         return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.CONTROLLER_SKIP_IS_LOGGED_IN, controller);
     }
 
-    static setRouteHasRole(controller: Object, data: HasRoleMetadata, controllerMethod: string): void {
+    // ---------- role metadata (method-level for routes) ----------
+    static setRouteHasRole(controller: Function, data: HasRoleMetadata, controllerMethod: string): void {
         ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_HAS_ROLE, data, controller, controllerMethod);
     }
 
-    static getRouteHasRole(controller: Object, controllerMethod: string): HasRoleMetadata | undefined {
-        return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.ROUTE_HAS_ROLE, controller, controllerMethod);
+    static getRouteHasRole(controller: Function, controllerMethod: string): HasRoleMetadata | undefined {
+        return MetadataUtilities.ensureInheritedReflectMetadata<HasRoleMetadata>(
+            MetadataInjectionKeys.ROUTE_HAS_ROLE,
+            controller,
+            controllerMethod
+        );
     }
 
-    static setRouteSkipHasRole(controller: Object, data: SkipHasRoleMetadata, controllerMethod: string): void {
+    static setRouteSkipHasRole(controller: Function, data: SkipHasRoleMetadata, controllerMethod: string): void {
         ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_SKIP_HAS_ROLE, data, controller, controllerMethod);
     }
 
-    static getRouteSkipHasRole(controller: Object, controllerMethod: string): SkipHasRoleMetadata | undefined {
-        return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.ROUTE_SKIP_HAS_ROLE, controller, controllerMethod);
+    static getRouteSkipHasRole(controller: Function, controllerMethod: string): SkipHasRoleMetadata | undefined {
+        return MetadataUtilities.ensureInheritedReflectMetadata<SkipHasRoleMetadata>(
+            MetadataInjectionKeys.ROUTE_SKIP_HAS_ROLE,
+            controller,
+            controllerMethod
+        );
     }
 
-    static setControllerHasRole(controller: Object, data: HasRoleMetadata): void {
+    static setControllerHasRole(controller: Function, data: HasRoleMetadata): void {
         ReflectUtilities.setMetadata(MetadataInjectionKeys.CONTROLLER_HAS_ROLE, data, controller);
     }
 
-    static getControllerHasRole(controller: Object): HasRoleMetadata | undefined {
+    static getControllerHasRole(controller: Function): HasRoleMetadata | undefined {
         return ReflectUtilities.getMetadata(MetadataInjectionKeys.CONTROLLER_HAS_ROLE, controller);
     }
 
-    static setControllerSkipHasRole(controller: Object, data: SkipHasRoleMetadata): void {
+    static setControllerSkipHasRole(controller: Function, data: SkipHasRoleMetadata): void {
         ReflectUtilities.setMetadata(MetadataInjectionKeys.CONTROLLER_SKIP_HAS_ROLE, data, controller);
     }
 
-    static getControllerSkipHasRole(controller: Object): SkipHasRoleMetadata | undefined {
+    static getControllerSkipHasRole(controller: Function): SkipHasRoleMetadata | undefined {
         return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.CONTROLLER_SKIP_HAS_ROLE, controller);
     }
 
+    // ---------- belongsTo (method-level, inherit) ----------
     static setRouteBelongsTo<T extends Newable<BaseEntity>>(
-        controller: Object,
+        controller: Function,
         data: BelongsToMetadata<T>,
         controllerMethod: string
     ): void {
@@ -184,64 +283,68 @@ export abstract class MetadataUtilities {
     }
 
     static getRouteBelongsTo<T extends Newable<BaseEntity>>(
-        controller: Object,
+        controller: Function,
         controllerMethod: string
     ): BelongsToMetadata<T> | undefined {
-        return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.ROUTE_BELONGS_TO, controller, controllerMethod);
+        return MetadataUtilities.ensureInheritedReflectMetadata<BelongsToMetadata<T>>(
+            MetadataInjectionKeys.ROUTE_BELONGS_TO,
+            controller,
+            controllerMethod
+        );
     }
 
-    static setRouteSkipBelongsTo(controller: Object, data: SkipBelongsToMetadata, controllerMethod: string): void {
+    static setRouteSkipBelongsTo(controller: Function, data: SkipBelongsToMetadata, controllerMethod: string): void {
         ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_SKIP_BELONGS_TO, data, controller, controllerMethod);
     }
 
-    static getRouteSkipBelongsTo(controller: Object, controllerMethod: string): SkipBelongsToMetadata | undefined {
-        return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.ROUTE_SKIP_BELONGS_TO, controller, controllerMethod);
+    static getRouteSkipBelongsTo(controller: Function, controllerMethod: string): SkipBelongsToMetadata | undefined {
+        return MetadataUtilities.ensureInheritedReflectMetadata<SkipBelongsToMetadata>(
+            MetadataInjectionKeys.ROUTE_SKIP_BELONGS_TO,
+            controller,
+            controllerMethod
+        );
     }
 
-    static setControllerBelongsTo<T extends Newable<BaseEntity>>(controller: Object, data: BelongsToMetadata<T>): void {
+    static setControllerBelongsTo<T extends Newable<BaseEntity>>(controller: Function, data: BelongsToMetadata<T>): void {
         ReflectUtilities.setMetadata(MetadataInjectionKeys.CONTROLLER_BELONGS_TO, data, controller);
     }
 
-    static getControllerBelongsTo<T extends Newable<BaseEntity>>(controller: Object): BelongsToMetadata<T> | undefined {
+    static getControllerBelongsTo<T extends Newable<BaseEntity>>(controller: Function): BelongsToMetadata<T> | undefined {
         return ReflectUtilities.getMetadata(MetadataInjectionKeys.CONTROLLER_BELONGS_TO, controller);
     }
 
-    static setControllerSkipBelongsTo(controller: Object, data: SkipBelongsToMetadata): void {
+    static setControllerSkipBelongsTo(controller: Function, data: SkipBelongsToMetadata): void {
         ReflectUtilities.setMetadata(MetadataInjectionKeys.CONTROLLER_SKIP_BELONGS_TO, data, controller);
     }
 
-    static getControllerSkipBelongsTo(controller: Object): SkipBelongsToMetadata | undefined {
+    static getControllerSkipBelongsTo(controller: Function): SkipBelongsToMetadata | undefined {
         return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.CONTROLLER_SKIP_BELONGS_TO, controller);
     }
 
-    static setRouteSkipAuth(controller: Object, data: SkipAuthMetadata, controllerMethod: string): void {
+    static setRouteSkipAuth(controller: Function, data: SkipAuthMetadata, controllerMethod: string): void {
         ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_SKIP_AUTH, data, controller, controllerMethod);
     }
 
-    static getRouteSkipAuth(controller: Object, controllerMethod: string): SkipAuthMetadata | undefined {
-        return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.ROUTE_SKIP_AUTH, controller, controllerMethod);
+    static getRouteSkipAuth(controller: Function, controllerMethod: string): SkipAuthMetadata | undefined {
+        return MetadataUtilities.ensureInheritedReflectMetadata<SkipAuthMetadata>(
+            MetadataInjectionKeys.ROUTE_SKIP_AUTH,
+            controller,
+            controllerMethod
+        );
     }
 
+    // ---------- model properties (WeakMap store, inherit) ----------
     static setModelProperties<T extends Newable<unknown>>(ctor: T, properties: Record<string, PropertyMetadata>): void {
-        // store a shallow clone to avoid callers keeping a reference that could be mutated externally
-        modelPropertiesStore.set(ctor, Object.assign({}, properties));
+        // store a cloned copy to avoid external references
+        modelPropertiesStore.set(ctor as unknown as Function, MetadataUtilities.structuredCloneSafe(properties));
     }
 
     static getModelProperties<T extends Newable<unknown>>(ctor: T): Record<string, PropertyMetadata> {
-        let props: Record<string, PropertyMetadata> | undefined = modelPropertiesStore.get(ctor);
-        if (props === undefined) {
-            const parentCtor: Newable<unknown> | undefined = MetadataUtilities.getParentConstructor(ctor);
-            const parentProps: Record<string, PropertyMetadata> = parentCtor
-                ? MetadataUtilities.getModelProperties(parentCtor)
-                : {};
-            // create a shallow clone so child modifications don't mutate parent
-            props = Object.assign({}, parentProps);
-            modelPropertiesStore.set(ctor, props);
-        }
-        return props;
+        return MetadataUtilities.ensureInheritedStore<Record<string, PropertyMetadata>>(modelPropertiesStore, ctor);
     }
 
-    private static getParentConstructor<T extends Newable<unknown>>(ctor: T): Newable<unknown> | undefined {
+    // ---------- parent constructor helper ----------
+    private static getParentConstructor<T extends Function>(ctor: T): Newable<unknown> | undefined {
         const proto: unknown = Object.getPrototypeOf(ctor.prototype);
         if (proto == undefined || proto === Object.prototype) {
             return undefined;
@@ -253,6 +356,7 @@ export abstract class MetadataUtilities {
         return parentCtor;
     }
 
+    // ---------- entity metadata ----------
     static setEntityMetadata(entity: Newable<unknown>, metadata: EntityMetadata): void {
         ReflectUtilities.setMetadata(MetadataInjectionKeys.ENTITY_METADATA, metadata, entity);
     }
@@ -261,35 +365,44 @@ export abstract class MetadataUtilities {
         return ReflectUtilities.getMetadata(MetadataInjectionKeys.ENTITY_METADATA, entity);
     }
 
-    static setRouteIsNotLoggedIn(controller: Object, data: IsNotLoggedInMetadata, controllerMethod: string): void {
+    // ---------- route not-logged-in (method-level, inherit) ----------
+    static setRouteIsNotLoggedIn(controller: Function, data: IsNotLoggedInMetadata, controllerMethod: string): void {
         ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_IS_NOT_LOGGED_IN, data, controller, controllerMethod);
     }
 
-    static getRouteIsNotLoggedIn(controller: Object, controllerMethod: string): IsNotLoggedInMetadata | undefined {
-        return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.ROUTE_IS_NOT_LOGGED_IN, controller, controllerMethod);
+    static getRouteIsNotLoggedIn(controller: Function, controllerMethod: string): IsNotLoggedInMetadata | undefined {
+        return MetadataUtilities.ensureInheritedReflectMetadata<IsNotLoggedInMetadata>(
+            MetadataInjectionKeys.ROUTE_IS_NOT_LOGGED_IN,
+            controller,
+            controllerMethod
+        );
     }
 
-    static setRouteSkipIsNotLoggedIn(controller: Object, data: SkipIsNotLoggedInMetadata, controllerMethod: string): void {
+    static setRouteSkipIsNotLoggedIn(controller: Function, data: SkipIsNotLoggedInMetadata, controllerMethod: string): void {
         ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_SKIP_IS_NOT_LOGGED_IN, data, controller, controllerMethod);
     }
 
-    static getRouteSkipIsNotLoggedIn(controller: Object, controllerMethod: string): SkipIsNotLoggedInMetadata | undefined {
-        return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.ROUTE_SKIP_IS_NOT_LOGGED_IN, controller, controllerMethod);
+    static getRouteSkipIsNotLoggedIn(controller: Function, controllerMethod: string): SkipIsNotLoggedInMetadata | undefined {
+        return MetadataUtilities.ensureInheritedReflectMetadata<SkipIsNotLoggedInMetadata>(
+            MetadataInjectionKeys.ROUTE_SKIP_IS_NOT_LOGGED_IN,
+            controller,
+            controllerMethod
+        );
     }
 
-    static setControllerIsNotLoggedIn(controller: Object, data: IsNotLoggedInMetadata): void {
+    static setControllerIsNotLoggedIn(controller: Function, data: IsNotLoggedInMetadata): void {
         ReflectUtilities.setMetadata(MetadataInjectionKeys.CONTROLLER_IS_NOT_LOGGED_IN, data, controller);
     }
 
-    static getControllerIsNotLoggedIn(controller: Object): IsNotLoggedInMetadata | undefined {
+    static getControllerIsNotLoggedIn(controller: Function): IsNotLoggedInMetadata | undefined {
         return ReflectUtilities.getMetadata(MetadataInjectionKeys.CONTROLLER_IS_NOT_LOGGED_IN, controller);
     }
 
-    static setControllerSkipIsNotLoggedIn(controller: Object, data: SkipIsNotLoggedInMetadata): void {
+    static setControllerSkipIsNotLoggedIn(controller: Function, data: SkipIsNotLoggedInMetadata): void {
         ReflectUtilities.setMetadata(MetadataInjectionKeys.CONTROLLER_SKIP_IS_NOT_LOGGED_IN, data, controller);
     }
 
-    static getControllerSkipIsNotLoggedIn(controller: Object): SkipIsNotLoggedInMetadata | undefined {
+    static getControllerSkipIsNotLoggedIn(controller: Function): SkipIsNotLoggedInMetadata | undefined {
         return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.CONTROLLER_SKIP_IS_NOT_LOGGED_IN, controller);
     }
 }

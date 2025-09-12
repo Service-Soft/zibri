@@ -3,24 +3,15 @@ import path from 'path';
 
 import { MailingListSubscriberCreateData, MailingListQueueEmailData, MailingListServiceInterface, BaseMailingListEmailTemplateData } from './mailing-list-service.interface';
 import { AssetServiceInterface } from '../../assets';
-import { BaseDataSource, Repository } from '../../data-source';
+import { Repository } from '../../data-source';
 import { inject, repositoryTokenFor, ZIBRI_DI_TOKENS } from '../../di';
-import { BaseEntity } from '../../entity';
 import { GlobalRegistry } from '../../global';
 import { BaseEmailTemplateData, renderTemplate, renderTemplateString } from '../../handlebars';
 import { Route } from '../../routing';
 import { EmailServiceInterface } from '../email-service.interface';
 import { MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken, MailingListSubscriptionConfirmationTokenCreateData } from './models';
-import { Newable } from '../../types';
-import { chunkedPromiseAll } from '../../utilities';
+import { chunkedPromiseAll, validateEntitiesRegistered } from '../../utilities';
 import { EmailPriority } from '../models';
-
-const INITIALIZE_ERROR_MESSAGE: string = 'Error initializing MailingListService.';
-const INITIALIZE_ERROR_QUESTION: string = [
-    'Did you forget to add it to your data source entities array?\n',
-    'If you don\'t want to use the mailing list service you can also provide an undefined value for the token',
-    'ZIBRI_DI_TOKENS.MAILING_LIST_SERVICE'
-].join('\n');
 
 /**
  * Default mailing list service implementation of Zibri.
@@ -69,39 +60,7 @@ export class MailingListService implements MailingListServiceInterface {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     attachTo(): void {
-        this.validate();
-    }
-
-    private validate(): void {
-        const entitiesInDataSources: Newable<BaseEntity>[] = [];
-        for (const dataSourceClass of GlobalRegistry.dataSourceClasses) {
-            const dataSource: BaseDataSource = inject(dataSourceClass);
-            entitiesInDataSources.push(...dataSource.entities);
-        }
-        if (!entitiesInDataSources.includes(MailingList)) {
-            const message: string[] = [
-                INITIALIZE_ERROR_MESSAGE,
-                'Could not find data source for the MailingList entity:',
-                INITIALIZE_ERROR_QUESTION
-            ];
-            throw new Error(message.join('\n'));
-        }
-        if (!entitiesInDataSources.includes(MailingListSubscriber)) {
-            const message: string[] = [
-                INITIALIZE_ERROR_MESSAGE,
-                'Could not find data source for the MailingListSubscriber entity:',
-                INITIALIZE_ERROR_QUESTION
-            ];
-            throw new Error(message.join('\n'));
-        }
-        if (!entitiesInDataSources.includes(MailingListSubscriptionConfirmationToken)) {
-            const message: string[] = [
-                INITIALIZE_ERROR_MESSAGE,
-                'Could not find data source for the MailingListSubscriptionConfirmationToken entity:',
-                INITIALIZE_ERROR_QUESTION
-            ];
-            throw new Error(message.join('\n'));
-        }
+        validateEntitiesRegistered(this.constructor.name, MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

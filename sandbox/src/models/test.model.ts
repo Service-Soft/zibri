@@ -1,10 +1,7 @@
-import { Entity, File, MimeType, OmitType, Property } from 'zibri';
+import { BaseEntity, Entity, File, MimeType, OmitClass, PartialClass, Property } from 'zibri';
 
 @Entity()
-export class Test {
-    @Property.string({ primary: true })
-    id!: string;
-
+export class Test extends BaseEntity {
     @Property.string({ minLength: 28 })
     value!: string;
 
@@ -12,7 +9,9 @@ export class Test {
     // files!: File[];
 }
 
-export class TestCreateDTO extends OmitType(Test, ['id']) {
+export class TestCreateDTO extends OmitClass(Test, ['id']) {
     @Property.file({ allowedMimeTypes: [MimeType.JSON] })
     file!: File;
 }
+
+export class TestUpdateDTO extends PartialClass(OmitClass(Test, ['id'])) {}

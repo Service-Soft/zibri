@@ -5,6 +5,7 @@ import { ExcludeStrict } from '../types';
  */
 export enum MimeType {
     JSON = 'application/json',
+    XML = 'application/xml',
     HTML = 'text/html',
     FORM_DATA = 'multipart/form-data',
     OCTET_STREAM = 'application/octet-stream',

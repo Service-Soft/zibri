@@ -19,7 +19,8 @@ const mimeTypeToExtension = {
     [MimeType.CSV]: '.csv',
     [MimeType.XLSX]: '.xlsx',
     [MimeType.DOCX]: '.docx',
-    [MimeType.TXT]: '.txt'
+    [MimeType.TXT]: '.txt',
+    [MimeType.XML]: '.xml'
 } satisfies Record<FileMimeType, Lowercase<`.${string}`> | undefined>;
 
 const extensionToMimeType: Record<FileExtension, MimeType | undefined> = {
@@ -36,7 +37,8 @@ const extensionToMimeType: Record<FileExtension, MimeType | undefined> = {
     '.json': MimeType.JSON,
     '.docx': MimeType.DOCX,
     '.txt': MimeType.TXT,
-    '.html': MimeType.HTML
+    '.html': MimeType.HTML,
+    '.xml': MimeType.XML
 } as const;
 
 /**
