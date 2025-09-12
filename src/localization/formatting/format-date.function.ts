@@ -1,14 +1,21 @@
+import { inject, ZIBRI_DI_TOKENS } from '../../di';
+import { LanguageCode, LocalizeOptions } from '../models';
 import { FormatDateFn } from './format-date-fn.model';
 
 /**
  * Default implementation for formatting dates.
  * @param date - The date to format.
  * @param includeTime - Whether or not time should be included. Defaults to false.
+ * @param language - The language code to be used for formatting. Defaults to the language provided in ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS.
  */
-export const formatDate: FormatDateFn = (date: Date, includeTime: boolean = false) => {
+export const formatDate: FormatDateFn = (
+    date: Date,
+    includeTime: boolean = false,
+    language: LanguageCode = inject<LocalizeOptions>(ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS).language
+) => {
     if (includeTime) {
         return new Date(date).toLocaleDateString(
-            'de',
+            language,
             {
                 year: 'numeric',
                 month: '2-digit',
@@ -20,7 +27,7 @@ export const formatDate: FormatDateFn = (date: Date, includeTime: boolean = fals
         );
     }
     return new Date(date).toLocaleDateString(
-        'de',
+        language,
         {
             year: 'numeric',
             month: '2-digit',

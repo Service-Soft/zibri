@@ -1,15 +1,15 @@
 import { Email } from './email.model';
-import { CombinedType, OmitType, PartialType, PickType } from '../../entity';
+import { IntersectionClass, OmitClass, PartialClass, PickClass } from '../../entity';
 
 /**
  * Data for creating a new email in the db.
  */
-export class CreateEmailData extends OmitType(Email, ['id', 'createdAt']) {}
+export class CreateEmailData extends OmitClass(Email, ['id', 'createdAt']) {}
 
 /**
  * Data for queuing a new email.
  */
-export class QueueEmailData extends CombinedType(
-    OmitType(CreateEmailData, ['status', 'priority', 'persist', 'sender']),
-    PartialType(PickType(CreateEmailData, ['priority', 'persist', 'sender']))
+export class QueueEmailData extends IntersectionClass(
+    OmitClass(CreateEmailData, ['status', 'priority', 'persist', 'sender']),
+    PartialClass(PickClass(CreateEmailData, ['priority', 'persist', 'sender']))
 ) {}

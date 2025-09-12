@@ -6,3 +6,5 @@ export * from './bad-request.error';
 export * from './validation.error';
 export * from './unauthorized.error';
 export * from './too-many-requests.error';
+export * from './conflict.error';
+export * from './missing-entities.error';

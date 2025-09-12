@@ -2,7 +2,6 @@
 const path = require('path');
 const { spawn } = require('child_process');
 const CopyPlugin = require('copy-webpack-plugin');
-const { IgnorePlugin } = require('webpack');
 const { generateHandlebarTypeFiles } = require('zibri');
 
 class OnBuildSuccessPlugin {
@@ -63,7 +62,31 @@ module.exports = {
         clean: true
     },
     devtool: 'source-map',
-    externals: [],
+    externals: {
+        pdfmake: 'commonjs2 pdfmake',
+        pdfkit: 'commonjs2 pdfkit',
+        '@foliojs-fork/fontkit': 'commonjs2 @foliojs-fork/fontkit',
+        '@foliojs-fork/linebreak': 'commonjs2 @foliojs-fork/linebreak',
+        'osx-temperature-sensor': 'commonjs2 osx-temperature-sensor',
+        'pg-native': 'commonjs2 pg-native',
+        'cloudflare:sockets': 'commonjs2 cloudflare:sockets',
+        'react-native-sqlite-storage': 'commonjs2 react-native-sqlite-storage',
+        '@google-cloud\/spanner': 'commonjs2 @google-cloud\/spanner',
+        mssql: 'commonjs2 mssql',
+        'sql.js': 'commonjs2 sql.js',
+        redis: 'commonjs2 redis',
+        'pg-query-stream': 'commonjs2 pg-query-stream',
+        'typeorm-aurora-data-api-driver': 'commonjs2 typeorm-aurora-data-api-driver',
+        oracledb: 'commonjs2 oracledb',
+        mysql: 'commonjs2 mysql',
+        'hdb-pool': 'commonjs2 hdb-pool',
+        'better-sqlite3': 'commonjs2 better-sqlite3',
+        ioredis: 'commonjs2 ioredis',
+        mysql2: 'commonjs2 mysql2',
+        mongodb: 'commonjs2 mongodb',
+        '@sap\/hana-client': 'commonjs2 @sap\/hana-client',
+        '@sap\/hana-client\/extension\/Stream': 'commonjs2 @sap\/hana-client\/extension\/Stream'
+    },
     resolve: {
         extensions: ['.ts', '.js']
     },
@@ -77,7 +100,11 @@ module.exports = {
                 test: /\.js$/,
                 enforce: 'pre',
                 use: 'source-map-loader',
-                exclude: [/node_modules[\/\\]node-cron/]
+                exclude: [
+                    /node_modules[\/\\]node-cron/,
+                    /node_modules\/xmlbuilder2/,
+                    /node_modules\/@oozcitak/
+                ]
             },
             {
                 test: /\.hbs$/,
@@ -110,10 +137,6 @@ module.exports = {
                     noErrorOnMissing: true
                 }
             ]
-        }),
-        new IgnorePlugin({
-            // eslint-disable-next-line stylistic/max-len
-            resourceRegExp: /^pg-native$|^cloudflare:sockets$|^react-native-sqlite-storage$|^@google-cloud\/spanner$|^mssql$|^sql.js$|^redis$|^pg-query-stream$|^typeorm-aurora-data-api-driver$|^oracledb$|^mysql$|^hdb-pool$|^better-sqlite3$|^ioredis$|^mysql2$|^mongodb$|^@sap\/hana-client$|^@sap\/hana-client\/extension\/Stream$/
         })
     ]
 };

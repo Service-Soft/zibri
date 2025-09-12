@@ -3,3 +3,5 @@ dist
 coverage
 *.hbs.ts
 docs/generated
+file-output
+.vscode

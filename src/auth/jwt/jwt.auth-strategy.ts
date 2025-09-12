@@ -1,7 +1,6 @@
 import { randomBytes } from 'crypto';
 
 import { SecuritySchemeObject } from 'openapi3-ts/dist/oas31';
-import { v4 } from 'uuid';
 
 import { inject, repositoryTokenFor, ZIBRI_DI_TOKENS } from '../../di';
 import { HttpRequest } from '../../http';
@@ -18,19 +17,16 @@ import { JwtRefreshTokenPayload } from './jwt-refresh-token-payload.model';
 import { JwtRefreshToken, JwtRefreshTokenCreateDto } from './jwt-refresh-token.model';
 import { JwtRequestPasswordResetData } from './jwt-request-password-reset-data.model';
 import { JwtUtilities } from './jwt.utilities';
-import { BaseDataSource, Repository } from '../../data-source';
+import { Repository } from '../../data-source';
 import { EmailPriority, EmailServiceInterface } from '../../email';
 import { BaseEntity } from '../../entity';
 import { TooManyRequestsError, UnauthorizedError } from '../../error-handling';
 import { GlobalRegistry } from '../../global';
 import { renderEmailTemplate } from '../../handlebars';
 import { Newable } from '../../types';
-import { Ms } from '../../utilities';
+import { Ms, UUIDUtilities, validateEntitiesRegistered } from '../../utilities';
 import { HashUtilities } from '../hash.utilities';
 import { NO_USER_REPOSITORIES_PROVIDED_ERROR_MESSAGE } from '../user.service';
-
-const INITIALIZE_ERROR_MESSAGE: string = 'Error initializing JwtAuthStrategy.';
-const INITIALIZE_ERROR_QUESTION: string = 'Did you forget to add it to your data source entities array?';
 
 /**
  * Jwt auth strategy implementation of Zibri.
@@ -107,39 +103,7 @@ implements AuthStrategyInterface<
             throw new Error(NO_USER_REPOSITORIES_PROVIDED_ERROR_MESSAGE);
         }
 
-        this.checkForEntities();
-    }
-
-    private checkForEntities(): void {
-        const entitiesInDataSources: Newable<BaseEntity>[] = [];
-        for (const dataSourceClass of GlobalRegistry.dataSourceClasses) {
-            const dataSource: BaseDataSource = inject(dataSourceClass);
-            entitiesInDataSources.push(...dataSource.entities);
-        }
-        if (!entitiesInDataSources.includes(JwtRefreshToken)) {
-            const message: string[] = [
-                INITIALIZE_ERROR_MESSAGE,
-                'Could not find data source for the JwtRefreshToken entity:',
-                INITIALIZE_ERROR_QUESTION
-            ];
-            throw new Error(message.join('\n'));
-        }
-        if (!entitiesInDataSources.includes(JwtCredentials)) {
-            const message: string[] = [
-                INITIALIZE_ERROR_MESSAGE,
-                'Could not find data source for the JwtCredentials entity:',
-                INITIALIZE_ERROR_QUESTION
-            ];
-            throw new Error(message.join('\n'));
-        }
-        if (!entitiesInDataSources.includes(PasswordResetToken)) {
-            const message: string[] = [
-                INITIALIZE_ERROR_MESSAGE,
-                'Could not find data source for the PasswordResetToken entity:',
-                INITIALIZE_ERROR_QUESTION
-            ];
-            throw new Error(message.join('\n'));
-        }
+        validateEntitiesRegistered(this.constructor.name, JwtRefreshToken, JwtCredentials, PasswordResetToken);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -192,7 +156,7 @@ implements AuthStrategyInterface<
         const data: JwtRefreshTokenCreateDto = {
             userId: foundUser.id,
             value: refreshTokenValue,
-            familyId: v4(),
+            familyId: UUIDUtilities.generate(),
             blacklisted: false,
             expirationDate: new Date(Date.now() + this.refreshTokenExpiresInMs)
         };

@@ -2,7 +2,7 @@ import { EntitySchemaRelationOptions } from 'typeorm';
 
 import { BasePropertyMetadata } from './base-property-metadata.model';
 import { Newable } from '../../types';
-import { BaseEntity } from '../decorators';
+import { type BaseEntity } from '../base-entity.model';
 
 /**
  * Metadata shared by all relation properties.

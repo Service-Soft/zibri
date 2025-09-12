@@ -5,7 +5,7 @@ import { OnDeleteType } from 'typeorm/metadata/types/OnDeleteType';
 import { OnUpdateType } from 'typeorm/metadata/types/OnUpdateType';
 
 import { inject, repositoryTokenFor, ZIBRI_DI_TOKENS } from '../di';
-import { BaseEntity, EntityMetadata, FilePropertyMetadata, PropertyMetadata, Relation, RelationMetadata, StringPropertyMetadata } from '../entity';
+import { BaseEntity, EntityMetadata, PropertyMetadata, Relation, RelationMetadata, StringPropertyMetadata } from '../entity';
 import { ExcludeStrict, Newable, OmitStrict, Version } from '../types';
 import { compareVersion, MetadataUtilities } from '../utilities';
 import { Migration, MigrationEntity } from './migration';
@@ -19,7 +19,7 @@ import { LoggerInterface } from '../logging';
 import { TypeOrmTransaction } from './transaction/typeorm-transaction.model';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-type ToColumnMappableTypes = ExcludeStrict<PropertyMetadata, RelationMetadata<BaseEntity> | FilePropertyMetadata>['type'];
+type ToColumnMappableTypes = ExcludeStrict<PropertyMetadata, RelationMetadata<BaseEntity>>['type'];
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 type MigrationWithName = { migration: Migration, name: string };
@@ -43,6 +43,7 @@ export abstract class BaseDataSource {
             date: 'timestamptz',
             boolean: 'boolean',
             unknown: 'jsonb',
+            file: 'bytea',
             ...this.columnTypeMappingOverride
         };
     }
@@ -129,6 +130,7 @@ export abstract class BaseDataSource {
         }
 
         const columns: Record<string, EntitySchemaColumnOptions> = {};
+        const relations: Record<string, EntitySchemaRelationOptions> = {};
         for (const [key, m] of Object.entries(props)) {
             if (
                 m.type === Relation.MANY_TO_ONE
@@ -136,25 +138,10 @@ export abstract class BaseDataSource {
                 || m.type === Relation.ONE_TO_ONE
                 || m.type === Relation.MANY_TO_MANY
             ) {
+                relations[key] = this.propertyToRelationOptions(m);
                 continue;
             }
-            if (m.type === 'file') {
-                throw new Error(`the property "${cls.name}.${key}" of type file cannot be mapped to a database column.`);
-            }
-            columns[key] = this.propertyToColumnOptions(m, cls, key);
-        }
-
-        const relations: Record<string, EntitySchemaRelationOptions> = {};
-        for (const [key, m] of Object.entries(props)) {
-            if (
-                m.type !== Relation.MANY_TO_ONE
-                && m.type !== Relation.MANY_TO_MANY
-                && m.type !== Relation.ONE_TO_MANY
-                && m.type !== Relation.ONE_TO_ONE
-            ) {
-                continue;
-            }
-            relations[key] = this.propertyToRelationOptions(m);
+            columns[key] = this.propertyToColumnOptions(m);
         }
 
         return new EntitySchema({
@@ -229,17 +216,14 @@ export abstract class BaseDataSource {
     /**
      * Transforms the given property metadata to typeorm column options.
      * @param metadata - The property metadata to transform.
-     * @param cls - The entity class.
-     * @param key - The key of the property on the entity class.
      * @returns Typeorm column options.
      * @throws When the metadata is incorrect.
      */
     protected propertyToColumnOptions(
-        metadata: ExcludeStrict<PropertyMetadata, RelationMetadata<BaseEntity> | FilePropertyMetadata>,
-        cls: Newable<BaseEntity>,
-        key: string
+        metadata: ExcludeStrict<PropertyMetadata, RelationMetadata<BaseEntity>>
     ): EntitySchemaColumnOptions {
         switch (metadata.type) {
+            case 'file':
             case 'boolean':
             case 'object':
             case 'unknown':
@@ -252,8 +236,13 @@ export abstract class BaseDataSource {
                 };
             }
             case 'array': {
-                if (metadata.items.type === 'file') {
-                    throw new Error(`the property "${cls.name}.${key}" of type file array cannot be mapped to a database column.`);
+                if (metadata.items.type === 'object') {
+                    return {
+                        nullable: !metadata.required,
+                        ...metadata,
+                        type: this.columnTypeMapping[metadata.items.type],
+                        default: undefined
+                    };
                 }
                 return {
                     nullable: !metadata.required,
@@ -350,7 +339,7 @@ export abstract class BaseDataSource {
     async runMigrations(): Promise<void> {
         await this.createMigrationTableIfNotExists();
 
-        const migrationsRepository: Repository<MigrationEntity> = this.getRepository(MigrationEntity);
+        const migrationsRepository: Repository<MigrationEntity> = inject(repositoryTokenFor(MigrationEntity));
         const finishedMigrationVersions: string[] = (await migrationsRepository.findAll()).map(m => m.version);
         const allMigrations: MigrationWithName[] = this.migrations.map(m => ({ migration: inject(m), name: m.name }));
 

@@ -1,4 +1,5 @@
-import { BaseEntity, Entity, OmitType, Property } from '../../entity';
+import { Entity, OmitClass, Property } from '../../entity';
+import { BaseEntity } from '../../entity/base-entity.model';
 
 /**
  * A short lived token used to confirm a password reset.
@@ -27,4 +28,4 @@ export class PasswordResetToken extends BaseEntity {
 /**
  * The data to create a new password reset token.
  */
-export class PasswordResetTokenCreateData extends OmitType(PasswordResetToken, ['id']) {}
+export class PasswordResetTokenCreateData extends OmitClass(PasswordResetToken, ['id']) {}

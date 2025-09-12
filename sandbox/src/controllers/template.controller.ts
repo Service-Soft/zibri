@@ -1,5 +1,4 @@
-import { v4 } from 'uuid';
-import { Controller, errorToLoggedError, FormatDateFn, Get, GlobalRegistry, HtmlResponse, HttpMethod, inject, Log, LogLevel, Param, Response, ZIBRI_DI_TOKENS } from 'zibri';
+import { Controller, errorToLoggedError, FormatDateFn, Get, GlobalRegistry, HtmlResponse, HttpMethod, inject, Log, LogLevel, Param, Response, UUIDUtilities, ZIBRI_DI_TOKENS } from 'zibri';
 
 import renderBaseEmail from '../templates/emails/base-email.hbs';
 import renderLog from '../templates/emails/log.hbs';
@@ -64,7 +63,7 @@ export class TemplateController {
         const matches: RegExpMatchArray | null = line.match(/\((.*):\d+:\d+\)/);
         const origin: string = matches?.[0].split('(')[1].split(')')[0] ?? 'unknown';
         const log: Log = {
-            id: v4(),
+            id: UUIDUtilities.generate(),
             createdAt: new Date(),
             cleanupAt: new Date(),
             level: logLevel,

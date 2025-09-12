@@ -1,0 +1,76 @@
+import { BaseThreadJobWorkerData, ThreadJobData, ThreadJobDataFunctions, ThreadJobEntity, ThreadJobFunction } from '../models';
+
+// TODO: add functionality to initialize functions in a registry that should be precompiled to avoid eval and improve performance.
+
+/**
+ * Definition for a service that handles multithreading.
+ */
+export interface MultithreadingServiceInterface {
+    /**
+     * Initializes the service.
+     */
+    init: () => void | Promise<void>,
+    /**
+     * Creates and queues a thread job with the given data.
+     * @param threadJobData - The data to create the thread job from.
+     * @returns The id of the created thread job in the database and queue.
+     *
+     * **This differs from the threadId, which is created by the os and set when the thread actually starts.**.
+     */
+    queueThreadJob: <WorkerData extends BaseThreadJobWorkerData>(
+        threadJobData: ThreadJobData<WorkerData>
+    ) => Promise<string> | string,
+    /**
+     * Queues a thread job for the given data and waits for its completion.
+     * @param threadJobData - The data of the job to queue.
+     * @returns The thread job.
+     */
+    runThreadJob: <WorkerData extends BaseThreadJobWorkerData, ResultType>(
+        threadJobData: ThreadJobData<WorkerData>
+    ) => Promise<ThreadJobEntity<WorkerData, ResultType>> | ThreadJobEntity<WorkerData, ResultType>,
+    /**
+     * Runs the given function on a separate thread. This will not persist the state in the database.
+     *
+     ***IMPORTANT**: This uses "eval" in the thread worker, so make sure that the data passed is not malicious.
+     * @param func - The function that should be run in a separate thread.
+     * @param input - The input value of the function.
+     * @param timeout - A custom timeout for the task. Defaults to 5 minutes or an hour, depending on the priority.
+     * @param priority - Whether or not the function should make use of priority workers or not. Defaults to **true**.
+     * @returns The result value of the function passed.
+     * @throws When either the function itself throws an error or something didn't work during parsing/evaluation.
+     */
+    run: <InputType, ResultType>(
+        func: ThreadJobFunction<InputType, ResultType>,
+        input: InputType,
+        timeout?: number,
+        priority?: boolean
+    ) => Promise<ResultType> | ResultType,
+    /**
+     * Requeues a thread job that was already completed.
+     * @param jobId - The id of the job to requeue.
+     * @param data - Additional data for the job.
+     */
+    requeueThreadJob: (jobId: string, data?: ThreadJobDataFunctions) => Promise<void> | void,
+    /**
+     * Reruns a thread job that was already completed.
+     * @param jobId - The id of the job to rerun.
+     * @param data - Additional data for the job.
+     * @returns The thread job.
+     */
+    rerunThreadJob: <WorkerData extends BaseThreadJobWorkerData, ResultType>(
+        jobId: string,
+        data?: ThreadJobDataFunctions
+    ) => Promise<ThreadJobEntity<WorkerData, ResultType>> | ThreadJobEntity<WorkerData, ResultType>,
+    /**
+     * Waits for the thread job with the given id to complete.
+     * @param jobId - The id of the thread job to wait for.
+     * @returns The thread job.
+     */
+    waitForThreadJob: <ResultType, WorkerData extends BaseThreadJobWorkerData = BaseThreadJobWorkerData>(
+        jobId: string
+    ) => Promise<ThreadJobEntity<WorkerData, ResultType>> | ThreadJobEntity<WorkerData, ResultType>,
+    /**
+     * Terminates all the workers.
+     */
+    shutdown: () => Promise<void> | void
+}

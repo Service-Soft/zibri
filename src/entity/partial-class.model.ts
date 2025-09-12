@@ -1,13 +1,13 @@
-import { Newable } from '../types';
-import { MetadataUtilities } from '../utilities';
-import { PropertyMetadata } from './decorators';
+import type { Newable } from '../types';
+import type { PropertyMetadata } from './decorators';
+import { MetadataUtilities } from '../utilities/metadata.utilities';
 
 // eslint-disable-next-line jsdoc/require-returns
 /**
  * Defines a partial class based on the provided class.
  * @param Base - The base class that should be made into a partial.
  */
-export function PartialType<T>(
+export function PartialClass<T>(
     Base: Newable<T>
 ): Newable<Partial<T>> {
     // eslint-disable-next-line jsdoc/require-jsdoc, typescript/no-explicit-any

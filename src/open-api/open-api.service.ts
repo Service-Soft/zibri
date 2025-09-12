@@ -7,7 +7,7 @@ import { ZibriApplication } from '../application';
 import { AssetServiceInterface } from '../assets';
 import { AuthServiceInterface, BelongsToMetadata, HasRoleMetadata, IsLoggedInMetadata } from '../auth';
 import { inject, ZIBRI_DI_TOKENS } from '../di';
-import { BaseEntity, ManyToManyPropertyMetadata, ManyToOnePropertyMetadata, OmitType, OneToManyPropertyMetadata, OneToOnePropertyMetadata, PropertyMetadata, Relation } from '../entity';
+import { BaseEntity, ManyToManyPropertyMetadata, ManyToOnePropertyMetadata, OmitClass, OneToManyPropertyMetadata, OneToOnePropertyMetadata, PropertyMetadata, Relation } from '../entity';
 import { GlobalRegistry } from '../global';
 import { HttpMethod, HttpStatus, MimeType } from '../http';
 import { LoggerInterface } from '../logging';
@@ -22,7 +22,7 @@ import { MetadataUtilities } from '../utilities';
 const defaultDescriptionForHttpStatus: Record<HttpStatus | 'default', string> = {
     default: 'Response',
     [HttpStatus.INTERNAL_SERVER_ERROR]: 'Internal Server Error',
-    [HttpStatus.NOT_FOUND_ERROR]: 'Not Found',
+    [HttpStatus.NOT_FOUND]: 'Not Found',
     [HttpStatus.BAD_REQUEST]: 'Bad Request',
     [HttpStatus.UNAUTHORIZED]: 'Unauthorized',
     [HttpStatus.FORBIDDEN]: 'Forbidden',
@@ -559,7 +559,7 @@ export class OpenApiService implements OpenApiServiceInterface {
             }
         }
 
-        const targetClass: Newable<BaseEntity> = OmitType(fullTargetClass, excludeKeys);
+        const targetClass: Newable<BaseEntity> = OmitClass(fullTargetClass, excludeKeys);
         return targetClass;
     }
 
