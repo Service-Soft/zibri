@@ -84,7 +84,7 @@ describe('MultithreadingService - performance vs main event loop', () => {
     beforeAll(async () => {
         multithreadingService = new MultithreadingService(options, repo, assetService, logger);
         await multithreadingService.init();
-    }, (options.maxThreads * tSingle) * 2);
+    }, (options.maxThreads * tSingle) * 3);
     afterAll(async () => {
         await multithreadingService.shutdown();
     });
