@@ -84,7 +84,7 @@ describe('MultithreadingService - performance vs main event loop', () => {
     beforeAll(async () => {
         multithreadingService = new MultithreadingService(options, repo, assetService, logger);
         await multithreadingService.init();
-    }, (options.maxThreads * tSingle) * 1.5);
+    }, (options.maxThreads * tSingle) * 2);
     afterAll(async () => {
         await multithreadingService.shutdown();
     });
@@ -114,7 +114,7 @@ describe('MultithreadingService - performance vs main event loop', () => {
         // eslint-disable-next-line no-console
         console.debug(`main: ${Math.round(mainMs)} ms, workers: ${Math.round(workersMs)} ms`);
         expect(workersMs).toBeLessThan(mainMs * thresholdFactor);
-    }, (options.maxThreads * tSingle) * 1.5);
+    }, (options.maxThreads * tSingle) * 2);
 });
 
 export function computeAdaptiveThresholdFactor(

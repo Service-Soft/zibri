@@ -1,4 +1,5 @@
 import { createWriteStream, WriteStream } from 'node:fs';
+import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 
 import { afterAll, beforeAll, describe, it } from '@jest/globals';
@@ -104,6 +105,7 @@ let repo: Repository<Invoice, OmitStrict<Invoice, 'id'>>;
 
 describe('createInvoicePdf', () => {
     beforeAll(async () => {
+        await mkdir(testFileFolder, { recursive: true });
         container = await new PostgreSqlContainer()
             .withDatabase('db')
             .withUsername('postgres')

@@ -1,5 +1,5 @@
 
-import { writeFile } from 'fs/promises';
+import { mkdir, writeFile } from 'fs/promises';
 import path from 'path';
 
 import { afterAll, beforeAll, describe, it } from '@jest/globals';
@@ -93,6 +93,7 @@ let repo: Repository<Invoice, OmitStrict<Invoice, 'id'>>;
 
 describe('generateXml', () => {
     beforeAll(async () => {
+        await mkdir(testFileFolder, { recursive: true });
         container = await new PostgreSqlContainer()
             .withDatabase('db')
             .withUsername('postgres')
