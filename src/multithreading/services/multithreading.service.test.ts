@@ -85,6 +85,8 @@ describe('MultithreadingService - performance vs main event loop', () => {
         if (allThreads <= 2) {
             return;
         }
+        // eslint-disable-next-line no-console
+        console.debug('allThreads', allThreads);
         multithreadingService = new MultithreadingService(options, repo, assetService, logger);
         await multithreadingService.init();
     }, (options.maxThreads * tSingle) * 3);
