@@ -19,7 +19,7 @@
         "node": ">=20"
     },
     "scripts": {
-        "test": "jest",
+        "test": "jest --runInBand",
         "start": "tsup --watch",
         "sandbox": "cd sandbox && npm run start",
         "build": "tsup",
