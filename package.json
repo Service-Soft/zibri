@@ -19,7 +19,8 @@
         "node": ">=20"
     },
     "scripts": {
-        "test": "jest --runInBand",
+        "test": "jest",
+        "test:ci": "jest --testPathPattern='^(?!.*multithreading\\.service\\.test\\.ts$).*'",
         "start": "tsup --watch",
         "sandbox": "cd sandbox && npm run start",
         "build": "tsup",
