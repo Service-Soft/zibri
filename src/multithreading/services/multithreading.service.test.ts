@@ -82,14 +82,23 @@ let multithreadingService: MultithreadingService;
 
 describe('MultithreadingService - performance vs main event loop', () => {
     beforeAll(async () => {
+        if (allThreads <= 2) {
+            return;
+        }
         multithreadingService = new MultithreadingService(options, repo, assetService, logger);
         await multithreadingService.init();
     }, (options.maxThreads * tSingle) * 3);
     afterAll(async () => {
+        if (allThreads <= 2) {
+            return;
+        }
         await multithreadingService.shutdown();
     });
 
     it('runs CPU heavy tasks significantly faster via worker threads', async () => {
+        if (allThreads <= 2) {
+            return;
+        }
         // measure sequential main-thread execution
         const startMain: number = performance.now();
         const mainResults: number[] = [];
