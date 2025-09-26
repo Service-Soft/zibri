@@ -31,6 +31,7 @@ export function createPathParamMetadata(name: string, data: PathParamMetadataInp
                 description: undefined,
                 min: undefined,
                 max: undefined,
+                enum: undefined,
                 ...data
             };
         }
@@ -85,6 +86,7 @@ export function createQueryParamMetadata(name: string, data: QueryParamMetadataI
                 description: undefined,
                 min: undefined,
                 max: undefined,
+                enum: undefined,
                 ...data
             };
         }
@@ -98,8 +100,16 @@ export function createQueryParamMetadata(name: string, data: QueryParamMetadataI
                 ...data
             };
         }
-        case 'boolean':
         case 'object': {
+            return {
+                name,
+                required: true,
+                description: undefined,
+                allowAdditionalProperties: false,
+                ...data
+            };
+        }
+        case 'boolean': {
             return {
                 name,
                 required: true,
@@ -142,6 +152,7 @@ export function createArrayParamItemMetadata(
                 description: undefined,
                 min: undefined,
                 max: undefined,
+                enum: undefined,
                 ...data
             };
         }
@@ -158,7 +169,14 @@ export function createArrayParamItemMetadata(
                 ...data
             };
         }
-        case 'object':
+        case 'object': {
+            return {
+                required: true,
+                description: undefined,
+                allowAdditionalProperties: false,
+                ...data
+            };
+        }
         case 'boolean': {
             return {
                 required: true,

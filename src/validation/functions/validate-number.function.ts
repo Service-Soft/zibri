@@ -8,24 +8,39 @@ import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationP
  * @param property - The actual value.
  * @param metadata - The metadata of the property.
  * @param parentKey - The key of the parent, if it exists.
+ * @param entity - The entity that this value belongs to.
  * @returns All validation problems found.
  */
 export function validateNumber(
     key: string,
     property: unknown,
     metadata: PropertyMetadata | QueryParamMetadata | HeaderParamMetadata | PathParamMetadata,
-    parentKey?: string
+    parentKey: string | undefined,
+    entity: unknown | undefined
 ): ValidationProblem[] {
     const meta: NumberPropertyMetadata | NumberParamMetadata = metadata as NumberPropertyMetadata | NumberParamMetadata;
     const fullKey: string = parentKey ? `${parentKey}.${key}` : key;
-    if (property == undefined && (meta as NumberPropertyMetadata).default == undefined && meta.required) {
+    if (
+        property == undefined
+        && (meta as NumberPropertyMetadata).default == undefined
+        && (typeof metadata.required === 'boolean' ? metadata.required : metadata.required(entity))
+    ) {
         return [new IsRequiredValidationProblem(fullKey)];
     }
-    if (property == undefined && (!meta.required || (meta as NumberPropertyMetadata).default != undefined)) {
+    if (
+        property == undefined
+        && (
+            !(typeof metadata.required === 'boolean' ? metadata.required : metadata.required(entity))
+            || (meta as NumberPropertyMetadata).default != undefined
+        )
+    ) {
         return [];
     }
     if (typeof property !== 'number') {
         return [new TypeMismatchValidationProblem(fullKey, 'number')];
+    }
+    if (meta.enum && !Object.values(meta.enum).includes(property)) {
+        return [{ key: fullKey, message: `needs to match one of "${Object.values(meta.enum)}"` }];
     }
     if (meta.min != undefined && property < meta.min) {
         return [{ key: fullKey, message: `needs to be at least ${meta.min}` }];

@@ -19,5 +19,10 @@ export interface ValidationServiceInterface {
     /**
      * Validate a query parameter.
      */
-    validateQueryParam: (param: unknown, meta: QueryParamMetadata) => void
+    validateQueryParam: (param: unknown, meta: QueryParamMetadata) => void,
+    /**
+     * Checks if the given value is a valid websocket request.
+     * This does NOT check its content like the body or params, but only the base structure.
+     */
+    validateWebsocketRequest: (req: unknown) => void
 }

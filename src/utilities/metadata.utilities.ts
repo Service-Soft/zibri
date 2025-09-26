@@ -7,6 +7,7 @@ import { BelongsToMetadata, CurrentUserMetadata, HasRoleMetadata, IsLoggedInMeta
 import { BaseEntity, EntityMetadata, PropertyMetadata } from '../entity';
 import { OpenApiResponse } from '../open-api';
 import { Newable } from '../types';
+import { CurrentWebsocketConnectionMetadata, WebsocketControllerData, WebsocketControllerRouteConfiguration } from '../websocket';
 
 const modelPropertiesStore: WeakMap<Function, Record<string, PropertyMetadata>> = new WeakMap();
 
@@ -404,5 +405,43 @@ export abstract class MetadataUtilities {
 
     static getControllerSkipIsNotLoggedIn(controller: Function): SkipIsNotLoggedInMetadata | undefined {
         return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.CONTROLLER_SKIP_IS_NOT_LOGGED_IN, controller);
+    }
+
+    // websocket controller
+    static setWebsocketController(controller: Function, data: WebsocketControllerData): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.WEBSOCKET_CONTROLLER, data, controller);
+    }
+
+    static getWebsocketController(controller: Function): WebsocketControllerData | undefined {
+        return ReflectUtilities.getMetadata(MetadataInjectionKeys.WEBSOCKET_CONTROLLER, controller);
+    }
+
+    // websocket routes
+    static setWebsocketControllerRoutes(controller: Function, routes: WebsocketControllerRouteConfiguration[]): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.WEBSOCKET_CONTROLLER_ROUTES, routes, controller);
+    }
+
+    static getWebsocketControllerRoutes(controller: Function): WebsocketControllerRouteConfiguration[] {
+        return ReflectUtilities.getMetadata(MetadataInjectionKeys.WEBSOCKET_CONTROLLER_ROUTES, controller) ?? [];
+    }
+
+    // current websocket connection
+    static setRouteCurrentWebsocketConnection(
+        controller: Function,
+        metadata: CurrentWebsocketConnectionMetadata,
+        controllerMethod: string
+    ): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_CURRENT_WEBSOCKET_CONNECTION, metadata, controller, controllerMethod);
+    }
+
+    static getRouteCurrentWebsocketConnection(
+        controller: Function,
+        controllerMethod: string
+    ): CurrentWebsocketConnectionMetadata | undefined {
+        return MetadataUtilities.ensureInheritedReflectMetadata<CurrentWebsocketConnectionMetadata>(
+            MetadataInjectionKeys.ROUTE_CURRENT_WEBSOCKET_CONNECTION,
+            controller,
+            controllerMethod
+        );
     }
 }

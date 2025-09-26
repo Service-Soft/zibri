@@ -7,7 +7,7 @@ import multer, { StorageEngine } from 'multer';
 import { File, type MulterFile } from './file.model';
 import { ZibriApplication } from '../../application';
 import { inject, ZIBRI_DI_TOKENS } from '../../di';
-import { FileExtension, HttpRequest, HttpResponse, MimeType, resolveFileExtension } from '../../http';
+import { FileExtension, HttpRequest, HttpResponse, isHttpRequest, MimeType, resolveFileExtension } from '../../http';
 import { BodyMetadata } from '../../routing';
 import { BodyParserInterface } from '../body-parser.interface';
 import { BodyParser } from '../decorators';
@@ -15,6 +15,7 @@ import { FormDataBodyParserCleanupCronJob } from './form-data-body-parser-cleanu
 import { FormData, FormDataValue } from './form-data.model';
 import { PropertyMetadata } from '../../entity';
 import { MetadataUtilities, UUIDUtilities } from '../../utilities';
+import { WebsocketRequest } from '../../websocket';
 
 /**
  * Body parser for form data.
@@ -30,7 +31,10 @@ export class FormDataBodyParser implements BodyParserInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async parse(req: HttpRequest, metadata: BodyMetadata): Promise<FormData<object>> {
+    async parse(req: HttpRequest | WebsocketRequest, metadata: BodyMetadata): Promise<FormData<object>> {
+        if (!isHttpRequest(req)) {
+            throw new Error('A form data body cannot be used with websocket requests');
+        }
         if (req.body !== undefined) {
             return req.body as FormData<object>;
         }

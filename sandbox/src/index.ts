@@ -1,7 +1,7 @@
 import H from 'handlebars/runtime';
 import { inject, isVersion, JwtAuthController, LoggerInterface, ZIBRI_DI_TOKENS, ZibriApplication, ZibriInvoicingPlugin } from 'zibri';
 
-import { CronController, FileController, MetricsController, TemplateController, TestController, TestCrudController } from './controllers';
+import { CronController, FileController, MetricsController, TemplateController, TestController, TestCrudController, TestWebsocketController } from './controllers';
 import { DbDataSource } from './data-sources';
 import { version } from '../package.json';
 import { createDefaultData } from './create-default-data.function';
@@ -28,6 +28,7 @@ async function start(): Promise<void> {
             MetricsController,
             TestCrudController
         ],
+        websocketControllers: [TestWebsocketController],
         dataSources: [DbDataSource],
         cronJobs: [StatusCronJob],
         version,

@@ -9,6 +9,7 @@ import { MaxFileSizeValidationProblem, IsRequiredValidationProblem, TypeMismatch
  * @param property - The actual value.
  * @param metadata - The metadata of the property.
  * @param parentKey - The key of the parent, if it exists.
+ * @param entity - The entity that the file belongs to.
  * @returns All validation problems found.
  * @throws When the property is not a file property.
  */
@@ -16,16 +17,25 @@ export function validateFile(
     key: string,
     property: unknown,
     metadata: PropertyMetadata,
-    parentKey: string | undefined
+    parentKey: string | undefined,
+    entity: unknown | undefined
 ): ValidationProblem[] {
     if (metadata.type !== 'file') {
         throw new Error(`Tried to validate a file but received metadata of type "${metadata.type}"`);
     }
     const fullKey: string = parentKey ? `${parentKey}.${key}` : key;
-    if (property == undefined && 'required' in metadata && metadata.required) {
+    if (
+        property == undefined
+        && 'required' in metadata
+        && (typeof metadata.required === 'boolean' ? metadata.required : metadata.required(entity))
+    ) {
         return [new IsRequiredValidationProblem(fullKey)];
     }
-    if (property == undefined && 'required' in metadata && !metadata.required) {
+    if (
+        property == undefined
+        && 'required' in metadata
+        && !(typeof metadata.required === 'boolean' ? metadata.required : metadata.required(entity))
+    ) {
         return [];
     }
     if (!(property instanceof File)) {

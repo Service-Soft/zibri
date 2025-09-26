@@ -1,12 +1,13 @@
 import { inject, ZIBRI_DI_TOKENS } from '../di';
 import { GlobalRegistry } from '../global';
 import { BodyParserInterface } from './body-parser.interface';
-import { HttpRequest, isMimeType } from '../http';
+import { HttpRequest, isHttpRequest, isMimeType, KnownHeader, MimeType } from '../http';
 import { ParserInterface } from './parser.interface';
 import { LoggerInterface } from '../logging';
 import { BodyMetadata, HeaderParamMetadata, PathParamMetadata, QueryParamMetadata } from '../routing';
 import { parseArray, parseBoolean, parseDate, parseNumber, parseObject, parseString } from './functions';
 import { ZibriApplication } from '../application';
+import { WebsocketRequest } from '../websocket';
 
 /**
  * Function for parsing path parameters.
@@ -60,26 +61,30 @@ export class Parser implements ParserInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    parseHeaderParam(req: HttpRequest, metadata: HeaderParamMetadata): unknown {
-        const rawValue: string | undefined = req.header(metadata.name);
+    parseHeaderParam(req: HttpRequest | WebsocketRequest, metadata: HeaderParamMetadata): unknown {
+        const rawValue: string | undefined = req.headers[metadata.name as KnownHeader];
         return this.headerParamParseFunctions[metadata.type](rawValue, metadata);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    parseQueryParam(req: HttpRequest, metadata: QueryParamMetadata): unknown {
-        const rawValue: string | undefined = req.query[metadata.name];
+    parseQueryParam(req: HttpRequest | WebsocketRequest, metadata: QueryParamMetadata): unknown {
+        const rawValue: string | undefined = req.query?.[metadata.name];
         return this.queryParamParseFunctions[metadata.type](rawValue, metadata);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    parsePathParam(req: HttpRequest, metadata: PathParamMetadata): unknown {
-        const rawValue: string | undefined = req.params[metadata.name];
+    parsePathParam(req: HttpRequest | WebsocketRequest, metadata: PathParamMetadata): unknown {
+        const rawValue: string | undefined = req.params?.[metadata.name];
         return this.pathParamParseFunctions[metadata.type](rawValue, metadata);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async parseRequestBody(req: HttpRequest, metadata: BodyMetadata): Promise<unknown> {
-        const contentType: string = req.headers['Content-Type']?.split(';')[0]?.trim().toLowerCase() ?? '';
+    async parseRequestBody(req: HttpRequest | WebsocketRequest, metadata: BodyMetadata): Promise<unknown> {
+        let contentType: string = req.headers['Content-Type']?.split(';')[0]?.trim().toLowerCase() ?? '';
+        if (!contentType.length && !isHttpRequest(req)) {
+            contentType = MimeType.JSON;
+        }
+
         if (!isMimeType(contentType)) {
             throw new Error(`Unsupported Content-Type: "${contentType}"`);
         }

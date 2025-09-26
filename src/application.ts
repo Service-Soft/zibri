@@ -1,3 +1,5 @@
+import { createServer, Server } from 'node:http';
+
 import cors from 'cors';
 import express, { RequestHandler } from 'express';
 
@@ -20,6 +22,7 @@ import { FormDataBodyParser, JsonBodyParser, ParserInterface } from './parsing';
 import { ZibriPlugin } from './plugin';
 import { Route, RouterInterface } from './routing';
 import { OmitStrict } from './types';
+import { BaseWebsocketConnection, WebsocketServiceInterface } from './websocket';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 type FullZibriApplicationOptions = Required<OmitStrict<ZibriApplicationOptions, 'plugins'>>;
@@ -34,6 +37,12 @@ export class ZibriApplication {
     private readonly express: express.Express = express()
         .disable('x-powered-by')
         .use(cors());
+
+    /**
+     * The underlying http server.
+     */
+    // eslint-disable-next-line typescript/no-misused-promises
+    readonly server: Server = createServer(this.express);
 
     private _router!: RouterInterface;
     // eslint-disable-next-line jsdoc/require-returns
@@ -52,6 +61,7 @@ export class ZibriApplication {
     private authService!: AuthServiceInterface;
     private cronService!: CronServiceInterface;
     private multithreadingService!: MultithreadingServiceInterface;
+    private websocketService!: WebsocketServiceInterface<BaseWebsocketConnection>;
     private emailService!: EmailServiceInterface;
     private mailingListService?: MailingListServiceInterface;
     /**
@@ -137,11 +147,18 @@ export class ZibriApplication {
             inject(controller);
         }
 
+        for (const websocketController of this.options.websocketControllers) {
+            inject(websocketController);
+        }
+
         this.cronService = inject(ZIBRI_DI_TOKENS.CRON_SERVICE);
         await this.cronService.init(this.options.cronJobs);
 
         this.multithreadingService = inject(ZIBRI_DI_TOKENS.MULTITHREADING_SERVICE);
         await this.multithreadingService.init();
+
+        this.websocketService = inject(ZIBRI_DI_TOKENS.WEBSOCKET_SERVICE);
+        await this.websocketService.attachTo(this);
 
         for (const plugin of this.providedOptions.plugins ?? []) {
             const p: ZibriPlugin = inject(plugin);
@@ -166,7 +183,7 @@ export class ZibriApplication {
         await this.router.attachTo(this);
         this.use((req, _, next) => next(new UnmatchedRouteError(req.originalUrl)));
         this.use(inject(ZIBRI_DI_TOKENS.GLOBAL_ERROR_HANDLER));
-        this.express.listen(port);
+        this.server.listen(port);
         GlobalRegistry.markAppAsRunning();
         await this.logger.info(`${this.options.name} is running on port ${port}`);
     }

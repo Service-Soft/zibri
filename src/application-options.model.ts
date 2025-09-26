@@ -30,6 +30,10 @@ export type ZibriApplicationOptions = {
      */
     controllers: Newable<unknown>[],
     /**
+     * The websocket controllers to register in the app.
+     */
+    websocketControllers: Newable<unknown>[],
+    /**
      * The data sources to register in the app.
      */
     dataSources?: Newable<BaseDataSource>[],

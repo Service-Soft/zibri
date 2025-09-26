@@ -1,3 +1,4 @@
+
 import { BaseEntity, Property, PropertyMetadata, RelationMetadata } from '../entity';
 import { ValidationError } from '../error-handling';
 import { MimeType } from '../http';
@@ -5,6 +6,7 @@ import { FormData } from '../parsing';
 import { BodyMetadata, HeaderParamMetadata, PathParamMetadata, QueryParamMetadata } from '../routing';
 import { ExcludeStrict, Newable, OmitStrict } from '../types';
 import { MetadataUtilities } from '../utilities';
+import { WebsocketRequest } from '../websocket';
 import { validateBoolean, validateDate, validateFile, validateNumber, validateString } from './functions';
 import { IsRequiredValidationProblem, RelationsNotAllowedValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from './validation-problem.model';
 import { ValidationServiceInterface } from './validation-service.interface';
@@ -12,17 +14,32 @@ import { ValidationServiceInterface } from './validation-service.interface';
 /**
  * Function for validating a path parameter.
  */
-type PathParamValidationFunction = (param: unknown, meta: PathParamMetadata, parentKey: string | undefined) => ValidationProblem[];
+type PathParamValidationFunction = (
+    param: unknown,
+    meta: PathParamMetadata,
+    parentKey: string | undefined,
+    entity: unknown | undefined
+) => ValidationProblem[];
 
 /**
  * Function for validating a query parameter.
  */
-type QueryParamValidationFunction = (param: unknown, meta: QueryParamMetadata, parentKey: string | undefined) => ValidationProblem[];
+type QueryParamValidationFunction = (
+    param: unknown,
+    meta: QueryParamMetadata,
+    parentKey: string | undefined,
+    entity: unknown | undefined
+) => ValidationProblem[];
 
 /**
  * Function for validating a header parameter.
  */
-type HeaderParamValidationFunction = (param: unknown, meta: HeaderParamMetadata, parentKey: string | undefined) => ValidationProblem[];
+type HeaderParamValidationFunction = (
+    param: unknown,
+    meta: HeaderParamMetadata,
+    parentKey: string | undefined,
+    entity: unknown | undefined
+) => ValidationProblem[];
 
 /**
  * Function for validating a single property.
@@ -31,7 +48,8 @@ type PropertyValidationFunction = (
     key: string,
     property: unknown,
     metadata: PropertyMetadata,
-    parentKey: string | undefined
+    parentKey: string | undefined,
+    entity: unknown | undefined
 ) => ValidationProblem[];
 
 /**
@@ -40,28 +58,28 @@ type PropertyValidationFunction = (
 export class ValidationService implements ValidationServiceInterface {
 
     private readonly pathParamValidationFunctions: Record<PathParamMetadata['type'], PathParamValidationFunction> = {
-        string: (param, meta, parentKey) => validateString(meta.name, param, meta, parentKey),
-        number: (param, meta, parentKey) => validateNumber(meta.name, param, meta, parentKey),
-        boolean: (param, meta, parentKey) => validateBoolean(meta.name, param, meta, parentKey),
-        date: (param, meta, parentKey) => validateDate(meta.name, param, meta, parentKey)
+        string: (param, meta, parentKey, entity) => validateString(meta.name, param, meta, parentKey, entity),
+        number: (param, meta, parentKey, entity) => validateNumber(meta.name, param, meta, parentKey, entity),
+        boolean: (param, meta, parentKey, entity) => validateBoolean(meta.name, param, meta, parentKey, entity),
+        date: (param, meta, parentKey, entity) => validateDate(meta.name, param, meta, parentKey, entity)
     };
 
     private readonly queryParamValidationFunctions: Record<QueryParamMetadata['type'], QueryParamValidationFunction> = {
-        string: (param, meta, parentKey) => validateString(meta.name, param, meta, parentKey),
-        number: (param, meta, parentKey) => validateNumber(meta.name, param, meta, parentKey),
-        boolean: (param, meta, parentKey) => validateBoolean(meta.name, param, meta, parentKey),
-        date: (param, meta, parentKey) => validateDate(meta.name, param, meta, parentKey),
-        object: (param, meta, parentKey) => this.validateObjectProperty(meta.name, param, meta, parentKey),
-        array: (param, meta, parentKey) => this.validateArrayProperty(meta.name, param, meta, parentKey)
+        string: (param, meta, parentKey, entity) => validateString(meta.name, param, meta, parentKey, entity),
+        number: (param, meta, parentKey, entity) => validateNumber(meta.name, param, meta, parentKey, entity),
+        boolean: (param, meta, parentKey, entity) => validateBoolean(meta.name, param, meta, parentKey, entity),
+        date: (param, meta, parentKey, entity) => validateDate(meta.name, param, meta, parentKey, entity),
+        object: (param, meta, parentKey, entity) => this.validateObjectProperty(meta.name, param, meta, parentKey, entity),
+        array: (param, meta, parentKey, entity) => this.validateArrayProperty(meta.name, param, meta, parentKey, entity)
     };
 
     private readonly headerParamValidationFunctions: Record<HeaderParamMetadata['type'], HeaderParamValidationFunction> = {
-        string: (param, meta, parentKey) => validateString(meta.name, param, meta, parentKey),
-        number: (param, meta, parentKey) => validateNumber(meta.name, param, meta, parentKey),
-        boolean: (param, meta, parentKey) => validateBoolean(meta.name, param, meta, parentKey),
-        date: (param, meta, parentKey) => validateDate(meta.name, param, meta, parentKey),
-        object: (param, meta, parentKey) => this.validateObjectProperty(meta.name, param, meta, parentKey),
-        array: (param, meta, parentKey) => this.validateArrayProperty(meta.name, param, meta, parentKey)
+        string: (param, meta, parentKey, entity) => validateString(meta.name, param, meta, parentKey, entity),
+        number: (param, meta, parentKey, entity) => validateNumber(meta.name, param, meta, parentKey, entity),
+        boolean: (param, meta, parentKey, entity) => validateBoolean(meta.name, param, meta, parentKey, entity),
+        date: (param, meta, parentKey, entity) => validateDate(meta.name, param, meta, parentKey, entity),
+        object: (param, meta, parentKey, entity) => this.validateObjectProperty(meta.name, param, meta, parentKey, entity),
+        array: (param, meta, parentKey, entity) => this.validateArrayProperty(meta.name, param, meta, parentKey, entity)
     };
 
     // eslint-disable-next-line stylistic/max-len
@@ -82,7 +100,7 @@ export class ValidationService implements ValidationServiceInterface {
         if (validate == undefined) {
             throw new Error(`Unknown type for header parameter "${meta.name}": ${meta.type}`);
         }
-        const res: ValidationProblem[] = validate(param, meta, undefined);
+        const res: ValidationProblem[] = validate(param, meta, undefined, param);
         if (res.length) {
             throw new ValidationError('header', res);
         }
@@ -94,7 +112,7 @@ export class ValidationService implements ValidationServiceInterface {
         if (validate == undefined) {
             throw new Error(`Unknown type for path parameter "${meta.name}": ${meta.type}`);
         }
-        const res: ValidationProblem[] = validate(param, meta, undefined);
+        const res: ValidationProblem[] = validate(param, meta, undefined, param);
         if (res.length) {
             throw new ValidationError('path', res);
         }
@@ -106,7 +124,7 @@ export class ValidationService implements ValidationServiceInterface {
         if (validate == undefined) {
             throw new Error(`Unknown type for query parameter "${meta.name}": ${meta.type}`);
         }
-        const res: ValidationProblem[] = validate(param, meta, undefined);
+        const res: ValidationProblem[] = validate(param, meta, undefined, param);
         if (res.length) {
             throw new ValidationError('query', res);
         }
@@ -131,6 +149,39 @@ export class ValidationService implements ValidationServiceInterface {
         }
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    validateWebsocketRequest(req: unknown): void {
+        const res: ValidationProblem[] = this.validateModel(req, WebsocketRequest, undefined);
+        if (res.length) {
+            throw new ValidationError('websocketRequest', res);
+        }
+
+        // // validate query
+        // for (const key in req.query) {
+        //     if (typeof req.query[key] != 'string' || typeof req.query[key] != 'undefined') {
+        //         res.push({ key, message: 'needs to be a string or undefined' });
+        //     }
+        // }
+        // // validate headers
+        // for (const key in req.headers) {
+        //     if (!isKnownHeader(key)) {
+        //         res.push({ key, message: 'this key is not a known header' });
+        //     }
+        //     else if (typeof req.headers[key] != 'string' || typeof req.headers[key] != 'undefined') {
+        //         res.push({ key, message: 'needs to be a string or undefined' });
+        //     }
+        // }
+        // // validate params
+        // for (const key in req.params) {
+        //     if (typeof req.params[key] != 'string' || typeof req.params[key] != 'undefined') {
+        //         res.push({ key, message: 'needs to be a string or undefined' });
+        //     }
+        // }
+        // if (res.length) {
+        //     throw new ValidationError('websocketRequest', res);
+        // }
+    }
+
     private validateModel(body: unknown, cls: Newable<unknown>, parentKey: string | undefined): ValidationProblem[] {
         const modelProperties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(cls);
 
@@ -144,7 +195,7 @@ export class ValidationService implements ValidationServiceInterface {
         }
         for (const [propertyKey, metadata] of Object.entries(modelProperties)) {
             const property: unknown = (body as Record<string, unknown>)[propertyKey];
-            const errors: ValidationProblem[] = this.validateProperty(propertyKey, property, metadata, parentKey);
+            const errors: ValidationProblem[] = this.validateProperty(propertyKey, property, metadata, parentKey, body);
             res.push(...errors);
         }
         return res;
@@ -154,7 +205,8 @@ export class ValidationService implements ValidationServiceInterface {
         key: string,
         property: unknown,
         metadata: PropertyMetadata,
-        parentKey: string | undefined
+        parentKey: string | undefined,
+        entity: unknown | undefined
     ): ValidationProblem[] {
         const fullKey: string = parentKey ? `${parentKey}.${key}` : key;
 
@@ -171,7 +223,7 @@ export class ValidationService implements ValidationServiceInterface {
         if (validate == undefined) {
             throw new Error(`Unknown type for property "${fullKey}": ${metadata.type}`);
         }
-        const res: ValidationProblem[] = validate(key, property, metadata, parentKey);
+        const res: ValidationProblem[] = validate(key, property, metadata, parentKey, entity);
         return res;
     }
 
@@ -179,17 +231,18 @@ export class ValidationService implements ValidationServiceInterface {
         key: string,
         property: unknown,
         metadata: PropertyMetadata | QueryParamMetadata | HeaderParamMetadata | PathParamMetadata,
-        parentKey: string | undefined
+        parentKey: string | undefined,
+        entity: unknown | undefined
     ): ValidationProblem[] {
         if (metadata.type !== 'array') {
             throw new Error('Tried to do array based validation on a non array value.');
         }
         const fullKey: string = parentKey ? `${parentKey}.${key}` : key;
 
-        if (property == undefined && metadata.required) {
+        if (property == undefined && (typeof metadata.required === 'boolean' ? metadata.required : metadata.required(entity))) {
             return [new IsRequiredValidationProblem(fullKey)];
         }
-        if (property == undefined && !metadata.required) {
+        if (property == undefined && !(typeof metadata.required === 'boolean' ? metadata.required : metadata.required(entity))) {
             return [];
         }
         if (!Array.isArray(property)) {
@@ -199,7 +252,7 @@ export class ValidationService implements ValidationServiceInterface {
         const res: ValidationProblem[] = [];
         for (let i: number = 0; i < property.length; i++) {
             const item: unknown = property[i];
-            const errors: ValidationProblem[] = this.validateProperty(String(i), item, metadata.items as PropertyMetadata, key);
+            const errors: ValidationProblem[] = this.validateProperty(String(i), item, metadata.items as PropertyMetadata, key, entity);
             res.push(...errors);
         }
         return res;
@@ -209,17 +262,18 @@ export class ValidationService implements ValidationServiceInterface {
         key: string,
         property: unknown,
         metadata: PropertyMetadata | QueryParamMetadata | HeaderParamMetadata | PathParamMetadata,
-        parentKey: string | undefined
+        parentKey: string | undefined,
+        entity: unknown | undefined
     ): ValidationProblem[] {
         if (metadata.type !== 'object') {
             throw new Error('Tried to do object based validation on a non object value.');
         }
         const fullKey: string = parentKey ? `${parentKey}.${key}` : key;
 
-        if (property == undefined && metadata.required) {
+        if (property == undefined && (typeof metadata.required === 'boolean' ? metadata.required : metadata.required(entity))) {
             return [new IsRequiredValidationProblem(fullKey)];
         }
-        if (property == undefined && !metadata.required) {
+        if (property == undefined && !(typeof metadata.required === 'boolean' ? metadata.required : metadata.required(entity))) {
             return [];
         }
         if (typeof property !== 'object') {
@@ -227,21 +281,25 @@ export class ValidationService implements ValidationServiceInterface {
         }
 
         const objectProperties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(metadata.cls());
-        const keysOfBody: string[] = Object.keys(property as Record<string, unknown>);
-        const keysOfModel: string[] = Object.keys(objectProperties);
-        const unknownKeys: string[] = keysOfBody.filter(k => !keysOfModel.includes(k));
 
         const res: ValidationProblem[] = [];
-        for (const key of unknownKeys) {
-            res.push({ key, message: 'this key is unknown' });
-        }
-        if (res.length) {
-            throw new ValidationError('body', res);
+
+        if (!metadata.allowAdditionalProperties) {
+            const keysOfBody: string[] = Object.keys(property as Record<string, unknown>);
+            const keysOfModel: string[] = Object.keys(objectProperties);
+            const unknownKeys: string[] = keysOfBody.filter(k => !keysOfModel.includes(k));
+
+            for (const k of unknownKeys) {
+                res.push({ key: k, message: 'this key is unknown' });
+            }
+            if (res.length) {
+                throw new ValidationError('body', res);
+            }
         }
 
         for (const [propertyKey, m] of Object.entries(objectProperties)) {
             const childProperty: unknown = (property as Record<string, unknown>)[propertyKey];
-            const errors: ValidationProblem[] = this.validateProperty(propertyKey, childProperty, m, key);
+            const errors: ValidationProblem[] = this.validateProperty(propertyKey, childProperty, m, key, entity);
             res.push(...errors);
         }
         return res;

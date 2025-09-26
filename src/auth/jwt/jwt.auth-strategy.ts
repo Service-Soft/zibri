@@ -1,6 +1,6 @@
 import { randomBytes } from 'crypto';
 
-import { SecuritySchemeObject } from 'openapi3-ts/dist/oas31';
+import { SecuritySchemeObject } from 'openapi3-ts/oas31';
 
 import { inject, repositoryTokenFor, ZIBRI_DI_TOKENS } from '../../di';
 import { HttpRequest } from '../../http';
@@ -25,6 +25,7 @@ import { GlobalRegistry } from '../../global';
 import { renderEmailTemplate } from '../../handlebars';
 import { Newable } from '../../types';
 import { Ms, UUIDUtilities, validateEntitiesRegistered } from '../../utilities';
+import { WebsocketRequest } from '../../websocket';
 import { HashUtilities } from '../hash.utilities';
 import { NO_USER_REPOSITORIES_PROVIDED_ERROR_MESSAGE } from '../user.service';
 
@@ -269,7 +270,7 @@ implements AuthStrategyInterface<
         await this.credentialsRepository.updateById(credentials.id, credentials);
         await this.passwordResetTokenRepository.deleteById(resetToken.id);
         await this.refreshTokenRepository.deleteAll({ userId: resetToken.userId });
-        // TODO set require password change to false
+        // TODO: set require password change to false
     }
 
     private async activePasswordResetTokenAlreadyExists(user: BaseUser<RoleType>): Promise<boolean> {
@@ -287,7 +288,7 @@ implements AuthStrategyInterface<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async resolveUser(request: HttpRequest): Promise<UserType | undefined> {
+    async resolveUser(request: HttpRequest | WebsocketRequest): Promise<UserType | undefined> {
         const jwt: string | undefined = this.extractAccessTokenFromRequest(request);
         if (!jwt) {
             return undefined;
@@ -301,7 +302,7 @@ implements AuthStrategyInterface<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async isLoggedIn(request: HttpRequest): Promise<boolean> {
+    async isLoggedIn(request: HttpRequest | WebsocketRequest): Promise<boolean> {
         const jwt: string | undefined = this.extractAccessTokenFromRequest(request);
         if (!jwt) {
             return false;
@@ -311,7 +312,7 @@ implements AuthStrategyInterface<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async hasRole(request: HttpRequest, allowedRoles: RoleType[]): Promise<boolean> {
+    async hasRole(request: HttpRequest | WebsocketRequest, allowedRoles: RoleType[]): Promise<boolean> {
         const jwt: string | undefined = this.extractAccessTokenFromRequest(request);
         if (!jwt) {
             return false;
@@ -325,7 +326,7 @@ implements AuthStrategyInterface<
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async belongsTo<TargetEntity extends Newable<BaseEntity>>(
-        request: HttpRequest,
+        request: HttpRequest | WebsocketRequest,
         targetEntity: TargetEntity,
         targetUserIdKey: keyof InstanceType<TargetEntity>,
         targetIdParamKey: string
@@ -340,7 +341,7 @@ implements AuthStrategyInterface<
         }
         try {
             const repo: Repository<InstanceType<TargetEntity>> = inject(repositoryTokenFor(targetEntity));
-            const targetId: string | undefined = request.params[targetIdParamKey];
+            const targetId: string | undefined = request.params?.[targetIdParamKey];
             if (targetId == undefined) {
                 throw new Error(`Could not find the target id specified as path param "${targetId}"`);
             }
@@ -356,7 +357,9 @@ implements AuthStrategyInterface<
         }
     }
 
-    private extractAccessTokenFromRequest(request: HttpRequest): string | undefined {
+    private extractAccessTokenFromRequest(
+        request: HttpRequest | WebsocketRequest
+    ): string | undefined {
         const authHeader: string | string[] | undefined = request.headers.Authorization;
         if (authHeader == undefined || typeof authHeader !== 'string') {
             return undefined;

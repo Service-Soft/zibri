@@ -2,13 +2,14 @@ import { BadRequestError } from './bad-request.error';
 import { ValidationProblem } from '../../validation';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-type ValidationErrorType = 'body' | 'path' | 'query' | 'header';
+type ValidationErrorType = 'body' | 'path' | 'query' | 'header' | 'websocketRequest';
 
 const startMessage: Record<ValidationErrorType, string> = {
     body: 'Validation failed for request body',
     path: 'Validation failed for path parameter',
     query: 'Validation failed for query parameter',
-    header: 'Validation failed for header parameter'
+    header: 'Validation failed for header parameter',
+    websocketRequest: 'Validation failed for websocket request'
 };
 
 /**

@@ -85,7 +85,9 @@ module.exports = {
         mysql2: 'commonjs2 mysql2',
         mongodb: 'commonjs2 mongodb',
         '@sap\/hana-client': 'commonjs2 @sap\/hana-client',
-        '@sap\/hana-client\/extension\/Stream': 'commonjs2 @sap\/hana-client\/extension\/Stream'
+        '@sap\/hana-client\/extension\/Stream': 'commonjs2 @sap\/hana-client\/extension\/Stream',
+        'utf-8-validate': 'utf-8-validate',
+        bufferutil: 'bufferutil'
     },
     resolve: {
         extensions: ['.ts', '.js']

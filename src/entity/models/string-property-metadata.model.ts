@@ -42,7 +42,7 @@ export type StringPropertyMetadata = BasePropertyMetadata & WithDefaultMetadata<
     /**
      * An enum that this property is one of.
      */
-    enum: AnyEnum | undefined
+    enum: AnyEnum<string> | undefined
 };
 
 /**

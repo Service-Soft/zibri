@@ -4,7 +4,8 @@ import { CronJob, inject, Injectable, LoggerInterface, ZIBRI_DI_TOKENS, InitialC
 export class StatusCronJob extends CronJob {
     readonly initialConfig: InitialCronConfig = {
         name: 'Status',
-        cron: '* * * * * *'
+        cron: '* * * * * *',
+        active: false
     };
 
     async onTick(): Promise<void> {
