@@ -10,6 +10,7 @@ import { Log, LoggerInterface } from '../logging';
 import { ThreadJobEntity } from '../multithreading';
 import { Newable } from '../types';
 import { validateEntitiesRegistered } from '../utilities';
+import { WebsocketChannel, WebsocketMessage } from '../websocket';
 
 /**
  * Default data source service implementation of Zibri.
@@ -17,7 +18,7 @@ import { validateEntitiesRegistered } from '../utilities';
 export class DataSourceService implements DataSourceServiceInterface {
     private readonly logger: LoggerInterface;
 
-    private readonly defaultEntities: Newable<BaseEntity>[] = [CronJobEntity, Email, ThreadJobEntity];
+    private readonly defaultEntities: Newable<BaseEntity>[] = [CronJobEntity, Email, ThreadJobEntity, WebsocketChannel, WebsocketMessage];
     private readonly allowedOrphans: Newable<BaseEntity>[] = [
         JwtRefreshToken,
         JwtCredentials,

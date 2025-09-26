@@ -54,6 +54,10 @@ export abstract class GlobalRegistry {
      */
     static readonly controllerClasses: Newable<unknown>[] = [];
     /**
+     * All websocket controllers registered with \@WebsocketController.
+     */
+    static readonly websocketControllerClasses: Newable<unknown>[] = [];
+    /**
      * All datasources registered with \@DataSource.
      */
     static readonly dataSourceClasses: Newable<BaseDataSource>[] = [];

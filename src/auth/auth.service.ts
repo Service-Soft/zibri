@@ -6,6 +6,7 @@ import { HttpRequest } from '../http';
 import { LoggerInterface } from '../logging';
 import { Newable } from '../types';
 import { MetadataUtilities } from '../utilities';
+import { WebsocketRequest } from '../websocket';
 import { AuthServiceInterface } from './auth-service.interface';
 import { AuthStrategyInterface } from './auth-strategy.interface';
 import { AuthStrategies, BaseUser, BelongsToMetadata, HasRoleMetadata, IsLoggedInMetadata, IsNotLoggedInMetadata, SkipAuthMetadata, SkipBelongsToMetadata, SkipHasRoleMetadata, SkipIsLoggedInMetadata, SkipIsNotLoggedInMetadata } from './models';
@@ -100,8 +101,12 @@ export class AuthService implements AuthServiceInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async getCurrentUser<Role extends string, UserType extends BaseUser<Role>, B extends boolean = true>(
-        request: HttpRequest,
+    async getCurrentUser<
+        Role extends string,
+        UserType extends BaseUser<Role>,
+        B extends boolean = true
+    >(
+        request: HttpRequest | WebsocketRequest,
         allowedStrategies: AuthStrategies,
         required: B
     ): Promise<B extends false ? UserType | undefined : UserType> {
@@ -179,7 +184,7 @@ export class AuthService implements AuthServiceInterface {
     async checkAccess(
         controllerClass: Newable<unknown>,
         controllerMethod: string,
-        request: HttpRequest
+        request: HttpRequest | WebsocketRequest
     ): Promise<void> {
         const isLoggedInMetadata: IsLoggedInMetadata | undefined = await this.resolveIsLoggedInMetadata(controllerClass, controllerMethod);
         const isNotLoggedInMetadata: IsNotLoggedInMetadata | undefined = await this.resolveIsNotLoggedInMetadata(
@@ -236,17 +241,17 @@ export class AuthService implements AuthServiceInterface {
                 belongsToMetadata.targetIdParamKey
             )
         ) {
-            const targetId: string | undefined = request.params[belongsToMetadata.targetIdParamKey];
+            const targetId: string | undefined = request.params?.[belongsToMetadata.targetIdParamKey];
             throw new UnauthorizedError(
                 // eslint-disable-next-line stylistic/max-len
-                `You need to to have access to the ${belongsToMetadata.targetEntity.name} entity with the id ${targetId} to access this route.`
+                `You need to to have access to the ${belongsToMetadata.targetEntity.name} entity with the id ${String(targetId)} to access this route.`
             );
         }
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async isLoggedIn(
-        request: HttpRequest,
+        request: HttpRequest | WebsocketRequest,
         allowedStrategies: AuthStrategies
     ): Promise<boolean> {
         // eslint-disable-next-line stylistic/max-len
@@ -260,7 +265,11 @@ export class AuthService implements AuthServiceInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async hasRole(request: HttpRequest, allowedStrategies: AuthStrategies, allowedRoles: string[]): Promise<boolean> {
+    async hasRole(
+        request: HttpRequest | WebsocketRequest,
+        allowedStrategies: AuthStrategies,
+        allowedRoles: string[]
+    ): Promise<boolean> {
         // eslint-disable-next-line stylistic/max-len
         const strategies: AuthStrategyInterface<string, BaseUser<string>, unknown, unknown, unknown, unknown, unknown, unknown>[] = allowedStrategies.map(s => inject(s));
         try {
@@ -273,7 +282,7 @@ export class AuthService implements AuthServiceInterface {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async belongsTo<TargetEntity extends Newable<BaseEntity>>(
-        request: HttpRequest,
+        request: HttpRequest | WebsocketRequest,
         allowedStrategies: AuthStrategies,
         targetEntity: TargetEntity,
         targetUserIdKey: keyof InstanceType<TargetEntity>,

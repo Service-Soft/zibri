@@ -94,6 +94,7 @@ export namespace Property {
             max: undefined,
             default: undefined,
             excludeFromChangeSets: false,
+            enum: undefined,
             ...data
         };
         return applyData(fullMetadata, data);
@@ -146,6 +147,7 @@ export namespace Property {
             type: 'object',
             description: undefined,
             excludeFromChangeSets: false,
+            allowAdditionalProperties: false,
             ...data
         };
         return applyData(fullMetadata, data);
@@ -355,6 +357,7 @@ export function createArrayItemPropertyMetadata(
                 max: undefined,
                 default: undefined,
                 excludeFromChangeSets: false,
+                enum: undefined,
                 ...data
             };
         }
@@ -374,12 +377,20 @@ export function createArrayItemPropertyMetadata(
                 ...data
             };
         }
-        case 'unknown':
+        case 'unknown': {
+            return {
+                required: true,
+                description: undefined,
+                excludeFromChangeSets: false,
+                ...data
+            };
+        }
         case 'object': {
             return {
                 required: true,
                 description: undefined,
                 excludeFromChangeSets: false,
+                allowAdditionalProperties: false,
                 ...data
             };
         }

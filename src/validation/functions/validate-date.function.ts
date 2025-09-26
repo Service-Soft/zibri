@@ -10,20 +10,32 @@ import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationP
  * @param property - The actual value.
  * @param metadata - The metadata of the property.
  * @param parentKey - The key of the parent, if it exists.
+ * @param entity - The entity that this value belongs to.
  * @returns All validation problems found.
  */
 export function validateDate(
     key: string,
     property: unknown,
     metadata: PropertyMetadata | QueryParamMetadata | HeaderParamMetadata | PathParamMetadata,
-    parentKey?: string
+    parentKey: string | undefined,
+    entity: unknown | undefined
 ): ValidationProblem[] {
     const meta: DatePropertyMetadata | DateParamMetadata = metadata as DatePropertyMetadata | DateParamMetadata;
     const fullKey: string = parentKey ? `${parentKey}.${key}` : key;
-    if (property == undefined && (meta as DatePropertyMetadata).default == undefined && meta.required) {
+    if (
+        property == undefined
+        && (meta as DatePropertyMetadata).default == undefined
+        && (typeof metadata.required === 'boolean' ? metadata.required : metadata.required(entity))
+    ) {
         return [new IsRequiredValidationProblem(fullKey)];
     }
-    if (property == undefined && (!meta.required || (meta as DatePropertyMetadata).default != undefined)) {
+    if (
+        property == undefined
+        && (
+            !(typeof metadata.required === 'boolean' ? metadata.required : metadata.required(entity))
+            || (meta as DatePropertyMetadata).default != undefined
+        )
+    ) {
         return [];
     }
     if (!(property instanceof Date)) {

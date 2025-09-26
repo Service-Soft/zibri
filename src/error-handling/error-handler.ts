@@ -78,7 +78,7 @@ export const errorHandler: GlobalErrorHandler = async (error: unknown, req: Http
  * @param value - The value to transform.
  * @returns Value if it was a http error, a new internal server error otherwise.
  */
-function toHttpError(value: unknown): HttpError {
+export function toHttpError(value: unknown): HttpError {
     if (isHttpError(value)) {
         return value;
     }

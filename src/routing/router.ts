@@ -4,7 +4,7 @@ import { NextFunction, RequestHandler, Router as ExpressRouter } from 'express';
 
 import { Route, ControllerRouteConfiguration } from './controller-route-configuration.model';
 import { RouterInterface } from './router.interface';
-import { AuthServiceInterface, CurrentUserMetadata, JwtAuthController } from '../auth';
+import { AuthServiceInterface, JwtAuthController } from '../auth';
 import { ZIBRI_DI_TOKENS, inject } from '../di';
 import { MetadataUtilities, Ms } from '../utilities';
 import { MissingBaseRouteError } from './missing-base-route.error';
@@ -20,6 +20,7 @@ import { FileResponse, HtmlResponse, ParserInterface } from '../parsing';
 import { ValidationServiceInterface } from '../validation';
 import { createHeaderParamMetadata, createPathParamMetadata, createQueryParamMetadata } from './param-metdata.helpers';
 import { runWithRequest } from './request.context';
+import { resolveRouteParams } from './resolve-route-params.function';
 
 /**
  * Default router implementation of Zibri.
@@ -360,62 +361,15 @@ export class Router implements RouterInterface {
         totalParamCount: number,
         req: HttpRequest
     ): Promise<unknown[]> {
-        let resolvedParamCount: number = 0;
-        const params: unknown[] = new Array(totalParamCount).fill(undefined);
-
-        // 1) Path decorators
-        const pathParams: Record<string, PathParamMetadata> = MetadataUtilities.getRoutePathParams(controllerClass, controllerMethod);
-        for (const [indexStr, metadata] of Object.entries(pathParams)) {
-            const idx: number = Number(indexStr);
-            params[idx] = this.parser.parsePathParam(req, metadata);
-            this.validationService.validatePathParam(params[idx], metadata);
-        }
-        resolvedParamCount += Object.keys(pathParams).length;
-
-        // 2) Body decorator
-        const requestBody: BodyMetadata | undefined = MetadataUtilities.getRouteBody(controllerClass, controllerMethod);
-        if (requestBody) {
-            resolvedParamCount++;
-            params[requestBody.index] = await this.parser.parseRequestBody(req, requestBody);
-            this.validationService.validateRequestBody(params[requestBody.index], requestBody);
-        }
-
-        // 3) Query decorators
-        const queryParams: Record<string, QueryParamMetadata> = MetadataUtilities.getRouteQueryParams(controllerClass, controllerMethod);
-        for (const [indexStr, metadata] of Object.entries(queryParams)) {
-            const idx: number = Number(indexStr);
-            params[idx] = this.parser.parseQueryParam(req, metadata);
-            this.validationService.validateQueryParam(params[idx], metadata);
-        }
-        resolvedParamCount += Object.keys(queryParams).length;
-
-        // 3) Header decorators
-        const headerParams: Record<string, HeaderParamMetadata> = MetadataUtilities.getRouteHeaderParams(controllerClass, controllerMethod);
-        for (const [indexStr, metadata] of Object.entries(headerParams)) {
-            const idx: number = Number(indexStr);
-            params[idx] = this.parser.parseHeaderParam(req, metadata);
-            this.validationService.validateHeaderParam(params[idx], metadata);
-        }
-        resolvedParamCount += Object.keys(headerParams).length;
-
-        // 4) CurrentUser decorator
-        const currentUser: CurrentUserMetadata | undefined = MetadataUtilities.getRouteCurrentUser(controllerClass, controllerMethod);
-        if (currentUser) {
-            resolvedParamCount++;
-            params[currentUser.index] = await this.authService.getCurrentUser(
-                req,
-                currentUser.allowedStrategies ?? this.authService.strategies,
-                currentUser.required
-            );
-        }
-
-        if (resolvedParamCount < totalParamCount) {
-            throw new Error(
-                // eslint-disable-next-line stylistic/max-len
-                `Error when calling ${controllerClass.name}.${controllerMethod}: Could only resolve ${resolvedParamCount} out of ${totalParamCount} parameters. Did you forget to decorate one of the parameters?`
-            );
-        }
-
-        return params;
+        return await resolveRouteParams(
+            controllerClass,
+            controllerMethod,
+            totalParamCount,
+            req,
+            this.parser,
+            this.validationService,
+            this.authService,
+            undefined
+        );
     }
 }

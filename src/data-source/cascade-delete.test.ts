@@ -10,7 +10,7 @@ import { Newable } from '../types';
 import { MigrationEntity } from './migration';
 import { DataSourceOptions } from './models';
 import { Repository } from './repository.model';
-import { Child, Company, mockCreateUserData, Parent, Profile, Role, User, UserCreateData } from '../__testing__';
+import { Child, Company, mockCreateUserData, Parent, POSTGRES_TEST_IMAGE, Profile, Role, User, UserCreateData } from '../__testing__';
 
 @DataSource()
 class TestDataSource extends BaseDataSource {
@@ -30,7 +30,7 @@ describe('cascade delete', () => {
     let ds: TestDataSource;
 
     beforeAll(async () => {
-        container = await new PostgreSqlContainer()
+        container = await new PostgreSqlContainer(POSTGRES_TEST_IMAGE)
             .withDatabase('db')
             .withUsername('postgres')
             .withPassword('password')

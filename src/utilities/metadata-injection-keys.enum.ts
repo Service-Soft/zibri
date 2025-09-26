@@ -34,5 +34,8 @@ export enum MetadataInjectionKeys {
     ROUTE_SKIP_AUTH = 'route:skip_auth',
     MODEL_PROPERTIES = 'model:properties',
     MODEL_RELATIONS = 'model:relations',
-    ENTITY_METADATA = 'entity:metadata'
+    ENTITY_METADATA = 'entity:metadata',
+    WEBSOCKET_CONTROLLER = 'websocket_controller',
+    WEBSOCKET_CONTROLLER_ROUTES = 'websocket_controller:routes',
+    ROUTE_CURRENT_WEBSOCKET_CONNECTION = 'route:current_websocket_connection'
 }

@@ -1,6 +1,6 @@
 import path from 'path';
 
-import { ContentObject, ParameterLocation, ResponseObject, ResponsesObject, TagObject } from 'openapi3-ts/dist/oas31';
+import { ContentObject, ParameterLocation, ResponseObject, ResponsesObject, TagObject } from 'openapi3-ts/oas31';
 import swaggerUi from 'swagger-ui-express';
 
 import { ZibriApplication } from '../application';
@@ -410,20 +410,23 @@ export class OpenApiService implements OpenApiServiceInterface {
         const propMeta: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(metadata.modelClass);
         const schema: OpenApiSchemaObject = this.buildOpenApiSchemaForProperties(propMeta, metadata.modelClass);
         return {
-            required: metadata.required,
+            required: typeof metadata.required === 'boolean' ? metadata.required : undefined,
             description: metadata.description,
             content: { [metadata.type]: { schema } }
         };
     }
 
+    // eslint-disable-next-line sonar/cognitive-complexity
     private buildOpenApiSchemaForProperties(propMeta: Record<string, PropertyMetadata>, entity: Newable<unknown>): OpenApiSchemaObject {
         const properties: Record<string, OpenApiSchemaObject> = {};
         const required: string[] = [];
 
         for (const [key, meta] of Object.entries(propMeta)) {
             // mark required
-            if (
-                meta.required
+            if ((
+                typeof meta.required === 'boolean'
+                    ? meta.required
+                    : false)
                 && (!('default' in meta) || meta.default == undefined)
             ) {
                 required.push(key);
@@ -443,7 +446,8 @@ export class OpenApiService implements OpenApiServiceInterface {
                         ...meta,
                         required: undefined,
                         minimum: meta.min,
-                        maximum: meta.max
+                        maximum: meta.max,
+                        enum: meta.enum ? Object.values(meta.enum) : undefined
                     };
                     continue;
                 }
@@ -487,7 +491,8 @@ export class OpenApiService implements OpenApiServiceInterface {
                                 cls: () => targetClass,
                                 required: true,
                                 description: undefined,
-                                excludeFromChangeSets: false
+                                excludeFromChangeSets: false,
+                                allowAdditionalProperties: false
                             }
                         },
                         entity
@@ -570,7 +575,7 @@ export class OpenApiService implements OpenApiServiceInterface {
         return Object.values(params).map(meta => ({
             name: meta.name,
             in: location,
-            required: meta.required,
+            required: typeof meta.required === 'boolean' ? meta.required : undefined,
             content: meta.type === 'object'
                 ? {
                     [MimeType.JSON]: {
@@ -593,7 +598,8 @@ export class OpenApiService implements OpenApiServiceInterface {
                     ...meta,
                     required: undefined,
                     minimum: meta.min,
-                    maximum: meta.max
+                    maximum: meta.max,
+                    enum: meta.enum ? Object.values(meta.enum) : undefined
                 };
             }
             case 'string': {

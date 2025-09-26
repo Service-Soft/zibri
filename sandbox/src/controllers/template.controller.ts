@@ -3,6 +3,8 @@ import { Controller, errorToLoggedError, FormatDateFn, Get, GlobalRegistry, Html
 import renderBaseEmail from '../templates/emails/base-email.hbs';
 import renderLog from '../templates/emails/log.hbs';
 import renderPasswordResetTemplate from '../templates/emails/password-reset.hbs';
+import renderBasePage from '../templates/pages/base-page.hbs';
+import renderSocket from '../templates/pages/socket-io.hbs';
 
 const logLevelLabels: Record<LogLevel, string> = {
     [LogLevel.DEBUG]: 'Debug Log',
@@ -22,6 +24,13 @@ const bgColorForLogLevel: Record<LogLevel, string> = {
 
 @Controller('/templates')
 export class TemplateController {
+
+    @Response.html()
+    @Get('/socket')
+    getSocket(): HtmlResponse {
+        const content: string = renderSocket({});
+        return HtmlResponse.fromString(renderBasePage({ content, base: { title: 'Socket Test | Zibri' } }));
+    }
 
     @Response.html()
     @Get('/password-reset-mail')

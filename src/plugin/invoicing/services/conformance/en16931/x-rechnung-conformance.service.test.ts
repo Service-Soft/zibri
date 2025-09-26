@@ -8,7 +8,7 @@ import { StartedTestContainer } from 'testcontainers';
 import { PostgresConnectionCredentialsOptions } from 'typeorm/driver/postgres/PostgresConnectionCredentialsOptions';
 
 import { XRechnungConformanceService } from './x-rechnung-conformance.service';
-import { testFileFolder } from '../../../../../__testing__';
+import { POSTGRES_TEST_IMAGE, testFileFolder } from '../../../../../__testing__';
 import { BaseDataSource, DataSource, DataSourceOptions, MigrationEntity, Repository } from '../../../../../data-source';
 import { XML } from '../../../../../document';
 import { BaseEntity } from '../../../../../entity';
@@ -94,7 +94,7 @@ let repo: Repository<Invoice, OmitStrict<Invoice, 'id'>>;
 describe('generateXml', () => {
     beforeAll(async () => {
         await mkdir(testFileFolder, { recursive: true });
-        container = await new PostgreSqlContainer()
+        container = await new PostgreSqlContainer(POSTGRES_TEST_IMAGE)
             .withDatabase('db')
             .withUsername('postgres')
             .withPassword('password')

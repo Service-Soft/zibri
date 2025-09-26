@@ -1,6 +1,7 @@
 import { BaseEntity } from '../entity';
 import { HttpRequest } from '../http';
 import { Newable } from '../types';
+import { WebsocketRequest } from '../websocket';
 import { AuthStrategyInterface } from './auth-strategy.interface';
 import { AuthStrategies, BaseUser, BelongsToMetadata, HasRoleMetadata, IsLoggedInMetadata, IsNotLoggedInMetadata } from './models';
 
@@ -19,15 +20,22 @@ export interface AuthServiceInterface {
     /**
      * Checks if the provided method on the provided controller can be accessed by the current user.
      */
-    checkAccess: (controllerClass: Newable<unknown>, controllerMethod: string, req: HttpRequest) => Promise<void>,
+    checkAccess: (
+        controllerClass: Newable<unknown>,
+        controllerMethod: string,
+        request: HttpRequest | WebsocketRequest
+    ) => Promise<void>,
     /**
      * Checks whether there is a currently logged in user.
      */
-    isLoggedIn: (request: HttpRequest, allowedStrategies: AuthStrategies) => Promise<boolean>,
+    isLoggedIn: (
+        request: HttpRequest | WebsocketRequest,
+        allowedStrategies: AuthStrategies
+    ) => Promise<boolean>,
     /**
      * Checks whether the currently logged in user has one of the provided roles.
      */
-    hasRole: (request: HttpRequest, allowedStrategies: AuthStrategies, allowedRoles: string[]) => Promise<boolean>,
+    hasRole: (request: HttpRequest | WebsocketRequest, allowedStrategies: AuthStrategies, allowedRoles: string[]) => Promise<boolean>,
     /**
      * Checks whether the currently logged in user belongs to the target entity.
      */
@@ -127,8 +135,12 @@ export interface AuthServiceInterface {
     /**
      * Get's the currently logged in user. When required is set to false this can return undefined.
      */
-    getCurrentUser: <Role extends string, UserType extends BaseUser<Role>, B extends boolean = true>(
-        request: HttpRequest,
+    getCurrentUser: <
+        Role extends string,
+        UserType extends BaseUser<Role>,
+        B extends boolean = true
+    >(
+        request: HttpRequest | WebsocketRequest,
         allowedStrategies: AuthStrategies,
         required: B
     ) => Promise<B extends false ? UserType | undefined : UserType>,

@@ -10,11 +10,6 @@ Zibri aims to take care of most of your multi threading concerns, including:
 - configurable timeouts for jobs and self healing capabilities of the worker pool
 
 # Usage
-## Wait for service startup
-At startup, the service initiates a worker pool. This will only take a few seconds and is most likely not a concern for you.
-
-But if you want to use the multithreadingService directly at startup, you should probably use `waitForInitialization` method to make sure everything is ready.
-
 ## Queue and run a thread job
 If you have some more complex tasks where you also want to be able to report progress during runtime you will probably queue a thread job.
 

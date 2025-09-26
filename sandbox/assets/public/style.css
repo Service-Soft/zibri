@@ -6,6 +6,11 @@ html, body {
     background-color: #2a2a35;
 }
 
+dialog {
+    border-radius: 15px;
+    border: none;
+}
+
 h1, h2 {
     margin: 0;
     text-align: center;

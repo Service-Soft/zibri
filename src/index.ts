@@ -25,6 +25,7 @@ export * from './change-sets';
 export * from './plugin';
 export * from './localization';
 export * from './multithreading';
+export * from './websocket';
 
 export * from './types/newable.model';
 export * from './types/version.type';

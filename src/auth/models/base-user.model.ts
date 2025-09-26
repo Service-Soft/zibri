@@ -39,15 +39,13 @@ export function BaseUserEntity<Role extends string>(
 /**
  * Checks whether or not the given value is a base user.
  * @param value - The value to check.
- * @returns True if the value has "id", "createdAt", "updatedAt", "email" and "roles" keys, false otherwise.
+ * @returns True if the value has "id", "email" and "roles" keys, false otherwise.
  */
 export function isBaseUser(value: unknown): value is BaseUser<string> {
     return (
         value != undefined
         && typeof value === 'object'
         && 'id' in value
-        && 'createdAt' in value
-        && 'updatedAt' in value
         && 'email' in value
         && 'roles' in value
     );

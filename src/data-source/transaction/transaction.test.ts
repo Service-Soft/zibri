@@ -3,6 +3,7 @@ import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import { StartedTestContainer } from 'testcontainers';
 import { PostgresConnectionCredentialsOptions } from 'typeorm/driver/postgres/PostgresConnectionCredentialsOptions';
 
+import { POSTGRES_TEST_IMAGE } from '../../__testing__';
 import { type BaseEntity, Entity, Property } from '../../entity';
 import { Newable } from '../../types';
 import { BaseDataSource } from '../base-data-source.model';
@@ -40,7 +41,7 @@ let repo: Repository<Item>;
 
 describe('transaction', () => {
     beforeAll(async () => {
-        container = await new PostgreSqlContainer()
+        container = await new PostgreSqlContainer(POSTGRES_TEST_IMAGE)
             .withDatabase('db')
             .withUsername('postgres')
             .withPassword('password')

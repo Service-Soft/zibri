@@ -12,7 +12,12 @@ export type ObjectPropertyMetadata = BasePropertyMetadata & {
     /**
      * The class that defines the structure of the object.
      */
-    cls: () => Newable<unknown>
+    cls: () => Newable<unknown>,
+    /**
+     * Whether or not the object should allow additional keys.
+     * @default false
+     */
+    allowAdditionalProperties: boolean
 };
 
 /**

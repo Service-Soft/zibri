@@ -26,3 +26,17 @@ export type HttpRequest<
      */
     headers: HeaderParamsObject
 };
+
+/**
+ * Check whether or not the given value is a http request.
+ * @param value - The value to check.
+ * @returns True when value is an instance of HttpError, false otherwise.
+ */
+export function isHttpRequest(value: unknown): value is HttpRequest {
+    return typeof value === 'object'
+        && value != undefined
+        && 'params' in value
+        && 'query' in value
+        && 'headers' in value
+        && 'httpVersion' in value;
+}
