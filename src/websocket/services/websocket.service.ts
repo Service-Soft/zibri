@@ -16,7 +16,7 @@ import { Newable } from '../../types';
 import { MetadataUtilities, UUIDUtilities } from '../../utilities';
 import type { ValidationServiceInterface } from '../../validation';
 import { WebsocketControllerData } from '../decorators';
-import { WebsocketRequest, WebsocketControllerRouteConfiguration, SocketIOWebsocketConnection, WebsocketEvent, WebsocketResponseHandler, WebsocketChannel, BaseWebsocketConnection, WebsocketMessage, CreateWebsocketMessageData, WebsocketRecipientType, WebsocketRequestWithConnection, WebsocketOptions } from '../models';
+import { WebsocketRequest, WebsocketControllerRouteConfiguration, SocketIOWebsocketConnection, WebsocketEvent, WebsocketResponseHandler, WebsocketChannel, BaseWebsocketConnection, WebsocketMessage, CreateWebsocketMessageData, WebsocketRecipientType, WebsocketRequestWithConnection, type WebsocketOptions } from '../models';
 
 /**
  * Handler for dealing with an incoming websocket message.
