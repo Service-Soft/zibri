@@ -20,7 +20,7 @@
     },
     "scripts": {
         "test": "jest",
-        "test:ci": "jest --testPathPattern='^(?!.*multithreading\\.service\\.test\\.ts$).*'",
+        "test:ci": "jest --testPathPatterns='^(?!.*multithreading\\.service\\.test\\.ts$).*'",
         "start": "tsup --watch",
         "sandbox": "cd sandbox && npm run start",
         "build": "tsup",
