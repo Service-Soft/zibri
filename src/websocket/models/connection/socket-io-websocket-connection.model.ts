@@ -52,10 +52,11 @@ export class SocketIOWebsocketConnection implements BaseWebsocketConnection {
      * Emits an event to the socket and expects a return.
      * @param event - The event to emit.
      * @param data - The data to emit.
+     * @param timeout - The timeout after which an error should be thrown.
      * @returns The response from the connection.
      */
-    async emitWithAck<R>(event: LooseWebsocketEvent, data: WebsocketMessage): Promise<R> {
-        return await this.socket.emitWithAck(event, data) as R;
+    async emitWithAck<R>(event: LooseWebsocketEvent, data: WebsocketMessage, timeout: number): Promise<R> {
+        return await this.socket.timeout(timeout).emitWithAck(event, data) as R;
     }
 
     /**

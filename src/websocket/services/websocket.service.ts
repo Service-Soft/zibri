@@ -16,7 +16,7 @@ import { Newable } from '../../types';
 import { MetadataUtilities, UUIDUtilities } from '../../utilities';
 import type { ValidationServiceInterface } from '../../validation';
 import { WebsocketControllerData } from '../decorators';
-import { WebsocketRequest, WebsocketControllerRouteConfiguration, SocketIOWebsocketConnection, WebsocketEvent, WebsocketResponseHandler, WebsocketChannel, BaseWebsocketConnection, WebsocketMessage, CreateWebsocketMessageData, WebsocketRecipientType, WebsocketRequestWithConnection } from '../models';
+import { WebsocketRequest, WebsocketControllerRouteConfiguration, SocketIOWebsocketConnection, WebsocketEvent, WebsocketResponseHandler, WebsocketChannel, BaseWebsocketConnection, WebsocketMessage, CreateWebsocketMessageData, WebsocketRecipientType, WebsocketRequestWithConnection, WebsocketOptions } from '../models';
 
 /**
  * Handler for dealing with an incoming websocket message.
@@ -49,7 +49,9 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         @InjectRepository(WebsocketChannel)
         private readonly channelRepository: Repository<WebsocketChannel>,
         @InjectRepository(WebsocketMessage)
-        private readonly messageRepository: Repository<WebsocketMessage, CreateWebsocketMessageData>
+        private readonly messageRepository: Repository<WebsocketMessage, CreateWebsocketMessageData>,
+        @Inject(ZIBRI_DI_TOKENS.WEBSOCKET_OPTIONS)
+        private readonly options: WebsocketOptions
     ) {}
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -82,6 +84,12 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
             false
         );
 
+        const isAllowedToConnect: boolean = await this.options.isAllowedToConnect(currentUser);
+        if (!isAllowedToConnect) {
+            socket.disconnect(true);
+            return;
+        }
+
         let connection: SocketIOWebsocketConnection | undefined = this.connections.find(c => c.id === socket.id);
         if (connection) {
             connection.offset = socket.handshake.auth.offset as number;
@@ -90,8 +98,6 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         }
 
         connection = new SocketIOWebsocketConnection(socket, currentUser?.id);
-        // TODO: implement
-        // authenticate and authorize that the connected user is allowed to connect to a websocket at all
         this.connections.push(connection);
         await this.logger.debug('a user connected');
 
@@ -304,7 +310,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
 
         if (data.expectResponse) {
             const res: WebsocketRequestWithConnection<SocketIOWebsocketConnection> = {
-                request: await data.connection.emitWithAck(data.event, message),
+                request: await data.connection.emitWithAck(data.event, message, this.options.timeoutInMs),
                 connection: data.connection
             };
             return res as B extends false ? void : WebsocketRequestWithConnection<SocketIOWebsocketConnection>;

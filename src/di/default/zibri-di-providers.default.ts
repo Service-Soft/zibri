@@ -23,7 +23,7 @@ import { getCurrentRequest, Router, RouterInterface } from '../../routing';
 import { OmitStrict } from '../../types';
 import { Ms } from '../../utilities';
 import { ValidationService, ValidationServiceInterface } from '../../validation';
-import { WebsocketService, WebsocketServiceInterface } from '../../websocket';
+import { WebsocketOptions, WebsocketService, WebsocketServiceInterface } from '../../websocket';
 import { inject } from '../inject.function';
 import { DiProvider } from '../models';
 
@@ -74,7 +74,8 @@ type ZibriDiProviders = {
     [ZIBRI_DI_TOKENS.MULTITHREADING_OPTIONS]: ZibriDiProvider<MultithreadingOptions>,
     [ZIBRI_DI_TOKENS.MULTITHREADING_SERVICE]: ZibriDiProvider<MultithreadingServiceInterface>,
     // eslint-disable-next-line typescript/no-explicit-any
-    [ZIBRI_DI_TOKENS.WEBSOCKET_SERVICE]: ZibriDiProvider<WebsocketServiceInterface<any>>
+    [ZIBRI_DI_TOKENS.WEBSOCKET_SERVICE]: ZibriDiProvider<WebsocketServiceInterface<any>>,
+    [ZIBRI_DI_TOKENS.WEBSOCKET_OPTIONS]: ZibriDiProvider<WebsocketOptions>
 };
 
 export const ZIBRI_DI_PROVIDERS: Record<
@@ -143,5 +144,6 @@ export const ZIBRI_DI_PROVIDERS: Record<
         })
     },
     [ZIBRI_DI_TOKENS.MULTITHREADING_SERVICE]: { useClass: MultithreadingService },
-    [ZIBRI_DI_TOKENS.WEBSOCKET_SERVICE]: { useClass: WebsocketService }
+    [ZIBRI_DI_TOKENS.WEBSOCKET_SERVICE]: { useClass: WebsocketService },
+    [ZIBRI_DI_TOKENS.WEBSOCKET_OPTIONS]: { useFactory: () => ({ timeoutInMs: Ms.SECOND * 5, isAllowedToConnect: () => true }) }
 } satisfies ZibriDiProviders;

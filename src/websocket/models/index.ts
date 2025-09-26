@@ -6,3 +6,4 @@ export * from './websocket-event.enum';
 export * from './websocket-channel.model';
 export * from './websocket-channel.model';
 export * from './websocket-message.model';
+export * from './websocket-options.model';
