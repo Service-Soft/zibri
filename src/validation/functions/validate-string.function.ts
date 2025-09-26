@@ -12,6 +12,7 @@ const EMAIL_REGEX: RegExp = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  * @param property - The actual value.
  * @param metadata - The metadata of the property.
  * @param parentKey - The key of the parent, if it exists.
+ * @param entity - The entity that this value belongs to.
  * @returns All validation problems found.
  */
 // eslint-disable-next-line sonar/cognitive-complexity
@@ -19,14 +20,25 @@ export function validateString(
     key: string,
     property: unknown,
     metadata: PropertyMetadata | QueryParamMetadata | HeaderParamMetadata | PathParamMetadata,
-    parentKey?: string
+    parentKey: string | undefined,
+    entity: unknown | undefined
 ): ValidationProblem[] {
     const meta: StringPropertyMetadata | StringParamMetadata = metadata as StringPropertyMetadata | StringParamMetadata;
     const fullKey: string = parentKey ? `${parentKey}.${key}` : key;
-    if (property == undefined && (meta as StringPropertyMetadata).default == undefined && meta.required) {
+    if (
+        property == undefined
+        && (meta as StringPropertyMetadata).default == undefined
+        && (typeof metadata.required === 'boolean' ? metadata.required : metadata.required(entity))
+    ) {
         return [new IsRequiredValidationProblem(fullKey)];
     }
-    if (property == undefined && (!meta.required || (meta as StringPropertyMetadata).default != undefined)) {
+    if (
+        property == undefined
+        && (
+            !(typeof metadata.required === 'boolean' ? metadata.required : metadata.required(entity))
+            || (meta as StringPropertyMetadata).default != undefined
+        )
+    ) {
         return [];
     }
     if (typeof property !== 'string') {

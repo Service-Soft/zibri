@@ -1,7 +1,8 @@
 import express from 'express';
 
 import { BadRequestError } from '../../error-handling';
-import { HttpRequest, MimeType } from '../../http';
+import { HttpRequest, isHttpRequest, MimeType } from '../../http';
+import { WebsocketRequest } from '../../websocket';
 import { BodyParserInterface } from '../body-parser.interface';
 import { BodyParser } from '../decorators';
 
@@ -14,8 +15,11 @@ export class JsonBodyParser implements BodyParserInterface {
     readonly contentType: MimeType = MimeType.JSON;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async parse(req: HttpRequest): Promise<unknown> {
+    async parse(req: HttpRequest | WebsocketRequest): Promise<unknown> {
         if (req.body !== undefined) {
+            return req.body;
+        }
+        if (!isHttpRequest(req)) {
             return req.body;
         }
         try {

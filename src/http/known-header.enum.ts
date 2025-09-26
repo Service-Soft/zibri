@@ -28,3 +28,12 @@ export enum KnownHeader {
     SEC_FETCH_SITE = 'Sec-Fetch-Site',
     TE = 'TE'
 }
+
+/**
+ * Checks if the given value is a known header.
+ * @param value - The value to check.
+ * @returns True when the KnownHeader enum values include the given value, false otherwise.
+ */
+export function isKnownHeader(value: string): value is KnownHeader {
+    return Object.values(KnownHeader).includes(value as KnownHeader);
+}

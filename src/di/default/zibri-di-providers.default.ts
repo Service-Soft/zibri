@@ -23,6 +23,7 @@ import { getCurrentRequest, Router, RouterInterface } from '../../routing';
 import { OmitStrict } from '../../types';
 import { Ms } from '../../utilities';
 import { ValidationService, ValidationServiceInterface } from '../../validation';
+import { WebsocketService, WebsocketServiceInterface } from '../../websocket';
 import { inject } from '../inject.function';
 import { DiProvider } from '../models';
 
@@ -71,7 +72,9 @@ type ZibriDiProviders = {
     [ZIBRI_DI_TOKENS.MAILING_LIST_SUBSCRIPTION_CONFIRMATION_TOKEN_EXPIRES_IN_MS]: ZibriDiProvider<number>,
     [ZIBRI_DI_TOKENS.CURRENT_REQUEST]: ZibriDiProvider<HttpRequest>,
     [ZIBRI_DI_TOKENS.MULTITHREADING_OPTIONS]: ZibriDiProvider<MultithreadingOptions>,
-    [ZIBRI_DI_TOKENS.MULTITHREADING_SERVICE]: ZibriDiProvider<MultithreadingServiceInterface>
+    [ZIBRI_DI_TOKENS.MULTITHREADING_SERVICE]: ZibriDiProvider<MultithreadingServiceInterface>,
+    // eslint-disable-next-line typescript/no-explicit-any
+    [ZIBRI_DI_TOKENS.WEBSOCKET_SERVICE]: ZibriDiProvider<WebsocketServiceInterface<any>>
 };
 
 export const ZIBRI_DI_PROVIDERS: Record<
@@ -139,5 +142,6 @@ export const ZIBRI_DI_PROVIDERS: Record<
             defaultTimeoutPriorityMs: Ms.MINUTE * 5
         })
     },
-    [ZIBRI_DI_TOKENS.MULTITHREADING_SERVICE]: { useClass: MultithreadingService }
+    [ZIBRI_DI_TOKENS.MULTITHREADING_SERVICE]: { useClass: MultithreadingService },
+    [ZIBRI_DI_TOKENS.WEBSOCKET_SERVICE]: { useClass: WebsocketService }
 } satisfies ZibriDiProviders;

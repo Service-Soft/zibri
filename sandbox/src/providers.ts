@@ -1,6 +1,10 @@
-import { DiProvider, EmailConfigInput, InvoicingOptionsInput, ZIBRI_DI_TOKENS, ZIBRI_INVOICING_DI_TOKENS } from 'zibri';
+import { DiProvider, EmailConfigInput, InvoicingOptionsInput, LoggerTransport, LogLevel, ZIBRI_DI_TOKENS, ZIBRI_INVOICING_DI_TOKENS } from 'zibri';
 
 export const providers: DiProvider<unknown>[] = [
+    {
+        token: ZIBRI_DI_TOKENS.LOGGER_TRANSPORTS,
+        useFactory: () => [LoggerTransport.console(LogLevel.INFO)]
+    },
     {
         token: ZIBRI_DI_TOKENS.JWT_ACCESS_TOKEN_SECRET,
         useFactory: () => 'test'

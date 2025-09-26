@@ -12,6 +12,7 @@ import { Migration } from './migration.model';
 import { DataSource } from '../decorators';
 import { Repository } from '../repository.model';
 import { MigrationEntity } from './migration-entity.model';
+import { POSTGRES_TEST_IMAGE } from '../../__testing__';
 import { GlobalRegistry } from '../../global';
 
 @Entity('item')
@@ -84,7 +85,7 @@ describe('AddTestValueMigration', () => {
     let createdId: string;
 
     beforeAll(async () => {
-        container = await new PostgreSqlContainer()
+        container = await new PostgreSqlContainer(POSTGRES_TEST_IMAGE)
             .withDatabase('db')
             .withUsername('postgres')
             .withPassword('password')

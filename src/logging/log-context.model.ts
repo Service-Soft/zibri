@@ -29,7 +29,7 @@ export class LogRequestContext {
     /**
      * The http status of the response, if the request already finished.
      */
-    @Property.string({ enum: HttpStatus, required: false })
+    @Property.number({ enum: HttpStatus, required: false })
     status?: HttpStatus;
     /**
      * The duration that the request took in ms, if it already finished.

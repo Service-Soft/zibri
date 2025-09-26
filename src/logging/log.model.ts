@@ -11,7 +11,7 @@ export class Log extends BaseEntity {
     /**
      * The log level.
      */
-    @Property.string({ enum: LogLevel })
+    @Property.number({ enum: LogLevel })
     level!: LogLevel;
     /**
      * The message that was logged.

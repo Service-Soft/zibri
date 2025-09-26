@@ -9,7 +9,7 @@ import { PostgresConnectionCredentialsOptions } from 'typeorm/driver/postgres/Po
 
 import { InvoiceCalcService } from './invoice-calc.service';
 import { InvoicePdfService } from './invoice-pdf.service';
-import { testFileFolder } from '../../../__testing__';
+import { POSTGRES_TEST_IMAGE, testFileFolder } from '../../../__testing__';
 import { BaseDataSource, DataSource, DataSourceOptions, MigrationEntity, Repository } from '../../../data-source';
 import { PdfDocument } from '../../../document';
 import { BaseEntity } from '../../../entity';
@@ -106,7 +106,7 @@ let repo: Repository<Invoice, OmitStrict<Invoice, 'id'>>;
 describe('createInvoicePdf', () => {
     beforeAll(async () => {
         await mkdir(testFileFolder, { recursive: true });
-        container = await new PostgreSqlContainer()
+        container = await new PostgreSqlContainer(POSTGRES_TEST_IMAGE)
             .withDatabase('db')
             .withUsername('postgres')
             .withPassword('password')

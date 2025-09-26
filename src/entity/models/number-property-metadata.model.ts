@@ -1,5 +1,5 @@
 import { BasePropertyMetadata, WithDefaultMetadata } from './base-property-metadata.model';
-import { OmitStrict } from '../../types';
+import { AnyEnum, OmitStrict } from '../../types';
 
 /**
  * Metadata for number properties.
@@ -25,7 +25,11 @@ export type NumberPropertyMetadata = BasePropertyMetadata & WithDefaultMetadata<
     /**
      * The maximum value of the property.
      */
-    max: number | undefined
+    max: number | undefined,
+    /**
+     * An enum that this property is one of.
+     */
+    enum: AnyEnum | undefined
 };
 
 /**

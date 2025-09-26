@@ -183,7 +183,7 @@ export abstract class BaseDataSource {
             case Relation.ONE_TO_MANY:
             case Relation.MANY_TO_MANY: {
                 return {
-                    nullable: !metadata.required,
+                    nullable: typeof metadata.required === 'boolean' ? !metadata.required : true,
                     ...metadata,
                     inverseSide: metadata.inverseSide as string,
                     onDelete,
@@ -192,7 +192,7 @@ export abstract class BaseDataSource {
             }
             case Relation.MANY_TO_ONE: {
                 return {
-                    nullable: !metadata.required,
+                    nullable: typeof metadata.required === 'boolean' ? !metadata.required : true,
                     joinColumn: true,
                     ...metadata,
                     inverseSide: metadata.inverseSide as string,
@@ -219,6 +219,7 @@ export abstract class BaseDataSource {
      * @returns Typeorm column options.
      * @throws When the metadata is incorrect.
      */
+    // eslint-disable-next-line sonar/cognitive-complexity
     protected propertyToColumnOptions(
         metadata: ExcludeStrict<PropertyMetadata, RelationMetadata<BaseEntity>>
     ): EntitySchemaColumnOptions {
@@ -229,7 +230,7 @@ export abstract class BaseDataSource {
             case 'unknown':
             case 'date': {
                 return {
-                    nullable: !metadata.required,
+                    nullable: typeof metadata.required === 'boolean' ? !metadata.required : true,
                     ...metadata,
                     type: this.columnTypeMapping[metadata.type],
                     default: undefined
@@ -238,14 +239,14 @@ export abstract class BaseDataSource {
             case 'array': {
                 if (metadata.items.type === 'object') {
                     return {
-                        nullable: !metadata.required,
+                        nullable: typeof metadata.required === 'boolean' ? !metadata.required : true,
                         ...metadata,
                         type: this.columnTypeMapping[metadata.items.type],
                         default: undefined
                     };
                 }
                 return {
-                    nullable: !metadata.required,
+                    nullable: typeof metadata.required === 'boolean' ? !metadata.required : true,
                     ...metadata,
                     type: this.columnTypeMapping[metadata.items.type],
                     array: true,
@@ -254,16 +255,20 @@ export abstract class BaseDataSource {
             }
             case 'number': {
                 return {
-                    nullable: !metadata.required,
+                    nullable: typeof metadata.required === 'boolean' ? !metadata.required : true,
                     generated: metadata.primary ? 'increment' : undefined,
                     ...metadata,
                     type: this.columnTypeMapping[metadata.type],
-                    default: undefined
+                    default: undefined,
+                    transformer: {
+                        to: v => String(v),
+                        from: v => Number(v)
+                    }
                 };
             }
             case 'string': {
                 return {
-                    nullable: !metadata.required,
+                    nullable: typeof metadata.required === 'boolean' ? !metadata.required : true,
                     generated: metadata.primary ? 'uuid' : undefined,
                     ...metadata,
                     type: metadata.format === 'uuid' || metadata.primary ? 'uuid' : this.columnTypeMapping[metadata.type],

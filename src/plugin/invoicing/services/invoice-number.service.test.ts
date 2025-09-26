@@ -11,6 +11,7 @@ import { BaseEntity } from '../../../entity';
 import { Newable, OmitStrict } from '../../../types';
 import { Invoice, InvoiceAddress, InvoicingOptions, NumberInvoices } from '../models';
 import { InvoiceNumberService } from './invoice-number.service';
+import { POSTGRES_TEST_IMAGE } from '../../../__testing__';
 
 const currentYear: string = new Date()
     .getFullYear()
@@ -119,7 +120,7 @@ let invoiceNumberService: InvoiceNumberService;
 
 describe('generateInvoiceNumber', () => {
     beforeAll(async () => {
-        container = await new PostgreSqlContainer()
+        container = await new PostgreSqlContainer(POSTGRES_TEST_IMAGE)
             .withDatabase('db')
             .withUsername('postgres')
             .withPassword('password')

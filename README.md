@@ -29,11 +29,15 @@ Due to it's dependency injection system you can always swap things out if they a
 - default jwt auth strategy with advanced features like automatic reuse detection
 - builtin ORM with transaction and migration support
 - controller based route definition
+- OmitClass, PickClass, PartialClass, IntersectionClass helpers to extend from and easily build new entity or even controller classes
 - automatic open api generation
 - body parsers for json and form-data
 - automatic model based validation
 - cron job service out of the box
 - email service out of the box, with templating, mail queue, persistence and priority handling
+- multithreading service with builtin support for worker files or function
+- change sets and soft delete functionality
+- 
 
 ## ✨ Ease of use
 Zibri aims to be as easy to use as possible, with reasonable defaults and by the use of decorators and dependency injection.

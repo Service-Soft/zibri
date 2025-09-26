@@ -2,6 +2,7 @@ import { BaseEntity } from '../entity';
 import { HttpRequest } from '../http';
 import { OpenApiSecuritySchemeObject } from '../open-api';
 import { Newable } from '../types';
+import { WebsocketRequest } from '../websocket';
 import { BaseUser } from './models';
 
 /**
@@ -24,7 +25,7 @@ export interface AuthStrategyInterface<
     /**
      * Resolves the current user.
      */
-    resolveUser: (request: HttpRequest) => Promise<UserType | undefined>,
+    resolveUser: (request: HttpRequest | WebsocketRequest) => Promise<UserType | undefined>,
     /**
      * Logs in a user.
      */
@@ -40,16 +41,16 @@ export interface AuthStrategyInterface<
     /**
      * Checks whether a user is currently logged in.
      */
-    isLoggedIn: (request: HttpRequest) => Promise<boolean>,
+    isLoggedIn: (request: HttpRequest | WebsocketRequest) => Promise<boolean>,
     /**
      * Checks whether a currently logged in user has one of the provided roles.
      */
-    hasRole: (request: HttpRequest, allowedRoles: RoleType[]) => Promise<boolean>,
+    hasRole: (request: HttpRequest | WebsocketRequest, allowedRoles: RoleType[]) => Promise<boolean>,
     /**
      * Checks whether a currently logged belongs to the requested resource.
      */
     belongsTo: <TargetEntity extends Newable<BaseEntity>>(
-        request: HttpRequest,
+        request: HttpRequest | WebsocketRequest,
         targetEntity: TargetEntity,
         targetUserIdKey: keyof InstanceType<TargetEntity>,
         targetIdParamKey: string
