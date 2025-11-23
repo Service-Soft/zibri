@@ -5,7 +5,8 @@ import express, { RequestHandler } from 'express';
 
 import { ZibriApplicationOptions } from './application-options.model';
 import { AssetServiceInterface } from './assets';
-import { AuthServiceInterface, JwtAuthStrategy } from './auth';
+import { AuthServiceInterface, JwtAuthStrategy, OtpTwoFactorMethod, TwoFactorServiceInterface } from './auth';
+import { BackupServiceInterface } from './backup';
 import { CronServiceInterface } from './cron';
 import { DataSourceServiceInterface } from './data-source';
 import { ZIBRI_DI_TOKENS, inject } from './di';
@@ -59,10 +60,12 @@ export class ZibriApplication {
     private parser!: ParserInterface;
     private dataSourceService!: DataSourceServiceInterface;
     private authService!: AuthServiceInterface;
+    private twoFactorService!: TwoFactorServiceInterface;
     private cronService!: CronServiceInterface;
     private multithreadingService!: MultithreadingServiceInterface;
     private websocketService!: WebsocketServiceInterface<BaseWebsocketConnection>;
     private emailService!: EmailServiceInterface;
+    private backupService!: BackupServiceInterface;
     private mailingListService?: MailingListServiceInterface;
     /**
      * The options of which the application was build.
@@ -112,6 +115,12 @@ export class ZibriApplication {
                 await this.logger.info(`  - ${strategy.name}`);
             }
         }
+        if (!this.providedOptions.twoFactorMethods) {
+            await this.logger.info('No two factor methods provided, defaults to:');
+            for (const strategy of this.options.twoFactorMethods) {
+                await this.logger.info(`  - ${strategy.name}`);
+            }
+        }
         if (!this.providedOptions.bodyParsers) {
             await this.logger.info('No request body parsers provided, defaults to:');
             for (const bodyParser of this.options.bodyParsers) {
@@ -121,6 +130,9 @@ export class ZibriApplication {
 
         this.dataSourceService = inject(ZIBRI_DI_TOKENS.DATA_SOURCE_SERVICE);
         await this.dataSourceService.init();
+
+        this.twoFactorService = inject(ZIBRI_DI_TOKENS.TWO_FACTOR_SERVICE);
+        await this.twoFactorService.init(this.options.twoFactorMethods);
 
         this.authService = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
         await this.authService.init(this.options.authStrategies);
@@ -160,6 +172,9 @@ export class ZibriApplication {
         this.websocketService = inject(ZIBRI_DI_TOKENS.WEBSOCKET_SERVICE);
         await this.websocketService.attachTo(this);
 
+        this.backupService = inject(ZIBRI_DI_TOKENS.BACKUP_SERVICE);
+        await this.backupService.init();
+
         for (const plugin of this.providedOptions.plugins ?? []) {
             const p: ZibriPlugin = inject(plugin);
             await p.validate(this);
@@ -192,6 +207,7 @@ export class ZibriApplication {
         const res: FullZibriApplicationOptions = {
             dataSources: [],
             authStrategies: [],
+            twoFactorMethods: [],
             bodyParsers: [],
             providers: [],
             cronJobs: [],
@@ -209,6 +225,9 @@ export class ZibriApplication {
 
         if (!res.authStrategies.length) {
             res.authStrategies.push(JwtAuthStrategy);
+        }
+        if (!res.twoFactorMethods.length) {
+            res.twoFactorMethods.push(OtpTwoFactorMethod);
         }
         if (!res.bodyParsers.length) {
             res.bodyParsers.push(JsonBodyParser, FormDataBodyParser);

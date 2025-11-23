@@ -237,7 +237,6 @@ export namespace Property {
             type: Relation.MANY_TO_ONE,
             cascade: [],
             description: undefined,
-            persistence: false,
             excludeFromChangeSets: false,
             ...metadata
         };
@@ -255,7 +254,6 @@ export namespace Property {
             type: Relation.ONE_TO_MANY,
             cascade: ['remove', 'insert', 'update'],
             description: undefined,
-            persistence: false,
             excludeFromChangeSets: false,
             ...metadata
         };
@@ -274,7 +272,6 @@ export namespace Property {
             cascade: ['remove', 'insert', 'update'],
             joinColumn: false,
             description: undefined,
-            persistence: false,
             excludeFromChangeSets: false,
             ...metadata
         };
@@ -293,7 +290,6 @@ export namespace Property {
             cascade: [],
             joinColumn: true,
             description: undefined,
-            persistence: false,
             excludeFromChangeSets: false,
             ...metadata
         };

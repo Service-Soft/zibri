@@ -14,7 +14,11 @@ export type ManyToManyPropertyMetadata<T extends BaseEntity> = BaseRelationMetad
     /**
      * Whether or not this entity should own the join table.
      */
-    joinTable: boolean
+    joinTable: boolean,
+    /**
+     *
+     */
+    persistence: boolean
 };
 
 /**

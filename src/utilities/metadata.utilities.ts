@@ -3,7 +3,8 @@ import { ReflectUtilities } from './reflect.utilities';
 import { DiToken } from '../di';
 import { Route, ControllerRouteConfiguration, PathParamMetadata, BodyMetadata, QueryParamMetadata, HeaderParamMetadata } from '../routing';
 import { MetadataInjectionKeys } from './metadata-injection-keys.enum';
-import { BelongsToMetadata, CurrentUserMetadata, HasRoleMetadata, IsLoggedInMetadata, IsNotLoggedInMetadata, SkipAuthMetadata, SkipBelongsToMetadata, SkipHasRoleMetadata, SkipIsLoggedInMetadata, SkipIsNotLoggedInMetadata } from '../auth';
+import { BelongsToMetadata, CurrentUserMetadata, HasRoleMetadata, IsLoggedInMetadata, IsNotLoggedInMetadata, Require2faMetadata, SkipAuthMetadata, SkipBelongsToMetadata, SkipHasRoleMetadata, SkipIsLoggedInMetadata, SkipIsNotLoggedInMetadata, SkipRequire2faMetadata } from '../auth';
+import { BackupResourceInterface, BackupResourceMetadata } from '../backup';
 import { BaseEntity, EntityMetadata, PropertyMetadata } from '../entity';
 import { OpenApiResponse } from '../open-api';
 import { Newable } from '../types';
@@ -322,6 +323,56 @@ export abstract class MetadataUtilities {
         return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.CONTROLLER_SKIP_BELONGS_TO, controller);
     }
 
+    // ---------- require2fa (method-level, inherit) ----------
+    static setRouteRequire2fa(
+        controller: Function,
+        data: Require2faMetadata,
+        controllerMethod: string
+    ): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_REQUIRE_2FA, data, controller, controllerMethod);
+    }
+
+    static getRouteRequire2fa(
+        controller: Function,
+        controllerMethod: string
+    ): Require2faMetadata | undefined {
+        return MetadataUtilities.ensureInheritedReflectMetadata<Require2faMetadata>(
+            MetadataInjectionKeys.ROUTE_REQUIRE_2FA,
+            controller,
+            controllerMethod
+        );
+    }
+
+    static setRouteSkipRequire2fa(controller: Function, data: SkipRequire2faMetadata, controllerMethod: string): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_SKIP_REQUIRE_2FA, data, controller, controllerMethod);
+    }
+
+    static getRouteSkipRequire2fa(controller: Function, controllerMethod: string): SkipRequire2faMetadata | undefined {
+        return MetadataUtilities.ensureInheritedReflectMetadata<SkipRequire2faMetadata>(
+            MetadataInjectionKeys.ROUTE_SKIP_REQUIRE_2FA,
+            controller,
+            controllerMethod
+        );
+    }
+
+    static setControllerRequire2fa(controller: Function, data: Require2faMetadata): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.CONTROLLER_REQUIRE_2FA, data, controller);
+    }
+
+    static getControllerRequire2fa(controller: Function): Require2faMetadata | undefined {
+        return ReflectUtilities.getMetadata(MetadataInjectionKeys.CONTROLLER_REQUIRE_2FA, controller);
+    }
+
+    static setControllerSkipRequire2fa(controller: Function, data: SkipRequire2faMetadata): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.CONTROLLER_SKIP_REQUIRE_2FA, data, controller);
+    }
+
+    static getControllerSkipRequire2fa(controller: Function): Require2faMetadata | undefined {
+        return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.CONTROLLER_SKIP_REQUIRE_2FA, controller);
+    }
+
+    // skip all auth.
+
     static setRouteSkipAuth(controller: Function, data: SkipAuthMetadata, controllerMethod: string): void {
         ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_SKIP_AUTH, data, controller, controllerMethod);
     }
@@ -364,6 +415,15 @@ export abstract class MetadataUtilities {
 
     static getEntityMetadata(entity: Newable<unknown>): EntityMetadata | undefined {
         return ReflectUtilities.getMetadata(MetadataInjectionKeys.ENTITY_METADATA, entity);
+    }
+
+    // ---------- backup resource metadata ----------
+    static setBackupResourceMetadata(entity: Newable<BackupResourceInterface>, metadata: BackupResourceMetadata): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.BACKUP_RESOURCE_METADATA, metadata, entity);
+    }
+
+    static getBackupResourceMetadata(entity: Newable<BackupResourceInterface>): BackupResourceMetadata | undefined {
+        return ReflectUtilities.getMetadata(MetadataInjectionKeys.BACKUP_RESOURCE_METADATA, entity);
     }
 
     // ---------- route not-logged-in (method-level, inherit) ----------

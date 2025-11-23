@@ -5,7 +5,7 @@ import { inject, repositoryTokenFor } from '../../di';
 import { BaseEntity, FilePropertyMetadata, PropertyMetadata, PropertyMetadataInput, RelationMetadata } from '../../entity';
 import { ExcludeStrict, Newable, Version } from '../../types';
 import { BaseDataSource } from '../base-data-source.model';
-import { Repository } from '../repository.model';
+import { Repository } from '../repository';
 import { Transaction } from '../transaction';
 import { MigrationEntity } from './migration-entity.model';
 

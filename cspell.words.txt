@@ -8,3 +8,6 @@ BICID
 URIID
 rechnung
 bytea
+pg_dumpall
+PGPASSWORD
+psql

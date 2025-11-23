@@ -1,4 +1,4 @@
-import { AuthStrategies } from './auth';
+import { AuthStrategies, TwoFactorMethods } from './auth';
 import { CronJob } from './cron';
 import { BaseDataSource } from './data-source';
 import { DiProvider } from './di';
@@ -53,6 +53,12 @@ export type ZibriApplicationOptions = {
      * If nothing is provided, the Zibri default jwt auth strategy will be used.
      */
     authStrategies?: AuthStrategies,
+    /**
+     * The two factor methods to register.
+     *
+     * If nothing is provided, the Zibri default otp two factor method will be used.
+     */
+    twoFactorMethods?: TwoFactorMethods,
     /**
      * The cron jobs to register in the app.
      */

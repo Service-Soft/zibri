@@ -1,1 +1,1 @@
-export * from './rate-limiter.model';
+export * from './rate-limiter';
