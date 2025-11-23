@@ -16,7 +16,13 @@ export type ManyToManyPropertyMetadata<T extends BaseEntity> = BaseRelationMetad
      */
     joinTable: boolean,
     /**
-     *
+     * Indicates if persistence is enabled for the relation.
+     * By default its enabled, but if you want to avoid any changes
+     * in the relation to be reflected in the database you can disable it.
+     * If its disabled you can only change a relation from inverse side
+     * of a relation or using relation query builder functionality.
+     * This is useful for performance optimization since its disabling avoid
+     * multiple extra queries during entity save.
      */
     persistence: boolean
 };

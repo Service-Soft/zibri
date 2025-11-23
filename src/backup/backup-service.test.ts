@@ -7,7 +7,7 @@ import { DataSourceOptions } from 'typeorm';
 import { PostgresConnectionCredentialsOptions } from 'typeorm/driver/postgres/PostgresConnectionCredentialsOptions';
 
 import { BackupService } from './backup.service';
-import { POSTGRES_TEST_IMAGE } from '../__testing__';
+import { POSTGRES_TEST_IMAGE, testFileFolder } from '../__testing__';
 import { BackupEntity } from './backup-entity.model';
 import { BackupResourceEntity } from './backup-resource-entity.model';
 import { BackupResourceInterface } from './backup-resource.interface';
@@ -35,7 +35,7 @@ class Item {
     transports: [
         new FsBackupTransport(
             'fs-backup-transport',
-            path.join(__dirname, '..', '__testing__', 'file-output', 'backups')
+            path.join(testFileFolder, 'backups')
         )
     ]
 })
