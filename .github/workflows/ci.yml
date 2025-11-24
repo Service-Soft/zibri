@@ -15,10 +15,13 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
-            - name: Install PostgreSQL
+            - name: install PostgreSQL 17
               run: |
                 sudo apt-get update
-                sudo apt-get install -y postgresql-17
+                sudo apt-get install -y postgresql-common ca-certificates curl
+                sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh
+                sudo apt-get update
+                sudo apt-get install -y postgresql-client-17
             - run: npm ci
             - run: npm run build
             - run: npm run test:ci
