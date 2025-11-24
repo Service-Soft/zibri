@@ -15,7 +15,11 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
-            - run: docker pull postgres
+            # install a client that matches the server version your tests use (Postgres 17.x)
+            - name: Install PostgreSQL 17 client
+              run: |
+                sudo apt-get update
+                sudo apt-get install -y postgresql-client-17
             - run: npm ci
             - run: npm run build
             - run: npm run test:ci
