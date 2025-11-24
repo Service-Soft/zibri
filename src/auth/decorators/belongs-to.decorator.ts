@@ -1,7 +1,8 @@
 import { BaseEntity } from '../../entity';
 import { Newable } from '../../types';
 import { MetadataUtilities } from '../../utilities';
-import { AuthStrategies, BelongsToMetadata } from '../models';
+import { BelongsToMetadata } from '../models';
+import { AuthStrategies } from '../strategies';
 
 /**
  * The type of the belongs to decorator.

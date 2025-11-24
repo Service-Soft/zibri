@@ -21,17 +21,9 @@ import { HttpRequest, HttpResponse, KnownHeader, MimeType } from '../http';
  * @param next - The express next function.
  */
 export const errorHandler: GlobalErrorHandler = async (error: unknown, req: HttpRequest, res: HttpResponse, next: NextFunction) => {
-    const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
     const globalError: Error = new Error('Global Error', { cause: error });
     globalError.stack = undefined;
-    if (isError(error)) {
-        if (!isHttpError(error) || error.status >= 500) {
-            await logger.error(globalError);
-        }
-    }
-    else {
-        await logger.critical(globalError);
-    }
+    await handleLogging(error, globalError);
     if (res.headersSent) {
         next(error);
         return;
@@ -72,6 +64,19 @@ export const errorHandler: GlobalErrorHandler = async (error: unknown, req: Http
         res.status(httpError.status).send(html);
     });
 };
+
+// eslint-disable-next-line jsdoc/require-jsdoc
+async function handleLogging(error: unknown, globalError: Error): Promise<void> {
+    const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
+
+    if (!isError(error)) {
+        await logger.critical(globalError);
+        return;
+    }
+    if (!isHttpError(error) || error.status >= 500) {
+        await logger.error(globalError);
+    }
+}
 
 /**
  * Converts the given value to an http error.

@@ -50,7 +50,7 @@ export class MultithreadingService implements MultithreadingServiceInterface {
     async init(): Promise<void> {
         await this.validateInputs();
 
-        await this.logger.info('Initializes worker pool for multithreading');
+        await this.logger.info('initializes worker pool for multithreading');
         await this.logger.info(`  - ${this.options.maxThreads} normal thread job workers`);
         await this.logger.info(`  - ${this.options.maxPriorityThreads} priority thread job workers`);
 

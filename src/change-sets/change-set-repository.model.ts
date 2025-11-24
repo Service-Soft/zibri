@@ -4,7 +4,7 @@ import { isDeepStrictEqual } from 'util';
 import { Repository as TORepository } from 'typeorm';
 
 import { BaseRepositoryOptions, CreateAllOptions, CreateOptions, UpdateAllOptions, UpdateByIdOptions, Where } from '../data-source';
-import { Repository } from '../data-source/repository.model';
+import { Repository } from '../data-source/repository';
 import { DeepPartial, Newable } from '../types';
 import { ChangeSet, ChangeSetEntity, ChangeSetType, CreateChangeSetData, NewChange } from './models';
 import { AuthServiceInterface, BaseUser } from '../auth';

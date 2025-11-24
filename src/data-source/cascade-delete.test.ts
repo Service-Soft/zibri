@@ -9,7 +9,7 @@ import { inject } from '../di';
 import { Newable } from '../types';
 import { MigrationEntity } from './migration';
 import { DataSourceOptions } from './models';
-import { Repository } from './repository.model';
+import { Repository } from './repository';
 import { Child, Company, mockCreateUserData, Parent, POSTGRES_TEST_IMAGE, Profile, Role, User, UserCreateData } from '../__testing__';
 
 @DataSource()

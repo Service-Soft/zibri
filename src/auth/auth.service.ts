@@ -7,9 +7,10 @@ import { LoggerInterface } from '../logging';
 import { Newable } from '../types';
 import { MetadataUtilities } from '../utilities';
 import { WebsocketRequest } from '../websocket';
+import { TwoFactorServiceInterface } from './2fa';
 import { AuthServiceInterface } from './auth-service.interface';
-import { AuthStrategyInterface } from './auth-strategy.interface';
-import { AuthStrategies, BaseUser, BelongsToMetadata, HasRoleMetadata, IsLoggedInMetadata, IsNotLoggedInMetadata, SkipAuthMetadata, SkipBelongsToMetadata, SkipHasRoleMetadata, SkipIsLoggedInMetadata, SkipIsNotLoggedInMetadata } from './models';
+import { BaseUser, BelongsToMetadata, HasRoleMetadata, IsLoggedInMetadata, IsNotLoggedInMetadata, Require2faMetadata, SkipAuthMetadata, SkipBelongsToMetadata, SkipHasRoleMetadata, SkipIsLoggedInMetadata, SkipIsNotLoggedInMetadata, SkipRequire2faMetadata } from './models';
+import { AuthStrategies, AuthStrategyInterface } from './strategies';
 
 /**
  * Default auth service implementation of Zibri.
@@ -22,6 +23,11 @@ export class AuthService implements AuthServiceInterface {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly strategies: AuthStrategies = [];
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    get twoFactorService(): TwoFactorServiceInterface {
+        return inject(ZIBRI_DI_TOKENS.TWO_FACTOR_SERVICE);
+    }
 
     constructor() {
         this.logger = inject(ZIBRI_DI_TOKENS.LOGGER);
@@ -196,6 +202,7 @@ export class AuthService implements AuthServiceInterface {
             controllerClass,
             controllerMethod
         );
+        const require2faMetadata: Require2faMetadata | undefined = await this.resolveRequire2faMetadata(controllerClass, controllerMethod);
         const skip: SkipAuthMetadata | undefined = MetadataUtilities.getRouteSkipAuth(controllerClass, controllerMethod);
 
         if (
@@ -204,13 +211,14 @@ export class AuthService implements AuthServiceInterface {
             && !MetadataUtilities.getControllerIsNotLoggedIn(controllerClass)
             && !MetadataUtilities.getControllerHasRole(controllerClass)
             && !MetadataUtilities.getControllerBelongsTo(controllerClass)
+            && !MetadataUtilities.getControllerRequire2fa(controllerClass)
         ) {
             await this.logger.warn(`Useless @Auth.skip on route ${controllerClass.name}.${controllerMethod}`);
         }
 
         // isLoggedIn
         if (
-            (isLoggedInMetadata || hasRoleMetadata || belongsToMetadata)
+            (isLoggedInMetadata || hasRoleMetadata || belongsToMetadata || require2faMetadata)
             && !await this.isLoggedIn(request, isLoggedInMetadata?.allowedStrategies ?? this.strategies)
         ) {
             throw new UnauthorizedError('You need to be logged in to access this route.');
@@ -230,6 +238,16 @@ export class AuthService implements AuthServiceInterface {
         ) {
             throw new UnauthorizedError(`You need to have one role of ${hasRoleMetadata.allowedRoles} to access this route.`);
         }
+
+        // require2fa
+        const user: BaseUser<string> = await this.getCurrentUser(request, this.strategies, true);
+        if (
+            require2faMetadata
+            && !await this.twoFactorService.has2fa(user, request, require2faMetadata.allowedMethods)
+        ) {
+            throw new UnauthorizedError('You need to provide a second factor to access this route.');
+        }
+
         // belongsTo
         if (
             belongsToMetadata
@@ -515,6 +533,63 @@ export class AuthService implements AuthServiceInterface {
             return undefined;
         }
         return controllerBelongsTo;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async resolveRequire2faMetadata(
+        controllerClass: Newable<unknown>,
+        controllerMethod: string
+    ): Promise<Require2faMetadata | undefined> {
+        const controllerRequire2fa: Require2faMetadata | undefined = MetadataUtilities.getControllerRequire2fa(
+            controllerClass
+        );
+        const routeRequire2fa: Require2faMetadata | undefined = MetadataUtilities.getRouteRequire2fa(
+            controllerClass,
+            controllerMethod
+        );
+        const controllerSkipRequire2fa: SkipRequire2faMetadata | undefined = MetadataUtilities.getControllerSkipRequire2fa(controllerClass);
+        const routeSkipRequire2fa: SkipRequire2faMetadata | undefined = MetadataUtilities.getRouteSkipRequire2fa(
+            controllerClass,
+            controllerMethod
+        );
+        const routeSkip: SkipAuthMetadata | undefined = MetadataUtilities.getRouteSkipAuth(
+            controllerClass,
+            controllerMethod
+        );
+
+        if (routeRequire2fa && routeSkip) {
+            throw new Error(
+                `The route ${controllerClass.name}.${controllerMethod} was decorated with both @Auth.require2fa and @Auth.skip`
+            );
+        }
+        if (routeRequire2fa && routeSkipRequire2fa) {
+            throw new Error(
+                `The route ${controllerClass.name}.${controllerMethod} was decorated with both @Auth.require2fa and @Auth.require2fa.skip`
+            );
+        }
+        if (controllerRequire2fa && controllerSkipRequire2fa) {
+            throw new Error(
+                `The controller ${controllerClass.name} was decorated with both @Auth.require2fa and @Auth.require2fa.skip`
+            );
+        }
+
+        if (!routeRequire2fa && !controllerRequire2fa && routeSkipRequire2fa) {
+            await this.logger.warn(`Useless @Auth.require2fa.skip on route ${controllerClass.name}.${controllerMethod}`);
+        }
+        if (!controllerRequire2fa && controllerSkipRequire2fa) {
+            await this.logger.warn(`Useless @Auth.require2fa.skip on controller ${controllerClass.name}`);
+        }
+
+        if (routeSkipRequire2fa || routeSkip) {
+            return undefined;
+        }
+        if (routeRequire2fa) {
+            return routeRequire2fa;
+        }
+        if (controllerSkipRequire2fa) {
+            return undefined;
+        }
+        return controllerRequire2fa;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

@@ -1,4 +1,4 @@
-import { AuthStrategies } from './auth-strategies.model';
+import { AuthStrategies } from '../strategies';
 import { SkipAuthMetadata } from './skip-auth-metadata.model';
 
 /**

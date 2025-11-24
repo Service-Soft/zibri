@@ -2,8 +2,8 @@ import { BaseEntity } from '../entity';
 import { HttpRequest } from '../http';
 import { Newable } from '../types';
 import { WebsocketRequest } from '../websocket';
-import { AuthStrategyInterface } from './auth-strategy.interface';
-import { AuthStrategies, BaseUser, BelongsToMetadata, HasRoleMetadata, IsLoggedInMetadata, IsNotLoggedInMetadata } from './models';
+import { BaseUser, BelongsToMetadata, HasRoleMetadata, IsLoggedInMetadata, IsNotLoggedInMetadata, Require2faMetadata } from './models';
+import { AuthStrategies, AuthStrategyInterface } from './strategies';
 
 /**
  * Interface for an auth service.
@@ -78,6 +78,13 @@ export interface AuthServiceInterface {
         controllerClass: Newable<unknown>,
         controllerMethod: string
     ) => BelongsToMetadata<Newable<BaseEntity>> | undefined | Promise<BelongsToMetadata<Newable<BaseEntity>> | undefined>,
+    /**
+     * Resolves the require 2fa metadata for the provided controller method.
+     */
+    resolveRequire2faMetadata: (
+        controllerClass: Newable<unknown>,
+        controllerMethod: string
+    ) => Require2faMetadata | undefined | Promise<Require2faMetadata | undefined>,
     /**
      * Logs in a user using the provided auth strategy and credentials.
      */

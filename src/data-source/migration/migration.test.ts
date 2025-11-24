@@ -10,7 +10,7 @@ import { BaseDataSource } from '../base-data-source.model';
 import { Transaction } from '../transaction';
 import { Migration } from './migration.model';
 import { DataSource } from '../decorators';
-import { Repository } from '../repository.model';
+import { Repository } from '../repository';
 import { MigrationEntity } from './migration-entity.model';
 import { POSTGRES_TEST_IMAGE } from '../../__testing__';
 import { GlobalRegistry } from '../../global';

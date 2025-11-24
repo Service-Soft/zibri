@@ -1,5 +1,6 @@
 import { MetadataUtilities } from '../../utilities';
-import { AuthStrategies, HasRoleMetadata } from '../models';
+import { HasRoleMetadata } from '../models';
+import { AuthStrategies } from '../strategies';
 
 /**
  * The type of the has role decorator.

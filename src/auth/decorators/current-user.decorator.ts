@@ -1,5 +1,5 @@
 import { MetadataUtilities } from '../../utilities';
-import { AuthStrategies } from '../models';
+import { AuthStrategies } from '../strategies';
 
 /**
  * Metadata of the \@CurrentUser decorator.

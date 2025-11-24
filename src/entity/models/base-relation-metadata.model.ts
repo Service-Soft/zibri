@@ -8,7 +8,7 @@ import { type BaseEntity } from '../base-entity.model';
  * Metadata shared by all relation properties.
  */
 export type BaseRelationMetadata<T extends BaseEntity> = BasePropertyMetadata
-    & Required<Pick<EntitySchemaRelationOptions, 'cascade' | 'persistence'>> & {
+    & Required<Pick<EntitySchemaRelationOptions, 'cascade'>> & {
         /**
          * A function returning the target class,
          * used to avoid circular import issues.
