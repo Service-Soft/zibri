@@ -21,6 +21,8 @@ import { Newable } from '../types';
 import { Backup } from './decorators/backup-resource.decorator';
 import { FsBackupTransport } from './transports';
 
+const backupFsFolder: string = path.join(testFileFolder, 'backups');
+
 @Entity('item')
 class Item {
     @Property.string({ primary: true })
@@ -35,7 +37,7 @@ class Item {
     transports: [
         new FsBackupTransport(
             'fs-backup-transport',
-            path.join(testFileFolder, 'backups')
+            backupFsFolder
         )
     ]
 })
@@ -61,7 +63,7 @@ describe('Create and restore postgres backup', () => {
     let backupService: BackupService;
 
     beforeAll(async () => {
-        await rm(path.join(__dirname, '..', '__testing__', 'file-output', 'backups'), { recursive: true });
+        await rm(backupFsFolder, { recursive: true, force: true });
         container = await new PostgreSqlContainer(POSTGRES_TEST_IMAGE)
             .withDatabase('db')
             .withUsername('postgres')
