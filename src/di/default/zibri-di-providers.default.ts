@@ -4,7 +4,8 @@ import path from 'node:path';
 
 import { ZIBRI_DI_TOKENS } from './zibri-di-tokens.default';
 import { AssetService, AssetServiceInterface } from '../../assets';
-import { AuthService, AuthServiceInterface, UserService, UserServiceInterface } from '../../auth';
+import { AuthService, AuthServiceInterface, UserService, UserServiceInterface, TwoFactorService, TwoFactorServiceInterface } from '../../auth';
+import { BackupService, BackupServiceInterface } from '../../backup';
 import { CronService, CronServiceInterface } from '../../cron';
 import { DataSourceService, DataSourceServiceInterface } from '../../data-source';
 import { EmailConfigInput, EmailService, EmailServiceInterface, MailingListService, MailingListServiceInterface } from '../../email';
@@ -46,12 +47,16 @@ type ZibriDiProviders = {
     [ZIBRI_DI_TOKENS.LOGGER_CLEANUP_AFTER_MS]: ZibriDiProvider<Record<LogLevel, number>>,
     [ZIBRI_DI_TOKENS.METRICS_SERVICE]: ZibriDiProvider<MetricsServiceInterface>,
     [ZIBRI_DI_TOKENS.ASSET_SERVICE]: ZibriDiProvider<AssetServiceInterface>,
+    [ZIBRI_DI_TOKENS.BACKUP_SERVICE]: ZibriDiProvider<BackupServiceInterface>,
     [ZIBRI_DI_TOKENS.GLOBAL_ERROR_HANDLER]: ZibriDiProvider<GlobalErrorHandler>,
     [ZIBRI_DI_TOKENS.OPEN_API_SERVICE]: ZibriDiProvider<OpenApiServiceInterface>,
     [ZIBRI_DI_TOKENS.PARSER]: ZibriDiProvider<ParserInterface>,
     [ZIBRI_DI_TOKENS.VALIDATION_SERVICE]: ZibriDiProvider<ValidationServiceInterface>,
     [ZIBRI_DI_TOKENS.DATA_SOURCE_SERVICE]: ZibriDiProvider<DataSourceServiceInterface>,
     [ZIBRI_DI_TOKENS.AUTH_SERVICE]: ZibriDiProvider<AuthServiceInterface>,
+    [ZIBRI_DI_TOKENS.TWO_FACTOR_SERVICE]: ZibriDiProvider<TwoFactorServiceInterface>,
+    [ZIBRI_DI_TOKENS.OTP_HEADER]: ZibriDiProvider<string>,
+    [ZIBRI_DI_TOKENS.OTP_LENGTH]: ZibriDiProvider<number>,
     [ZIBRI_DI_TOKENS.USER_SERVICE]: ZibriDiProvider<UserServiceInterface>,
     [ZIBRI_DI_TOKENS.JWT_ACCESS_TOKEN_SECRET]: ZibriDiProvider<string | undefined>,
     [ZIBRI_DI_TOKENS.JWT_REFRESH_TOKEN_SECRET]: ZibriDiProvider<string | undefined>,
@@ -101,12 +106,16 @@ export const ZIBRI_DI_PROVIDERS: Record<
     },
     [ZIBRI_DI_TOKENS.METRICS_SERVICE]: { useClass: PrometheusMetricsService },
     [ZIBRI_DI_TOKENS.ASSET_SERVICE]: { useClass: AssetService },
+    [ZIBRI_DI_TOKENS.BACKUP_SERVICE]: { useClass: BackupService },
     [ZIBRI_DI_TOKENS.GLOBAL_ERROR_HANDLER]: { useFactory: () => errorHandler },
     [ZIBRI_DI_TOKENS.OPEN_API_SERVICE]: { useClass: OpenApiService },
     [ZIBRI_DI_TOKENS.PARSER]: { useClass: Parser },
     [ZIBRI_DI_TOKENS.VALIDATION_SERVICE]: { useClass: ValidationService },
     [ZIBRI_DI_TOKENS.DATA_SOURCE_SERVICE]: { useClass: DataSourceService },
     [ZIBRI_DI_TOKENS.AUTH_SERVICE]: { useFactory: () => new AuthService() },
+    [ZIBRI_DI_TOKENS.TWO_FACTOR_SERVICE]: { useFactory: () => new TwoFactorService() },
+    [ZIBRI_DI_TOKENS.OTP_HEADER]: { useFactory: () => 'X-Authorization-OTP' },
+    [ZIBRI_DI_TOKENS.OTP_LENGTH]: { useFactory: () => 6 },
     [ZIBRI_DI_TOKENS.USER_SERVICE]: { useFactory: () => new UserService() },
     [ZIBRI_DI_TOKENS.JWT_ACCESS_TOKEN_SECRET]: { useFactory: () => undefined },
     [ZIBRI_DI_TOKENS.JWT_REFRESH_TOKEN_SECRET]: { useFactory: () => undefined },

@@ -51,6 +51,7 @@ export class TestController {
         return await this.testRepository.updateById(id, data);
     }
 
+    @Auth.require2fa()
     @Response.empty()
     @Delete('/:id')
     async deleteById(

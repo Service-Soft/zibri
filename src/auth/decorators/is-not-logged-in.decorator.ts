@@ -1,5 +1,6 @@
 import { MetadataUtilities } from '../../utilities';
-import { AuthStrategies, IsNotLoggedInMetadata } from '../models';
+import { IsNotLoggedInMetadata } from '../models';
+import { AuthStrategies } from '../strategies';
 
 /**
  * The type of the is not logged in decorator.

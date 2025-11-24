@@ -2,6 +2,7 @@ import { belongsToDecorator, BelongsToFn } from './belongs-to.decorator';
 import { hasRoleDecorator, HasRoleFn } from './has-role.decorator';
 import { isLoggedInDecorator, IsLoggedInFn } from './is-logged-in.decorator';
 import { isNotLoggedInDecorator, IsNotLoggedInFn } from './is-not-logged-in.decorator';
+import { require2faDecorator, Require2faFn } from './require-2fa.decorator';
 import { MetadataUtilities } from '../../utilities';
 
 /**
@@ -33,6 +34,11 @@ export namespace Auth {
      * @param allowedStrategies - The auth strategies that are allowed to be used to check that.
      */
     export const belongsTo: BelongsToFn = belongsToDecorator;
+    /**
+     * Marks an endpoint to be only reachable when the logged in user provides a second factor somehow.
+     * @param allowedMethods - The allowed two factor methods to use.
+     */
+    export const require2fa: Require2faFn = require2faDecorator;
 
     // eslint-disable-next-line jsdoc/require-returns
     /**

@@ -1,6 +1,6 @@
 {
     "name": "zibri",
-    "version": "2.0.1",
+    "version": "2.0.2",
     "main": "./dist/index.js",
     "module": "./dist/index.mjs",
     "exports": {
@@ -42,7 +42,9 @@
         "socket.io": "^4.8.1",
         "ts-node": "^10.9.2",
         "uuid": "^11.1.0",
-        "xmlbuilder2": "^3.1.1"
+        "xmlbuilder2": "^3.1.1",
+        "otpauth": "^9.4.1",
+        "hi-base32": "^0.5.1"
     },
     "dependencies": {
         "cors": "^2.8.5",

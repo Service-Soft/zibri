@@ -8,7 +8,7 @@ import { type BaseEntity, Entity, Property } from '../../entity';
 import { Newable } from '../../types';
 import { BaseDataSource } from '../base-data-source.model';
 import { DataSource } from '../decorators';
-import { Repository } from '../repository.model';
+import { Repository } from '../repository';
 import { Transaction } from './transaction.model';
 import { MigrationEntity } from '../migration';
 import { DataSourceOptions } from '../models';

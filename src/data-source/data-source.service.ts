@@ -2,7 +2,8 @@ import { GlobalRegistry } from '../global';
 import { DataSourceServiceInterface } from './data-source-service.interface';
 import { inject, ZIBRI_DI_TOKENS } from '../di';
 import { BaseDataSource } from './base-data-source.model';
-import { JwtCredentials, PasswordResetToken, JwtRefreshToken } from '../auth';
+import { JwtCredentials, PasswordResetToken, JwtRefreshToken, OtpCredentials } from '../auth';
+import { BackupEntity, BackupResourceEntity } from '../backup';
 import { CronJobEntity } from '../cron';
 import { Email, MailingList, MailingListSubscriber } from '../email';
 import { BaseEntity } from '../entity';
@@ -18,14 +19,23 @@ import { WebsocketChannel, WebsocketMessage } from '../websocket';
 export class DataSourceService implements DataSourceServiceInterface {
     private readonly logger: LoggerInterface;
 
-    private readonly defaultEntities: Newable<BaseEntity>[] = [CronJobEntity, Email, ThreadJobEntity, WebsocketChannel, WebsocketMessage];
+    private readonly defaultEntities: Newable<BaseEntity>[] = [
+        CronJobEntity,
+        Email,
+        ThreadJobEntity,
+        WebsocketChannel,
+        WebsocketMessage
+    ];
     private readonly allowedOrphans: Newable<BaseEntity>[] = [
         JwtRefreshToken,
         JwtCredentials,
         PasswordResetToken,
+        OtpCredentials,
         MailingList,
         MailingListSubscriber,
-        Log
+        Log,
+        BackupResourceEntity,
+        BackupEntity
     ];
 
     constructor() {

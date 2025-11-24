@@ -1,4 +1,8 @@
+import { ChildProcessByStdio, spawn } from 'node:child_process';
+import { PassThrough, Readable, Writable } from 'node:stream';
+
 import { DataSource as TODataSource, Repository as TORepository, EntityMetadata as TOEntityMetadata, EntitySchema, EntitySchemaColumnOptions, QueryRunner, EntitySchemaRelationOptions, Table, TableColumnOptions } from 'typeorm';
+import { PostgresConnectionOptions } from 'typeorm/driver/postgres/PostgresConnectionOptions';
 import { IsolationLevel } from 'typeorm/driver/types/IsolationLevel';
 import { ColumnMetadata } from 'typeorm/metadata/ColumnMetadata';
 import { OnDeleteType } from 'typeorm/metadata/types/OnDeleteType';
@@ -10,8 +14,9 @@ import { ExcludeStrict, Newable, OmitStrict, Version } from '../types';
 import { compareVersion, MetadataUtilities } from '../utilities';
 import { Migration, MigrationEntity } from './migration';
 import { ColumnType, DataSourceOptions } from './models';
-import { Repository } from './repository.model';
+import { Repository } from './repository';
 import { Transaction } from './transaction';
+import { BackupResourceInterface } from '../backup';
 import { ChangeSetEntity, ChangeSetRepository, isChangeSetEntityNewable, isSoftDeleteEntityNewable, SoftDeleteEntity, SoftDeleteRepository } from '../change-sets';
 import { register } from '../di/register.function';
 import { GlobalRegistry } from '../global';
@@ -28,7 +33,7 @@ type MigrationWithName = { migration: Migration, name: string };
  * A base data source definition.
  * Configured for postgres by default.
  */
-export abstract class BaseDataSource {
+export abstract class BaseDataSource implements BackupResourceInterface {
     /**
      * Mapping from a Zibri property type to a typeorm column type.
      */
@@ -51,6 +56,14 @@ export abstract class BaseDataSource {
     abstract readonly options: OmitStrict<DataSourceOptions, 'entities'>;
     abstract readonly entities: Newable<BaseEntity>[];
     /**
+     * The optional root password.
+     */
+    readonly rootPw: string | undefined;
+    /**
+     * The optional root username.
+     */
+    readonly rootUsername: string | undefined;
+    /**
      * All migrations that belong to this data source.
      */
     readonly migrations: Newable<Migration>[] = [];
@@ -66,6 +79,65 @@ export abstract class BaseDataSource {
 
     constructor() {
         this.logger = inject(ZIBRI_DI_TOKENS.LOGGER);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    createBackupData(): Readable {
+        const dumpCommand: string = 'pg_dumpall';
+        const { host, port } = this.options as PostgresConnectionOptions;
+        if (!this.rootUsername || !host || !port) {
+            throw new Error('Could not create a backup, missing this.rootUsername, this.options.host or this.options.port');
+        }
+        const args: string[] = ['-U', this.rootUsername, '-h', host, '-p', port.toString()];
+
+        const child: ChildProcessByStdio<null, Readable, null> = spawn(dumpCommand, args, {
+            stdio: ['ignore', 'pipe', 'inherit'],
+            env: { ...process.env, PGPASSWORD: this.rootPw }
+        });
+
+        const out: PassThrough = new PassThrough();
+        child.stdout.pipe(out);
+        child.on('error', err => {
+            out.destroy(err);
+        });
+        child.on('exit', code => {
+            if (code !== 0) {
+                out.destroy(new Error(`${dumpCommand} exited with code ${code}`));
+            }
+            else {
+                out.end();
+            }
+        });
+
+        return out;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async restoreBackup(backupData: Readable): Promise<void> {
+        const { host, port, database } = this.options as PostgresConnectionOptions;
+        if (!this.rootUsername || !host || !port || !database) {
+            throw new Error('Missing rootUsername, host, port, or database for restore');
+        }
+
+        const args: string[] = ['-U', this.rootUsername, '-h', host, '-p', port.toString(), '-d', database];
+        const child: ChildProcessByStdio<Writable, null, null> = spawn('psql', args, {
+            stdio: ['pipe', 'inherit', 'inherit'],
+            env: { ...process.env, PGPASSWORD: this.rootPw }
+        });
+
+        return new Promise((resolve, reject) => {
+            backupData.pipe(child.stdin);
+
+            child.on('error', reject);
+            child.on('close', code => {
+                if (code !== 0) {
+                    reject(new Error(`psql exited with code ${code}`));
+                }
+                else {
+                    resolve();
+                }
+            });
+        });
     }
 
     /**
@@ -161,6 +233,7 @@ export abstract class BaseDataSource {
     protected propertyToRelationOptions<T extends BaseEntity>(metadata: RelationMetadata<T>): EntitySchemaRelationOptions {
         const thisHasRemove: boolean = this.hasCascadeFlag(metadata.cascade, 'remove');
         const thisHasUpdate: boolean = this.hasCascadeFlag(metadata.cascade, 'update');
+        const thisHasInsert: boolean = this.hasCascadeFlag(metadata.cascade, 'insert');
 
         // try to inspect inverse property's cascade (if inverseSide provided)
         const targetClass: Newable<T> = metadata.target();
@@ -168,14 +241,19 @@ export abstract class BaseDataSource {
         const inv: RelationMetadata<BaseEntity> = targetProps[metadata.inverseSide] as RelationMetadata<BaseEntity>;
         const inverseHasRemove: boolean = this.hasCascadeFlag(inv.cascade, 'remove');
         const inverseHasUpdate: boolean = this.hasCascadeFlag(inv.cascade, 'update');
+        const inverseHasInsert: boolean = this.hasCascadeFlag(inv.cascade, 'insert');
 
         let onDelete: OnDeleteType | undefined;
         let onUpdate: OnUpdateType | undefined;
+        let persistence: boolean = false;
         if (thisHasRemove || inverseHasRemove) {
             onDelete = 'CASCADE';
         }
         if (thisHasUpdate || inverseHasUpdate) {
             onUpdate = 'CASCADE';
+        }
+        if (thisHasInsert || inverseHasInsert) {
+            persistence = true;
         }
 
         switch (metadata.type) {
@@ -187,7 +265,8 @@ export abstract class BaseDataSource {
                     ...metadata,
                     inverseSide: metadata.inverseSide as string,
                     onDelete,
-                    onUpdate
+                    onUpdate,
+                    persistence: 'persistence' in metadata ? metadata.persistence : persistence
                 };
             }
             case Relation.MANY_TO_ONE: {
@@ -197,13 +276,14 @@ export abstract class BaseDataSource {
                     ...metadata,
                     inverseSide: metadata.inverseSide as string,
                     onDelete,
-                    onUpdate
+                    onUpdate,
+                    persistence
                 };
             }
         }
     }
 
-    private hasCascadeFlag(c: RelationMetadata<BaseEntity>['cascade'], flag: 'remove' | 'update'): boolean {
+    private hasCascadeFlag(c: RelationMetadata<BaseEntity>['cascade'], flag: 'remove' | 'update' | 'insert'): boolean {
         if (c === true) {
             return true;
         }
@@ -261,8 +341,9 @@ export abstract class BaseDataSource {
                     type: this.columnTypeMapping[metadata.type],
                     default: undefined,
                     transformer: {
-                        to: v => String(v),
-                        from: v => Number(v)
+                        // eslint-disable-next-line unicorn/no-null
+                        to: (v: number | null) => v ? String(v) : null,
+                        from: (v: string | null) => v ? Number(v) : undefined
                     }
                 };
             }
