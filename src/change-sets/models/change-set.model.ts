@@ -1,7 +1,8 @@
 
 import { ChangeSetType } from './change-set-type.enum';
 import { Change, NewChange } from './change.model';
-import { BaseEntity, Entity, Property } from '../../entity';
+import { Entity, Property } from '../../entity';
+import { BaseEntity } from '../../entity/base-entity.model';
 import { OmitStrict } from '../../types';
 
 /**

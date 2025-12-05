@@ -1,6 +1,6 @@
 import { BaseDataSource } from '../data-source';
 import { inject } from '../di';
-import type { BaseEntity } from '../entity';
+import type { BaseEntity } from '../entity/base-entity.model';
 import { MissingEntitiesError } from '../error-handling';
 import { GlobalRegistry } from '../global';
 import type { Newable } from '../types';

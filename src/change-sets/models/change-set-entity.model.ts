@@ -1,6 +1,6 @@
 
 import { ChangeSet } from './change-set.model';
-import { BaseEntity } from '../../entity';
+import { BaseEntity } from '../../entity/base-entity.model';
 import { Newable } from '../../types';
 import { MetadataUtilities } from '../../utilities';
 

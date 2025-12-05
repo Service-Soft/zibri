@@ -12,7 +12,7 @@ import { ZibriApplication } from '../application';
 import { GlobalRegistry } from '../global';
 import { LoggerInterface } from '../logging';
 import { Newable } from '../types';
-import { BodyMetadata, BodyMetadataInput, HeaderParamMetadata, HeaderParamMetadataInput, PathParamMetadata, PathParamMetadataInput, QueryParamMetadata, QueryParamMetadataInput } from './decorators';
+import { BodyMetadata, BodyMetadataInput, HeaderParamMetadata, HeaderParamMetadataInput, PathParamMetadata, PathParamMetadataInput, QueryParamMetadata, QueryParamMetadataInput, resolveMaxBodySize } from './decorators';
 import { OpenApiRouteConfiguration, RouteConfiguration, RouteConfigurationInput } from './route-configuration.model';
 import { HttpMethod, HttpRequest, HttpResponse, KnownHeader, MimeType } from '../http';
 import { OpenApiResponse } from '../open-api';
@@ -119,13 +119,13 @@ export class Router implements RouterInterface {
                     description: undefined,
                     type: MimeType.JSON,
                     cleanupAfterMs: Ms.DAY,
+                    maxSize: resolveMaxBodySize(input.bodyMetadata.modelClass, input.bodyMetadata.baseMaxSize),
                     ...input.bodyMetadata
                 }
                 : undefined,
             pathParams,
             queryParams,
             headerParams
-
         };
         const handler: RequestHandler = this.routeToRequestHandler(route);
         await this.logger.debug(`- mounting ${route.httpMethod.toUpperCase()} ${route.route}`);
@@ -216,8 +216,8 @@ export class Router implements RouterInterface {
         ) => {
             try {
                 if (route.bodyMetadata) {
-                    req.body = await this.parser.parseRequestBody(req, route.bodyMetadata);
-                    this.validationService.validateRequestBody(req.body, route.bodyMetadata);
+                    req.body = await this.parser.parseBody(req, route.bodyMetadata);
+                    this.validationService.validateBody(req.body, route.bodyMetadata);
                 }
                 for (const key in route.pathParams) {
                     (req.params[key] as unknown) = this.parser.parsePathParam(req, route.pathParams[key]);

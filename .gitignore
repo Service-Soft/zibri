@@ -5,3 +5,4 @@ coverage
 docs/generated
 file-output
 .vscode
+src/di/default/temp

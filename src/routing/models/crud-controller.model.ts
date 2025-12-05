@@ -1,6 +1,6 @@
 import { Repository } from '../../data-source';
 import { inject, repositoryTokenFor } from '../../di';
-import { BaseEntity } from '../../entity';
+import { BaseEntity } from '../../entity/base-entity.model';
 import { HttpStatus } from '../../http';
 import { PaginationResult, Response } from '../../open-api';
 import { DeepPartial, Newable } from '../../types';

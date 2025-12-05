@@ -1,5 +1,6 @@
 
-import { BaseEntity, Property, PropertyMetadata, RelationMetadata } from '../entity';
+import { Property, PropertyMetadata, RelationMetadata } from '../entity';
+import { BaseEntity } from '../entity/base-entity.model';
 import { ValidationError } from '../error-handling';
 import { MimeType } from '../http';
 import { FormData } from '../parsing';
@@ -131,7 +132,7 @@ export class ValidationService implements ValidationServiceInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    validateRequestBody(body: unknown, meta: BodyMetadata): void {
+    validateBody(body: unknown, meta: BodyMetadata): void {
         // eslint-disable-next-line jsdoc/require-jsdoc
         class Temp implements OmitStrict<FormData<typeof meta.modelClass>, 'cleanup'> {
             // eslint-disable-next-line jsdoc/require-jsdoc

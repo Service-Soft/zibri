@@ -122,7 +122,7 @@ export class ZibriApplication {
             }
         }
         if (!this.providedOptions.bodyParsers) {
-            await this.logger.info('No request body parsers provided, defaults to:');
+            await this.logger.info('No body parsers provided, defaults to:');
             for (const bodyParser of this.options.bodyParsers) {
                 await this.logger.info(`  - ${bodyParser.name}`);
             }

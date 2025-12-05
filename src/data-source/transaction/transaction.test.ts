@@ -4,7 +4,8 @@ import { StartedTestContainer } from 'testcontainers';
 import { PostgresConnectionCredentialsOptions } from 'typeorm/driver/postgres/PostgresConnectionCredentialsOptions';
 
 import { POSTGRES_TEST_IMAGE } from '../../__testing__';
-import { type BaseEntity, Entity, Property } from '../../entity';
+import { Entity, Property } from '../../entity';
+import { BaseEntity } from '../../entity/base-entity.model';
 import { Newable } from '../../types';
 import { BaseDataSource } from '../base-data-source.model';
 import { DataSource } from '../decorators';

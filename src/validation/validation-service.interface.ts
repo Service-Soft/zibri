@@ -5,9 +5,9 @@ import { BodyMetadata, HeaderParamMetadata, PathParamMetadata, QueryParamMetadat
  */
 export interface ValidationServiceInterface {
     /**
-     * Validate a request body.
+     * Validate a request/response body.
      */
-    validateRequestBody: (body: unknown, meta: BodyMetadata) => void,
+    validateBody: (body: unknown, meta: BodyMetadata) => void,
     /**
      * Validate a header param.
      */

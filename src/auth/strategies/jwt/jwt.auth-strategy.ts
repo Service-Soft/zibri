@@ -15,7 +15,7 @@ import { JwtUtilities } from './jwt.utilities';
 import { Repository } from '../../../data-source';
 import { inject, repositoryTokenFor, ZIBRI_DI_TOKENS } from '../../../di';
 import { EmailPriority, EmailServiceInterface } from '../../../email';
-import { BaseEntity } from '../../../entity';
+import { BaseEntity } from '../../../entity/base-entity.model';
 import { TooManyRequestsError, UnauthorizedError } from '../../../error-handling';
 import { GlobalRegistry } from '../../../global';
 import { renderEmailTemplate } from '../../../handlebars';

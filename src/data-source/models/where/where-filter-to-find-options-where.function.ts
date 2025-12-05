@@ -7,7 +7,8 @@ import { NumberWhereFilter } from './number-where-filter.model';
 import { ObjectWhereFilter } from './object-where-filter.model';
 import { StringWhereFilter } from './string-where-filter.model';
 import { WhereFilter, Where, WhereFilterProperty } from './where-filter.model';
-import { BaseEntity, ManyToOnePropertyMetadata, ObjectPropertyMetadata, OneToOnePropertyMetadata, PropertyMetadata, Relation } from '../../../entity';
+import { ManyToOnePropertyMetadata, ObjectPropertyMetadata, OneToOnePropertyMetadata, PropertyMetadata, Relation } from '../../../entity';
+import { BaseEntity } from '../../../entity/base-entity.model';
 import { ExcludeStrict, Newable } from '../../../types';
 import { MetadataUtilities } from '../../../utilities';
 

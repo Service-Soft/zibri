@@ -9,7 +9,8 @@ import { OnDeleteType } from 'typeorm/metadata/types/OnDeleteType';
 import { OnUpdateType } from 'typeorm/metadata/types/OnUpdateType';
 
 import { inject, repositoryTokenFor, ZIBRI_DI_TOKENS } from '../di';
-import { BaseEntity, EntityMetadata, PropertyMetadata, Relation, RelationMetadata, StringPropertyMetadata } from '../entity';
+import { EntityMetadata, PropertyMetadata, Relation, RelationMetadata, StringPropertyMetadata } from '../entity';
+import { BaseEntity } from '../entity/base-entity.model';
 import { ExcludeStrict, Newable, OmitStrict, Version } from '../types';
 import { compareVersion, MetadataUtilities } from '../utilities';
 import { Migration, MigrationEntity } from './migration';

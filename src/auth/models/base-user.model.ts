@@ -1,4 +1,5 @@
-import { BaseEntity, Property } from '../../entity';
+import { Property } from '../../entity';
+import { BaseEntity } from '../../entity/base-entity.model';
 import { AnyEnum, Newable } from '../../types';
 
 /**
