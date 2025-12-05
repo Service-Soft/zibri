@@ -1,6 +1,7 @@
 import { BasePropertyMetadata } from './base-property-metadata.model';
 import { MimeType } from '../../http';
 import { OmitStrict } from '../../types';
+import { BigNumber, BigNumberUtilities } from '../../utilities';
 
 /**
  * Possible file size values.
@@ -12,21 +13,21 @@ export type FileSize = `${number}b` | `${number}kb` | `${number}mb` | `${number}
  * @param size - The file size to resolve to bytes.
  * @returns The amount of bytes.
  */
-export function fileSizeToBytes(size: FileSize): number {
+export function fileSizeToBytes(size: FileSize): BigNumber {
     if (size.endsWith('gb')) {
         const [amount] = size.split('gb');
-        return Number(amount) * 1073741824;
+        return BigNumberUtilities.new(Number(amount)).multipliedBy(1073741824);
     }
     if (size.endsWith('mb')) {
         const [amount] = size.split('mb');
-        return Number(amount) * 1048576;
+        return BigNumberUtilities.new(Number(amount)).multipliedBy(1048576);
     }
     if (size.endsWith('kb')) {
         const [amount] = size.split('kb');
-        return Number(amount) * 1024;
+        return BigNumberUtilities.new(Number(amount)).multipliedBy(1024);
     }
     const [amount] = size.split('b');
-    return Number(amount);
+    return BigNumberUtilities.new(Number(amount));
 }
 
 /**

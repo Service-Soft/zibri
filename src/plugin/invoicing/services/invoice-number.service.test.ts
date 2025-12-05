@@ -7,7 +7,7 @@ import { PostgresConnectionCredentialsOptions } from 'typeorm/driver/postgres/Po
 
 import { InvoiceCalcService } from './invoice-calc.service';
 import { BaseDataSource, DataSource, DataSourceOptions, MigrationEntity, Repository } from '../../../data-source';
-import { BaseEntity } from '../../../entity';
+import { BaseEntity } from '../../../entity/base-entity.model';
 import { Newable, OmitStrict } from '../../../types';
 import { Invoice, InvoiceAddress, InvoicingOptions, NumberInvoices } from '../models';
 import { InvoiceNumberService } from './invoice-number.service';

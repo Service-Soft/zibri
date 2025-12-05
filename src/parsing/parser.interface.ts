@@ -1,5 +1,6 @@
 import { ZibriApplication } from '../application';
 import { HttpRequest } from '../http';
+import { HttpClientResponse } from '../http-client';
 import { BodyMetadata, HeaderParamMetadata, PathParamMetadata, QueryParamMetadata } from '../routing';
 import { WebsocketRequest } from '../websocket';
 
@@ -8,9 +9,12 @@ import { WebsocketRequest } from '../websocket';
  */
 export interface ParserInterface {
     /**
-     * Parses the request body resolved from the given metadata.
+     * Parses the body resolved from the given metadata.
      */
-    parseRequestBody: (req: HttpRequest | WebsocketRequest, metadata: BodyMetadata) => unknown | Promise<unknown>,
+    parseBody: (
+        req: HttpRequest | WebsocketRequest | HttpClientResponse,
+        metadata: BodyMetadata
+    ) => unknown | Promise<unknown>,
     /**
      * Parses the path param resolved from the given metadata.
      */
@@ -22,7 +26,7 @@ export interface ParserInterface {
     /**
      * Parses the header param resolved from the given metadata.
      */
-    parseHeaderParam: (req: HttpRequest | WebsocketRequest, metadata: HeaderParamMetadata) => unknown,
+    parseHeaderParam: (req: HttpRequest | WebsocketRequest | HttpClientResponse, metadata: HeaderParamMetadata) => unknown,
     /**
      * Attaches the parser to the Zibri application.
      */

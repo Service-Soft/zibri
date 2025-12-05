@@ -1,4 +1,4 @@
-import { BaseEntity } from '../entity';
+import { BaseEntity } from '../entity/base-entity.model';
 import { HttpRequest } from '../http';
 import { Newable } from '../types';
 import { WebsocketRequest } from '../websocket';

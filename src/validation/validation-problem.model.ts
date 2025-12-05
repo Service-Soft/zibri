@@ -1,4 +1,6 @@
-import { BaseEntity, FileSize, ManyToManyPropertyMetadata, ManyToOnePropertyMetadata, OneToManyPropertyMetadata, OneToOnePropertyMetadata, Relation, RelationMetadata } from '../entity';
+import { ManyToManyPropertyMetadata, ManyToOnePropertyMetadata, OneToManyPropertyMetadata, OneToOnePropertyMetadata, Relation, RelationMetadata } from '../entity';
+import { BaseEntity } from '../entity/base-entity.model';
+import { FileSize } from '../entity/models/file-property-metadata.model';
 import { MimeType } from '../http';
 
 /**

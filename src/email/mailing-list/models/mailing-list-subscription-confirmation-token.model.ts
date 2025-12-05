@@ -1,4 +1,5 @@
-import { BaseEntity, Entity, OmitClass, Property } from '../../../entity';
+import { Entity, OmitClass, Property } from '../../../entity';
+import { BaseEntity } from '../../../entity/base-entity.model';
 
 /**
  * A short lived token used to confirm a mailing list subscription.

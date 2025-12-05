@@ -1,5 +1,6 @@
 import { ZibriApplication } from '../application';
 import { HttpRequest, MimeType } from '../http';
+import { HttpClientResponse } from '../http-client';
 import { BodyMetadata } from '../routing';
 import { WebsocketRequest } from '../websocket';
 
@@ -18,5 +19,13 @@ export interface BodyParserInterface {
     /**
      * Parses the body of the http request.
      */
-    parse: (req: HttpRequest | WebsocketRequest, bodyMetadata: BodyMetadata) => Promise<unknown>
+    parseFromHttpRequest: (req: HttpRequest, bodyMetadata: BodyMetadata) => unknown | Promise<unknown>,
+    /**
+     * Parses the body of the websocket request.
+     */
+    parseFromWebsocketRequest: (req: WebsocketRequest, bodyMetadata: BodyMetadata) => unknown | Promise<unknown>,
+    /**
+     * Parses the body of the http response.
+     */
+    parseFromHttpClientResponse: (res: HttpClientResponse, bodyMetadata: BodyMetadata) => unknown | Promise<unknown>
 }

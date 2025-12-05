@@ -11,6 +11,7 @@ import { DataSourceService, DataSourceServiceInterface } from '../../data-source
 import { EmailConfigInput, EmailService, EmailServiceInterface, MailingListService, MailingListServiceInterface } from '../../email';
 import { errorHandler, GlobalErrorHandler } from '../../error-handling';
 import { HttpRequest } from '../../http';
+import { HttpClient, HttpClientInterface } from '../../http-client';
 import { FormatDateFn, FormatPercentFn, FormatPriceFn, LocalizeOptions, LocalizeOptionsInput } from '../../localization';
 import { formatDate } from '../../localization/formatting/format-date.function';
 import { formatPercent } from '../../localization/formatting/format-percent.function';
@@ -80,7 +81,8 @@ type ZibriDiProviders = {
     [ZIBRI_DI_TOKENS.MULTITHREADING_SERVICE]: ZibriDiProvider<MultithreadingServiceInterface>,
     // eslint-disable-next-line typescript/no-explicit-any
     [ZIBRI_DI_TOKENS.WEBSOCKET_SERVICE]: ZibriDiProvider<WebsocketServiceInterface<any>>,
-    [ZIBRI_DI_TOKENS.WEBSOCKET_OPTIONS]: ZibriDiProvider<WebsocketOptions>
+    [ZIBRI_DI_TOKENS.WEBSOCKET_OPTIONS]: ZibriDiProvider<WebsocketOptions>,
+    [ZIBRI_DI_TOKENS.HTTP_CLIENT]: ZibriDiProvider<HttpClientInterface>
 };
 
 export const ZIBRI_DI_PROVIDERS: Record<
@@ -154,5 +156,6 @@ export const ZIBRI_DI_PROVIDERS: Record<
     },
     [ZIBRI_DI_TOKENS.MULTITHREADING_SERVICE]: { useClass: MultithreadingService },
     [ZIBRI_DI_TOKENS.WEBSOCKET_SERVICE]: { useClass: WebsocketService },
-    [ZIBRI_DI_TOKENS.WEBSOCKET_OPTIONS]: { useFactory: () => ({ timeoutInMs: Ms.SECOND * 5, isAllowedToConnect: () => true }) }
+    [ZIBRI_DI_TOKENS.WEBSOCKET_OPTIONS]: { useFactory: () => ({ timeoutInMs: Ms.SECOND * 5, isAllowedToConnect: () => true }) },
+    [ZIBRI_DI_TOKENS.HTTP_CLIENT]: { useClass: HttpClient }
 } satisfies ZibriDiProviders;

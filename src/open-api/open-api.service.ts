@@ -7,9 +7,10 @@ import { ZibriApplication } from '../application';
 import { AssetServiceInterface } from '../assets';
 import { AuthServiceInterface, BelongsToMetadata, HasRoleMetadata, IsLoggedInMetadata } from '../auth';
 import { inject, ZIBRI_DI_TOKENS } from '../di';
-import { BaseEntity, ManyToManyPropertyMetadata, ManyToOnePropertyMetadata, OmitClass, OneToManyPropertyMetadata, OneToOnePropertyMetadata, PropertyMetadata, Relation } from '../entity';
+import { ManyToManyPropertyMetadata, ManyToOnePropertyMetadata, OmitClass, OneToManyPropertyMetadata, OneToOnePropertyMetadata, PropertyMetadata, Relation } from '../entity';
+import { BaseEntity } from '../entity/base-entity.model';
 import { GlobalRegistry } from '../global';
-import { HttpMethod, HttpStatus, MimeType } from '../http';
+import { HttpMethod, HttpStatus, KnownHeader, MimeType } from '../http';
 import { LoggerInterface } from '../logging';
 import { BodyMetadata, ControllerRouteConfiguration, HeaderParamMetadata, PathParamMetadata, QueryParamMetadata, Route, RouteHandler } from '../routing';
 import { OpenApiServiceInterface } from './open-api-service.interface';
@@ -49,7 +50,7 @@ const defaultDescriptionForHttpStatus: Record<HttpStatus | 'default', string> = 
     [HttpStatus.NOT_ACCEPTABLE]: '',
     [HttpStatus.CONFLICT]: '',
     [HttpStatus.GONE]: '',
-    [HttpStatus.PAYLOAD_TOO_LARGE]: '',
+    [HttpStatus.CONTENT_TOO_LARGE]: '',
     [HttpStatus.URI_TOO_LONG]: '',
     [HttpStatus.UNSUPPORTED_MEDIA_TYPE]: '',
     [HttpStatus.UNPROCESSABLE_ENTITY]: '',
@@ -121,7 +122,7 @@ export class OpenApiService implements OpenApiServiceInterface {
                     '        layout: "StandaloneLayout",',
                     '        requestInterceptor: (req) => {',
                     '            req.headers.Accept = \'application/json\'',
-                    '            req.headers[\'Content-Type\'] = \'application/json\'',
+                    `            req.headers['${KnownHeader.CONTENT_TYPE}'] = \'application/json\'`,
                     '            return req;',
                     '        },',
                     '        defaultModelRendering: \'model\'',

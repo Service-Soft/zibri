@@ -1,16 +1,9 @@
 import { Property } from '../../entity';
-import type { OmitStrict } from '../../types';
-
-/**
- * The Multer file type.
- */
-export type MulterFile = OmitStrict<Express.Multer.File, 'buffer' | 'stream' | 'encoding'>;
 
 /**
  * A resolved file from a multipart/form-data request.
- * Has the same properties as the File from multer but adds property metadata.
  */
-export class File implements MulterFile {
+export class File {
     // eslint-disable-next-line jsdoc/require-jsdoc
     @Property.string()
     fieldname: string;
@@ -39,7 +32,7 @@ export class File implements MulterFile {
     @Property.string()
     path: string;
 
-    constructor(file: MulterFile) {
+    constructor(file: File) {
         this.destination = file.destination;
         this.fieldname = file.fieldname;
         this.filename = file.filename;

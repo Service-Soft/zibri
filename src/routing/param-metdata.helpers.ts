@@ -122,6 +122,7 @@ export function createQueryParamMetadata(name: string, data: QueryParamMetadataI
                 name,
                 required: true,
                 description: undefined,
+                totalMaxSize: '100kb',
                 ...data,
                 items: createArrayParamItemMetadata(data.items, name)
             };
@@ -197,6 +198,7 @@ export function createArrayParamItemMetadata(
             return {
                 required: true,
                 description: undefined,
+                totalMaxSize: '100kb',
                 ...data,
                 items: createArrayParamItemMetadata(data.items, fullPropertyKey)
             };

@@ -1,6 +1,8 @@
-import { fileSizeToBytes, PropertyMetadata } from '../../entity';
+import { PropertyMetadata } from '../../entity';
+import { fileSizeToBytes } from '../../entity/models/file-property-metadata.model';
 import { MimeType } from '../../http';
 import { File } from '../../parsing';
+import { BigNumberUtilities } from '../../utilities';
 import { MaxFileSizeValidationProblem, IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationProblem, MimeTypeMismatchValidationProblem } from '../validation-problem.model';
 
 /**
@@ -42,7 +44,7 @@ export function validateFile(
         return [new TypeMismatchValidationProblem(fullKey, 'file')];
     }
 
-    if (property.size > fileSizeToBytes(metadata.maxSize)) {
+    if (BigNumberUtilities.new(property.size).isGreaterThan(fileSizeToBytes(metadata.maxSize))) {
         return [new MaxFileSizeValidationProblem(fullKey, metadata.maxSize)];
     }
     if (metadata.allowedMimeTypes !== 'all' && !metadata.allowedMimeTypes.includes(property.mimetype as MimeType)) {

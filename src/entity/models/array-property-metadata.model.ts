@@ -21,7 +21,11 @@ export type ArrayPropertyMetadata = BasePropertyMetadata & {
     /**
      * The definition for the items of the property.
      */
-    items: ArrayPropertyItemMetadata
+    items: ArrayPropertyItemMetadata,
+    /**
+     * The total maximum size that all files in the array combined can have.
+     */
+    totalMaxSize: FileSize
 };
 
 /**

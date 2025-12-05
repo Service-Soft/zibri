@@ -3,7 +3,7 @@ import { UserRepositories } from '../auth';
 import { BackupResourceInterface } from '../backup';
 import { BaseDataSource } from '../data-source';
 import { DiProvider } from '../di';
-import { BaseEntity } from '../entity';
+import { BaseEntity } from '../entity/base-entity.model';
 import { BodyParserInterface } from '../parsing';
 import { Newable, Version } from '../types';
 

@@ -12,6 +12,8 @@ export * from './global';
 export * from './logging';
 export * from './open-api';
 export * from './entity';
+export * from './entity/base-entity.model';
+export * from './entity/models/file-property-metadata.model';
 export * from './parsing';
 export * from './http';
 export * from './validation';
@@ -27,6 +29,7 @@ export * from './localization';
 export * from './multithreading';
 export * from './websocket';
 export * from './backup';
+export * from './http-client';
 
 export * from './types/newable.model';
 export * from './types/version.type';
