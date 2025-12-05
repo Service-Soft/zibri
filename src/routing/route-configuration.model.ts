@@ -20,7 +20,7 @@ type QueryMetaObjectToParamsObject<QueryMetaObject extends Record<string, QueryP
 };
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-type HeaderMetaObjectToParamsObject<HeaderMetaObject extends Record<string, HeaderParamMetadata>> = {
+export type HeaderMetaObjectToParamsObject<HeaderMetaObject extends Record<string, HeaderParamMetadata>> = {
     [K in keyof HeaderMetaObject]: ParamMetadataToType<HeaderMetaObject[K]>
 };
 
@@ -46,7 +46,7 @@ type QueryMetaInputObjectToMetaObject<QueryMetaInputObject extends Record<string
 };
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-type HeaderMetaInputObjectToMetaObject<HeaderMetaInputObject extends Record<string, HeaderParamMetadataInput>> = {
+export type HeaderMetaInputObjectToMetaObject<HeaderMetaInputObject extends Record<string, HeaderParamMetadataInput>> = {
     [K in keyof HeaderMetaInputObject]: MergeRequired<
         HeaderMetaInputObject[K],
         ParamMetadataInputToMeta<HeaderMetaInputObject[K]>

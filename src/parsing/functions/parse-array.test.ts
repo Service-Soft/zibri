@@ -21,7 +21,8 @@ describe('parseArray', () => {
             enum: undefined
         },
         required: true,
-        description: undefined
+        description: undefined,
+        totalMaxSize: '100kb'
     };
 
     it('returns undefined for undefined input', () => {

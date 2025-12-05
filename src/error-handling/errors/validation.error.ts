@@ -21,7 +21,7 @@ export class ValidationError extends BadRequestError {
         for (const problem of problems) {
             paragraphs.push(`- ${problem.key}: ${problem.message}`);
         }
-        super(startMessage[type], options);
+        super(paragraphs.join('\n'), options);
         this.name = 'ValidationError';
         this.title = 'Validation Error';
         this.paragraphs = paragraphs;

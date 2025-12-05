@@ -3,6 +3,7 @@ import { GlobalRegistry } from '../global';
 import { BodyParserInterface } from './body-parser.interface';
 import { HttpRequest, isHttpRequest, isMimeType, KnownHeader, MimeType } from '../http';
 import { ParserInterface } from './parser.interface';
+import { HttpClientResponse, isHttpClientResponse } from '../http-client';
 import { LoggerInterface } from '../logging';
 import { BodyMetadata, HeaderParamMetadata, PathParamMetadata, QueryParamMetadata } from '../routing';
 import { parseArray, parseBoolean, parseDate, parseNumber, parseObject, parseString } from './functions';
@@ -61,7 +62,7 @@ export class Parser implements ParserInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    parseHeaderParam(req: HttpRequest | WebsocketRequest, metadata: HeaderParamMetadata): unknown {
+    parseHeaderParam(req: HttpRequest | WebsocketRequest | HttpClientResponse, metadata: HeaderParamMetadata): unknown {
         const rawValue: string | undefined = req.headers[metadata.name as KnownHeader];
         return this.headerParamParseFunctions[metadata.type](rawValue, metadata);
     }
@@ -79,26 +80,39 @@ export class Parser implements ParserInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async parseRequestBody(req: HttpRequest | WebsocketRequest, metadata: BodyMetadata): Promise<unknown> {
-        let contentType: string = req.headers['Content-Type']?.split(';')[0]?.trim().toLowerCase() ?? '';
-        if (!contentType.length && !isHttpRequest(req)) {
-            contentType = MimeType.JSON;
+    async parseBody(req: HttpRequest | WebsocketRequest | HttpClientResponse, metadata: BodyMetadata): Promise<unknown> {
+        const contentTypeHeader: string | undefined = req.headers[KnownHeader.CONTENT_TYPE]
+            ?? req.headers[KnownHeader.CONTENT_TYPE.toLowerCase() as KnownHeader];
+        let contentType: string = contentTypeHeader?.split(';')[0]?.trim().toLowerCase() ?? '';
+        if (!contentType.length) {
+            if (isHttpClientResponse(req)) {
+                contentType = metadata.type;
+            }
+            else if (!isHttpRequest(req)) {
+                contentType = MimeType.JSON;
+            }
         }
 
         if (!isMimeType(contentType)) {
-            throw new Error(`Unsupported Content-Type: "${contentType}"`);
+            throw new Error(`Unsupported ${KnownHeader.CONTENT_TYPE}: "${contentType}"`);
         }
         if (metadata.type !== contentType) {
-            throw new Error(`Unsupported Content-Type: "${contentType}"`);
+            throw new Error(`Unsupported ${KnownHeader.CONTENT_TYPE}: "${contentType}"`);
         }
         const fittingParsers: BodyParserInterface[] = this.bodyParsers.filter(p => p.contentType === contentType);
         if (!fittingParsers.length) {
-            throw new Error(`Unsupported Content-Type: "${contentType}"`);
+            throw new Error(`Unsupported ${KnownHeader.CONTENT_TYPE}: "${contentType}"`);
         }
         if (fittingParsers.length > 1) {
-            throw new Error(`There has been more than one body parser provided for the Content-Type "${contentType}"`);
+            throw new Error(`There has been more than one body parser provided for the ${KnownHeader.CONTENT_TYPE} "${contentType}"`);
         }
-        return await fittingParsers[0].parse(req, metadata);
+        if (isHttpClientResponse(req)) {
+            return await fittingParsers[0].parseFromHttpClientResponse(req, metadata);
+        }
+        if (isHttpRequest(req)) {
+            return await fittingParsers[0].parseFromHttpRequest(req, metadata);
+        }
+        return await fittingParsers[0].parseFromWebsocketRequest(req, metadata);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

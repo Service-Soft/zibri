@@ -54,7 +54,7 @@ With Zibri you can rely on a strong foundation of battle tested libraries that h
 - typeorm for handling everything database related
 - nodemailer for sending emails
 - handlebars for templating
-- multer for file uploads
+- busboy for file uploads (the foundation of multer)
 
 ### 🪖 Making "shooting your foot" as hard as possible
 All the public facing classes, interfaces and functions are as strictly typed as possible. Zibri even includes a custom parser for handlebar files, that automtically infer the type of the data that is needed to render the template.

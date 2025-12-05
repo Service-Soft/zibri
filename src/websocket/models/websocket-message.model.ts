@@ -1,7 +1,8 @@
 import { type LooseWebsocketEvent } from './websocket-event.enum';
 import { Repository } from '../../data-source';
 import { inject, repositoryTokenFor } from '../../di';
-import { BaseEntity, Entity, OmitClass, Property } from '../../entity';
+import { Entity, OmitClass, Property } from '../../entity';
+import { BaseEntity } from '../../entity/base-entity.model';
 import { HttpError } from '../../error-handling';
 import { HttpStatus } from '../../http';
 

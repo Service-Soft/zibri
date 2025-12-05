@@ -5,7 +5,8 @@ import { Route, ControllerRouteConfiguration, PathParamMetadata, BodyMetadata, Q
 import { MetadataInjectionKeys } from './metadata-injection-keys.enum';
 import { BelongsToMetadata, CurrentUserMetadata, HasRoleMetadata, IsLoggedInMetadata, IsNotLoggedInMetadata, Require2faMetadata, SkipAuthMetadata, SkipBelongsToMetadata, SkipHasRoleMetadata, SkipIsLoggedInMetadata, SkipIsNotLoggedInMetadata, SkipRequire2faMetadata } from '../auth';
 import { BackupResourceInterface, BackupResourceMetadata } from '../backup';
-import { BaseEntity, EntityMetadata, PropertyMetadata } from '../entity';
+import { EntityMetadata, PropertyMetadata } from '../entity';
+import { BaseEntity } from '../entity/base-entity.model';
 import { OpenApiResponse } from '../open-api';
 import { Newable } from '../types';
 import { CurrentWebsocketConnectionMetadata, WebsocketControllerData, WebsocketControllerRouteConfiguration } from '../websocket';

@@ -1,6 +1,6 @@
 
 import { FindAllOptions } from './find-all-options.model';
-import { BaseEntity } from '../../../entity';
+import { BaseEntity } from '../../../entity/base-entity.model';
 import { OmitStrict } from '../../../types';
 
 /**

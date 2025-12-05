@@ -4,4 +4,3 @@ export * from './intersection-class.model';
 export * from './partial-class.model';
 export * from './pick-class.model';
 export * from './models';
-export * from './base-entity.model';

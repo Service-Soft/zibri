@@ -42,5 +42,6 @@ export const ZIBRI_DI_TOKENS = {
     MULTITHREADING_SERVICE: 'zi.multithreading_service',
     MULTITHREADING_OPTIONS: 'zi.multithreading_options',
     WEBSOCKET_SERVICE: 'zi.websocket_service',
-    WEBSOCKET_OPTIONS: 'zi.websocket_options'
+    WEBSOCKET_OPTIONS: 'zi.websocket_options',
+    HTTP_CLIENT: 'zi.http_client'
 } as const satisfies Record<string, `zi.${string}`>;

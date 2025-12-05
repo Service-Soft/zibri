@@ -2,8 +2,9 @@ import { warn } from '../../logging/logger.helpers';
 import type { Newable } from '../../types';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import type { BaseEntity } from '../base-entity.model';
-import type { ArrayPropertyItemMetadata, ArrayPropertyItemMetadataInput, ArrayPropertyMetadata, ArrayPropertyMetadataInput, BelongsToOnePropertyMetadataInput, BooleanPropertyMetadata, BooleanPropertyMetadataInput, DatePropertyMetadata, DatePropertyMetadataInput, FilePropertyMetadata, FilePropertyMetadataInput, HasOnePropertyMetadataInput, ManyToManyPropertyMetadata, ManyToManyPropertyMetadataInput, ManyToOnePropertyMetadata, ManyToOnePropertyMetadataInput, NumberPropertyMetadata, NumberPropertyMetadataInput, ObjectPropertyMetadata, ObjectPropertyMetadataInput, OneToManyPropertyMetadata, OneToManyPropertyMetadataInput, OneToOnePropertyMetadata, OneToOnePropertyMetadataInput, StringPropertyMetadata, StringPropertyMetadataInput, UnknownPropertyMetadata, UnknownPropertyMetadataInput } from '../models';
+import type { ArrayPropertyItemMetadata, ArrayPropertyItemMetadataInput, ArrayPropertyMetadata, ArrayPropertyMetadataInput, BelongsToOnePropertyMetadataInput, BooleanPropertyMetadata, BooleanPropertyMetadataInput, DatePropertyMetadata, DatePropertyMetadataInput, HasOnePropertyMetadataInput, ManyToManyPropertyMetadata, ManyToManyPropertyMetadataInput, ManyToOnePropertyMetadata, ManyToOnePropertyMetadataInput, NumberPropertyMetadata, NumberPropertyMetadataInput, ObjectPropertyMetadata, ObjectPropertyMetadataInput, OneToManyPropertyMetadata, OneToManyPropertyMetadataInput, OneToOnePropertyMetadata, OneToOnePropertyMetadataInput, StringPropertyMetadata, StringPropertyMetadataInput, UnknownPropertyMetadata, UnknownPropertyMetadataInput } from '../models';
 import type { WithDefaultMetadata } from '../models/base-property-metadata.model';
+import type { FilePropertyMetadata, FilePropertyMetadataInput } from '../models/file-property-metadata.model';
 import { Relation } from '../models/relation.enum';
 
 /**
@@ -197,6 +198,7 @@ export namespace Property {
                 type: 'array',
                 description: undefined,
                 excludeFromChangeSets: false,
+                totalMaxSize: '50mb',
                 ...data,
                 items: createArrayItemPropertyMetadata(data.items, `${target.constructor.name}.${key.toString()}`)
             };
@@ -411,13 +413,15 @@ export function createArrayItemPropertyMetadata(
             };
         }
         case 'array': {
-            return {
+            const metadata: ArrayPropertyMetadata = {
                 required: true,
                 description: undefined,
                 excludeFromChangeSets: false,
+                totalMaxSize: '50mb',
                 ...data,
                 items: createArrayItemPropertyMetadata(data.items, fullPropertyKey)
             };
+            return metadata;
         }
         case 'file': {
             if (data.allowedMimeTypes == undefined) {

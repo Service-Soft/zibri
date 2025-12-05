@@ -1,6 +1,6 @@
 import { inject, ZIBRI_DI_TOKENS } from '../di';
 import { register } from '../di/register.function';
-import { BaseEntity } from '../entity';
+import { BaseEntity } from '../entity/base-entity.model';
 import { UnauthorizedError } from '../error-handling';
 import { HttpRequest } from '../http';
 import { LoggerInterface } from '../logging';

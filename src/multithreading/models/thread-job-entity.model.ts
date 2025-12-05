@@ -1,4 +1,5 @@
-import { BaseEntity, Entity, Property } from '../../entity';
+import { Entity, Property } from '../../entity';
+import { BaseEntity } from '../../entity/base-entity.model';
 import type { OmitStrict, Percentage } from '../../types';
 import { ThreadJob } from '../services';
 import { BaseThreadJobWorkerData } from './base-thread-job-worker-data.model';

@@ -1,4 +1,5 @@
-import { BaseEntity, Entity, Property, OmitClass } from '../../../entity';
+import { Entity, Property, OmitClass } from '../../../entity';
+import { BaseEntity } from '../../../entity/base-entity.model';
 import { BaseUser } from '../../models';
 
 /**

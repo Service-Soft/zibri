@@ -6,7 +6,7 @@ import { JwtCredentials, PasswordResetToken, JwtRefreshToken, OtpCredentials } f
 import { BackupEntity, BackupResourceEntity } from '../backup';
 import { CronJobEntity } from '../cron';
 import { Email, MailingList, MailingListSubscriber } from '../email';
-import { BaseEntity } from '../entity';
+import { BaseEntity } from '../entity/base-entity.model';
 import { Log, LoggerInterface } from '../logging';
 import { ThreadJobEntity } from '../multithreading';
 import { Newable } from '../types';

@@ -4,7 +4,8 @@ import { DataSourceOptions, Table, TableColumn } from 'typeorm';
 import { PostgresConnectionCredentialsOptions } from 'typeorm/driver/postgres/PostgresConnectionCredentialsOptions';
 
 import { inject, Injectable, InjectRepository } from '../../di';
-import { BaseEntity, Entity, Property } from '../../entity';
+import { Entity, Property } from '../../entity';
+import { BaseEntity } from '../../entity/base-entity.model';
 import { Newable, Version } from '../../types';
 import { BaseDataSource } from '../base-data-source.model';
 import { Transaction } from '../transaction';

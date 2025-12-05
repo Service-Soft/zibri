@@ -1,5 +1,6 @@
 import { ChangeSet } from './change-set.model';
-import { BaseEntity, Entity, Property } from '../../entity';
+import { Entity, Property } from '../../entity';
+import { BaseEntity } from '../../entity/base-entity.model';
 import { OmitStrict } from '../../types';
 
 /**

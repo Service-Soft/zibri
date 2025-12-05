@@ -2,10 +2,10 @@ import { beforeAll, afterAll, describe, it, expect } from '@jest/globals';
 import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { PostgresConnectionCredentialsOptions } from 'typeorm/driver/postgres/PostgresConnectionCredentialsOptions';
 
-import { BaseEntity } from '../entity';
 import { BaseDataSource } from './base-data-source.model';
 import { DataSource } from './decorators';
 import { inject } from '../di';
+import { BaseEntity } from '../entity/base-entity.model';
 import { Newable } from '../types';
 import { MigrationEntity } from './migration';
 import { DataSourceOptions } from './models';

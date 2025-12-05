@@ -36,8 +36,8 @@ export async function resolveRouteParams(
     const requestBody: BodyMetadata | undefined = MetadataUtilities.getRouteBody(controllerClass, controllerMethod);
     if (requestBody) {
         resolvedParamCount++;
-        params[requestBody.index] = await parser.parseRequestBody(req, requestBody);
-        validationService.validateRequestBody(params[requestBody.index], requestBody);
+        params[requestBody.index] = await parser.parseBody(req, requestBody);
+        validationService.validateBody(params[requestBody.index], requestBody);
     }
 
     // 3) Query decorators

@@ -8,3 +8,4 @@ export * from './unauthorized.error';
 export * from './too-many-requests.error';
 export * from './conflict.error';
 export * from './missing-entities.error';
+export * from './content-too-large.error';

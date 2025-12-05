@@ -12,7 +12,7 @@ import { InvoicePdfService } from './invoice-pdf.service';
 import { POSTGRES_TEST_IMAGE, testFileFolder } from '../../../__testing__';
 import { BaseDataSource, DataSource, DataSourceOptions, MigrationEntity, Repository } from '../../../data-source';
 import { PdfDocument } from '../../../document';
-import { BaseEntity } from '../../../entity';
+import { BaseEntity } from '../../../entity/base-entity.model';
 import { formatDate } from '../../../localization/formatting/format-date.function';
 import { formatPercent } from '../../../localization/formatting/format-percent.function';
 import { formatPrice } from '../../../localization/formatting/format-price.function';

@@ -1,6 +1,7 @@
 import { InvoiceAddress } from './invoice-address.model';
 import { InvoiceItem } from './invoice-item.model';
-import { BaseEntity, Entity, Property } from '../../../entity';
+import { Entity, Property } from '../../../entity';
+import { BaseEntity } from '../../../entity/base-entity.model';
 import { type CurrencyCode } from '../../../localization';
 
 /**

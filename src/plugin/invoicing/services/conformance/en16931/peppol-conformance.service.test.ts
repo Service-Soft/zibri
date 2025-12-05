@@ -11,7 +11,7 @@ import { PeppolConformanceService } from './peppol-conformance.service';
 import { POSTGRES_TEST_IMAGE, testFileFolder } from '../../../../../__testing__';
 import { BaseDataSource, DataSource, DataSourceOptions, MigrationEntity, Repository } from '../../../../../data-source';
 import { XML } from '../../../../../document';
-import { BaseEntity } from '../../../../../entity';
+import { BaseEntity } from '../../../../../entity/base-entity.model';
 import { Newable, OmitStrict } from '../../../../../types';
 import { Ms } from '../../../../../utilities';
 import { InvoicingOptions, Invoice } from '../../../models';

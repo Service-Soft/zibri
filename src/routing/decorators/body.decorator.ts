@@ -1,7 +1,9 @@
+import { PropertyMetadata, Relation } from '../../entity';
 import { BasePropertyMetadata } from '../../entity/models/base-property-metadata.model';
+import { FileSize, fileSizeToBytes } from '../../entity/models/file-property-metadata.model';
 import { MimeType } from '../../http';
 import { Newable, OmitStrict } from '../../types';
-import { MetadataUtilities, Ms } from '../../utilities';
+import { BigNumber, MetadataUtilities, Ms } from '../../utilities';
 
 /**
  * Base metadata shared by all possible http request body properties.
@@ -14,7 +16,12 @@ type BaseBodyMetadata = OmitStrict<BasePropertyMetadata, 'excludeFromChangeSets'
     /**
      * The index at which the body parameter is provided in the controller method.
      */
-    index: number
+    index: number,
+    /**
+     * The maximum size of the body.
+     * Is calculated by adding the base max size and any sizes of file or file array properties on the body model.
+     */
+    maxSize: BigNumber
 };
 
 /**
@@ -49,7 +56,14 @@ export type BodyMetadata = JsonBodyMetadata | FormDataBodyMetadata;
 /**
  * Metadata Input for http request body properties.
  */
-export type BodyMetadataInput = Partial<OmitStrict<BodyMetadata, 'modelClass' | 'index'>>;
+export type BodyMetadataInput = Partial<OmitStrict<BodyMetadata, 'modelClass' | 'index' | 'maxSize'>> & {
+    /**
+     * The base maximum size of the body.
+     *
+     * This is IN ADDITION to any file properties on the request body.
+     */
+    baseMaxSize?: FileSize
+};
 
 // eslint-disable-next-line jsdoc/require-returns
 /**
@@ -66,8 +80,12 @@ export function Body(modelClass: Newable<unknown>, options: BodyMetadataInput = 
             description: undefined,
             type: MimeType.JSON,
             cleanupAfterMs: Ms.DAY,
+            maxSize: resolveMaxBodySize(modelClass, options.baseMaxSize),
             ...options
         };
+        if ('baseMaxSize' in fullMetadata) {
+            delete fullMetadata.baseMaxSize;
+        }
         const ctor: Function = target.constructor;
         // eslint-disable-next-line unicorn/error-message
         const stack: string = new Error().stack ?? '';
@@ -75,4 +93,47 @@ export function Body(modelClass: Newable<unknown>, options: BodyMetadataInput = 
         const key: string = propertyKey?.toString() ?? '';
         MetadataUtilities.setRouteBody(ctor, fullMetadata, key);
     };
+}
+
+// eslint-disable-next-line jsdoc/require-jsdoc
+export function resolveMaxBodySize(modelClass: Newable<unknown>, baseMaxSize: FileSize = '100kb'): BigNumber {
+    const bytes: BigNumber = fileSizeToBytes(baseMaxSize);
+    const properties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(modelClass);
+    return resolveMaxSize(bytes, properties);
+}
+
+// eslint-disable-next-line jsdoc/require-jsdoc
+function resolveMaxSize(bytes: BigNumber, properties: Record<string, PropertyMetadata>): BigNumber {
+    for (const key in properties) {
+        const property: PropertyMetadata = properties[key];
+        switch (property.type) {
+            case 'file': {
+                bytes = bytes.plus(fileSizeToBytes(property.maxSize));
+                break;
+            }
+            case 'array': {
+                if (property.items.type === 'file') {
+                    bytes = bytes.plus(fileSizeToBytes(property.totalMaxSize));
+                }
+                break;
+            }
+            case 'object': {
+                const objectProperties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(property.cls());
+                bytes = bytes.plus(resolveMaxSize(bytes, objectProperties));
+                break;
+            }
+            case Relation.ONE_TO_ONE: { throw new Error('Not implemented yet: Relation.ONE_TO_ONE case'); }
+            case Relation.ONE_TO_MANY: { throw new Error('Not implemented yet: Relation.ONE_TO_MANY case'); }
+            case Relation.MANY_TO_ONE: { throw new Error('Not implemented yet: Relation.MANY_TO_ONE case'); }
+            case Relation.MANY_TO_MANY: { throw new Error('Not implemented yet: Relation.MANY_TO_MANY case'); }
+            case 'string':
+            case 'number':
+            case 'boolean':
+            case 'date':
+            case 'unknown': {
+                break;
+            }
+        }
+    }
+    return bytes;
 }

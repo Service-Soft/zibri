@@ -1,13 +1,15 @@
 import { EntityMetadata as TOEntityMetadata, EntityTarget, TableColumn, TableColumnOptions } from 'typeorm';
 import { ColumnMetadata as TOColumnMetadata } from 'typeorm/metadata/ColumnMetadata';
 
+import { MigrationEntity } from './migration-entity.model';
 import { inject, repositoryTokenFor } from '../../di';
-import { BaseEntity, FilePropertyMetadata, PropertyMetadata, PropertyMetadataInput, RelationMetadata } from '../../entity';
+import { PropertyMetadata, PropertyMetadataInput, RelationMetadata } from '../../entity';
+import { BaseEntity } from '../../entity/base-entity.model';
+import { FilePropertyMetadata } from '../../entity/models/file-property-metadata.model';
 import { ExcludeStrict, Newable, Version } from '../../types';
 import { BaseDataSource } from '../base-data-source.model';
 import { Repository } from '../repository';
 import { Transaction } from '../transaction';
-import { MigrationEntity } from './migration-entity.model';
 
 /**
  * Base class for a database migration.

@@ -1,4 +1,4 @@
-import { BaseEntity } from '../../entity';
+import { BaseEntity } from '../../entity/base-entity.model';
 import { Newable } from '../../types';
 import { MetadataUtilities } from '../../utilities';
 import { DiToken } from '../models';

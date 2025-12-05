@@ -1,7 +1,8 @@
 import { EmailAttachment } from './email-attachment.model';
 import { EmailPriority } from './email-priority.enum';
 import { EmailStatus } from './email-status.enum';
-import { BaseEntity, Entity, Property } from '../../entity';
+import { Entity, Property } from '../../entity';
+import { BaseEntity } from '../../entity/base-entity.model';
 
 /**
  * Definition of a Email.

@@ -1,5 +1,6 @@
 import { User } from './user.entity';
-import { BaseEntity, Entity, Property } from '../../../entity';
+import { Entity, Property } from '../../../entity';
+import { BaseEntity } from '../../../entity/base-entity.model';
 
 @Entity()
 export class Company extends BaseEntity {

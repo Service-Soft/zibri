@@ -5,8 +5,9 @@ import { NotFoundError } from '../error-handling';
 import { LoggerInterface } from '../logging';
 import { DeepPartial, Newable } from '../types';
 import { Transaction } from './transaction';
-import { ArrayPropertyMetadata, BaseEntity, PropertyMetadata, Relation } from '../entity';
+import { ArrayPropertyMetadata, PropertyMetadata, Relation } from '../entity';
 import { CreateAllOptions, CreateOptions, DeleteAllOptions, DeleteByIdOptions, FindAllOptions, FindAllPaginatedOptions, FindByIdOptions, FindOneOptions, UpdateAllOptions, UpdateByIdOptions, Where } from './models';
+import { BaseEntity } from '../entity/base-entity.model';
 import { PaginationResult } from '../open-api';
 import { MetadataUtilities } from '../utilities';
 import { whereFilterToFindOptionsWhere } from './models/where/where-filter-to-find-options-where.function';
@@ -74,6 +75,7 @@ export class Repository<
                         await this.setDefaultValuesForArray(data[key as keyof Data] as unknown[], {
                             ...property,
                             type: 'array',
+                            totalMaxSize: '50mb',
                             items: {
                                 type: 'object',
                                 cls: property.target,

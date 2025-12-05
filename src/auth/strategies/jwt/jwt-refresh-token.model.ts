@@ -1,4 +1,5 @@
-import { BaseEntity, Entity, OmitClass, Property } from '../../../entity';
+import { Entity, OmitClass, Property } from '../../../entity';
+import { BaseEntity } from '../../../entity/base-entity.model';
 
 /**
  * The jwt refresh token that gets stored in the database.

@@ -1,12 +1,20 @@
+import { FileSize } from '../../entity/models/file-property-metadata.model';
 import { MimeType } from '../../http';
-import { JsonBodyMetadata } from '../../routing';
+import { JsonBodyMetadata, resolveMaxBodySize } from '../../routing';
 import { Newable, OmitStrict } from '../../types';
 import { MetadataUtilities } from '../../utilities';
 
 /**
  * Metadata Input for websocket request bodies.
  */
-export type WebsocketBodyMetadataInput = Partial<OmitStrict<JsonBodyMetadata, 'modelClass' | 'index' | 'type'>>;
+export type WebsocketBodyMetadataInput = Partial<OmitStrict<JsonBodyMetadata, 'modelClass' | 'index' | 'type' | 'maxSize'>> & {
+    /**
+     * The base maximum size of the body.
+     *
+     * This is IN ADDITION to any file properties on the request body.
+     */
+    baseMaxSize?: FileSize
+};
 
 // eslint-disable-next-line jsdoc/require-returns
 /**
@@ -25,6 +33,7 @@ export function WebsocketBody(
             required: true,
             description: undefined,
             type: MimeType.JSON,
+            maxSize: resolveMaxBodySize(modelClass, options.baseMaxSize),
             ...options
         };
         const ctor: Function = target.constructor;

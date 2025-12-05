@@ -1,6 +1,6 @@
 import { AuthStrategies } from '../strategies';
 import { SkipAuthMetadata } from './skip-auth-metadata.model';
-import { BaseEntity } from '../../entity';
+import { BaseEntity } from '../../entity/base-entity.model';
 import { Newable } from '../../types';
 
 /**
