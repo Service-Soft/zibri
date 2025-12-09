@@ -4,17 +4,23 @@ on:
         types: [closed]
         branches: [release]
 
+permissions:
+    id-token: write  # Required for OIDC
+    contents: read
+    pages: write      # to deploy to Pages
+
 jobs:
     deploy:
         if: github.event.pull_request.merged
-        permissions:
-            id-token: write  # Required for OIDC
-            contents: read
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
               with:
                 ref: release
+            - uses: actions/setup-node@v4
+              with:
+                node-version: '20'
+                registry-url: 'https://registry.npmjs.org'
             - run: npm ci
             - run: npm run build
             - run: npm publish
@@ -22,9 +28,6 @@ jobs:
     updateDocs:
         if: github.event.pull_request.merged
         # Grant GITHUB_TOKEN the permissions required to make a Pages deployment
-        permissions:
-            id-token: write   # to verify the deployment originates from an appropriate source
-            pages: write      # to deploy to Pages
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
