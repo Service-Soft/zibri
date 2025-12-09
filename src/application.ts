@@ -42,7 +42,6 @@ export class ZibriApplication {
     /**
      * The underlying http server.
      */
-    // eslint-disable-next-line typescript/no-misused-promises
     readonly server: Server = createServer(this.express);
 
     private _router!: RouterInterface;
