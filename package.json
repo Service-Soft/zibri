@@ -3,6 +3,9 @@
     "version": "2.1.1",
     "main": "./dist/index.js",
     "module": "./dist/index.mjs",
+    "repository": {
+        "url": "https://github.com/Service-Soft/zibri"
+    },
     "exports": {
         ".": {
             "types": "./dist/index.d.ts",
