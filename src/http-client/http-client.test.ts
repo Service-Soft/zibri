@@ -71,7 +71,6 @@ describe('post', () => {
             res.setHeader(KnownHeader.CONTENT_TYPE, headers['content-type'] as string);
             form.pipe(res);
         });
-        // eslint-disable-next-line typescript/no-misused-promises
         server = createServer(app);
         await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
 
