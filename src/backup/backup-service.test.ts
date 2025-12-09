@@ -3,15 +3,11 @@ import path from 'path';
 
 import { beforeAll, afterAll, describe, it, expect } from '@jest/globals';
 import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { DataSourceOptions } from 'typeorm';
-import { PostgresConnectionCredentialsOptions } from 'typeorm/driver/postgres/PostgresConnectionCredentialsOptions';
 
 import { BackupService } from './backup.service';
 import { POSTGRES_TEST_IMAGE, testFileFolder } from '../__testing__';
 import { BackupEntity } from './backup-entity.model';
 import { BackupResourceEntity } from './backup-resource-entity.model';
-import { BackupResourceInterface } from './backup-resource.interface';
-import { BaseDataSource } from '../data-source/base-data-source.model';
 import { DataSource } from '../data-source/decorators/data-source.decorator';
 import { MigrationEntity } from '../data-source/migration/migration-entity.model';
 import { Repository } from '../data-source/repository';
@@ -21,6 +17,7 @@ import { BaseEntity } from '../entity/base-entity.model';
 import { Newable } from '../types';
 import { Backup } from './decorators/backup-resource.decorator';
 import { FsBackupTransport } from './transports';
+import { PostgresDataSource, PostgresOptions } from '../data-source';
 
 const backupFsFolder: string = path.join(testFileFolder, 'backups');
 
@@ -42,11 +39,10 @@ class Item {
         )
     ]
 })
-class DbDataSource extends BaseDataSource implements BackupResourceInterface {
+class DbDataSource extends PostgresDataSource {
     rootPw: string = 'password';
     rootUsername: string = 'postgres';
-    options: DataSourceOptions = {
-        type: 'postgres',
+    options: PostgresOptions = {
         host: 'localhost',
         username: 'postgres',
         password: 'password',
@@ -72,8 +68,8 @@ describe('Create and restore postgres backup', () => {
             .start();
 
         dataSource = inject(DbDataSource);
-        (dataSource.options as PostgresConnectionCredentialsOptions) = {
-            ...dataSource.options as PostgresConnectionCredentialsOptions,
+        dataSource.options = {
+            ...dataSource.options,
             port: container.getMappedPort(5432)
         };
         await dataSource.init();

@@ -9,7 +9,7 @@ import { BaseUser, UserRepositories } from '../models';
  * Marks the given class as a user repository.
  * This registers it to be injected directly, without using "@InjectRepository".
  *
- * If you store your user in a database, you probably want to extend "Repository<UserEntityClass>" and implement the constructor, so that everything works:.
+ * If you store your user in a data source, you probably want to extend "Repository<UserEntityClass>" and implement the constructor, so that everything works:.
  *
  * ```ts
  * \@UserRepo(User)

@@ -1,7 +1,7 @@
 import { ZibriApplicationOptions } from '../application-options.model';
 import { UserRepositories } from '../auth';
 import { BackupResourceInterface } from '../backup';
-import { BaseDataSource } from '../data-source';
+import { DataSourceInterface } from '../data-source';
 import { DiProvider } from '../di';
 import { BaseEntity } from '../entity/base-entity.model';
 import { BodyParserInterface } from '../parsing';
@@ -61,7 +61,7 @@ export abstract class GlobalRegistry {
     /**
      * All datasources registered with \@DataSource.
      */
-    static readonly dataSourceClasses: Newable<BaseDataSource>[] = [];
+    static readonly dataSourceClasses: Newable<DataSourceInterface>[] = [];
     /**
      * All entities registered with \@Entity.
      */

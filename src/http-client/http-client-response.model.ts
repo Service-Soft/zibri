@@ -1,9 +1,6 @@
-import { AxiosResponse } from 'axios';
-
-import { MimeType, KnownHeader } from '../http';
+import { MimeType, KnownHeader, HttpStatus } from '../http';
 import { FormData } from '../parsing';
 import { BodyMetadata } from '../routing';
-import { OmitStrict } from '../types';
 
 /**
  * Definition for a response from using the http client.
@@ -11,13 +8,21 @@ import { OmitStrict } from '../types';
 export type HttpClientResponse<
     T = undefined,
     HeaderParamsObject extends Record<string, unknown> = Partial<Record<KnownHeader, string | undefined>>
-> = OmitStrict<AxiosResponse, 'request' | 'config' | 'headers' | 'data'> & {
+> = {
+    /**
+     * The http status of the response.
+     */
+    status: HttpStatus,
+    /**
+     * The http status text of the response.
+     */
+    statusText: string,
     /**
      * The headers of the response.
      */
     headers: HeaderParamsObject,
     /**
-     * The raw body of the response as returned by. No parsing or validation has happened here.
+     * The raw body of the response. No parsing or validation has happened here.
      */
     rawBody: unknown,
     /**

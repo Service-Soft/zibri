@@ -15,10 +15,10 @@ import { Ms, UUIDUtilities } from '../utilities';
  */
 export type CronConfig = OmitStrict<CronJobEntity, 'id' | 'lastRun' | 'errorMessage'> & {
     /**
-     * Whether or not the cron job should be synced to a database. (With status, lastRun etc.).
+     * Whether or not the cron job should be synced to a data source. (With status, lastRun etc.).
      * Defaults to true.
      */
-    syncToDb: boolean
+    syncToDataSource: boolean
 };
 
 /**
@@ -65,7 +65,7 @@ export abstract class CronJob {
         return {
             active: true,
             runOnInit: true,
-            syncToDb: true,
+            syncToDataSource: true,
             stopOnError: true,
             ...this.initialConfig,
             name: this.overrideName ?? this.initialConfig.name
@@ -136,7 +136,7 @@ export abstract class CronJob {
      * @returns The cron job entity.
      */
     protected async resolveEntity(): Promise<CronJobEntity> {
-        if (!this.fullInitialConfig.syncToDb) {
+        if (!this.fullInitialConfig.syncToDataSource) {
             return {
                 id: UUIDUtilities.generate(),
                 lastRun: undefined,
@@ -166,7 +166,7 @@ export abstract class CronJob {
         }
         finally {
             this.entity.lastRun = new Date();
-            if (this.fullInitialConfig.syncToDb) {
+            if (this.fullInitialConfig.syncToDataSource) {
                 await this.cronJobRepository.updateAll({ name: this.fullInitialConfig.name }, { lastRun: this.entity.lastRun });
             }
         }
@@ -193,7 +193,7 @@ export abstract class CronJob {
             await this.logger.info(`Stopping cron job "${this.name}"`);
             await this.disable();
         }
-        if (this.fullInitialConfig.syncToDb) {
+        if (this.fullInitialConfig.syncToDataSource) {
             await this.cronJobRepository.updateAll({ name: this.fullInitialConfig.name }, { errorMessage: this.entity.errorMessage });
         }
 
@@ -209,7 +209,7 @@ export abstract class CronJob {
         }
 
         this.entity.active = true;
-        if (this.fullInitialConfig.syncToDb) {
+        if (this.fullInitialConfig.syncToDataSource) {
             await this.cronJobRepository.updateAll({ name: this.fullInitialConfig.name }, { active: this.entity.active });
         }
         await this.task.start();
@@ -225,7 +225,7 @@ export abstract class CronJob {
 
         await this.task.stop();
         this.entity.active = false;
-        if (this.fullInitialConfig.syncToDb) {
+        if (this.fullInitialConfig.syncToDataSource) {
             await this.cronJobRepository.updateAll({ name: this.fullInitialConfig.name }, { active: this.entity.active });
         }
     }
@@ -243,7 +243,7 @@ export abstract class CronJob {
         }
 
         this.entity.cron = cronExpression;
-        if (this.fullInitialConfig.syncToDb) {
+        if (this.fullInitialConfig.syncToDataSource) {
             await this.cronJobRepository.updateAll({ name: this.fullInitialConfig.name }, { cron: this.entity.cron });
         }
         await this.task.stop();
@@ -263,7 +263,7 @@ export abstract class CronJob {
             ...this.entity,
             ...data
         };
-        if (this.fullInitialConfig.syncToDb) {
+        if (this.fullInitialConfig.syncToDataSource) {
             await this.cronJobRepository.updateAll({ name: this.fullInitialConfig.name }, { ...data });
         }
         await this.task.stop();

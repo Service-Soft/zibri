@@ -1,6 +1,6 @@
 import { AuthStrategies, TwoFactorMethods } from './auth';
 import { CronJob } from './cron';
-import { BaseDataSource } from './data-source';
+import { DataSourceInterface } from './data-source';
 import { DiProvider } from './di';
 import { BodyParserInterface } from './parsing';
 import { ZibriPlugin } from './plugin';
@@ -36,7 +36,7 @@ export type ZibriApplicationOptions = {
     /**
      * The data sources to register in the app.
      */
-    dataSources?: Newable<BaseDataSource>[],
+    dataSources?: Newable<DataSourceInterface>[],
     /**
      * The DI providers to register/override.
      */

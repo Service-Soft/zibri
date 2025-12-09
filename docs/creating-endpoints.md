@@ -5,6 +5,7 @@ Zibri uses controller classes for registering endpoints.
 You can define any class to be a controller by using the `@Controller` decorator:
 
 ```ts
+// src/controllers/user.controller.ts
 import { Controller } from 'zibri';
 
 @Controller('/users')
@@ -18,7 +19,7 @@ The `/users` provided to the decorator is the base route of the controller. Mean
 You then need to register the controller in the application:
 
 ```ts
-// index.ts
+// src/index.ts
 
 // ...
     const app: ZibriApplication = new ZibriApplication({
@@ -36,6 +37,7 @@ You then need to register the controller in the application:
 To actual define your first endpoint, you need to create a method and decorate it with the respective decorators. The example below shows a simple endpoint for getting some arbitrary users:
 
 ```ts
+// src/controllers/user.controller.ts
 import { Controller, Get, Property } from 'zibri';
 
 class User {
@@ -62,7 +64,7 @@ export class UserController {
 
 By default, a value you return in your method is sent as json to the client. If you want to return a different content type you can take a look at the [changing the return type section](#changing-the-return-type)
 
-You can try the example above and navigate to your applications open api explorer (`explorer` by default).
+You can try the example above and navigate to your applications open api explorer (`http://localhost:3000/explorer` by default).
 
 You should now see a new route get `/users` with the correctly defined return type.
 
@@ -70,7 +72,7 @@ You should now see a new route get `/users` with the correctly defined return ty
 You can use inheritance for controllers using generics and even with the provided helper types like "OmitType", "PickType" etc. Zibri additionally provides a helper type for defining base crud endpoints that you can also extend from:
 
 ```ts
-// example
+// src/controllers/test-crud.controller.ts
 import { CombinedType, Controller, CrudController, OmitType, PickType } from 'zibri';
 
 import { Test, TestCreateDTO, TestUpdateDTO } from '../models';
@@ -88,7 +90,7 @@ The above will expose the endpoints
 - `GET /tests-crud` (coming from CrudController, which returns a PaginatedResponse of Test)
 - `GET /tests-crud/:id` (coming from CrudController, which returns a single Test)
 - `PATCH /tests-crud/:id` (coming from CrudController, which updates a single Test with TestUpdateDTO)
-- `GET /tests-crud` (coming from MetricsController, which in this example returns a html dashboard)
+- `GET /metrics` (coming from MetricsController, which in this example returns a html dashboard)
 
 ## Accessing request data
 
@@ -97,6 +99,7 @@ The above will expose the endpoints
 To access the request body, you need to use the `@Body()` decorator with the class of the request body. This also automatically handles validation for you:
 
 ```ts
+// src/controllers/user.controller.ts
 import { Body, Controller, Post, OmitType } from 'zibri';
 
 class User {
@@ -110,7 +113,7 @@ class User {
     email!: string;
 }
 
-class UserCreateDto extends OmitType(User, ['id']) {}
+class UserCreateDTO extends OmitType(User, ['id']) {}
 
 @Controller('/users')
 export class UserController {
@@ -129,7 +132,7 @@ export class UserController {
 
 For the special case of uploading files we have a [separate section](#handling-file-uploads).
 
-You can try the example above and navigate to your applications open api explorer (`explorer` by default).
+You can try the example above and navigate to your applications open api explorer (`http://localhost:3000/explorer` by default).
 
 You should now see a new route post `/users` with the correctly defined request body and return type.
 
@@ -138,6 +141,7 @@ You should now see a new route post `/users` with the correctly defined request 
 To access path, query and header params you can use the respective decorators on your route:
 
 ```ts
+// src/controllers/newsletter.controller.ts
 import { Controller, Post, Param } from 'zibri';
 
 @Controller('/newsletters')
@@ -160,7 +164,7 @@ export class NewsletterController {
 
 These decorators also handle validation for you.
 
-You can try the example above and navigate to your applications open api explorer (`explorer` by default).
+You can try the example above and navigate to your applications open api explorer (`http://localhost:3000/explorer` by default).
 
 You should now see a new route post `/newsletters/:id/signup` with the correctly defined parameters.
 
@@ -169,6 +173,7 @@ You should now see a new route post `/newsletters/:id/signup` with the correctly
 Zibri provides an easy way to inject the currently logged in user by leveraging its auth framework. We won't go into the details of how that works here, but you can inject a user as follows:
 
 ```ts
+// src/controllers/user.controller.ts
 import { Auth, Controller, CurrentUser, Get } from 'zibri';
 
 @Controller('/users')
@@ -189,6 +194,7 @@ export class UserController {
 In the example above it's required to be logged in to access the route. You can also omit the `@Auth` decorator and pass `false` to the `@CurrentUser` decorator. This makes the user parameter optional:
 
 ```ts
+// src/controllers/article.controller.ts
 import { Controller, CurrentUser, Get } from 'zibri';
 
 @Controller('/articles')
@@ -210,7 +216,7 @@ export class ArticleController {
 }
 ```
 
-You can try the example above and navigate to your applications open api explorer (`explorer` by default).
+You can try the example above and navigate to your applications open api explorer (`http://localhost:3000/explorer` by default).
 
 You should now see a new route get `/articles` which can return different results based on whether you are logged in or not.
 
@@ -218,6 +224,7 @@ You should now see a new route get `/articles` which can return different result
 Zibri supports the uploading of one or multiple files together with some optional request data by using form-data:
 
 ```ts
+// src/controllers/file.controller.ts
 import { Body, Controller, File, FormData, MimeType, Post, Property } from 'zibri';
 
 class FileUploadDTO {
@@ -229,7 +236,7 @@ class FileUploadDTO {
 }
 
 @Controller('/files')
-export class FilesController {
+export class FileController {
     @Post()
     async upload(
         @Body(FileUploadDTO, { type: MimeType.FORM_DATA })
@@ -240,6 +247,8 @@ export class FilesController {
 }
 ```
 
+> Notice that `FormData` is being imported from Zibri.
+
 ## Securing endpoints
 To secure and protect your endpoints Zibri provides the `@Auth` namespace which has a lot of differnt decorators that handle most use cases. These decorators can be used either on the whole controller, securing every endpoint on it or on a single endpoint, depending on your needs.
 
@@ -249,6 +258,7 @@ Every decorator also comes with a `skip` property, so you can easily secure a co
 Checks if there is a logged in requesting user.
 
 ```ts
+// src/controllers/auth.controller.ts
 import { Auth, Controller, Get } from 'zibri';
 
 @Auth.isLoggedIn()
@@ -273,6 +283,7 @@ export class AuthController {
 Checks if there is no requesting user.
 
 ```ts
+// src/controllers/auth.controller.ts
 import { Auth, Controller, Post } from 'zibri';
 
 @Controller('/auth')
@@ -290,6 +301,7 @@ export class AuthController {
 Determines if the currently logged in user has a certain role:
 
 ```ts
+// src/controllers/auth.controller.ts
 import { Auth, Controller, Get } from 'zibri';
 
 @Auth.isLoggedIn()
@@ -313,10 +325,11 @@ Probably the most complex auth decorator of Zibri is `@Auth.belongsTo`.
 It automatically checks if the ressource being requested belongs to the currently logged in user.
 
 ```ts
+// src/controllers/auth.controller.ts
 import { Auth, Controller, Get, Property } from 'zibri';
 
 // !IMPORTANT: unless you are using a custom auth strategy this needs to be an entity
-// that is registered in a database. More on that can be found on the page "handling-databases".
+// that is registered in a data soource. More on that can be found on the page "data-sources".
 class PersonalDocument {
     @Property.string({ primary: true })
     id!: string;
@@ -345,6 +358,7 @@ export class AuthController {
 For defining responses, Zibri offers the `@Response` namespace which has a lot of decorators you can use on your endpoints:
 
 ```ts
+// src/controllers/user.controller.ts
 import { Controller, Get, HttpStatus, PaginationResult, Response } from 'zibri';
 
 @Controller('/users')
@@ -372,6 +386,7 @@ By default, Zibri sends back the returned value from your endpoints as json. In 
 To return files instead of json, Zibri offers the `FileResponse` class:
 
 ```ts
+// src/controllers/file.controller.ts
 import { Controller, FileResponse, Get, Response } from 'zibri';
 
 @Controller('/files')
@@ -389,6 +404,7 @@ export class FileController {
 To return html instead of json, Zibri offers the `HtmlResponse` class:
 
 ```ts
+// src/controllers/html.controller.ts
 import { Controller, HtmlResponse, Get, Response } from 'zibri';
 
 @Controller('/html')

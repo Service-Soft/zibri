@@ -5,7 +5,7 @@ Zibri aims to take care of most of your multi threading concerns, including:
 - support for typescript out of the box
 - a way to run worker files, being really close to the original implementation
 - a simple way to run a function in a separate thread
-- storing data about your thread jobs like status, error etc. inside the database
+- storing data about your thread jobs like status, error etc. inside a data source
 - utility functions to easily update the progress, status, error or result of the job
 - configurable timeouts for jobs and self healing capabilities of the worker pool
 
@@ -81,14 +81,15 @@ This returns the result of the function call or rejects with an error.
 > **Restrictions**
 > - It is expected that only known and trusted functions are passed to this method, as `eval` is used under the hood
 > -  Imports won't be resolved when the code is executed on the thread, which means that your function should only use things that are globally available (eg. console.log) or passed via the second argument
-> -  The run will not be stored inside a database, and the utility functions like `reportProgress` will not work
+> -  The run will not be stored inside a data source, and the utility functions like `reportProgress` will not work
 
 By default this is also run with priority. This is because the execution time will probably be not that long. (Because you can await the result.)
 <br>
 You can however also add a fourth parameter to define whether or not it should run with priority.
 
 ```ts
-import { Inject, ZIBRI_DI_TOKENS } from 'zibri';
+// src/services/fibonacci.service.ts
+import { Inject, ZIBRI_DI_TOKENS, MultithreadingService } from 'zibri';
 
 function fibonacci(n: number): number {
     if (n <= 1) {
@@ -98,13 +99,13 @@ function fibonacci(n: number): number {
 }
 
 //...
-export class MyClass {
+export class FibonacciService {
     constructor(
         @Inject(ZIBRI_DI_TOKENS.MULTITHREADING_SERVICE)
         private readonly multithreadingService: MultithreadingService
     ) {}
 
-    runFibonacci(): number {
+    async runFibonacci(): Promise<number> {
         const res: number = await this.multithreadingService.run(fibonacci, 20);
         return res;
     }

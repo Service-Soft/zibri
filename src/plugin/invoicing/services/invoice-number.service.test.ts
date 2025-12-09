@@ -3,10 +3,9 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import { StartedTestContainer } from 'testcontainers';
-import { PostgresConnectionCredentialsOptions } from 'typeorm/driver/postgres/PostgresConnectionCredentialsOptions';
 
 import { InvoiceCalcService } from './invoice-calc.service';
-import { BaseDataSource, DataSource, DataSourceOptions, MigrationEntity, Repository } from '../../../data-source';
+import { DataSource, MigrationEntity, Repository, PostgresDataSource, PostgresOptions } from '../../../data-source';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { Newable, OmitStrict } from '../../../types';
 import { Invoice, InvoiceAddress, InvoicingOptions, NumberInvoices } from '../models';
@@ -100,9 +99,8 @@ const privateCustomerData: InvoiceAddress = {
 const invoiceCalcService: InvoiceCalcService = new InvoiceCalcService();
 
 @DataSource()
-class DbDataSource extends BaseDataSource {
-    options: DataSourceOptions = {
-        type: 'postgres',
+class DbDataSource extends PostgresDataSource {
+    options: PostgresOptions = {
         host: 'localhost',
         username: 'postgres',
         password: 'password',
@@ -126,8 +124,8 @@ describe('generateInvoiceNumber', () => {
             .withPassword('password')
             .start();
         dataSource = new DbDataSource();
-        (dataSource.options as PostgresConnectionCredentialsOptions) = {
-            ...dataSource.options as PostgresConnectionCredentialsOptions,
+        dataSource.options = {
+            ...dataSource.options,
             port: container.getMappedPort(5432)
         };
         await dataSource.init();

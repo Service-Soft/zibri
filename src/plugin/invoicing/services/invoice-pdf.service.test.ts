@@ -5,12 +5,11 @@ import path from 'node:path';
 import { afterAll, beforeAll, describe, it } from '@jest/globals';
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import { StartedTestContainer } from 'testcontainers';
-import { PostgresConnectionCredentialsOptions } from 'typeorm/driver/postgres/PostgresConnectionCredentialsOptions';
 
 import { InvoiceCalcService } from './invoice-calc.service';
 import { InvoicePdfService } from './invoice-pdf.service';
 import { POSTGRES_TEST_IMAGE, testFileFolder } from '../../../__testing__';
-import { BaseDataSource, DataSource, DataSourceOptions, MigrationEntity, Repository } from '../../../data-source';
+import { DataSource, MigrationEntity, Repository, PostgresDataSource, PostgresOptions } from '../../../data-source';
 import { PdfDocument } from '../../../document';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { formatDate } from '../../../localization/formatting/format-date.function';
@@ -87,9 +86,8 @@ const invoicePdfService: InvoicePdfService = new InvoicePdfService(
 );
 
 @DataSource()
-class DbDataSource extends BaseDataSource {
-    options: DataSourceOptions = {
-        type: 'postgres',
+class DbDataSource extends PostgresDataSource {
+    options: PostgresOptions = {
         host: 'localhost',
         username: 'postgres',
         password: 'password',
@@ -112,8 +110,8 @@ describe('createInvoicePdf', () => {
             .withPassword('password')
             .start();
         dataSource = new DbDataSource();
-        (dataSource.options as PostgresConnectionCredentialsOptions) = {
-            ...dataSource.options as PostgresConnectionCredentialsOptions,
+        dataSource.options = {
+            ...dataSource.options,
             port: container.getMappedPort(5432)
         };
         await dataSource.init();

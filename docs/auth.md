@@ -14,7 +14,7 @@ Each strategy comes with all the required functionality built in to
 - check if that logged in user belongs to a specific entity 
 - functionality for resetting a password
 
-You can register an auth strategy by defining it on the application options. By default the builtin 
+You can register an auth strategy by defining it on the application options. By default the builtin JwtAuthStrategy is used.
 
 However, you will probably never use these strategies directly, as Zibri provides an AuthService that automatically manages these strategies in the background for you:
 
@@ -29,6 +29,7 @@ Another crucial part of the auth system are users. They need to contain at least
 Zibri provides a helper class you can easily extend from:
 
 ```ts
+// src/models/user.model.ts
 import { Entity, Property, BaseUserEntity } from 'zibri';
 
 import { Company } from './company.model';
@@ -40,9 +41,10 @@ export class User extends BaseUserEntity(Roles) {
 }
 ```
 
-For the builtin user service you now also need to register a user repository, so that a user can be found by email over multiple database tables (used eg. by the default JwtAuthStrategy):
+For the builtin user service you now also need to register a user repository, so that a user can be found by email over multiple data source entities (used eg. by the default JwtAuthStrategy):
 
 ```ts
+// src/repositories/user.repository.ts
 import { inject, InjectRepository, JwtCredentials, Repository, repositoryTokenFor, UserRepo, UserRepositoryInterface } from 'zibri';
 
 import { Roles, User, UserCreateData } from '../models';

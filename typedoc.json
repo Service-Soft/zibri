@@ -14,9 +14,7 @@
     "projectDocuments": [
         "./docs/getting-started.md",
         "./docs/creating-endpoints.md",
-        "./docs/authentication-and-authorization.md",
-        "./docs/multithreading.md",
-        "./docs/plugins"
+        "./docs/!(getting-started|creating-endpoints).md"
     ],
     "readme": "none",
     "tsconfig": "tsconfig.json"

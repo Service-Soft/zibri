@@ -2,7 +2,7 @@ import { Readable } from 'node:stream';
 
 import { BehaviorSubject } from 'rxjs';
 
-import { BaseDataSource, Repository } from '../data-source';
+import { PostgresDataSource, Repository } from '../data-source';
 import { inject, repositoryTokenFor, ZIBRI_DI_TOKENS } from '../di';
 import { GlobalRegistry } from '../global';
 import { LoggerInterface } from '../logging';
@@ -50,7 +50,7 @@ export class BackupService implements BackupServiceInterface {
             if (resource.createBackupData == undefined || resource.restoreBackup == undefined) {
                 throw new Error(`Invalid resource marked with @Backup: ${resourceClass.name} needs to implement BackupResourceInterface`);
             }
-            if (resource instanceof BaseDataSource && (!resource.rootPw || !resource.rootUsername)) {
+            if (resource instanceof PostgresDataSource && (!resource.rootPw || !resource.rootUsername)) {
                 throw new Error(`Invalid data source marked with @Backup: ${resourceClass.name} needs to provide rootPw and rootUsername`);
             }
             if (!MetadataUtilities.getBackupResourceMetadata(resourceClass)?.transports.length) {
