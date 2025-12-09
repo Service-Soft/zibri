@@ -32,7 +32,7 @@ type ToColumnMappableTypes = ExcludeStrict<PropertyMetadata, RelationMetadata<Ba
 type MigrationWithName = { migration: Migration, name: string };
 
 /**
- *
+ * Postgres-specific connection options.
  */
 export type PostgresOptions = OmitStrict<PostgresConnectionOptions, 'entities' | 'type'>;
 
@@ -368,6 +368,7 @@ export abstract class PostgresDataSource implements DataSourceInterface {
     // eslint-disable-next-line jsdoc/require-jsdoc
     getRepository<T extends BaseEntity>(cls: Newable<T>): Repository<T> {
         if (!this.ds) {
+            // eslint-disable-next-line sonar/no-duplicate-string
             throw new Error('The postgres data source needs to be initialized before it can be used.');
         }
         if (!this.entities.find(e => e === cls)) {

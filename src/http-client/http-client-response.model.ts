@@ -10,11 +10,11 @@ export type HttpClientResponse<
     HeaderParamsObject extends Record<string, unknown> = Partial<Record<KnownHeader, string | undefined>>
 > = {
     /**
-     *
+     * The http status of the response.
      */
     status: HttpStatus,
     /**
-     *
+     * The http status text of the response.
      */
     statusText: string,
     /**

@@ -68,7 +68,6 @@ class AddTestValueMigration extends Migration {
 
     override async up(transaction: Transaction): Promise<void> {
         await this.dataSource.addPropertyToEntity(Item, 'value', transaction);
-        await this.dataSource.changePropertyOfEntity(Item, 'oldValue', { type: 'string', name: 'value' }, transaction);
         const existingItems: Item[] = await this.itemRepository.findAll({ transaction });
         await Promise.all(existingItems.map(t => this.itemRepository.updateById(t.id, { value: '42' }, { transaction })));
     }
