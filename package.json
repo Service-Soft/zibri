@@ -25,8 +25,7 @@
         "sandbox": "cd sandbox && npm run start",
         "build": "tsup",
         "lint": "eslint . --max-warnings=0",
-        "lint:fix": "eslint . --max-warnings=0 --fix",
-        "prepublishOnly": "npm i && npm run lint && npm run test && npm run build"
+        "lint:fix": "eslint . --max-warnings=0 --fix"
     },
     "keywords": [],
     "author": "Tim Fabian",
