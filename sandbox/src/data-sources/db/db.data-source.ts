@@ -1,4 +1,4 @@
-import { BaseDataSource, BaseEntity, DataSource, Newable, DataSourceOptions, MigrationEntity, JwtRefreshToken, JwtCredentials, PasswordResetToken, MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken, Log, Change, ChangeSet, Invoice, NumberInvoices, Entity, OmitClass, OtpCredentials, BackupResourceEntity, BackupEntity } from 'zibri';
+import { PostgresDataSource, PostgresOptions, BaseEntity, DataSource, Newable, MigrationEntity, JwtRefreshToken, JwtCredentials, PasswordResetToken, MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken, Log, Change, ChangeSet, Invoice, NumberInvoices, Entity, OmitClass, OtpCredentials, BackupResourceEntity, BackupEntity } from 'zibri';
 
 import { Company, Test, User } from '../../models';
 
@@ -6,12 +6,11 @@ import { Company, Test, User } from '../../models';
 class Test2 extends OmitClass(MigrationEntity, ['ranAt']) {}
 
 @DataSource()
-export class DbDataSource extends BaseDataSource {
+export class DbDataSource extends PostgresDataSource {
     rootPw: string = 'password';
     rootUsername: string = 'postgres';
 
-    options: DataSourceOptions = {
-        type: 'postgres',
+    options: PostgresOptions = {
         host: 'localhost',
         port: 5432,
         username: 'postgres',

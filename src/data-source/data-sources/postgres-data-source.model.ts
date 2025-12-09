@@ -1,28 +1,29 @@
 import { ChildProcessByStdio, spawn } from 'node:child_process';
 import { PassThrough, Readable, Writable } from 'node:stream';
 
-import { DataSource as TODataSource, Repository as TORepository, EntityMetadata as TOEntityMetadata, EntitySchema, EntitySchemaColumnOptions, QueryRunner, EntitySchemaRelationOptions, Table, TableColumnOptions } from 'typeorm';
+import { DataSource as TODataSource, Repository as TORepository, EntityMetadata as TOEntityMetadata, EntitySchema, EntitySchemaColumnOptions, QueryRunner, EntitySchemaRelationOptions, Table, TableColumnOptions, TableColumn, EntityTarget } from 'typeorm';
 import { PostgresConnectionOptions } from 'typeorm/driver/postgres/PostgresConnectionOptions';
 import { IsolationLevel } from 'typeorm/driver/types/IsolationLevel';
 import { ColumnMetadata } from 'typeorm/metadata/ColumnMetadata';
 import { OnDeleteType } from 'typeorm/metadata/types/OnDeleteType';
 import { OnUpdateType } from 'typeorm/metadata/types/OnUpdateType';
 
-import { inject, repositoryTokenFor, ZIBRI_DI_TOKENS } from '../di';
-import { EntityMetadata, PropertyMetadata, Relation, RelationMetadata, StringPropertyMetadata } from '../entity';
-import { BaseEntity } from '../entity/base-entity.model';
-import { ExcludeStrict, Newable, OmitStrict, Version } from '../types';
-import { compareVersion, MetadataUtilities } from '../utilities';
-import { Migration, MigrationEntity } from './migration';
-import { ColumnType, DataSourceOptions } from './models';
-import { Repository } from './repository';
-import { Transaction } from './transaction';
-import { BackupResourceInterface } from '../backup';
-import { ChangeSetEntity, ChangeSetRepository, isChangeSetEntityNewable, isSoftDeleteEntityNewable, SoftDeleteEntity, SoftDeleteRepository } from '../change-sets';
-import { register } from '../di/register.function';
-import { GlobalRegistry } from '../global';
-import { LoggerInterface } from '../logging';
-import { TypeOrmTransaction } from './transaction/typeorm-transaction.model';
+import { DataSourceInterface } from '.';
+import { ChangeSetEntity, ChangeSetRepository, isChangeSetEntityNewable, isSoftDeleteEntityNewable, SoftDeleteEntity, SoftDeleteRepository } from '../../change-sets';
+import { inject, repositoryTokenFor, ZIBRI_DI_TOKENS } from '../../di';
+import { register } from '../../di/register.function';
+import { EntityMetadata, PropertyMetadata, PropertyMetadataInput, Relation, RelationMetadata, StringPropertyMetadata } from '../../entity';
+import { BaseEntity } from '../../entity/base-entity.model';
+import { FilePropertyMetadata } from '../../entity/models/file-property-metadata.model';
+import { GlobalRegistry } from '../../global';
+import { LoggerInterface } from '../../logging';
+import { ExcludeStrict, Newable, OmitStrict, Version } from '../../types';
+import { compareVersion, MetadataUtilities } from '../../utilities';
+import { Migration, MigrationEntity } from '../migration';
+import { ColumnType, DataSourceOptions } from '../models';
+import { Repository } from '../repository';
+import { Transaction } from '../transaction';
+import { TypeOrmTransaction } from '../transaction/typeorm-transaction.model';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 type ToColumnMappableTypes = ExcludeStrict<PropertyMetadata, RelationMetadata<BaseEntity>>['type'];
@@ -31,10 +32,14 @@ type ToColumnMappableTypes = ExcludeStrict<PropertyMetadata, RelationMetadata<Ba
 type MigrationWithName = { migration: Migration, name: string };
 
 /**
- * A base data source definition.
- * Configured for postgres by default.
+ * Postgres-specific connection options.
  */
-export abstract class BaseDataSource implements BackupResourceInterface {
+export type PostgresOptions = OmitStrict<PostgresConnectionOptions, 'entities' | 'type'>;
+
+/**
+ * A base postgres data source definition.
+ */
+export abstract class PostgresDataSource implements DataSourceInterface {
     /**
      * Mapping from a Zibri property type to a typeorm column type.
      */
@@ -54,7 +59,7 @@ export abstract class BaseDataSource implements BackupResourceInterface {
         };
     }
 
-    abstract readonly options: OmitStrict<DataSourceOptions, 'entities'>;
+    abstract readonly options: PostgresOptions;
     abstract readonly entities: Newable<BaseEntity>[];
     /**
      * The optional root password.
@@ -64,9 +69,8 @@ export abstract class BaseDataSource implements BackupResourceInterface {
      * The optional root username.
      */
     readonly rootUsername: string | undefined;
-    /**
-     * All migrations that belong to this data source.
-     */
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
     readonly migrations: Newable<Migration>[] = [];
 
     /**
@@ -85,7 +89,7 @@ export abstract class BaseDataSource implements BackupResourceInterface {
     // eslint-disable-next-line jsdoc/require-jsdoc
     createBackupData(): Readable {
         const dumpCommand: string = 'pg_dumpall';
-        const { host, port } = this.options as PostgresConnectionOptions;
+        const { host, port } = this.options;
         if (!this.rootUsername || !host || !port) {
             throw new Error('Could not create a backup, missing this.rootUsername, this.options.host or this.options.port');
         }
@@ -115,7 +119,7 @@ export abstract class BaseDataSource implements BackupResourceInterface {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async restoreBackup(backupData: Readable): Promise<void> {
-        const { host, port, database } = this.options as PostgresConnectionOptions;
+        const { host, port, database } = this.options;
         if (!this.rootUsername || !host || !port || !database) {
             throw new Error('Missing rootUsername, host, port, or database for restore');
         }
@@ -141,12 +145,10 @@ export abstract class BaseDataSource implements BackupResourceInterface {
         });
     }
 
-    /**
-     * Initializes the data source.
-     */
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async init(): Promise<void> {
         if (this.ds) {
-            throw new Error(`The ${this.options.type} data source has already been initialized.`);
+            throw new Error('The postgres data source has already been initialized.');
         }
 
         for (const entityClass of this.entities) {
@@ -160,6 +162,7 @@ export abstract class BaseDataSource implements BackupResourceInterface {
         this.ds = new TODataSource({
             entities: schemas,
             poolSize: 100,
+            type: 'postgres',
             ...this.options,
             synchronize: false
         } as DataSourceOptions);
@@ -362,15 +365,11 @@ export abstract class BaseDataSource implements BackupResourceInterface {
         }
     }
 
-    /**
-     * Gets a repository to access the table of the provided entity class.
-     * @param cls - The entity class to get the repository for.
-     * @returns A repository for the provided entity class.
-     * @throws When the data source has not been initialized yet or the provided entity does not belong to this data source.
-     */
+    // eslint-disable-next-line jsdoc/require-jsdoc
     getRepository<T extends BaseEntity>(cls: Newable<T>): Repository<T> {
         if (!this.ds) {
-            throw new Error(`The ${this.options.type} data source needs to be initialized before it can be used.`);
+            // eslint-disable-next-line sonar/no-duplicate-string
+            throw new Error('The postgres data source needs to be initialized before it can be used.');
         }
         if (!this.entities.find(e => e === cls)) {
             throw new Error(`The entity "${cls.name}" is not in this database. Did you forget to include it in the entities array?`);
@@ -386,14 +385,10 @@ export abstract class BaseDataSource implements BackupResourceInterface {
         return new Repository(cls, repo);
     }
 
-    /**
-     * Starts a new transaction.
-     * @param isolationLevel - The isolation level of the transaction.
-     * @returns A new transaction that can be passed to any repository methods.
-     */
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async startTransaction(isolationLevel?: IsolationLevel): Promise<Transaction> {
         if (!this.ds) {
-            throw new Error(`The ${this.options.type} data source needs to be initialized before it can be used.`);
+            throw new Error('The postgres data source needs to be initialized before it can be used.');
         }
 
         const runner: QueryRunner = this.createQueryRunner();
@@ -409,20 +404,18 @@ export abstract class BaseDataSource implements BackupResourceInterface {
     }
 
     /**
-     * Creates a typeorm query runner.
-     * @returns A typeorm query runner.
+     * Creates a query runner.
+     * @returns A query runner.
      * @throws When the data source has not been initialized yet.
      */
     createQueryRunner(): QueryRunner {
         if (!this.ds) {
-            throw new Error(`The ${this.options.type} data source needs to be initialized before it can be used.`);
+            throw new Error('The postgres data source needs to be initialized before it can be used.');
         }
         return this.ds.createQueryRunner();
     }
 
-    /**
-     * Runs migrations for the data source.
-     */
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async runMigrations(): Promise<void> {
         await this.createMigrationTableIfNotExists();
 
@@ -456,12 +449,102 @@ export abstract class BaseDataSource implements BackupResourceInterface {
         }
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async addPropertyToEntity<T extends BaseEntity>(
+        entity: Newable<T>,
+        key: keyof T,
+        transaction: Transaction
+    ): Promise<void> {
+        const col: TableColumnOptions = this.propertyToTableColumnOptions(entity, key);
+        await transaction.queryRunner.addColumn(
+            this.getEntityMetadata(entity, transaction).tableName,
+            new TableColumn({ ...col, isNullable: true })
+        );
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async changePropertyOfEntity<T extends BaseEntity>(
+        entity: Newable<T>,
+        oldColumn: keyof T | string & {},
+        newColumn: PropertyMetadataInput & {
+            /**
+             * The name of the new column.
+             */
+            name?: keyof T,
+            /**
+             * The type of the new column.
+             */
+            type: ExcludeStrict<PropertyMetadata, RelationMetadata<BaseEntity> | FilePropertyMetadata>['type']
+        },
+        transaction: Transaction
+    ): Promise<void> {
+        const entityMetadata: TOEntityMetadata = this.getEntityMetadata(entity, transaction);
+        const columnMetadata: ColumnMetadata = this.getColumnMetadata(entity, oldColumn, transaction);
+
+        const col: TableColumnOptions = {
+            ...columnMetadata,
+            ...newColumn,
+            enum: 'enum' in newColumn && newColumn.enum
+                ? Object.values(newColumn.enum).map(v => String(v))
+                : columnMetadata.enum
+                    ? columnMetadata.enum.map(v => String(v))
+                    : undefined,
+            name: String(newColumn.name ?? oldColumn),
+            type: this.normalizeColumnType({
+                precision: undefined,
+                scale: undefined,
+                ...columnMetadata,
+                ...newColumn,
+                type: this.columnTypeMapping[newColumn.type]
+            })
+        };
+
+        await transaction.queryRunner.changeColumn(entityMetadata.tableName, String(oldColumn), new TableColumn(col));
+    }
+
+    /**
+     * Gets the typeorm metadata for a given entity.
+     * @param target - The target entity.
+     * @param transaction - The transaction to run this command with.
+     * @returns The typeorm metadata.
+     */
+    protected getEntityMetadata<T extends BaseEntity>(target: EntityTarget<T>, transaction: Transaction): TOEntityMetadata {
+        return transaction.queryRunner.connection.getMetadata(target);
+    }
+
+    /**
+     * Gets the metadata for a typeorm column.
+     * @param target - The entity.
+     * @param propertyName - The name of the property to get the column metadata for.
+     * @param transaction - The transaction to use to get the column metadata.
+     * @returns The typeorm column metadata.
+     * @throws When the provided propertyName could not be found as a column.
+     */
+    protected getColumnMetadata<T extends BaseEntity>(
+        target: EntityTarget<T>,
+        propertyName: keyof T | string & {},
+        transaction: Transaction
+    ): ColumnMetadata {
+        const metadata: TOEntityMetadata = this.getEntityMetadata(target, transaction);
+        const column: ColumnMetadata | undefined = metadata.columns.find(
+            (col) => col.propertyName === propertyName
+        );
+
+        if (!column) {
+            throw new Error(
+                `Column ${propertyName.toString()} not found in model`
+            );
+        }
+
+        return column;
+    }
+
     /**
      * Creates a table for migrations if it does not exist already.
      */
     protected async createMigrationTableIfNotExists(): Promise<void> {
         if (!this.ds) {
-            throw new Error(`The ${this.options.type} data source needs to be initialized before it can be used.`);
+            throw new Error('The postgres data source needs to be initialized before it can be used.');
         }
 
         const runner: QueryRunner = this.createQueryRunner();
@@ -494,9 +577,9 @@ export abstract class BaseDataSource implements BackupResourceInterface {
      * @returns Typeorm column options.
      * @throws When no data source has been provided or no column metadata could be found.
      */
-    propertyToTableColumnOptions<T extends BaseEntity>(entity: Newable<T>, property: keyof T): TableColumnOptions {
+    protected propertyToTableColumnOptions<T extends BaseEntity>(entity: Newable<T>, property: keyof T): TableColumnOptions {
         if (!this.ds) {
-            throw new Error(`The ${this.options.type} data source needs to be initialized before it can be used.`);
+            throw new Error('The postgres data source needs to be initialized before it can be used.');
         }
         const schema: EntitySchema = this.createSchemaForEntity(entity);
         const metadata: TOEntityMetadata = this.ds.getMetadata(schema);
@@ -520,12 +603,7 @@ export abstract class BaseDataSource implements BackupResourceInterface {
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-returns, jsdoc/require-param
-    /**
-     * Normalizes the provided column.
-     * @throws When the data source has not been initialized yet.
-     */
-    normalizeColumnType(
+    private normalizeColumnType(
         column: {
             // eslint-disable-next-line jsdoc/require-jsdoc
             type: ColumnType | string & {} | undefined,
@@ -540,7 +618,7 @@ export abstract class BaseDataSource implements BackupResourceInterface {
         }
     ): string {
         if (!this.ds) {
-            throw new Error(`The ${this.options.type} data source needs to be initialized before it can be used.`);
+            throw new Error('The postgres data source needs to be initialized before it can be used.');
         }
         return this.ds.driver.normalizeType(column);
     }

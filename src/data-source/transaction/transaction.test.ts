@@ -1,18 +1,16 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import { StartedTestContainer } from 'testcontainers';
-import { PostgresConnectionCredentialsOptions } from 'typeorm/driver/postgres/PostgresConnectionCredentialsOptions';
 
 import { POSTGRES_TEST_IMAGE } from '../../__testing__';
 import { Entity, Property } from '../../entity';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Newable } from '../../types';
-import { BaseDataSource } from '../base-data-source.model';
+import { PostgresDataSource, PostgresOptions } from '../data-sources';
 import { DataSource } from '../decorators';
 import { Repository } from '../repository';
 import { Transaction } from './transaction.model';
 import { MigrationEntity } from '../migration';
-import { DataSourceOptions } from '../models';
 
 @Entity()
 class Item {
@@ -24,9 +22,8 @@ class Item {
 }
 
 @DataSource()
-class DbDataSource extends BaseDataSource {
-    options: DataSourceOptions = {
-        type: 'postgres',
+class DbDataSource extends PostgresDataSource {
+    options: PostgresOptions = {
         host: 'localhost',
         username: 'postgres',
         password: 'password',
@@ -48,8 +45,8 @@ describe('transaction', () => {
             .withPassword('password')
             .start();
         dataSource = new DbDataSource();
-        (dataSource.options as PostgresConnectionCredentialsOptions) = {
-            ...dataSource.options as PostgresConnectionCredentialsOptions,
+        dataSource.options = {
+            ...dataSource.options,
             port: container.getMappedPort(5432)
         };
         await dataSource.init();

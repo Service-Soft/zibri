@@ -63,7 +63,7 @@ export interface MetricsServiceInterface {
      * Collect a snapshot of every metric’s current samples.
      * This will usually be called in regular intervals, eg. From a cron job.
      *
-     * To retrieve the metrics use the getMetrics method.
+     * To retrieve the metrics use the getMetricSnapshots method.
      */
     collect: () => Promise<void>,
     /**

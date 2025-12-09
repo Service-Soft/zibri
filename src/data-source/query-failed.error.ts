@@ -1,7 +1,7 @@
 import { QueryFailedError as TOQueryFailedError } from 'typeorm';
 
 /**
- * An error for a failed database query.
+ * An error for a failed sql query.
  */
 export class QueryFailedError extends Error {
     constructor(error: TOQueryFailedError<Error>) {

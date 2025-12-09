@@ -13,7 +13,7 @@ export interface MultithreadingServiceInterface {
     /**
      * Creates and queues a thread job with the given data.
      * @param threadJobData - The data to create the thread job from.
-     * @returns The id of the created thread job in the database and queue.
+     * @returns The id of the created thread job in the data source and queue.
      *
      * **This differs from the threadId, which is created by the os and set when the thread actually starts.**.
      */
@@ -29,7 +29,7 @@ export interface MultithreadingServiceInterface {
         threadJobData: ThreadJobData<WorkerData>
     ) => Promise<ThreadJobEntity<WorkerData, ResultType>> | ThreadJobEntity<WorkerData, ResultType>,
     /**
-     * Runs the given function on a separate thread. This will not persist the state in the database.
+     * Runs the given function on a separate thread. This will not persist the state in the data source.
      *
      ***IMPORTANT**: This uses "eval" in the thread worker, so make sure that the data passed is not malicious.
      * @param func - The function that should be run in a separate thread.

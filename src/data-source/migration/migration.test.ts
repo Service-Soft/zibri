@@ -1,13 +1,11 @@
 import { beforeAll, afterAll, describe, it, expect } from '@jest/globals';
 import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { DataSourceOptions, Table, TableColumn } from 'typeorm';
-import { PostgresConnectionCredentialsOptions } from 'typeorm/driver/postgres/PostgresConnectionCredentialsOptions';
+import { Table, TableColumn } from 'typeorm';
 
 import { inject, Injectable, InjectRepository } from '../../di';
 import { Entity, Property } from '../../entity';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Newable, Version } from '../../types';
-import { BaseDataSource } from '../base-data-source.model';
 import { Transaction } from '../transaction';
 import { Migration } from './migration.model';
 import { DataSource } from '../decorators';
@@ -15,6 +13,7 @@ import { Repository } from '../repository';
 import { MigrationEntity } from './migration-entity.model';
 import { POSTGRES_TEST_IMAGE } from '../../__testing__';
 import { GlobalRegistry } from '../../global';
+import { PostgresDataSource, PostgresOptions } from '../data-sources';
 
 @Entity('item')
 class LegacyItem {
@@ -23,9 +22,8 @@ class LegacyItem {
 }
 
 @DataSource()
-class LegacyDbDataSource extends BaseDataSource {
-    options: DataSourceOptions = {
-        type: 'postgres',
+class LegacyDbDataSource extends PostgresDataSource {
+    options: PostgresOptions = {
         host: 'localhost',
         username: 'postgres',
         password: 'password',
@@ -45,9 +43,8 @@ class Item {
 }
 
 @DataSource()
-class DbDataSource extends BaseDataSource {
-    options: DataSourceOptions = {
-        type: 'postgres',
+class DbDataSource extends PostgresDataSource {
+    options: PostgresOptions = {
         host: 'localhost',
         username: 'postgres',
         password: 'password',
@@ -70,7 +67,7 @@ class AddTestValueMigration extends Migration {
     }
 
     override async up(transaction: Transaction): Promise<void> {
-        await this.addColumn(Item, 'value', transaction);
+        await this.dataSource.addPropertyToEntity(Item, 'value', transaction);
         const existingItems: Item[] = await this.itemRepository.findAll({ transaction });
         await Promise.all(existingItems.map(t => this.itemRepository.updateById(t.id, { value: '42' }, { transaction })));
     }
@@ -95,8 +92,8 @@ describe('AddTestValueMigration', () => {
         GlobalRegistry['appData'].version = '0.0.1';
 
         const legacyDataSource: LegacyDbDataSource = inject(LegacyDbDataSource);
-        (legacyDataSource.options as PostgresConnectionCredentialsOptions) = {
-            ...legacyDataSource.options as PostgresConnectionCredentialsOptions,
+        legacyDataSource.options = {
+            ...legacyDataSource.options,
             port: container.getMappedPort(5432)
         };
         await legacyDataSource.init();
@@ -109,8 +106,8 @@ describe('AddTestValueMigration', () => {
     it('should add non-nullable value column with backfilled defaults', async () => {
         const dataSource: DbDataSource = inject(DbDataSource);
 
-        (dataSource.options as PostgresConnectionCredentialsOptions) = {
-            ...dataSource.options as PostgresConnectionCredentialsOptions,
+        dataSource.options = {
+            ...dataSource.options,
             port: container.getMappedPort(5432)
         };
         await dataSource.init();

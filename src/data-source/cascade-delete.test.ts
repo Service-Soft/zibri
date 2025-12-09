@@ -1,21 +1,18 @@
 import { beforeAll, afterAll, describe, it, expect } from '@jest/globals';
 import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { PostgresConnectionCredentialsOptions } from 'typeorm/driver/postgres/PostgresConnectionCredentialsOptions';
 
-import { BaseDataSource } from './base-data-source.model';
 import { DataSource } from './decorators';
 import { inject } from '../di';
 import { BaseEntity } from '../entity/base-entity.model';
 import { Newable } from '../types';
 import { MigrationEntity } from './migration';
-import { DataSourceOptions } from './models';
 import { Repository } from './repository';
 import { Child, Company, mockCreateUserData, Parent, POSTGRES_TEST_IMAGE, Profile, Role, User, UserCreateData } from '../__testing__';
+import { PostgresDataSource, PostgresOptions } from './data-sources';
 
 @DataSource()
-class TestDataSource extends BaseDataSource {
-    options: DataSourceOptions = {
-        type: 'postgres',
+class TestDataSource extends PostgresDataSource {
+    options: PostgresOptions = {
         host: 'localhost',
         username: 'postgres',
         password: 'password',
@@ -36,8 +33,8 @@ describe('cascade delete', () => {
             .withPassword('password')
             .start();
         ds = inject(TestDataSource);
-        (ds.options as PostgresConnectionCredentialsOptions) = {
-            ...(ds.options as PostgresConnectionCredentialsOptions),
+        ds.options = {
+            ...ds.options,
             port: container.getMappedPort(5432)
         };
         await ds.init();

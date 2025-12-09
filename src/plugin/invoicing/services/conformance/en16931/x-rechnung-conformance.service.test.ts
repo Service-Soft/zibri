@@ -5,11 +5,10 @@ import path from 'path';
 import { afterAll, beforeAll, describe, it } from '@jest/globals';
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import { StartedTestContainer } from 'testcontainers';
-import { PostgresConnectionCredentialsOptions } from 'typeorm/driver/postgres/PostgresConnectionCredentialsOptions';
 
 import { XRechnungConformanceService } from './x-rechnung-conformance.service';
 import { POSTGRES_TEST_IMAGE, testFileFolder } from '../../../../../__testing__';
-import { BaseDataSource, DataSource, DataSourceOptions, MigrationEntity, Repository } from '../../../../../data-source';
+import { DataSource, MigrationEntity, Repository, PostgresDataSource, PostgresOptions } from '../../../../../data-source';
 import { XML } from '../../../../../document';
 import { BaseEntity } from '../../../../../entity/base-entity.model';
 import { Newable, OmitStrict } from '../../../../../types';
@@ -75,9 +74,8 @@ const invoiceCalcService: InvoiceCalcService = new InvoiceCalcService();
 const conformanceService: XRechnungConformanceService = new XRechnungConformanceService(invoicingOptions, invoiceCalcService);
 
 @DataSource()
-class DbDataSource extends BaseDataSource {
-    options: DataSourceOptions = {
-        type: 'postgres',
+class DbDataSource extends PostgresDataSource {
+    options: PostgresOptions = {
         host: 'localhost',
         username: 'postgres',
         password: 'password',
@@ -100,8 +98,8 @@ describe('generateXml', () => {
             .withPassword('password')
             .start();
         dataSource = new DbDataSource();
-        (dataSource.options as PostgresConnectionCredentialsOptions) = {
-            ...dataSource.options as PostgresConnectionCredentialsOptions,
+        dataSource.options = {
+            ...dataSource.options,
             port: container.getMappedPort(5432)
         };
         await dataSource.init();

@@ -1,3 +1,40 @@
+#zibri-openapi-logo {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    align-items: center;
+    position: absolute;
+    margin-top: -25px;
+    color: whitesmoke;
+    transition: 0.3s ease;
+    font-size: 28px;
+}
+
+#zibri-openapi-logo:hover  {
+    color: #00b4d8;
+}
+
+.zibri-roles-container {
+    flex: 1;
+    display: flex;
+    justify-content: end;
+}
+
+.zibri-role-badge {
+    background-color: #1a1a26;
+    border: 1px solid whitesmoke;
+    padding-left: 8px;
+    padding-right: 8px;
+    padding-bottom: 2px;
+    border-radius: 10px;
+    font-size: 14px;
+}
+
+.swagger-ui .opblock .opblock-summary .view-line-link {
+    margin: 0px !important;
+    width: 30px !important;
+}
+
 body,
 .swagger-ui .dialog-ux .modal-ux {
     background-color: #2a2a35;;

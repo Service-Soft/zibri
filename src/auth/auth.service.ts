@@ -240,12 +240,11 @@ export class AuthService implements AuthServiceInterface {
         }
 
         // require2fa
-        const user: BaseUser<string> = await this.getCurrentUser(request, this.strategies, true);
-        if (
-            require2faMetadata
-            && !await this.twoFactorService.has2fa(user, request, require2faMetadata.allowedMethods)
-        ) {
-            throw new UnauthorizedError('You need to provide a second factor to access this route.');
+        if (require2faMetadata) {
+            const user: BaseUser<string> = await this.getCurrentUser(request, this.strategies, true);
+            if (!await this.twoFactorService.has2fa(user, request, require2faMetadata.allowedMethods)) {
+                throw new UnauthorizedError('You need to provide a second factor to access this route.');
+            }
         }
 
         // belongsTo

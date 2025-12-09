@@ -48,6 +48,7 @@ export class TestController {
         @Body(Test)
         data: Test
     ): Promise<Test> {
+        await this.testRepository.findAll({ where: { value: [{ iLike: '%42', not: '42' }, '43'] } });
         return await this.testRepository.updateById(id, data);
     }
 

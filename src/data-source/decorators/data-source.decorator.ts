@@ -1,7 +1,7 @@
 import { GlobalRegistry } from '../../global';
 import { Newable } from '../../types';
 import { MetadataUtilities } from '../../utilities';
-import { BaseDataSource } from '../base-data-source.model';
+import { DataSourceInterface } from '../data-sources';
 
 // eslint-disable-next-line jsdoc/require-returns
 /**
@@ -16,6 +16,6 @@ export function DataSource(): ClassDecorator {
             token: target as unknown as Newable<unknown>,
             useClass: target as unknown as Newable<unknown>
         });
-        GlobalRegistry.dataSourceClasses.push(target as unknown as Newable<BaseDataSource>);
+        GlobalRegistry.dataSourceClasses.push(target as unknown as Newable<DataSourceInterface>);
     };
 }

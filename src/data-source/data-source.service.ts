@@ -1,10 +1,9 @@
 import { GlobalRegistry } from '../global';
 import { DataSourceServiceInterface } from './data-source-service.interface';
-import { inject, ZIBRI_DI_TOKENS } from '../di';
-import { BaseDataSource } from './base-data-source.model';
 import { JwtCredentials, PasswordResetToken, JwtRefreshToken, OtpCredentials } from '../auth';
 import { BackupEntity, BackupResourceEntity } from '../backup';
 import { CronJobEntity } from '../cron';
+import { inject, ZIBRI_DI_TOKENS } from '../di';
 import { Email, MailingList, MailingListSubscriber } from '../email';
 import { BaseEntity } from '../entity/base-entity.model';
 import { Log, LoggerInterface } from '../logging';
@@ -12,6 +11,7 @@ import { ThreadJobEntity } from '../multithreading';
 import { Newable } from '../types';
 import { validateEntitiesRegistered } from '../utilities';
 import { WebsocketChannel, WebsocketMessage } from '../websocket';
+import { DataSourceInterface } from './data-sources/data-source.interface';
 
 /**
  * Default data source service implementation of Zibri.
@@ -50,7 +50,7 @@ export class DataSourceService implements DataSourceServiceInterface {
         }
 
         for (const dataSourceClass of GlobalRegistry.dataSourceClasses) {
-            const dataSource: BaseDataSource = inject(dataSourceClass);
+            const dataSource: DataSourceInterface = inject(dataSourceClass);
             for (const entity of this.defaultEntities) {
                 if (!dataSource.entities.includes(entity)) {
                     dataSource.entities.push(entity);
