@@ -133,6 +133,111 @@ export class OpenApiService implements OpenApiServiceInterface {
             }
         });
 
+        await app.router.register({
+            httpMethod: HttpMethod.GET,
+            route: `${this.openApiRoute}/custom.js`,
+            handler: (_, res) => {
+                res.type('.js').send([
+                    '(function waitForTopbar() {',
+                    '    const topbar = document.querySelector(\'.information-container\');',
+                    '    if (!topbar) {',
+                    '        return setTimeout(waitForTopbar, 50);',
+                    '    }',
+                    '    if (document.getElementById(\'zibri-openapi-logo\')) {',
+                    '        return;',
+                    '    }',
+                    '',
+                    '    const a = document.createElement(\'a\');',
+                    '    a.id = \'zibri-openapi-logo\';',
+                    '    a.href = \'/\';',
+                    '',
+                    '    const img = document.createElement(\'img\');',
+                    `    img.src = '${this.assetService.assetsRoute}/logo.jpg';`,
+                    '    img.height = 100;',
+                    '    img.width = 100;',
+                    '',
+                    '    a.appendChild(img);',
+                    `    a.append('${GlobalRegistry.getAppData('name')}')`,
+                    '    topbar.insertBefore(a, topbar.firstChild);',
+                    '})();',
+                    '',
+                    '(function waitForSwagger() {',
+                    '    if (!window.ui || typeof window.ui.specSelectors !== \'object\') {',
+                    '        return setTimeout(waitForSwagger, 50);',
+                    '    }',
+                    // eslint-disable-next-line stylistic/max-len
+                    '    const spec = window.ui.specSelectors.specJson().toJS ? window.ui.specSelectors.specJson().toJS() : window.ui.specSelectors.specJson();',
+                    '    if (!spec || !spec.paths) {',
+                    '        return setTimeout(waitForSwagger, 50);',
+                    '    }',
+                    '',
+                    '    function normalizeMethod(m) {',
+                    '        return String(m).toLowerCase();',
+                    '    }',
+                    '',
+                    // eslint-disable-next-line cspell/spellchecker
+                    '    const opblocks = Array.from(document.querySelectorAll(\'.opblock\'));',
+                    // eslint-disable-next-line cspell/spellchecker
+                    '    opblocks.forEach((op) => {',
+                    '        try {',
+                    // eslint-disable-next-line cspell/spellchecker
+                    '            const methodEl = op.querySelector(\'.opblock-summary-method\');',
+                    // eslint-disable-next-line cspell/spellchecker
+                    '            const pathEl = op.querySelector(\'.opblock-summary-path\');',
+                    '            if (!methodEl || !pathEl) {',
+                    '                return;',
+                    '            }',
+                    '            const method = normalizeMethod(methodEl.textContent?.trim() ?? \'\');',
+                    '            const path = (pathEl.textContent?.trim() ?? \'\');',
+                    '',
+                    '            const pathObj = spec.paths && spec.paths[path];',
+                    '            if (!pathObj) {',
+                    '                return;',
+                    '            }',
+                    '            const operationObj = pathObj[method];',
+                    '            if (!operationObj) {',
+                    '                return;',
+                    '            }',
+                    '            const roles = operationObj[\'x-roles\'];',
+                    '            if (!roles || !Array.isArray(roles) || roles.length === 0) {',
+                    '                return;',
+                    '            }',
+                    '',
+                    '            if (op.querySelector(\'.zibri-roles-container\')) {',
+                    '                return;',
+                    '            }',
+                    '            const container = document.createElement(\'div\');',
+                    '            container.className = \'zibri-roles-container\';',
+                    '            container.setAttribute(\'aria-hidden\', \'true\');',
+                    '',
+                    '            roles.forEach((r) => {',
+                    '                const badge = document.createElement(\'span\');',
+                    '                badge.className = \'zibri-role-badge\';',
+                    '                badge.textContent = String(r);',
+                    '                container.appendChild(badge);',
+                    '            });',
+                    '',
+                    // eslint-disable-next-line cspell/spellchecker
+                    '            const summary = op.querySelector(\'.opblock-summary-path-description-wrapper\');',
+                    '            summary.appendChild(container);',
+                    // '            if (summary) {',
+                    // '                const lock = summary.querySelector(\'.authorization__btn\');',
+                    // '                if (lock) {',
+                    // '                    summary.insertBefore(container, lock);',
+                    // '                } else {',
+                    // '                    summary.appendChild(container);',
+                    // '                }',
+                    // '            }',
+                    '        } catch (e) {',
+                    '            console.warn(\'zibri openapi role injection failed\', e);',
+                    '        }',
+                    '    });',
+                    '})();'
+
+                ].join('\n'));
+            }
+        });
+
         app.use(this.openApiRoute, swaggerUi.serve);
         await app.router.register({
             httpMethod: HttpMethod.GET,
@@ -140,10 +245,11 @@ export class OpenApiService implements OpenApiServiceInterface {
             handler: swaggerUi.setup(
                 definition,
                 {
-                // eslint-disable-next-line cspell/spellchecker
+                    // eslint-disable-next-line cspell/spellchecker
                     customfavIcon: `${this.assetService.assetsRoute}/favicon.png`,
                     customSiteTitle: definition.info.title,
-                    customCssUrl: `${this.assetService.assetsRoute}/open-api/custom.css`
+                    customCssUrl: `${this.assetService.assetsRoute}/open-api/custom.css`,
+                    customJs: `${this.openApiRoute}/custom.js`
                 }
             ) as RouteHandler<BodyMetadata, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>
         });

@@ -1,4 +1,4 @@
-import { BaseDataSource } from '../data-source';
+import { DataSourceInterface } from '../data-source';
 import { inject } from '../di';
 import type { BaseEntity } from '../entity/base-entity.model';
 import { MissingEntitiesError } from '../error-handling';
@@ -14,7 +14,7 @@ import type { Newable } from '../types';
 export function validateEntitiesRegistered(context: string, ...entities: Newable<BaseEntity>[]): void {
     const entitiesInDataSources: Newable<BaseEntity>[] = [];
     for (const dataSourceClass of GlobalRegistry.dataSourceClasses) {
-        const dataSource: BaseDataSource = inject(dataSourceClass);
+        const dataSource: DataSourceInterface = inject(dataSourceClass);
         entitiesInDataSources.push(...dataSource.entities);
     }
     const missingEntities: Newable<BaseEntity>[] = entities.filter(e => !entitiesInDataSources.includes(e));

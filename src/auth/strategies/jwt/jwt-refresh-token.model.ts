@@ -2,7 +2,7 @@ import { Entity, OmitClass, Property } from '../../../entity';
 import { BaseEntity } from '../../../entity/base-entity.model';
 
 /**
- * The jwt refresh token that gets stored in the database.
+ * The jwt refresh token that gets stored in the data source.
  */
 @Entity()
 export class JwtRefreshToken extends BaseEntity {

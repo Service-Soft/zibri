@@ -1,4 +1,4 @@
-import { Controller, Inject, ZIBRI_DI_TOKENS, Metric, Get, PrometheusMetricsService, Response, HtmlResponse, MetricsSnapshot, GlobalRegistry } from 'zibri';
+import { Controller, Inject, ZIBRI_DI_TOKENS, Metric, Get, Response, HtmlResponse, MetricsSnapshot, GlobalRegistry, MetricsServiceInterface } from 'zibri';
 
 import renderBasePageTemplate from '../templates/pages/base-page.hbs';
 import renderMetricsTemplate from '../templates/pages/metrics.hbs';
@@ -7,7 +7,7 @@ import renderMetricsTemplate from '../templates/pages/metrics.hbs';
 export class MetricsController {
     constructor(
         @Inject(ZIBRI_DI_TOKENS.METRICS_SERVICE)
-        private readonly metricsService: PrometheusMetricsService
+        private readonly metricsService: MetricsServiceInterface
     ) {}
 
     @Get()

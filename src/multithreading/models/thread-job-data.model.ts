@@ -2,7 +2,7 @@ import { BaseThreadJobWorkerData } from './base-thread-job-worker-data.model';
 
 /**
  * The function values of the thread job data.
- * This is separated because this cannot be persisted in a database.
+ * This is separated because this cannot be persisted in a data source.
  */
 export type ThreadJobDataFunctions = {
     /**

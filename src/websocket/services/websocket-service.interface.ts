@@ -62,7 +62,7 @@ export type WebsocketSendData<Connection extends BaseWebsocketConnection, B exte
      */
     responseHandler?: WebsocketResponseHandler,
     /**
-     * Whether or not the message should be persisted in the database.
+     * Whether or not the message should be persisted in the data source.
      */
     persist?: boolean
 };

@@ -14,7 +14,7 @@ import { whereFilterToFindOptionsWhere } from './models/where/where-filter-to-fi
 import { QueryFailedError } from './query-failed.error';
 
 /**
- * A repository that handles database related things for its entity.
+ * A repository that handles data source related things for its entity.
  */
 export class Repository<
     T extends BaseEntity,

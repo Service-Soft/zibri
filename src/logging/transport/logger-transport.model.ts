@@ -19,7 +19,7 @@ export type BaseLoggerTransportConfig = {
     /**
      * Whether to register the transport as soon as possible or after the startup of the app.
      *
-     * This is useful if the transport eg. Depends on the database being available.
+     * This is useful if the transport eg. Depends on a data source being available.
      */
     register: 'directly' | 'afterStartup'
 };
@@ -63,7 +63,7 @@ export class LoggerTransport<T extends BaseLoggerTransportConfig> {
     }
 
     /**
-     * Creates a new logger transport that saves the log into the database.
+     * Creates a new logger transport that saves the log into the data source.
      * @param level - The log level at which the transport should be active.
      * @returns The newly created transport.
      */
