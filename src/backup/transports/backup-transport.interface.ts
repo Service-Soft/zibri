@@ -12,6 +12,10 @@ export interface BackupTransportInterface {
      */
     readonly name: string,
     /**
+     * Resolves all backups that have data stored over this transport.
+     */
+    resolveBackups: (existingEntities: BackupEntity[]) => BackupEntity[] | Promise<BackupEntity[]>,
+    /**
      * Stores the given data somewhere.
      */
     storeData: (data: Readable, backup: BackupEntity, resource: BackupResourceEntity) => void | Promise<void>,

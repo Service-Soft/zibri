@@ -2,10 +2,10 @@ import H from 'handlebars/runtime';
 import { inject, isVersion, JwtAuthController, LoggerInterface, ZIBRI_DI_TOKENS, ZibriApplication, ZibriInvoicingPlugin } from 'zibri';
 
 import { CronController, FileController, MetricsController, TemplateController, TestController, TestCrudController, TestWebsocketController } from './controllers';
-import { DbDataSource } from './data-sources';
-import { version } from '../package.json';
 import { createDefaultData } from './create-default-data.function';
 import { StatusCronJob } from './cron';
+import { DbDataSource } from './data-sources';
+import { version } from '../package.json';
 import { providers } from './providers';
 
 export let logger: LoggerInterface;

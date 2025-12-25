@@ -1,4 +1,4 @@
-import { PostgresDataSource, PostgresOptions, BaseEntity, DataSource, Newable, MigrationEntity, JwtRefreshToken, JwtCredentials, PasswordResetToken, MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken, Log, Change, ChangeSet, Invoice, NumberInvoices, Entity, OmitClass, OtpCredentials, BackupResourceEntity, BackupEntity } from 'zibri';
+import { PostgresDataSource, PostgresOptions, BaseEntity, DataSource, Newable, MigrationEntity, JwtRefreshToken, JwtCredentials, PasswordResetToken, MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken, Log, Change, ChangeSet, Entity, OmitClass, OtpCredentials, BackupResourceEntity, BackupEntity, Invoice, NumberInvoices } from 'zibri';
 
 import { Company, Test, User } from '../../models';
 
