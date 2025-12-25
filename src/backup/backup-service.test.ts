@@ -89,6 +89,10 @@ describe('Create and restore postgres backup', () => {
         expect((await itemRepository.findAll()).length).toEqual(1);
         await itemRepository.deleteAll({});
         expect((await itemRepository.findAll()).length).toEqual(0);
+        await backupRepository.deleteAll({});
+        expect((await backupRepository.findAll()).length).toEqual(0);
+        await backupService.syncBackupEntities();
+        expect((await backupRepository.findAll()).length).toEqual(1);
         const backup: BackupEntity = (await backupRepository.findAll({ relations: ['resources'] }))[0];
         await backupService.restore(backup);
         expect((await itemRepository.findAll()).length).toEqual(1);

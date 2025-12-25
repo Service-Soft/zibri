@@ -30,6 +30,10 @@ export interface BackupServiceInterface {
      */
     init: () => void | Promise<void>,
     /**
+     * Synchronizes backup entities with the data from all transports.
+     */
+    syncBackupEntities: () => Promise<void>,
+    /**
      * Starts a new backup based on the given configuration.
      */
     createBackup: (data?: BackupCreateData) => Promise<void>,

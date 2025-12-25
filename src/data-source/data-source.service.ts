@@ -8,6 +8,7 @@ import { Email, MailingList, MailingListSubscriber } from '../email';
 import { BaseEntity } from '../entity/base-entity.model';
 import { Log, LoggerInterface } from '../logging';
 import { ThreadJobEntity } from '../multithreading';
+import { Invoice, NumberInvoices } from '../plugin';
 import { Newable } from '../types';
 import { validateEntitiesRegistered } from '../utilities';
 import { WebsocketChannel, WebsocketMessage } from '../websocket';
@@ -35,7 +36,9 @@ export class DataSourceService implements DataSourceServiceInterface {
         MailingListSubscriber,
         Log,
         BackupResourceEntity,
-        BackupEntity
+        BackupEntity,
+        NumberInvoices,
+        Invoice
     ];
 
     constructor() {

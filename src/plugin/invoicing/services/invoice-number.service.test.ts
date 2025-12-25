@@ -5,12 +5,12 @@ import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import { StartedTestContainer } from 'testcontainers';
 
 import { InvoiceCalcService } from './invoice-calc.service';
+import { InvoiceNumberService } from './invoice-number.service';
+import { POSTGRES_TEST_IMAGE } from '../../../__testing__';
 import { DataSource, MigrationEntity, Repository, PostgresDataSource, PostgresOptions } from '../../../data-source';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { Newable, OmitStrict } from '../../../types';
 import { Invoice, InvoiceAddress, InvoicingOptions, NumberInvoices } from '../models';
-import { InvoiceNumberService } from './invoice-number.service';
-import { POSTGRES_TEST_IMAGE } from '../../../__testing__';
 
 const currentYear: string = new Date()
     .getFullYear()
