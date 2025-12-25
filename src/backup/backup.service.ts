@@ -7,7 +7,7 @@ import { inject, repositoryTokenFor, ZIBRI_DI_TOKENS } from '../di';
 import { GlobalRegistry } from '../global';
 import { LoggerInterface } from '../logging';
 import { Newable } from '../types';
-import { MetadataUtilities, validateEntitiesRegistered } from '../utilities';
+import { chunkedPromiseAll, MetadataUtilities, validateEntitiesRegistered } from '../utilities';
 import { BackupEntity, BackupEntityCreateData } from './backup-entity.model';
 import { BackupResourceEntity, BackupResourceEntityCreateData } from './backup-resource-entity.model';
 import { BackupResourceInterface } from './backup-resource.interface';
@@ -58,6 +58,62 @@ export class BackupService implements BackupServiceInterface {
             }
             await this.logger.info(`  - ${resourceClass.name}`);
         }
+
+        await this.syncBackupEntities();
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async syncBackupEntities(): Promise<void> {
+        if (!this.backupResources.length) {
+            return;
+        }
+        const transports: BackupTransportInterface[] = this.backupResources
+            .map(r => MetadataUtilities.getBackupResourceMetadata(r)?.transports ?? [])
+            .flat();
+        if (!transports.length) {
+            await this.logger.warn('Could not find any transports to sync backup entities from');
+            return;
+        }
+        const existingEntities: BackupEntity[] = await this.backupRepository.findAll();
+        const resolvedEntities: BackupEntity[] = (await Promise.all(transports.map(t => t.resolveBackups(existingEntities)))).flat();
+        const entitiesToSync: BackupEntity[] = resolvedEntities.filter(entity => !existingEntities.map(e => e.id).includes(entity.id));
+
+        const groupedEntities: Record<string, BackupEntity[]> = this.groupEntitiesById(entitiesToSync);
+        const mergedEntities: BackupEntity[] = this.mergeEntities(groupedEntities);
+        await chunkedPromiseAll(mergedEntities.map(e => this.backupRepository.create(e, { allowId: true })));
+    }
+
+    private mergeEntities(groupedEntities: Record<string, BackupEntity[]>): BackupEntity[] {
+        const res: BackupEntity[] = [];
+        for (const key in groupedEntities) {
+            const entities: BackupEntity[] = groupedEntities[key];
+            res.push({
+                createdAt: entities[0].createdAt,
+                id: entities[0].id,
+                name: entities[0].name,
+                resources: entities.reduce<BackupResourceEntity[]>(
+                    (prev, curr) => [
+                        ...prev,
+                        ...curr.resources.filter(r => !prev.find(pr => pr.id === r.id))
+                    ],
+                    []
+                )
+            });
+        }
+        return res;
+    }
+
+    private groupEntitiesById(entities: BackupEntity[]): Record<string, BackupEntity[]> {
+        const res: Record<string, BackupEntity[]> = {};
+        for (const entity of entities) {
+            if (res[entity.id] == undefined) {
+                res[entity.id] = [entity];
+            }
+            else {
+                res[entity.id].push(entity);
+            }
+        }
+        return res;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

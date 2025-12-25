@@ -1,7 +1,7 @@
 import { Entity, Property } from '../entity';
+import { BackupEntity } from './backup-entity.model';
 import { BaseEntity } from '../entity/base-entity.model';
 import { OmitStrict } from '../types';
-import { BackupEntity } from './backup-entity.model';
 
 /**
  * A single resource entity.

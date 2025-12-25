@@ -1,9 +1,9 @@
 import { inject, ZIBRI_DI_TOKENS } from '../di';
 import { Entity, Property } from '../entity';
+import { BackupResourceEntity, BackupResourceEntityCreateData } from './backup-resource-entity.model';
 import { BaseEntity } from '../entity/base-entity.model';
 import { FormatDateFn } from '../localization';
 import { OmitStrict } from '../types';
-import { BackupResourceEntity, BackupResourceEntityCreateData } from './backup-resource-entity.model';
 
 /**
  * The entity of a single backup.
