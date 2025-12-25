@@ -53,7 +53,7 @@ export class FsBackupTransport implements BackupTransportInterface {
     async storeData(data: Readable, backup: BackupEntity, resource: BackupResourceEntity): Promise<void> {
         const p: string = this.getResourcePath(backup, resource);
         await mkdir(this.getBackupPath(backup), { recursive: true });
-        await writeFile(this.getBackupMetadataPath(backup), JSON.stringify({ ...backup, resources: undefined }), 'utf8');
+        await writeFile(this.getBackupMetadataPath(backup), JSON.stringify(backup), 'utf8');
 
         await pipeline(
             data,
