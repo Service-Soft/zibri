@@ -247,35 +247,27 @@ export abstract class PostgresDataSource implements DataSourceInterface {
         const inverseHasUpdate: boolean = this.hasCascadeFlag(inv.cascade, 'update');
         const inverseHasInsert: boolean = this.hasCascadeFlag(inv.cascade, 'insert');
 
-        let onDelete: OnDeleteType | undefined;
-        let onUpdate: OnUpdateType | undefined;
-        let persistence: boolean = false;
-        if (thisHasRemove || inverseHasRemove) {
-            onDelete = 'CASCADE';
-        }
-        if (thisHasUpdate || inverseHasUpdate) {
-            onUpdate = 'CASCADE';
-        }
-        if (thisHasInsert || inverseHasInsert) {
-            persistence = true;
-        }
+        const onDelete: OnDeleteType | undefined = thisHasRemove || inverseHasRemove ? 'CASCADE' : undefined;
+        const onUpdate: OnUpdateType | undefined = thisHasUpdate || inverseHasUpdate ? 'CASCADE' : undefined;
+        const persistence: boolean = 'persistence' in metadata ? metadata.persistence : thisHasInsert || inverseHasInsert;
+        const nullable: boolean = typeof metadata.required === 'boolean' ? !metadata.required : true;
 
         switch (metadata.type) {
             case Relation.ONE_TO_ONE:
             case Relation.ONE_TO_MANY:
             case Relation.MANY_TO_MANY: {
                 return {
-                    nullable: typeof metadata.required === 'boolean' ? !metadata.required : true,
+                    nullable,
                     ...metadata,
                     inverseSide: metadata.inverseSide as string,
                     onDelete,
                     onUpdate,
-                    persistence: 'persistence' in metadata ? metadata.persistence : persistence
+                    persistence
                 };
             }
             case Relation.MANY_TO_ONE: {
                 return {
-                    nullable: typeof metadata.required === 'boolean' ? !metadata.required : true,
+                    nullable,
                     joinColumn: true,
                     ...metadata,
                     inverseSide: metadata.inverseSide as string,
@@ -303,10 +295,10 @@ export abstract class PostgresDataSource implements DataSourceInterface {
      * @returns Typeorm column options.
      * @throws When the metadata is incorrect.
      */
-    // eslint-disable-next-line sonar/cognitive-complexity
     protected propertyToColumnOptions(
         metadata: ExcludeStrict<PropertyMetadata, RelationMetadata<BaseEntity>>
     ): EntitySchemaColumnOptions {
+        const nullable: boolean = typeof metadata.required === 'boolean' ? !metadata.required : true;
         switch (metadata.type) {
             case 'file':
             case 'boolean':
@@ -314,7 +306,7 @@ export abstract class PostgresDataSource implements DataSourceInterface {
             case 'unknown':
             case 'date': {
                 return {
-                    nullable: typeof metadata.required === 'boolean' ? !metadata.required : true,
+                    nullable,
                     ...metadata,
                     type: this.columnTypeMapping[metadata.type],
                     default: undefined
@@ -323,14 +315,14 @@ export abstract class PostgresDataSource implements DataSourceInterface {
             case 'array': {
                 if (metadata.items.type === 'object') {
                     return {
-                        nullable: typeof metadata.required === 'boolean' ? !metadata.required : true,
+                        nullable,
                         ...metadata,
                         type: this.columnTypeMapping[metadata.items.type],
                         default: undefined
                     };
                 }
                 return {
-                    nullable: typeof metadata.required === 'boolean' ? !metadata.required : true,
+                    nullable,
                     ...metadata,
                     type: this.columnTypeMapping[metadata.items.type],
                     array: true,
@@ -339,21 +331,22 @@ export abstract class PostgresDataSource implements DataSourceInterface {
             }
             case 'number': {
                 return {
-                    nullable: typeof metadata.required === 'boolean' ? !metadata.required : true,
+                    nullable,
                     generated: metadata.primary ? 'increment' : undefined,
                     ...metadata,
                     type: this.columnTypeMapping[metadata.type],
                     default: undefined,
                     transformer: {
                         // eslint-disable-next-line unicorn/no-null
-                        to: (v: number | null) => v ? String(v) : null,
-                        from: (v: string | null) => v ? Number(v) : undefined
+                        to: (v: number | null) => v != null ? String(v) : null,
+                        // eslint-disable-next-line unicorn/no-null
+                        from: (v: string | null) => v != null ? Number(v) : undefined
                     }
                 };
             }
             case 'string': {
                 return {
-                    nullable: typeof metadata.required === 'boolean' ? !metadata.required : true,
+                    nullable,
                     generated: metadata.primary ? 'uuid' : undefined,
                     ...metadata,
                     type: metadata.format === 'uuid' || metadata.primary ? 'uuid' : this.columnTypeMapping[metadata.type],
