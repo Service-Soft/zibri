@@ -240,10 +240,11 @@ export class ValidationService implements ValidationServiceInterface {
         }
         const fullKey: string = parentKey ? `${parentKey}.${key}` : key;
 
-        if (property == undefined && (typeof metadata.required === 'boolean' ? metadata.required : metadata.required(entity))) {
+        const required: boolean = typeof metadata.required === 'boolean' ? metadata.required : metadata.required(entity);
+        if (property == undefined && required) {
             return [new IsRequiredValidationProblem(fullKey)];
         }
-        if (property == undefined && !(typeof metadata.required === 'boolean' ? metadata.required : metadata.required(entity))) {
+        if (property == undefined && !required) {
             return [];
         }
         if (!Array.isArray(property)) {
@@ -271,10 +272,11 @@ export class ValidationService implements ValidationServiceInterface {
         }
         const fullKey: string = parentKey ? `${parentKey}.${key}` : key;
 
-        if (property == undefined && (typeof metadata.required === 'boolean' ? metadata.required : metadata.required(entity))) {
+        const required: boolean = typeof metadata.required === 'boolean' ? metadata.required : metadata.required(entity);
+        if (property == undefined && required) {
             return [new IsRequiredValidationProblem(fullKey)];
         }
-        if (property == undefined && !(typeof metadata.required === 'boolean' ? metadata.required : metadata.required(entity))) {
+        if (property == undefined && !required) {
             return [];
         }
         if (typeof property !== 'object') {
