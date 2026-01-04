@@ -1,0 +1,5 @@
+src/**/*.hbs.ts
+src/di/default/temp
+src/__testing__
+src/jest.setup.ts
+src/**/*.test.*

@@ -1,7 +1,7 @@
 import { Child } from './child.entity';
 import { Entity, Property } from '../../../entity';
 
-@Entity('parent')
+@Entity()
 export class Parent {
     @Property.string({ primary: true })
     id!: string;

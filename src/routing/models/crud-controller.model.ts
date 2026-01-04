@@ -86,7 +86,7 @@ export function CrudController<
         @Get('/:id')
         async findById(
             @Param.path('id', { type: 'string', format: 'uuid' })
-            id: string
+            id: T['id']
         ): Promise<T> {
             return await this.repo.findById(id);
         }
@@ -97,7 +97,7 @@ export function CrudController<
         @Patch('/:id')
         async updateById(
             @Param.path('id', { type: 'string', format: 'uuid' })
-            id: string,
+            id: T['id'],
             @Body(updateDataClass)
             data: UpdateData
         ): Promise<T> {

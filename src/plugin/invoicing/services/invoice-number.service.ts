@@ -12,11 +12,10 @@ import { Invoice, InvoiceAddress, type InvoicingOptions, NumberInvoices } from '
 export class InvoiceNumberService implements InvoiceNumberServiceInterface<InvoiceAddress> {
     constructor(
         @InjectRepository(Invoice)
-        private readonly invoiceRepository: Repository<Invoice>,
+        private readonly invoiceRepository: Repository<Invoice, OmitStrict<Invoice, 'id'>>,
         @InjectRepository(NumberInvoices)
         private readonly numberInvoicesRepository: Repository<
             NumberInvoices,
-            OmitStrict<NumberInvoices, 'id'>,
             OmitStrict<NumberInvoices, 'id'>
         >,
         @Inject(ZIBRI_INVOICING_DI_TOKENS.OPTIONS)

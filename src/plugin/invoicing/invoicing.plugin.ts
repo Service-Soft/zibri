@@ -1,16 +1,15 @@
 /* eslint-disable jsdoc/require-jsdoc */
-import { DiProvider, inject, Injectable } from '../../di';
-import { NoProviderError } from '../../di/errors';
-import { validateEntitiesRegistered } from '../../utilities';
-import { ZibriPlugin } from '../plugin.model';
 import { ZIBRI_INVOICING_DI_TOKENS, ZibriInvoicingPluginDiProvider, ZibriInvoicingPluginDiProviders } from './invoicing.tokens';
 import { Invoice, InvoicingOptions, InvoicingOptionsInput, NumberInvoices } from './models';
 import { InvoiceCalcService, InvoiceNumberService, InvoicePdfService, PeppolConformanceService, XRechnungConformanceService } from './services';
+import { DiProvider, inject } from '../../di';
+import { NoProviderError } from '../../di/errors';
+import { validateEntitiesRegistered } from '../../utilities';
+import { ZibriPlugin } from '../plugin.model';
 
 /**
  * Plugin that includes everything for handling invoices.
  */
-@Injectable()
 export class ZibriInvoicingPlugin extends ZibriPlugin {
     private readonly defaultDiProviders: Record<
         typeof ZIBRI_INVOICING_DI_TOKENS[keyof typeof ZIBRI_INVOICING_DI_TOKENS],

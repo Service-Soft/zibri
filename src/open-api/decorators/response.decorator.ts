@@ -1,10 +1,9 @@
 /* eslint-disable jsdoc/require-returns */
-import { Property } from '../../entity';
 import { HttpStatus } from '../../http';
 import { ExcludeStrict, Newable, OmitStrict } from '../../types';
 import { MetadataUtilities } from '../../utilities';
 import { JsonOpenApiResponse, ErrorOpenApiResponse, FileOpenApiResponse, OpenApiResponse, HtmlOpenApiResponse } from '../open-api.model';
-import { PaginationResult } from '../pagination-result.model';
+import { PaginationResultClass } from '../pagination-result.model';
 
 /**
  * Bundles decorators for http responses.
@@ -81,21 +80,12 @@ export namespace Response {
             MetadataUtilities.setFilePath(ctor, stack);
 
             const responses: OpenApiResponse[] = MetadataUtilities.getRouteResponses(ctor, propertyKey.toString());
-            // eslint-disable-next-line jsdoc/require-jsdoc
-            class Temp implements PaginationResult<typeof entityClass> {
-                // eslint-disable-next-line jsdoc/require-jsdoc
-                @Property.array({ items: { type: 'object', cls: () => entityClass }, description: 'the paginated items' })
-                items!: (typeof entityClass)[];
-                // eslint-disable-next-line jsdoc/require-jsdoc
-                @Property.number({ description: 'the total amount of items' })
-                totalAmount!: number;
-            }
             responses.push({
                 description: `response of paginated ${entityClass.name} entities`,
                 status: HttpStatus.OK,
                 ...data,
                 isArray: false,
-                cls: Temp,
+                cls: PaginationResultClass(entityClass),
                 type: 'json'
             });
             MetadataUtilities.setRouteResponses(ctor, responses, propertyKey.toString());

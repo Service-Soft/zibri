@@ -1,7 +1,7 @@
 import { User } from './user.entity';
 import { Entity, Property } from '../../../entity';
 
-@Entity('role')
+@Entity()
 export class Role {
     @Property.string({ primary: true })
     id!: string;
