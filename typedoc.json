@@ -17,5 +17,5 @@
         "./docs/!(getting-started|creating-endpoints).md"
     ],
     "readme": "none",
-    "tsconfig": "tsconfig.json"
+    "tsconfig": "tsconfig.base.json"
 }
