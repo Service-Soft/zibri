@@ -24,7 +24,7 @@ jobs:
             # Ensure npm 11.5.1 or later is installed
             - run: npm install -g npm@latest
             - run: npm i
-            - run: npm run build
+            - run: npm run build:prod
             - run: npm publish
 
     updateDocs:
@@ -36,7 +36,7 @@ jobs:
               with:
                 ref: release
             - run: npm ci
-            - run: npm run build
+            - run: npm run build:prod
             - uses: actions/configure-pages@v5
             - uses: actions/upload-pages-artifact@v3
               with:
