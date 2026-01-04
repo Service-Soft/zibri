@@ -51,7 +51,7 @@ export class Test extends BaseEntity {
 }
 ```
 
-An entity to be included in a data source needs to extend `BaseEntity`, which defines an id, createdAt and updatedAt properties.
+An entity to be included in a data source needs to extend `BaseEntity`, which defines an id property.
 
 In order for the data source to map the properties, you need to decorate them with the `@Property` decorator. This is also used for validation.
 

@@ -1,6 +1,5 @@
 import path from 'path';
 
-import { ContentObject, ParameterLocation, ResponseObject, ResponsesObject, TagObject } from 'openapi3-ts/oas31';
 import swaggerUi from 'swagger-ui-express';
 
 import { ZibriApplication } from '../application';
@@ -14,7 +13,7 @@ import { HttpMethod, HttpStatus, KnownHeader, MimeType } from '../http';
 import { LoggerInterface } from '../logging';
 import { BodyMetadata, ControllerRouteConfiguration, HeaderParamMetadata, PathParamMetadata, QueryParamMetadata, Route, RouteHandler } from '../routing';
 import { OpenApiServiceInterface } from './open-api-service.interface';
-import { OpenApiDefinition, OpenApiOperation, OpenApiParameter, OpenApiPaths, OpenApiRequestBodyObject, OpenApiResponse, OpenApiSchemaObject, OpenApiSecurityRequirementObject, OpenApiSecuritySchemeObject } from './open-api.model';
+import { OpenApiContentObject, OpenApiDefinition, OpenApiOperation, OpenApiParameter, OpenApiParameterLocation, OpenApiPaths, OpenApiRequestBodyObject, OpenApiResponse, OpenApiResponseObject, OpenApiResponsesObject, OpenApiSchemaObject, OpenApiSecurityRequirementObject, OpenApiSecuritySchemeObject, OpenApiTagObject } from './open-api.model';
 import { FileResponse } from '../parsing';
 import { MissingBaseRouteError } from '../routing/missing-base-route.error';
 import { Newable } from '../types';
@@ -257,7 +256,7 @@ export class OpenApiService implements OpenApiServiceInterface {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async createOpenApiDefinition(app: ZibriApplication): Promise<OpenApiDefinition> {
-        const tags: TagObject[] = app.options.controllers.map(cls => ({ name: cls.name }));
+        const tags: OpenApiTagObject[] = app.options.controllers.map(cls => ({ name: cls.name }));
         const res: OpenApiDefinition = {
             openapi: '3.1.0',
             info: {
@@ -362,8 +361,8 @@ export class OpenApiService implements OpenApiServiceInterface {
         return res;
     }
 
-    private buildResponses(responses: OpenApiResponse[]): ResponsesObject | undefined {
-        const res: ResponsesObject = {};
+    private buildResponses(responses: OpenApiResponse[]): OpenApiResponsesObject | undefined {
+        const res: OpenApiResponsesObject = {};
 
         const groupedResponses: Record<string, OpenApiResponse[]> = {};
         for (const response of responses) {
@@ -378,7 +377,7 @@ export class OpenApiService implements OpenApiServiceInterface {
         for (const status in groupedResponses) {
             const r: OpenApiResponse[] = groupedResponses[status];
             if (r.length > 1) {
-                const data: ResponseObject = {
+                const data: OpenApiResponseObject = {
                     description: '',
                     content: this.buildResponsesContent(r)
                 };
@@ -386,7 +385,7 @@ export class OpenApiService implements OpenApiServiceInterface {
             }
             else {
                 const response: OpenApiResponse = r[0];
-                const data: ResponseObject = {
+                const data: OpenApiResponseObject = {
                     description: response.description ?? defaultDescriptionForHttpStatus[response.status ?? 'default'],
                     content: this.buildResponseContent(response)
                 };
@@ -398,7 +397,7 @@ export class OpenApiService implements OpenApiServiceInterface {
     }
 
     // eslint-disable-next-line sonar/cognitive-complexity
-    private buildResponseContent(response: OpenApiResponse): ContentObject | undefined {
+    private buildResponseContent(response: OpenApiResponse): OpenApiContentObject | undefined {
         switch (response.type) {
             case 'file': {
                 const schema: OpenApiSchemaObject = { type: 'string', format: 'binary' };
@@ -409,7 +408,7 @@ export class OpenApiService implements OpenApiServiceInterface {
                         ? [response.mimeType === 'all' ? MimeType.OCTET_STREAM : response.mimeType]
                         : [MimeType.OCTET_STREAM];
 
-                const content: ContentObject = {};
+                const content: OpenApiContentObject = {};
                 for (const mt of mimeTypes) {
                     content[mt] = { schema };
                 }
@@ -445,7 +444,7 @@ export class OpenApiService implements OpenApiServiceInterface {
 
     }
 
-    private buildResponsesContent(responses: OpenApiResponse[]): ContentObject | undefined {
+    private buildResponsesContent(responses: OpenApiResponse[]): OpenApiContentObject | undefined {
         const schemas: OpenApiSchemaObject[] = [];
         for (const response of responses) {
             switch (response.type) {
@@ -677,7 +676,7 @@ export class OpenApiService implements OpenApiServiceInterface {
 
     private buildParameters(
         params: Record<number, QueryParamMetadata | HeaderParamMetadata | PathParamMetadata>,
-        location: ParameterLocation
+        location: OpenApiParameterLocation
     ): OpenApiParameter[] {
         return Object.values(params).map(meta => ({
             name: meta.name,

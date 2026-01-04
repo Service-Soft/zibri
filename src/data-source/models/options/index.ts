@@ -9,3 +9,4 @@ export * from './find-by-id-options.model';
 export * from './find-one-options.model';
 export * from './update-all-options.model';
 export * from './update-by-id-options.model';
+export * from './count-options.model';

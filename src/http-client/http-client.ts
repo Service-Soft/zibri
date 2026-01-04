@@ -53,16 +53,18 @@ export class HttpClient implements HttpClientInterface {
         QueryParamsObject extends Record<string, unknown> = Record<string, string | undefined>,
         HeaderParamsObject extends Record<string, HttpClientHeaderValue> = Partial<Record<KnownHeader, HttpClientHeaderValue>>,
         ResponseHeaderMetaInputObject extends Record<string, HeaderParamMetadataInput> = Record<string, HeaderParamMetadataInput>,
-        BodyType extends BodyMetadata['type'] = MimeType.JSON
+        BodyType extends BodyMetadata['type'] = MimeType.JSON,
+        IsArray extends boolean = false
     >(
         url: string,
         body: unknown,
-        options: HttpOptionsInput<T, QueryParamsObject, HeaderParamsObject, ResponseHeaderMetaInputObject, BodyType> = {}
+        options: HttpOptionsInput<T, QueryParamsObject, HeaderParamsObject, ResponseHeaderMetaInputObject, BodyType, IsArray> = {}
     ): Promise<
         HttpClientResponseForBodyType<
             T,
             HeaderMetaObjectToParamsObject<HeaderMetaInputObjectToMetaObject<ResponseHeaderMetaInputObject>>,
-            BodyType
+            BodyType,
+            IsArray
         >
     > {
         return await this.request(HttpMethod.POST, url, body, options);
@@ -74,15 +76,17 @@ export class HttpClient implements HttpClientInterface {
         QueryParamsObject extends Record<string, unknown> = Record<string, string | undefined>,
         HeaderParamsObject extends Record<string, HttpClientHeaderValue> = Partial<Record<KnownHeader, HttpClientHeaderValue>>,
         ResponseHeaderMetaInputObject extends Record<string, HeaderParamMetadataInput> = Record<string, HeaderParamMetadataInput>,
-        BodyType extends BodyMetadata['type'] = MimeType.JSON
+        BodyType extends BodyMetadata['type'] = MimeType.JSON,
+        IsArray extends boolean = false
     >(
         url: string,
-        options: HttpOptionsInput<T, QueryParamsObject, HeaderParamsObject, ResponseHeaderMetaInputObject, BodyType> = {}
+        options: HttpOptionsInput<T, QueryParamsObject, HeaderParamsObject, ResponseHeaderMetaInputObject, BodyType, IsArray> = {}
     ): Promise<
         HttpClientResponseForBodyType<
             T,
             HeaderMetaObjectToParamsObject<HeaderMetaInputObjectToMetaObject<ResponseHeaderMetaInputObject>>,
-            BodyType
+            BodyType,
+            IsArray
         >
     > {
         return await this.request(HttpMethod.GET, url, undefined, options);
@@ -94,16 +98,18 @@ export class HttpClient implements HttpClientInterface {
         QueryParamsObject extends Record<string, unknown> = Record<string, string | undefined>,
         HeaderParamsObject extends Record<string, HttpClientHeaderValue> = Partial<Record<KnownHeader, HttpClientHeaderValue>>,
         ResponseHeaderMetaInputObject extends Record<string, HeaderParamMetadataInput> = Record<string, HeaderParamMetadataInput>,
-        BodyType extends BodyMetadata['type'] = MimeType.JSON
+        BodyType extends BodyMetadata['type'] = MimeType.JSON,
+        IsArray extends boolean = false
     >(
         url: string,
         body: unknown,
-        options: HttpOptionsInput<T, QueryParamsObject, HeaderParamsObject, ResponseHeaderMetaInputObject, BodyType> = {}
+        options: HttpOptionsInput<T, QueryParamsObject, HeaderParamsObject, ResponseHeaderMetaInputObject, BodyType, IsArray> = {}
     ): Promise<
         HttpClientResponseForBodyType<
             T,
             HeaderMetaObjectToParamsObject<HeaderMetaInputObjectToMetaObject<ResponseHeaderMetaInputObject>>,
-            BodyType
+            BodyType,
+            IsArray
         >
     > {
         return await this.request(HttpMethod.PUT, url, body, options);
@@ -115,16 +121,18 @@ export class HttpClient implements HttpClientInterface {
         QueryParamsObject extends Record<string, unknown> = Record<string, string | undefined>,
         HeaderParamsObject extends Record<string, HttpClientHeaderValue> = Partial<Record<KnownHeader, HttpClientHeaderValue>>,
         ResponseHeaderMetaInputObject extends Record<string, HeaderParamMetadataInput> = Record<string, HeaderParamMetadataInput>,
-        BodyType extends BodyMetadata['type'] = MimeType.JSON
+        BodyType extends BodyMetadata['type'] = MimeType.JSON,
+        IsArray extends boolean = false
     >(
         url: string,
         body: unknown,
-        options: HttpOptionsInput<T, QueryParamsObject, HeaderParamsObject, ResponseHeaderMetaInputObject, BodyType> = {}
+        options: HttpOptionsInput<T, QueryParamsObject, HeaderParamsObject, ResponseHeaderMetaInputObject, BodyType, IsArray> = {}
     ): Promise<
         HttpClientResponseForBodyType<
             T,
             HeaderMetaObjectToParamsObject<HeaderMetaInputObjectToMetaObject<ResponseHeaderMetaInputObject>>,
-            BodyType
+            BodyType,
+            IsArray
         >
     > {
         return await this.request(HttpMethod.PATCH, url, body, options);
@@ -136,37 +144,41 @@ export class HttpClient implements HttpClientInterface {
         QueryParamsObject extends Record<string, unknown> = Record<string, string | undefined>,
         HeaderParamsObject extends Record<string, HttpClientHeaderValue> = Partial<Record<KnownHeader, HttpClientHeaderValue>>,
         ResponseHeaderMetaInputObject extends Record<string, HeaderParamMetadataInput> = Record<string, HeaderParamMetadataInput>,
-        BodyType extends BodyMetadata['type'] = MimeType.JSON
+        BodyType extends BodyMetadata['type'] = MimeType.JSON,
+        IsArray extends boolean = false
     >(
         url: string,
-        options: HttpOptionsInput<T, QueryParamsObject, HeaderParamsObject, ResponseHeaderMetaInputObject, BodyType> = {}
+        options: HttpOptionsInput<T, QueryParamsObject, HeaderParamsObject, ResponseHeaderMetaInputObject, BodyType, IsArray> = {}
     ): Promise<
         HttpClientResponseForBodyType<
             T,
             HeaderMetaObjectToParamsObject<HeaderMetaInputObjectToMetaObject<ResponseHeaderMetaInputObject>>,
-            BodyType
+            BodyType,
+            IsArray
         >
     > {
         return await this.request(HttpMethod.DELETE, url, undefined, options);
     }
 
-    // eslint-disable-next-line sonar/cognitive-complexity
-    private async request<
+    // eslint-disable-next-line jsdoc/require-jsdoc, sonar/cognitive-complexity
+    async request<
         T extends object,
         QueryParamsObject extends Record<string, unknown>,
         HeaderParamsObject extends Record<string, HttpClientHeaderValue>,
         ResponseHeaderMetaInputObject extends Record<string, HeaderParamMetadataInput>,
-        BodyType extends BodyMetadata['type']
+        BodyType extends BodyMetadata['type'],
+        IsArray extends boolean
     >(
         method: HttpMethod,
         url: string,
         requestBody: unknown,
-        options: HttpOptionsInput<T, QueryParamsObject, HeaderParamsObject, ResponseHeaderMetaInputObject, BodyType> | undefined
+        options: HttpOptionsInput<T, QueryParamsObject, HeaderParamsObject, ResponseHeaderMetaInputObject, BodyType, IsArray> | undefined
     ): Promise<
         HttpClientResponseForBodyType<
             T,
             HeaderMetaObjectToParamsObject<HeaderMetaInputObjectToMetaObject<ResponseHeaderMetaInputObject>>,
-            BodyType
+            BodyType,
+            IsArray
         >
     > {
         const config: RawAxiosRequestConfig<unknown> = {
@@ -226,7 +238,8 @@ export class HttpClient implements HttpClientInterface {
         const res: HttpClientResponseForBodyType<
             T,
             HeaderMetaObjectToParamsObject<HeaderMetaInputObjectToMetaObject<ResponseHeaderMetaInputObject>>,
-            BodyType
+            BodyType,
+            IsArray
         > = {
             rawBody: axiosResponse.data,
             body: undefined as unknown as T,
@@ -236,7 +249,8 @@ export class HttpClient implements HttpClientInterface {
         } as HttpClientResponseForBodyType<
             T,
             HeaderMetaObjectToParamsObject<HeaderMetaInputObjectToMetaObject<ResponseHeaderMetaInputObject>>,
-            BodyType
+            BodyType,
+            IsArray
         >;
         if (!options?.responseBody) {
             return res;
@@ -249,6 +263,7 @@ export class HttpClient implements HttpClientInterface {
             type: MimeType.JSON,
             cleanupAfterMs: Ms.DAY,
             modelClass,
+            isArray: false,
             maxSize: resolveMaxBodySize(modelClass, ('modelClass' in options.responseBody ? options.responseBody : {}).baseMaxSize),
             ...'modelClass' in options.responseBody ? options.responseBody : {}
         } as BodyMetadata;

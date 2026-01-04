@@ -2,7 +2,7 @@
 const path = require('path');
 const { spawn } = require('child_process');
 const CopyPlugin = require('copy-webpack-plugin');
-const { generateHandlebarTypeFiles } = require('zibri');
+const { generateHandlebarTypeFiles, generateEntityFiles } = require('zibri');
 
 class OnBuildSuccessPlugin {
     /** @type {import('webpack').WebpackPluginFunction } */
@@ -30,6 +30,17 @@ class HandlebarsTypegenPlugin {
         compiler.hooks.beforeCompile.tapPromise(
             'HandlebarsTypegenPlugin',
             () => generateHandlebarTypeFiles()
+        );
+    }
+}
+
+class EntityGenerationPlugin {
+    /** @type {import('webpack').WebpackPluginFunction } */
+    apply(compiler) {
+        // on every rebuild (and initial build), run our stub generator first
+        compiler.hooks.beforeCompile.tapPromise(
+            'EntityGenerationPlugin',
+            () => generateEntityFiles()
         );
     }
 }
@@ -81,11 +92,13 @@ module.exports = {
         mysql: 'commonjs2 mysql',
         'hdb-pool': 'commonjs2 hdb-pool',
         'better-sqlite3': 'commonjs2 better-sqlite3',
+        sqlite3: 'commonjs2 sqlite3',
         ioredis: 'commonjs2 ioredis',
         mysql2: 'commonjs2 mysql2',
         mongodb: 'commonjs2 mongodb',
         '@sap\/hana-client': 'commonjs2 @sap\/hana-client',
         '@sap\/hana-client\/extension\/Stream': 'commonjs2 @sap\/hana-client\/extension\/Stream',
+        'ts-node': 'commonjs2 ts-node',
         'utf-8-validate': 'utf-8-validate',
         bufferutil: 'bufferutil'
     },
@@ -105,7 +118,8 @@ module.exports = {
                 exclude: [
                     /node_modules[\/\\]node-cron/,
                     /node_modules\/xmlbuilder2/,
-                    /node_modules\/@oozcitak/
+                    /node_modules\/@oozcitak/,
+                    /node_modules\/@jridgewell/
                 ]
             },
             {
@@ -125,6 +139,7 @@ module.exports = {
     },
     plugins: [
         new HandlebarsTypegenPlugin(),
+        new EntityGenerationPlugin(),
         new OnBuildSuccessPlugin(),
         new CopyPlugin({
             patterns: [

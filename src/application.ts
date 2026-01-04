@@ -20,7 +20,6 @@ import { MetricsServiceInterface } from './metrics';
 import { MultithreadingServiceInterface } from './multithreading';
 import { OpenApiServiceInterface } from './open-api';
 import { FormDataBodyParser, JsonBodyParser, ParserInterface } from './parsing';
-import { ZibriPlugin } from './plugin';
 import { Route, RouterInterface } from './routing';
 import { OmitStrict } from './types';
 import { BaseWebsocketConnection, WebsocketServiceInterface } from './websocket';
@@ -175,8 +174,7 @@ export class ZibriApplication {
         await this.backupService.init();
 
         for (const plugin of this.providedOptions.plugins ?? []) {
-            const p: ZibriPlugin = inject(plugin);
-            await p.validate(this);
+            await plugin.validate(this);
         }
 
         GlobalRegistry.markAppAsInitialized();
@@ -213,13 +211,12 @@ export class ZibriApplication {
             ...this.providedOptions
         };
         for (const plugin of this.providedOptions.plugins ?? []) {
-            const p: ZibriPlugin = inject(plugin);
             // TODO: handle order of plugin initialization so that everything is available for DI inside the plugin constructor.
-            res.authStrategies = [...p.authStrategies, ...res.authStrategies];
-            res.bodyParsers = [...p.bodyParsers, ...res.bodyParsers];
-            res.controllers = [...p.controllers, ...res.controllers];
-            res.cronJobs = [...p.cronJobs, ...res.cronJobs];
-            res.providers = [...p.providers, ...res.providers];
+            res.authStrategies = [...plugin.authStrategies, ...res.authStrategies];
+            res.bodyParsers = [...plugin.bodyParsers, ...res.bodyParsers];
+            res.controllers = [...plugin.controllers, ...res.controllers];
+            res.cronJobs = [...plugin.cronJobs, ...res.cronJobs];
+            res.providers = [...plugin.providers, ...res.providers];
         }
 
         if (!res.authStrategies.length) {

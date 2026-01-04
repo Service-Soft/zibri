@@ -14,7 +14,7 @@ export class MissingEntitiesError extends Error {
             messages.push(`  - ${entity.name}`);
         }
         messages.push(
-            'Did you forget to add it to your data source entities array?\n',
+            'Did you forget to add them to your data source entities array?\n',
 
             `If you don\'t want to use "${context}" you can also provide an undefined value for the injection token of "${context}".`
         );
