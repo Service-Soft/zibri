@@ -39,7 +39,8 @@ function expectDecoratorAboveProperty(
 describe('generateEntityFiles', () => {
     it('PetStore', async () => {
         const provider: OpenApiUrlProvider = new OpenApiUrlProvider('PetStore', 'https://petstore.swagger.io/v2/swagger.json');
-        const { filesToGenerate, indexLines } = await generateEntityFilesForProvider(provider, 'test');
+        const { filesToGenerate } = await generateEntityFilesForProvider(provider, 'test');
+        const indexLines: string[] = filesToGenerate.find(f => f.path.endsWith('index.ts'))?.lines ?? [];
 
         const pascalPrefix: string = toPascalCase(provider.prefix);
         const kebabPrefix: string = toKebabCase(provider.prefix);
@@ -235,7 +236,8 @@ describe('generateEntityFiles', () => {
         };
 
         const provider: InlineProvider = new InlineProvider('InlineSvc', spec);
-        const { filesToGenerate, indexLines } = await generateEntityFilesForProvider(provider, 'test');
+        const { filesToGenerate } = await generateEntityFilesForProvider(provider, 'test');
+        const indexLines: string[] = filesToGenerate.find(f => f.path.endsWith('index.ts'))?.lines ?? [];
 
         // expected names: prefix + title
         const parentClass: string = `${toPascalCase(provider.prefix)}Container`;
@@ -312,7 +314,8 @@ describe('generateEntityFiles', () => {
         };
 
         const provider: InlineProvider = new InlineProvider('RefSvc', spec);
-        const { filesToGenerate, indexLines } = await generateEntityFilesForProvider(provider, 'test');
+        const { filesToGenerate } = await generateEntityFilesForProvider(provider, 'test');
+        const indexLines: string[] = filesToGenerate.find(f => f.path.endsWith('index.ts'))?.lines ?? [];
 
         const hostClass: string = `${toPascalCase(provider.prefix)}${toPascalCase('Host')}`;
         const refedClass: string = `${toPascalCase(provider.prefix)}${toPascalCase('Refed')}`;
@@ -381,7 +384,8 @@ describe('generateEntityFiles', () => {
         };
 
         const provider: InlineProvider = new InlineProvider('Api', spec);
-        const { filesToGenerate, indexLines } = await generateEntityFilesForProvider(provider, 'test');
+        const { filesToGenerate } = await generateEntityFilesForProvider(provider, 'test');
+        const indexLines: string[] = filesToGenerate.find(f => f.path.endsWith('index.ts'))?.lines ?? [];
 
         const childClass: string = `${toPascalCase(provider.prefix)}CreateUserPayload`;
         const childFile: FileToGenerate | undefined = findFile(filesToGenerate, childClass);
@@ -443,7 +447,8 @@ describe('generateEntityFiles', () => {
         };
 
         const provider: InlineProvider = new InlineProvider('Api', spec);
-        const { filesToGenerate, indexLines } = await generateEntityFilesForProvider(provider, 'test');
+        const { filesToGenerate } = await generateEntityFilesForProvider(provider, 'test');
+        const indexLines: string[] = filesToGenerate.find(f => f.path.endsWith('index.ts'))?.lines ?? [];
 
         const childClass: string = `${toPascalCase(provider.prefix)}PetResponse`;
         const childFile: FileToGenerate | undefined = findFile(filesToGenerate, childClass);
