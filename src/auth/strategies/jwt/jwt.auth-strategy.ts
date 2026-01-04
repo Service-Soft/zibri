@@ -1,7 +1,5 @@
 import { randomBytes } from 'crypto';
 
-import { SecuritySchemeObject } from 'openapi3-ts/oas31';
-
 import { EncodedJwtAccessToken } from './encoded-jwt-access-token.model';
 import { JwtAccessTokenPayload } from './jwt-access-token-payload.model';
 import { JwtAuthData } from './jwt-auth-data.model';
@@ -20,6 +18,7 @@ import { TooManyRequestsError, UnauthorizedError } from '../../../error-handling
 import { GlobalRegistry } from '../../../global';
 import { renderEmailTemplate } from '../../../handlebars';
 import { HttpRequest } from '../../../http';
+import { OpenApiSecuritySchemeObject } from '../../../open-api';
 import { Newable } from '../../../types';
 import { Ms, UUIDUtilities, validateEntitiesRegistered } from '../../../utilities';
 import { WebsocketRequest } from '../../../websocket';
@@ -49,7 +48,7 @@ implements AuthStrategyInterface<
     readonly name: string = 'jwt';
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly securityScheme: SecuritySchemeObject = {
+    readonly securityScheme: OpenApiSecuritySchemeObject = {
         type: 'http',
         scheme: 'bearer',
         bearerFormat: 'JWT',

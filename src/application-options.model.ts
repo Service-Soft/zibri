@@ -66,5 +66,5 @@ export type ZibriApplicationOptions = {
     /**
      * The plugins to be used.
      */
-    plugins?: Newable<ZibriPlugin>[]
+    plugins?: ZibriPlugin[]
 };

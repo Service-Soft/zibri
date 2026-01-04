@@ -34,6 +34,18 @@ export type OpenApiRequestBodyObject = oas31.RequestBodyObject;
 export type OpenApiSchemaObject = oas31.SchemaObject;
 
 /**
+ * Reference definition object.
+ */
+export type OpenApiReferenceObject = oas31.ReferenceObject;
+
+/**
+ * Schema definitions.
+ */
+export type OpenApiSchemas = {
+    [schema: string]: OpenApiSchemaObject | OpenApiReferenceObject
+};
+
+/**
  * Security scheme definition object.
  */
 export type OpenApiSecuritySchemeObject = oas31.SecuritySchemeObject;
@@ -136,6 +148,31 @@ export type HtmlOpenApiResponse = {
      */
     description?: string
 };
+
+/**
+ * Definition for a single response.
+ */
+export type OpenApiResponseObject = oas31.ResponseObject;
+
+/**
+ * Definition for responses.
+ */
+export type OpenApiResponsesObject = oas31.ResponsesObject;
+
+/**
+ * Definition for a tag.
+ */
+export type OpenApiTagObject = oas31.TagObject;
+
+/**
+ * The location of a parameter, like 'query', 'header' etc.
+ */
+export type OpenApiParameterLocation = oas31.ParameterLocation;
+
+/**
+ * Definition for a content object.
+ */
+export type OpenApiContentObject = oas31.ContentObject;
 
 /**
  * Union of all supported OpenAPI response descriptors.

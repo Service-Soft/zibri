@@ -7,7 +7,7 @@ import { Role } from './role.entity';
 import { Entity, Property } from '../../../entity';
 import { OmitStrict } from '../../../types';
 
-@Entity('user')
+@Entity()
 export class User {
     @Property.string({ primary: true })
     id!: string;

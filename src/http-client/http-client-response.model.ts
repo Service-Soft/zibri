@@ -39,10 +39,11 @@ export type HttpClientResponse<
 export type HttpClientResponseForBodyType<
     T extends object,
     HeaderParamsObject extends Record<string, unknown>,
-    BodyType extends BodyMetadata['type']
+    BodyType extends BodyMetadata['type'],
+    IsArray extends boolean
 > = BodyType extends MimeType.FORM_DATA
     ? HttpClientResponse<FormData<T>, HeaderParamsObject>
-    : HttpClientResponse<T, HeaderParamsObject>;
+    : HttpClientResponse<IsArray extends true ? T[] : T, HeaderParamsObject>;
 
 /**
  * Checks if the given value is a HttpClientResponse.

@@ -144,7 +144,19 @@ export class ValidationService implements ValidationServiceInterface {
         }
 
         const cls: Newable<unknown> = meta.type === MimeType.FORM_DATA ? Temp : meta.modelClass;
-        const res: ValidationProblem[] = this.validateModel(body, cls, undefined);
+        let res: ValidationProblem[];
+        if (meta.isArray) {
+            if (!Array.isArray(body)) {
+                throw new ValidationError('body', [new TypeMismatchValidationProblem('body', 'array')]);
+            }
+            res = body.reduce<ValidationProblem[]>((prev, curr, i) => [
+                ...prev,
+                ...this.validateModel(curr, cls, `[${i}]`, meta.allowAdditionalProperties)
+            ], []);
+        }
+        else {
+            res = this.validateModel(body, cls, undefined, meta.allowAdditionalProperties);
+        }
         if (res.length) {
             throw new ValidationError('body', res);
         }
@@ -152,7 +164,7 @@ export class ValidationService implements ValidationServiceInterface {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     validateWebsocketRequest(req: unknown): void {
-        const res: ValidationProblem[] = this.validateModel(req, WebsocketRequest, undefined);
+        const res: ValidationProblem[] = this.validateModel(req, WebsocketRequest, undefined, false);
         if (res.length) {
             throw new ValidationError('websocketRequest', res);
         }
@@ -183,7 +195,12 @@ export class ValidationService implements ValidationServiceInterface {
         // }
     }
 
-    private validateModel(body: unknown, cls: Newable<unknown>, parentKey: string | undefined): ValidationProblem[] {
+    private validateModel(
+        body: unknown,
+        cls: Newable<unknown>,
+        parentKey: string | undefined,
+        allowAdditionalProperties: boolean
+    ): ValidationProblem[] {
         const modelProperties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(cls);
 
         const keysOfBody: string[] = Object.keys(body as Record<string, unknown>);
@@ -191,6 +208,9 @@ export class ValidationService implements ValidationServiceInterface {
         const unknownKeys: string[] = keysOfBody.filter(k => !keysOfModel.includes(k));
         const res: ValidationProblem[] = [];
         for (const key of unknownKeys) {
+            if (allowAdditionalProperties) {
+                continue;
+            }
             const fullKey: string = parentKey ? `${parentKey}.${key}` : key;
             res.push({ key: fullKey, message: 'this key is unknown' });
         }

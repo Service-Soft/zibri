@@ -21,7 +21,7 @@ import { PostgresDataSource, PostgresOptions } from '../data-source';
 
 const backupFsFolder: string = path.join(testFileFolder, 'backups');
 
-@Entity('item')
+@Entity()
 class Item {
     @Property.string({ primary: true })
     id!: string;

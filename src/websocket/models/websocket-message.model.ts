@@ -75,7 +75,7 @@ export class WebsocketMessage extends BaseEntity {
     @Property.string({ enum: WebsocketRecipientType })
     recipientType!: WebsocketRecipientType;
     /**
-     * The id of th either the channel or the user that this message was sent to.
+     * The id of either the channel or the user that this message was sent to.
      * Can be empty when the message was sent to all or to a non user connection.
      */
     @Property.string({ required: (m: WebsocketMessage) => m.recipientType != WebsocketRecipientType.ALL, format: 'uuid' })

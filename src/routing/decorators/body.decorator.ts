@@ -10,9 +10,17 @@ import { BigNumber, MetadataUtilities, Ms } from '../../utilities';
  */
 type BaseBodyMetadata = OmitStrict<BasePropertyMetadata, 'excludeFromChangeSets'> & {
     /**
-     * The class that defines the structure of the body metadata.
+     * The class that defines the structure of the body.
      */
     modelClass: Newable<unknown>,
+    /**
+     * Whether or not the body is a single modelClass or an array of them.
+     */
+    isArray: boolean,
+    /**
+     * Whether or not additional properties are allowed on the body.
+     */
+    allowAdditionalProperties: boolean,
     /**
      * The index at which the body parameter is provided in the controller method.
      */
@@ -76,11 +84,13 @@ export function Body(modelClass: Newable<unknown>, options: BodyMetadataInput = 
         const fullMetadata: BodyMetadata = {
             index,
             modelClass,
+            isArray: false,
             required: true,
             description: undefined,
             type: MimeType.JSON,
             cleanupAfterMs: Ms.DAY,
             maxSize: resolveMaxBodySize(modelClass, options.baseMaxSize),
+            allowAdditionalProperties: false,
             ...options
         };
         if ('baseMaxSize' in fullMetadata) {

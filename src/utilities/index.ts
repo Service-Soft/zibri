@@ -11,3 +11,6 @@ export * from './ms';
 export * from './path-exists.function';
 export * from './validate-entities-registered.function';
 export * from './uuid.utilities';
+export * from './to-kebab-case.function';
+export * from './to-pascal-case.function';
+export * from './to-camel-case.function';

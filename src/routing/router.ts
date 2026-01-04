@@ -119,6 +119,8 @@ export class Router implements RouterInterface {
                     description: undefined,
                     type: MimeType.JSON,
                     cleanupAfterMs: Ms.DAY,
+                    isArray: false,
+                    allowAdditionalProperties: false,
                     maxSize: resolveMaxBodySize(input.bodyMetadata.modelClass, input.bodyMetadata.baseMaxSize),
                     ...input.bodyMetadata
                 }

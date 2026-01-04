@@ -30,6 +30,8 @@ export function WebsocketBody(
         const fullMetadata: JsonBodyMetadata = {
             index,
             modelClass,
+            isArray: false,
+            allowAdditionalProperties: false,
             required: true,
             description: undefined,
             type: MimeType.JSON,
