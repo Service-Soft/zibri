@@ -2,7 +2,7 @@
 import { getEntityFileName } from './get-entity-file-name.function';
 import { EntityGenerationProvider } from './providers/entity-generation-provider.interface';
 import { OpenApiReferenceObject, OpenApiSchemaObject, OpenApiSchemas } from '../../open-api';
-import { toCamelCase, toPascalCase } from '../../utilities';
+import { toPascalCase } from '../../utilities';
 import { addImportStatement } from '../../utilities/add-import-statement.function';
 
 /**
@@ -79,11 +79,11 @@ export function generateEntityFile(
         const decoratorLines: string[] = mapSchemaToDecoratorLines(propSchema, propName, provider.prefix, isRequired, type);
 
         if (!isRef) {
-            lines.push('', ...decoratorLines, `    ${toCamelCase(propName)}${optional}: ${type};`);
+            lines.push('', ...decoratorLines, `    '${propName}'${optional}: ${type};`);
             continue;
         }
 
-        lines.push('', ...decoratorLines, `    ${toCamelCase(propName)}${optional}: ${getEntityName(provider.prefix, type)};`);
+        lines.push('', ...decoratorLines, `    '${propName}'${optional}: ${getEntityName(provider.prefix, type)};`);
         addImportStatement(
             lines,
             {
