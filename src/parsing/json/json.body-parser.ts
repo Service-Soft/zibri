@@ -6,6 +6,7 @@ import { BigNumber, BigNumberUtilities } from '../../utilities';
 import { WebsocketRequest } from '../../websocket';
 import { BodyParserInterface } from '../body-parser.interface';
 import { BodyParser } from '../decorators';
+import { parseArray, parseObject } from '../functions';
 
 /**
  * Body parser for json.
@@ -16,13 +17,40 @@ export class JsonBodyParser implements BodyParserInterface {
     readonly contentType: MimeType = MimeType.JSON;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    parseFromHttpClientResponse(res: HttpClientResponse): unknown {
-        return res.rawBody;
+    parseFromHttpClientResponse(res: HttpClientResponse, metadata: BodyMetadata): unknown {
+        if (res.body !== undefined) {
+            return res.body;
+        }
+        if (!metadata.isArray) {
+            return parseObject(res.rawBody, metadata.modelClass);
+        }
+        return parseArray(
+            res.rawBody,
+            {
+                type: 'object',
+                cls: () => metadata.modelClass,
+                allowAdditionalProperties: metadata.allowAdditionalProperties,
+                description: metadata.description,
+                required: metadata.required
+            }
+        );
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    parseFromWebsocketRequest(req: WebsocketRequest): unknown {
-        return req.body;
+    parseFromWebsocketRequest(req: WebsocketRequest, metadata: BodyMetadata): unknown {
+        if (!metadata.isArray) {
+            return parseObject(req.body, metadata.modelClass);
+        }
+        return parseArray(
+            req.body,
+            {
+                type: 'object',
+                cls: () => metadata.modelClass,
+                allowAdditionalProperties: metadata.allowAdditionalProperties,
+                description: metadata.description,
+                required: metadata.required
+            }
+        );
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -80,7 +108,23 @@ export class JsonBodyParser implements BodyParserInterface {
 
         try {
             const raw: Buffer = Buffer.concat(chunks);
-            return raw.length > 0 ? JSON.parse(raw.toString('utf8')) : undefined;
+            if (!raw.length) {
+                return undefined;
+            }
+
+            if (!metadata.isArray) {
+                return parseObject(raw.toString('utf8'), metadata.modelClass);
+            }
+            return parseArray(
+                raw.toString('utf8'),
+                {
+                    type: 'object',
+                    cls: () => metadata.modelClass,
+                    allowAdditionalProperties: metadata.allowAdditionalProperties,
+                    description: metadata.description,
+                    required: metadata.required
+                }
+            );
         }
         catch {
             throw new BadRequestError('invalid JSON in request body');

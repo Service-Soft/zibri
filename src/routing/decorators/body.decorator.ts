@@ -132,10 +132,10 @@ function resolveMaxSize(bytes: BigNumber, properties: Record<string, PropertyMet
                 bytes = bytes.plus(resolveMaxSize(bytes, objectProperties));
                 break;
             }
-            case Relation.ONE_TO_ONE: { throw new Error('Not implemented yet: Relation.ONE_TO_ONE case'); }
-            case Relation.ONE_TO_MANY: { throw new Error('Not implemented yet: Relation.ONE_TO_MANY case'); }
-            case Relation.MANY_TO_ONE: { throw new Error('Not implemented yet: Relation.MANY_TO_ONE case'); }
-            case Relation.MANY_TO_MANY: { throw new Error('Not implemented yet: Relation.MANY_TO_MANY case'); }
+            case Relation.ONE_TO_ONE:
+            case Relation.ONE_TO_MANY:
+            case Relation.MANY_TO_ONE:
+            case Relation.MANY_TO_MANY:
             case 'string':
             case 'number':
             case 'boolean':

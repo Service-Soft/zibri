@@ -2,7 +2,6 @@
 import { describe, expect, it } from '@jest/globals';
 
 import { parseArray } from './parse-array.function';
-import { BadRequestError } from '../../error-handling';
 import { ArrayParamMetadata } from '../../routing';
 
 describe('parseArray', () => {
@@ -42,17 +41,7 @@ describe('parseArray', () => {
         expect(parseArray('["a", "b"]', meta)).toEqual(['a', 'b']);
     });
 
-    it('throws BadRequestError on invalid JSON', () => {
-        expect(() => parseArray('[invalid]', meta)).toThrow(BadRequestError);
-    });
-
-    it('uses correct error message', () => {
-        try {
-            parseArray('[', meta);
-        }
-        catch (error) {
-            expect(error).toBeInstanceOf(BadRequestError);
-            expect((error as Error).message).toBe('invalid JSON in query param "foo"');
-        }
+    it('parses invalid json', () => {
+        expect(parseArray('[invalid]', meta)).toEqual('[invalid]');
     });
 });

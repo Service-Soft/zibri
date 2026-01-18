@@ -52,41 +52,42 @@ export async function generateEntityFilesForProvider(
 ): Promise<GenerateEntityFilesForProviderResult> {
     const definition: OpenApiDefinition = await provider.resolveSpec();
     const schemas: OpenApiSchemas = definition.components?.schemas ?? {};
-    // TODO
-    for (const [key, path] of Object.entries(definition.paths ?? {})) {
-        for (const method of OP_METHODS) {
-            const operation: OpenApiOperation | undefined = path[method];
-            if (!operation) {
-                continue;
-            }
-
-            const baseFromOp: string = operation.operationId ?? toPascalCase(key);
-
-            if (operation.requestBody && !('$ref' in operation.requestBody)) {
-                for (const media of Object.values(operation.requestBody.content ?? {})) {
-                    if (!media.schema) {
-                        continue;
-                    }
-                    collectSchemaCandidate(media.schema, baseFromOp, schemas);
+    if (provider.generateSchemasFromPaths) {
+        for (const [key, path] of Object.entries(definition.paths ?? {})) {
+            for (const method of OP_METHODS) {
+                const operation: OpenApiOperation | undefined = path[method];
+                if (!operation) {
+                    continue;
                 }
-            }
 
-            for (const value of Object.values(operation.responses ?? {})) {
+                const baseFromOp: string = operation.operationId ?? toPascalCase(key);
+
+                if (operation.requestBody && !('$ref' in operation.requestBody)) {
+                    for (const media of Object.values(operation.requestBody.content ?? {})) {
+                        if (!media.schema) {
+                            continue;
+                        }
+                        collectSchemaCandidate(media.schema, baseFromOp, schemas);
+                    }
+                }
+
+                for (const value of Object.values(operation.responses ?? {})) {
                 // eslint-disable-next-line typescript/no-unsafe-assignment
-                const response: OpenApiResponseObject | OpenApiReferenceObject | undefined = value;
-                if (response == undefined) {
-                    continue;
-                }
-                if ('$ref' in response) {
-                    // ignore response $ref (could point to components.responses); responses often wrap schemas inside content
-                    continue;
-                }
-                for (const media of Object.values(response.content ?? {})) {
-                    if (!media.schema) {
+                    const response: OpenApiResponseObject | OpenApiReferenceObject | undefined = value;
+                    if (response == undefined) {
                         continue;
                     }
-                    // build name hint using status code if available in parent loop? we only have the schema and baseFromOp
-                    collectSchemaCandidate(media.schema, baseFromOp, schemas);
+                    if ('$ref' in response) {
+                    // ignore response $ref (could point to components.responses); responses often wrap schemas inside content
+                        continue;
+                    }
+                    for (const media of Object.values(response.content ?? {})) {
+                        if (!media.schema) {
+                            continue;
+                        }
+                        // build name hint using status code if available in parent loop? we only have the schema and baseFromOp
+                        collectSchemaCandidate(media.schema, baseFromOp, schemas);
+                    }
                 }
             }
         }
