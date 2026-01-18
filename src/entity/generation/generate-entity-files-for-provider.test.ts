@@ -23,8 +23,7 @@ function findFile(files: FileToGenerate[], className: string): FileToGenerate | 
 function expectDecoratorAboveProperty(
     fileContent: string,
     decoratorRegex: RegExp,
-    propName: string,
-    propNameRegex = new RegExp(`\\b${propName}[!?]:`)
+    propNameRegex: RegExp
 ): void {
     // Match a decorator block immediately followed by the property line.
     // Allows optional single blank line between decorator and property (be tolerant),
@@ -66,8 +65,8 @@ describe('generateEntityFiles', () => {
         const petContent: string = petFile.lines.join('\n');
 
         // required fields should be marked (e.g. name! and photoUrls!)
-        expect(petContent).toMatch(/\bname[!?]:/);
-        expect(petContent).toMatch(/\bphotoUrls[!?]:/);
+        expect(petContent).toContain('\'name\'!:');
+        expect(petContent).toContain('\'photoUrls\'!:');
 
         // status enum should be present (contains one of the enum values)
         expect(petContent).toMatch(/available|pending|sold/);
@@ -113,15 +112,15 @@ describe('generateEntityFiles', () => {
         const content: string = file.lines.join('\n');
 
         // name is required -> should have '!' and @Property.string() immediately above
-        expect(content).toMatch(/\bname!:/);
-        expectDecoratorAboveProperty(content, /@Property\.string\(\)/, 'name');
+        expect(content).toContain('\'name\'!:');
+        expectDecoratorAboveProperty(content, /@Property\.string\(\)/, /'name'!:/);
 
         // note is optional -> @Property.string({ required: false }) must be right above `note?:`
-        expect(content).toMatch(/\bnote\?:/);
-        expectDecoratorAboveProperty(content, /@Property\.string\({\s*required:\s*false\s*}\)/, 'note');
+        expect(content).toMatch('\'note\'?:');
+        expectDecoratorAboveProperty(content, /@Property\.string\({\s*required:\s*false\s*}\)/, /'note'\?:/);
 
         // created -> date decorator right above created property
-        expectDecoratorAboveProperty(content, /@Property\.date\(\)/, 'created');
+        expectDecoratorAboveProperty(content, /@Property\.date\(\)/, /'created'!:/);
     });
 
     it('number/integer and boolean map to @Property.number/@Property.boolean', async () => {
@@ -154,16 +153,16 @@ describe('generateEntityFiles', () => {
         const content: string = file.lines.join('\n');
 
         // count required -> number decorator + '!'
-        expect(content).toMatch(/\bcount!:/);
-        expectDecoratorAboveProperty(content, /@Property\.number\(\)/, 'count');
+        expect(content).toContain('\'count\'!:');
+        expectDecoratorAboveProperty(content, /@Property\.number\(\)/, /'count'!:/);
 
         // ratio optional -> number decorator with required:false immediately above ratio property
-        expect(content).toMatch(/\bratio\?:/);
-        expectDecoratorAboveProperty(content, /@Property\.number\({\s*required:\s*false\s*}\)/, 'ratio');
+        expect(content).toContain('\'ratio\'?:');
+        expectDecoratorAboveProperty(content, /@Property\.number\({\s*required:\s*false\s*}\)/, /'ratio'\?:/);
 
         // flag required -> boolean decorator + '!'
-        expect(content).toMatch(/\bflag!:/);
-        expectDecoratorAboveProperty(content, /@Property\.boolean\(\)/, 'flag');
+        expect(content).toContain('\'flag\'!:');
+        expectDecoratorAboveProperty(content, /@Property\.boolean\(\)/, /'flag'!:/);
     });
 
     it('array of primitives uses @Property.array with item type', async () => {
@@ -195,12 +194,12 @@ describe('generateEntityFiles', () => {
         const content: string = file.lines.join('\n');
 
         // tags required => property signature with ! and decorator items: { type: 'string' }
-        expect(content).toMatch(/\btags!:/);
-        expectDecoratorAboveProperty(content, /@Property\.array\([^)]*items:\s*{\s*type:\s*'string'\s*}[^)]*\)/, 'tags');
+        expect(content).toContain('\'tags\'!:');
+        expectDecoratorAboveProperty(content, /@Property\.array\([^)]*items:\s*{\s*type:\s*'string'\s*}[^)]*\)/, /'tags'!:/);
 
         // counts optional => items type integer -> mapped to 'number' in decorator and required:false
-        expect(content).toMatch(/\bcounts\?:/);
-        expectDecoratorAboveProperty(content, /@Property\.array\([^)]*required:\s*false[^)]*items:\s*{\s*type:\s*'number'\s*}[^)]*\)/, 'counts');
+        expect(content).toContain('\'counts\'?:');
+        expectDecoratorAboveProperty(content, /@Property\.array\([^)]*required:\s*false[^)]*items:\s*{\s*type:\s*'number'\s*}[^)]*\)/, /'counts'\?:/);
     });
 
     it('array of inline objects uses schema.title for generated name and preserves property metadata', async () => {
@@ -256,13 +255,12 @@ describe('generateEntityFiles', () => {
         const childContent: string = childFile.lines.join('\n');
 
         // parent should reference child type in property signature
-        expect(parentContent).toMatch(new RegExp(`\\bparts!:\\s*${childClass}\\[\\]`));
-
+        expect(parentContent).toContain(`'parts'!: ${childClass}`);
         // parent decorator must reference cls: () => ChildClass directly above parts
         expectDecoratorAboveProperty(
             parentContent,
             new RegExp(`@Property\\.array\\([^)]*type:\\s*'object'[^)]*cls:\\s*\\(\\)\\s*=>\\s*${childClass}[^)]*\\)`),
-            'parts'
+            /'parts'!:/
         );
 
         // parent file should import the child (simple presence of the child class name in imports)
@@ -271,15 +269,15 @@ describe('generateEntityFiles', () => {
 
         // child file: check class name and decorator placement for required fields
         expect(childContent).toContain(`export class ${childClass}`);
-        expect(childContent).toMatch(/\bid!:/); // required id
-        expectDecoratorAboveProperty(childContent, /@Property\.string\(\)/, 'id');
+        expect(childContent).toContain('\'id\'!:'); // required id
+        expectDecoratorAboveProperty(childContent, /@Property\.string\(\)/, /'id'!:/);
 
         // createdAt uses date-time -> date decorator and required
-        expect(childContent).toMatch(/\bcreatedAt!:/);
-        expectDecoratorAboveProperty(childContent, /@Property\.date\(\)/, 'createdAt');
+        expect(childContent).toContain('\'createdAt\'!:');
+        expectDecoratorAboveProperty(childContent, /@Property\.date\(\)/, /'createdAt'!:/);
 
         // amount mapped to number decorator
-        expectDecoratorAboveProperty(childContent, /@Property\.number\({\s*required:\s*false\s*}\)/, 'amount');
+        expectDecoratorAboveProperty(childContent, /@Property\.number\({\s*required:\s*false\s*}\)/, /'amount'\?:/);
 
         // enum values should appear in the generated type (or decorator metadata)
         expect(childContent).toMatch(/'ok'\s*|\s*'bad'/);
@@ -334,11 +332,11 @@ describe('generateEntityFiles', () => {
         expectDecoratorAboveProperty(
             hostContent,
             new RegExp(`@Property\\.object\\([^)]*cls:\\s*\\(\\)\\s*=>\\s*${refedClass}[^)]*\\)`),
-            'other'
+            /'other'!:/
         );
 
         // host property should be typed to the referenced class
-        expect(hostContent).toMatch(new RegExp(`\\bother!:\\s*${refedClass}\\b`));
+        expect(hostContent).toContain(`'other'!: ${refedClass}`);
 
         // import line for the refed class should be present
         const importLinePresent: boolean = hostFile.lines.some(l => l.includes('import') && l.includes(refedClass));
@@ -366,10 +364,10 @@ describe('generateEntityFiles', () => {
                                         title: 'CreateUserPayload', // generator should prefer this title
                                         properties: {
                                             id: { type: 'integer', format: 'int64' },
-                                            email: { type: 'string', format: 'date-time' },
+                                            date: { type: 'string', format: 'date-time' },
                                             role: { type: 'string', enum: ['admin', 'user'] }
                                         },
-                                        required: ['id', 'email']
+                                        required: ['id', 'date']
                                     }
                                 }
                             }
@@ -396,17 +394,17 @@ describe('generateEntityFiles', () => {
 
         // class name and required markers
         expect(content).toContain(`export class ${childClass}`);
-        expect(content).toMatch(/\bid!:/); // id required
-        expectDecoratorAboveProperty(content, /@Property\.number\(\)/, 'id');
+        expect(content).toContain('\'id\'!:'); // id required
+        expectDecoratorAboveProperty(content, /@Property\.number\(\)/, /'id'!:/);
 
-        // email required -> date decorator
-        expect(content).toMatch(/\bemail!:/);
-        expectDecoratorAboveProperty(content, /@Property\.date\(\)/, 'email');
+        // date required -> date decorator
+        expect(content).toContain('\'date\'!:');
+        expectDecoratorAboveProperty(content, /@Property\.date\(\)/, /'date'!:/);
 
         // role optional -> union literal present and decorator above property (optional)
         expect(content).toMatch(/'admin'\s*\|\s*'user'/);
-        expect(content).toMatch(/\brole\?:/);
-        expectDecoratorAboveProperty(content, /@Property\.string\({\s*required:\s*false\s*}\)/, 'role');
+        expect(content).toContain('\'role\'?:');
+        expectDecoratorAboveProperty(content, /@Property\.string\({\s*required:\s*false\s*}\)/, /'role'\?:/);
 
         // index export present (kebab-case)
         const kebabPrefix: string = toKebabCase(provider.prefix);
@@ -459,17 +457,17 @@ describe('generateEntityFiles', () => {
 
         // class name and required markers
         expect(content).toContain(`export class ${childClass}`);
-        expect(content).toMatch(/\bid!:/); // id required
-        expectDecoratorAboveProperty(content, /@Property\.number\(\)/, 'id');
+        expect(content).toContain('\'id\'!:');
+        expectDecoratorAboveProperty(content, /@Property\.number\(\)/, /'id'!:/);
 
         // name required -> string decorator
-        expect(content).toMatch(/\bname!:/);
-        expectDecoratorAboveProperty(content, /@Property\.string\(\)/, 'name');
+        expect(content).toContain('\'name\'!:');
+        expectDecoratorAboveProperty(content, /@Property\.string\(\)/, /'name'!:/);
 
         // status enum optional -> union literal present and decorator above property (optional)
         expect(content).toMatch(/'available'\s*\|\s*'pending'\s*\|\s*'sold'/);
-        expect(content).toMatch(/\bstatus\?:/);
-        expectDecoratorAboveProperty(content, /@Property\.string\({\s*required:\s*false\s*}\)/, 'status');
+        expect(content).toContain('\'status\'?:');
+        expectDecoratorAboveProperty(content, /@Property\.string\({\s*required:\s*false\s*}\)/, /'status'\?:/);
 
         // index export present (kebab-case)
         const kebabPrefix: string = toKebabCase(provider.prefix);
