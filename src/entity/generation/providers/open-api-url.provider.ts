@@ -15,7 +15,12 @@ export class OpenApiUrlProvider implements EntityGenerationProvider {
         return inject(ZIBRI_DI_TOKENS.HTTP_CLIENT);
     }
 
-    constructor(readonly prefix: string, protected readonly baseUrl: string, readonly markAsEntities: boolean = true) {}
+    constructor(
+        readonly prefix: string,
+        protected readonly baseUrl: string,
+        readonly generateSchemasFromPaths: boolean = false,
+        readonly markAsEntities: boolean = false
+    ) {}
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async resolveSpec(): Promise<OpenApiDefinition> {

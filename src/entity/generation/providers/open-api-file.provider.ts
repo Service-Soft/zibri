@@ -9,7 +9,12 @@ import { OpenApiDefinition } from '../../../open-api';
  * An entity generation provider using a local open api file.
  */
 export class OpenApiFileProvider implements EntityGenerationProvider {
-    constructor(readonly prefix: string, protected readonly filePath: string, readonly markAsEntities: boolean = true) {}
+    constructor(
+        readonly prefix: string,
+        protected readonly filePath: string,
+        readonly generateSchemasFromPaths: boolean = false,
+        readonly markAsEntities: boolean = false
+    ) {}
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async resolveSpec(): Promise<OpenApiDefinition> {

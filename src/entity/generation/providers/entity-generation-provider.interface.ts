@@ -13,6 +13,10 @@ export interface EntityGenerationProvider {
      */
     readonly markAsEntities: boolean,
     /**
+     * Whether or not to generate schemas from openapi paths.
+     */
+    readonly generateSchemasFromPaths: boolean,
+    /**
      * The method that actually resolves the open api spec that is then later on used to generate the entities.
      */
     resolveSpec: () => Promise<OpenApiDefinition>
