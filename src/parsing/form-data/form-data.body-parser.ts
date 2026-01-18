@@ -17,8 +17,9 @@ import { BodyParserInterface } from '../body-parser.interface';
 import { BodyParser } from '../decorators';
 import { FormDataBodyParserCleanupCronJob } from './form-data-body-parser-cleanup.cron-job';
 import { FormData, FormDataValue } from './form-data.model';
-import { PropertyMetadata } from '../../entity';
+import { PropertyMetadata, Relation } from '../../entity';
 import { BigNumberUtilities, MetadataUtilities, UUIDUtilities } from '../../utilities';
+import { parseArray, parseBoolean, parseDate, parseNumber, parseObject, parseString } from '../functions';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 type ParsedForm = {
@@ -123,15 +124,49 @@ export class FormDataBodyParser implements BodyParserInterface {
         this.addStringValuesToMap(request, multiPartMap);
         this.addFilesToMap<T>(request, multiPartMap, metadata);
 
-        const res: Partial<Record<keyof T, T[keyof T]>> = {};
+        const properties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(metadata.modelClass);
+        const res: Partial<Record<keyof T, unknown>> = {};
         for (const [key, value] of multiPartMap) {
-            try {
-                // eslint-disable-next-line typescript/no-unsafe-assignment
-                res[key] = JSON.parse(value as string);
+            if (typeof value !== 'string') {
+                res[key] = value;
+                continue;
             }
-            catch {
-                res[key] = value as T[keyof T];
-                // throw new HttpErrors.BadRequest(`The provided form-data value "${String(key)}" is neither a file nor valid JSON.`);
+
+            const propertyMetadata: PropertyMetadata = properties[key as string];
+            switch (propertyMetadata.type) {
+                case 'string': {
+                    res[key] = parseString(value);
+                    break;
+                }
+                case 'number': {
+                    res[key] = parseNumber(value);
+                    break;
+                }
+                case 'boolean': {
+                    res[key] = parseBoolean(value);
+                    break;
+                }
+                case 'object': {
+                    res[key] = parseObject(value, propertyMetadata.cls());
+                    break;
+                }
+                case 'array': {
+                    res[key] = parseArray(value, propertyMetadata.items);
+                    break;
+                }
+                case 'date': {
+                    res[key] = parseDate(value);
+                    break;
+                }
+                case Relation.ONE_TO_ONE:
+                case Relation.ONE_TO_MANY:
+                case Relation.MANY_TO_ONE:
+                case Relation.MANY_TO_MANY:
+                case 'file':
+                case 'unknown': {
+                    res[key] = value;
+                    break;
+                }
             }
         }
         return res as T;

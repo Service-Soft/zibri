@@ -1,3 +1,5 @@
+import assert from 'assert';
+
 import { inject, ZIBRI_DI_TOKENS } from '../di';
 import { GlobalRegistry } from '../global';
 import { BodyParserInterface } from './body-parser.interface';
@@ -44,8 +46,14 @@ export class Parser implements ParserInterface {
         number: parseNumber,
         boolean: parseBoolean,
         date: parseDate,
-        object: parseObject,
-        array: parseArray
+        object: (rawValue, meta) => {
+            assert(meta.type === 'object');
+            return parseObject(rawValue, meta.cls());
+        },
+        array: (rawValue, meta) => {
+            assert(meta.type === 'array');
+            return parseArray(rawValue, meta);
+        }
     };
 
     private readonly headerParamParseFunctions: Record<HeaderParamMetadata['type'], HeaderParamParseFunction> = {
@@ -53,8 +61,14 @@ export class Parser implements ParserInterface {
         number: parseNumber,
         boolean: parseBoolean,
         date: parseDate,
-        object: parseObject,
-        array: parseArray
+        object: (rawValue, meta) => {
+            assert(meta.type === 'object');
+            return parseObject(rawValue, meta.cls());
+        },
+        array: (rawValue, meta) => {
+            assert(meta.type === 'array');
+            return parseArray(rawValue, meta);
+        }
     };
 
     constructor() {

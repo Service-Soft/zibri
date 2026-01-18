@@ -268,16 +268,39 @@ export class HttpClient implements HttpClientInterface {
             ...'modelClass' in options.responseBody ? options.responseBody : {}
         } as BodyMetadata;
 
-        const responseBody: unknown = await this.parser.parseBody(res as unknown as HttpClientResponse, metadata);
-        this.validationService.validateBody(responseBody, metadata);
+        let responseBody: unknown;
+        try {
+            responseBody = await this.parser.parseBody(res as unknown as HttpClientResponse, metadata);
+        }
+        catch (error) {
+            throw new Error('Could not parse response body', { cause: error });
+        }
+
+        try {
+            this.validationService.validateBody(responseBody, metadata);
+        }
+        catch (error) {
+            throw new Error('Could not validate response body', { cause: error });
+        }
 
         for (const key in options.responseHeaders) {
             const headerMetadata: HeaderParamMetadata = createHeaderParamMetadata(key, options.responseHeaders[key]);
-            (res.headers[key] as unknown) = this.parser.parseHeaderParam(
-                res as unknown as HttpClientResponse,
-                headerMetadata
-            );
-            this.validationService.validateHeaderParam(res.headers[key], headerMetadata);
+            try {
+                (res.headers[key] as unknown) = this.parser.parseHeaderParam(
+                    res as unknown as HttpClientResponse,
+                    headerMetadata
+                );
+            }
+            catch (error) {
+                throw new Error(`Could not parse response header "${headerMetadata.name}"`, { cause: error });
+            }
+
+            try {
+                this.validationService.validateHeaderParam(res.headers[key], headerMetadata);
+            }
+            catch (error) {
+                throw new Error(`Could not validate response header "${headerMetadata.name}"`, { cause: error });
+            }
         }
 
         return { ...res, body: responseBody };

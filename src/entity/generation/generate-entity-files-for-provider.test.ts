@@ -9,7 +9,7 @@ import { toKebabCase, toPascalCase } from '../../utilities';
 
 // small InlineProvider so tests are offline and deterministic
 class InlineProvider implements EntityGenerationProvider {
-    constructor(public prefix: string, private readonly spec: OpenApiDefinition, public markAsEntities: boolean = true) {}
+    constructor(readonly prefix: string, private readonly spec: OpenApiDefinition, readonly generateSchemasFromPaths: boolean = true, readonly markAsEntities: boolean = true) {}
     // eslint-disable-next-line typescript/require-await
     async resolveSpec(): Promise<OpenApiDefinition> {
         return this.spec;
