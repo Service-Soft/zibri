@@ -1,8 +1,8 @@
 /* eslint-disable jsdoc/require-jsdoc */
-import { ZIBRI_INVOICING_DI_TOKENS, ZibriInvoicingPluginDiProvider, ZibriInvoicingPluginDiProviders } from './invoicing.tokens';
+import { ZIBRI_INVOICING_DI_TOKENS } from './invoicing.tokens';
 import { Invoice, InvoicingOptions, InvoicingOptionsInput, NumberInvoices } from './models';
 import { InvoiceCalcService, InvoiceNumberService, InvoicePdfService, PeppolConformanceService, XRechnungConformanceService } from './services';
-import { DiProvider, inject } from '../../di';
+import { DiProvider, DiTokenProviderRecord, inject, providersFromTokenRecord } from '../../di';
 import { NoProviderError } from '../../di/errors';
 import { validateEntitiesRegistered } from '../../utilities';
 import { ZibriPlugin } from '../plugin.model';
@@ -11,22 +11,19 @@ import { ZibriPlugin } from '../plugin.model';
  * Plugin that includes everything for handling invoices.
  */
 export class ZibriInvoicingPlugin extends ZibriPlugin {
-    private readonly defaultDiProviders: Record<
-        typeof ZIBRI_INVOICING_DI_TOKENS[keyof typeof ZIBRI_INVOICING_DI_TOKENS],
-        ZibriInvoicingPluginDiProvider<unknown>
-    > = {
-        [ZIBRI_INVOICING_DI_TOKENS.INVOICE_NUMBER_SERVICE]: { useClass: InvoiceNumberService },
-        [ZIBRI_INVOICING_DI_TOKENS.INVOICE_PDF_SERVICE]: { useClass: InvoicePdfService },
-        [ZIBRI_INVOICING_DI_TOKENS.INVOICE_CALC_SERVICE]: { useClass: InvoiceCalcService },
-        [ZIBRI_INVOICING_DI_TOKENS.INVOICE_CONFORMANCE_SERVICES]: {
+    private readonly defaultDiProviders: DiTokenProviderRecord<typeof ZIBRI_INVOICING_DI_TOKENS> = {
+        INVOICE_NUMBER_SERVICE: { useClass: InvoiceNumberService },
+        INVOICE_PDF_SERVICE: { useClass: InvoicePdfService },
+        INVOICE_CALC_SERVICE: { useClass: InvoiceCalcService },
+        INVOICE_CONFORMANCE_SERVICES: {
             useFactory: () => [inject(XRechnungConformanceService), inject(PeppolConformanceService)]
         },
-        [ZIBRI_INVOICING_DI_TOKENS.OPTIONS_INPUT]: {
+        OPTIONS_INPUT: {
             useFactory: () => {
                 throw new NoProviderError(ZIBRI_INVOICING_DI_TOKENS.OPTIONS_INPUT, []);
             }
         },
-        [ZIBRI_INVOICING_DI_TOKENS.OPTIONS]: {
+        OPTIONS: {
             useFactory: () => {
                 const input: InvoicingOptionsInput = inject(ZIBRI_INVOICING_DI_TOKENS.OPTIONS_INPUT);
                 const res: InvoicingOptions = {
@@ -70,19 +67,9 @@ export class ZibriInvoicingPlugin extends ZibriPlugin {
             }
         }
 
-    } satisfies ZibriInvoicingPluginDiProviders;
+    };
 
-    providers: DiProvider<unknown>[] = this.getProviders();
-
-    private getProviders(): DiProvider<unknown>[] {
-        const res: DiProvider<unknown>[] = [];
-        for (const key in ZIBRI_INVOICING_DI_TOKENS) {
-            // eslint-disable-next-line stylistic/max-len
-            const token: typeof ZIBRI_INVOICING_DI_TOKENS[keyof typeof ZIBRI_INVOICING_DI_TOKENS] = ZIBRI_INVOICING_DI_TOKENS[key as keyof typeof ZIBRI_INVOICING_DI_TOKENS];
-            res.push({ token, ...this.defaultDiProviders[token] });
-        }
-        return res;
-    }
+    providers: DiProvider<unknown>[] = providersFromTokenRecord(ZIBRI_INVOICING_DI_TOKENS, this.defaultDiProviders);
 
     validate(): void {
         validateEntitiesRegistered(this.constructor.name, Invoice, NumberInvoices);

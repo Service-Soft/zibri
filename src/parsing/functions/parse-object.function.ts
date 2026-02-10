@@ -6,7 +6,7 @@ import { parseNumber } from './parse-number.function';
 import { parseString } from './parse-string.function';
 import { PropertyMetadata, Relation } from '../../entity';
 import { Newable } from '../../types';
-import { MetadataUtilities } from '../../utilities';
+import { MetadataUtilities, ObjectUtilities } from '../../utilities';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 export function parseObject(
@@ -34,7 +34,7 @@ export function parseObject(
     const res: Record<string, unknown> = simpleParsedValue as Record<string, unknown>;
     const properties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(cls);
 
-    for (const [propertyKey, m] of Object.entries(properties)) {
+    for (const [propertyKey, m] of ObjectUtilities.entries(properties)) {
         switch (m.type) {
             case 'string': {
                 res[propertyKey] = parseString(res[propertyKey]);

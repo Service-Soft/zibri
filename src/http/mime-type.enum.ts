@@ -8,6 +8,7 @@ export enum MimeType {
     XML = 'application/xml',
     HTML = 'text/html',
     FORM_DATA = 'multipart/form-data',
+    FORM_URL_ENCODED = 'application/x-www-form-urlencoded',
     OCTET_STREAM = 'application/octet-stream',
     PNG = 'image/png',
     JPEG = 'image/jpeg',
@@ -25,7 +26,7 @@ export enum MimeType {
 /**
  * File mime types.
  */
-export type FileMimeType = ExcludeStrict<MimeType, MimeType.OCTET_STREAM | MimeType.FORM_DATA>;
+export type FileMimeType = ExcludeStrict<MimeType, MimeType.OCTET_STREAM | MimeType.FORM_DATA | MimeType.FORM_URL_ENCODED>;
 
 /**
  * File mime types with the possibility to provide custom mime types.

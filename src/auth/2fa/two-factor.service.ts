@@ -90,10 +90,7 @@ export class TwoFactorService implements TwoFactorServiceInterface {
     ): Promise<boolean> {
         try {
             await Promise.any(
-                allowedMethods.map(async m => {
-                    const twoFactorMethod: TwoFactorMethod<unknown, unknown> = inject(m);
-                    await twoFactorMethod.validate(user, request);
-                })
+                allowedMethods.map(m => inject(m).validate(user, request))
             );
             return true;
         }

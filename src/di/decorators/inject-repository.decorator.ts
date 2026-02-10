@@ -1,15 +1,20 @@
+import { Repository } from '../../data-source';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Newable } from '../../types';
 import { MetadataUtilities } from '../../utilities';
-import { DiToken } from '../models';
+import { DiToken, InjectionToken } from '../models';
+
+const allRepositoryTokens: Record<string, DiToken<Repository<BaseEntity>>> = {};
 
 /**
  * Gets the repository token for the provided entity class.
  * @param entity - The entity class to resolve the repository token for.
  * @returns The DI token.
  */
-export function repositoryTokenFor<T extends BaseEntity>(entity: Newable<T>): string {
-    return `Repository<${entity.name}>`;
+export function repositoryTokenFor<T extends Newable<BaseEntity>>(entity: T): DiToken<Repository<InstanceType<T>>> {
+    const key: string = `Repository<${entity.name}>`;
+    allRepositoryTokens[key] ??= new InjectionToken(key);
+    return allRepositoryTokens[key] as DiToken<Repository<InstanceType<T>>>;
 }
 
 // eslint-disable-next-line jsdoc/require-returns

@@ -12,7 +12,7 @@ import { DataSourceServiceInterface } from './data-source';
 import { ZIBRI_DI_TOKENS, inject } from './di';
 import { register } from './di/register.function';
 import { EmailServiceInterface, MailingListServiceInterface } from './email';
-import { UnmatchedRouteError } from './error-handling';
+import { GlobalErrorHandler, UnmatchedRouteError } from './error-handling';
 import { GlobalRegistry } from './global';
 import { HandlebarUtilities } from './handlebars/handlebar.utilities';
 import { LoggerInterface } from './logging';
@@ -76,7 +76,9 @@ export class ZibriApplication {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    use(handler: RequestHandler): express.Express;
+    use(handler: RequestHandler): void;
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    use(errorHandler: GlobalErrorHandler): void;
     // eslint-disable-next-line jsdoc/require-jsdoc
     use(...handlers: RequestHandler[]): void;
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -84,9 +86,9 @@ export class ZibriApplication {
     // eslint-disable-next-line jsdoc/require-jsdoc
     use(path: Route, handlers: RequestHandler[]): void;
     // eslint-disable-next-line jsdoc/require-jsdoc, typescript/no-explicit-any
-    use(...args: any[]): express.Express {
+    use(...args: any[]): void {
         // eslint-disable-next-line typescript/no-unsafe-argument
-        return this.express.use(...args);
+        this.express.use(...args);
     }
 
     /**
@@ -167,7 +169,7 @@ export class ZibriApplication {
         this.multithreadingService = inject(ZIBRI_DI_TOKENS.MULTITHREADING_SERVICE);
         await this.multithreadingService.init();
 
-        this.websocketService = inject(ZIBRI_DI_TOKENS.WEBSOCKET_SERVICE);
+        this.websocketService = inject<WebsocketServiceInterface<BaseWebsocketConnection>>(ZIBRI_DI_TOKENS.WEBSOCKET_SERVICE);
         await this.websocketService.attachTo(this);
 
         this.backupService = inject(ZIBRI_DI_TOKENS.BACKUP_SERVICE);

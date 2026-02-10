@@ -1,3 +1,5 @@
+import { ObjectUtilities } from '../utilities';
+
 /**
  * Known http headers.
  */
@@ -35,5 +37,5 @@ export enum KnownHeader {
  * @returns True when the KnownHeader enum values include the given value, false otherwise.
  */
 export function isKnownHeader(value: string): value is KnownHeader {
-    return Object.values(KnownHeader).includes(value as KnownHeader);
+    return ObjectUtilities.values(KnownHeader).includes(value as KnownHeader);
 }

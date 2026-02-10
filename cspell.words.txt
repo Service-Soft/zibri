@@ -12,3 +12,4 @@ pg_dumpall
 PGPASSWORD
 psql
 esnext
+SEPA

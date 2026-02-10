@@ -31,11 +31,11 @@ export * from './websocket';
 export * from './backup';
 export * from './http-client';
 
-export * from './types/newable.model';
+export * from './types/newable.type';
 export * from './types/version.type';
 export * from './utilities/compare-versions.function';
 export * from './utilities/is-version.function';
-export * from './utilities/chunked-promise-all.function';
+export * from './utilities/promise.utilities';
 export * from './utilities/ms';
 export * from './utilities/big-number.utilities';
 export * from './utilities/validate-entities-registered.function';

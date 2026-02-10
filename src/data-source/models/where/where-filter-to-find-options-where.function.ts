@@ -11,6 +11,7 @@ import { ManyToOnePropertyMetadata, ObjectPropertyMetadata, OneToOnePropertyMeta
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { ExcludeStrict, Newable } from '../../../types';
 import { MetadataUtilities } from '../../../utilities';
+import { ObjectUtilities } from '../../../utilities/object.utilities';
 
 /**
  * Transforms the given Zibri where filter to typeorm's FindOptionsWhere.
@@ -45,7 +46,7 @@ function singleWhereFilterToFindOptionsWhere<T extends Object>(
     properties: Record<string, PropertyMetadata>
 ): ToFindOptionsWhere<T> {
     const res: ToFindOptionsWhere<T> = {};
-    for (const key of Object.keys(filter) as (keyof WhereFilter<T>)[]) {
+    for (const key of ObjectUtilities.keys(filter)) {
         const prop: WhereFilterProperty<T[typeof key]> | WhereFilterProperty<T[typeof key]>[] | undefined = filter[key];
         if (prop === undefined) {
             continue;
@@ -148,7 +149,7 @@ const whereFilterKeysRecord: Record<WhereFilterKeys, WhereFilterKeys> = {
     isIncludedIn: 'isIncludedIn'
 };
 
-const whereFilterKeys: WhereFilterKeys[] = Object.values(whereFilterKeysRecord);
+const whereFilterKeys: WhereFilterKeys[] = ObjectUtilities.values(whereFilterKeysRecord);
 
 /**
  * Transforms a single where filter property to a typeorm FindOperator.
@@ -176,13 +177,13 @@ function singlePropertyToFindOperator<T>(
     }
 
     const operators: FindOperator<unknown>[] = [];
-    const filterKeys: (keyof WhereFilterProperty<T>)[] = Object.keys(property) as (keyof WhereFilterProperty<T>)[];
+    const filterKeys: (keyof (WhereFilterProperty<T> & {}))[] = ObjectUtilities.keys(property);
     if (!filterKeys.length) {
         throw new Error('Empty where filter');
     }
     for (const key of filterKeys) {
         if (!isWhereFilterKey(key)) {
-            throw new Error(`Unknown key "${key.toString()}" on where filer ${property}`);
+            throw new Error(`Unknown key "${key.toString()}" on where filter ${property}`);
         }
         const value: unknown = (property as Record<WhereFilterKeys, unknown>)[key];
 

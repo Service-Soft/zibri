@@ -1,5 +1,6 @@
 import { NumberPropertyMetadata, PropertyMetadata } from '../../entity';
 import { QueryParamMetadata, HeaderParamMetadata, PathParamMetadata, NumberParamMetadata } from '../../routing';
+import { ObjectUtilities } from '../../utilities';
 import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from '../validation-problem.model';
 
 /**
@@ -39,8 +40,8 @@ export function validateNumber(
     if (typeof property !== 'number') {
         return [new TypeMismatchValidationProblem(fullKey, 'number')];
     }
-    if (meta.enum && !Object.values(meta.enum).includes(property)) {
-        return [{ key: fullKey, message: `needs to match one of "${Object.values(meta.enum)}"` }];
+    if (meta.enum && !ObjectUtilities.values(meta.enum).includes(property)) {
+        return [{ key: fullKey, message: `needs to match one of "${ObjectUtilities.values(meta.enum)}"` }];
     }
     if (meta.min != undefined && property < meta.min) {
         return [{ key: fullKey, message: `needs to be at least ${meta.min}` }];
