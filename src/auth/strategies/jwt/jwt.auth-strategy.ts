@@ -11,7 +11,7 @@ import { JwtRefreshToken, JwtRefreshTokenCreateDto } from './jwt-refresh-token.m
 import { JwtRequestPasswordResetData } from './jwt-request-password-reset-data.model';
 import { JwtUtilities } from './jwt.utilities';
 import { Repository } from '../../../data-source';
-import { inject, repositoryTokenFor, ZIBRI_DI_TOKENS } from '../../../di';
+import { inject, NoProviderError, repositoryTokenFor, ZIBRI_DI_TOKENS } from '../../../di';
 import { EmailPriority, EmailServiceInterface } from '../../../email';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { TooManyRequestsError, UnauthorizedError } from '../../../error-handling';
@@ -77,14 +77,26 @@ implements AuthStrategyInterface<
     }
 
     constructor() {
-        this.accessTokenSecret = inject(ZIBRI_DI_TOKENS.JWT_ACCESS_TOKEN_SECRET);
+        const accessTokenSecret: string | undefined = inject(ZIBRI_DI_TOKENS.JWT_ACCESS_TOKEN_SECRET);
+        if (!accessTokenSecret) {
+            throw new NoProviderError(ZIBRI_DI_TOKENS.JWT_ACCESS_TOKEN_SECRET, [JwtAuthStrategy]);
+        }
+        const refreshTokenSecret: string | undefined = inject(ZIBRI_DI_TOKENS.JWT_REFRESH_TOKEN_SECRET);
+        if (!refreshTokenSecret) {
+            throw new NoProviderError(ZIBRI_DI_TOKENS.JWT_REFRESH_TOKEN_SECRET, [JwtAuthStrategy]);
+        }
+        const confirmPasswordResetUrl: string | undefined = inject(ZIBRI_DI_TOKENS.JWT_CONFIRM_PASSWORD_RESET_URL);
+        if (!confirmPasswordResetUrl) {
+            throw new NoProviderError(ZIBRI_DI_TOKENS.JWT_CONFIRM_PASSWORD_RESET_URL, [JwtAuthStrategy]);
+        }
+        this.accessTokenSecret = accessTokenSecret;
         this.accessTokenExpiresInMs = inject(ZIBRI_DI_TOKENS.JWT_ACCESS_TOKEN_EXPIRES_IN_MS);
-        this.refreshTokenSecret = inject(ZIBRI_DI_TOKENS.JWT_REFRESH_TOKEN_SECRET);
+        this.refreshTokenSecret = refreshTokenSecret;
         this.refreshTokenExpiresInMs = inject(ZIBRI_DI_TOKENS.JWT_REFRESH_TOKEN_EXPIRES_IN_MS);
         this.passwordResetTokenExpiresInMs = inject(ZIBRI_DI_TOKENS.JWT_PASSWORD_RESET_TOKEN_EXPIRES_IN_MS);
         this.userService = inject(ZIBRI_DI_TOKENS.USER_SERVICE);
         this.emailService = inject(ZIBRI_DI_TOKENS.EMAIL_SERVICE);
-        this.confirmPasswordResetUrl = inject(ZIBRI_DI_TOKENS.JWT_CONFIRM_PASSWORD_RESET_URL);
+        this.confirmPasswordResetUrl = confirmPasswordResetUrl;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

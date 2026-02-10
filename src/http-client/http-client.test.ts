@@ -76,7 +76,7 @@ describe('post', () => {
 
         baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 
-        const parser: Parser = inject(ZIBRI_DI_TOKENS.PARSER);
+        const parser: Parser = inject(ZIBRI_DI_TOKENS.PARSER) as Parser;
         parser['bodyParsers'].push(inject(JsonBodyParser), inject(FormDataBodyParser));
         http = inject(ZIBRI_DI_TOKENS.HTTP_CLIENT);
     });

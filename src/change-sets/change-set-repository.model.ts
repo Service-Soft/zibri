@@ -12,7 +12,7 @@ import { inject, repositoryTokenFor, ZIBRI_DI_TOKENS } from '../di';
 import { PropertyMetadata } from '../entity';
 import { BadRequestError } from '../error-handling';
 import { HttpRequest } from '../http';
-import { chunkedPromiseAll, MetadataUtilities } from '../utilities';
+import { MetadataUtilities, ObjectUtilities, PromiseUtilities } from '../utilities';
 
 /**
  * The result for resetting a change set on an entity.
@@ -55,7 +55,7 @@ export class ChangeSetRepository<
 
         this.keysToExcludeFromChangeSets = ['changeSets'];
         const props: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(entityClass);
-        for (const [key, m] of Object.entries(props)) {
+        for (const [key, m] of ObjectUtilities.entries(props)) {
             if (m.excludeFromChangeSets) {
                 this.keysToExcludeFromChangeSets.push(key as keyof T);
             }
@@ -311,8 +311,9 @@ export class ChangeSetRepository<
         options?: BaseRepositoryOptions
     ): Promise<number> {
         const entitiesToRollback: T[] = await this.findAll({ where: where, ...options });
-        await chunkedPromiseAll(
-            entitiesToRollback.map(e => this.rollbackToDate(e, date, createChangeSet, preserveCreateChangeSet, options))
+        await PromiseUtilities.allChunked(
+            entitiesToRollback,
+            e => this.rollbackToDate(e, date, createChangeSet, preserveCreateChangeSet, options)
         );
         return entitiesToRollback.length;
     }

@@ -6,7 +6,7 @@ import { inject, ZIBRI_DI_TOKENS } from '../di';
 import { MailingList, MailingListSubscriber } from '../email';
 import { BaseEntity } from '../entity/base-entity.model';
 import { Log, LoggerInterface } from '../logging';
-import { Invoice, NumberInvoices } from '../plugin';
+import { Invoice, NumberInvoices, Payment } from '../plugin';
 import { Newable } from '../types';
 import { validateEntitiesRegistered } from '../utilities';
 import { DataSourceInterface } from './data-sources/data-source.interface';
@@ -28,7 +28,8 @@ export class DataSourceService implements DataSourceServiceInterface {
         BackupResourceEntity,
         BackupEntity,
         NumberInvoices,
-        Invoice
+        Invoice,
+        Payment
     ];
 
     constructor() {

@@ -1,6 +1,7 @@
 import type { Newable } from '../types';
 import type { PropertyMetadata } from './decorators';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
+import { ObjectUtilities } from '../utilities/object.utilities';
 
 // eslint-disable-next-line jsdoc/require-returns
 /**
@@ -15,7 +16,7 @@ export function PartialClass<T>(
 
     const original: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(Base);
     const partialMeta: Record<string, PropertyMetadata> = {};
-    for (const [prop, meta] of Object.entries(original)) {
+    for (const [prop, meta] of ObjectUtilities.entries(original)) {
         partialMeta[prop] = 'required' in meta ? { ...meta, required: false } : meta;
     }
     MetadataUtilities.setModelProperties(PartialClass, partialMeta);

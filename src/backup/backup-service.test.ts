@@ -4,7 +4,6 @@ import path from 'path';
 import { beforeAll, afterAll, describe, it, expect } from '@jest/globals';
 import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 
-import { BackupService } from './backup.service';
 import { POSTGRES_TEST_IMAGE, testFileFolder } from '../__testing__';
 import { BackupEntity } from './backup-entity.model';
 import { BackupResourceEntity } from './backup-resource-entity.model';
@@ -18,6 +17,7 @@ import { Newable } from '../types';
 import { Backup } from './decorators/backup-resource.decorator';
 import { FsBackupTransport } from './transports';
 import { PostgresDataSource, PostgresOptions } from '../data-source';
+import { BackupServiceInterface } from './backup-service.interface';
 
 const backupFsFolder: string = path.join(testFileFolder, 'backups');
 
@@ -57,7 +57,7 @@ describe('Create and restore postgres backup', () => {
     let itemRepository: Repository<Item>;
     let backupRepository: Repository<BackupEntity>;
     let container: StartedPostgreSqlContainer;
-    let backupService: BackupService;
+    let backupService: BackupServiceInterface;
 
     beforeAll(async () => {
         await rm(backupFsFolder, { recursive: true, force: true });

@@ -1,3 +1,4 @@
+import { ObjectUtilities } from '../utilities';
 import { FileMimeType, LooseFileMimeType, MimeType } from './mime-type.enum';
 
 /**
@@ -69,5 +70,5 @@ export function resolveFileExtension(type: LooseFileMimeType): FileExtension | u
  * @param value - The value to check.
  */
 export function isMimeType(value: string): value is MimeType {
-    return Object.values(MimeType).includes(value as MimeType);
+    return ObjectUtilities.values(MimeType).includes(value as MimeType);
 }

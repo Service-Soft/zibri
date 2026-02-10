@@ -17,7 +17,7 @@ import { OpenApiContentObject, OpenApiDefinition, OpenApiOperation, OpenApiParam
 import { FileResponse } from '../parsing';
 import { MissingBaseRouteError } from '../routing/missing-base-route.error';
 import { Newable } from '../types';
-import { MetadataUtilities } from '../utilities';
+import { MetadataUtilities, ObjectUtilities } from '../utilities';
 
 const defaultDescriptionForHttpStatus: Record<HttpStatus | 'default', string> = {
     default: 'Response',
@@ -527,7 +527,7 @@ export class OpenApiService implements OpenApiServiceInterface {
         const properties: Record<string, OpenApiSchemaObject> = {};
         const required: string[] = [];
 
-        for (const [key, meta] of Object.entries(propMeta)) {
+        for (const [key, meta] of ObjectUtilities.entries(propMeta)) {
             // mark required
             if ((
                 typeof meta.required === 'boolean'
@@ -553,7 +553,7 @@ export class OpenApiService implements OpenApiServiceInterface {
                         required: undefined,
                         minimum: meta.min,
                         maximum: meta.max,
-                        enum: meta.enum ? Object.values(meta.enum) : undefined
+                        enum: meta.enum ? ObjectUtilities.values(meta.enum) : undefined
                     };
                     continue;
                 }
@@ -570,7 +570,7 @@ export class OpenApiService implements OpenApiServiceInterface {
                         ...meta,
                         required: undefined,
                         pattern: meta.regex?.toString(),
-                        enum: meta.enum ? Object.values(meta.enum) : undefined
+                        enum: meta.enum ? ObjectUtilities.values(meta.enum) : undefined
                     };
                     continue;
                 }
@@ -678,7 +678,7 @@ export class OpenApiService implements OpenApiServiceInterface {
         params: Record<number, QueryParamMetadata | HeaderParamMetadata | PathParamMetadata>,
         location: OpenApiParameterLocation
     ): OpenApiParameter[] {
-        return Object.values(params).map(meta => ({
+        return ObjectUtilities.values(params).map(meta => ({
             name: meta.name,
             in: location,
             required: typeof meta.required === 'boolean' ? meta.required : undefined,
@@ -705,7 +705,7 @@ export class OpenApiService implements OpenApiServiceInterface {
                     required: undefined,
                     minimum: meta.min,
                     maximum: meta.max,
-                    enum: meta.enum ? Object.values(meta.enum) : undefined
+                    enum: meta.enum ? ObjectUtilities.values(meta.enum) : undefined
                 };
             }
             case 'string': {
@@ -713,7 +713,7 @@ export class OpenApiService implements OpenApiServiceInterface {
                     ...meta,
                     required: undefined,
                     pattern: meta.regex?.toString(),
-                    enum: meta.enum ? Object.values(meta.enum) : undefined
+                    enum: meta.enum ? ObjectUtilities.values(meta.enum) : undefined
                 };
             }
             case 'date': {

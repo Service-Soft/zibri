@@ -1,13 +1,6 @@
 import { getDependencyStackTrace } from './get-dependency-stack-trace.function';
 import { MetadataUtilities } from '../../utilities';
-import { DiToken } from '../models';
-
-// eslint-disable-next-line jsdoc/require-jsdoc
-function tokenIsPrimitiveValue(token: DiToken<unknown>): boolean {
-    return [String, Number, Boolean, Date].includes(
-        token as unknown as StringConstructor | NumberConstructor | BooleanConstructor | DateConstructor
-    );
-}
+import { DiToken, InjectionToken } from '../models';
 
 /**
  * Get the no providers error message from the provided token and stack.
@@ -16,16 +9,13 @@ function tokenIsPrimitiveValue(token: DiToken<unknown>): boolean {
  * @returns The message as a string.
  */
 function getNoProviderMessage(token: DiToken<unknown>, resolvingStack: Function[]): string {
-    if (typeof token === 'string') {
-        if (token.startsWith('Repository<') && token.endsWith('>')) {
-            const entity: string = token.split('Repository<')[1].split('>')[0];
-            return `No provider for repository token "${token}". Did you forget to register the entity "${entity}" in a data source?`;
+    if (token instanceof InjectionToken) {
+        if (token.key.startsWith('Repository<') && token.key.endsWith('>')) {
+            const entity: string = token.key.split('Repository<')[1].split('>')[0];
+            return `No provider for repository token "${token.key}". Did you forget to register the entity "${entity}" in a data source?`;
         }
-        return `No provider for custom token "${token}"`;
-    }
-    if (tokenIsPrimitiveValue(token)) {
         if (!resolvingStack.length) {
-            return `No provider for token "${token.name}". Did you forget to decorate it with @Inject()?`;
+            return `No provider for token "${token.key}". Did you forget to decorate it with @Inject()?`;
         }
         const currentClass: Function = resolvingStack[resolvingStack.length - 1];
         const paramTypes: unknown[] = MetadataUtilities.getParamTypes(currentClass);

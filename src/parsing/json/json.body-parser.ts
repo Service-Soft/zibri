@@ -58,7 +58,7 @@ export class JsonBodyParser implements BodyParserInterface {
         if (req.body !== undefined) {
             return req.body;
         }
-        const contentLength: string | undefined = req.headers[KnownHeader.CONTENT_LENGTH] ?? req.headers[KnownHeader.CONTENT_LENGTH];
+        const contentLength: string | undefined = req.headers[KnownHeader.CONTENT_LENGTH];
         if (contentLength && BigNumberUtilities.new(Number(contentLength)).isGreaterThan(metadata.maxSize)) {
             throw new ContentTooLargeError();
         }

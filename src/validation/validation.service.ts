@@ -6,7 +6,7 @@ import { MimeType } from '../http';
 import { FormData } from '../parsing';
 import { BodyMetadata, HeaderParamMetadata, PathParamMetadata, QueryParamMetadata } from '../routing';
 import { ExcludeStrict, Newable, OmitStrict } from '../types';
-import { MetadataUtilities } from '../utilities';
+import { MetadataUtilities, ObjectUtilities } from '../utilities';
 import { WebsocketRequest } from '../websocket';
 import { validateBoolean, validateDate, validateFile, validateNumber, validateString } from './functions';
 import { IsRequiredValidationProblem, RelationsNotAllowedValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from './validation-problem.model';
@@ -203,8 +203,8 @@ export class ValidationService implements ValidationServiceInterface {
     ): ValidationProblem[] {
         const modelProperties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(cls);
 
-        const keysOfBody: string[] = Object.keys(body as Record<string, unknown>);
-        const keysOfModel: string[] = Object.keys(modelProperties);
+        const keysOfBody: string[] = ObjectUtilities.keys(body as Record<string, unknown>);
+        const keysOfModel: string[] = ObjectUtilities.keys(modelProperties);
         const unknownKeys: string[] = keysOfBody.filter(k => !keysOfModel.includes(k));
         const res: ValidationProblem[] = [];
         for (const key of unknownKeys) {
@@ -214,7 +214,7 @@ export class ValidationService implements ValidationServiceInterface {
             const fullKey: string = parentKey ? `${parentKey}.${key}` : key;
             res.push({ key: fullKey, message: 'this key is unknown' });
         }
-        for (const [propertyKey, metadata] of Object.entries(modelProperties)) {
+        for (const [propertyKey, metadata] of ObjectUtilities.entries(modelProperties)) {
             const property: unknown = (body as Record<string, unknown>)[propertyKey];
             const errors: ValidationProblem[] = this.validateProperty(propertyKey, property, metadata, parentKey, body);
             res.push(...errors);
@@ -308,8 +308,8 @@ export class ValidationService implements ValidationServiceInterface {
         const res: ValidationProblem[] = [];
 
         if (!metadata.allowAdditionalProperties) {
-            const keysOfBody: string[] = Object.keys(property as Record<string, unknown>);
-            const keysOfModel: string[] = Object.keys(objectProperties);
+            const keysOfBody: string[] = ObjectUtilities.keys(property as Record<string, unknown>);
+            const keysOfModel: string[] = ObjectUtilities.keys(objectProperties);
             const unknownKeys: string[] = keysOfBody.filter(k => !keysOfModel.includes(k));
 
             for (const k of unknownKeys) {
@@ -320,7 +320,7 @@ export class ValidationService implements ValidationServiceInterface {
             }
         }
 
-        for (const [propertyKey, m] of Object.entries(objectProperties)) {
+        for (const [propertyKey, m] of ObjectUtilities.entries(objectProperties)) {
             const childProperty: unknown = (property as Record<string, unknown>)[propertyKey];
             const errors: ValidationProblem[] = this.validateProperty(propertyKey, childProperty, m, key, entity);
             res.push(...errors);

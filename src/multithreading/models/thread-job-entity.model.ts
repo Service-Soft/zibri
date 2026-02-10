@@ -1,9 +1,9 @@
+import { BaseThreadJobWorkerData } from './base-thread-job-worker-data.model';
+import { ThreadJobStatus } from './thread-job-status.enum';
 import { Entity, Property } from '../../entity';
 import { BaseEntity } from '../../entity/base-entity.model';
 import type { OmitStrict, Percentage } from '../../types';
 import { ThreadJob } from '../services';
-import { BaseThreadJobWorkerData } from './base-thread-job-worker-data.model';
-import { ThreadJobStatus } from './thread-job-status.enum';
 
 // eslint-disable-next-line unusedImports/no-unused-vars
 const omitValues: (keyof ThreadJob<BaseThreadJobWorkerData, unknown>)[] = [

@@ -5,7 +5,7 @@ import { UnauthorizedError } from '../error-handling';
 import { HttpRequest } from '../http';
 import { LoggerInterface } from '../logging';
 import { Newable } from '../types';
-import { MetadataUtilities } from '../utilities';
+import { MetadataUtilities, PromiseUtilities } from '../utilities';
 import { WebsocketRequest } from '../websocket';
 import { TwoFactorServiceInterface } from './2fa';
 import { AuthServiceInterface } from './auth-service.interface';
@@ -274,7 +274,7 @@ export class AuthService implements AuthServiceInterface {
         // eslint-disable-next-line stylistic/max-len
         const strategies: AuthStrategyInterface<string, BaseUser<string>, unknown, unknown, unknown, unknown, unknown, unknown>[] = allowedStrategies.map(s => inject(s));
         try {
-            return await Promise.any(strategies.map(s => s.isLoggedIn(request)));
+            return await PromiseUtilities.anyValueTrue(strategies, s => s.isLoggedIn(request));
         }
         catch {
             return false;
@@ -290,7 +290,7 @@ export class AuthService implements AuthServiceInterface {
         // eslint-disable-next-line stylistic/max-len
         const strategies: AuthStrategyInterface<string, BaseUser<string>, unknown, unknown, unknown, unknown, unknown, unknown>[] = allowedStrategies.map(s => inject(s));
         try {
-            return await Promise.any(strategies.map(s => s.hasRole(request, allowedRoles)));
+            return await PromiseUtilities.anyValueTrue(strategies, s => s.hasRole(request, allowedRoles));
         }
         catch {
             return false;
@@ -308,7 +308,10 @@ export class AuthService implements AuthServiceInterface {
         // eslint-disable-next-line stylistic/max-len
         const strategies: AuthStrategyInterface<string, BaseUser<string>, unknown, unknown, unknown, unknown, unknown, unknown>[] = allowedStrategies.map(s => inject(s));
         try {
-            return await Promise.any(strategies.map(s => s.belongsTo(request, targetEntity, targetUserIdKey, targetIdParamKey)));
+            return await PromiseUtilities.anyValueTrue(
+                strategies,
+                s => s.belongsTo(request, targetEntity, targetUserIdKey, targetIdParamKey)
+            );
         }
         catch {
             return false;

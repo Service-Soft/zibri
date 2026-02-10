@@ -4,7 +4,7 @@ const config = {
     testEnvironment: 'node',
     rootDir: 'src',
     transform: {
-        '^.+.tsx?$': ['ts-jest', { tsconfig: 'tsconfig.eslint.json' }]
+        '^.+.tsx?$': ['ts-jest']
     },
     setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
     bail: false,

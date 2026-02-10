@@ -13,23 +13,24 @@ import { Newable } from '../types';
 import { Ms } from '../utilities';
 import { type ValidationServiceInterface } from '../validation/validation-service.interface';
 
-const responseTypeForMimeType: Record<MimeType, ResponseType> = {
+const responseTypeForMimeType: Record<BodyMetadata['type'], ResponseType> = {
     [MimeType.JSON]: 'json',
-    [MimeType.XML]: 'text',
-    [MimeType.HTML]: 'text',
-    [MimeType.TXT]: 'text',
-    [MimeType.FORM_DATA]: 'stream',
-    [MimeType.OCTET_STREAM]: 'stream',
-    [MimeType.PNG]: 'stream',
-    [MimeType.JPEG]: 'stream',
-    [MimeType.ZIP]: 'stream',
-    [MimeType.SVG]: 'stream',
-    [MimeType.CSS]: 'stream',
-    [MimeType.TTF]: 'stream',
-    [MimeType.PDF]: 'stream',
-    [MimeType.CSV]: 'stream',
-    [MimeType.XLSX]: 'stream',
-    [MimeType.DOCX]: 'stream'
+    // [MimeType.XML]: 'text',
+    // [MimeType.HTML]: 'text',
+    // [MimeType.TXT]: 'text',
+    [MimeType.FORM_DATA]: 'stream'
+    // [MimeType.FORM_URL_ENCODED]: 'text',
+    // [MimeType.OCTET_STREAM]: 'stream',
+    // [MimeType.PNG]: 'stream',
+    // [MimeType.JPEG]: 'stream',
+    // [MimeType.ZIP]: 'stream',
+    // [MimeType.SVG]: 'stream',
+    // [MimeType.CSS]: 'stream',
+    // [MimeType.TTF]: 'stream',
+    // [MimeType.PDF]: 'stream',
+    // [MimeType.CSV]: 'stream',
+    // [MimeType.XLSX]: 'stream',
+    // [MimeType.DOCX]: 'stream'
 };
 
 /**
