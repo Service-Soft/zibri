@@ -5,3 +5,4 @@ export * from './partial-class.model';
 export * from './pick-class.model';
 export * from './models';
 export * from './generation';
+export * from './any-object.model';

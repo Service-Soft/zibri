@@ -2,7 +2,7 @@
 import { getEntityFileName } from './get-entity-file-name.function';
 import { EntityGenerationProvider } from './providers/entity-generation-provider.interface';
 import { OpenApiReferenceObject, OpenApiSchemaObject, OpenApiSchemas } from '../../open-api';
-import { toPascalCase } from '../../utilities';
+import { ObjectUtilities, toPascalCase } from '../../utilities';
 import { addImportStatement } from '../../utilities/add-import-statement.function';
 
 /**
@@ -64,7 +64,7 @@ export function generateEntityFile(
 
     const foundSchemas: OpenApiSchemas = {};
 
-    for (const [propName, propSchema] of Object.entries(properties)) {
+    for (const [propName, propSchema] of ObjectUtilities.entries(properties)) {
         const isRequired: boolean = required.has(propName);
         const optional: string = isRequired ? '!' : '?';
         const { type, isRef, schema } = mapSchemaToTsType(propSchema, propName);

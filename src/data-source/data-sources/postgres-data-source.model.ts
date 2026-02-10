@@ -2,13 +2,13 @@ import { ChildProcessByStdio, spawn } from 'node:child_process';
 import { PassThrough, Readable, Writable } from 'node:stream';
 
 import { DataSource as TODataSource, Repository as TORepository, EntityMetadata as TOEntityMetadata, EntitySchema, EntitySchemaColumnOptions, QueryRunner, EntitySchemaRelationOptions, Table, TableColumnOptions, TableColumn, EntityTarget } from 'typeorm';
-import { PostgresConnectionOptions } from 'typeorm/driver/postgres/PostgresConnectionOptions';
-import { IsolationLevel } from 'typeorm/driver/types/IsolationLevel';
-import { ColumnMetadata } from 'typeorm/metadata/ColumnMetadata';
-import { OnDeleteType } from 'typeorm/metadata/types/OnDeleteType';
-import { OnUpdateType } from 'typeorm/metadata/types/OnUpdateType';
+import { PostgresConnectionOptions } from 'typeorm/driver/postgres/PostgresConnectionOptions.js';
+import { IsolationLevel } from 'typeorm/driver/types/IsolationLevel.js';
+import { ColumnMetadata } from 'typeorm/metadata/ColumnMetadata.js';
+import { OnDeleteType } from 'typeorm/metadata/types/OnDeleteType.js';
+import { OnUpdateType } from 'typeorm/metadata/types/OnUpdateType.js';
 
-import { DataSourceInterface } from '.';
+import { DataSourceInterface } from './data-source.interface';
 import { ChangeSetEntity, ChangeSetRepository, isChangeSetEntityNewable, isSoftDeleteEntityNewable, SoftDeleteEntity, SoftDeleteRepository } from '../../change-sets';
 import { inject, repositoryTokenFor, ZIBRI_DI_TOKENS } from '../../di';
 import { register } from '../../di/register.function';
@@ -19,6 +19,7 @@ import { GlobalRegistry } from '../../global';
 import { LoggerInterface } from '../../logging';
 import { ExcludeStrict, Newable, OmitStrict, Version } from '../../types';
 import { compareVersion, MetadataUtilities } from '../../utilities';
+import { ObjectUtilities } from '../../utilities/object.utilities';
 import { Migration, MigrationEntity } from '../migration';
 import { ColumnType, DataSourceOptions } from '../models';
 import { Repository } from '../repository';
@@ -197,7 +198,7 @@ export abstract class PostgresDataSource implements DataSourceInterface {
         }
         const props: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(cls);
 
-        const numberOfPrimaryKeys: number = Object.values(props).filter(d => (d as StringPropertyMetadata).primary).length;
+        const numberOfPrimaryKeys: number = ObjectUtilities.values(props).filter(d => (d as StringPropertyMetadata).primary).length;
         if (numberOfPrimaryKeys === 0) {
             throw new Error(`no primary key specified for entity "${cls.name}".`);
         }
@@ -207,7 +208,7 @@ export abstract class PostgresDataSource implements DataSourceInterface {
 
         const columns: Record<string, EntitySchemaColumnOptions> = {};
         const relations: Record<string, EntitySchemaRelationOptions> = {};
-        for (const [key, m] of Object.entries(props)) {
+        for (const [key, m] of ObjectUtilities.entries(props)) {
             if (
                 m.type === Relation.MANY_TO_ONE
                 || m.type === Relation.ONE_TO_MANY
@@ -351,7 +352,7 @@ export abstract class PostgresDataSource implements DataSourceInterface {
                     ...metadata,
                     type: metadata.format === 'uuid' || metadata.primary ? 'uuid' : this.columnTypeMapping[metadata.type],
                     length: metadata.maxLength,
-                    enum: metadata.enum ? Object.values(metadata.enum) : undefined,
+                    enum: metadata.enum ? ObjectUtilities.values(metadata.enum) : undefined,
                     default: undefined
                 };
             }
@@ -478,7 +479,7 @@ export abstract class PostgresDataSource implements DataSourceInterface {
             ...columnMetadata,
             ...newColumn,
             enum: 'enum' in newColumn && newColumn.enum
-                ? Object.values(newColumn.enum).map(v => String(v))
+                ? ObjectUtilities.values(newColumn.enum).map(v => String(v))
                 : columnMetadata.enum
                     ? columnMetadata.enum.map(v => String(v))
                     : undefined,

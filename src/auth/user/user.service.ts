@@ -1,8 +1,8 @@
+import { UserServiceInterface } from './user-service.interface';
 import { inject } from '../../di';
 import { NotFoundError } from '../../error-handling';
 import { GlobalRegistry } from '../../global';
 import { BaseUser } from '../models';
-import { UserServiceInterface } from './user-service.interface';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 export const NO_USER_REPOSITORIES_PROVIDED_ERROR_MESSAGE: string = 'No user repositories have been provided.';

@@ -1,10 +1,10 @@
 import { GlobalRegistry } from '../global';
 import { Newable } from '../types';
-import { MetadataUtilities } from '../utilities';
+import { MetadataUtilities, ObjectUtilities } from '../utilities';
 import { ZIBRI_DI_TOKENS } from './default';
 import { ZIBRI_DI_PROVIDERS } from './default/zibri-di-providers.default';
 import { NoProviderError } from './errors/no-provider.error';
-import { DiToken, DiProvider } from './models';
+import { DiToken, DiProvider, providersFromTokenRecord } from './models';
 
 /**
  * The dependency injection container.
@@ -18,9 +18,9 @@ export class DiContainer {
         for (const injectable of GlobalRegistry.injectables) {
             this.register(injectable);
         }
-        for (const key in ZIBRI_DI_TOKENS) {
-            const token: typeof ZIBRI_DI_TOKENS[keyof typeof ZIBRI_DI_TOKENS] = ZIBRI_DI_TOKENS[key as keyof typeof ZIBRI_DI_TOKENS];
-            this.register({ token, ...ZIBRI_DI_PROVIDERS[token] });
+        const defaultProviders: DiProvider<unknown>[] = providersFromTokenRecord(ZIBRI_DI_TOKENS, ZIBRI_DI_PROVIDERS);
+        for (const provider of defaultProviders) {
+            this.register(provider);
         }
     }
 
@@ -39,9 +39,6 @@ export class DiContainer {
      * @throws When the provider is invalid.
      */
     register<T>(provider: DiProvider<T>): void {
-        if (!provider.useClass && !provider.useFactory) {
-            throw new Error(`Provider for token ${provider.token.toString()} must specify useClass or useFactory`);
-        }
         this.providers.set(provider.token, provider);
     }
 
@@ -71,10 +68,9 @@ export class DiContainer {
             throw new NoProviderError(token, resolvingStack);
         }
 
-        if (!provider.useClass && !provider.useFactory) {
-            throw new Error(`Provider for ${provider.token.toString()} is invalid`);
+        if (provider.useClass || provider.useFactory) {
+            resolvingStack.push(provider.useClass ?? provider.useFactory);
         }
-        resolvingStack.push((provider.useClass ?? provider.useFactory) as Function);
 
         const instance: T = this.createInstanceFromProvider(provider, resolvingStack);
         resolvingStack.pop();
@@ -84,9 +80,11 @@ export class DiContainer {
     }
 
     private createInstanceFromProvider<T>(provider: DiProvider<T>, resolvingStack: Function[]): T {
-        const provide: Newable<T> | ((...deps: unknown[]) => T) | undefined = provider.useClass ?? provider.useFactory;
+        const provide: Newable<T> | ((...deps: unknown[]) => T) | T | undefined = provider.useClass
+            ?? provider.useFactory
+            ?? provider.useValue;
 
-        if (!provide) {
+        if (provide == undefined) {
             throw new Error(`Provider for ${provider.token.toString()} is invalid`);
         }
 
@@ -94,7 +92,7 @@ export class DiContainer {
         const paramTypes: unknown[] = MetadataUtilities.getParamTypes(provide);
 
         // compute max number of parameters to resolve
-        const highestExplicitIndex: number = Object.keys(explicitTokens).reduce((acc, k) => {
+        const highestExplicitIndex: number = ObjectUtilities.keys(explicitTokens).reduce((acc, k) => {
             const idx: number = Number(k);
             return Number.isFinite(idx) ? Math.max(acc, idx) : acc;
         }, -1);
@@ -117,7 +115,10 @@ export class DiContainer {
         if (provider.useFactory) {
             return provider.useFactory(...deps);
         }
+        if ('useValue' in provider) {
+            return provider.useValue;
+        }
 
-        throw new Error(`Provider for ${provider.token.toString()} is invalid`);
+        throw new Error(`Provider for ${(provider as DiProvider<T>).token.toString()} is invalid`);
     }
 }

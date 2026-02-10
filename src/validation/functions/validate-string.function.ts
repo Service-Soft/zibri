@@ -1,6 +1,7 @@
 
 import { PropertyMetadata, StringFormat, StringPropertyMetadata } from '../../entity';
 import { HeaderParamMetadata, PathParamMetadata, QueryParamMetadata, StringParamMetadata } from '../../routing';
+import { ObjectUtilities } from '../../utilities';
 import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from '../validation-problem.model';
 
 const UUID_REGEX: RegExp = /^[\dA-Fa-f]{8}-[\dA-Fa-f]{4}-[1-5][\dA-Fa-f]{3}-[89ABab][\dA-Fa-f]{3}-[\dA-Fa-f]{12}$/;
@@ -50,8 +51,8 @@ export function validateString(
     if (meta.regex != undefined && !new RegExp(meta.regex).test(property)) {
         return [{ key: fullKey, message: `needs to match regex "${meta.regex}"` }];
     }
-    if (meta.enum && !Object.values(meta.enum).includes(property)) {
-        return [{ key: fullKey, message: `needs to match one of "${Object.values(meta.enum)}"` }];
+    if (meta.enum && !ObjectUtilities.values(meta.enum).includes(property)) {
+        return [{ key: fullKey, message: `needs to match one of "${ObjectUtilities.values(meta.enum)}"` }];
     }
     if (meta.minLength && meta.minLength > property.length) {
         return [{ key: fullKey, message: `needs to be at least ${meta.minLength} characters long` }];

@@ -4,7 +4,7 @@ import { dirname, basename, join } from 'path';
 import { sync as globSync } from 'glob';
 import { parse } from 'handlebars';
 
-import { pathExists } from '../utilities';
+import { ObjectUtilities, pathExists } from '../utilities';
 import { AstProgram } from './ast.model';
 import { resolveAllArrayKeys } from './resolve-all-array-keys.function';
 import { resolveTree } from './resolve-tree.function';
@@ -75,7 +75,7 @@ function generateInterfaceLines(
     currentPath = ''
 ): string[] {
     const lines: string[] = [];
-    const keys: string[] = Object.keys(tree);
+    const keys: string[] = ObjectUtilities.keys(tree);
 
     for (let i: number = 0; i < keys.length; i++) {
         const key: string = keys[i];
@@ -86,7 +86,7 @@ function generateInterfaceLines(
         const suffix: string = arrayKeys.includes(fullPath) ? '[]' : '';
         const comma: string = isLast ? '' : ','; // no comma for last
 
-        const childKeys: string[] = Object.keys(subtree);
+        const childKeys: string[] = ObjectUtilities.keys(subtree);
 
         if (childKeys.length === 0) {
             lines.push(`${indent}${key}: string${suffix}${comma}`);

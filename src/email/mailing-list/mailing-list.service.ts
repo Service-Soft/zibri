@@ -10,7 +10,7 @@ import { BaseEmailTemplateData, renderTemplate, renderTemplateString } from '../
 import { Route } from '../../routing';
 import { EmailServiceInterface } from '../email-service.interface';
 import { MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken, MailingListSubscriptionConfirmationTokenCreateData } from './models';
-import { chunkedPromiseAll, validateEntitiesRegistered } from '../../utilities';
+import { PromiseUtilities, validateEntitiesRegistered } from '../../utilities';
 import { EmailPriority } from '../models';
 
 /**
@@ -66,8 +66,9 @@ export class MailingListService implements MailingListServiceInterface {
     // eslint-disable-next-line jsdoc/require-jsdoc
     async queueEmailForList<T extends BaseMailingListEmailTemplateData>(listId: string, data: MailingListQueueEmailData<T>): Promise<void> {
         const list: MailingList = await this.mailingListRepository.findById(listId);
-        await chunkedPromiseAll(
-            list.subscribers.map(async s => {
+        await PromiseUtilities.allChunked(
+            list.subscribers,
+            async s => {
                 const base: BaseEmailTemplateData['base'] = {
                     ...data.templateData.base,
                     baseUrl: GlobalRegistry.getAppData('baseUrl') ?? '',
@@ -92,7 +93,7 @@ export class MailingListService implements MailingListServiceInterface {
                     persist: false,
                     ...data
                 });
-            })
+            }
         );
     }
 

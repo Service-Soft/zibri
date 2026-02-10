@@ -14,6 +14,7 @@ import type { LoggerInterface } from '../logging';
 import { FileResponse } from '../parsing/form-data/file-response.model';
 import { HtmlResponse } from '../parsing/html/html-response.model';
 import { Route } from '../routing';
+import { ObjectUtilities } from '../utilities';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 type FileNode = { type: 'file', name: string, route: string };
@@ -131,7 +132,7 @@ export class AssetService implements AssetServiceInterface {
     }
 
     private mapToTree(nodes: NodeMap): TreeNode[] {
-        return Object.entries(nodes).map(([name, info]) => {
+        return ObjectUtilities.entries(nodes).map(([name, info]) => {
             if (!info) {
                 throw new Error('Error building the assets tree');
             }

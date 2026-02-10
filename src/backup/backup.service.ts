@@ -7,7 +7,7 @@ import { inject, repositoryTokenFor, ZIBRI_DI_TOKENS } from '../di';
 import { GlobalRegistry } from '../global';
 import { LoggerInterface } from '../logging';
 import { Newable } from '../types';
-import { chunkedPromiseAll, MetadataUtilities, validateEntitiesRegistered } from '../utilities';
+import { MetadataUtilities, PromiseUtilities, validateEntitiesRegistered } from '../utilities';
 import { BackupEntity, BackupEntityCreateData } from './backup-entity.model';
 import { BackupResourceEntity, BackupResourceEntityCreateData } from './backup-resource-entity.model';
 import { BackupResourceInterface } from './backup-resource.interface';
@@ -80,7 +80,7 @@ export class BackupService implements BackupServiceInterface {
 
         const groupedEntities: Record<string, BackupEntity[]> = this.groupEntitiesById(entitiesToSync);
         const mergedEntities: BackupEntity[] = this.mergeEntities(groupedEntities);
-        await chunkedPromiseAll(mergedEntities.map(e => this.backupRepository.create(e, { allowId: true })));
+        await PromiseUtilities.allChunked(mergedEntities, e => this.backupRepository.create(e, { allowId: true }));
     }
 
     private mergeEntities(groupedEntities: Record<string, BackupEntity[]>): BackupEntity[] {

@@ -2,7 +2,7 @@ import { AuthServiceInterface, CurrentUserMetadata } from '../auth';
 import { HttpRequest } from '../http';
 import { ParserInterface } from '../parsing';
 import { Newable } from '../types';
-import { MetadataUtilities } from '../utilities';
+import { MetadataUtilities, ObjectUtilities } from '../utilities';
 import { ValidationServiceInterface } from '../validation';
 import { BaseWebsocketConnection, CurrentWebsocketConnectionMetadata, WebsocketRequest } from '../websocket';
 import { BodyMetadata, HeaderParamMetadata, PathParamMetadata, QueryParamMetadata } from './decorators';
@@ -25,12 +25,12 @@ export async function resolveRouteParams(
 
     // 1) Path decorators
     const pathParams: Record<string, PathParamMetadata> = MetadataUtilities.getRoutePathParams(controllerClass, controllerMethod);
-    for (const [indexStr, metadata] of Object.entries(pathParams)) {
+    for (const [indexStr, metadata] of ObjectUtilities.entries(pathParams)) {
         const idx: number = Number(indexStr);
         params[idx] = parser.parsePathParam(req, metadata);
         validationService.validatePathParam(params[idx], metadata);
     }
-    resolvedParamCount += Object.keys(pathParams).length;
+    resolvedParamCount += ObjectUtilities.keys(pathParams).length;
 
     // 2) Body decorator
     const requestBody: BodyMetadata | undefined = MetadataUtilities.getRouteBody(controllerClass, controllerMethod);
@@ -42,21 +42,21 @@ export async function resolveRouteParams(
 
     // 3) Query decorators
     const queryParams: Record<string, QueryParamMetadata> = MetadataUtilities.getRouteQueryParams(controllerClass, controllerMethod);
-    for (const [indexStr, metadata] of Object.entries(queryParams)) {
+    for (const [indexStr, metadata] of ObjectUtilities.entries(queryParams)) {
         const idx: number = Number(indexStr);
         params[idx] = parser.parseQueryParam(req, metadata);
         validationService.validateQueryParam(params[idx], metadata);
     }
-    resolvedParamCount += Object.keys(queryParams).length;
+    resolvedParamCount += ObjectUtilities.keys(queryParams).length;
 
     // 3) Header decorators
     const headerParams: Record<string, HeaderParamMetadata> = MetadataUtilities.getRouteHeaderParams(controllerClass, controllerMethod);
-    for (const [indexStr, metadata] of Object.entries(headerParams)) {
+    for (const [indexStr, metadata] of ObjectUtilities.entries(headerParams)) {
         const idx: number = Number(indexStr);
         params[idx] = parser.parseHeaderParam(req, metadata);
         validationService.validateHeaderParam(params[idx], metadata);
     }
-    resolvedParamCount += Object.keys(headerParams).length;
+    resolvedParamCount += ObjectUtilities.keys(headerParams).length;
 
     // 4) CurrentUser decorator
     const currentUser: CurrentUserMetadata | undefined = MetadataUtilities.getRouteCurrentUser(controllerClass, controllerMethod);

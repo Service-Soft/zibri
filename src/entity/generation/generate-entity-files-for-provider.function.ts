@@ -1,12 +1,12 @@
 import { mkdir } from 'fs/promises';
 import path from 'path';
 
-import { generateEntityFile } from './generate-entity-file.function';
+import { generateEntityFile, GenerateEntityFileResult } from './generate-entity-file.function';
 import { getEntityFileName } from './get-entity-file-name.function';
 import { EntityGenerationProvider } from './providers';
 import { warn } from '../../logging/logger.helpers';
 import { OpenApiDefinition, OpenApiOperation, OpenApiReferenceObject, OpenApiResponseObject, OpenApiSchemaObject, OpenApiSchemas } from '../../open-api';
-import { pathExists, toKebabCase, toPascalCase } from '../../utilities';
+import { ObjectUtilities, pathExists, toKebabCase, toPascalCase } from '../../utilities';
 
 /**
  * All data needed to generate a file.
@@ -53,7 +53,7 @@ export async function generateEntityFilesForProvider(
     const definition: OpenApiDefinition = await provider.resolveSpec();
     const schemas: OpenApiSchemas = definition.components?.schemas ?? {};
     if (provider.generateSchemasFromPaths) {
-        for (const [key, path] of Object.entries(definition.paths ?? {})) {
+        for (const [key, path] of ObjectUtilities.entries(definition.paths ?? {})) {
             for (const method of OP_METHODS) {
                 const operation: OpenApiOperation | undefined = path[method];
                 if (!operation) {
@@ -63,7 +63,7 @@ export async function generateEntityFilesForProvider(
                 const baseFromOp: string = operation.operationId ?? toPascalCase(key);
 
                 if (operation.requestBody && !('$ref' in operation.requestBody)) {
-                    for (const media of Object.values(operation.requestBody.content ?? {})) {
+                    for (const media of ObjectUtilities.values(operation.requestBody.content ?? {})) {
                         if (!media.schema) {
                             continue;
                         }
@@ -71,7 +71,7 @@ export async function generateEntityFilesForProvider(
                     }
                 }
 
-                for (const value of Object.values(operation.responses ?? {})) {
+                for (const value of ObjectUtilities.values(operation.responses ?? {})) {
                 // eslint-disable-next-line typescript/no-unsafe-assignment
                     const response: OpenApiResponseObject | OpenApiReferenceObject | undefined = value;
                     if (response == undefined) {
@@ -81,7 +81,7 @@ export async function generateEntityFilesForProvider(
                     // ignore response $ref (could point to components.responses); responses often wrap schemas inside content
                         continue;
                     }
-                    for (const media of Object.values(response.content ?? {})) {
+                    for (const media of ObjectUtilities.values(response.content ?? {})) {
                         if (!media.schema) {
                             continue;
                         }
@@ -93,7 +93,7 @@ export async function generateEntityFilesForProvider(
         }
     }
 
-    if (Object.keys(schemas).length === 0) {
+    if (ObjectUtilities.keys(schemas).length === 0) {
         warn(`Could not find any schemas on spec for provider with prefix "${provider.prefix}"`);
         return {
             filesToGenerate: [],
@@ -107,8 +107,8 @@ export async function generateEntityFilesForProvider(
     const processedSchemas: Set<string> = new Set<string>();
     let foundSchemas: OpenApiSchemas = schemas;
 
-    while (Object.keys(foundSchemas).length) {
-        const entries: [string, OpenApiSchemaObject | OpenApiReferenceObject][] = Object.entries(foundSchemas);
+    while (ObjectUtilities.keys(foundSchemas).length) {
+        const entries: [string, OpenApiSchemaObject | OpenApiReferenceObject][] = ObjectUtilities.entries(foundSchemas);
         const nextFoundSchemas: OpenApiSchemas = {};
         for (const [key, value] of entries) {
             // skip if we already generated this schema earlier
@@ -128,11 +128,10 @@ export async function generateEntityFilesForProvider(
                 continue;
             }
 
-            // eslint-disable-next-line typescript/typedef
-            const generatedData = generateEntityFile(provider, key, value);
+            const generatedData: GenerateEntityFileResult = generateEntityFile(provider, key, value);
 
             // accumulate any inline schemas discovered while generating this file
-            for (const inlineKey of Object.keys(generatedData.foundSchemas)) {
+            for (const inlineKey of ObjectUtilities.keys(generatedData.foundSchemas)) {
                 if (!processedSchemas.has(inlineKey) && !(inlineKey in nextFoundSchemas)) {
                     nextFoundSchemas[inlineKey] = generatedData.foundSchemas[inlineKey];
                 }

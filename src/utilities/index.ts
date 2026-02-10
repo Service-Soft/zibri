@@ -1,6 +1,6 @@
 export * from './to-snake-case.function';
 export * from './big-number.utilities';
-export * from './chunked-promise-all.function';
+export * from './promise.utilities';
 export * from './compare-versions.function';
 export * from './is-date.function';
 export * from './is-numeric.function';
@@ -14,3 +14,4 @@ export * from './uuid.utilities';
 export * from './to-kebab-case.function';
 export * from './to-pascal-case.function';
 export * from './to-camel-case.function';
+export * from './object.utilities';
