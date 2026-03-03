@@ -1,4 +1,5 @@
 import { Property } from '../../entity';
+import { type Path } from '../../utilities';
 
 /**
  * A resolved file from a multipart/form-data request.
@@ -30,7 +31,7 @@ export class File {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     @Property.string()
-    path: string;
+    path: Path;
 
     constructor(file: File) {
         this.destination = file.destination;

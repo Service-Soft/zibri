@@ -6,7 +6,7 @@ import { MimeType } from '../http';
 import { FormData } from '../parsing';
 import { BodyMetadata, HeaderParamMetadata, PathParamMetadata, QueryParamMetadata } from '../routing';
 import { ExcludeStrict, Newable, OmitStrict } from '../types';
-import { MetadataUtilities, ObjectUtilities } from '../utilities';
+import { MetadataUtilities, ObjectUtilities, type Path } from '../utilities';
 import { WebsocketRequest } from '../websocket';
 import { validateBoolean, validateDate, validateFile, validateNumber, validateString } from './functions';
 import { IsRequiredValidationProblem, RelationsNotAllowedValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from './validation-problem.model';
@@ -140,7 +140,7 @@ export class ValidationService implements ValidationServiceInterface {
             value!: typeof meta.modelClass;
             // eslint-disable-next-line jsdoc/require-jsdoc
             @Property.string({ description: 'the path to the temporary folder where uploaded files are cached' })
-            tempFolder!: string;
+            tempFolder!: Path;
         }
 
         const cls: Newable<unknown> = meta.type === MimeType.FORM_DATA ? Temp : meta.modelClass;

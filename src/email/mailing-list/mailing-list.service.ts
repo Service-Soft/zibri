@@ -1,5 +1,4 @@
 import { randomBytes } from 'crypto';
-import path from 'path';
 
 import { MailingListSubscriberCreateData, MailingListQueueEmailData, MailingListServiceInterface, BaseMailingListEmailTemplateData } from './mailing-list-service.interface';
 import { AssetServiceInterface } from '../../assets';
@@ -10,7 +9,7 @@ import { BaseEmailTemplateData, renderTemplate, renderTemplateString } from '../
 import { Route } from '../../routing';
 import { EmailServiceInterface } from '../email-service.interface';
 import { MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken, MailingListSubscriptionConfirmationTokenCreateData } from './models';
-import { PromiseUtilities, validateEntitiesRegistered } from '../../utilities';
+import { FsUtilities, Path, PromiseUtilities, validateEntitiesRegistered } from '../../utilities';
 import { EmailPriority } from '../models';
 
 /**
@@ -83,7 +82,7 @@ export class MailingListService implements MailingListServiceInterface {
                     base
                 });
                 const html: string = await renderTemplate(
-                    path.join(this.assetService.emailTemplatePath, 'base-email.hbs') as `${string}.hbs`,
+                    FsUtilities.getPath(this.assetService.emailTemplatePath, 'base-email.hbs') as `${Path}.hbs`,
                     { content, base }
                 );
                 await this.emailService.queue({
@@ -127,7 +126,7 @@ export class MailingListService implements MailingListServiceInterface {
             base: emailData.templateData.base
         });
         const html: string = await renderTemplate(
-            path.join(this.assetService.emailTemplatePath, 'base-email.hbs') as `${string}.hbs`,
+            FsUtilities.getPath(this.assetService.emailTemplatePath, 'base-email.hbs') as `${Path}.hbs`,
             { content, base: emailData.templateData.base }
         );
         await this.emailService.queue({ ...emailData, html, recipients: [subscriber.email] });

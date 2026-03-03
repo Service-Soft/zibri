@@ -1,5 +1,5 @@
 import { inject, ZIBRI_DI_TOKENS } from '../../di';
-import { LanguageCode, LocalizeOptions } from '../models';
+import { LanguageCode } from '../models';
 import { FormatDateFn } from './format-date-fn.model';
 
 /**
@@ -11,7 +11,7 @@ import { FormatDateFn } from './format-date-fn.model';
 export const formatDate: FormatDateFn = (
     date: Date,
     includeTime: boolean = false,
-    language: LanguageCode = inject<LocalizeOptions>(ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS).language
+    language: LanguageCode = inject(ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS).language
 ) => {
     if (includeTime) {
         return new Date(date).toLocaleDateString(

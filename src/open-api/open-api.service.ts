@@ -1,5 +1,3 @@
-import path from 'path';
-
 import swaggerUi from 'swagger-ui-express';
 
 import { ZibriApplication } from '../application';
@@ -17,7 +15,7 @@ import { OpenApiContentObject, OpenApiDefinition, OpenApiOperation, OpenApiParam
 import { FileResponse } from '../parsing';
 import { MissingBaseRouteError } from '../routing/missing-base-route.error';
 import { Newable } from '../types';
-import { MetadataUtilities, ObjectUtilities } from '../utilities';
+import { FsUtilities, MetadataUtilities, ObjectUtilities, Path } from '../utilities';
 
 const defaultDescriptionForHttpStatus: Record<HttpStatus | 'default', string> = {
     default: 'Response',
@@ -85,7 +83,7 @@ export class OpenApiService implements OpenApiServiceInterface {
             httpMethod: HttpMethod.GET,
             route: `${this.openApiRoute}/swagger-ui.css`,
             handler: () => {
-                const filePath: string = path.join(this.assetService.publicAssetsPath, 'open-api', 'swagger-ui.css');
+                const filePath: Path = FsUtilities.getPath(this.assetService.publicAssetsPath, 'open-api', 'swagger-ui.css');
                 return FileResponse.fromPath(filePath);
             }
         });
@@ -93,7 +91,7 @@ export class OpenApiService implements OpenApiServiceInterface {
             httpMethod: HttpMethod.GET,
             route: `${this.openApiRoute}/swagger-ui-bundle.js`,
             handler: () => {
-                const filePath: string = path.join(this.assetService.publicAssetsPath, 'open-api', 'swagger-ui-bundle.js');
+                const filePath: Path = FsUtilities.getPath(this.assetService.publicAssetsPath, 'open-api', 'swagger-ui-bundle.js');
                 return FileResponse.fromPath(filePath);
             }
         });
@@ -101,7 +99,11 @@ export class OpenApiService implements OpenApiServiceInterface {
             httpMethod: HttpMethod.GET,
             route: `${this.openApiRoute}/swagger-ui-standalone-preset.js`,
             handler: () => {
-                const filePath: string = path.join(this.assetService.publicAssetsPath, 'open-api', 'swagger-ui-standalone-preset.js');
+                const filePath: Path = FsUtilities.getPath(
+                    this.assetService.publicAssetsPath,
+                    'open-api',
+                    'swagger-ui-standalone-preset.js'
+                );
                 return FileResponse.fromPath(filePath);
             }
         });

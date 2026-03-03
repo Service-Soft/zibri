@@ -1,6 +1,3 @@
-import { rm } from 'fs/promises';
-import path from 'path';
-
 import { beforeAll, afterAll, describe, it, expect } from '@jest/globals';
 import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 
@@ -18,8 +15,9 @@ import { Backup } from './decorators/backup-resource.decorator';
 import { FsBackupTransport } from './transports';
 import { PostgresDataSource, PostgresOptions } from '../data-source';
 import { BackupServiceInterface } from './backup-service.interface';
+import { FsUtilities, Path } from '../utilities';
 
-const backupFsFolder: string = path.join(testFileFolder, 'backups');
+const backupFsFolder: Path = FsUtilities.getPath(testFileFolder, 'backups');
 
 @Entity()
 class Item {
@@ -60,7 +58,7 @@ describe('Create and restore postgres backup', () => {
     let backupService: BackupServiceInterface;
 
     beforeAll(async () => {
-        await rm(backupFsFolder, { recursive: true, force: true });
+        await FsUtilities.rm(backupFsFolder);
         container = await new PostgreSqlContainer(POSTGRES_TEST_IMAGE)
             .withDatabase('db')
             .withUsername('postgres')

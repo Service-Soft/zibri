@@ -1,5 +1,4 @@
 import os from 'node:os';
-import path from 'node:path';
 import { performance } from 'perf_hooks';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
@@ -9,7 +8,7 @@ import { AssetService } from '../../assets';
 import { Repository } from '../../data-source';
 import { Logger, LoggerInterface, LoggerTransport, LogLevel } from '../../logging';
 import { OmitStrict } from '../../types';
-import { Ms, UUIDUtilities } from '../../utilities';
+import { FsUtilities, Ms, UUIDUtilities } from '../../utilities';
 import { BaseThreadJobWorkerData, MultithreadingOptions, ThreadJobEntity } from '../models';
 
 // minimal in-memory repository used by the service in tests
@@ -63,7 +62,7 @@ const logger: LoggerInterface = new Logger(
     }
 );
 const assetService: AssetService = new AssetService(logger);
-(assetService.assetsPath as unknown as string) = path.join(__dirname, '../../../sandbox/assets');
+(assetService.assetsPath as unknown as string) = FsUtilities.getPath(__dirname, '../../../sandbox/assets');
 
 function fib(n: number): number {
     if (n < 2) {

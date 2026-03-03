@@ -1,10 +1,9 @@
-import { Controller, errorToLoggedError, FormatDateFn, Get, GlobalRegistry, HtmlResponse, HttpMethod, inject, Log, LogLevel, Param, Response, UUIDUtilities, ZIBRI_DI_TOKENS } from 'zibri';
+import { Controller, errorToLoggedError, FormatDateFn, Get, GlobalRegistry, HtmlResponse, HttpMethod, inject, Log, LogLevel, Param, PreactUtilities, Response, UUIDUtilities, ZIBRI_DI_TOKENS } from 'zibri';
 
 import renderBaseEmail from '../templates/emails/base-email.hbs';
 import renderLog from '../templates/emails/log.hbs';
 import renderPasswordResetTemplate from '../templates/emails/password-reset.hbs';
-import renderBasePage from '../templates/pages/base-page.hbs';
-import renderSocket from '../templates/pages/socket-io.hbs';
+import { SocketIoTestPage } from '../templates/pages/socket-io-test';
 
 const logLevelLabels: Record<LogLevel, string> = {
     [LogLevel.DEBUG]: 'Debug Log',
@@ -27,9 +26,8 @@ export class TemplateController {
 
     @Response.html()
     @Get('/socket')
-    getSocket(): HtmlResponse {
-        const content: string = renderSocket({});
-        return HtmlResponse.fromString(renderBasePage({ content, base: { title: 'Socket Test | Zibri' } }));
+    async socketIo(): Promise<HtmlResponse> {
+        return await PreactUtilities.renderResponse(SocketIoTestPage, { primary: '#0e456f', secondary: '#00b4d8' });
     }
 
     @Response.html()
@@ -89,6 +87,7 @@ export class TemplateController {
             }
         };
         const content: string = renderLog({
+            // eslint-disable-next-line typescript/no-unsafe-assignment, typescript/no-explicit-any
             log: log as any,
             levelName: logLevelLabels[log.level],
             appName: GlobalRegistry.getAppData('name') ?? '',

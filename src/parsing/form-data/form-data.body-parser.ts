@@ -1,6 +1,4 @@
-import { createWriteStream, WriteStream } from 'fs';
-import { mkdir, rm } from 'fs/promises';
-import path from 'path';
+import { WriteStream } from 'node:fs';
 import { Readable } from 'stream';
 import { pipeline } from 'stream/promises';
 
@@ -18,7 +16,7 @@ import { BodyParser } from '../decorators';
 import { FormDataBodyParserCleanupCronJob } from './form-data-body-parser-cleanup.cron-job';
 import { FormData, FormDataValue } from './form-data.model';
 import { PropertyMetadata, Relation } from '../../entity';
-import { BigNumberUtilities, MetadataUtilities, UUIDUtilities } from '../../utilities';
+import { BigNumberUtilities, FsUtilities, MetadataUtilities, Path, UUIDUtilities } from '../../utilities';
 import { parseArray, parseBoolean, parseDate, parseNumber, parseObject, parseString } from '../functions';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
@@ -77,7 +75,7 @@ export class FormDataBodyParser implements BodyParserInterface {
             throw new ContentTooLargeError();
         }
 
-        const tempFolder: string = this.getTempFolder();
+        const tempFolder: Path = this.getTempFolder();
 
         try {
             const parsed: ParsedForm = await this.parseMultipartStreamToDisk(stream, headers, tempFolder, metadata);
@@ -96,9 +94,9 @@ export class FormDataBodyParser implements BodyParserInterface {
         }
     }
 
-    private getTempFolder(): string {
-        const tempPath: string = inject(ZIBRI_DI_TOKENS.FILE_UPLOAD_TEMP_FOLDER);
-        return path.join(tempPath, `temp-${UUIDUtilities.generate()}`);
+    private getTempFolder(): Path {
+        const tempPath: Path = inject(ZIBRI_DI_TOKENS.FILE_UPLOAD_TEMP_FOLDER);
+        return FsUtilities.getPath(tempPath, `temp-${UUIDUtilities.generate()}`);
     }
 
     private getTempFileName(mimetype: string): string {
@@ -110,9 +108,9 @@ export class FormDataBodyParser implements BodyParserInterface {
         return id;
     }
 
-    private async removeTempFolder(tempFolder: string): Promise<void> {
+    private async removeTempFolder(tempFolder: Path): Promise<void> {
         try {
-            await rm(tempFolder, { recursive: true });
+            await FsUtilities.rm(tempFolder);
         }
         catch {
             // Do nothing
@@ -231,13 +229,13 @@ export class FormDataBodyParser implements BodyParserInterface {
     private async parseMultipartStreamToDisk(
         stream: Readable,
         headers: Partial<Record<string, string | undefined>>,
-        tempFolder: string,
+        tempFolder: Path,
         metadata: BodyMetadata
     ): Promise<ParsedForm> {
         const contentType: string | undefined = headers[KnownHeader.CONTENT_TYPE]
             ?? headers[KnownHeader.CONTENT_TYPE.toLowerCase()];
 
-        await mkdir(tempFolder, { recursive: true });
+        await FsUtilities.mkdir(tempFolder);
 
         return await new Promise<ParsedForm>((resolve, reject) => {
             const bb: Busboy = Busboy({ headers: { 'content-type': contentType ?? 'string' } });
@@ -282,8 +280,8 @@ export class FormDataBodyParser implements BodyParserInterface {
 
             bb.on('file', (fieldname: string, fileStream: BusboyFileStream, originalname: string, _: string, mimetype: string) => {
                 const filename: string = this.getTempFileName(mimetype);
-                const destination: string = path.join(tempFolder, filename);
-                const writeStream: WriteStream = createWriteStream(destination);
+                const destination: Path = FsUtilities.getPath(tempFolder, filename);
+                const writeStream: WriteStream = FsUtilities.createWriteStream(destination);
                 let size: number = 0;
 
                 fileStream.on('data', (chunk: Buffer) => {

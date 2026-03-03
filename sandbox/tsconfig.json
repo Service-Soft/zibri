@@ -3,6 +3,8 @@
         "emitDecoratorMetadata": true,
         "esModuleInterop": true,
         "experimentalDecorators": true,
+        "jsx": "react-jsx",
+        "jsxImportSource": "preact",
         "module": "NodeNext",
         "moduleResolution": "NodeNext",
         "outDir": "dist",

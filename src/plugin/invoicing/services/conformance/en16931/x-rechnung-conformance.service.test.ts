@@ -1,7 +1,3 @@
-
-import { mkdir, writeFile } from 'fs/promises';
-import path from 'path';
-
 import { afterAll, beforeAll, describe, it } from '@jest/globals';
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import { StartedTestContainer } from 'testcontainers';
@@ -12,7 +8,7 @@ import { DataSource, MigrationEntity, Repository, PostgresDataSource, PostgresOp
 import { XML } from '../../../../../document';
 import { BaseEntity } from '../../../../../entity/base-entity.model';
 import { Newable, OmitStrict } from '../../../../../types';
-import { Ms } from '../../../../../utilities';
+import { FsUtilities, Ms } from '../../../../../utilities';
 import { InvoicingOptions, Invoice } from '../../../models';
 import { InvoiceCalcService } from '../../invoice-calc.service';
 
@@ -91,7 +87,7 @@ let repo: Repository<Invoice, OmitStrict<Invoice, 'id'>>;
 
 describe('generateXml', () => {
     beforeAll(async () => {
-        await mkdir(testFileFolder, { recursive: true });
+        await FsUtilities.mkdir(testFileFolder);
         container = await new PostgreSqlContainer(POSTGRES_TEST_IMAGE)
             .withDatabase('db')
             .withUsername('postgres')
@@ -153,6 +149,6 @@ describe('generateXml', () => {
 
         const xml: XML = await conformanceService.generateXml(invoice);
         const xmlString: string = xml.end({ prettyPrint: true });
-        await writeFile(path.join(testFileFolder, 'xrechnung.xml'), xmlString);
+        await FsUtilities.createFile(FsUtilities.getPath(testFileFolder, 'xrechnung.xml'), xmlString);
     });
 });

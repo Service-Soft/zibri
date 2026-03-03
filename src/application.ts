@@ -96,7 +96,7 @@ export class ZibriApplication {
      * @param H - The global handlebars instance, needed to provide some helpers used in templating.
      */
     async init(H: typeof Handlebars): Promise<void> {
-        HandlebarUtilities.init(H);
+        await HandlebarUtilities.init(H);
         GlobalRegistry.setAppData(this.options);
 
         for (const provider of this.options.providers) {

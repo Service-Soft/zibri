@@ -1,5 +1,4 @@
 import os from 'node:os';
-import path from 'node:path';
 import { Worker } from 'node:worker_threads';
 
 import { filter, firstValueFrom } from 'rxjs';
@@ -13,7 +12,7 @@ import { ThreadJobWorker } from './thread-job-worker';
 import type { AssetServiceInterface } from '../../assets';
 import { Repository } from '../../data-source';
 import type { LoggerInterface } from '../../logging';
-import { pathExists, UUIDUtilities } from '../../utilities';
+import { FsUtilities, Path, UUIDUtilities } from '../../utilities';
 
 /**
  * A service that handles multithreading.
@@ -31,7 +30,7 @@ export class MultithreadingService implements MultithreadingServiceInterface {
      * The workers that are currently idle.
      */
     private idleWorkers: ThreadJobWorker[] = [];
-    private readonly threadJobWorkerFilePath: string;
+    private readonly threadJobWorkerFilePath: Path;
 
     constructor(
         @Inject(ZIBRI_DI_TOKENS.MULTITHREADING_OPTIONS)
@@ -43,7 +42,7 @@ export class MultithreadingService implements MultithreadingServiceInterface {
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
         private readonly logger: LoggerInterface
     ) {
-        this.threadJobWorkerFilePath = path.join(this.assetService.assetsPath, 'thread-job.worker.cjs');
+        this.threadJobWorkerFilePath = FsUtilities.getPath(this.assetService.assetsPath, 'thread-job.worker.cjs');
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -82,7 +81,7 @@ export class MultithreadingService implements MultithreadingServiceInterface {
     }
 
     private async validateInputs(): Promise<void> {
-        const workerFileExists: boolean = await pathExists(this.threadJobWorkerFilePath);
+        const workerFileExists: boolean = await FsUtilities.exists(this.threadJobWorkerFilePath);
         if (!workerFileExists) {
             throw new Error(`Could not start MultithreadingService: The worker file at ${this.threadJobWorkerFilePath} does not exist.`);
         }

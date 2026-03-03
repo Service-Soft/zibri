@@ -1,13 +1,11 @@
-import { createReadStream, createWriteStream, Dirent } from 'fs';
-import { mkdir, readdir, readFile, rm, writeFile } from 'fs/promises';
-import path from 'path';
+import { Dirent } from 'node:fs';
 import { Readable } from 'stream';
 import { pipeline } from 'stream/promises';
 
 import { BackupTransportInterface } from './backup-transport.interface';
 import { inject, ZIBRI_DI_TOKENS } from '../../di';
 import { LoggerInterface } from '../../logging';
-import { pathExists } from '../../utilities';
+import { FsUtilities, Path } from '../../utilities';
 import { BackupEntity } from '../backup-entity.model';
 import { BackupResourceEntity } from '../backup-resource-entity.model';
 
@@ -22,15 +20,15 @@ export class FsBackupTransport implements BackupTransportInterface {
         return inject(ZIBRI_DI_TOKENS.LOGGER);
     }
 
-    constructor(readonly name: string, protected readonly backupBasePath: string) {}
+    constructor(readonly name: string, protected readonly backupBasePath: Path) {}
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async resolveBackups(existingEntities: BackupEntity[]): Promise<BackupEntity[]> {
-        if (!await pathExists(this.backupBasePath)) {
+        if (!await FsUtilities.exists(this.backupBasePath)) {
             return [];
         }
 
-        const nodes: Dirent<string>[] = await readdir(this.backupBasePath, { withFileTypes: true });
+        const nodes: Dirent<string>[] = await FsUtilities.readdir(this.backupBasePath);
         const res: BackupEntity[] = (await Promise.all(nodes.map(async node => {
             if (!node.isDirectory()) {
                 return;
@@ -38,12 +36,12 @@ export class FsBackupTransport implements BackupTransportInterface {
             if (existingEntities.map(e => e.name).includes(node.name)) {
                 return;
             }
-            const p: string = path.join(node.parentPath, node.name, METADATA_FILENAME);
-            if (!await pathExists(p)) {
+            const p: Path = FsUtilities.getPath(node.parentPath, node.name, METADATA_FILENAME);
+            if (!await FsUtilities.exists(p)) {
                 await this.logger.warn(`Could not find the metadata file needed to resolve a backup: "${p}"`);
                 return;
             }
-            const json: string = await readFile(p, 'utf8');
+            const json: string = await FsUtilities.readFile(p);
             return JSON.parse(json) as BackupEntity;
         }))).filter(b => b != undefined);
         return res;
@@ -51,37 +49,37 @@ export class FsBackupTransport implements BackupTransportInterface {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async storeData(data: Readable, backup: BackupEntity, resource: BackupResourceEntity): Promise<void> {
-        const p: string = this.getResourcePath(backup, resource);
-        await mkdir(this.getBackupPath(backup), { recursive: true });
-        await writeFile(this.getBackupMetadataPath(backup), JSON.stringify(backup), 'utf8');
+        const p: Path = this.getResourcePath(backup, resource);
+        await FsUtilities.mkdir(this.getBackupPath(backup));
+        await FsUtilities.createFile(this.getBackupMetadataPath(backup), JSON.stringify(backup));
 
         await pipeline(
             data,
-            createWriteStream(p)
+            FsUtilities.createWriteStream(p)
         );
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     retrieveData(backup: BackupEntity, resource: BackupResourceEntity): Readable | Promise<Readable> {
-        const p: string = this.getResourcePath(backup, resource);
-        return createReadStream(p);
+        const p: Path = this.getResourcePath(backup, resource);
+        return FsUtilities.createReadStream(p);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async deleteData(backup: BackupEntity, resource: BackupResourceEntity): Promise<void> {
-        const p: string = this.getResourcePath(backup, resource);
-        await rm(p, { recursive: true });
+        const p: Path = this.getResourcePath(backup, resource);
+        await FsUtilities.rm(p);
     }
 
-    private getResourcePath(backup: BackupEntity, resource: BackupResourceEntity): string {
-        return path.join(this.getBackupPath(backup), resource.name);
+    private getResourcePath(backup: BackupEntity, resource: BackupResourceEntity): Path {
+        return FsUtilities.getPath(this.getBackupPath(backup), resource.name);
     }
 
-    private getBackupPath(backup: BackupEntity): string {
-        return path.join(this.backupBasePath, backup.name);
+    private getBackupPath(backup: BackupEntity): Path {
+        return FsUtilities.getPath(this.backupBasePath, backup.name);
     }
 
-    private getBackupMetadataPath(backup: BackupEntity): string {
-        return path.join(this.getBackupPath(backup), METADATA_FILENAME);
+    private getBackupMetadataPath(backup: BackupEntity): Path {
+        return FsUtilities.getPath(this.getBackupPath(backup), METADATA_FILENAME);
     }
 }

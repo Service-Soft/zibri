@@ -7,10 +7,10 @@ import { inject, repositoryTokenFor, ZIBRI_DI_TOKENS } from '../di';
 import { EmailServiceInterface } from './email-service.interface';
 import { CreateEmailData, Email, EmailAttachment, EmailConfig, EmailConfigInput, EmailPriority, EmailStatus, QueueEmailData } from './models';
 import { ZibriApplication } from '../application';
-import { pathExists } from '../utilities';
 import { SendQueuedEmailsCronJob } from './send-queued-emails.cron-job';
 import { LoggerInterface } from '../logging';
 import { RateLimiter } from '../rate-limiting';
+import { FsUtilities } from '../utilities';
 
 /**
  * Default email service implementation of Zibri.
@@ -126,7 +126,7 @@ export class EmailService implements EmailServiceInterface {
 
         await Promise.all(
             attachments.map(async a => {
-                if (!await pathExists(a.path)) {
+                if (!await FsUtilities.exists(a.path)) {
                     throw new Error(`mail attachment at path ${a.path} does not exist`);
                 }
             })

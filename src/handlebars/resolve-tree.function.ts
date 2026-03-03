@@ -42,7 +42,7 @@ function isParentArray(parts: string[], arrayKeys: string[]): boolean {
     return arrayKeys.includes(parent);
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc/require-jsdoc, sonar/cognitive-complexity
 export function resolveAllKeys(ast: AstProgram, parentKey: string | undefined): string[] {
     const res: string[] = [];
     for (const element of ast.body) {
@@ -74,12 +74,26 @@ export function resolveAllKeys(ast: AstProgram, parentKey: string | undefined): 
                 res.push(...resolveKeysForPartialStatement(element, parentKey));
                 break;
             }
+            case 'PartialBlockStatement': {
+                // 1) Positional params
+                for (const param of element.params) {
+                    res.push(...resolveKeysForExpression(param, parentKey));
+                }
+                // 2) Named params (hash)
+                for (const pair of element.hash?.pairs ?? []) {
+                    res.push(...resolveKeysForExpression(pair.value, parentKey));
+                }
+                // 3) Traverse nested block
+                if (element.program) {
+                    res.push(...resolveAllKeys(element.program, parentKey));
+                }
+                break;
+            }
             case 'CommentStatement':
             case 'ContentStatement': {
                 // reached leaf
                 break;
             }
-            case 'PartialBlockStatement':
             default: {
                 throw new Error(`Unknown AST Element ${(element as AstStatement).type}`);
             }

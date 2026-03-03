@@ -192,7 +192,7 @@ export class Router implements RouterInterface {
 
         for (const route of routes) {
             const handler: RequestHandler = await this.controllerRouteToRequestHandler(controllerClass, route);
-            const finalRoute: string = `${baseRoute}${route.route}`;
+            const finalRoute: string = baseRoute === '/' ? route.route : `${baseRoute}${route.route}`;
             if (this.allFinalRoutes.includes(`${route.httpMethod.toUpperCase()} ${finalRoute}`)) {
                 throw new Error(
                     `The route "${route.httpMethod.toUpperCase()} ${finalRoute}" has been defined more than once.`,
@@ -201,7 +201,7 @@ export class Router implements RouterInterface {
             }
             this.allFinalRoutes.push(`${route.httpMethod.toUpperCase()} ${finalRoute}`);
             await this.logger.debug(`- mounting ${route.httpMethod.toUpperCase()} ${finalRoute}`);
-            this.expressRouter[route.httpMethod](baseRoute + route.route, handler);
+            this.expressRouter[route.httpMethod](finalRoute, handler);
         }
     }
 

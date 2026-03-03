@@ -1,12 +1,10 @@
-import { mkdir } from 'fs/promises';
-import path from 'path';
 
 import { generateEntityFile, GenerateEntityFileResult } from './generate-entity-file.function';
 import { getEntityFileName } from './get-entity-file-name.function';
 import { EntityGenerationProvider } from './providers';
 import { warn } from '../../logging/logger.helpers';
 import { OpenApiDefinition, OpenApiOperation, OpenApiReferenceObject, OpenApiResponseObject, OpenApiSchemaObject, OpenApiSchemas } from '../../open-api';
-import { ObjectUtilities, pathExists, toKebabCase, toPascalCase } from '../../utilities';
+import { FsUtilities, ObjectUtilities, Path, toKebabCase, toPascalCase } from '../../utilities';
 
 /**
  * All data needed to generate a file.
@@ -15,7 +13,7 @@ export type FileToGenerate = {
     /**
      * The path where the file should be generated.
      */
-    path: string,
+    path: Path,
     /**
      * The actual content of the file in lines.
      */
@@ -122,8 +120,8 @@ export async function generateEntityFilesForProvider(
             const fileName: string = getEntityFileName(provider.prefix, key);
 
             // eslint-disable-next-line sonar/no-duplicate-string
-            const filePath: string = path.join(cwd, 'src/models/generated', toKebabCase(provider.prefix), fileName);
-            if (await pathExists(filePath)) {
+            const filePath: Path = FsUtilities.getPath(cwd, 'src/models/generated', toKebabCase(provider.prefix), fileName);
+            if (await FsUtilities.exists(filePath)) {
                 processedSchemas.add(key);
                 continue;
             }
@@ -153,8 +151,11 @@ export async function generateEntityFilesForProvider(
         };
     }
 
-    await mkdir(path.join(cwd, 'src/models/generated', toKebabCase(provider.prefix)), { recursive: true });
-    filesToGenerate.push({ path: path.join(cwd, 'src/models/generated', toKebabCase(provider.prefix), 'index.ts'), lines: indexLines });
+    await FsUtilities.mkdir(FsUtilities.getPath(cwd, 'src/models/generated', toKebabCase(provider.prefix)));
+    filesToGenerate.push({
+        path: FsUtilities.getPath(cwd, 'src/models/generated', toKebabCase(provider.prefix), 'index.ts'),
+        lines: indexLines
+    });
 
     return {
         filesToGenerate,

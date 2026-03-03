@@ -1,6 +1,4 @@
-import { createWriteStream, WriteStream } from 'node:fs';
-import { mkdir } from 'node:fs/promises';
-import path from 'node:path';
+import { WriteStream } from 'node:fs';
 
 import { afterAll, beforeAll, describe, it } from '@jest/globals';
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
@@ -16,7 +14,7 @@ import { formatDate } from '../../../localization/formatting/format-date.functio
 import { formatPercent } from '../../../localization/formatting/format-percent.function';
 import { formatPrice } from '../../../localization/formatting/format-price.function';
 import { Newable, OmitStrict } from '../../../types';
-import { Ms } from '../../../utilities';
+import { FsUtilities, Ms } from '../../../utilities';
 import { Invoice, InvoicingOptions } from '../models';
 import { XRechnungConformanceService } from './conformance';
 
@@ -103,7 +101,7 @@ let repo: Repository<Invoice, OmitStrict<Invoice, 'id'>>;
 
 describe('createInvoicePdf', () => {
     beforeAll(async () => {
-        await mkdir(testFileFolder, { recursive: true });
+        await FsUtilities.mkdir(testFileFolder);
         container = await new PostgreSqlContainer(POSTGRES_TEST_IMAGE)
             .withDatabase('db')
             .withUsername('postgres')
@@ -165,8 +163,8 @@ describe('createInvoicePdf', () => {
 
         const pdf: PdfDocument = await invoicePdfService.generateInvoicePdf(invoice, 'x-rechnung');
 
-        const out1: WriteStream = createWriteStream(path.join(testFileFolder, `${invoice.number}-stream-1.pdf`));
-        const out2: WriteStream = createWriteStream(path.join(testFileFolder, `${invoice.number}-stream-2.pdf`));
+        const out1: WriteStream = FsUtilities.createWriteStream(FsUtilities.getPath(testFileFolder, `${invoice.number}-stream-1.pdf`));
+        const out2: WriteStream = FsUtilities.createWriteStream(FsUtilities.getPath(testFileFolder, `${invoice.number}-stream-2.pdf`));
 
         pdf.pipe(out1);
         pdf.pipe(out2);

@@ -19,7 +19,7 @@ export type AstBlockPathExpression = OmitStrict<AstPathExpression, 'original'> &
 export type AstSubExpression = OmitStrict<hbs.AST.SubExpression, 'path' | 'params' | 'hash'> & {
     path: AstPathExpression,
     params: AstExpression[],
-    hash: AstHash
+    hash: AstHash | undefined
 };
 
 export type AstStringLiteral = hbs.AST.StringLiteral;
@@ -87,7 +87,7 @@ export type AstPartialBlockStatement = OmitStrict<
     name: AstPathExpression,
     params: AstExpression[],
     hash: AstHash,
-    program: AstProgram
+    program: AstProgram | undefined
 };
 
 export type AstStatement = AstBlockStatement

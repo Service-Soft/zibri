@@ -23,7 +23,7 @@ export class StatusCronJob extends CronJob {
 ```
 
 ## Registering the cron job
-For Zibri to be actual able to pickup the cron job start it automatically you need to provide its class at the `index.ts`:
+For Zibri to be actual able to pickup the cron job and start it automatically you need to provide its class at the `index.ts`:
 
 ```ts
 // src/index.ts

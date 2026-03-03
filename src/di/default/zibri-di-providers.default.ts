@@ -1,6 +1,5 @@
 /* eslint-disable jsdoc/require-jsdoc */
 import os from 'node:os';
-import path from 'node:path';
 
 import { ZIBRI_DI_TOKENS } from './zibri-di-tokens.default';
 import { AssetService } from '../../assets';
@@ -21,7 +20,7 @@ import { MultithreadingService } from '../../multithreading';
 import { OpenApiService } from '../../open-api';
 import { Parser } from '../../parsing';
 import { getCurrentRequest, Router } from '../../routing';
-import { Ms } from '../../utilities';
+import { FsUtilities, Ms } from '../../utilities';
 import { ValidationService } from '../../validation';
 import { WebsocketService } from '../../websocket';
 import { inject } from '../inject.function';
@@ -59,6 +58,7 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
     ASSET_SERVICE: { useClass: AssetService },
     BACKUP_SERVICE: { useClass: BackupService },
     GLOBAL_ERROR_HANDLER: { useFactory: () => errorHandler },
+    ERROR_PAGE_TEMPLATE: { useFactory: () => undefined },
     OPEN_API_SERVICE: { useClass: OpenApiService },
     PARSER: { useClass: Parser },
     VALIDATION_SERVICE: { useClass: ValidationService },
@@ -76,7 +76,7 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
     EMAIL_SERVICE: { useClass: EmailService },
     MAILING_LIST_SERVICE: { useClass: MailingListService },
     MAILING_LIST_SUBSCRIPTION_CONFIRMATION_TOKEN_EXPIRES_IN_MS: { useFactory: () => Ms.DAY },
-    FILE_UPLOAD_TEMP_FOLDER: { useFactory: () => path.join(__dirname, 'temp') },
+    FILE_UPLOAD_TEMP_FOLDER: { useFactory: () => FsUtilities.getPath(__dirname, 'temp') },
     LOCALIZE_OPTIONS_INPUT: { useFactory: () => ({}) },
     LOCALIZE_OPTIONS: {
         useFactory: () => {

@@ -4,7 +4,7 @@ import { BackupServiceInterface } from '../../backup';
 import { CronServiceInterface } from '../../cron';
 import { DataSourceServiceInterface } from '../../data-source';
 import { EmailConfigInput, EmailServiceInterface, MailingListServiceInterface } from '../../email';
-import { GlobalErrorHandler } from '../../error-handling';
+import { ErrorPageTemplate, GlobalErrorHandler } from '../../error-handling';
 import { HttpRequest } from '../../http';
 import { HttpClientInterface } from '../../http-client';
 import { FormatDateFn, FormatPercentFn, FormatPriceFn, LocalizeOptions, LocalizeOptionsInput } from '../../localization';
@@ -14,6 +14,7 @@ import { MultithreadingOptions, MultithreadingServiceInterface } from '../../mul
 import { OpenApiServiceInterface } from '../../open-api';
 import { ParserInterface } from '../../parsing';
 import { RouterInterface } from '../../routing';
+import { Path } from '../../utilities';
 import { ValidationServiceInterface } from '../../validation';
 import { WebsocketOptions, WebsocketServiceInterface } from '../../websocket';
 import { InjectionToken, TokenRecord } from '../models';
@@ -36,6 +37,7 @@ export const ZIBRI_DI_TOKENS = {
     ASSET_SERVICE: ziToken<AssetServiceInterface>('zi.asset_service'),
     BACKUP_SERVICE: ziToken<BackupServiceInterface>('zi.backup_service'),
     GLOBAL_ERROR_HANDLER: ziToken<GlobalErrorHandler>('zi.global_error_handler'),
+    ERROR_PAGE_TEMPLATE: ziToken<ErrorPageTemplate | undefined>('zi.error_page_template'),
     OPEN_API_SERVICE: ziToken<OpenApiServiceInterface>('zi.open_api_service'),
     AUTH_SERVICE: ziToken<AuthServiceInterface>('zi.auth_service'),
     TWO_FACTOR_SERVICE: ziToken<TwoFactorServiceInterface>('zi.two_factor_service'),
@@ -55,7 +57,7 @@ export const ZIBRI_DI_TOKENS = {
     ),
     USER_SERVICE: ziToken<UserServiceInterface>('zi.user_service'),
     CRON_SERVICE: ziToken<CronServiceInterface>('zi.cron_service'),
-    FILE_UPLOAD_TEMP_FOLDER: ziToken<string>('zi.file_upload_temp_folder'),
+    FILE_UPLOAD_TEMP_FOLDER: ziToken<Path>('zi.file_upload_temp_folder'),
     LOCALIZE_OPTIONS_INPUT: ziToken<LocalizeOptionsInput>('zi.localize_options_input'),
     LOCALIZE_OPTIONS: ziToken<LocalizeOptions>('zi.localize_options'),
     FORMAT_DATE: ziToken<FormatDateFn>('zi.format_date'),

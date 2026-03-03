@@ -1,17 +1,12 @@
-import { readFile } from 'fs';
-import path from 'path';
-
 import { NextFunction } from 'express';
-import handlebars from 'handlebars';
 
-import { GlobalErrorHandler } from './error-handler.model';
+import { ErrorPageTemplate, GlobalErrorHandler } from './error-handler.model';
 import { inject, ZIBRI_DI_TOKENS } from '../di';
+import { HttpRequest, HttpResponse, KnownHeader, MimeType } from '../http';
 import { LoggerInterface } from '../logging';
 import { HttpError, InternalServerError, isHttpError } from './errors';
 import { isError } from './is-error.function';
-import { AssetServiceInterface } from '../assets';
-import { GlobalRegistry } from '../global';
-import { HttpRequest, HttpResponse, KnownHeader, MimeType } from '../http';
+import { PreactUtilities } from '../preact';
 
 /**
  * The default error handler implementation of Zibri.
@@ -43,26 +38,36 @@ export const errorHandler: GlobalErrorHandler = async (error: unknown, req: Http
         return;
     }
 
-    const assetService: AssetServiceInterface = inject(ZIBRI_DI_TOKENS.ASSET_SERVICE);
-    // eslint-disable-next-line promise/prefer-await-to-callbacks
-    readFile(path.join(assetService.pageTemplatePath, 'error.hbs'), 'utf8', (err, source) => {
-        if (err) {
-            res.status(httpError.status).json({
-                status: httpError.status,
-                name: httpError.name,
-                message: httpError.message,
-                paragraphs: httpError.paragraphs
-            });
-            return;
-        }
+    const template: ErrorPageTemplate | undefined = inject(ZIBRI_DI_TOKENS.ERROR_PAGE_TEMPLATE);
+    if (!template) {
+        const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
+        await logger.warn('Could not find a template for the error page.');
+        await logger.warn(
+            'Either provide ZIBRI_DI_TOKENS.ERROR_PAGE_TEMPLATE or your own error handler (ZIBRI_DI_TOKENS.GLOBAL_ERROR_HANDLER).'
+        );
+        await logger.warn('Falling back to returning a json response');
+        res.status(httpError.status).json({
+            status: httpError.status,
+            name: httpError.name,
+            message: httpError.message,
+            paragraphs: httpError.paragraphs
+        });
+        return;
+    }
 
-        // compile the template
-        const template: HandlebarsTemplateDelegate = handlebars.compile(source);
-        const html: string = template({ error: httpError, name: GlobalRegistry.getAppData('name') });
-
+    try {
+        const html: string = await PreactUtilities.render(template, { error: httpError });
         res.setHeader(KnownHeader.CONTENT_TYPE, MimeType.HTML);
         res.status(httpError.status).send(html);
-    });
+    }
+    catch {
+        res.status(httpError.status).json({
+            status: httpError.status,
+            name: httpError.name,
+            message: httpError.message,
+            paragraphs: httpError.paragraphs
+        });
+    }
 };
 
 // eslint-disable-next-line jsdoc/require-jsdoc

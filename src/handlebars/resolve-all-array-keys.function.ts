@@ -1,4 +1,4 @@
-import { AstBlockStatement, AstExpression, AstProgram } from './ast.model';
+import { AstBlockStatement, AstExpression, AstProgram, AstStatement } from './ast.model';
 import { resolveKeyForPathExpression } from './resolve-key-for-path-expression.function';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
@@ -10,6 +10,13 @@ export function resolveAllArrayKeys(ast: AstProgram, parentKey: string | undefin
                 res.push(...resolveArrayKeysForBlockStatement(element, parentKey));
                 break;
             }
+            case 'PartialBlockStatement': {
+                // nested program, but do NOT mark params as arrays
+                if (element.program) {
+                    res.push(...resolveAllArrayKeys(element.program, parentKey));
+                }
+                break;
+            }
             case 'PartialStatement':
             case 'CommentStatement':
             case 'MustacheStatement':
@@ -17,9 +24,8 @@ export function resolveAllArrayKeys(ast: AstProgram, parentKey: string | undefin
                 // reached leaf
                 break;
             }
-            case 'PartialBlockStatement':
             default: {
-                throw new Error(`Unknown AST Element ${element.type}`);
+                throw new Error(`Unknown AST Element ${(element as AstStatement).type}`);
             }
         }
     }
