@@ -738,11 +738,12 @@ export abstract class PreactUtilities {
                     return propName;
                 })
                 .filter(Boolean)
-            // Only destructure from __PROPS — function props are already declared as consts
+                // Only destructure from __PROPS — function props are already declared as consts
                 .filter(k => {
                     const propName: string = k.split(':')[0].trim();
                     return !(propName in fnProps);
-                });
+                })
+                .filter(k => /^[$_a-z]\w*(?:\s*:\s*[$_a-z]\w*)?$/i.test(k.trim()));
 
             if (keys.length) {
                 lines.push(`    const { ${keys.join(', ')} } = __PROPS;`);
@@ -751,7 +752,7 @@ export abstract class PreactUtilities {
         }
 
         const firstName: string = trimmed.split(',')[0].split('=')[0].trim();
-        if (firstName.length) {
+        if (firstName.length && /^[$_a-z]\w*$/i.test(firstName)) {
             lines.push(`    const ${firstName} = __PROPS.${firstName} !== undefined ? __PROPS.${firstName} : __PROPS;`);
         }
 
