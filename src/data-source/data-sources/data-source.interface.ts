@@ -1,13 +1,14 @@
 import { IsolationLevel } from 'typeorm/driver/types/IsolationLevel';
 
-import { BackupResourceInterface } from '../../backup';
-import { PropertyMetadata, PropertyMetadataInput, RelationMetadata } from '../../entity';
+import { BackupResourceInterface } from '../../backup/backup-resource.interface';
 import { BaseEntity } from '../../entity/base-entity.model';
+import { PropertyMetadataInput, PropertyMetadata, RelationMetadata } from '../../entity/decorators/property.decorator';
 import { FilePropertyMetadata } from '../../entity/models/file-property-metadata.model';
-import { ExcludeStrict, Newable } from '../../types';
-import { Migration } from '../migration';
+import { ExcludeStrict } from '../../types/exclude-strict.type';
+import { Newable } from '../../types/newable.type';
+import { Migration } from '../migration/migration.model';
 import { Repository } from '../repository';
-import { Transaction } from '../transaction';
+import { Transaction } from '../transaction/transaction.model';
 
 /**
  * Definition for a data source.

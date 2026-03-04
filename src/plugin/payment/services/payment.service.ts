@@ -1,12 +1,17 @@
-import { Inject, InjectRepository, ZIBRI_DI_TOKENS } from '../../../di';
-import { AnyObject } from '../../../entity';
-import { type LoggerInterface } from '../../../logging';
-import { Payment, PaymentMethod, PaymentStatus, type PaymentPluginOptions } from '../models';
-import { ZIBRI_PAYMENT_DI_TOKENS } from '../payment.tokens';
-import { PaymentProviderInterface } from '../providers';
 import { PaymentServiceInterface } from './payment-service.interface';
-import { AllowedCancellationMethods, AllowedRefundMethods, AllowedReservationMethods, PaymentDataForMethod, PaymentForMethod, PaymentReservationForMethod, ValidatedPaymentDataForMethod } from './payment-service.types';
-import { Repository } from '../../../data-source';
+import { PaymentDataForMethod, ValidatedPaymentDataForMethod, PaymentForMethod, AllowedReservationMethods, PaymentReservationForMethod, AllowedCancellationMethods, AllowedRefundMethods } from './payment-service.types';
+import { Repository } from '../../../data-source/repository';
+import { InjectRepository } from '../../../di/decorators/inject-repository.decorator';
+import { Inject } from '../../../di/decorators/inject.decorator';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
+import { AnyObject } from '../../../entity/any-object.model';
+import { type LoggerInterface } from '../../../logging/logger.interface';
+import { PaymentMethod } from '../models/payment-method.model';
+import { type PaymentPluginOptions } from '../models/payment-plugin-options.model';
+import { PaymentStatus } from '../models/payment-status.enum';
+import { Payment } from '../models/payment.model';
+import { ZIBRI_PAYMENT_DI_TOKENS } from '../payment.tokens';
+import { PaymentProviderInterface } from '../providers/payment-provider.interface';
 
 /**
  * Default payment service implementation of zibri.

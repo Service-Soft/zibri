@@ -1,16 +1,22 @@
 import os from 'node:os';
-import path from 'node:path';
 import { performance } from 'perf_hooks';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { MultithreadingService } from './multithreading.service';
-import { AssetService } from '../../assets';
-import { Repository } from '../../data-source';
-import { Logger, LoggerInterface, LoggerTransport, LogLevel } from '../../logging';
-import { OmitStrict } from '../../types';
-import { Ms, UUIDUtilities } from '../../utilities';
-import { BaseThreadJobWorkerData, MultithreadingOptions, ThreadJobEntity } from '../models';
+import { AssetService } from '../../assets/asset.service';
+import { Repository } from '../../data-source/repository';
+import { LogLevel } from '../../logging/log-level.enum';
+import { Logger } from '../../logging/logger';
+import { LoggerInterface } from '../../logging/logger.interface';
+import { LoggerTransport } from '../../logging/transport/logger-transport.model';
+import { OmitStrict } from '../../types/omit-strict.type';
+import { FsUtilities } from '../../utilities/fs.utilities';
+import { Ms } from '../../utilities/ms';
+import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { BaseThreadJobWorkerData } from '../models/base-thread-job-worker-data.model';
+import { MultithreadingOptions } from '../models/multithreading-options.model';
+import { ThreadJobEntity } from '../models/thread-job-entity.model';
 
 // minimal in-memory repository used by the service in tests
 class InMemoryThreadJobRepository {
@@ -63,7 +69,7 @@ const logger: LoggerInterface = new Logger(
     }
 );
 const assetService: AssetService = new AssetService(logger);
-(assetService.assetsPath as unknown as string) = path.join(__dirname, '../../../sandbox/assets');
+(assetService.assetsPath as unknown as string) = FsUtilities.getPath(__dirname, '../../../sandbox/assets');
 
 function fib(n: number): number {
     if (n < 2) {

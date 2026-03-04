@@ -1,19 +1,16 @@
-import { writeFile } from 'fs/promises';
-import path from 'path';
-
 import { register } from 'ts-node';
 
 import { FileToGenerate, generateEntityFilesForProvider, GenerateEntityFilesForProviderResult } from './generate-entity-files-for-provider.function';
 import { EntityGenerationProvider } from './providers/entity-generation-provider.interface';
-import { pathExists } from '../../utilities';
+import { FsUtilities, Path } from '../../utilities/fs.utilities';
 
 /**
  * Resolves providers from the src/models/generated/providers.ts file and generates entities from them.
  */
 export async function generateEntityFiles(): Promise<void> {
     const cwd: string = process.cwd();
-    const providersPath: string = await resolveProvidersPath(cwd);
-    const ext: string = path.extname(providersPath).toLowerCase();
+    const providersPath: Path = await resolveProvidersPath(cwd);
+    const ext: string = FsUtilities.extensionName(providersPath).toLowerCase();
     if (ext !== '.ts') {
         return;
     }
@@ -38,23 +35,24 @@ export async function generateEntityFiles(): Promise<void> {
     }
 
     if (indexLines.length) {
-        filesToGenerate.push({ path: path.join(cwd, 'src/models/generated/index.ts'), lines: indexLines });
+        filesToGenerate.push({ path: FsUtilities.getPath(cwd, 'src/models/generated/index.ts'), lines: indexLines });
     }
-    for (const f of filesToGenerate) {
-        await writeFile(f.path, f.lines.join('\n'), 'utf8');
-    }
+
+    await Promise.all(filesToGenerate.map(async f => {
+        await FsUtilities.upsertFile(f.path, f.lines.join('\n'));
+    }));
 }
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-async function resolveProvidersPath(cwd: string): Promise<string> {
-    const candidates: string[] = [
-        path.join(cwd, 'src/models/generated/providers.js'),
-        path.join(cwd, 'src/models/generated/providers.cjs'),
-        path.join(cwd, 'src/models/generated/providers.mjs'),
-        path.join(cwd, 'src/models/generated/providers.ts')
+async function resolveProvidersPath(cwd: string): Promise<Path> {
+    const candidates: Path[] = [
+        FsUtilities.getPath(cwd, 'src/models/generated/providers.js'),
+        FsUtilities.getPath(cwd, 'src/models/generated/providers.cjs'),
+        FsUtilities.getPath(cwd, 'src/models/generated/providers.mjs'),
+        FsUtilities.getPath(cwd, 'src/models/generated/providers.ts')
     ];
-    const providersPath: string = await Promise.any(candidates.map(async p => {
-        if (await pathExists(p)) {
+    const providersPath: Path = await Promise.any(candidates.map(async p => {
+        if (await FsUtilities.exists(p)) {
             return p;
         }
         throw new Error(`Could not locate ${p}`);

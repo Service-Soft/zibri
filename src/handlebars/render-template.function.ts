@@ -1,13 +1,12 @@
-import { readFile } from 'fs/promises';
-import path from 'path';
-
-import { compile } from 'handlebars';
-
-import { AssetServiceInterface } from '../assets';
-import { inject, ZIBRI_DI_TOKENS } from '../di';
-import { MailingList, MailingListSubscriber } from '../email';
-import { GlobalRegistry } from '../global';
-import { OmitStrict } from '../types';
+import { HandlebarUtilities } from './handlebar.utilities';
+import { AssetServiceInterface } from '../assets/asset-service.interface';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { inject } from '../di/inject.function';
+import { MailingListSubscriber } from '../email/mailing-list/models/mailing-list-subscriber.model';
+import { MailingList } from '../email/mailing-list/models/mailing-list.model';
+import { GlobalRegistry } from '../global/global-registry';
+import { OmitStrict } from '../types/omit-strict.type';
+import { FsUtilities, Path } from '../utilities/fs.utilities';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 export type BaseEmailTemplateData = {
@@ -85,24 +84,11 @@ export type BasePageTemplateDataInput = {
 export async function renderEmailTemplate<T extends BaseEmailTemplateDataInput>(templateName: `${string}.hbs`, data: T): Promise<string> {
     (data.base as BasePageTemplateData['base']).baseUrl = GlobalRegistry.getAppData('baseUrl') ?? '';
     const assetService: AssetServiceInterface = inject(ZIBRI_DI_TOKENS.ASSET_SERVICE);
-    const content: string = await renderTemplate(path.join(assetService.emailTemplatePath, templateName) as `${string}.hbs`, data);
+    const content: string = await renderTemplate(FsUtilities.getPath(assetService.emailTemplatePath, templateName) as `${Path}.hbs`, data);
     return await renderTemplate(
-        path.join(assetService.emailTemplatePath, 'base-email.hbs') as `${string}.hbs`,
+        FsUtilities.getPath(assetService.emailTemplatePath, 'base-email.hbs') as `${Path}.hbs`,
         { content, base: data.base }
     );
-}
-
-/**
- * Renders the page template with the given name.
- * @param templateName - The name of the template.
- * @param data - The data to fill into the template.
- * @returns The rendered html.
- */
-export async function renderPageTemplate<T extends BasePageTemplateDataInput>(templateName: `${string}.hbs`, data: T): Promise<string> {
-    (data.base as BasePageTemplateData['base']).baseUrl = GlobalRegistry.getAppData('baseUrl') ?? '';
-    const assetService: AssetServiceInterface = inject(ZIBRI_DI_TOKENS.ASSET_SERVICE);
-    const content: string = await renderTemplate(path.join(assetService.pageTemplatePath, templateName) as `${string}.hbs`, data);
-    return await renderTemplate(path.join(assetService.pageTemplatePath, 'base-page.hbs') as `${string}.hbs`, { content, base: data.base });
 }
 
 /**
@@ -111,8 +97,8 @@ export async function renderPageTemplate<T extends BasePageTemplateDataInput>(te
  * @param data - The data to fill into the template.
  * @returns The rendered html string.
  */
-export async function renderTemplate<T extends Record<string, unknown>>(path: `${string}.hbs`, data: T): Promise<string> {
-    const source: string = await readFile(path, { encoding: 'utf8' });
+export async function renderTemplate<T extends Record<string, unknown>>(path: `${Path}.hbs`, data: T): Promise<string> {
+    const source: string = await FsUtilities.readFile(path as Path);
     return renderTemplateString(source, data);
 }
 
@@ -126,7 +112,7 @@ export function renderTemplateString<T extends Record<string, unknown>>(
     templateString: string,
     data: T
 ): string {
-    const template: HandlebarsTemplateDelegate = compile(templateString);
+    const template: HandlebarsTemplateDelegate<T> = HandlebarUtilities.render(templateString);
     const html: string = template(data);
     return html;
 }

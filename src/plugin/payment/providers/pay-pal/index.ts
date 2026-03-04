@@ -1,1 +1,0 @@
-export * from './pay-pal.payment-provider';

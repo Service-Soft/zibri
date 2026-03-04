@@ -1,12 +1,16 @@
-import { BadRequestError, ContentTooLargeError } from '../../error-handling';
-import { HttpRequest, KnownHeader, MimeType } from '../../http';
-import { HttpClientResponse } from '../../http-client';
-import { BodyMetadata } from '../../routing';
-import { BigNumber, BigNumberUtilities } from '../../utilities';
-import { WebsocketRequest } from '../../websocket';
+import { BadRequestError } from '../../error-handling/errors/bad-request.error';
+import { ContentTooLargeError } from '../../error-handling/errors/content-too-large.error';
+import { HttpRequest } from '../../http/http-request.model';
+import { KnownHeader } from '../../http/known-header.enum';
+import { MimeType } from '../../http/mime-type.enum';
+import { HttpClientResponse } from '../../http-client/http-client-response.model';
+import { BodyMetadata } from '../../routing/decorators/body.decorator';
+import { BigNumberUtilities } from '../../utilities/big-number.utilities';
+import { WebsocketRequest } from '../../websocket/models/websocket-request.model';
 import { BodyParserInterface } from '../body-parser.interface';
-import { BodyParser } from '../decorators';
-import { parseArray, parseObject } from '../functions';
+import { BodyParser } from '../decorators/body-parser.decorator';
+import { parseArray } from '../functions/parse-array.function';
+import { parseObject } from '../functions/parse-object.function';
 
 /**
  * Body parser for json.

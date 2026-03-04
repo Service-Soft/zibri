@@ -1,8 +1,11 @@
-import { AuthorizationCaptureResp, CaptureOrderResp, GetOrderResp, PayPalCapture, PayPalClient, RefundCaptureResp } from './pay-pal-client';
-import { Repository } from '../../../../data-source';
-import { inject, repositoryTokenFor } from '../../../../di';
-import { KnownPaymentMethod, Payment, PaymentStatus } from '../../models';
 import { PaymentProviderInterface } from '../payment-provider.interface';
+import { AuthorizationCaptureResp, CaptureOrderResp, GetOrderResp, PayPalCapture, PayPalClient, RefundCaptureResp } from './pay-pal-client';
+import { Repository } from '../../../../data-source/repository';
+import { repositoryTokenFor } from '../../../../di/decorators/inject-repository.decorator';
+import { inject } from '../../../../di/inject.function';
+import { KnownPaymentMethod } from '../../models/payment-method.model';
+import { PaymentStatus } from '../../models/payment-status.enum';
+import { Payment } from '../../models/payment.model';
 
 /**
  * The environment of the pay-pal client.

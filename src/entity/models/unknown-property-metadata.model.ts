@@ -1,5 +1,5 @@
 import { BasePropertyMetadata } from './base-property-metadata.model';
-import { OmitStrict } from '../../types';
+import { OmitStrict } from '../../types/omit-strict.type';
 
 /**
  * Metadata for unknown properties.

@@ -1,6 +1,7 @@
-import { Property } from '../entity';
-import { HttpMethod, HttpStatus } from '../http';
-import { OmitStrict } from '../types';
+import { Property } from '../entity/decorators/property.decorator';
+import { HttpMethod } from '../http/http-method.enum';
+import { HttpStatus } from '../http/http-status.enum';
+import { OmitStrict } from '../types/omit-strict.type';
 
 /**
  * Context information about a request that triggered a log.

@@ -1,7 +1,9 @@
 import { FormatPriceFn } from './format-price-fn.model';
-import { inject, ZIBRI_DI_TOKENS } from '../../di';
-import { BigNumber } from '../../utilities';
-import { CurrencyCode, LanguageCode, LocalizeOptions } from '../models';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
+import { inject } from '../../di/inject.function';
+import { CurrencyCode } from '../models/currency-code.model';
+import { LanguageCode } from '../models/language-code.model';
+import { LocalizeOptions } from '../models/localize-options.model';
 
 /**
  * Default implementation for formatting prices.

@@ -1,5 +1,5 @@
-import { Newable } from '../types';
 import { OmitClass } from './omit-class.model';
+import { Newable } from '../types/newable.type';
 import { getAllClassKeys, getAllPrototypeKeys } from './utilities/copy-class-properties.function';
 
 // eslint-disable-next-line jsdoc/require-returns

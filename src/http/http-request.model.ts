@@ -1,7 +1,7 @@
 import { Request } from 'express';
 
-import { OmitStrict } from '../types';
 import { KnownHeader } from './known-header.enum';
+import { OmitStrict } from '../types/omit-strict.type';
 
 /**
  * Http request. Based on Request from express.

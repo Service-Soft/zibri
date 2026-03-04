@@ -1,5 +1,5 @@
 import { HttpError } from './http.error';
-import { HttpStatus } from '../../http';
+import { HttpStatus } from '../../http/http-status.enum';
 
 /**
  * An error to throw when there have been too many requests in a too short amount of time.

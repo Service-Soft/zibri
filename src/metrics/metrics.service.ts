@@ -1,17 +1,21 @@
+import os from 'node:os';
+
 import { Registry, Counter, Histogram, collectDefaultMetrics, Gauge, MetricObjectWithValues, MetricValue } from 'prom-client';
 import si from 'systeminformation';
 
 import { CounterMetricName, GaugeMetricName, HistogramMetricName, MetricsServiceInterface, MetricsSnapshot } from './metrics-service.interface';
 import { ZibriApplication } from '../application';
-import { HttpRequest, HttpResponse } from '../http';
 import { CounterInterface } from './counter.interface';
 import { GaugeInterface } from './gauge.interface';
 import { HistogramInterface } from './histogram.interface';
 import { MetricType } from './metric-type.enum';
 import { Metric } from './metric.model';
 import { ScrapeMetricsCronJob } from './scrape-metrics.cron-job';
-import { AssetServiceInterface } from '../assets';
-import { inject, ZIBRI_DI_TOKENS } from '../di';
+import { AssetServiceInterface } from '../assets/asset-service.interface';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { inject } from '../di/inject.function';
+import { HttpRequest } from '../http/http-request.model';
+import { HttpResponse } from '../http/http-response.model';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 class PromCounter implements CounterInterface {
@@ -71,6 +75,7 @@ export class PrometheusMetricsService implements MetricsServiceInterface {
         this.getHistogram(
             'http_request_duration_ms', ['method', 'route', 'status_code'], [50, 100, 200, 500, 1000, 2000, 5000]
         );
+        this.getGauge('process_cpu_count').set({ }, os.availableParallelism());
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -110,7 +115,7 @@ export class PrometheusMetricsService implements MetricsServiceInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    getCounter(name: CounterMetricName, labelNames?: string[]): PromCounter {
+    getCounter(name: CounterMetricName, labelNames: string[] = []): PromCounter {
         if (!this.counters.has(name)) {
             this.counters.set(name, new Counter({ name, help: name, labelNames, registers: [this.registry] }));
         }
@@ -119,7 +124,7 @@ export class PrometheusMetricsService implements MetricsServiceInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    getGauge(name: GaugeMetricName, labelNames?: string[]): PromGauge {
+    getGauge(name: GaugeMetricName, labelNames: string[] = []): PromGauge {
         if (!this.gauges.has(name)) {
             this.gauges.set(name, new Gauge({ name, help: name, labelNames, registers: [this.registry] }));
         }
@@ -128,7 +133,7 @@ export class PrometheusMetricsService implements MetricsServiceInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    getHistogram(name: HistogramMetricName, labelNames?: string[], buckets?: number[]): PromHistogram {
+    getHistogram(name: HistogramMetricName, labelNames: string[] = [], buckets: number[] = []): PromHistogram {
         if (!this.histograms.has(name)) {
             this.histograms.set(name, new Histogram({ name, help: name, labelNames, buckets, registers: [this.registry] }));
         }

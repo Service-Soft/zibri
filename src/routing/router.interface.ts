@@ -1,7 +1,8 @@
-import { Newable } from '../types';
 import { RouteConfiguration, RouteConfigurationInput } from './route-configuration.model';
 import { ZibriApplication } from '../application';
-import { BodyMetadata, BodyMetadataInput, HeaderParamMetadata, HeaderParamMetadataInput, PathParamMetadata, PathParamMetadataInput, QueryParamMetadata, QueryParamMetadataInput } from './decorators';
+import { Newable } from '../types/newable.type';
+import { BodyMetadataInput, BodyMetadata } from './decorators/body.decorator';
+import { PathParamMetadataInput, QueryParamMetadataInput, HeaderParamMetadataInput, PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from './decorators/param.decorator';
 
 /**
  * Interface for a router.

@@ -2,7 +2,7 @@
 import { describe, expect, it } from '@jest/globals';
 
 import { parseObject } from './parse-object.function';
-import { Property } from '../../entity';
+import { Property } from '../../entity/decorators/property.decorator';
 
 class Dummy {}
 

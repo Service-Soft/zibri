@@ -1,8 +1,10 @@
 import { PayPalProviderOptions } from './pay-pal.payment-provider';
-import { inject, ZIBRI_DI_TOKENS } from '../../../../di';
-import { Property } from '../../../../entity';
-import { KnownHeader, MimeType } from '../../../../http';
-import { HttpClientInterface } from '../../../../http-client';
+import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default';
+import { inject } from '../../../../di/inject.function';
+import { Property } from '../../../../entity/decorators/property.decorator';
+import { KnownHeader } from '../../../../http/known-header.enum';
+import { MimeType } from '../../../../http/mime-type.enum';
+import { HttpClientInterface } from '../../../../http-client/http-client.interface';
 
 /**
  * The intent of the new payment.

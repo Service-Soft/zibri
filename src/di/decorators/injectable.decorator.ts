@@ -1,9 +1,8 @@
-import { GlobalRegistry } from '../../global';
-import { Newable } from '../../types';
-import { MetadataUtilities } from '../../utilities';
-import { DiToken } from '../models';
+import { GlobalRegistry } from '../../global/global-registry';
+import { Newable } from '../../types/newable.type';
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { DiToken } from '../models/di-token.model';
 
-// eslint-disable-next-line jsdoc/require-returns
 /**
  * Marks a class to be injectable.
  * @param token - An optional token where the marked class should be registered under instead of the class.

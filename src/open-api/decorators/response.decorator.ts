@@ -1,7 +1,9 @@
-/* eslint-disable jsdoc/require-returns */
-import { HttpStatus } from '../../http';
-import { ExcludeStrict, Newable, OmitStrict } from '../../types';
-import { MetadataUtilities } from '../../utilities';
+
+import { HttpStatus } from '../../http/http-status.enum';
+import { ExcludeStrict } from '../../types/exclude-strict.type';
+import { Newable } from '../../types/newable.type';
+import { OmitStrict } from '../../types/omit-strict.type';
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { JsonOpenApiResponse, ErrorOpenApiResponse, FileOpenApiResponse, OpenApiResponse, HtmlOpenApiResponse } from '../open-api.model';
 import { PaginationResultClass } from '../pagination-result.model';
 

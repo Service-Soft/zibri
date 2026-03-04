@@ -1,9 +1,12 @@
-import { inject, ZIBRI_DI_TOKENS } from '../../di';
-import { Email, EmailPriority, EmailServiceInterface } from '../../email';
-import { GlobalRegistry } from '../../global';
-import { renderEmailTemplate } from '../../handlebars';
-import { FormatDateFn } from '../../localization';
-import { OmitStrict } from '../../types';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
+import { inject } from '../../di/inject.function';
+import { EmailServiceInterface } from '../../email/email-service.interface';
+import { EmailPriority } from '../../email/models/email-priority.enum';
+import { Email } from '../../email/models/email.model';
+import { GlobalRegistry } from '../../global/global-registry';
+import { renderEmailTemplate } from '../../handlebars/render-template.function';
+import { FormatDateFn } from '../../localization/formatting/format-date-fn.model';
+import { OmitStrict } from '../../types/omit-strict.type';
 import { LogLevel } from '../log-level.enum';
 import { Log } from '../log.model';
 import { BaseLoggerTransportConfig, LoggerTransportSend } from './logger-transport.model';

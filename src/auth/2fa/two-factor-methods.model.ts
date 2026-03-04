@@ -1,5 +1,5 @@
-import { TwoFactorMethod } from './methods';
-import { Newable } from '../../types';
+import { TwoFactorMethod } from './methods/two-factor-method.interface';
+import { Newable } from '../../types/newable.type';
 
 /**
  * A generic two factor method array.

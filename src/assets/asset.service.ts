@@ -1,20 +1,17 @@
-import { Dirent } from 'fs';
-import { readdir } from 'fs/promises';
-import path from 'path';
+import { Dirent } from 'node:fs';
 
 import express from 'express';
 
 import { AssetServiceInterface } from './asset-service.interface';
 import { ZibriApplication } from '../application';
-import { Inject, ZIBRI_DI_TOKENS } from '../di';
-import { GlobalRegistry } from '../global';
-import { renderPageTemplate } from '../handlebars';
-import { HttpMethod } from '../http';
-import type { LoggerInterface } from '../logging';
+import { Inject } from '../di/decorators/inject.decorator';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { HttpMethod } from '../http/http-method.enum';
+import { type LoggerInterface } from '../logging/logger.interface';
 import { FileResponse } from '../parsing/form-data/file-response.model';
-import { HtmlResponse } from '../parsing/html/html-response.model';
-import { Route } from '../routing';
-import { ObjectUtilities } from '../utilities';
+import { Route } from '../routing/controller-route-configuration.model';
+import { FsUtilities, Path } from '../utilities/fs.utilities';
+import { ObjectUtilities } from '../utilities/object.utilities';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 type FileNode = { type: 'file', name: string, route: string };
@@ -36,13 +33,15 @@ type WalkedPath = { relPath: string, isFile: boolean };
  */
 export class AssetService implements AssetServiceInterface {
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly assetsPath: string = path.join(__dirname, 'assets');
+    readonly assetsPath: Path = FsUtilities.getPath(__dirname, 'assets');
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly publicAssetsPath: string = path.join(this.assetsPath, 'public');
+    readonly publicAssetsPath: Path = FsUtilities.getPath(this.assetsPath, 'public');
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly pageTemplatePath: string = path.join(this.assetsPath, 'templates', 'pages');
+    readonly pageTemplatePath: Path = FsUtilities.getPath(this.assetsPath, 'templates', 'pages');
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly emailTemplatePath: string = path.join(this.assetsPath, 'templates', 'emails');
+    readonly emailTemplatePath: Path = FsUtilities.getPath(this.assetsPath, 'templates', 'emails');
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly componentTemplatePath: Path = FsUtilities.getPath(this.assetsPath, 'templates', 'components');
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly assetsRoute: Route = '/assets';
 
@@ -57,47 +56,14 @@ export class AssetService implements AssetServiceInterface {
         app.use(this.assetsRoute, express.static(this.publicAssetsPath));
         await app.router.register({
             httpMethod: HttpMethod.GET,
-            route: '/',
-            handler: async () => {
-                const html: string = await renderPageTemplate(
-                    'index.hbs',
-                    {
-                        name: GlobalRegistry.getAppData('name'),
-                        base: {
-                            title: GlobalRegistry.getAppData('name') ?? ''
-                        }
-                    }
-                );
-                return HtmlResponse.fromString(html);
-            }
-        });
-        await app.router.register({
-            httpMethod: HttpMethod.GET,
-            route: this.assetsRoute,
-            handler: async () => {
-                const tree: TreeNode[] = await this.buildFileTree();
-                const html: string = await renderPageTemplate(
-                    'assets.hbs',
-                    {
-                        name: GlobalRegistry.getAppData('name'),
-                        base: {
-                            title: GlobalRegistry.getAppData('name') ?? ''
-                        },
-                        tree
-                    }
-                );
-                return HtmlResponse.fromString(html);
-            }
-        });
-        await app.router.register({
-            httpMethod: HttpMethod.GET,
             route: '/favicon.ico',
-            handler: () => FileResponse.fromPath(path.join(this.publicAssetsPath, 'favicon.png'))
+            handler: () => FileResponse.fromPath(FsUtilities.getPath(this.publicAssetsPath, 'favicon.png'))
         });
 
     }
 
-    private async buildFileTree(): Promise<TreeNode[]> {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async buildFileTree(): Promise<TreeNode[]> {
         // 1) Gather every path relative to assetsPath
         const items: WalkedPath[] = await this.walk(this.publicAssetsPath);
 
@@ -105,7 +71,7 @@ export class AssetService implements AssetServiceInterface {
         const root: NodeMap = {};
 
         for (const item of items) {
-            const segments: string[] = item.relPath.split(path.sep);
+            const segments: string[] = item.relPath.split(FsUtilities.separator);
             let current: NodeMap = root;
 
             for (let i: number = 0; i < segments.length; i++) {
@@ -151,14 +117,14 @@ export class AssetService implements AssetServiceInterface {
     }
 
     private async walk(
-        dir: string,
-        base: string = dir
+        dir: Path,
+        base: Path = dir
     ): Promise<WalkedPath[]> {
-        const entries: Dirent[] = await readdir(dir, { withFileTypes: true });
+        const entries: Dirent[] = await FsUtilities.readdir(dir);
         const results: WalkedPath[] = [];
         for (const entry of entries) {
-            const abs: string = path.join(dir, entry.name);
-            const rel: string = path.relative(base, abs);
+            const abs: Path = FsUtilities.getPath(dir, entry.name);
+            const rel: Path = FsUtilities.relative(base, abs);
             if (entry.isDirectory()) {
                 results.push({ relPath: rel, isFile: false });
                 results.push(...await this.walk(abs, base));

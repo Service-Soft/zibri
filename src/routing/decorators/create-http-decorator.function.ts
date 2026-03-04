@@ -1,5 +1,5 @@
-import { HttpMethod } from '../../http';
-import { MetadataUtilities } from '../../utilities';
+import { HttpMethod } from '../../http/http-method.enum';
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { Route, ControllerRouteConfiguration } from '../controller-route-configuration.model';
 
 // eslint-disable-next-line jsdoc/require-jsdoc

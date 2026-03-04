@@ -1,7 +1,7 @@
 
 import { FindAllOptions } from './find-all-options.model';
 import { BaseEntity } from '../../../entity/base-entity.model';
-import { OmitStrict } from '../../../types';
+import { OmitStrict } from '../../../types/omit-strict.type';
 
 /**
  * Options for finding entities in paginated form.

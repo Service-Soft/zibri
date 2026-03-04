@@ -1,7 +1,12 @@
 import { HttpClientResponseForBodyType } from './http-client-response.model';
-import { HttpMethod, KnownHeader, MimeType } from '../http';
-import { BodyMetadata, BodyMetadataInput, HeaderMetaInputObjectToMetaObject, HeaderMetaObjectToParamsObject, HeaderParamMetadataInput } from '../routing';
-import { Newable, OmitStrict } from '../types';
+import { HttpMethod } from '../http/http-method.enum';
+import { KnownHeader } from '../http/known-header.enum';
+import { MimeType } from '../http/mime-type.enum';
+import { BodyMetadata, BodyMetadataInput } from '../routing/decorators/body.decorator';
+import { HeaderParamMetadataInput } from '../routing/decorators/param.decorator';
+import { HeaderMetaObjectToParamsObject, HeaderMetaInputObjectToMetaObject } from '../routing/route-configuration.model';
+import { Newable } from '../types/newable.type';
+import { OmitStrict } from '../types/omit-strict.type';
 
 /**
  * Possible values to send as headers when using the http client.

@@ -1,7 +1,12 @@
 /* eslint-disable jsdoc/require-jsdoc */
-import { InvoicingOptions, InvoicingOptionsInput } from './models';
-import { InvoiceCalcServiceInterface, InvoiceNumberServiceInterface, InvoicePdfServiceInterface, InvoiceConformanceServiceInterface } from './services';
-import { InjectionToken, TokenRecord } from '../../di';
+import { InvoicingOptionsInput } from './models/invoicing-options-input.model';
+import { InvoicingOptions } from './models/invoicing-options.model';
+import { InvoiceConformanceServiceInterface } from './services/conformance/invoice-conformance-service.interface';
+import { InvoiceCalcServiceInterface } from './services/invoice-calc-service.interface';
+import { InvoiceNumberServiceInterface } from './services/invoice-number-service.interface';
+import { InvoicePdfServiceInterface } from './services/invoice-pdf-service.interface';
+import { TokenRecord } from '../../di/models/di-token.model';
+import { InjectionToken } from '../../di/models/injection-token.model';
 
 /**
  * The dependency injection tokens used by the ZibriInvoicingPlugin.

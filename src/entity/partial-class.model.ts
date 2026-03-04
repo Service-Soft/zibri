@@ -1,7 +1,7 @@
-import type { Newable } from '../types';
-import type { PropertyMetadata } from './decorators';
+import { Newable } from '../types/newable.type';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
+import { PropertyMetadata } from './decorators/property.decorator';
 
 // eslint-disable-next-line jsdoc/require-returns
 /**

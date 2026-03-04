@@ -1,5 +1,5 @@
-import { AuthStrategies } from '../strategies';
 import { SkipAuthMetadata } from './skip-auth-metadata.model';
+import { AuthStrategies } from '../strategies/auth-strategies.model';
 
 /**
  * Metadata for the \@Auth.isLoggedIn decorator.

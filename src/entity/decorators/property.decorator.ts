@@ -1,11 +1,21 @@
 import { warn } from '../../logging/logger.helpers';
-import type { Newable } from '../../types';
+import { Newable } from '../../types/newable.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import type { BaseEntity } from '../base-entity.model';
-import type { ArrayPropertyItemMetadata, ArrayPropertyItemMetadataInput, ArrayPropertyMetadata, ArrayPropertyMetadataInput, BelongsToOnePropertyMetadataInput, BooleanPropertyMetadata, BooleanPropertyMetadataInput, DatePropertyMetadata, DatePropertyMetadataInput, HasOnePropertyMetadataInput, ManyToManyPropertyMetadata, ManyToManyPropertyMetadataInput, ManyToOnePropertyMetadata, ManyToOnePropertyMetadataInput, NumberPropertyMetadata, NumberPropertyMetadataInput, ObjectPropertyMetadata, ObjectPropertyMetadataInput, OneToManyPropertyMetadata, OneToManyPropertyMetadataInput, OneToOnePropertyMetadata, OneToOnePropertyMetadataInput, StringPropertyMetadata, StringPropertyMetadataInput, UnknownPropertyMetadata, UnknownPropertyMetadataInput } from '../models';
+import { ArrayPropertyMetadata, ArrayPropertyMetadataInput, ArrayPropertyItemMetadataInput, ArrayPropertyItemMetadata } from '../models/array-property-metadata.model';
 import type { WithDefaultMetadata } from '../models/base-property-metadata.model';
+import { BooleanPropertyMetadata, BooleanPropertyMetadataInput } from '../models/boolean-property-metadata.model';
+import { DatePropertyMetadata, DatePropertyMetadataInput } from '../models/date-property-metadata.model';
 import type { FilePropertyMetadata, FilePropertyMetadataInput } from '../models/file-property-metadata.model';
+import { ManyToManyPropertyMetadata, ManyToManyPropertyMetadataInput } from '../models/many-to-many-property-metadata.model';
+import { ManyToOnePropertyMetadata, ManyToOnePropertyMetadataInput } from '../models/many-to-one-property-metadata.model';
+import { NumberPropertyMetadata, NumberPropertyMetadataInput } from '../models/number-property-metadata.model';
+import { ObjectPropertyMetadata, ObjectPropertyMetadataInput } from '../models/object-property-metadata.model';
+import { OneToManyPropertyMetadata, OneToManyPropertyMetadataInput } from '../models/one-to-many-property-metadata.model';
+import { OneToOnePropertyMetadata, OneToOnePropertyMetadataInput, HasOnePropertyMetadataInput, BelongsToOnePropertyMetadataInput } from '../models/one-to-one-property-metadata.model';
 import { Relation } from '../models/relation.enum';
+import { StringPropertyMetadata, StringPropertyMetadataInput } from '../models/string-property-metadata.model';
+import { UnknownPropertyMetadata, UnknownPropertyMetadataInput } from '../models/unknown-property-metadata.model';
 
 /**
  * The metadata of a property.
@@ -55,7 +65,7 @@ export type RelationMetadataInput<T extends BaseEntity> = ManyToOnePropertyMetad
  */
 // eslint-disable-next-line typescript/no-namespace
 export namespace Property {
-    // eslint-disable-next-line jsdoc/require-returns
+
     /**
      * Defines a string property.
      * @param data - Additional data to specify the property.
@@ -79,7 +89,6 @@ export namespace Property {
         return applyData(fullMetadata, data);
     }
 
-    // eslint-disable-next-line jsdoc/require-returns
     /**
      * Defines a number property.
      * @param data - Additional data to specify the property.
@@ -101,7 +110,6 @@ export namespace Property {
         return applyData(fullMetadata, data);
     }
 
-    // eslint-disable-next-line jsdoc/require-returns
     /**
      * Defines a boolean property.
      * @param data - Additional data to specify the property.
@@ -118,7 +126,6 @@ export namespace Property {
         return applyData(fullMetadata, data);
     }
 
-    // eslint-disable-next-line jsdoc/require-returns
     /**
      * Defines a date property.
      * @param data - Additional data to specify the property.
@@ -137,7 +144,6 @@ export namespace Property {
         return applyData(fullMetadata, data);
     }
 
-    // eslint-disable-next-line jsdoc/require-returns
     /**
      * Defines an object property.
      * @param data - Additional data to specify the property.
@@ -154,7 +160,6 @@ export namespace Property {
         return applyData(fullMetadata, data);
     }
 
-    // eslint-disable-next-line jsdoc/require-returns
     /**
      * Defines a file property.
      * @param data - Additional data to specify the property.
@@ -186,7 +191,6 @@ export namespace Property {
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-returns
     /**
      * Defines an array property.
      * @param data - Additional data to specify the property.
@@ -212,7 +216,6 @@ export namespace Property {
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-returns
     /**
      * Defines an unknown property.
      * @param data - Additional data to specify the property.
@@ -228,7 +231,6 @@ export namespace Property {
         return applyData(fullMetadata, data);
     }
 
-    // eslint-disable-next-line jsdoc/require-returns
     /**
      * Defines a many to one property.
      * @param metadata - Additional data to specify the property.
@@ -245,7 +247,6 @@ export namespace Property {
         return applyData(fullMetadata as PropertyMetadata, metadata);
     }
 
-    // eslint-disable-next-line jsdoc/require-returns
     /**
      * Defines a one to many property.
      * @param metadata - Additional data to specify the property.
@@ -262,7 +263,6 @@ export namespace Property {
         return applyData(fullMetadata as PropertyMetadata, metadata);
     }
 
-    // eslint-disable-next-line jsdoc/require-returns
     /**
      * Defines a has one property.
      * @param metadata - Additional data to specify the property.
@@ -280,7 +280,6 @@ export namespace Property {
         return applyData(fullMetadata as PropertyMetadata, metadata);
     }
 
-    // eslint-disable-next-line jsdoc/require-returns
     /**
      * Defines a belongs to one property.
      * @param metadata - Additional data to specify the property.
@@ -298,7 +297,6 @@ export namespace Property {
         return applyData(fullMetadata as PropertyMetadata, metadata);
     }
 
-    // eslint-disable-next-line jsdoc/require-returns
     /**
      * Defines a many to many property.
      * @param metadata - Additional data to specify the property.

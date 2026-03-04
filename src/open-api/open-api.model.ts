@@ -1,7 +1,8 @@
 import { oas31 } from 'openapi3-ts';
 
-import { HttpStatus, MimeType } from '../http';
-import { Newable } from '../types';
+import { HttpStatus } from '../http/http-status.enum';
+import { MimeType } from '../http/mime-type.enum';
+import { Newable } from '../types/newable.type';
 
 /**
  * Alias for the root OpenAPI 3.1 document object.

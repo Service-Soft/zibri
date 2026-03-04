@@ -1,4 +1,4 @@
-import { LanguageCode } from '../models';
+import { LanguageCode } from '../models/language-code.model';
 
 /**
  * Function for formatting dates.

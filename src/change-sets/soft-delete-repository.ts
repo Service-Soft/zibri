@@ -1,11 +1,24 @@
 import { Repository as TORepository } from 'typeorm';
 
-import { DeepPartial, Newable } from '../types';
-import { ChangeSetRepository } from './change-set-repository.model';
-import { ChangeSetType, SoftDeleteEntity, SoftDeleteFindAllOptions, SoftDeleteFindAllPaginatedOptions, SoftDeleteFindByIdOptions, SoftDeleteFindOneOptions, SoftDeleteUpdateAllOptions, SoftDeleteUpdateByIdOptions, SoftDeleteWhere } from './models';
-import { DeleteAllOptions, DeleteByIdOptions, Repository, Where } from '../data-source';
-import { NotFoundError } from '../error-handling';
-import { PaginationResult } from '../open-api';
+import { ChangeSetRepository } from './change-set-repository';
+import { SoftDeleteEntity } from './models/soft-delete-entity.model';
+import { DeleteAllOptions } from '../data-source/models/options/delete-all-options.model';
+import { DeleteByIdOptions } from '../data-source/models/options/delete-by-id-options.model';
+import { Repository } from '../data-source/repository';
+import { PaginationResult } from '../open-api/pagination-result.model';
+import { DeepPartial } from '../types/deep-partial.type';
+import { Newable } from '../types/newable.type';
+import { ChangeSetType } from './models/change-set-type.enum';
+import { SoftDeleteFindAllOptions } from './models/soft-delete-find-all-options.model';
+import { SoftDeleteFindAllPaginatedOptions } from './models/soft-delete-find-all-paginated-options.model';
+import { SoftDeleteFindByIdOptions } from './models/soft-delete-find-by-id-options.model';
+import { SoftDeleteFindOneOptions } from './models/soft-delete-find-one-options.model';
+import { SoftDeleteUpdateAllOptions } from './models/soft-delete-update-all-options.model';
+import { SoftDeleteUpdateByIdOptions } from './models/soft-delete-update-by-id-options.model';
+import { SoftDeleteWhere } from './models/soft-delete-where.model';
+import { Where } from '../data-source/models/where/where-filter.model';
+import { NotFoundError } from '../error-handling/errors/not-found.error';
+import { LoggerInterface } from '../logging/logger.interface';
 
 /**
  * Options for deleting a soft delete entity by its id.
@@ -40,8 +53,8 @@ export class SoftDeleteRepository<
 
     protected override readonly keysToExcludeFromChangeSets: (keyof T)[] = ['changeSets', 'deleted'];
 
-    constructor(entityClass: Newable<T>, repo: TORepository<T> | Repository<T>) {
-        super(entityClass, repo);
+    constructor(entityClass: Newable<T>, repo: TORepository<T> | Repository<T>, logger: LoggerInterface) {
+        super(entityClass, repo, logger);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

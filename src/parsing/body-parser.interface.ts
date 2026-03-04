@@ -1,8 +1,9 @@
 import { ZibriApplication } from '../application';
-import { HttpRequest, MimeType } from '../http';
-import { HttpClientResponse } from '../http-client';
-import { BodyMetadata } from '../routing';
-import { WebsocketRequest } from '../websocket';
+import { HttpRequest } from '../http/http-request.model';
+import { MimeType } from '../http/mime-type.enum';
+import { HttpClientResponse } from '../http-client/http-client-response.model';
+import { BodyMetadata } from '../routing/decorators/body.decorator';
+import { WebsocketRequest } from '../websocket/models/websocket-request.model';
 
 /**
  * Interface for a body parser.

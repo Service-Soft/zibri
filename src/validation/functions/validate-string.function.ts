@@ -1,7 +1,8 @@
-
-import { PropertyMetadata, StringFormat, StringPropertyMetadata } from '../../entity';
-import { HeaderParamMetadata, PathParamMetadata, QueryParamMetadata, StringParamMetadata } from '../../routing';
-import { ObjectUtilities } from '../../utilities';
+import { PropertyMetadata } from '../../entity/decorators/property.decorator';
+import { StringPropertyMetadata, StringFormat } from '../../entity/models/string-property-metadata.model';
+import { QueryParamMetadata, HeaderParamMetadata, PathParamMetadata } from '../../routing/decorators/param.decorator';
+import { StringParamMetadata } from '../../routing/models/string-param-metadata.model';
+import { ObjectUtilities } from '../../utilities/object.utilities';
 import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from '../validation-problem.model';
 
 const UUID_REGEX: RegExp = /^[\dA-Fa-f]{8}-[\dA-Fa-f]{4}-[1-5][\dA-Fa-f]{3}-[89ABab][\dA-Fa-f]{3}-[\dA-Fa-f]{12}$/;

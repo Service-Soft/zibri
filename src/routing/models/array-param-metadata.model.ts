@@ -4,8 +4,8 @@ import { DateParamMetadata, DateParamMetadataInput } from './date-param-metadata
 import { NumberParamMetadata, NumberParamMetadataInput } from './number-param-metadata.model';
 import { ObjectParamMetadata, ObjectParamMetadataInput } from './object-param-metadata.model';
 import { StringParamMetadata, StringParamMetadataInput } from './string-param-metadata.model';
-import { ArrayPropertyMetadata } from '../../entity';
-import { OmitStrict } from '../../types';
+import { ArrayPropertyMetadata } from '../../entity/models/array-property-metadata.model';
+import { OmitStrict } from '../../types/omit-strict.type';
 
 /**
  * Metadata for an item of an array parameter.

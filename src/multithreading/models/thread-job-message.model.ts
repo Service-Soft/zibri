@@ -1,5 +1,5 @@
 import { ThreadJobStatus } from './thread-job-status.enum';
-import { Percentage } from '../../types';
+import { Percentage } from '../../types/percentage.type';
 
 /**
  * The internal thread job message types.

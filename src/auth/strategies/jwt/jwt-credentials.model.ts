@@ -1,6 +1,8 @@
-import { Entity, Property, OmitClass } from '../../../entity';
 import { BaseEntity } from '../../../entity/base-entity.model';
-import { BaseUser } from '../../models';
+import { Entity } from '../../../entity/decorators/entity.decorator';
+import { Property } from '../../../entity/decorators/property.decorator';
+import { OmitClass } from '../../../entity/omit-class.model';
+import { BaseUser } from '../../models/base-user.model';
 
 /**
  * The credentials used by the jwt auth strategy.

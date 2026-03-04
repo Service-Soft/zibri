@@ -1,7 +1,7 @@
 import { JwtHeader } from 'jsonwebtoken';
 
 import { JwtAccessTokenPayload } from './jwt-access-token-payload.model';
-import { BaseUser } from '../../models';
+import { BaseUser } from '../../models/base-user.model';
 
 /**
  * An encoded jwt access token.

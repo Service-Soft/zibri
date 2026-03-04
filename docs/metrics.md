@@ -16,16 +16,15 @@ You will however most likely use the provided `ScrapeMetricsCronJob` which colle
 See [registering cron jobs](./cron.md#registering-the-cron-job).
 
 ## Exposing a basic dashboard
-By default, your project contains a `metrics.hbs` file that is used to display the data of the metrics service.
+By default, your project contains a `metrics.tsx` file that is used to display the data of the metrics service.
 
 You can simply create a new controller and expose it there:
 
 ```ts
 // src/controllers/metrics.controller.ts
-import { Controller, Inject, ZIBRI_DI_TOKENS, Metric, Get, Response, HtmlResponse, MetricsSnapshot, GlobalRegistry, MetricsServiceInterface } from 'zibri';
+import { Controller, Inject, PreactUtilities, ZIBRI_DI_TOKENS, Metric, Get, Response, HtmlResponse, MetricsSnapshot, GlobalRegistry, MetricsServiceInterface } from 'zibri';
 
-import renderBasePageTemplate from '../templates/pages/base-page.hbs';
-import renderMetricsTemplate from '../templates/pages/metrics.hbs';
+import { MetricsPage } from '../templates/pages/metrics';
 
 @Controller('/metrics')
 export class MetricsController {
@@ -43,15 +42,13 @@ export class MetricsController {
 
     @Response.html()
     @Get('/dashboard')
-    dashboard(): HtmlResponse {
-        const content: string = renderMetricsTemplate({
-            name: GlobalRegistry.getAppData('name') ?? '-',
-            version: GlobalRegistry.getAppData('version') ?? '-'
-        });
-        const html: string = renderBasePageTemplate({ base: { title: 'Metrics Dashboard' }, content });
-        return HtmlResponse.fromString(html);
+    async dashboard(): Promise<HtmlResponse> {
+        const version: string = GlobalRegistry.getAppData('version') ?? '-';
+        return await PreactUtilities.renderResponse(MetricsPage, { version, primary: '#0e456f', secondary: '#00b4d8' });
     }
 }
 ```
 
 Now you can navigate to `http://localhost:3000/metrics/dashboard` and see it in action.
+
+There are also placeholders commented out in the `navbar.tsx` and the `home.tsx` files that link to this basic dashboard.

@@ -1,4 +1,4 @@
-import { Property } from '../../../entity';
+import { Property } from '../../../entity/decorators/property.decorator';
 
 /**
  * The data used to refresh a login inside the jwt auth strategy.

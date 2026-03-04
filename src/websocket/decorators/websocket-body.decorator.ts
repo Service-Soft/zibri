@@ -1,8 +1,9 @@
 import { FileSize } from '../../entity/models/file-property-metadata.model';
-import { MimeType } from '../../http';
-import { JsonBodyMetadata, resolveMaxBodySize } from '../../routing';
-import { Newable, OmitStrict } from '../../types';
-import { MetadataUtilities } from '../../utilities';
+import { MimeType } from '../../http/mime-type.enum';
+import { JsonBodyMetadata, resolveMaxBodySize } from '../../routing/decorators/body.decorator';
+import { Newable } from '../../types/newable.type';
+import { OmitStrict } from '../../types/omit-strict.type';
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
 
 /**
  * Metadata Input for websocket request bodies.
@@ -16,7 +17,6 @@ export type WebsocketBodyMetadataInput = Partial<OmitStrict<JsonBodyMetadata, 'm
     baseMaxSize?: FileSize
 };
 
-// eslint-disable-next-line jsdoc/require-returns
 /**
  * Defines a websocket request body property with the given data.
  * @param modelClass - The model class that defines the websocket request body properties structure.

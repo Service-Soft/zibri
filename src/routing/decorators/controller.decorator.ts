@@ -1,9 +1,8 @@
-import { GlobalRegistry } from '../../global';
-import { Newable } from '../../types';
-import { MetadataUtilities } from '../../utilities';
+import { GlobalRegistry } from '../../global/global-registry';
+import { Newable } from '../../types/newable.type';
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { Route } from '../controller-route-configuration.model';
 
-// eslint-disable-next-line jsdoc/require-returns
 /**
  * Marks a controller class to be registered under the provided base route.
  * @param baseRoute - The base route of the controller. Any endpoints inside this class will be prefixed with this.

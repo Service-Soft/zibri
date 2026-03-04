@@ -1,9 +1,11 @@
 import { MigrationEntity } from './migration-entity.model';
-import { inject, repositoryTokenFor } from '../../di';
-import { Newable, Version } from '../../types';
-import { DataSourceInterface } from '../data-sources';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
+import { inject } from '../../di/inject.function';
+import { Newable } from '../../types/newable.type';
+import { Version } from '../../types/version.type';
+import { DataSourceInterface } from '../data-sources/data-source.interface';
 import { Repository } from '../repository';
-import { Transaction } from '../transaction';
+import { Transaction } from '../transaction/transaction.model';
 
 /**
  * Base class for a data source migration.

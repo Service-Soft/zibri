@@ -4,8 +4,9 @@ import { Address, mockAddress } from './address.model';
 import { Company } from './company.entity';
 import { Profile } from './profile.entity';
 import { Role } from './role.entity';
-import { Entity, Property } from '../../../entity';
-import { OmitStrict } from '../../../types';
+import { Entity } from '../../../entity/decorators/entity.decorator';
+import { Property } from '../../../entity/decorators/property.decorator';
+import { OmitStrict } from '../../../types/omit-strict.type';
 
 @Entity()
 export class User {

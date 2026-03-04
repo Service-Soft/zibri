@@ -1,9 +1,11 @@
-import { inject, ZIBRI_DI_TOKENS } from '../di';
-import { Entity, Property } from '../entity';
 import { BackupResourceEntity, BackupResourceEntityCreateData } from './backup-resource-entity.model';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { inject } from '../di/inject.function';
 import { BaseEntity } from '../entity/base-entity.model';
-import { FormatDateFn } from '../localization';
-import { OmitStrict } from '../types';
+import { Entity } from '../entity/decorators/entity.decorator';
+import { Property } from '../entity/decorators/property.decorator';
+import { FormatDateFn } from '../localization/formatting/format-date-fn.model';
+import { OmitStrict } from '../types/omit-strict.type';
 
 /**
  * The entity of a single backup.

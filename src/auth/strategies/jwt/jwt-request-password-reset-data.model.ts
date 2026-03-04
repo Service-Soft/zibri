@@ -1,5 +1,5 @@
-import { QueueEmailData } from '../../../email';
-import { BaseUser } from '../../models';
+import { QueueEmailData } from '../../../email/models/create-email-data.model';
+import { BaseUser } from '../../models/base-user.model';
 
 /**
  * The data used by the jwt auth strategy to request a password reset.

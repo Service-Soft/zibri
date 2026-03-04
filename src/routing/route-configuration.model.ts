@@ -1,13 +1,21 @@
 import { NextFunction } from 'express';
 
 import { Route } from './controller-route-configuration.model';
-import { HttpRequest, HttpResponse } from '../http';
-import { BodyMetadata, BodyMetadataInput, HeaderParamMetadata, HeaderParamMetadataInput, PathParamMetadata, PathParamMetadataInput, QueryParamMetadata, QueryParamMetadataInput } from './decorators';
+import { ArrayPropertyItemMetadataInput, ArrayPropertyItemMetadata } from '../entity/models/array-property-metadata.model';
 import { HttpMethod } from '../http/http-method.enum';
-import { OpenApiResponse } from '../open-api';
-import { Newable, OmitStrict } from '../types';
-import { ArrayParamMetadata, ArrayParamMetadataInput, BooleanParamMetadata, BooleanParamMetadataInput, DateParamMetadata, DateParamMetadataInput, NumberParamMetadata, NumberParamMetadataInput, ObjectParamMetadata, ObjectParamMetadataInput, StringParamMetadata, StringParamMetadataInput } from './models';
-import { ArrayPropertyItemMetadata, ArrayPropertyItemMetadataInput } from '../entity';
+import { HttpRequest } from '../http/http-request.model';
+import { HttpResponse } from '../http/http-response.model';
+import { OpenApiResponse } from '../open-api/open-api.model';
+import { Newable } from '../types/newable.type';
+import { OmitStrict } from '../types/omit-strict.type';
+import { BodyMetadataInput, BodyMetadata } from './decorators/body.decorator';
+import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata, PathParamMetadataInput, QueryParamMetadataInput, HeaderParamMetadataInput } from './decorators/param.decorator';
+import { ArrayParamMetadataInput, ArrayParamMetadata } from './models/array-param-metadata.model';
+import { BooleanParamMetadataInput, BooleanParamMetadata } from './models/boolean-param-metadata.model';
+import { DateParamMetadataInput, DateParamMetadata } from './models/date-param-metadata.model';
+import { NumberParamMetadataInput, NumberParamMetadata } from './models/number-param-metadata.model';
+import { ObjectParamMetadataInput, ObjectParamMetadata } from './models/object-param-metadata.model';
+import { StringParamMetadataInput, StringParamMetadata } from './models/string-param-metadata.model';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 type PathMetaObjectToParamsObject<PathMetaObject extends Record<string, PathParamMetadata>> = {

@@ -1,4 +1,4 @@
-import { BaseUser } from '../../models';
+import { BaseUser } from '../../models/base-user.model';
 
 /**
  * The payload of the jwt refresh token.

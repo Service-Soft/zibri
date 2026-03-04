@@ -1,6 +1,11 @@
 import { ZibriApplication } from '../../application';
-import { Newable, OmitStrict } from '../../types';
-import { LooseWebsocketEvent, BaseWebsocketConnection, WebsocketResponseHandler, CreateWebsocketMessageData, WebsocketRequestWithConnection } from '../models';
+import { Newable } from '../../types/newable.type';
+import { OmitStrict } from '../../types/omit-strict.type';
+import { BaseWebsocketConnection } from '../models/connection/base-websocket-connection.model';
+import { LooseWebsocketEvent } from '../models/websocket-event.enum';
+import { CreateWebsocketMessageData } from '../models/websocket-message.model';
+import { WebsocketRequestWithConnection } from '../models/websocket-request.model';
+import { WebsocketResponseHandler } from '../models/websocket-response.model';
 
 /**
  * The message data for sending a websocket success message.

@@ -1,7 +1,6 @@
-import { Controller, Inject, ZIBRI_DI_TOKENS, Metric, Get, Response, HtmlResponse, MetricsSnapshot, GlobalRegistry, MetricsServiceInterface } from 'zibri';
+import { Controller, Inject, ZIBRI_DI_TOKENS, Metric, Get, Response, MetricsSnapshot, MetricsServiceInterface, HtmlResponse, PreactUtilities, GlobalRegistry } from 'zibri';
 
-import renderBasePageTemplate from '../templates/pages/base-page.hbs';
-import renderMetricsTemplate from '../templates/pages/metrics.hbs';
+import { MetricsPage } from '../templates/pages/metrics';
 
 @Controller('/metrics')
 export class MetricsController {
@@ -10,20 +9,16 @@ export class MetricsController {
         private readonly metricsService: MetricsServiceInterface
     ) {}
 
-    @Get()
     @Response.array(Metric)
+    @Get()
     get(): MetricsSnapshot[] {
         return this.metricsService.getMetricSnapshots();
     }
 
     @Response.html()
     @Get('/dashboard')
-    dashboard(): HtmlResponse {
-        const content: string = renderMetricsTemplate({
-            name: GlobalRegistry.getAppData('name') ?? '-',
-            version: GlobalRegistry.getAppData('version') ?? '-'
-        });
-        const html: string = renderBasePageTemplate({ base: { title: 'Metrics Dashboard' }, content });
-        return HtmlResponse.fromString(html);
+    async dashboard(): Promise<HtmlResponse> {
+        const version: string = GlobalRegistry.getAppData('version') ?? '-';
+        return await PreactUtilities.renderResponse(MetricsPage, { version, primary: '#0e456f', secondary: '#00b4d8' });
     }
 }

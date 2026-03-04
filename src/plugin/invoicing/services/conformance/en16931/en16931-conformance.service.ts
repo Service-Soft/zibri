@@ -1,8 +1,12 @@
-import { Inject } from '../../../../../di';
-import { PdfAttachmentDefinition, PdfDocument, PdfDocumentDefinition, XML, XmlUtilities } from '../../../../../document';
-import { MimeType } from '../../../../../http';
+import { Inject } from '../../../../../di/decorators/inject.decorator';
+import { PdfDocumentDefinition, PdfAttachmentDefinition, PdfDocument } from '../../../../../document/pdf.utilities';
+import { XML, XmlUtilities } from '../../../../../document/xml.utilities';
+import { MimeType } from '../../../../../http/mime-type.enum';
 import { ZIBRI_INVOICING_DI_TOKENS } from '../../../invoicing.tokens';
-import { Invoice, InvoiceItem, type InvoicingOptions, Vat } from '../../../models';
+import { InvoiceItem } from '../../../models/invoice-item.model';
+import { Invoice } from '../../../models/invoice.model';
+import { type InvoicingOptions } from '../../../models/invoicing-options.model';
+import { Vat } from '../../../models/vat.model';
 import { type InvoiceCalcServiceInterface } from '../../invoice-calc-service.interface';
 import { InvoiceConformance, InvoiceConformanceServiceInterface } from '../invoice-conformance-service.interface';
 

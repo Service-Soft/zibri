@@ -1,16 +1,20 @@
 import { randomBytes } from 'node:crypto';
 
 import { HiBase32Utilities } from './hi-base32.utilities';
-import { Repository } from '../../../../data-source';
-import { inject, Inject, repositoryTokenFor, ZIBRI_DI_TOKENS } from '../../../../di';
-import { UnauthorizedError } from '../../../../error-handling';
-import { HttpRequest, KnownHeader } from '../../../../http';
-import { validateEntitiesRegistered } from '../../../../utilities';
-import { WebsocketRequest } from '../../../../websocket';
-import { BaseUser } from '../../../models';
 import { TwoFactorMethod } from '../two-factor-method.interface';
 import { OtpCredentials, OtpCredentialsCreateData } from './otp-credentials.model';
 import { OtpUtilities } from './otp.utilities';
+import { Repository } from '../../../../data-source/repository';
+import { repositoryTokenFor } from '../../../../di/decorators/inject-repository.decorator';
+import { Inject } from '../../../../di/decorators/inject.decorator';
+import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default';
+import { inject } from '../../../../di/inject.function';
+import { UnauthorizedError } from '../../../../error-handling/errors/unauthorized.error';
+import { HttpRequest } from '../../../../http/http-request.model';
+import { KnownHeader } from '../../../../http/known-header.enum';
+import { validateEntitiesRegistered } from '../../../../utilities/validate-entities-registered.function';
+import { WebsocketRequest } from '../../../../websocket/models/websocket-request.model';
+import { BaseUser } from '../../../models/base-user.model';
 
 /**
  * The data for confirming the registration of the otp two factor method.

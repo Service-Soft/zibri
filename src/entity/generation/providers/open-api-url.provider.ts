@@ -1,9 +1,10 @@
 
 import { EntityGenerationProvider } from './entity-generation-provider.interface';
 import { openApiToV3 } from './open-api-to-v3.function';
-import { inject, ZIBRI_DI_TOKENS } from '../../../di';
-import { HttpClientInterface } from '../../../http-client';
-import { OpenApiDefinition } from '../../../open-api';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
+import { inject } from '../../../di/inject.function';
+import { HttpClientInterface } from '../../../http-client/http-client.interface';
+import { OpenApiDefinition } from '../../../open-api/open-api.model';
 
 /**
  * An entity generation provider using an open api url.

@@ -1,5 +1,6 @@
 import { BasePropertyMetadata, WithDefaultMetadata } from './base-property-metadata.model';
-import { AnyEnum, OmitStrict } from '../../types';
+import { AnyEnum } from '../../types/any-enum.type';
+import { OmitStrict } from '../../types/omit-strict.type';
 
 /**
  * The possible formats a string value can have.

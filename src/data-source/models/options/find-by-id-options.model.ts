@@ -1,6 +1,6 @@
 import { FindOneOptions } from './find-one-options.model';
 import { BaseEntity } from '../../../entity/base-entity.model';
-import { OmitStrict } from '../../../types';
+import { OmitStrict } from '../../../types/omit-strict.type';
 
 /**
  * Options for finding a single entity by its id.

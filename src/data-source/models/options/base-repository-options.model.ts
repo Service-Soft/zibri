@@ -1,4 +1,4 @@
-import { Transaction } from '../../transaction';
+import { Transaction } from '../../transaction/transaction.model';
 
 /**
  * Base options that are shared by all repository methods.

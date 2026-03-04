@@ -1,4 +1,4 @@
-import { ExcludeStrict } from '../types';
+import { ExcludeStrict } from '../types/exclude-strict.type';
 
 /**
  * All known mime types.

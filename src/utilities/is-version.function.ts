@@ -1,5 +1,5 @@
-import { Version } from '../types';
 import { isNumeric } from './is-numeric.function';
+import { Version } from '../types/version.type';
 
 // eslint-disable-next-line jsdoc/require-returns
 /**

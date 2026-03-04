@@ -1,9 +1,10 @@
 
 import { getEntityFileName } from './get-entity-file-name.function';
 import { EntityGenerationProvider } from './providers/entity-generation-provider.interface';
-import { OpenApiReferenceObject, OpenApiSchemaObject, OpenApiSchemas } from '../../open-api';
-import { ObjectUtilities, toPascalCase } from '../../utilities';
+import { OpenApiReferenceObject, OpenApiSchemaObject, OpenApiSchemas } from '../../open-api/open-api.model';
 import { addImportStatement } from '../../utilities/add-import-statement.function';
+import { ObjectUtilities } from '../../utilities/object.utilities';
+import { toPascalCase } from '../../utilities/to-pascal-case.function';
 
 /**
  * The result for generating a single entity.

@@ -1,13 +1,16 @@
-
-import { InvoiceConformance, InvoiceConformanceServiceInterface } from './conformance';
-import { InvoicePdfServiceInterface } from './invoice-pdf-service.interface';
-import { Inject, ZIBRI_DI_TOKENS } from '../../../di';
-import { PdfColumnDefinition, PdfContentDefinition, PdfContentSize, PdfDocument, PdfDocumentDefinition, PdfTableCellDefinition, PdfUtilities } from '../../../document';
-import type { FormatDateFn, FormatPercentFn, FormatPriceFn } from '../../../localization';
-import { BigNumber } from '../../../utilities';
-import { Invoice, type InvoicingOptions, Vat } from '../models';
+import { InvoiceConformanceServiceInterface, InvoiceConformance } from './conformance/invoice-conformance-service.interface';
 import { type InvoiceCalcServiceInterface } from './invoice-calc-service.interface';
+import { InvoicePdfServiceInterface } from './invoice-pdf-service.interface';
+import { Inject } from '../../../di/decorators/inject.decorator';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
+import { PdfContentDefinition, PdfColumnDefinition, PdfDocument, PdfDocumentDefinition, PdfUtilities, PdfTableCellDefinition, PdfContentSize } from '../../../document/pdf.utilities';
+import { type FormatDateFn } from '../../../localization/formatting/format-date-fn.model';
+import { type FormatPercentFn } from '../../../localization/formatting/format-percent-fn.model';
+import { type FormatPriceFn } from '../../../localization/formatting/format-price-fn.model';
 import { ZIBRI_INVOICING_DI_TOKENS } from '../invoicing.tokens';
+import { Invoice } from '../models/invoice.model';
+import { type InvoicingOptions } from '../models/invoicing-options.model';
+import { Vat } from '../models/vat.model';
 
 /**
  * Default implementation of the invoice pdf service.

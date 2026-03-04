@@ -1,7 +1,7 @@
-import { AnyObject } from '../../../entity';
-import { PaymentProviderInterface } from '../providers';
 import { PaymentMethod } from './payment-method.model';
 import { PaymentPluginOptions } from './payment-plugin-options.model';
+import { AnyObject } from '../../../entity/any-object.model';
+import { PaymentProviderInterface } from '../providers/payment-provider.interface';
 
 /**
  * Input for configuring the payment plugin.

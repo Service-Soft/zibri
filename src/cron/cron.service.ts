@@ -1,9 +1,11 @@
-import { inject, ZIBRI_DI_TOKENS } from '../di';
-import { LoggerInterface } from '../logging';
-import { Newable, OmitStrict } from '../types';
 import { CronJobEntity } from './cron-job-entity.model';
 import { CronJob } from './cron-job.model';
 import { CronServiceInterface } from './cron-service.interface';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { inject } from '../di/inject.function';
+import { LoggerInterface } from '../logging/logger.interface';
+import { Newable } from '../types/newable.type';
+import { OmitStrict } from '../types/omit-strict.type';
 
 /**
  * Data that can be used to update a cron job.

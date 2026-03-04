@@ -69,19 +69,19 @@ You can try the example above and navigate to your applications open api explore
 You should now see a new route get `/users` with the correctly defined return type.
 
 ## Inheritance for controllers
-You can use inheritance for controllers using generics and even with the provided helper types like "OmitType", "PickType" etc. Zibri additionally provides a helper type for defining base crud endpoints that you can also extend from:
+You can use inheritance for controllers using generics and even with the provided helper types like "OmitClass", "PickClass" etc. Zibri additionally provides a helper type for defining base crud endpoints that you can also extend from:
 
 ```ts
 // src/controllers/test-crud.controller.ts
-import { CombinedType, Controller, CrudController, OmitType, PickType } from 'zibri';
+import { IntersectionClass, Controller, CrudController, OmitClass, PickClass } from 'zibri';
 
 import { Test, TestCreateDTO, TestUpdateDTO } from '../models';
 import { MetricsController } from './metrics.controller';
 
 @Controller('/tests-crud')
-export class TestCrudController extends CombinedType(
-    OmitType(CrudController(Test, TestCreateDTO, TestUpdateDTO), ['deleteById']),
-    PickType(MetricsController, ['dashboard'])
+export class TestCrudController extends IntersectionClass(
+    OmitClass(CrudController(Test, TestCreateDTO, TestUpdateDTO), ['deleteById']),
+    PickClass(MetricsController, ['dashboard'])
 ) {}
 ```
 
@@ -123,7 +123,7 @@ export class UserController {
         @Body(UserCreateDTO) // <- Automatically handles validation for you
         createData: UserCreateDTO
     ): Promise<User> {
-        const createdUser = // ... create a new user
+        const createdUser: User = // ... create a new user
         return createdUser;
     }
 
@@ -152,7 +152,7 @@ export class NewsletterController {
         @Param.path('id', { type: 'string', format: 'uuid' })
         newsletterId: string,
         @Param.header('User-Agent')
-        userAgent: string
+        userAgent: string,
         @Param.query('affiliateId', { required: false })
         affiliateId?: string,
     ): Promise<void> {

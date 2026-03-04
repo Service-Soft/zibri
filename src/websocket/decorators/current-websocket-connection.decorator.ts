@@ -1,4 +1,4 @@
-import { MetadataUtilities } from '../../utilities';
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
 
 /**
  * Metadata of the \@CurrentWebsocketConnection decorator.
@@ -10,7 +10,6 @@ export type CurrentWebsocketConnectionMetadata = {
     index: number
 };
 
-// eslint-disable-next-line jsdoc/require-returns
 /**
  * Marks the parameter to be injected as the currently connected websocket.
  */

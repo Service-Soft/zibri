@@ -3,24 +3,34 @@ import { Readable } from 'stream';
 import { NextFunction, RequestHandler, Router as ExpressRouter } from 'express';
 
 import { Route, ControllerRouteConfiguration } from './controller-route-configuration.model';
-import { RouterInterface } from './router.interface';
-import { AuthServiceInterface, JwtAuthController } from '../auth';
-import { ZIBRI_DI_TOKENS, inject } from '../di';
-import { MetadataUtilities, Ms } from '../utilities';
+import { BodyMetadata, BodyMetadataInput, resolveMaxBodySize } from './decorators/body.decorator';
+import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata, PathParamMetadataInput, QueryParamMetadataInput, HeaderParamMetadataInput } from './decorators/param.decorator';
 import { MissingBaseRouteError } from './missing-base-route.error';
-import { ZibriApplication } from '../application';
-import { GlobalRegistry } from '../global';
-import { LoggerInterface } from '../logging';
-import { Newable } from '../types';
-import { BodyMetadata, BodyMetadataInput, HeaderParamMetadata, HeaderParamMetadataInput, PathParamMetadata, PathParamMetadataInput, QueryParamMetadata, QueryParamMetadataInput, resolveMaxBodySize } from './decorators';
-import { OpenApiRouteConfiguration, RouteConfiguration, RouteConfigurationInput } from './route-configuration.model';
-import { HttpMethod, HttpRequest, HttpResponse, KnownHeader, MimeType } from '../http';
-import { OpenApiResponse } from '../open-api';
-import { FileResponse, HtmlResponse, ParserInterface } from '../parsing';
-import { ValidationServiceInterface } from '../validation';
 import { createHeaderParamMetadata, createPathParamMetadata, createQueryParamMetadata } from './param-metdata.helpers';
+import { RouterInterface } from './router.interface';
+import { ZibriApplication } from '../application';
 import { runWithRequest } from './request.context';
 import { resolveRouteParams } from './resolve-route-params.function';
+import { OpenApiRouteConfiguration, RouteConfiguration, RouteConfigurationInput } from './route-configuration.model';
+import { AuthServiceInterface } from '../auth/auth-service.interface';
+import { JwtAuthController } from '../auth/strategies/jwt/jwt-auth.controller';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { inject } from '../di/inject.function';
+import { GlobalRegistry } from '../global/global-registry';
+import { HttpMethod } from '../http/http-method.enum';
+import { HttpRequest } from '../http/http-request.model';
+import { HttpResponse } from '../http/http-response.model';
+import { KnownHeader } from '../http/known-header.enum';
+import { MimeType } from '../http/mime-type.enum';
+import { LoggerInterface } from '../logging/logger.interface';
+import { OpenApiResponse } from '../open-api/open-api.model';
+import { FileResponse } from '../parsing/form-data/file-response.model';
+import { HtmlResponse } from '../parsing/html/html-response.model';
+import { ParserInterface } from '../parsing/parser.interface';
+import { Newable } from '../types/newable.type';
+import { MetadataUtilities } from '../utilities/metadata.utilities';
+import { Ms } from '../utilities/ms';
+import { ValidationServiceInterface } from '../validation/validation-service.interface';
 
 /**
  * Default router implementation of Zibri.
@@ -192,7 +202,7 @@ export class Router implements RouterInterface {
 
         for (const route of routes) {
             const handler: RequestHandler = await this.controllerRouteToRequestHandler(controllerClass, route);
-            const finalRoute: string = `${baseRoute}${route.route}`;
+            const finalRoute: string = baseRoute === '/' ? route.route : `${baseRoute}${route.route}`;
             if (this.allFinalRoutes.includes(`${route.httpMethod.toUpperCase()} ${finalRoute}`)) {
                 throw new Error(
                     `The route "${route.httpMethod.toUpperCase()} ${finalRoute}" has been defined more than once.`,
@@ -201,7 +211,7 @@ export class Router implements RouterInterface {
             }
             this.allFinalRoutes.push(`${route.httpMethod.toUpperCase()} ${finalRoute}`);
             await this.logger.debug(`- mounting ${route.httpMethod.toUpperCase()} ${finalRoute}`);
-            this.expressRouter[route.httpMethod](baseRoute + route.route, handler);
+            this.expressRouter[route.httpMethod](finalRoute, handler);
         }
     }
 

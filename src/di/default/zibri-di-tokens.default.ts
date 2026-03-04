@@ -1,22 +1,35 @@
-import { AssetServiceInterface } from '../../assets';
-import { AuthServiceInterface, TwoFactorServiceInterface, UserServiceInterface } from '../../auth';
-import { BackupServiceInterface } from '../../backup';
-import { CronServiceInterface } from '../../cron';
-import { DataSourceServiceInterface } from '../../data-source';
-import { EmailConfigInput, EmailServiceInterface, MailingListServiceInterface } from '../../email';
-import { GlobalErrorHandler } from '../../error-handling';
-import { HttpRequest } from '../../http';
-import { HttpClientInterface } from '../../http-client';
-import { FormatDateFn, FormatPercentFn, FormatPriceFn, LocalizeOptions, LocalizeOptionsInput } from '../../localization';
-import { BaseLoggerTransportConfig, LoggerInterface, LoggerTransport, LogLevel } from '../../logging';
-import { MetricsServiceInterface } from '../../metrics';
-import { MultithreadingOptions, MultithreadingServiceInterface } from '../../multithreading';
-import { OpenApiServiceInterface } from '../../open-api';
-import { ParserInterface } from '../../parsing';
-import { RouterInterface } from '../../routing';
-import { ValidationServiceInterface } from '../../validation';
-import { WebsocketOptions, WebsocketServiceInterface } from '../../websocket';
-import { InjectionToken, TokenRecord } from '../models';
+import { AssetServiceInterface } from '../../assets/asset-service.interface';
+import { TwoFactorServiceInterface } from '../../auth/2fa/two-factor-service.interface';
+import { AuthServiceInterface } from '../../auth/auth-service.interface';
+import { UserServiceInterface } from '../../auth/user/user-service.interface';
+import { BackupServiceInterface } from '../../backup/backup-service.interface';
+import { CronServiceInterface } from '../../cron/cron-service.interface';
+import { DataSourceServiceInterface } from '../../data-source/data-source-service.interface';
+import { EmailServiceInterface } from '../../email/email-service.interface';
+import { MailingListServiceInterface } from '../../email/mailing-list/mailing-list-service.interface';
+import { EmailConfigInput } from '../../email/models/email-config.model';
+import { GlobalErrorHandler, ErrorPageTemplate } from '../../error-handling/error-handler.model';
+import { HttpRequest } from '../../http/http-request.model';
+import { HttpClientInterface } from '../../http-client/http-client.interface';
+import { FormatDateFn } from '../../localization/formatting/format-date-fn.model';
+import { FormatPercentFn } from '../../localization/formatting/format-percent-fn.model';
+import { FormatPriceFn } from '../../localization/formatting/format-price-fn.model';
+import { LocalizeOptionsInput, LocalizeOptions } from '../../localization/models/localize-options.model';
+import { LogLevel } from '../../logging/log-level.enum';
+import { LoggerInterface } from '../../logging/logger.interface';
+import { LoggerTransport, BaseLoggerTransportConfig } from '../../logging/transport/logger-transport.model';
+import { MetricsServiceInterface } from '../../metrics/metrics-service.interface';
+import { MultithreadingOptions } from '../../multithreading/models/multithreading-options.model';
+import { MultithreadingServiceInterface } from '../../multithreading/services/multithreading-service.interface';
+import { OpenApiServiceInterface } from '../../open-api/open-api-service.interface';
+import { ParserInterface } from '../../parsing/parser.interface';
+import { RouterInterface } from '../../routing/router.interface';
+import { Path } from '../../utilities/fs.utilities';
+import { ValidationServiceInterface } from '../../validation/validation-service.interface';
+import { WebsocketOptions } from '../../websocket/models/websocket-options.model';
+import { WebsocketServiceInterface } from '../../websocket/services/websocket-service.interface';
+import { TokenRecord } from '../models/di-token.model';
+import { InjectionToken } from '../models/injection-token.model';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 function ziToken<T = never>(k: `zi.${string}`): InjectionToken<T> {
@@ -36,6 +49,7 @@ export const ZIBRI_DI_TOKENS = {
     ASSET_SERVICE: ziToken<AssetServiceInterface>('zi.asset_service'),
     BACKUP_SERVICE: ziToken<BackupServiceInterface>('zi.backup_service'),
     GLOBAL_ERROR_HANDLER: ziToken<GlobalErrorHandler>('zi.global_error_handler'),
+    ERROR_PAGE_TEMPLATE: ziToken<ErrorPageTemplate | undefined>('zi.error_page_template'),
     OPEN_API_SERVICE: ziToken<OpenApiServiceInterface>('zi.open_api_service'),
     AUTH_SERVICE: ziToken<AuthServiceInterface>('zi.auth_service'),
     TWO_FACTOR_SERVICE: ziToken<TwoFactorServiceInterface>('zi.two_factor_service'),
@@ -55,7 +69,7 @@ export const ZIBRI_DI_TOKENS = {
     ),
     USER_SERVICE: ziToken<UserServiceInterface>('zi.user_service'),
     CRON_SERVICE: ziToken<CronServiceInterface>('zi.cron_service'),
-    FILE_UPLOAD_TEMP_FOLDER: ziToken<string>('zi.file_upload_temp_folder'),
+    FILE_UPLOAD_TEMP_FOLDER: ziToken<Path>('zi.file_upload_temp_folder'),
     LOCALIZE_OPTIONS_INPUT: ziToken<LocalizeOptionsInput>('zi.localize_options_input'),
     LOCALIZE_OPTIONS: ziToken<LocalizeOptions>('zi.localize_options'),
     FORMAT_DATE: ziToken<FormatDateFn>('zi.format_date'),

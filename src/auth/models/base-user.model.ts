@@ -1,6 +1,7 @@
-import { Property } from '../../entity';
 import { BaseEntity } from '../../entity/base-entity.model';
-import { AnyEnum, Newable } from '../../types';
+import { Property } from '../../entity/decorators/property.decorator';
+import { AnyEnum } from '../../types/any-enum.type';
+import { Newable } from '../../types/newable.type';
 
 /**
  * Common properties shared by all users.

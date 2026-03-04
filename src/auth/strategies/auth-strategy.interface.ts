@@ -1,9 +1,9 @@
 import { BaseEntity } from '../../entity/base-entity.model';
-import { HttpRequest } from '../../http';
-import { OpenApiSecuritySchemeObject } from '../../open-api';
-import { Newable } from '../../types';
-import { WebsocketRequest } from '../../websocket';
-import { BaseUser } from '../models';
+import { HttpRequest } from '../../http/http-request.model';
+import { OpenApiSecuritySchemeObject } from '../../open-api/open-api.model';
+import { Newable } from '../../types/newable.type';
+import { WebsocketRequest } from '../../websocket/models/websocket-request.model';
+import { BaseUser } from '../models/base-user.model';
 
 /**
  * Interface for an auth strategy.

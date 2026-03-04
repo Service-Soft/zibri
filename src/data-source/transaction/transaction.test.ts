@@ -2,15 +2,16 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import { StartedTestContainer } from 'testcontainers';
 
-import { POSTGRES_TEST_IMAGE } from '../../__testing__';
-import { Entity, Property } from '../../entity';
+import { POSTGRES_TEST_IMAGE } from '../../__testing__/constants';
 import { BaseEntity } from '../../entity/base-entity.model';
-import { Newable } from '../../types';
-import { PostgresDataSource, PostgresOptions } from '../data-sources';
-import { DataSource } from '../decorators';
 import { Repository } from '../repository';
 import { Transaction } from './transaction.model';
-import { MigrationEntity } from '../migration';
+import { Entity } from '../../entity/decorators/entity.decorator';
+import { Property } from '../../entity/decorators/property.decorator';
+import { Newable } from '../../types/newable.type';
+import { PostgresDataSource, PostgresOptions } from '../data-sources/postgres-data-source.model';
+import { DataSource } from '../decorators/data-source.decorator';
+import { MigrationEntity } from '../migration/migration-entity.model';
 
 @Entity()
 class Item {

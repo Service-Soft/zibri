@@ -1,14 +1,20 @@
 import { beforeAll, afterAll, describe, it, expect } from '@jest/globals';
 import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 
-import { DataSource } from './decorators';
-import { inject } from '../di';
-import { BaseEntity } from '../entity/base-entity.model';
-import { Newable } from '../types';
-import { MigrationEntity } from './migration';
 import { Repository } from './repository';
-import { Child, Company, mockCreateUserData, Parent, POSTGRES_TEST_IMAGE, Profile, Role, User, UserCreateData } from '../__testing__';
-import { PostgresDataSource, PostgresOptions } from './data-sources';
+import { BaseEntity } from '../entity/base-entity.model';
+import { PostgresDataSource, PostgresOptions } from './data-sources/postgres-data-source.model';
+import { DataSource } from './decorators/data-source.decorator';
+import { MigrationEntity } from './migration/migration-entity.model';
+import { POSTGRES_TEST_IMAGE } from '../__testing__/constants';
+import { Child } from '../__testing__/mocks/entities/child.entity';
+import { Company } from '../__testing__/mocks/entities/company.entity';
+import { Parent } from '../__testing__/mocks/entities/parent.entity';
+import { Profile } from '../__testing__/mocks/entities/profile.entity';
+import { Role } from '../__testing__/mocks/entities/role.entity';
+import { User, UserCreateData, mockCreateUserData } from '../__testing__/mocks/entities/user.entity';
+import { inject } from '../di/inject.function';
+import { Newable } from '../types/newable.type';
 
 @DataSource()
 class TestDataSource extends PostgresDataSource {

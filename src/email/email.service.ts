@@ -1,16 +1,22 @@
-
 import { createTransport, Transporter } from 'nodemailer';
 import SMTPTransport from 'nodemailer/lib/smtp-transport';
 
-import { Repository } from '../data-source';
-import { inject, repositoryTokenFor, ZIBRI_DI_TOKENS } from '../di';
 import { EmailServiceInterface } from './email-service.interface';
-import { CreateEmailData, Email, EmailAttachment, EmailConfig, EmailConfigInput, EmailPriority, EmailStatus, QueueEmailData } from './models';
 import { ZibriApplication } from '../application';
-import { pathExists } from '../utilities';
+import { CreateEmailData, QueueEmailData } from './models/create-email-data.model';
 import { SendQueuedEmailsCronJob } from './send-queued-emails.cron-job';
-import { LoggerInterface } from '../logging';
-import { RateLimiter } from '../rate-limiting';
+import { Repository } from '../data-source/repository';
+import { Email } from './models/email.model';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { inject } from '../di/inject.function';
+import { LoggerInterface } from '../logging/logger.interface';
+import { RateLimiter } from '../rate-limiting/rate-limiter';
+import { FsUtilities } from '../utilities/fs.utilities';
+import { EmailAttachment } from './models/email-attachment.model';
+import { EmailConfig, EmailConfigInput } from './models/email-config.model';
+import { EmailPriority } from './models/email-priority.enum';
+import { EmailStatus } from './models/email-status.enum';
 
 /**
  * Default email service implementation of Zibri.
@@ -126,7 +132,7 @@ export class EmailService implements EmailServiceInterface {
 
         await Promise.all(
             attachments.map(async a => {
-                if (!await pathExists(a.path)) {
+                if (!await FsUtilities.exists(a.path)) {
                     throw new Error(`mail attachment at path ${a.path} does not exist`);
                 }
             })

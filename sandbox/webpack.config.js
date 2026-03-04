@@ -2,7 +2,9 @@
 const path = require('path');
 const { spawn } = require('child_process');
 const CopyPlugin = require('copy-webpack-plugin');
-const { generateHandlebarTypeFiles, generateEntityFiles } = require('zibri');
+const { generateHandlebarTypeFiles, generateEntityFiles, generateClientScripts } = require('zibri');
+const MiniCssExtractPlugin = require('mini-css-extract-plugin');
+const { NormalModuleReplacementPlugin } = require('webpack');
 
 class OnBuildSuccessPlugin {
     /** @type {import('webpack').WebpackPluginFunction } */
@@ -45,6 +47,16 @@ class EntityGenerationPlugin {
     }
 }
 
+class ClientScriptsGenerationPlugin {
+    /** @type {import('webpack').WebpackPluginFunction } */
+    apply(compiler) {
+        compiler.hooks.beforeCompile.tapPromise(
+            'ClientScriptsGenerationPlugin',
+            () => generateClientScripts()
+        );
+    }
+}
+
 /** @type {import('webpack').Configuration} */
 module.exports = {
     target: 'node',
@@ -60,10 +72,13 @@ module.exports = {
         }
     ],
     mode: 'none',
-    entry: './src/index.ts',
+    entry: {
+        bundle: './src/index.ts',
+        style: './assets/public/style.css'
+    },
     output: {
         path: path.resolve(__dirname, 'dist'),
-        filename: 'bundle.js',
+        filename: '[name].js',
         devtoolModuleFilenameTemplate: info => {
             // info.resourcePath is the original filename (e.g. './src/controllers/test.controller.ts')
             // We strip leading './' and make it absolute for editors to link
@@ -100,10 +115,11 @@ module.exports = {
         '@sap\/hana-client\/extension\/Stream': 'commonjs2 @sap\/hana-client\/extension\/Stream',
         'ts-node': 'commonjs2 ts-node',
         'utf-8-validate': 'utf-8-validate',
-        bufferutil: 'bufferutil'
+        bufferutil: 'bufferutil',
+        'macos-temperature-sensor': 'macos-temperature-sensor'
     },
     resolve: {
-        extensions: ['.ts', '.js']
+        extensions: ['.ts', '.tsx', '.js', '.css']
     },
     module: {
         rules: [
@@ -134,13 +150,30 @@ module.exports = {
                         }
                     }
                 ]
+            },
+            {
+                test: /\.css$/i,
+                use: [
+                    MiniCssExtractPlugin.loader,
+                    {
+                        loader: 'css-loader',
+                        options: { importLoaders: 1, esModule: false }
+                    },
+                    'postcss-loader'
+                ]
             }
         ]
     },
     plugins: [
         new HandlebarsTypegenPlugin(),
+        new ClientScriptsGenerationPlugin(),
         new EntityGenerationPlugin(),
         new OnBuildSuccessPlugin(),
+        new MiniCssExtractPlugin({ filename: 'assets/public/style.css' }),
+        new NormalModuleReplacementPlugin(
+            /^([^?]+)\?client$/,
+            (resource) => resource.request = resource.request.replace(/\?client$/, '')
+        ),
         new CopyPlugin({
             patterns: [
                 {
