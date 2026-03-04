@@ -1,6 +1,6 @@
 import { ChangeSetEntity, isChangeSetEntityNewable } from './change-set-entity.model';
-import { Newable } from '../../types';
-import { MetadataUtilities } from '../../utilities';
+import { Newable } from '../../types/newable.type';
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
 
 /**
  * An entity that can be handled by the SoftDeleteRepository.

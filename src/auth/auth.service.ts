@@ -1,16 +1,25 @@
-import { inject, ZIBRI_DI_TOKENS } from '../di';
+import { AuthServiceInterface } from './auth-service.interface';
 import { register } from '../di/register.function';
 import { BaseEntity } from '../entity/base-entity.model';
-import { UnauthorizedError } from '../error-handling';
-import { HttpRequest } from '../http';
-import { LoggerInterface } from '../logging';
-import { Newable } from '../types';
-import { MetadataUtilities, PromiseUtilities } from '../utilities';
-import { WebsocketRequest } from '../websocket';
-import { TwoFactorServiceInterface } from './2fa';
-import { AuthServiceInterface } from './auth-service.interface';
-import { BaseUser, BelongsToMetadata, HasRoleMetadata, IsLoggedInMetadata, IsNotLoggedInMetadata, Require2faMetadata, SkipAuthMetadata, SkipBelongsToMetadata, SkipHasRoleMetadata, SkipIsLoggedInMetadata, SkipIsNotLoggedInMetadata, SkipRequire2faMetadata } from './models';
-import { AuthStrategies, AuthStrategyInterface } from './strategies';
+import { TwoFactorServiceInterface } from './2fa/two-factor-service.interface';
+import { BaseUser } from './models/base-user.model';
+import { BelongsToMetadata, SkipBelongsToMetadata } from './models/belongs-to-metadata.model';
+import { HasRoleMetadata, SkipHasRoleMetadata } from './models/has-role-metadata.model';
+import { IsLoggedInMetadata, SkipIsLoggedInMetadata } from './models/is-logged-in-metadata.model';
+import { IsNotLoggedInMetadata, SkipIsNotLoggedInMetadata } from './models/is-not-logged-in-metadata.model';
+import { Require2faMetadata, SkipRequire2faMetadata } from './models/require-2fa-metadata.model';
+import { SkipAuthMetadata } from './models/skip-auth-metadata.model';
+import { AuthStrategies } from './strategies/auth-strategies.model';
+import { AuthStrategyInterface } from './strategies/auth-strategy.interface';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { inject } from '../di/inject.function';
+import { UnauthorizedError } from '../error-handling/errors/unauthorized.error';
+import { HttpRequest } from '../http/http-request.model';
+import { LoggerInterface } from '../logging/logger.interface';
+import { Newable } from '../types/newable.type';
+import { MetadataUtilities } from '../utilities/metadata.utilities';
+import { PromiseUtilities } from '../utilities/promise.utilities';
+import { WebsocketRequest } from '../websocket/models/websocket-request.model';
 
 /**
  * Default auth service implementation of Zibri.

@@ -1,12 +1,13 @@
-import { mkdir } from 'fs/promises';
-import path from 'path';
 
 import { generateEntityFile, GenerateEntityFileResult } from './generate-entity-file.function';
 import { getEntityFileName } from './get-entity-file-name.function';
-import { EntityGenerationProvider } from './providers';
+import { EntityGenerationProvider } from './providers/entity-generation-provider.interface';
 import { warn } from '../../logging/logger.helpers';
-import { OpenApiDefinition, OpenApiOperation, OpenApiReferenceObject, OpenApiResponseObject, OpenApiSchemaObject, OpenApiSchemas } from '../../open-api';
-import { ObjectUtilities, pathExists, toKebabCase, toPascalCase } from '../../utilities';
+import { OpenApiDefinition, OpenApiSchemas, OpenApiOperation, OpenApiResponseObject, OpenApiReferenceObject, OpenApiSchemaObject } from '../../open-api/open-api.model';
+import { FsUtilities, Path } from '../../utilities/fs.utilities';
+import { ObjectUtilities } from '../../utilities/object.utilities';
+import { toKebabCase } from '../../utilities/to-kebab-case.function';
+import { toPascalCase } from '../../utilities/to-pascal-case.function';
 
 /**
  * All data needed to generate a file.
@@ -15,7 +16,7 @@ export type FileToGenerate = {
     /**
      * The path where the file should be generated.
      */
-    path: string,
+    path: Path,
     /**
      * The actual content of the file in lines.
      */
@@ -122,8 +123,8 @@ export async function generateEntityFilesForProvider(
             const fileName: string = getEntityFileName(provider.prefix, key);
 
             // eslint-disable-next-line sonar/no-duplicate-string
-            const filePath: string = path.join(cwd, 'src/models/generated', toKebabCase(provider.prefix), fileName);
-            if (await pathExists(filePath)) {
+            const filePath: Path = FsUtilities.getPath(cwd, 'src/models/generated', toKebabCase(provider.prefix), fileName);
+            if (await FsUtilities.exists(filePath)) {
                 processedSchemas.add(key);
                 continue;
             }
@@ -153,8 +154,11 @@ export async function generateEntityFilesForProvider(
         };
     }
 
-    await mkdir(path.join(cwd, 'src/models/generated', toKebabCase(provider.prefix)), { recursive: true });
-    filesToGenerate.push({ path: path.join(cwd, 'src/models/generated', toKebabCase(provider.prefix), 'index.ts'), lines: indexLines });
+    await FsUtilities.mkdir(FsUtilities.getPath(cwd, 'src/models/generated', toKebabCase(provider.prefix)));
+    filesToGenerate.push({
+        path: FsUtilities.getPath(cwd, 'src/models/generated', toKebabCase(provider.prefix), 'index.ts'),
+        lines: indexLines
+    });
 
     return {
         filesToGenerate,

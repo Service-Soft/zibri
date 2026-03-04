@@ -1,5 +1,6 @@
-import { Repository } from '../../data-source';
-import { inject, repositoryTokenFor } from '../../di';
+import { Repository } from '../../data-source/repository';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
+import { inject } from '../../di/inject.function';
 import { Log } from '../log.model';
 
 /**

@@ -3,9 +3,11 @@ import assert from 'assert';
 import { describe, expect, it } from '@jest/globals';
 
 import { FileToGenerate, generateEntityFilesForProvider } from './generate-entity-files-for-provider.function';
-import { EntityGenerationProvider, OpenApiUrlProvider } from './providers';
-import { OpenApiDefinition } from '../../open-api';
-import { toKebabCase, toPascalCase } from '../../utilities';
+import { EntityGenerationProvider } from './providers/entity-generation-provider.interface';
+import { OpenApiUrlProvider } from './providers/open-api-url.provider';
+import { OpenApiDefinition } from '../../open-api/open-api.model';
+import { toKebabCase } from '../../utilities/to-kebab-case.function';
+import { toPascalCase } from '../../utilities/to-pascal-case.function';
 
 // small InlineProvider so tests are offline and deterministic
 class InlineProvider implements EntityGenerationProvider {

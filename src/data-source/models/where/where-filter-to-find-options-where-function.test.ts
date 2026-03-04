@@ -4,7 +4,8 @@ import { EqualOperator, FindOptionsWhere, FindOperator, Equal, Raw } from 'typeo
 
 import { whereFilterToFindOptionsWhere } from './where-filter-to-find-options-where.function';
 import { Where } from './where-filter.model';
-import { Address, User } from '../../../__testing__';
+import { Address } from '../../../__testing__/mocks/entities/address.model';
+import { User } from '../../../__testing__/mocks/entities/user.entity';
 
 describe('whereFilterToFindOptionsWhere - primitive filters', () => {
     it('string equality', () => {

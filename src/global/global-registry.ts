@@ -1,11 +1,12 @@
 import { ZibriApplicationOptions } from '../application-options.model';
-import { UserRepositories } from '../auth';
-import { BackupResourceInterface } from '../backup';
-import { DataSourceInterface } from '../data-source';
-import { DiProvider } from '../di';
+import { UserRepositories } from '../auth/models/user-repositories.model';
+import { BackupResourceInterface } from '../backup/backup-resource.interface';
+import { DataSourceInterface } from '../data-source/data-sources/data-source.interface';
+import { DiProvider } from '../di/models/di-provider.model';
 import { BaseEntity } from '../entity/base-entity.model';
-import { BodyParserInterface } from '../parsing';
-import { Newable, Version } from '../types';
+import { BodyParserInterface } from '../parsing/body-parser.interface';
+import { Newable } from '../types/newable.type';
+import { Version } from '../types/version.type';
 
 /**
  * The possible state that the app can be in.

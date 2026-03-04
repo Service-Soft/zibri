@@ -1,8 +1,9 @@
-import { Entity, Property } from '../entity';
 import { LogContext } from './log-context.model';
 import { LogLevel } from './log-level.enum';
 import { LoggedError } from './logged-error.model';
 import { BaseEntity } from '../entity/base-entity.model';
+import { Entity } from '../entity/decorators/entity.decorator';
+import { Property } from '../entity/decorators/property.decorator';
 
 /**
  * The data saved for a log entry.

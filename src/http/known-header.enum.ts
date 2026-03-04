@@ -1,4 +1,4 @@
-import { ObjectUtilities } from '../utilities';
+import { ObjectUtilities } from '../utilities/object.utilities';
 
 /**
  * Known http headers.

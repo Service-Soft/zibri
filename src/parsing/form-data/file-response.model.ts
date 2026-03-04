@@ -1,12 +1,12 @@
-import { stat } from 'fs/promises';
-import path from 'path';
 import { Readable } from 'stream';
 
-import { inject, ZIBRI_DI_TOKENS } from '../../di';
-import { LooseFileMimeType, resolveMimeType } from '../../http';
-import { LoggerInterface } from '../../logging';
-import { OmitStrict } from '../../types';
-import { pathExists } from '../../utilities';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
+import { inject } from '../../di/inject.function';
+import { LooseFileMimeType } from '../../http/mime-type.enum';
+import { resolveMimeType } from '../../http/mime-type.helpers';
+import { LoggerInterface } from '../../logging/logger.interface';
+import { OmitStrict } from '../../types/omit-strict.type';
+import { FsUtilities, Path } from '../../utilities/fs.utilities';
 
 /**
  * Data shared by all FileResponses.
@@ -70,12 +70,12 @@ export class FileResponse {
      * @param options - Additional options like file size.
      * @returns A new FileResponse.
      */
-    static async fromPath(p: string, options?: OmitStrict<PathFileResponseData, 'path'>): Promise<FileResponse> {
-        const fullPath: string = path.resolve(p);
-        const fileName: string = options?.filename ?? path.basename(fullPath);
+    static async fromPath(p: Path, options?: OmitStrict<PathFileResponseData, 'path'>): Promise<FileResponse> {
+        const fullPath: Path = FsUtilities.resolve(p);
+        const fileName: string = options?.filename ?? FsUtilities.baseName(fullPath);
         const mimeType: string = options?.mimeType ?? resolveMimeType(fileName);
 
-        if (!await pathExists(p)) {
+        if (!await FsUtilities.exists(p)) {
             throw new Error(`the file at path "${p}" does not exist.`);
         }
         if (!fileName.includes('.') && options?.mimeType == undefined) {
@@ -83,7 +83,7 @@ export class FileResponse {
             await logger.warn('the file name does not include a extension and no mimetype was provided.');
         }
 
-        const size: number = options?.size ?? (await stat(fullPath)).size;
+        const size: number = options?.size ?? (await FsUtilities.stat(fullPath)).size;
 
         return new this(fullPath, fileName, mimeType, size);
     }

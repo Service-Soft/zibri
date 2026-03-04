@@ -1,6 +1,6 @@
 import { SoftDeleteEntity } from './soft-delete-entity.model';
-import { WhereFilter } from '../../data-source';
-import { OmitStrict } from '../../types';
+import { WhereFilter } from '../../data-source/models/where/where-filter.model';
+import { OmitStrict } from '../../types/omit-strict.type';
 
 /**
  * A single where filter for a soft delete entity.

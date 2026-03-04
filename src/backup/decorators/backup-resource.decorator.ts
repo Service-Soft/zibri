@@ -1,12 +1,11 @@
 
 import { BackupResourceMetadata, BackupResourceMetadataInput } from './backup-resource-metadata.model';
-import { DiToken } from '../../di';
-import { GlobalRegistry } from '../../global';
-import { Newable } from '../../types';
-import { MetadataUtilities } from '../../utilities';
+import { DiToken } from '../../di/models/di-token.model';
+import { GlobalRegistry } from '../../global/global-registry';
+import { Newable } from '../../types/newable.type';
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { BackupResourceInterface } from '../backup-resource.interface';
 
-// eslint-disable-next-line jsdoc/require-returns
 /**
  * Marks a resource that should be backed up. Needs to implement "BackupResourceInterface".
  * @param metadata - The metadata to set.

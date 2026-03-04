@@ -1,4 +1,4 @@
-import { Newable } from '../types';
+import { Newable } from '../types/newable.type';
 import { copyClassProperties } from './utilities/copy-class-properties.function';
 
 // eslint-disable-next-line jsdoc/require-jsdoc

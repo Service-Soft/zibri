@@ -1,7 +1,6 @@
-
-import { PdfDocument } from '../../../document';
-import { Invoice as BaseInvoice } from '../models';
-import { InvoiceConformance } from './conformance';
+import { InvoiceConformance } from './conformance/invoice-conformance-service.interface';
+import { PdfDocument } from '../../../document/pdf.utilities';
+import { Invoice as BaseInvoice } from '../models/invoice.model';
 
 /**
  * Handles generating pdf invoice files.

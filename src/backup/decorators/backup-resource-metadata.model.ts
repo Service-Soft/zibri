@@ -1,4 +1,4 @@
-import { BackupTransportInterface } from '../transports';
+import { BackupTransportInterface } from '../transports/backup-transport.interface';
 
 /**
  * The metadata for a resource marked with \@Backup.

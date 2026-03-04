@@ -1,13 +1,9 @@
-import { readFile, writeFile, stat } from 'fs/promises';
-import { dirname, basename, join } from 'path';
-
-import { sync as globSync } from 'glob';
-import { parse } from 'handlebars';
-
-import { ObjectUtilities, pathExists } from '../utilities';
 import { AstProgram } from './ast.model';
+import { HandlebarUtilities } from './handlebar.utilities';
 import { resolveAllArrayKeys } from './resolve-all-array-keys.function';
 import { resolveTree } from './resolve-tree.function';
+import { FsUtilities, Path } from '../utilities/fs.utilities';
+import { ObjectUtilities } from '../utilities/object.utilities';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 export type PathTree = {
@@ -18,7 +14,7 @@ export type PathTree = {
  * Generate type files for handlebar files (.hbs), so that they expose a correctly typed "renderTemplate" function.
  */
 export async function generateHandlebarTypeFiles(): Promise<void> {
-    const templateFiles: string[] = globSync('src/templates/**/*.hbs');
+    const templateFiles: Path[] = await FsUtilities.glob('src/templates/**/*.hbs');
 
     for (const file of templateFiles) {
         if (await canBeSkipped(file)) {
@@ -26,8 +22,8 @@ export async function generateHandlebarTypeFiles(): Promise<void> {
         }
 
         try {
-            const src: string = await readFile(file, 'utf8');
-            const ast: AstProgram = parse(src, { srcName: file }) as AstProgram;
+            const src: string = await FsUtilities.readFile(file);
+            const ast: AstProgram = HandlebarUtilities.parse(src, { srcName: file });
             await generateHandlebarType(ast, file);
         }
         catch (error) {
@@ -38,7 +34,7 @@ export async function generateHandlebarTypeFiles(): Promise<void> {
 }
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-export async function generateHandlebarType(ast: AstProgram, file: string): Promise<string[]> {
+export async function generateHandlebarType(ast: AstProgram, file: Path): Promise<string[]> {
     const arrayKeys: string[] = [...new Set(resolveAllArrayKeys(ast, undefined))];
     const tree: PathTree = resolveTree(ast, arrayKeys);
     const arrayKeysWithoutThis: string[] = arrayKeys.map(k => k.replaceAll('this.', ''));
@@ -46,14 +42,21 @@ export async function generateHandlebarType(ast: AstProgram, file: string): Prom
 }
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-async function generateTypeFile(tree: PathTree, arrayKeys: string[], file: string): Promise<string[]> {
+async function generateTypeFile(tree: PathTree, arrayKeys: string[], file: Path): Promise<string[]> {
+    const typeLines: string[] = generateInterfaceLines(tree, arrayKeys);
+    const type: string[] = typeLines.length
+        ? [
+            'type Context = {',
+            ...typeLines,
+            '};'
+        ]
+        : ['type Context = Record<string, never>;'];
+
     const content: string = [
         '// auto-generated — do not edit',
-        `import raw from './${basename(file)}';`,
+        `import raw from './${FsUtilities.baseName(file)}';`,
         '',
-        'interface Context {',
-        ...generateInterfaceLines(tree, arrayKeys),
-        '}',
+        ...type,
         '',
         'const renderTemplate: (ctx: Context) => string = raw;',
         'export default renderTemplate;'
@@ -61,8 +64,8 @@ async function generateTypeFile(tree: PathTree, arrayKeys: string[], file: strin
         .join('\n')
         .replace('mailingListData:', 'mailingListData?:');
 
-    const outFile: string = join(dirname(file), `${basename(file)}.ts`);
-    await writeFile(outFile, content, 'utf8');
+    const outFile: Path = FsUtilities.getPath(FsUtilities.dirName(file), `${FsUtilities.baseName(file)}.ts`);
+    await FsUtilities.upsertFile(outFile, content);
 
     return content.split('\n');
 }
@@ -102,13 +105,13 @@ function generateInterfaceLines(
 }
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-async function canBeSkipped(hbsFile: string): Promise<boolean> {
-    const tsFile: string = `${hbsFile}.ts`;
+async function canBeSkipped(hbsFile: Path): Promise<boolean> {
+    const tsFile: Path = FsUtilities.getPath(`${hbsFile}.ts`);
 
-    if (!await pathExists(tsFile)) {
+    if (!await FsUtilities.exists(tsFile)) {
         return false;
     }
 
-    const [hbsStats, tsStats] = await Promise.all([stat(hbsFile), stat(tsFile)]);
+    const [hbsStats, tsStats] = await Promise.all([FsUtilities.stat(hbsFile), FsUtilities.stat(tsFile)]);
     return tsStats.mtimeMs >= hbsStats.mtimeMs;
 }

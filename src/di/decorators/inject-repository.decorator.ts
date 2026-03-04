@@ -1,8 +1,9 @@
-import { Repository } from '../../data-source';
+import { Repository } from '../../data-source/repository';
 import { BaseEntity } from '../../entity/base-entity.model';
-import { Newable } from '../../types';
-import { MetadataUtilities } from '../../utilities';
-import { DiToken, InjectionToken } from '../models';
+import { Newable } from '../../types/newable.type';
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { DiToken } from '../models/di-token.model';
+import { InjectionToken } from '../models/injection-token.model';
 
 const allRepositoryTokens: Record<string, DiToken<Repository<BaseEntity>>> = {};
 
@@ -17,7 +18,6 @@ export function repositoryTokenFor<T extends Newable<BaseEntity>>(entity: T): Di
     return allRepositoryTokens[key] as DiToken<Repository<InstanceType<T>>>;
 }
 
-// eslint-disable-next-line jsdoc/require-returns
 /**
  * Marks the parameter to be injected as a Repository of the provided class.
  * @param entityClass - The class of which the Repository should be injected.

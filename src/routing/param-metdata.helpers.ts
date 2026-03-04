@@ -1,5 +1,5 @@
-import { PathParamMetadataInput, PathParamMetadata, QueryParamMetadataInput, QueryParamMetadata, HeaderParamMetadataInput, HeaderParamMetadata } from './decorators';
-import { ArrayParamItemMetadata, ArrayParamItemMetadataInput } from './models';
+import { PathParamMetadataInput, PathParamMetadata, QueryParamMetadataInput, QueryParamMetadata, HeaderParamMetadataInput, HeaderParamMetadata } from './decorators/param.decorator';
+import { ArrayParamItemMetadataInput, ArrayParamItemMetadata } from './models/array-param-metadata.model';
 
 /**
  * Creates path parameter metadata for the parameter with the given name and input.

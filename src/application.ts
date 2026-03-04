@@ -4,25 +4,35 @@ import cors from 'cors';
 import express, { RequestHandler } from 'express';
 
 import { ZibriApplicationOptions } from './application-options.model';
-import { AssetServiceInterface } from './assets';
-import { AuthServiceInterface, JwtAuthStrategy, OtpTwoFactorMethod, TwoFactorServiceInterface } from './auth';
-import { BackupServiceInterface } from './backup';
-import { CronServiceInterface } from './cron';
-import { DataSourceServiceInterface } from './data-source';
-import { ZIBRI_DI_TOKENS, inject } from './di';
+import { AssetServiceInterface } from './assets/asset-service.interface';
+import { OtpTwoFactorMethod } from './auth/2fa/methods/otp/otp.two-factor-method';
+import { TwoFactorServiceInterface } from './auth/2fa/two-factor-service.interface';
+import { AuthServiceInterface } from './auth/auth-service.interface';
+import { JwtAuthStrategy } from './auth/strategies/jwt/jwt.auth-strategy';
+import { BackupServiceInterface } from './backup/backup-service.interface';
+import { CronServiceInterface } from './cron/cron-service.interface';
+import { DataSourceServiceInterface } from './data-source/data-source-service.interface';
+import { ZIBRI_DI_TOKENS } from './di/default/zibri-di-tokens.default';
+import { inject } from './di/inject.function';
 import { register } from './di/register.function';
-import { EmailServiceInterface, MailingListServiceInterface } from './email';
-import { GlobalErrorHandler, UnmatchedRouteError } from './error-handling';
-import { GlobalRegistry } from './global';
+import { EmailServiceInterface } from './email/email-service.interface';
+import { MailingListServiceInterface } from './email/mailing-list/mailing-list-service.interface';
+import { GlobalErrorHandler } from './error-handling/error-handler.model';
+import { UnmatchedRouteError } from './error-handling/errors/unmatched-route.error';
+import { GlobalRegistry } from './global/global-registry';
 import { HandlebarUtilities } from './handlebars/handlebar.utilities';
-import { LoggerInterface } from './logging';
-import { MetricsServiceInterface } from './metrics';
-import { MultithreadingServiceInterface } from './multithreading';
-import { OpenApiServiceInterface } from './open-api';
-import { FormDataBodyParser, JsonBodyParser, ParserInterface } from './parsing';
-import { Route, RouterInterface } from './routing';
-import { OmitStrict } from './types';
-import { BaseWebsocketConnection, WebsocketServiceInterface } from './websocket';
+import { LoggerInterface } from './logging/logger.interface';
+import { MetricsServiceInterface } from './metrics/metrics-service.interface';
+import { MultithreadingServiceInterface } from './multithreading/services/multithreading-service.interface';
+import { OpenApiServiceInterface } from './open-api/open-api-service.interface';
+import { FormDataBodyParser } from './parsing/form-data/form-data.body-parser';
+import { JsonBodyParser } from './parsing/json/json.body-parser';
+import { ParserInterface } from './parsing/parser.interface';
+import { Route } from './routing/controller-route-configuration.model';
+import { RouterInterface } from './routing/router.interface';
+import { OmitStrict } from './types/omit-strict.type';
+import { BaseWebsocketConnection } from './websocket/models/connection/base-websocket-connection.model';
+import { WebsocketServiceInterface } from './websocket/services/websocket-service.interface';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 type FullZibriApplicationOptions = Required<OmitStrict<ZibriApplicationOptions, 'plugins'>>;
@@ -96,7 +106,7 @@ export class ZibriApplication {
      * @param H - The global handlebars instance, needed to provide some helpers used in templating.
      */
     async init(H: typeof Handlebars): Promise<void> {
-        HandlebarUtilities.init(H);
+        await HandlebarUtilities.init(H);
         GlobalRegistry.setAppData(this.options);
 
         for (const provider of this.options.providers) {

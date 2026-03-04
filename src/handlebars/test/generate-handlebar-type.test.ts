@@ -1,12 +1,11 @@
-import { readFile } from 'fs/promises';
-import * as fsPromises from 'fs/promises';
-import path from 'path';
+import * as fsPromises from 'node:fs/promises';
 
 import { describe, expect, it, jest } from '@jest/globals';
-import { parse } from 'handlebars';
 
+import { FsUtilities } from '../../utilities/fs.utilities';
 import { AstProgram } from '../ast.model';
 import { generateHandlebarType } from '../generate-handlebar-type-files.function';
+import { HandlebarUtilities } from '../handlebar.utilities';
 
 jest.mock('fs/promises', () => {
     // Pull in the real implementations…
@@ -20,15 +19,15 @@ jest.mock('fs/promises', () => {
 
 describe('generateHandlebarType', () => {
     it('example.hbs', async () => {
-        const src: string = await readFile(path.join(__dirname, 'example.hbs'), 'utf8');
-        const ast: AstProgram = parse(src, { srcName: './example.hbs' }) as AstProgram;
-        const lines: string[] = await generateHandlebarType(ast, 'example.hbs');
+        const src: string = await FsUtilities.readFile(FsUtilities.getPath(__dirname, 'example.hbs'));
+        const ast: AstProgram = HandlebarUtilities.parse(src, { srcName: './example.hbs' });
+        const lines: string[] = await generateHandlebarType(ast, FsUtilities.getPath('example.hbs'));
 
         expect(lines).toEqual([
             '// auto-generated — do not edit',
             'import raw from \'./example.hbs\';',
             '',
-            'interface Context {',
+            'type Context = {',
             '    user: {',
             '        name: string',
             '    },',
@@ -45,7 +44,7 @@ describe('generateHandlebarType', () => {
             '        }[]',
             '    }[],',
             '    categories: string[]',
-            '}',
+            '};',
             '',
             'const renderTemplate: (ctx: Context) => string = raw;',
             'export default renderTemplate;'
@@ -53,15 +52,15 @@ describe('generateHandlebarType', () => {
     });
 
     it('example-2.hbs', async () => {
-        const src: string = await readFile(path.join(__dirname, 'example-2.hbs'), 'utf8');
-        const ast: AstProgram = parse(src, { srcName: './example-2.hbs' }) as AstProgram;
-        const lines: string[] = await generateHandlebarType(ast, 'example-2.hbs');
+        const src: string = await FsUtilities.readFile(FsUtilities.getPath(__dirname, 'example-2.hbs'));
+        const ast: AstProgram = HandlebarUtilities.parse(src, { srcName: './example-2.hbs' });
+        const lines: string[] = await generateHandlebarType(ast, FsUtilities.getPath('example-2.hbs'));
 
         expect(lines).toEqual([
             '// auto-generated — do not edit',
             'import raw from \'./example-2.hbs\';',
             '',
-            'interface Context {',
+            'type Context = {',
             '    currentUser: {',
             '        name: string,',
             '        role: string,',
@@ -85,7 +84,7 @@ describe('generateHandlebarType', () => {
             '        mode: string',
             '    },',
             '    year: string',
-            '}',
+            '};',
             '',
             'const renderTemplate: (ctx: Context) => string = raw;',
             'export default renderTemplate;'

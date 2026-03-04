@@ -1,5 +1,5 @@
 import { BadRequestError } from './bad-request.error';
-import { ValidationProblem } from '../../validation';
+import { ValidationProblem } from '../../validation/validation-problem.model';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 type ValidationErrorType = 'body' | 'path' | 'query' | 'header' | 'websocketRequest';

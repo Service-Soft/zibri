@@ -1,4 +1,4 @@
-import { MetadataUtilities } from '../../utilities';
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
 
 /**
  * Gets the stack trace for dependency resolution.

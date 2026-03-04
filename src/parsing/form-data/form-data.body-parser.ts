@@ -1,25 +1,36 @@
-import { createWriteStream, WriteStream } from 'fs';
-import { mkdir, rm } from 'fs/promises';
-import path from 'path';
+import { WriteStream } from 'node:fs';
 import { Readable } from 'stream';
 import { pipeline } from 'stream/promises';
 
 import { Busboy, BusboyFileStream } from '@fastify/busboy';
 
-import { File } from './file.model';
-import { ZibriApplication } from '../../application';
-import { inject, ZIBRI_DI_TOKENS } from '../../di';
-import { ContentTooLargeError } from '../../error-handling';
-import { FileExtension, HttpRequest, KnownHeader, MimeType, resolveFileExtension } from '../../http';
-import { HttpClientResponse } from '../../http-client';
-import { BodyMetadata } from '../../routing';
-import { BodyParserInterface } from '../body-parser.interface';
-import { BodyParser } from '../decorators';
 import { FormDataBodyParserCleanupCronJob } from './form-data-body-parser-cleanup.cron-job';
 import { FormData, FormDataValue } from './form-data.model';
-import { PropertyMetadata, Relation } from '../../entity';
-import { BigNumberUtilities, MetadataUtilities, UUIDUtilities } from '../../utilities';
-import { parseArray, parseBoolean, parseDate, parseNumber, parseObject, parseString } from '../functions';
+import { ZibriApplication } from '../../application';
+import { inject } from '../../di/inject.function';
+import { HttpRequest } from '../../http/http-request.model';
+import { MimeType } from '../../http/mime-type.enum';
+import { BodyMetadata } from '../../routing/decorators/body.decorator';
+import { BodyParserInterface } from '../body-parser.interface';
+import { File } from './file.model';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
+import { PropertyMetadata } from '../../entity/decorators/property.decorator';
+import { Relation } from '../../entity/models/relation.enum';
+import { ContentTooLargeError } from '../../error-handling/errors/content-too-large.error';
+import { KnownHeader } from '../../http/known-header.enum';
+import { FileExtension, resolveFileExtension } from '../../http/mime-type.helpers';
+import { HttpClientResponse } from '../../http-client/http-client-response.model';
+import { BigNumberUtilities } from '../../utilities/big-number.utilities';
+import { FsUtilities, Path } from '../../utilities/fs.utilities';
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { BodyParser } from '../decorators/body-parser.decorator';
+import { parseArray } from '../functions/parse-array.function';
+import { parseBoolean } from '../functions/parse-boolean.function';
+import { parseDate } from '../functions/parse-date.function';
+import { parseNumber } from '../functions/parse-number.function';
+import { parseObject } from '../functions/parse-object.function';
+import { parseString } from '../functions/parse-string.function';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 type ParsedForm = {
@@ -77,7 +88,7 @@ export class FormDataBodyParser implements BodyParserInterface {
             throw new ContentTooLargeError();
         }
 
-        const tempFolder: string = this.getTempFolder();
+        const tempFolder: Path = this.getTempFolder();
 
         try {
             const parsed: ParsedForm = await this.parseMultipartStreamToDisk(stream, headers, tempFolder, metadata);
@@ -96,9 +107,9 @@ export class FormDataBodyParser implements BodyParserInterface {
         }
     }
 
-    private getTempFolder(): string {
-        const tempPath: string = inject(ZIBRI_DI_TOKENS.FILE_UPLOAD_TEMP_FOLDER);
-        return path.join(tempPath, `temp-${UUIDUtilities.generate()}`);
+    private getTempFolder(): Path {
+        const tempPath: Path = inject(ZIBRI_DI_TOKENS.FILE_UPLOAD_TEMP_FOLDER);
+        return FsUtilities.getPath(tempPath, `temp-${UUIDUtilities.generate()}`);
     }
 
     private getTempFileName(mimetype: string): string {
@@ -110,9 +121,9 @@ export class FormDataBodyParser implements BodyParserInterface {
         return id;
     }
 
-    private async removeTempFolder(tempFolder: string): Promise<void> {
+    private async removeTempFolder(tempFolder: Path): Promise<void> {
         try {
-            await rm(tempFolder, { recursive: true });
+            await FsUtilities.rm(tempFolder);
         }
         catch {
             // Do nothing
@@ -231,13 +242,13 @@ export class FormDataBodyParser implements BodyParserInterface {
     private async parseMultipartStreamToDisk(
         stream: Readable,
         headers: Partial<Record<string, string | undefined>>,
-        tempFolder: string,
+        tempFolder: Path,
         metadata: BodyMetadata
     ): Promise<ParsedForm> {
         const contentType: string | undefined = headers[KnownHeader.CONTENT_TYPE]
             ?? headers[KnownHeader.CONTENT_TYPE.toLowerCase()];
 
-        await mkdir(tempFolder, { recursive: true });
+        await FsUtilities.mkdir(tempFolder);
 
         return await new Promise<ParsedForm>((resolve, reject) => {
             const bb: Busboy = Busboy({ headers: { 'content-type': contentType ?? 'string' } });
@@ -282,8 +293,8 @@ export class FormDataBodyParser implements BodyParserInterface {
 
             bb.on('file', (fieldname: string, fileStream: BusboyFileStream, originalname: string, _: string, mimetype: string) => {
                 const filename: string = this.getTempFileName(mimetype);
-                const destination: string = path.join(tempFolder, filename);
-                const writeStream: WriteStream = createWriteStream(destination);
+                const destination: Path = FsUtilities.getPath(tempFolder, filename);
+                const writeStream: WriteStream = FsUtilities.createWriteStream(destination);
                 let size: number = 0;
 
                 fileStream.on('data', (chunk: Buffer) => {
@@ -343,11 +354,9 @@ export class FormDataBodyParser implements BodyParserInterface {
                 }));
             });
 
-            // eslint-disable-next-line typescript/no-misused-promises
-            bb.on('finish', async () => {
+            bb.on('finish', () => {
                 try {
-                    await Promise.all(filePromises);
-                    resolve({ fields, filesMap });
+                    void Promise.all(filePromises).then(() => resolve({ fields, filesMap }));
                 }
                 catch (error) {
                     reject(error);

@@ -1,5 +1,5 @@
-import { Property } from '../entity';
-import { Newable } from '../types';
+import { Property } from '../entity/decorators/property.decorator';
+import { Newable } from '../types/newable.type';
 
 /**
  * Type of a pagination result, consisting of the items from the current page and the total amount of items.

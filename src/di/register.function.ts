@@ -1,6 +1,6 @@
-import { GlobalRegistry } from '../global';
 import { DiContainer } from './di-container';
-import { DiProvider } from './models';
+import { GlobalRegistry } from '../global/global-registry';
+import { DiProvider } from './models/di-provider.model';
 
 /**
  * Registers a new DI provider.

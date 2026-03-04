@@ -1,7 +1,9 @@
 /* eslint-disable unusedImports/no-unused-vars */
-import { AnyObject } from '../../../entity';
-import { Payment, PaymentMethod, PaymentPluginOptions } from '../models';
-import { PaymentProviderInterface } from '../providers';
+import { AnyObject } from '../../../entity/any-object.model';
+import { PaymentMethod } from '../models/payment-method.model';
+import { PaymentPluginOptions } from '../models/payment-plugin-options.model';
+import { Payment } from '../models/payment.model';
+import { PaymentProviderInterface } from '../providers/payment-provider.interface';
 
 /**
  * Helper: pick the provider *instance* (from the P tuple) for the given method M.
@@ -46,18 +48,18 @@ export type PaymentDataForMethod<
         Record<Methods[number], boolean>
     >[]
 >
-  = ProviderInstanceForMethod<Methods, M, P> extends PaymentProviderInterface<
-      infer _SM,
-      infer PaymentDataMap,
-      infer _ValidatedMap,
-      infer _ProviderPaymentData,
-      infer _ProviderReservationPaymentData,
-      infer _CS,
-      infer _RS,
-      infer _ReservationSupport
-  >
-      ? PaymentDataMap[M]
-      : never;
+    = ProviderInstanceForMethod<Methods, M, P> extends PaymentProviderInterface<
+        infer _SM,
+        infer PaymentDataMap,
+        infer _ValidatedMap,
+        infer _ProviderPaymentData,
+        infer _ProviderReservationPaymentData,
+        infer _CS,
+        infer _RS,
+        infer _ReservationSupport
+    >
+        ? PaymentDataMap[M]
+        : never;
 
 /**
  * ValidatedPaymentDataForMethod: the validated/normalized data type returned by validatePaymentData.
@@ -78,18 +80,18 @@ export type ValidatedPaymentDataForMethod<
         Record<Methods[number], boolean>
     >[]
 >
-  = ProviderInstanceForMethod<Methods, M, P> extends PaymentProviderInterface<
-      infer _SM,
-      infer _PaymentDataMap,
-      infer ValidatedMap,
-      infer _ProviderPaymentData,
-      infer _ProviderReservationPaymentData,
-      infer _CS,
-      infer _RS,
-      infer _ReservationSupport
-  >
-      ? ValidatedMap[M]
-      : never;
+    = ProviderInstanceForMethod<Methods, M, P> extends PaymentProviderInterface<
+        infer _SM,
+        infer _PaymentDataMap,
+        infer ValidatedMap,
+        infer _ProviderPaymentData,
+        infer _ProviderReservationPaymentData,
+        infer _CS,
+        infer _RS,
+        infer _ReservationSupport
+    >
+        ? ValidatedMap[M]
+        : never;
 
 /**
  * The payment entity type used for payments.
@@ -110,18 +112,18 @@ export type PaymentForMethod<
         Record<Methods[number], boolean>
     >[]
 >
-  = ProviderInstanceForMethod<Methods, M, P> extends PaymentProviderInterface<
-      infer _SM,
-      infer _PaymentDataMap,
-      infer _ValidatedMap,
-      infer ProviderPaymentDataMap,
-      infer _ProviderReservationPaymentData,
-      infer _CS,
-      infer _RS,
-      infer _ReservationSupport
-  >
-      ? Payment<M, ProviderPaymentDataMap[M]>
-      : never;
+    = ProviderInstanceForMethod<Methods, M, P> extends PaymentProviderInterface<
+        infer _SM,
+        infer _PaymentDataMap,
+        infer _ValidatedMap,
+        infer ProviderPaymentDataMap,
+        infer _ProviderReservationPaymentData,
+        infer _CS,
+        infer _RS,
+        infer _ReservationSupport
+    >
+        ? Payment<M, ProviderPaymentDataMap[M]>
+        : never;
 
 /**
  * The payment entity type used for reservation payments.
@@ -142,18 +144,18 @@ export type PaymentReservationForMethod<
         Record<Methods[number], boolean>
     >[]
 >
-  = ProviderInstanceForMethod<Methods, M, P> extends PaymentProviderInterface<
-      infer _SM,
-      infer _PaymentDataMap,
-      infer _ValidatedMap,
-      infer _ProviderPaymentDataMap,
-      infer ProviderReservationPaymentDataMap,
-      infer _CS,
-      infer _RS,
-      infer _ReservationSupport
-  >
-      ? Payment<M, ProviderReservationPaymentDataMap[M]>
-      : never;
+    = ProviderInstanceForMethod<Methods, M, P> extends PaymentProviderInterface<
+        infer _SM,
+        infer _PaymentDataMap,
+        infer _ValidatedMap,
+        infer _ProviderPaymentDataMap,
+        infer ProviderReservationPaymentDataMap,
+        infer _CS,
+        infer _RS,
+        infer _ReservationSupport
+    >
+        ? Payment<M, ProviderReservationPaymentDataMap[M]>
+        : never;
 
 /**
  * Filters to all methods that are allowed for reservation.

@@ -3,7 +3,7 @@ import { hasRoleDecorator, HasRoleFn } from './has-role.decorator';
 import { isLoggedInDecorator, IsLoggedInFn } from './is-logged-in.decorator';
 import { isNotLoggedInDecorator, IsNotLoggedInFn } from './is-not-logged-in.decorator';
 import { require2faDecorator, Require2faFn } from './require-2fa.decorator';
-import { MetadataUtilities } from '../../utilities';
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
 
 /**
  * Bundles decorators for marking controller endpoints for authentication and authorization.
@@ -40,7 +40,6 @@ export namespace Auth {
      */
     export const require2fa: Require2faFn = require2faDecorator;
 
-    // eslint-disable-next-line jsdoc/require-returns
     /**
      * Skips all auth related validation.
      */

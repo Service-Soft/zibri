@@ -1,5 +1,5 @@
-import { Property } from '../entity';
 import { MetricType } from './metric-type.enum';
+import { Property } from '../entity/decorators/property.decorator';
 
 /**
  * A single recorded measurement.

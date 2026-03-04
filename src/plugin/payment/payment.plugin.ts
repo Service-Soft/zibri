@@ -1,7 +1,13 @@
-import { Payment, PaymentMethod, PaymentPluginOptions, PaymentPluginOptionsInput } from './models';
+import { PaymentMethod } from './models/payment-method.model';
+import { PaymentPluginOptionsInput } from './models/payment-plugin-options-input.model';
+import { PaymentPluginOptions } from './models/payment-plugin-options.model';
+import { Payment } from './models/payment.model';
 import { DefaultPaymentProviderArray, ZIBRI_PAYMENT_DI_TOKENS } from './payment.tokens';
-import { DiProvider, DiTokenProviderRecord, inject, NoProviderError, providersFromTokenRecord } from '../../di';
-import { validateEntitiesRegistered } from '../../utilities';
+import { NoProviderError } from '../../di/errors/no-provider.error';
+import { inject } from '../../di/inject.function';
+import { DiProvider } from '../../di/models/di-provider.model';
+import { DiTokenProviderRecord, providersFromTokenRecord } from '../../di/models/di-token.model';
+import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function';
 import { ZibriPlugin } from '../plugin.model';
 
 /**

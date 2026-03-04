@@ -1,4 +1,4 @@
-import { Ms } from '../utilities';
+import { Ms } from '../utilities/ms';
 
 /**
  * A rate limiter that provides an "isAvailable" method which ensures

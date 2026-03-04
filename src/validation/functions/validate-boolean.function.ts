@@ -1,5 +1,7 @@
-import { BooleanPropertyMetadata, PropertyMetadata } from '../../entity';
-import { QueryParamMetadata, HeaderParamMetadata, PathParamMetadata, BooleanParamMetadata } from '../../routing';
+import { PropertyMetadata } from '../../entity/decorators/property.decorator';
+import { BooleanPropertyMetadata } from '../../entity/models/boolean-property-metadata.model';
+import { QueryParamMetadata, HeaderParamMetadata, PathParamMetadata } from '../../routing/decorators/param.decorator';
+import { BooleanParamMetadata } from '../../routing/models/boolean-param-metadata.model';
 import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from '../validation-problem.model';
 
 /**

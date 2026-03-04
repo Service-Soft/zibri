@@ -1,8 +1,8 @@
 import { Response } from 'express';
 
-import { OmitStrict } from '../types';
 import { KnownHeader } from './known-header.enum';
 import { MimeType } from './mime-type.enum';
+import { OmitStrict } from '../types/omit-strict.type';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 type ValueTypeForHeader<T extends KnownHeader> = T extends KnownHeader.CONTENT_TYPE

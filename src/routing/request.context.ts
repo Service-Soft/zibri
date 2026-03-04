@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'async_hooks';
 
-import { HttpRequest } from '../http';
+import { HttpRequest } from '../http/http-request.model';
 
 /**
  * The data stored in async local storage.

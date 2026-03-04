@@ -1,7 +1,7 @@
 import { SoftDeleteEntity } from './soft-delete-entity.model';
 import { SoftDeleteWhere } from './soft-delete-where.model';
-import { FindAllPaginatedOptions } from '../../data-source';
-import { OmitStrict } from '../../types';
+import { FindAllPaginatedOptions } from '../../data-source/models/options/find-all-paginated-options.model';
+import { OmitStrict } from '../../types/omit-strict.type';
 
 /**
  * Options for finding soft delete entities in paginated form.

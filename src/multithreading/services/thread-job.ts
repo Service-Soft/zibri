@@ -1,7 +1,10 @@
 import { BehaviorSubject } from 'rxjs';
 
-import { Percentage } from '../../types';
-import { BaseThreadJobWorkerData, ThreadJobData, ThreadJobDataFunctions, ThreadJobEntity, ThreadJobStatus } from '../models';
+import { Percentage } from '../../types/percentage.type';
+import { BaseThreadJobWorkerData } from '../models/base-thread-job-worker-data.model';
+import { ThreadJobData, ThreadJobDataFunctions } from '../models/thread-job-data.model';
+import { ThreadJobEntity } from '../models/thread-job-entity.model';
+import { ThreadJobStatus } from '../models/thread-job-status.enum';
 
 /**
  * A thread job.

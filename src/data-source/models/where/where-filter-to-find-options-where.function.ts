@@ -7,10 +7,15 @@ import { NumberWhereFilter } from './number-where-filter.model';
 import { ObjectWhereFilter } from './object-where-filter.model';
 import { StringWhereFilter } from './string-where-filter.model';
 import { WhereFilter, Where, WhereFilterProperty } from './where-filter.model';
-import { ManyToOnePropertyMetadata, ObjectPropertyMetadata, OneToOnePropertyMetadata, PropertyMetadata, Relation } from '../../../entity';
 import { BaseEntity } from '../../../entity/base-entity.model';
-import { ExcludeStrict, Newable } from '../../../types';
-import { MetadataUtilities } from '../../../utilities';
+import { PropertyMetadata } from '../../../entity/decorators/property.decorator';
+import { ManyToOnePropertyMetadata } from '../../../entity/models/many-to-one-property-metadata.model';
+import { ObjectPropertyMetadata } from '../../../entity/models/object-property-metadata.model';
+import { OneToOnePropertyMetadata } from '../../../entity/models/one-to-one-property-metadata.model';
+import { Relation } from '../../../entity/models/relation.enum';
+import { ExcludeStrict } from '../../../types/exclude-strict.type';
+import { Newable } from '../../../types/newable.type';
+import { MetadataUtilities } from '../../../utilities/metadata.utilities';
 import { ObjectUtilities } from '../../../utilities/object.utilities';
 
 /**

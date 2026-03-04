@@ -1,6 +1,6 @@
-import { Newable } from '../types';
 import { CronJob } from './cron-job.model';
 import { CronUpdateData } from './cron.service';
+import { Newable } from '../types/newable.type';
 
 /**
  * Interface for a cron service.

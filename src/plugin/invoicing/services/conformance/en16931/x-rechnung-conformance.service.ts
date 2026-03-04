@@ -1,4 +1,4 @@
-import { Injectable } from '../../../../../di';
+import { Injectable } from '../../../../../di/decorators/injectable.decorator';
 import { InvoiceConformance } from '../invoice-conformance-service.interface';
 import { EN16931ConformanceService, EN16931DocumentContextId } from './en16931-conformance.service';
 

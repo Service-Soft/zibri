@@ -1,4 +1,4 @@
-import { OpenApiDefinition } from '../../../open-api';
+import { OpenApiDefinition } from '../../../open-api/open-api.model';
 
 /**
  * A provider for automatic entity generation.

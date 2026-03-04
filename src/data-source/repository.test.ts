@@ -1,15 +1,17 @@
 import { beforeAll, afterAll, describe, it, expect } from '@jest/globals';
 import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 
-import { DataSource } from './decorators';
-import { inject } from '../di';
-import { PostgresDataSource, PostgresOptions } from './data-sources';
-import { MigrationEntity } from './migration';
-import { POSTGRES_TEST_IMAGE } from '../__testing__';
-import { BaseEntity } from '../entity/base-entity.model';
-import { Newable, OmitStrict } from '../types';
+import { POSTGRES_TEST_IMAGE } from '../__testing__/constants';
+import { PostgresDataSource, PostgresOptions } from './data-sources/postgres-data-source.model';
+import { DataSource } from './decorators/data-source.decorator';
+import { MigrationEntity } from './migration/migration-entity.model';
 import { Repository } from './repository';
-import { Entity, Property } from '../entity';
+import { inject } from '../di/inject.function';
+import { BaseEntity } from '../entity/base-entity.model';
+import { Entity } from '../entity/decorators/entity.decorator';
+import { Property } from '../entity/decorators/property.decorator';
+import { Newable } from '../types/newable.type';
+import { OmitStrict } from '../types/omit-strict.type';
 
 @Entity()
 class VisitStats extends BaseEntity {

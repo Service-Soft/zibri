@@ -1,22 +1,40 @@
-
 import { Server, Socket } from 'socket.io';
 
 import { WebsocketSendData, WebsocketSendDataMessage, WebsocketSendToAllData, WebsocketSendToChannelData, WebsocketServiceInterface } from './websocket-service.interface';
 import { ZibriApplication } from '../../application';
-import { BaseUser, type AuthServiceInterface } from '../../auth';
-import { Repository, WhereFilter } from '../../data-source';
-import { inject, Inject, InjectRepository, ZIBRI_DI_TOKENS } from '../../di';
-import { BadRequestError, HttpError, isError, isHttpError, NotFoundError, toHttpError } from '../../error-handling';
-import { GlobalRegistry } from '../../global';
-import { HttpStatus, KnownHeader } from '../../http';
-import type { LoggerInterface } from '../../logging';
-import type { ParserInterface } from '../../parsing';
+import { type AuthServiceInterface } from '../../auth/auth-service.interface';
+import { BaseUser } from '../../auth/models/base-user.model';
+import { WhereFilter } from '../../data-source/models/where/where-filter.model';
+import { Repository } from '../../data-source/repository';
+import { InjectRepository } from '../../di/decorators/inject-repository.decorator';
+import { Inject } from '../../di/decorators/inject.decorator';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
+import { inject } from '../../di/inject.function';
+import { toHttpError } from '../../error-handling/error-handler';
+import { BadRequestError } from '../../error-handling/errors/bad-request.error';
+import { HttpError, isHttpError } from '../../error-handling/errors/http.error';
+import { NotFoundError } from '../../error-handling/errors/not-found.error';
+import { isError } from '../../error-handling/is-error.function';
+import { GlobalRegistry } from '../../global/global-registry';
+import { HttpStatus } from '../../http/http-status.enum';
+import { KnownHeader } from '../../http/known-header.enum';
+import { type LoggerInterface } from '../../logging/logger.interface';
+import { type ParserInterface } from '../../parsing/parser.interface';
 import { resolveRouteParams } from '../../routing/resolve-route-params.function';
-import { Newable } from '../../types';
-import { MetadataUtilities, UUIDUtilities } from '../../utilities';
-import type { ValidationServiceInterface } from '../../validation';
-import { WebsocketControllerData } from '../decorators';
-import { WebsocketRequest, WebsocketControllerRouteConfiguration, SocketIOWebsocketConnection, WebsocketEvent, WebsocketResponseHandler, WebsocketChannel, BaseWebsocketConnection, WebsocketMessage, CreateWebsocketMessageData, WebsocketRecipientType, WebsocketRequestWithConnection, type WebsocketOptions } from '../models';
+import { Newable } from '../../types/newable.type';
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { type ValidationServiceInterface } from '../../validation/validation-service.interface';
+import { WebsocketControllerData } from '../decorators/websocket-controller.decorator';
+import { BaseWebsocketConnection } from '../models/connection/base-websocket-connection.model';
+import { SocketIOWebsocketConnection } from '../models/connection/socket-io-websocket-connection.model';
+import { WebsocketChannel } from '../models/websocket-channel.model';
+import { WebsocketControllerRouteConfiguration } from '../models/websocket-controller-route-configuration.model';
+import { WebsocketEvent } from '../models/websocket-event.enum';
+import { WebsocketMessage, CreateWebsocketMessageData, WebsocketRecipientType } from '../models/websocket-message.model';
+import { type WebsocketOptions } from '../models/websocket-options.model';
+import { WebsocketRequest, WebsocketRequestWithConnection } from '../models/websocket-request.model';
+import { WebsocketResponseHandler } from '../models/websocket-response.model';
 
 /**
  * Handler for dealing with an incoming websocket message.

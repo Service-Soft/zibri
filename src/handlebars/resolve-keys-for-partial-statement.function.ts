@@ -14,7 +14,7 @@ export function resolveKeysForPartialStatement(
     }
 
     // 2) named params (hash)
-    for (const pair of stmt.hash.pairs) {
+    for (const pair of stmt.hash?.pairs ?? []) {
         res.push(...resolveKeysForExpression(pair.value, parentKey));
     }
 
@@ -40,7 +40,7 @@ export function resolveKeysForExpression(
             for (const p of param.params.slice(1)) {
                 out.push(...resolveKeysForExpression(p, parentKey));
             }
-            for (const pair of param.hash.pairs) {
+            for (const pair of param.hash?.pairs ?? []) {
                 out.push(...resolveKeysForExpression(pair.value, parentKey));
             }
             return out;

@@ -5,13 +5,17 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import express from 'express';
 import NodeFormData from 'form-data';
 
-import { Property } from '../entity';
 import { HttpClientResponse } from './http-client-response.model';
 import { HttpClientInterface } from './http-client.interface';
-import { inject, ZIBRI_DI_TOKENS } from '../di';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { inject } from '../di/inject.function';
+import { Property } from '../entity/decorators/property.decorator';
 import { KnownHeader } from '../http/known-header.enum';
 import { MimeType } from '../http/mime-type.enum';
-import { File, FormData, FormDataBodyParser, JsonBodyParser, Parser } from '../parsing';
+import { FormDataBodyParser } from '../parsing/form-data/form-data.body-parser';
+import { FormData } from '../parsing/form-data/form-data.model';
+import { JsonBodyParser } from '../parsing/json/json.body-parser';
+import { Parser } from '../parsing/parser';
 
 class Item {
     @Property.string()

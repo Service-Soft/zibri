@@ -1,4 +1,4 @@
-import { HttpStatus } from '../../http';
+import { HttpStatus } from '../../http/http-status.enum';
 
 /**
  * A base http error.

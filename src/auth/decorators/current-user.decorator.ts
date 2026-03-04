@@ -1,5 +1,5 @@
-import { MetadataUtilities } from '../../utilities';
-import { AuthStrategies } from '../strategies';
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { AuthStrategies } from '../strategies/auth-strategies.model';
 
 /**
  * Metadata of the \@CurrentUser decorator.
@@ -20,7 +20,6 @@ export type CurrentUserMetadata = {
     allowedStrategies?: AuthStrategies
 };
 
-// eslint-disable-next-line jsdoc/require-returns
 /**
  * Marks the parameter to be injected as the currently logged in user.
  * @param required - If set to false, the injected user is allowed to be undefined.

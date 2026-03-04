@@ -1,8 +1,9 @@
-
-import { CronJob, InitialCronConfig } from '../cron';
-import { inject, Injectable, repositoryTokenFor } from '../di';
 import { Log } from './log.model';
-import { Repository } from '../data-source';
+import { CronJob, InitialCronConfig } from '../cron/cron-job.model';
+import { Repository } from '../data-source/repository';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
+import { Injectable } from '../di/decorators/injectable.decorator';
+import { inject } from '../di/inject.function';
 
 /**
  * CronJob that cleans up the temp folder of the form data body parser.

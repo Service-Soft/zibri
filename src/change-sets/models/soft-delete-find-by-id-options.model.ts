@@ -1,5 +1,5 @@
 import { SoftDeleteEntity } from './soft-delete-entity.model';
-import { FindByIdOptions } from '../../data-source';
+import { FindByIdOptions } from '../../data-source/models/options/find-by-id-options.model';
 
 /**
  * Options for finding a single soft delete entity by its id.

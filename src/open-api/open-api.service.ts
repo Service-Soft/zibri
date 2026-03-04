@@ -1,23 +1,39 @@
-import path from 'path';
-
 import swaggerUi from 'swagger-ui-express';
 
 import { ZibriApplication } from '../application';
-import { AssetServiceInterface } from '../assets';
-import { AuthServiceInterface, BelongsToMetadata, HasRoleMetadata, IsLoggedInMetadata } from '../auth';
-import { inject, ZIBRI_DI_TOKENS } from '../di';
-import { ManyToManyPropertyMetadata, ManyToOnePropertyMetadata, OmitClass, OneToManyPropertyMetadata, OneToOnePropertyMetadata, PropertyMetadata, Relation } from '../entity';
-import { BaseEntity } from '../entity/base-entity.model';
-import { GlobalRegistry } from '../global';
-import { HttpMethod, HttpStatus, KnownHeader, MimeType } from '../http';
-import { LoggerInterface } from '../logging';
-import { BodyMetadata, ControllerRouteConfiguration, HeaderParamMetadata, PathParamMetadata, QueryParamMetadata, Route, RouteHandler } from '../routing';
 import { OpenApiServiceInterface } from './open-api-service.interface';
-import { OpenApiContentObject, OpenApiDefinition, OpenApiOperation, OpenApiParameter, OpenApiParameterLocation, OpenApiPaths, OpenApiRequestBodyObject, OpenApiResponse, OpenApiResponseObject, OpenApiResponsesObject, OpenApiSchemaObject, OpenApiSecurityRequirementObject, OpenApiSecuritySchemeObject, OpenApiTagObject } from './open-api.model';
-import { FileResponse } from '../parsing';
+import { OpenApiDefinition, OpenApiTagObject, OpenApiSecuritySchemeObject, OpenApiPaths, OpenApiResponse, OpenApiOperation, OpenApiResponsesObject, OpenApiResponseObject, OpenApiContentObject, OpenApiSchemaObject, OpenApiSecurityRequirementObject, OpenApiRequestBodyObject, OpenApiParameterLocation, OpenApiParameter } from './open-api.model';
+import { AssetServiceInterface } from '../assets/asset-service.interface';
+import { AuthServiceInterface } from '../auth/auth-service.interface';
+import { BelongsToMetadata } from '../auth/models/belongs-to-metadata.model';
+import { HasRoleMetadata } from '../auth/models/has-role-metadata.model';
+import { IsLoggedInMetadata } from '../auth/models/is-logged-in-metadata.model';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { inject } from '../di/inject.function';
+import { BaseEntity } from '../entity/base-entity.model';
+import { PropertyMetadata } from '../entity/decorators/property.decorator';
+import { ManyToManyPropertyMetadata } from '../entity/models/many-to-many-property-metadata.model';
+import { ManyToOnePropertyMetadata } from '../entity/models/many-to-one-property-metadata.model';
+import { OneToManyPropertyMetadata } from '../entity/models/one-to-many-property-metadata.model';
+import { OneToOnePropertyMetadata } from '../entity/models/one-to-one-property-metadata.model';
+import { Relation } from '../entity/models/relation.enum';
+import { OmitClass } from '../entity/omit-class.model';
+import { GlobalRegistry } from '../global/global-registry';
+import { HttpMethod } from '../http/http-method.enum';
+import { HttpStatus } from '../http/http-status.enum';
+import { KnownHeader } from '../http/known-header.enum';
+import { MimeType } from '../http/mime-type.enum';
+import { LoggerInterface } from '../logging/logger.interface';
+import { FileResponse } from '../parsing/form-data/file-response.model';
+import { Route, ControllerRouteConfiguration } from '../routing/controller-route-configuration.model';
+import { BodyMetadata } from '../routing/decorators/body.decorator';
+import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from '../routing/decorators/param.decorator';
 import { MissingBaseRouteError } from '../routing/missing-base-route.error';
-import { Newable } from '../types';
-import { MetadataUtilities, ObjectUtilities } from '../utilities';
+import { RouteHandler } from '../routing/route-configuration.model';
+import { Newable } from '../types/newable.type';
+import { FsUtilities, Path } from '../utilities/fs.utilities';
+import { MetadataUtilities } from '../utilities/metadata.utilities';
+import { ObjectUtilities } from '../utilities/object.utilities';
 
 const defaultDescriptionForHttpStatus: Record<HttpStatus | 'default', string> = {
     default: 'Response',
@@ -85,7 +101,7 @@ export class OpenApiService implements OpenApiServiceInterface {
             httpMethod: HttpMethod.GET,
             route: `${this.openApiRoute}/swagger-ui.css`,
             handler: () => {
-                const filePath: string = path.join(this.assetService.publicAssetsPath, 'open-api', 'swagger-ui.css');
+                const filePath: Path = FsUtilities.getPath(this.assetService.publicAssetsPath, 'open-api', 'swagger-ui.css');
                 return FileResponse.fromPath(filePath);
             }
         });
@@ -93,7 +109,7 @@ export class OpenApiService implements OpenApiServiceInterface {
             httpMethod: HttpMethod.GET,
             route: `${this.openApiRoute}/swagger-ui-bundle.js`,
             handler: () => {
-                const filePath: string = path.join(this.assetService.publicAssetsPath, 'open-api', 'swagger-ui-bundle.js');
+                const filePath: Path = FsUtilities.getPath(this.assetService.publicAssetsPath, 'open-api', 'swagger-ui-bundle.js');
                 return FileResponse.fromPath(filePath);
             }
         });
@@ -101,7 +117,11 @@ export class OpenApiService implements OpenApiServiceInterface {
             httpMethod: HttpMethod.GET,
             route: `${this.openApiRoute}/swagger-ui-standalone-preset.js`,
             handler: () => {
-                const filePath: string = path.join(this.assetService.publicAssetsPath, 'open-api', 'swagger-ui-standalone-preset.js');
+                const filePath: Path = FsUtilities.getPath(
+                    this.assetService.publicAssetsPath,
+                    'open-api',
+                    'swagger-ui-standalone-preset.js'
+                );
                 return FileResponse.fromPath(filePath);
             }
         });

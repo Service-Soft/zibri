@@ -1,9 +1,12 @@
-import { PropertyMetadata, Relation } from '../../entity';
+import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { BasePropertyMetadata } from '../../entity/models/base-property-metadata.model';
 import { FileSize, fileSizeToBytes } from '../../entity/models/file-property-metadata.model';
-import { MimeType } from '../../http';
-import { Newable, OmitStrict } from '../../types';
-import { BigNumber, MetadataUtilities, Ms } from '../../utilities';
+import { Relation } from '../../entity/models/relation.enum';
+import { MimeType } from '../../http/mime-type.enum';
+import { Newable } from '../../types/newable.type';
+import { OmitStrict } from '../../types/omit-strict.type';
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { Ms } from '../../utilities/ms';
 
 /**
  * Base metadata shared by all possible http request body properties.
@@ -73,7 +76,6 @@ export type BodyMetadataInput = Partial<OmitStrict<BodyMetadata, 'modelClass' | 
     baseMaxSize?: FileSize
 };
 
-// eslint-disable-next-line jsdoc/require-returns
 /**
  * Defines a http request body property with the given data.
  * @param modelClass - The model class that defines the body properties structure.

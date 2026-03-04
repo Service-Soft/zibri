@@ -1,24 +1,28 @@
-import { createWriteStream, WriteStream } from 'node:fs';
-import { mkdir } from 'node:fs/promises';
-import path from 'node:path';
+import { WriteStream } from 'node:fs';
 
 import { afterAll, beforeAll, describe, it } from '@jest/globals';
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import { StartedTestContainer } from 'testcontainers';
 
+import { XRechnungConformanceService } from './conformance/en16931/x-rechnung-conformance.service';
 import { InvoiceCalcService } from './invoice-calc.service';
 import { InvoicePdfService } from './invoice-pdf.service';
-import { POSTGRES_TEST_IMAGE, testFileFolder } from '../../../__testing__';
-import { DataSource, MigrationEntity, Repository, PostgresDataSource, PostgresOptions } from '../../../data-source';
-import { PdfDocument } from '../../../document';
+import { POSTGRES_TEST_IMAGE, testFileFolder } from '../../../__testing__/constants';
+import { PostgresDataSource, PostgresOptions } from '../../../data-source/data-sources/postgres-data-source.model';
+import { DataSource } from '../../../data-source/decorators/data-source.decorator';
+import { MigrationEntity } from '../../../data-source/migration/migration-entity.model';
+import { Repository } from '../../../data-source/repository';
+import { PdfDocument } from '../../../document/pdf.utilities';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { formatDate } from '../../../localization/formatting/format-date.function';
 import { formatPercent } from '../../../localization/formatting/format-percent.function';
 import { formatPrice } from '../../../localization/formatting/format-price.function';
-import { Newable, OmitStrict } from '../../../types';
-import { Ms } from '../../../utilities';
-import { Invoice, InvoicingOptions } from '../models';
-import { XRechnungConformanceService } from './conformance';
+import { Newable } from '../../../types/newable.type';
+import { OmitStrict } from '../../../types/omit-strict.type';
+import { FsUtilities } from '../../../utilities/fs.utilities';
+import { Ms } from '../../../utilities/ms';
+import { Invoice } from '../models/invoice.model';
+import { InvoicingOptions } from '../models/invoicing-options.model';
 
 const invoicingOptions: InvoicingOptions = {
     footerFontSize: 10,
@@ -103,7 +107,7 @@ let repo: Repository<Invoice, OmitStrict<Invoice, 'id'>>;
 
 describe('createInvoicePdf', () => {
     beforeAll(async () => {
-        await mkdir(testFileFolder, { recursive: true });
+        await FsUtilities.mkdir(testFileFolder);
         container = await new PostgreSqlContainer(POSTGRES_TEST_IMAGE)
             .withDatabase('db')
             .withUsername('postgres')
@@ -165,8 +169,8 @@ describe('createInvoicePdf', () => {
 
         const pdf: PdfDocument = await invoicePdfService.generateInvoicePdf(invoice, 'x-rechnung');
 
-        const out1: WriteStream = createWriteStream(path.join(testFileFolder, `${invoice.number}-stream-1.pdf`));
-        const out2: WriteStream = createWriteStream(path.join(testFileFolder, `${invoice.number}-stream-2.pdf`));
+        const out1: WriteStream = FsUtilities.createWriteStream(FsUtilities.getPath(testFileFolder, `${invoice.number}-stream-1.pdf`));
+        const out2: WriteStream = FsUtilities.createWriteStream(FsUtilities.getPath(testFileFolder, `${invoice.number}-stream-2.pdf`));
 
         pdf.pipe(out1);
         pdf.pipe(out2);

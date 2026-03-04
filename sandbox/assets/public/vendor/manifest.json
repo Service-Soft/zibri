@@ -1,0 +1,20 @@
+{
+    "MetricsPage": [
+        "chart.js"
+    ],
+    "NetworkChart": [
+        "chart.js"
+    ],
+    "RequestDurationChart": [
+        "chart.js"
+    ],
+    "RequestsPerSecondChart": [
+        "chart.js"
+    ],
+    "ResourceUsageChart": [
+        "chart.js"
+    ],
+    "SocketIoTestPage": [
+        "socket.io-client"
+    ]
+}

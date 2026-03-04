@@ -1,6 +1,8 @@
 
-import { BigNumber } from '../../../utilities';
-import { Invoice as BaseInvoice, InvoiceItem, Vat } from '../models';
+import { BigNumber } from '../../../utilities/big-number.utilities';
+import { InvoiceItem } from '../models/invoice-item.model';
+import { Invoice as BaseInvoice } from '../models/invoice.model';
+import { Vat } from '../models/vat.model';
 
 /**
  * Handles calculating anything regarding invoices.

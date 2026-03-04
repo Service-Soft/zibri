@@ -1,6 +1,6 @@
 import { convertObj, ConvertOutputOptions } from 'swagger2openapi';
 
-import { OpenApiDefinition } from '../../../open-api';
+import { OpenApiDefinition } from '../../../open-api/open-api.model';
 
 /**
  * Converts the given spec to open api v3.1.

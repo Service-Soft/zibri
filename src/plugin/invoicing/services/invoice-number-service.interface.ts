@@ -1,5 +1,5 @@
-import { Transaction } from '../../../data-source';
-import { InvoiceAddress } from '../models';
+import { Transaction } from '../../../data-source/transaction/transaction.model';
+import { InvoiceAddress } from '../models/invoice-address.model';
 
 /**
  * Handles generating unique and consecutive numbers for invoices.

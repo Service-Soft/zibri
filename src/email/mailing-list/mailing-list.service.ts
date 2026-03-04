@@ -1,17 +1,22 @@
 import { randomBytes } from 'crypto';
-import path from 'path';
 
 import { MailingListSubscriberCreateData, MailingListQueueEmailData, MailingListServiceInterface, BaseMailingListEmailTemplateData } from './mailing-list-service.interface';
-import { AssetServiceInterface } from '../../assets';
-import { Repository } from '../../data-source';
-import { inject, repositoryTokenFor, ZIBRI_DI_TOKENS } from '../../di';
-import { GlobalRegistry } from '../../global';
-import { BaseEmailTemplateData, renderTemplate, renderTemplateString } from '../../handlebars';
-import { Route } from '../../routing';
+import { AssetServiceInterface } from '../../assets/asset-service.interface';
+import { Repository } from '../../data-source/repository';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
+import { inject } from '../../di/inject.function';
+import { GlobalRegistry } from '../../global/global-registry';
+import { BaseEmailTemplateData, renderTemplateString, renderTemplate } from '../../handlebars/render-template.function';
+import { Route } from '../../routing/controller-route-configuration.model';
+import { FsUtilities, Path } from '../../utilities/fs.utilities';
+import { PromiseUtilities } from '../../utilities/promise.utilities';
+import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function';
 import { EmailServiceInterface } from '../email-service.interface';
-import { MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken, MailingListSubscriptionConfirmationTokenCreateData } from './models';
-import { PromiseUtilities, validateEntitiesRegistered } from '../../utilities';
-import { EmailPriority } from '../models';
+import { EmailPriority } from '../models/email-priority.enum';
+import { MailingListSubscriber } from './models/mailing-list-subscriber.model';
+import { MailingListSubscriptionConfirmationToken, MailingListSubscriptionConfirmationTokenCreateData } from './models/mailing-list-subscription-confirmation-token.model';
+import { MailingList } from './models/mailing-list.model';
 
 /**
  * Default mailing list service implementation of Zibri.
@@ -83,7 +88,7 @@ export class MailingListService implements MailingListServiceInterface {
                     base
                 });
                 const html: string = await renderTemplate(
-                    path.join(this.assetService.emailTemplatePath, 'base-email.hbs') as `${string}.hbs`,
+                    FsUtilities.getPath(this.assetService.emailTemplatePath, 'base-email.hbs') as `${Path}.hbs`,
                     { content, base }
                 );
                 await this.emailService.queue({
@@ -127,7 +132,7 @@ export class MailingListService implements MailingListServiceInterface {
             base: emailData.templateData.base
         });
         const html: string = await renderTemplate(
-            path.join(this.assetService.emailTemplatePath, 'base-email.hbs') as `${string}.hbs`,
+            FsUtilities.getPath(this.assetService.emailTemplatePath, 'base-email.hbs') as `${Path}.hbs`,
             { content, base: emailData.templateData.base }
         );
         await this.emailService.queue({ ...emailData, html, recipients: [subscriber.email] });

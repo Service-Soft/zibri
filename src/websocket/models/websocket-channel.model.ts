@@ -1,5 +1,6 @@
-import { Entity, Property } from '../../entity';
 import { BaseEntity } from '../../entity/base-entity.model';
+import { Entity } from '../../entity/decorators/entity.decorator';
+import { Property } from '../../entity/decorators/property.decorator';
 
 /**
  * A websocket channel.

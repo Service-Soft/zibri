@@ -1,15 +1,27 @@
 /* eslint-disable jsdoc/require-jsdoc */
-import { ReflectUtilities } from './reflect.utilities';
-import { DiToken } from '../di';
-import { Route, ControllerRouteConfiguration, PathParamMetadata, BodyMetadata, QueryParamMetadata, HeaderParamMetadata } from '../routing';
 import { MetadataInjectionKeys } from './metadata-injection-keys.enum';
-import { BelongsToMetadata, CurrentUserMetadata, HasRoleMetadata, IsLoggedInMetadata, IsNotLoggedInMetadata, Require2faMetadata, SkipAuthMetadata, SkipBelongsToMetadata, SkipHasRoleMetadata, SkipIsLoggedInMetadata, SkipIsNotLoggedInMetadata, SkipRequire2faMetadata } from '../auth';
-import { BackupResourceInterface, BackupResourceMetadata } from '../backup';
-import { EntityMetadata, PropertyMetadata } from '../entity';
+import { ReflectUtilities } from './reflect.utilities';
+import { CurrentUserMetadata } from '../auth/decorators/current-user.decorator';
+import { BelongsToMetadata, SkipBelongsToMetadata } from '../auth/models/belongs-to-metadata.model';
+import { HasRoleMetadata, SkipHasRoleMetadata } from '../auth/models/has-role-metadata.model';
+import { IsLoggedInMetadata, SkipIsLoggedInMetadata } from '../auth/models/is-logged-in-metadata.model';
+import { IsNotLoggedInMetadata, SkipIsNotLoggedInMetadata } from '../auth/models/is-not-logged-in-metadata.model';
+import { Require2faMetadata, SkipRequire2faMetadata } from '../auth/models/require-2fa-metadata.model';
+import { SkipAuthMetadata } from '../auth/models/skip-auth-metadata.model';
+import { BackupResourceInterface } from '../backup/backup-resource.interface';
+import { BackupResourceMetadata } from '../backup/decorators/backup-resource-metadata.model';
+import { DiToken } from '../di/models/di-token.model';
 import { BaseEntity } from '../entity/base-entity.model';
-import { OpenApiResponse } from '../open-api';
-import { Newable } from '../types';
-import { CurrentWebsocketConnectionMetadata, WebsocketControllerData, WebsocketControllerRouteConfiguration } from '../websocket';
+import { EntityMetadata } from '../entity/decorators/entity.decorator';
+import { PropertyMetadata } from '../entity/decorators/property.decorator';
+import { OpenApiResponse } from '../open-api/open-api.model';
+import { ControllerRouteConfiguration, Route } from '../routing/controller-route-configuration.model';
+import { BodyMetadata } from '../routing/decorators/body.decorator';
+import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from '../routing/decorators/param.decorator';
+import { Newable } from '../types/newable.type';
+import { CurrentWebsocketConnectionMetadata } from '../websocket/decorators/current-websocket-connection.decorator';
+import { WebsocketControllerData } from '../websocket/decorators/websocket-controller.decorator';
+import { WebsocketControllerRouteConfiguration } from '../websocket/models/websocket-controller-route-configuration.model';
 
 const modelPropertiesStore: WeakMap<Function, Record<string, PropertyMetadata>> = new WeakMap();
 

@@ -1,10 +1,12 @@
-import { AuthStrategies, TwoFactorMethods } from './auth';
-import { CronJob } from './cron';
-import { DataSourceInterface } from './data-source';
-import { DiProvider } from './di';
-import { BodyParserInterface } from './parsing';
-import { ZibriPlugin } from './plugin';
-import { Newable, Version } from './types';
+import { TwoFactorMethods } from './auth/2fa/two-factor-methods.model';
+import { AuthStrategies } from './auth/strategies/auth-strategies.model';
+import { CronJob } from './cron/cron-job.model';
+import { DataSourceInterface } from './data-source/data-sources/data-source.interface';
+import { DiProvider } from './di/models/di-provider.model';
+import { BodyParserInterface } from './parsing/body-parser.interface';
+import { ZibriPlugin } from './plugin/plugin.model';
+import { Newable } from './types/newable.type';
+import { Version } from './types/version.type';
 
 /**
  * All options for a Zibri application.

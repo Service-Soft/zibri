@@ -1,9 +1,9 @@
-import { DataSourceInterface } from '../data-source';
-import { inject } from '../di';
+import { DataSourceInterface } from '../data-source/data-sources/data-source.interface';
+import { inject } from '../di/inject.function';
 import type { BaseEntity } from '../entity/base-entity.model';
-import { MissingEntitiesError } from '../error-handling';
-import { GlobalRegistry } from '../global';
-import type { Newable } from '../types';
+import { MissingEntitiesError } from '../error-handling/errors/missing-entities.error';
+import { GlobalRegistry } from '../global/global-registry';
+import { Newable } from '../types/newable.type';
 
 /**
  * Validates that the given entities are registered in a data source somewhere.

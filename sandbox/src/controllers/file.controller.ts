@@ -1,8 +1,4 @@
-import { createReadStream } from 'fs';
-import { stat } from 'fs/promises';
-import path from 'path';
-
-import { AssetService, Body, Controller, File, FileResponse, FormData, Get, Inject, MimeType, Post, Property, Response, ZIBRI_DI_TOKENS } from 'zibri';
+import { AssetService, Body, Controller, File, FileResponse, FormData, Get, Inject, MimeType, Post, Property, Response, ZIBRI_DI_TOKENS, FsUtilities, Path } from 'zibri';
 
 export class FileCreateDTO {
     @Property.file({ allowedMimeTypes: [MimeType.JSON] })
@@ -29,11 +25,11 @@ export class FileController {
     @Response.file()
     @Get('/stream')
     async findDocumentFor(): Promise<FileResponse> {
-        const assetPath: string = path.join(this.assetService.publicAssetsPath, 'logo.jpg');
+        const assetPath: Path = FsUtilities.getPath(this.assetService.publicAssetsPath, 'logo.jpg');
         return FileResponse.fromStream({
-            stream: createReadStream(assetPath),
+            stream: FsUtilities.createReadStream(assetPath),
             filename: 'logo.jpg',
-            size: (await stat(assetPath)).size
+            size: (await FsUtilities.stat(assetPath)).size
         });
     }
 }

@@ -41,14 +41,16 @@ Alternatively, you can also add them to the providers array:
 
 ```ts
 // src/providers.ts
-import { DiProvider, ZIBRI_DI_TOKENS } from 'zibri';
+import { DiProvider, defineProvider, InjectionToken, ZIBRI_DI_TOKENS } from 'zibri';
+
+export const someToken = new InjectionToken<string>('some-token');
 
 export const providers: DiProvider<unknown>[] = [
     // ...
-    {
-        token: 'some-token',
+    defineProvider({
+        token: someToken,
         useFactory: () => '42'
-    }
+    })
     // ...
 ]
 ```
@@ -58,14 +60,15 @@ And then inject them the same way before, with the constructor approach needing 
 ```ts
 // src/controllers/test.controller.ts
 import { Controller, inject } from 'zibri';
+import { someToken } from '../../providers.ts';
 
 @Controller('/tests')
 export class TestController {
     constructor(
-        @Inject('some-token')
+        @Inject(someToken)
         private readonly value: string
     ) {
-        const alternative: string = inject('some-token');
+        const alternative: string = inject(someToken);
     }
     // ...
 }
@@ -96,10 +99,10 @@ import { myErrorHandler } from './my-error-handler.ts';
 
 export const providers: DiProvider<unknown>[] = [
     // ...
-    {
+    defineProvider({
         token: ZIBRI_DI_TOKENS.GLOBAL_ERROR_HANDLER,
         useFactory: () => myErrorHandler
-    }
+    })
     // ...
 ]
 ```

@@ -1,5 +1,4 @@
-
-import { Property } from '../../../entity';
+import { Property } from '../../../entity/decorators/property.decorator';
 
 /**
  * Information about the unit of the amount value.

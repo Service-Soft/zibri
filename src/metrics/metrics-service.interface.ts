@@ -1,9 +1,10 @@
 import { ZibriApplication } from '../application';
-import { HttpRequest, HttpResponse } from '../http';
 import { CounterInterface } from './counter.interface';
 import { GaugeInterface } from './gauge.interface';
 import { HistogramInterface } from './histogram.interface';
 import { Metric } from './metric.model';
+import { HttpRequest } from '../http/http-request.model';
+import { HttpResponse } from '../http/http-response.model';
 
 /**
  * Name of a counter metric.

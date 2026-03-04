@@ -1,10 +1,11 @@
-import { inject, ZIBRI_DI_TOKENS } from '../../di';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
+import { inject } from '../../di/inject.function';
 import { register } from '../../di/register.function';
-import { HttpRequest } from '../../http';
-import { LoggerInterface } from '../../logging';
-import { WebsocketRequest } from '../../websocket';
-import { BaseUser } from '../models';
-import { TwoFactorMethod } from './methods';
+import { HttpRequest } from '../../http/http-request.model';
+import { LoggerInterface } from '../../logging/logger.interface';
+import { WebsocketRequest } from '../../websocket/models/websocket-request.model';
+import { BaseUser } from '../models/base-user.model';
+import { TwoFactorMethod } from './methods/two-factor-method.interface';
 import { TwoFactorMethods } from './two-factor-methods.model';
 import { TwoFactorServiceInterface } from './two-factor-service.interface';
 

@@ -1,4 +1,4 @@
-import { Property } from '../../../entity';
+import { Property } from '../../../entity/decorators/property.decorator';
 
 /**
  * A Jwt, consisting of the token value and the expiration date.
