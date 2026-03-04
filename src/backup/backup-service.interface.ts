@@ -2,11 +2,12 @@ import { Readable } from 'node:stream';
 
 import { BehaviorSubject } from 'rxjs';
 
-import { Newable, OmitStrict } from '../types';
 import { BackupEntity, BackupEntityCreateData } from './backup-entity.model';
 import { BackupResourceEntity } from './backup-resource-entity.model';
 import { BackupResourceInterface } from './backup-resource.interface';
-import { BackupTransportInterface } from './transports';
+import { Newable } from '../types/newable.type';
+import { OmitStrict } from '../types/omit-strict.type';
+import { BackupTransportInterface } from './transports/backup-transport.interface';
 
 /**
  * The data needed to create a new backup.

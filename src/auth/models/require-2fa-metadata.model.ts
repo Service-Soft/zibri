@@ -1,5 +1,5 @@
-import { TwoFactorMethods } from '../2fa';
 import { SkipAuthMetadata } from './skip-auth-metadata.model';
+import { TwoFactorMethods } from '../2fa/two-factor-methods.model';
 
 /**
  * Metadata for the \@Auth.require2fa decorator.

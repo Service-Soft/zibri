@@ -3,13 +3,19 @@ import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import { StartedTestContainer } from 'testcontainers';
 
 import { PeppolConformanceService } from './peppol-conformance.service';
-import { POSTGRES_TEST_IMAGE, testFileFolder } from '../../../../../__testing__';
-import { DataSource, MigrationEntity, Repository, PostgresDataSource, PostgresOptions } from '../../../../../data-source';
-import { XML } from '../../../../../document';
+import { POSTGRES_TEST_IMAGE, testFileFolder } from '../../../../../__testing__/constants';
+import { PostgresDataSource, PostgresOptions } from '../../../../../data-source/data-sources/postgres-data-source.model';
+import { DataSource } from '../../../../../data-source/decorators/data-source.decorator';
+import { MigrationEntity } from '../../../../../data-source/migration/migration-entity.model';
+import { Repository } from '../../../../../data-source/repository';
+import { XML } from '../../../../../document/xml.utilities';
 import { BaseEntity } from '../../../../../entity/base-entity.model';
-import { Newable, OmitStrict } from '../../../../../types';
-import { FsUtilities, Ms } from '../../../../../utilities';
-import { InvoicingOptions, Invoice } from '../../../models';
+import { Newable } from '../../../../../types/newable.type';
+import { OmitStrict } from '../../../../../types/omit-strict.type';
+import { FsUtilities } from '../../../../../utilities/fs.utilities';
+import { Ms } from '../../../../../utilities/ms';
+import { Invoice } from '../../../models/invoice.model';
+import { InvoicingOptions } from '../../../models/invoicing-options.model';
 import { InvoiceCalcService } from '../../invoice-calc.service';
 
 const invoicingOptions: InvoicingOptions = {
@@ -149,6 +155,6 @@ describe('generateXml', () => {
 
         const xml: XML = await conformanceService.generateXml(invoice);
         const xmlString: string = xml.end({ prettyPrint: true });
-        await FsUtilities.createFile(FsUtilities.getPath(testFileFolder, 'peppol.xml'), xmlString);
+        await FsUtilities.upsertFile(FsUtilities.getPath(testFileFolder, 'peppol.xml'), xmlString);
     });
 });

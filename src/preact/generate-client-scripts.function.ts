@@ -1,6 +1,7 @@
 import { createRequire } from 'node:module';
 
-import { FsUtilities, Path, toKebabCase } from '../utilities';
+import { FsUtilities, Path } from '../utilities/fs.utilities';
+import { toKebabCase } from '../utilities/to-kebab-case.function';
 
 /**
  * Scans compiled JS files in srcDir for ?client imports, resolves their browser

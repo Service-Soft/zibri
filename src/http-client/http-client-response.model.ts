@@ -1,6 +1,8 @@
-import { MimeType, KnownHeader, HttpStatus } from '../http';
-import { FormData } from '../parsing';
-import { BodyMetadata } from '../routing';
+import { HttpStatus } from '../http/http-status.enum';
+import { KnownHeader } from '../http/known-header.enum';
+import { MimeType } from '../http/mime-type.enum';
+import { FormData } from '../parsing/form-data/form-data.model';
+import { BodyMetadata } from '../routing/decorators/body.decorator';
 
 /**
  * Definition for a response from using the http client.

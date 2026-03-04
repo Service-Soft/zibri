@@ -1,6 +1,7 @@
 import { MailingList } from './mailing-list.model';
-import { Entity, Property } from '../../../entity';
 import { BaseEntity } from '../../../entity/base-entity.model';
+import { Entity } from '../../../entity/decorators/entity.decorator';
+import { Property } from '../../../entity/decorators/property.decorator';
 
 /**
  * Defines a subscriber to a single or multiple mailing lists.

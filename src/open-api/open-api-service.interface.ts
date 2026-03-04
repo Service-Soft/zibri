@@ -1,7 +1,7 @@
 
 import { ZibriApplication } from '../application';
-import { Route } from '../routing';
 import { OpenApiDefinition } from './open-api.model';
+import { Route } from '../routing/controller-route-configuration.model';
 
 /**
  * Interface for an open api service.

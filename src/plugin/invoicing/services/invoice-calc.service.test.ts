@@ -1,7 +1,8 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { Invoice, InvoiceItem } from '../models';
 import { InvoiceCalcService } from './invoice-calc.service';
+import { InvoiceItem } from '../models/invoice-item.model';
+import { Invoice } from '../models/invoice.model';
 
 const invoiceItem: InvoiceItem = {
     name: '',

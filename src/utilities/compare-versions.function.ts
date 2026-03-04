@@ -1,4 +1,4 @@
-import { Version } from '../types';
+import { Version } from '../types/version.type';
 
 /**
  * Compares the given versions and check if the first one is bigger, equal or smaller than the second one.

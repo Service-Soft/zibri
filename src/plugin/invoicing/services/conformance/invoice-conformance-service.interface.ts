@@ -1,5 +1,5 @@
-import { PdfDocument, PdfDocumentDefinition } from '../../../../document';
-import { Invoice as BaseInvoice } from '../../models';
+import { PdfDocument, PdfDocumentDefinition } from '../../../../document/pdf.utilities';
+import { Invoice as BaseInvoice } from '../../models/invoice.model';
 
 /**
  * Defines the different conformance types.

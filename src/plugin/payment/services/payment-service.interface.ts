@@ -1,7 +1,7 @@
-import { AnyObject } from '../../../entity';
-import { PaymentMethod } from '../models';
-import { PaymentProviderInterface } from '../providers';
-import { AllowedCancellationMethods, AllowedRefundMethods, AllowedReservationMethods, PaymentDataForMethod, PaymentForMethod, PaymentReservationForMethod, ValidatedPaymentDataForMethod } from './payment-service.types';
+import { PaymentDataForMethod, ValidatedPaymentDataForMethod, PaymentForMethod, AllowedReservationMethods, PaymentReservationForMethod, AllowedCancellationMethods, AllowedRefundMethods } from './payment-service.types';
+import { AnyObject } from '../../../entity/any-object.model';
+import { PaymentMethod } from '../models/payment-method.model';
+import { PaymentProviderInterface } from '../providers/payment-provider.interface';
 
 /**
  * Interface for a payment service.

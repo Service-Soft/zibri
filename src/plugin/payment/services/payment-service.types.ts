@@ -1,7 +1,9 @@
 /* eslint-disable unusedImports/no-unused-vars */
-import { AnyObject } from '../../../entity';
-import { Payment, PaymentMethod, PaymentPluginOptions } from '../models';
-import { PaymentProviderInterface } from '../providers';
+import { AnyObject } from '../../../entity/any-object.model';
+import { PaymentMethod } from '../models/payment-method.model';
+import { PaymentPluginOptions } from '../models/payment-plugin-options.model';
+import { Payment } from '../models/payment.model';
+import { PaymentProviderInterface } from '../providers/payment-provider.interface';
 
 /**
  * Helper: pick the provider *instance* (from the P tuple) for the given method M.

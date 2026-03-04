@@ -1,5 +1,5 @@
 import { BaseEntity } from '../../entity/base-entity.model';
-import { Newable } from '../../types';
+import { Newable } from '../../types/newable.type';
 
 /**
  * An error to throw when there are entities that are not registered in a data source.

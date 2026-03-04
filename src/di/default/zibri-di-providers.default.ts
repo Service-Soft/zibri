@@ -1,30 +1,37 @@
 /* eslint-disable jsdoc/require-jsdoc */
 import os from 'node:os';
 
-import { ZIBRI_DI_TOKENS } from './zibri-di-tokens.default';
-import { AssetService } from '../../assets';
-import { AuthService, UserService, TwoFactorService } from '../../auth';
-import { BackupService } from '../../backup';
-import { CronService } from '../../cron';
-import { DataSourceService } from '../../data-source';
-import { EmailService, MailingListService } from '../../email';
-import { errorHandler } from '../../error-handling';
-import { HttpClient } from '../../http-client';
-import { LocalizeOptionsInput } from '../../localization';
 import { formatDate } from '../../localization/formatting/format-date.function';
 import { formatPercent } from '../../localization/formatting/format-percent.function';
 import { formatPrice } from '../../localization/formatting/format-price.function';
-import { Logger, LoggerTransport, LogLevel } from '../../logging';
-import { PrometheusMetricsService } from '../../metrics';
-import { MultithreadingService } from '../../multithreading';
-import { OpenApiService } from '../../open-api';
-import { Parser } from '../../parsing';
-import { getCurrentRequest, Router } from '../../routing';
-import { FsUtilities, Ms } from '../../utilities';
-import { ValidationService } from '../../validation';
-import { WebsocketService } from '../../websocket';
 import { inject } from '../inject.function';
-import { DiTokenProviderRecord } from '../models';
+import { ZIBRI_DI_TOKENS } from './zibri-di-tokens.default';
+import { AssetService } from '../../assets/asset.service';
+import { TwoFactorService } from '../../auth/2fa/two-factor.service';
+import { AuthService } from '../../auth/auth.service';
+import { UserService } from '../../auth/user/user.service';
+import { BackupService } from '../../backup/backup.service';
+import { CronService } from '../../cron/cron.service';
+import { DataSourceService } from '../../data-source/data-source.service';
+import { EmailService } from '../../email/email.service';
+import { MailingListService } from '../../email/mailing-list/mailing-list.service';
+import { errorHandler } from '../../error-handling/error-handler';
+import { HttpClient } from '../../http-client/http-client';
+import { LocalizeOptionsInput } from '../../localization/models/localize-options.model';
+import { LogLevel } from '../../logging/log-level.enum';
+import { Logger } from '../../logging/logger';
+import { LoggerTransport } from '../../logging/transport/logger-transport.model';
+import { PrometheusMetricsService } from '../../metrics/metrics.service';
+import { MultithreadingService } from '../../multithreading/services/multithreading.service';
+import { OpenApiService } from '../../open-api/open-api.service';
+import { Parser } from '../../parsing/parser';
+import { getCurrentRequest } from '../../routing/request.context';
+import { Router } from '../../routing/router';
+import { FsUtilities } from '../../utilities/fs.utilities';
+import { Ms } from '../../utilities/ms';
+import { ValidationService } from '../../validation/validation.service';
+import { WebsocketService } from '../../websocket/services/websocket.service';
+import { DiTokenProviderRecord } from '../models/di-token.model';
 
 const allThreads: number = os.availableParallelism();
 

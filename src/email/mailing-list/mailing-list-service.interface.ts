@@ -1,10 +1,10 @@
-import { MailingListSubscriber } from './models';
 import { ZibriApplication } from '../../application';
-import { OmitClass } from '../../entity';
-import { BaseEmailTemplateData } from '../../handlebars';
-import { Route } from '../../routing';
-import { OmitStrict } from '../../types';
-import { QueueEmailData } from '../models';
+import { MailingListSubscriber } from './models/mailing-list-subscriber.model';
+import { OmitClass } from '../../entity/omit-class.model';
+import { BaseEmailTemplateData } from '../../handlebars/render-template.function';
+import { Route } from '../../routing/controller-route-configuration.model';
+import { OmitStrict } from '../../types/omit-strict.type';
+import { QueueEmailData } from '../models/create-email-data.model';
 
 /**
  * The data required to queue a new mailing list email.

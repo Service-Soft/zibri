@@ -1,6 +1,7 @@
 import { getDependencyStackTrace } from './get-dependency-stack-trace.function';
-import { MetadataUtilities } from '../../utilities';
-import { DiToken, InjectionToken } from '../models';
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { DiToken } from '../models/di-token.model';
+import { InjectionToken } from '../models/injection-token.model';
 
 /**
  * Get the no providers error message from the provided token and stack.

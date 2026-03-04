@@ -1,8 +1,10 @@
 /* eslint-disable jsdoc/require-jsdoc */
-import { PaymentMethod, PaymentPluginOptionsInput } from './models';
-import { PaymentProviderInterface } from './providers';
-import { InjectionToken, TokenRecord } from '../../di';
-import { AnyObject } from '../../entity';
+import { PaymentMethod } from './models/payment-method.model';
+import { PaymentPluginOptionsInput } from './models/payment-plugin-options-input.model';
+import { PaymentProviderInterface } from './providers/payment-provider.interface';
+import { TokenRecord } from '../../di/models/di-token.model';
+import { InjectionToken } from '../../di/models/injection-token.model';
+import { AnyObject } from '../../entity/any-object.model';
 
 export type DefaultPaymentProviderArray = PaymentProviderInterface<
     PaymentMethod[],

@@ -1,4 +1,4 @@
-import { OmitStrict } from '../../types';
+import { OmitStrict } from '../../types/omit-strict.type';
 
 /**
  * Configuration for emails.

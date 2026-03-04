@@ -1,5 +1,5 @@
-import { Property } from '../../entity';
-import { type Path } from '../../utilities';
+import { Property } from '../../entity/decorators/property.decorator';
+import { type Path } from '../../utilities/fs.utilities';
 
 /**
  * A resolved file from a multipart/form-data request.

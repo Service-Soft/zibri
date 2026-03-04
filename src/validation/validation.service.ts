@@ -1,16 +1,24 @@
-
-import { Property, PropertyMetadata, RelationMetadata } from '../entity';
-import { BaseEntity } from '../entity/base-entity.model';
-import { ValidationError } from '../error-handling';
-import { MimeType } from '../http';
-import { FormData } from '../parsing';
-import { BodyMetadata, HeaderParamMetadata, PathParamMetadata, QueryParamMetadata } from '../routing';
-import { ExcludeStrict, Newable, OmitStrict } from '../types';
-import { MetadataUtilities, ObjectUtilities, type Path } from '../utilities';
-import { WebsocketRequest } from '../websocket';
-import { validateBoolean, validateDate, validateFile, validateNumber, validateString } from './functions';
 import { IsRequiredValidationProblem, RelationsNotAllowedValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from './validation-problem.model';
 import { ValidationServiceInterface } from './validation-service.interface';
+import { BaseEntity } from '../entity/base-entity.model';
+import { validateBoolean } from './functions/validate-boolean.function';
+import { validateDate } from './functions/validate-date.function';
+import { validateFile } from './functions/validate-file.function';
+import { validateNumber } from './functions/validate-number.function';
+import { validateString } from './functions/validate-string.function';
+import { PropertyMetadata, Property, RelationMetadata } from '../entity/decorators/property.decorator';
+import { ValidationError } from '../error-handling/errors/validation.error';
+import { MimeType } from '../http/mime-type.enum';
+import { FormData } from '../parsing/form-data/form-data.model';
+import { BodyMetadata } from '../routing/decorators/body.decorator';
+import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from '../routing/decorators/param.decorator';
+import { ExcludeStrict } from '../types/exclude-strict.type';
+import { Newable } from '../types/newable.type';
+import { OmitStrict } from '../types/omit-strict.type';
+import { type Path } from '../utilities/fs.utilities';
+import { MetadataUtilities } from '../utilities/metadata.utilities';
+import { ObjectUtilities } from '../utilities/object.utilities';
+import { WebsocketRequest } from '../websocket/models/websocket-request.model';
 
 /**
  * Function for validating a path parameter.

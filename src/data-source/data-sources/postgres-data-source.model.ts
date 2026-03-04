@@ -9,21 +9,35 @@ import { OnDeleteType } from 'typeorm/metadata/types/OnDeleteType.js';
 import { OnUpdateType } from 'typeorm/metadata/types/OnUpdateType.js';
 
 import { DataSourceInterface } from './data-source.interface';
-import { ChangeSetEntity, ChangeSetRepository, isChangeSetEntityNewable, isSoftDeleteEntityNewable, SoftDeleteEntity, SoftDeleteRepository } from '../../change-sets';
-import { inject, repositoryTokenFor, ZIBRI_DI_TOKENS } from '../../di';
+import { ChangeSetRepository } from '../../change-sets/change-set-repository';
+import { isChangeSetEntityNewable, ChangeSetEntity } from '../../change-sets/models/change-set-entity.model';
+import { isSoftDeleteEntityNewable, SoftDeleteEntity } from '../../change-sets/models/soft-delete-entity.model';
+import { SoftDeleteRepository } from '../../change-sets/soft-delete-repository';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
+import { inject } from '../../di/inject.function';
 import { register } from '../../di/register.function';
-import { EntityMetadata, PropertyMetadata, PropertyMetadataInput, Relation, RelationMetadata, StringPropertyMetadata } from '../../entity';
 import { BaseEntity } from '../../entity/base-entity.model';
+import { EntityMetadata } from '../../entity/decorators/entity.decorator';
+import { PropertyMetadata, PropertyMetadataInput, RelationMetadata } from '../../entity/decorators/property.decorator';
 import { FilePropertyMetadata } from '../../entity/models/file-property-metadata.model';
-import { GlobalRegistry } from '../../global';
-import { LoggerInterface } from '../../logging';
-import { ExcludeStrict, Newable, OmitStrict, Version } from '../../types';
-import { compareVersion, MetadataUtilities } from '../../utilities';
+import { Relation } from '../../entity/models/relation.enum';
+import { StringPropertyMetadata } from '../../entity/models/string-property-metadata.model';
+import { GlobalRegistry } from '../../global/global-registry';
+import { LoggerInterface } from '../../logging/logger.interface';
+import { ExcludeStrict } from '../../types/exclude-strict.type';
+import { Newable } from '../../types/newable.type';
+import { OmitStrict } from '../../types/omit-strict.type';
+import { Version } from '../../types/version.type';
+import { compareVersion } from '../../utilities/compare-versions.function';
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
-import { Migration, MigrationEntity } from '../migration';
-import { ColumnType, DataSourceOptions } from '../models';
+import { MigrationEntity } from '../migration/migration-entity.model';
+import { Migration } from '../migration/migration.model';
+import { ColumnType } from '../models/column-type.model';
+import { DataSourceOptions } from '../models/data-source-options.model';
 import { Repository } from '../repository';
-import { Transaction } from '../transaction';
+import { Transaction } from '../transaction/transaction.model';
 import { TypeOrmTransaction } from '../transaction/typeorm-transaction.model';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
@@ -371,12 +385,20 @@ export abstract class PostgresDataSource implements DataSourceInterface {
         const repo: TORepository<T> = this.ds.getRepository(cls);
 
         if (isSoftDeleteEntityNewable(cls)) {
-            return new SoftDeleteRepository(cls, repo as unknown as TORepository<SoftDeleteEntity>) as unknown as Repository<T>;
+            return new SoftDeleteRepository(
+                cls,
+                repo as unknown as TORepository<SoftDeleteEntity>,
+                this.logger
+            ) as unknown as Repository<T>;
         }
         if (isChangeSetEntityNewable(cls)) {
-            return new ChangeSetRepository(cls, repo as unknown as TORepository<ChangeSetEntity>) as unknown as Repository<T>;
+            return new ChangeSetRepository(
+                cls,
+                repo as unknown as TORepository<ChangeSetEntity>,
+                this.logger
+            ) as unknown as Repository<T>;
         }
-        return new Repository(cls, repo);
+        return new Repository(cls, repo, this.logger);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

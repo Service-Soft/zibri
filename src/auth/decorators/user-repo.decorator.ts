@@ -1,10 +1,11 @@
-import { DiToken } from '../../di';
-import { GlobalRegistry } from '../../global';
-import { Newable } from '../../types';
-import { MetadataUtilities } from '../../utilities';
-import { BaseUser, UserRepositories } from '../models';
 
-// eslint-disable-next-line jsdoc/require-returns
+import { DiToken } from '../../di/models/di-token.model';
+import { GlobalRegistry } from '../../global/global-registry';
+import { Newable } from '../../types/newable.type';
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { BaseUser } from '../models/base-user.model';
+import { UserRepositories } from '../models/user-repositories.model';
+
 /**
  * Marks the given class as a user repository.
  * This registers it to be injected directly, without using "@InjectRepository".

@@ -2,18 +2,22 @@ import { beforeAll, afterAll, describe, it, expect } from '@jest/globals';
 import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { Table, TableColumn } from 'typeorm';
 
-import { inject, Injectable, InjectRepository } from '../../di';
-import { Entity, Property } from '../../entity';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Newable, Version } from '../../types';
-import { Transaction } from '../transaction';
-import { Migration } from './migration.model';
-import { DataSource } from '../decorators';
-import { Repository } from '../repository';
 import { MigrationEntity } from './migration-entity.model';
-import { POSTGRES_TEST_IMAGE } from '../../__testing__';
-import { GlobalRegistry } from '../../global';
-import { PostgresDataSource, PostgresOptions } from '../data-sources';
+import { Migration } from './migration.model';
+import { POSTGRES_TEST_IMAGE } from '../../__testing__/constants';
+import { InjectRepository } from '../../di/decorators/inject-repository.decorator';
+import { Injectable } from '../../di/decorators/injectable.decorator';
+import { inject } from '../../di/inject.function';
+import { BaseEntity } from '../../entity/base-entity.model';
+import { Entity } from '../../entity/decorators/entity.decorator';
+import { Property } from '../../entity/decorators/property.decorator';
+import { GlobalRegistry } from '../../global/global-registry';
+import { Newable } from '../../types/newable.type';
+import { Version } from '../../types/version.type';
+import { PostgresDataSource, PostgresOptions } from '../data-sources/postgres-data-source.model';
+import { DataSource } from '../decorators/data-source.decorator';
+import { Repository } from '../repository';
+import { Transaction } from '../transaction/transaction.model';
 
 @Entity('item')
 class LegacyItem {

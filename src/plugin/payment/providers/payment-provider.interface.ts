@@ -1,5 +1,6 @@
-import { AnyObject } from '../../../entity';
-import { Payment, PaymentMethod } from '../models';
+import { AnyObject } from '../../../entity/any-object.model';
+import { PaymentMethod } from '../models/payment-method.model';
+import { Payment } from '../models/payment.model';
 
 /**
  * Interface for a payment provider.

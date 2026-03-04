@@ -3,15 +3,20 @@ import { JwtConfirmPasswordResetData } from './jwt-confirm-password-reset-data.m
 import { JwtCredentialsDto } from './jwt-credentials.model';
 import { JwtRefreshLoginData } from './jwt-refresh-login-data.model';
 import { JwtAuthStrategy } from './jwt.auth-strategy';
-import { Repository } from '../../../data-source';
-import { Inject, InjectRepository, ZIBRI_DI_TOKENS } from '../../../di';
-import { Property } from '../../../entity';
-import { Response } from '../../../open-api';
-import { Body, Controller, Post } from '../../../routing';
+import { Repository } from '../../../data-source/repository';
+import { InjectRepository } from '../../../di/decorators/inject-repository.decorator';
+import { Inject } from '../../../di/decorators/inject.decorator';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
+import { Property } from '../../../entity/decorators/property.decorator';
+import { Response } from '../../../open-api/decorators/response.decorator';
+import { Body } from '../../../routing/decorators/body.decorator';
+import { Controller } from '../../../routing/decorators/controller.decorator';
+import { Post } from '../../../routing/decorators/post.decorator';
 import { AuthControllerInterface } from '../../auth-controller.interface';
 import { type AuthServiceInterface } from '../../auth-service.interface';
-import { BaseUser, PasswordResetToken } from '../../models';
-import { type UserServiceInterface } from '../../user';
+import { BaseUser } from '../../models/base-user.model';
+import { PasswordResetToken } from '../../models/password-reset-token.model';
+import { type UserServiceInterface } from '../../user/user-service.interface';
 
 class JwtRequestPasswordResetInput {
     @Property.string({ format: 'email' })

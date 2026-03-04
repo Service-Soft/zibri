@@ -1,6 +1,7 @@
 import { MailingListSubscriber } from './mailing-list-subscriber.model';
-import { Entity, Property } from '../../../entity';
 import { BaseEntity } from '../../../entity/base-entity.model';
+import { Entity } from '../../../entity/decorators/entity.decorator';
+import { Property } from '../../../entity/decorators/property.decorator';
 
 /**
  * A mailing list like a newsletter that people can easily subscribe and unsubscribe to.

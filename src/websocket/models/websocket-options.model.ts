@@ -1,4 +1,4 @@
-import { BaseUser } from '../../auth';
+import { BaseUser } from '../../auth/models/base-user.model';
 
 /**
  * Options regarding websockets.

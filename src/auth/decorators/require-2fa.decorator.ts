@@ -1,6 +1,6 @@
-import { MetadataUtilities } from '../../utilities';
-import { TwoFactorMethods } from '../2fa';
-import { Require2faMetadata } from '../models';
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { TwoFactorMethods } from '../2fa/two-factor-methods.model';
+import { Require2faMetadata } from '../models/require-2fa-metadata.model';
 
 /**
  * The type of the require 2fa decorator.

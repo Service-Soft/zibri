@@ -1,7 +1,6 @@
-import { MetadataUtilities } from '../../utilities';
-import { WebsocketControllerRouteConfiguration } from '../models';
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { WebsocketControllerRouteConfiguration } from '../models/websocket-controller-route-configuration.model';
 
-// eslint-disable-next-line jsdoc/require-returns
 /**
  * Defines a route to receive websocket messages.
  * @param event - The event to listen on.

@@ -1,7 +1,7 @@
 import { ZibriApplication } from '../application';
-import { Route } from '../routing';
-import { Path } from '../utilities';
 import { TreeNode } from './asset.service';
+import { Route } from '../routing/controller-route-configuration.model';
+import { Path } from '../utilities/fs.utilities';
 
 /**
  * Interface for an asset service.

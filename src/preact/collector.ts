@@ -1,8 +1,8 @@
 import { ComponentChild, ComponentChildren, Fragment, VNode } from 'preact';
 
-import { OmitStrict } from '../types';
-import { ObjectUtilities } from '../utilities';
 import { stringAwareReplace } from './string-aware-replace.function';
+import { OmitStrict } from '../types/omit-strict.type';
+import { ObjectUtilities } from '../utilities/object.utilities';
 
 const HANDLERS_DIRECTIVE: string = 'data-ssr-handlers';
 

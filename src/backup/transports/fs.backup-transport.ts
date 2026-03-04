@@ -3,9 +3,10 @@ import { Readable } from 'stream';
 import { pipeline } from 'stream/promises';
 
 import { BackupTransportInterface } from './backup-transport.interface';
-import { inject, ZIBRI_DI_TOKENS } from '../../di';
-import { LoggerInterface } from '../../logging';
-import { FsUtilities, Path } from '../../utilities';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
+import { inject } from '../../di/inject.function';
+import { LoggerInterface } from '../../logging/logger.interface';
+import { FsUtilities, Path } from '../../utilities/fs.utilities';
 import { BackupEntity } from '../backup-entity.model';
 import { BackupResourceEntity } from '../backup-resource-entity.model';
 

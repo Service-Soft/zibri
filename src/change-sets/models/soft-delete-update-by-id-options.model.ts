@@ -1,4 +1,4 @@
-import { UpdateByIdOptions } from '../../data-source';
+import { UpdateByIdOptions } from '../../data-source/models/options/update-by-id-options.model';
 
 /**
  * Options for updating a soft delete entity by its id.

@@ -1,6 +1,6 @@
 import { BaseRelationMetadata } from './base-relation-metadata.model';
 import { Relation } from './relation.enum';
-import { OmitStrict } from '../../types';
+import { OmitStrict } from '../../types/omit-strict.type';
 import { type BaseEntity } from '../base-entity.model';
 
 /**

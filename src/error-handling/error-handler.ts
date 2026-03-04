@@ -1,12 +1,17 @@
 import { NextFunction } from 'express';
 
 import { ErrorPageTemplate, GlobalErrorHandler } from './error-handler.model';
-import { inject, ZIBRI_DI_TOKENS } from '../di';
-import { HttpRequest, HttpResponse, KnownHeader, MimeType } from '../http';
-import { LoggerInterface } from '../logging';
-import { HttpError, InternalServerError, isHttpError } from './errors';
 import { isError } from './is-error.function';
-import { PreactUtilities } from '../preact';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { inject } from '../di/inject.function';
+import { HttpRequest } from '../http/http-request.model';
+import { HttpResponse } from '../http/http-response.model';
+import { HttpError, isHttpError } from './errors/http.error';
+import { KnownHeader } from '../http/known-header.enum';
+import { MimeType } from '../http/mime-type.enum';
+import { LoggerInterface } from '../logging/logger.interface';
+import { PreactUtilities } from '../preact/preact.utilities';
+import { InternalServerError } from './errors/internal-server.error';
 
 /**
  * The default error handler implementation of Zibri.

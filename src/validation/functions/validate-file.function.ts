@@ -1,8 +1,8 @@
-import { PropertyMetadata } from '../../entity';
+import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { fileSizeToBytes } from '../../entity/models/file-property-metadata.model';
-import { MimeType } from '../../http';
-import { File } from '../../parsing';
-import { BigNumberUtilities } from '../../utilities';
+import { MimeType } from '../../http/mime-type.enum';
+import { File } from '../../parsing/form-data/file.model';
+import { BigNumberUtilities } from '../../utilities/big-number.utilities';
 import { MaxFileSizeValidationProblem, IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationProblem, MimeTypeMismatchValidationProblem } from '../validation-problem.model';
 
 /**

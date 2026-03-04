@@ -1,16 +1,26 @@
 import assert from 'assert';
 
-import { inject, ZIBRI_DI_TOKENS } from '../di';
-import { GlobalRegistry } from '../global';
 import { BodyParserInterface } from './body-parser.interface';
-import { HttpRequest, isHttpRequest, isMimeType, KnownHeader, MimeType } from '../http';
 import { ParserInterface } from './parser.interface';
-import { HttpClientResponse, isHttpClientResponse } from '../http-client';
-import { LoggerInterface } from '../logging';
-import { BodyMetadata, HeaderParamMetadata, PathParamMetadata, QueryParamMetadata } from '../routing';
-import { parseArray, parseBoolean, parseDate, parseNumber, parseObject, parseString } from './functions';
 import { ZibriApplication } from '../application';
-import { WebsocketRequest } from '../websocket';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { inject } from '../di/inject.function';
+import { GlobalRegistry } from '../global/global-registry';
+import { HttpRequest, isHttpRequest } from '../http/http-request.model';
+import { KnownHeader } from '../http/known-header.enum';
+import { MimeType } from '../http/mime-type.enum';
+import { isMimeType } from '../http/mime-type.helpers';
+import { HttpClientResponse, isHttpClientResponse } from '../http-client/http-client-response.model';
+import { LoggerInterface } from '../logging/logger.interface';
+import { parseArray } from './functions/parse-array.function';
+import { parseBoolean } from './functions/parse-boolean.function';
+import { parseDate } from './functions/parse-date.function';
+import { parseNumber } from './functions/parse-number.function';
+import { parseObject } from './functions/parse-object.function';
+import { parseString } from './functions/parse-string.function';
+import { BodyMetadata } from '../routing/decorators/body.decorator';
+import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from '../routing/decorators/param.decorator';
+import { WebsocketRequest } from '../websocket/models/websocket-request.model';
 
 /**
  * Function for parsing path parameters.

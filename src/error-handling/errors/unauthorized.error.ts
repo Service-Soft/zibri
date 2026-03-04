@@ -1,5 +1,5 @@
 import { HttpError } from './http.error';
-import { HttpStatus } from '../../http';
+import { HttpStatus } from '../../http/http-status.enum';
 
 /**
  * An error to throw when a user does something that he is not allowed to.

@@ -1,10 +1,13 @@
 import { type LooseWebsocketEvent } from './websocket-event.enum';
-import { Repository } from '../../data-source';
-import { inject, repositoryTokenFor } from '../../di';
-import { Entity, OmitClass, Property } from '../../entity';
+import { Repository } from '../../data-source/repository';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
+import { inject } from '../../di/inject.function';
 import { BaseEntity } from '../../entity/base-entity.model';
-import { HttpError } from '../../error-handling';
-import { HttpStatus } from '../../http';
+import { Entity } from '../../entity/decorators/entity.decorator';
+import { Property } from '../../entity/decorators/property.decorator';
+import { OmitClass } from '../../entity/omit-class.model';
+import { HttpError } from '../../error-handling/errors/http.error';
+import { HttpStatus } from '../../http/http-status.enum';
 
 /**
  * The type of a websocket message recipient.

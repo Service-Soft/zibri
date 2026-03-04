@@ -4,12 +4,14 @@ import express from 'express';
 
 import { AssetServiceInterface } from './asset-service.interface';
 import { ZibriApplication } from '../application';
-import { Inject, ZIBRI_DI_TOKENS } from '../di';
-import { HttpMethod } from '../http';
-import type { LoggerInterface } from '../logging';
+import { Inject } from '../di/decorators/inject.decorator';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { HttpMethod } from '../http/http-method.enum';
+import { type LoggerInterface } from '../logging/logger.interface';
 import { FileResponse } from '../parsing/form-data/file-response.model';
-import { Route } from '../routing';
-import { FsUtilities, ObjectUtilities, Path } from '../utilities';
+import { Route } from '../routing/controller-route-configuration.model';
+import { FsUtilities, Path } from '../utilities/fs.utilities';
+import { ObjectUtilities } from '../utilities/object.utilities';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 type FileNode = { type: 'file', name: string, route: string };

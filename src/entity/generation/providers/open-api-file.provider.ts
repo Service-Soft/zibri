@@ -1,7 +1,7 @@
 import { EntityGenerationProvider } from './entity-generation-provider.interface';
 import { openApiToV3 } from './open-api-to-v3.function';
-import { OpenApiDefinition } from '../../../open-api';
-import { FsUtilities, Path } from '../../../utilities';
+import { OpenApiDefinition } from '../../../open-api/open-api.model';
+import { FsUtilities, Path } from '../../../utilities/fs.utilities';
 
 /**
  * An entity generation provider using a local open api file.

@@ -1,9 +1,9 @@
 import { ZibriApplication } from '../application';
-import { AuthStrategies } from '../auth';
-import { CronJob } from '../cron';
-import { DiProvider } from '../di';
-import { BodyParserInterface } from '../parsing';
-import { Newable } from '../types';
+import { AuthStrategies } from '../auth/strategies/auth-strategies.model';
+import { CronJob } from '../cron/cron-job.model';
+import { DiProvider } from '../di/models/di-provider.model';
+import { BodyParserInterface } from '../parsing/body-parser.interface';
+import { Newable } from '../types/newable.type';
 
 /**
  * A bundle of providers, controllers, cronJobs, bodyParsers and authStrategies.

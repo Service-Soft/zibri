@@ -1,21 +1,23 @@
 import { beforeAll, afterAll, describe, it, expect } from '@jest/globals';
 import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 
-import { POSTGRES_TEST_IMAGE, testFileFolder } from '../__testing__';
 import { BackupEntity } from './backup-entity.model';
 import { BackupResourceEntity } from './backup-resource-entity.model';
+import { BackupServiceInterface } from './backup-service.interface';
+import { POSTGRES_TEST_IMAGE, testFileFolder } from '../__testing__/constants';
+import { Backup } from './decorators/backup-resource.decorator';
+import { FsBackupTransport } from './transports/fs.backup-transport';
+import { PostgresDataSource, PostgresOptions } from '../data-source/data-sources/postgres-data-source.model';
 import { DataSource } from '../data-source/decorators/data-source.decorator';
 import { MigrationEntity } from '../data-source/migration/migration-entity.model';
 import { Repository } from '../data-source/repository';
-import { inject, ZIBRI_DI_TOKENS } from '../di';
-import { Entity, Property } from '../entity';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { inject } from '../di/inject.function';
 import { BaseEntity } from '../entity/base-entity.model';
-import { Newable } from '../types';
-import { Backup } from './decorators/backup-resource.decorator';
-import { FsBackupTransport } from './transports';
-import { PostgresDataSource, PostgresOptions } from '../data-source';
-import { BackupServiceInterface } from './backup-service.interface';
-import { FsUtilities, Path } from '../utilities';
+import { Entity } from '../entity/decorators/entity.decorator';
+import { Property } from '../entity/decorators/property.decorator';
+import { Newable } from '../types/newable.type';
+import { FsUtilities, Path } from '../utilities/fs.utilities';
 
 const backupFsFolder: Path = FsUtilities.getPath(testFileFolder, 'backups');
 

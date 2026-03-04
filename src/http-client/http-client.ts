@@ -2,15 +2,18 @@ import axios, { AxiosInstance, AxiosResponse, RawAxiosRequestConfig, ResponseTyp
 
 import { HttpClientResponse, HttpClientResponseForBodyType } from './http-client-response.model';
 import { HttpClientHeaderValue, HttpClientInterface, HttpOptionsInput } from './http-client.interface';
-import { Inject, ZIBRI_DI_TOKENS } from '../di';
+import { Inject } from '../di/decorators/inject.decorator';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { HttpMethod } from '../http/http-method.enum';
 import { KnownHeader } from '../http/known-header.enum';
 import { MimeType } from '../http/mime-type.enum';
 import { type ParserInterface } from '../parsing/parser.interface';
-import { BodyMetadata, HeaderMetaInputObjectToMetaObject, HeaderMetaObjectToParamsObject, HeaderParamMetadata, HeaderParamMetadataInput, resolveMaxBodySize } from '../routing';
+import { BodyMetadata, resolveMaxBodySize } from '../routing/decorators/body.decorator';
+import { HeaderParamMetadataInput, HeaderParamMetadata } from '../routing/decorators/param.decorator';
 import { createHeaderParamMetadata } from '../routing/param-metdata.helpers';
-import { Newable } from '../types';
-import { Ms } from '../utilities';
+import { HeaderMetaObjectToParamsObject, HeaderMetaInputObjectToMetaObject } from '../routing/route-configuration.model';
+import { Newable } from '../types/newable.type';
+import { Ms } from '../utilities/ms';
 import { type ValidationServiceInterface } from '../validation/validation-service.interface';
 
 const responseTypeForMimeType: Record<BodyMetadata['type'], ResponseType> = {

@@ -1,9 +1,8 @@
-import { GlobalRegistry } from '../../global';
-import { Newable } from '../../types';
-import { MetadataUtilities } from '../../utilities';
-import { DataSourceInterface } from '../data-sources';
+import { GlobalRegistry } from '../../global/global-registry';
+import { Newable } from '../../types/newable.type';
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { DataSourceInterface } from '../data-sources/data-source.interface';
 
-// eslint-disable-next-line jsdoc/require-returns
 /**
  * Marks a class to be a data source.
  */

@@ -1,17 +1,29 @@
 import { Repository as TORepository, FindOptionsWhere, EntityManager, QueryFailedError as TOQueryFailedError } from 'typeorm';
 
-import { inject, ZIBRI_DI_TOKENS } from '../di';
-import { NotFoundError } from '../error-handling';
-import { LoggerInterface } from '../logging';
-import { DeepPartial, Newable } from '../types';
-import { Transaction } from './transaction';
-import { ArrayPropertyMetadata, PropertyMetadata, Relation } from '../entity';
-import { CreateAllOptions, CreateOptions, DeleteAllOptions, DeleteByIdOptions, FindAllOptions, FindAllPaginatedOptions, FindByIdOptions, FindOneOptions, UpdateAllOptions, UpdateByIdOptions, Where } from './models';
-import { BaseEntity } from '../entity/base-entity.model';
-import { PaginationResult } from '../open-api';
-import { MetadataUtilities } from '../utilities';
-import { whereFilterToFindOptionsWhere } from './models/where/where-filter-to-find-options-where.function';
 import { QueryFailedError } from './query-failed.error';
+import { BaseEntity } from '../entity/base-entity.model';
+import { Transaction } from './transaction/transaction.model';
+import { PropertyMetadata } from '../entity/decorators/property.decorator';
+import { ArrayPropertyMetadata } from '../entity/models/array-property-metadata.model';
+import { Relation } from '../entity/models/relation.enum';
+import { LoggerInterface } from '../logging/logger.interface';
+import { PaginationResult } from '../open-api/pagination-result.model';
+import { DeepPartial } from '../types/deep-partial.type';
+import { Newable } from '../types/newable.type';
+import { MetadataUtilities } from '../utilities/metadata.utilities';
+import { whereFilterToFindOptionsWhere } from './models/where/where-filter-to-find-options-where.function';
+import { NotFoundError } from '../error-handling/errors/not-found.error';
+import { CreateAllOptions } from './models/options/create-all-options.model';
+import { CreateOptions } from './models/options/create-options.model';
+import { DeleteAllOptions } from './models/options/delete-all-options.model';
+import { DeleteByIdOptions } from './models/options/delete-by-id-options.model';
+import { FindAllOptions } from './models/options/find-all-options.model';
+import { FindAllPaginatedOptions } from './models/options/find-all-paginated-options.model';
+import { FindByIdOptions } from './models/options/find-by-id-options.model';
+import { FindOneOptions } from './models/options/find-one-options.model';
+import { UpdateAllOptions } from './models/options/update-all-options.model';
+import { UpdateByIdOptions } from './models/options/update-by-id-options.model';
+import { Where } from './models/where/where-filter.model';
 
 /**
  * A repository that handles data source related things for its entity.
@@ -21,12 +33,13 @@ export class Repository<
     CreateData extends DeepPartial<T> = DeepPartial<T>,
     UpdateData extends DeepPartial<T> = DeepPartial<T>
 > {
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    protected readonly logger: LoggerInterface;
     private readonly typeOrmRepository: TORepository<T>;
 
-    constructor(protected readonly entityClass: Newable<T>, repo: TORepository<T> | Repository<T>) {
-        this.logger = inject(ZIBRI_DI_TOKENS.LOGGER);
+    constructor(
+        protected readonly entityClass: Newable<T>,
+        repo: TORepository<T> | Repository<T>,
+        protected readonly logger: LoggerInterface
+    ) {
         this.typeOrmRepository = repo instanceof Repository ? repo.typeOrmRepository : repo;
     }
 

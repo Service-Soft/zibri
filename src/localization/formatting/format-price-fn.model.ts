@@ -1,5 +1,6 @@
-import { BigNumber } from '../../utilities';
-import { CurrencyCode, LanguageCode } from '../models';
+import { BigNumber } from '../../utilities/big-number.utilities';
+import { CurrencyCode } from '../models/currency-code.model';
+import { LanguageCode } from '../models/language-code.model';
 
 /**
  * Function for formatting prices.

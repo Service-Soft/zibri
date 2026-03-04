@@ -1,5 +1,7 @@
-import { Entity, OmitClass, Property } from '../../../entity';
 import { BaseEntity } from '../../../entity/base-entity.model';
+import { Entity } from '../../../entity/decorators/entity.decorator';
+import { Property } from '../../../entity/decorators/property.decorator';
+import { OmitClass } from '../../../entity/omit-class.model';
 
 /**
  * The jwt refresh token that gets stored in the data source.

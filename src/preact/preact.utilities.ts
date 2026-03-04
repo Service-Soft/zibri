@@ -2,12 +2,13 @@ import { VNode } from 'preact';
 import renderToString from 'preact-render-to-string';
 
 import { NestedComponentEntry, PreactCollector } from './collector';
-import { PreactComponent } from './preact-component.model';
-import { HtmlResponse } from '../parsing';
-import { FsUtilities, ObjectUtilities, Path } from '../utilities';
-import { pkgToFilename } from './generate-client-scripts';
+import { pkgToFilename } from './generate-client-scripts.function';
 import { preactHooks } from './hooks/hooks';
+import { PreactComponent } from './preact-component.model';
 import { findStringEnd, stringAwareReplace } from './string-aware-replace.function';
+import { HtmlResponse } from '../parsing/html/html-response.model';
+import { FsUtilities, Path } from '../utilities/fs.utilities';
+import { ObjectUtilities } from '../utilities/object.utilities';
 
 /**
  * Definition for a parameter of a preact tsx file.

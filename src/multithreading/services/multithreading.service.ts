@@ -4,15 +4,24 @@ import { Worker } from 'node:worker_threads';
 import { filter, firstValueFrom } from 'rxjs';
 
 import { MultithreadingServiceInterface } from './multithreading-service.interface';
-import { Inject, InjectRepository, ZIBRI_DI_TOKENS } from '../../di';
-import { OmitStrict } from '../../types';
-import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData, type MultithreadingOptions, ThreadJobData, ThreadJobDataFunctions, ThreadJobEntity, ThreadJobFunction, ThreadJobMessage, ThreadJobStatus } from '../models';
 import { ThreadJob } from './thread-job';
 import { ThreadJobWorker } from './thread-job-worker';
-import type { AssetServiceInterface } from '../../assets';
-import { Repository } from '../../data-source';
-import type { LoggerInterface } from '../../logging';
-import { FsUtilities, Path, UUIDUtilities } from '../../utilities';
+import { type AssetServiceInterface } from '../../assets/asset-service.interface';
+import { Repository } from '../../data-source/repository';
+import { InjectRepository } from '../../di/decorators/inject-repository.decorator';
+import { Inject } from '../../di/decorators/inject.decorator';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
+import { type LoggerInterface } from '../../logging/logger.interface';
+import { OmitStrict } from '../../types/omit-strict.type';
+import { FsUtilities, Path } from '../../utilities/fs.utilities';
+import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from '../models/base-thread-job-worker-data.model';
+import { type MultithreadingOptions } from '../models/multithreading-options.model';
+import { ThreadJobData, ThreadJobDataFunctions } from '../models/thread-job-data.model';
+import { ThreadJobEntity } from '../models/thread-job-entity.model';
+import { ThreadJobFunction } from '../models/thread-job-function.model';
+import { ThreadJobMessage } from '../models/thread-job-message.model';
+import { ThreadJobStatus } from '../models/thread-job-status.enum';
 
 /**
  * A service that handles multithreading.

@@ -2,7 +2,7 @@
 import { describe, expect, it } from '@jest/globals';
 
 import { parseArray } from './parse-array.function';
-import { ArrayParamMetadata } from '../../routing';
+import { ArrayParamMetadata } from '../../routing/models/array-param-metadata.model';
 
 describe('parseArray', () => {
     const meta: ArrayParamMetadata = {

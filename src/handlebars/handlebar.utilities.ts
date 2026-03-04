@@ -1,8 +1,11 @@
 import handlebars, { ParseOptions } from 'handlebars';
 
 import { AstProgram } from './ast.model';
-import { inject, ZIBRI_DI_TOKENS } from '../di';
-import { FsUtilities, MaskUtilities, Path, toCamelCase } from '../utilities';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { inject } from '../di/inject.function';
+import { FsUtilities, Path } from '../utilities/fs.utilities';
+import { MaskUtilities } from '../utilities/mask.utilities';
+import { toCamelCase } from '../utilities/to-camel-case.function';
 
 /**
  * Utilities for handling handlebar templates.

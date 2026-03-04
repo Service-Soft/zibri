@@ -1,8 +1,10 @@
 import { type PaymentMethod } from './payment-method.model';
 import { PaymentStatus } from './payment-status.enum';
-import { AnyObject, Entity, Property } from '../../../entity';
+import { AnyObject } from '../../../entity/any-object.model';
 import { BaseEntity } from '../../../entity/base-entity.model';
-import { type CurrencyCode } from '../../../localization';
+import { Entity } from '../../../entity/decorators/entity.decorator';
+import { Property } from '../../../entity/decorators/property.decorator';
+import { type CurrencyCode } from '../../../localization/models/currency-code.model';
 
 /**
  * Entity for an payment that has been made.

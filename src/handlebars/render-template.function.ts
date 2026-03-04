@@ -1,10 +1,12 @@
-import { AssetServiceInterface } from '../assets';
-import { inject, ZIBRI_DI_TOKENS } from '../di';
-import { MailingList, MailingListSubscriber } from '../email';
-import { GlobalRegistry } from '../global';
-import { OmitStrict } from '../types';
 import { HandlebarUtilities } from './handlebar.utilities';
-import { FsUtilities, Path } from '../utilities';
+import { AssetServiceInterface } from '../assets/asset-service.interface';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { inject } from '../di/inject.function';
+import { MailingListSubscriber } from '../email/mailing-list/models/mailing-list-subscriber.model';
+import { MailingList } from '../email/mailing-list/models/mailing-list.model';
+import { GlobalRegistry } from '../global/global-registry';
+import { OmitStrict } from '../types/omit-strict.type';
+import { FsUtilities, Path } from '../utilities/fs.utilities';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 export type BaseEmailTemplateData = {

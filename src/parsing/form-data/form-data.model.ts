@@ -1,5 +1,5 @@
 import { File } from './file.model';
-import { FsUtilities, Path } from '../../utilities';
+import { FsUtilities, Path } from '../../utilities/fs.utilities';
 
 /**
  * The raw value that a form-data property has.

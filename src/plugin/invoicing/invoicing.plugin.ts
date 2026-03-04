@@ -1,11 +1,20 @@
 /* eslint-disable jsdoc/require-jsdoc */
 import { ZIBRI_INVOICING_DI_TOKENS } from './invoicing.tokens';
-import { Invoice, InvoicingOptions, InvoicingOptionsInput, NumberInvoices } from './models';
-import { InvoiceCalcService, InvoiceNumberService, InvoicePdfService, PeppolConformanceService, XRechnungConformanceService } from './services';
-import { DiProvider, DiTokenProviderRecord, inject, providersFromTokenRecord } from '../../di';
-import { NoProviderError } from '../../di/errors';
-import { validateEntitiesRegistered } from '../../utilities';
+import { DiTokenProviderRecord, providersFromTokenRecord } from '../../di/models/di-token.model';
 import { ZibriPlugin } from '../plugin.model';
+import { Invoice } from './models/invoice.model';
+import { InvoicingOptionsInput } from './models/invoicing-options-input.model';
+import { InvoicingOptions } from './models/invoicing-options.model';
+import { NumberInvoices } from './models/number-invoices.model';
+import { InvoiceCalcService } from './services/invoice-calc.service';
+import { InvoiceNumberService } from './services/invoice-number.service';
+import { InvoicePdfService } from './services/invoice-pdf.service';
+import { NoProviderError } from '../../di/errors/no-provider.error';
+import { inject } from '../../di/inject.function';
+import { DiProvider } from '../../di/models/di-provider.model';
+import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function';
+import { PeppolConformanceService } from './services/conformance/en16931/peppol-conformance.service';
+import { XRechnungConformanceService } from './services/conformance/en16931/x-rechnung-conformance.service';
 
 /**
  * Plugin that includes everything for handling invoices.

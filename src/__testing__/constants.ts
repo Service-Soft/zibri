@@ -1,6 +1,4 @@
-import { FsUtilities, Path } from '../utilities';
-
-export * from './mocks';
+import { FsUtilities, Path } from '../utilities/fs.utilities';
 
 export const testFileFolder: Path = FsUtilities.getPath(__dirname, 'file-output');
 

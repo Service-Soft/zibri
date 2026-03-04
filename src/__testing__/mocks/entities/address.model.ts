@@ -1,6 +1,6 @@
 import { faker } from '@faker-js/faker';
 
-import { Property } from '../../../entity';
+import { Property } from '../../../entity/decorators/property.decorator';
 
 export class Address {
     @Property.string()

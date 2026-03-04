@@ -1,4 +1,3 @@
-import { Inject, ZIBRI_DI_TOKENS } from '../di';
 import { errorToLoggedError } from './error-to-logged-error.function';
 import { LogCleanupCronJob } from './log-cleanup.cron-job';
 import { LogContextInput } from './log-context.model';
@@ -6,9 +5,11 @@ import { LogLevel } from './log-level.enum';
 import { Log } from './log.model';
 import { LoggerInterface } from './logger.interface';
 import { ZibriApplication } from '../application';
-import { GlobalRegistry } from '../global';
-import { UUIDUtilities } from '../utilities';
 import { BaseLoggerTransportConfig, LoggerTransport } from './transport/logger-transport.model';
+import { Inject } from '../di/decorators/inject.decorator';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { GlobalRegistry } from '../global/global-registry';
+import { UUIDUtilities } from '../utilities/uuid.utilities';
 
 /**
  * Default logger implementation of Zibri.

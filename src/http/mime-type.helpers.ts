@@ -1,5 +1,5 @@
-import { ObjectUtilities } from '../utilities';
 import { FileMimeType, LooseFileMimeType, MimeType } from './mime-type.enum';
+import { ObjectUtilities } from '../utilities/object.utilities';
 
 /**
  * All possible file extensions.

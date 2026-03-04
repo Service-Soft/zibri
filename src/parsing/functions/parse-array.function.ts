@@ -3,8 +3,8 @@ import { parseDate } from './parse-date.function';
 import { parseNumber } from './parse-number.function';
 import { parseObject } from './parse-object.function';
 import { parseString } from './parse-string.function';
-import { ArrayPropertyItemMetadata } from '../../entity';
-import { ArrayParamItemMetadata } from '../../routing';
+import { ArrayPropertyItemMetadata } from '../../entity/models/array-property-metadata.model';
+import { ArrayParamItemMetadata } from '../../routing/models/array-param-metadata.model';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 export function parseArray(

@@ -1,5 +1,6 @@
 import { DiToken } from './di-token.model';
-import { Newable, OmitStrict } from '../../types';
+import { Newable } from '../../types/newable.type';
+import { OmitStrict } from '../../types/omit-strict.type';
 
 /**
  * A type safe way to define providers when eg. Inside arrays.

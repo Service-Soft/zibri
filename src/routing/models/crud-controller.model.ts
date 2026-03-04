@@ -1,10 +1,18 @@
-import { Repository } from '../../data-source';
-import { inject, repositoryTokenFor } from '../../di';
+import { Repository } from '../../data-source/repository';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
+import { inject } from '../../di/inject.function';
 import { BaseEntity } from '../../entity/base-entity.model';
-import { HttpStatus } from '../../http';
-import { PaginationResult, Response } from '../../open-api';
-import { DeepPartial, Newable } from '../../types';
-import { Body, Delete, Get, Param, Patch, Post } from '../decorators';
+import { HttpStatus } from '../../http/http-status.enum';
+import { Response } from '../../open-api/decorators/response.decorator';
+import { PaginationResult } from '../../open-api/pagination-result.model';
+import { DeepPartial } from '../../types/deep-partial.type';
+import { Newable } from '../../types/newable.type';
+import { Body } from '../decorators/body.decorator';
+import { Delete } from '../decorators/delete.decorator';
+import { Get } from '../decorators/get.decorator';
+import { Param } from '../decorators/param.decorator';
+import { Patch } from '../decorators/patch.decorator';
+import { Post } from '../decorators/post.decorator';
 
 /**
  * Interface for a CRUD (create, read, update, delete) controller.

@@ -1,8 +1,8 @@
-import { HttpRequest } from '../../http';
-import { WebsocketRequest } from '../../websocket';
-import { BaseUser } from '../models';
-import { TwoFactorMethod } from './methods';
+import { TwoFactorMethod } from './methods/two-factor-method.interface';
 import { TwoFactorMethods } from './two-factor-methods.model';
+import { HttpRequest } from '../../http/http-request.model';
+import { WebsocketRequest } from '../../websocket/models/websocket-request.model';
+import { BaseUser } from '../models/base-user.model';
 
 /**
  * Interface for a two factor service.

@@ -1,16 +1,22 @@
 /* eslint-disable cspell/spellchecker */
-
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import { StartedTestContainer } from 'testcontainers';
 
 import { InvoiceCalcService } from './invoice-calc.service';
 import { InvoiceNumberService } from './invoice-number.service';
-import { POSTGRES_TEST_IMAGE } from '../../../__testing__';
-import { DataSource, MigrationEntity, Repository, PostgresDataSource, PostgresOptions } from '../../../data-source';
+import { POSTGRES_TEST_IMAGE } from '../../../__testing__/constants';
+import { PostgresDataSource, PostgresOptions } from '../../../data-source/data-sources/postgres-data-source.model';
+import { DataSource } from '../../../data-source/decorators/data-source.decorator';
+import { MigrationEntity } from '../../../data-source/migration/migration-entity.model';
+import { Repository } from '../../../data-source/repository';
 import { BaseEntity } from '../../../entity/base-entity.model';
-import { Newable, OmitStrict } from '../../../types';
-import { Invoice, InvoiceAddress, InvoicingOptions, NumberInvoices } from '../models';
+import { Newable } from '../../../types/newable.type';
+import { OmitStrict } from '../../../types/omit-strict.type';
+import { InvoiceAddress } from '../models/invoice-address.model';
+import { Invoice } from '../models/invoice.model';
+import { InvoicingOptions } from '../models/invoicing-options.model';
+import { NumberInvoices } from '../models/number-invoices.model';
 
 const currentYear: string = new Date()
     .getFullYear()

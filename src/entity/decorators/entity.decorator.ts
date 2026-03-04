@@ -1,5 +1,5 @@
-import { GlobalRegistry } from '../../global';
-import { Newable } from '../../types';
+import { GlobalRegistry } from '../../global/global-registry';
+import { Newable } from '../../types/newable.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { toSnakeCase } from '../../utilities/to-snake-case.function';
 import { type BaseEntity } from '../base-entity.model';
@@ -14,7 +14,6 @@ export type EntityMetadata = {
     tableName: string
 };
 
-// eslint-disable-next-line jsdoc/require-returns
 /**
  * Marks an entity.
  * @param tableName - The name of the table to generate for the entity.

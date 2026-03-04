@@ -1,4 +1,4 @@
-import { Property } from '../../../entity';
+import { Property } from '../../../entity/decorators/property.decorator';
 
 /**
  * S = standard rate

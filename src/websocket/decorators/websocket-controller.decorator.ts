@@ -1,13 +1,12 @@
-import { GlobalRegistry } from '../../global';
-import { Newable } from '../../types';
-import { MetadataUtilities } from '../../utilities';
+import { GlobalRegistry } from '../../global/global-registry';
+import { Newable } from '../../types/newable.type';
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
 
 /**
  * Data of a websocket controller.
  */
 export type WebsocketControllerData = {};
 
-// eslint-disable-next-line jsdoc/require-returns
 /**
  * Marks a websocket controller class to be registered.
  */

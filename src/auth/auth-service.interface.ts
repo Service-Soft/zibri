@@ -1,9 +1,15 @@
 import { BaseEntity } from '../entity/base-entity.model';
-import { HttpRequest } from '../http';
-import { Newable } from '../types';
-import { WebsocketRequest } from '../websocket';
-import { BaseUser, BelongsToMetadata, HasRoleMetadata, IsLoggedInMetadata, IsNotLoggedInMetadata, Require2faMetadata } from './models';
-import { AuthStrategies, AuthStrategyInterface } from './strategies';
+import { HttpRequest } from '../http/http-request.model';
+import { Newable } from '../types/newable.type';
+import { BaseUser } from './models/base-user.model';
+import { BelongsToMetadata } from './models/belongs-to-metadata.model';
+import { HasRoleMetadata } from './models/has-role-metadata.model';
+import { IsLoggedInMetadata } from './models/is-logged-in-metadata.model';
+import { IsNotLoggedInMetadata } from './models/is-not-logged-in-metadata.model';
+import { Require2faMetadata } from './models/require-2fa-metadata.model';
+import { AuthStrategies } from './strategies/auth-strategies.model';
+import { AuthStrategyInterface } from './strategies/auth-strategy.interface';
+import { WebsocketRequest } from '../websocket/models/websocket-request.model';
 
 /**
  * Interface for an auth service.

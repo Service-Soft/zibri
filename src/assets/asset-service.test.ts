@@ -1,10 +1,11 @@
 
 import { beforeEach, describe, expect, it } from '@jest/globals';
 
-import { TreeNode } from './asset.service';
-import { inject, ZIBRI_DI_TOKENS } from '../di';
 import { AssetServiceInterface } from './asset-service.interface';
-import { FsUtilities, Path } from '../utilities';
+import { TreeNode } from './asset.service';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { inject } from '../di/inject.function';
+import { FsUtilities, Path } from '../utilities/fs.utilities';
 
 describe('AssetService', () => {
     let assetService: AssetServiceInterface;

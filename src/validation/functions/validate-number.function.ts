@@ -1,6 +1,8 @@
-import { NumberPropertyMetadata, PropertyMetadata } from '../../entity';
-import { QueryParamMetadata, HeaderParamMetadata, PathParamMetadata, NumberParamMetadata } from '../../routing';
-import { ObjectUtilities } from '../../utilities';
+import { PropertyMetadata } from '../../entity/decorators/property.decorator';
+import { NumberPropertyMetadata } from '../../entity/models/number-property-metadata.model';
+import { QueryParamMetadata, HeaderParamMetadata, PathParamMetadata } from '../../routing/decorators/param.decorator';
+import { NumberParamMetadata } from '../../routing/models/number-param-metadata.model';
+import { ObjectUtilities } from '../../utilities/object.utilities';
 import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from '../validation-problem.model';
 
 /**

@@ -2,7 +2,7 @@ import { register } from 'ts-node';
 
 import { FileToGenerate, generateEntityFilesForProvider, GenerateEntityFilesForProviderResult } from './generate-entity-files-for-provider.function';
 import { EntityGenerationProvider } from './providers/entity-generation-provider.interface';
-import { FsUtilities, Path } from '../../utilities';
+import { FsUtilities, Path } from '../../utilities/fs.utilities';
 
 /**
  * Resolves providers from the src/models/generated/providers.ts file and generates entities from them.

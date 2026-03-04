@@ -1,6 +1,11 @@
-import { Header } from '../../http';
-import { MetadataUtilities } from '../../utilities';
-import { ArrayParamMetadata, ArrayParamMetadataInput, BooleanParamMetadata, BooleanParamMetadataInput, DateParamMetadata, DateParamMetadataInput, NumberParamMetadata, NumberParamMetadataInput, ObjectParamMetadata, ObjectParamMetadataInput, StringParamMetadata, StringParamMetadataInput } from '../models';
+import { Header } from '../../http/header.type';
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { ArrayParamMetadata, ArrayParamMetadataInput } from '../models/array-param-metadata.model';
+import { BooleanParamMetadata, BooleanParamMetadataInput } from '../models/boolean-param-metadata.model';
+import { DateParamMetadata, DateParamMetadataInput } from '../models/date-param-metadata.model';
+import { NumberParamMetadata, NumberParamMetadataInput } from '../models/number-param-metadata.model';
+import { ObjectParamMetadata, ObjectParamMetadataInput } from '../models/object-param-metadata.model';
+import { StringParamMetadata, StringParamMetadataInput } from '../models/string-param-metadata.model';
 import { createHeaderParamMetadata, createPathParamMetadata, createQueryParamMetadata } from '../param-metdata.helpers';
 
 /**
@@ -71,7 +76,7 @@ export type HeaderParamMetadataInput = StringParamMetadataInput
  */
 // eslint-disable-next-line typescript/no-namespace
 export namespace Param {
-    // eslint-disable-next-line jsdoc/require-returns
+
     /**
      * Marks a path parameter.
      * @param name - The name of the path parameter.
@@ -91,7 +96,6 @@ export namespace Param {
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-returns
     /**
      * Marks a query parameter.
      * @param name - The name of the query parameter.
@@ -111,7 +115,6 @@ export namespace Param {
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-returns
     /**
      * Marks a header parameter.
      * @param name - The name of the header parameter.

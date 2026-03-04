@@ -1,7 +1,7 @@
-import { MetadataUtilities } from '../../utilities';
-import { DiToken } from '../models';
 
-// eslint-disable-next-line jsdoc/require-returns
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { DiToken } from '../models/di-token.model';
+
 /**
  * Marks the parameter to be injected.
  * @param token - The token that should be used to inject the parameter.

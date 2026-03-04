@@ -1,4 +1,4 @@
-import { Property } from '../../../entity';
+import { Property } from '../../../entity/decorators/property.decorator';
 
 /**
  * The invoice address, which can be either a private or a company address.

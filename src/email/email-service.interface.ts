@@ -1,5 +1,5 @@
 import { ZibriApplication } from '../application';
-import { QueueEmailData as QueueEmailData } from './models';
+import { QueueEmailData } from './models/create-email-data.model';
 
 /**
  * Interface for a email service.

@@ -2,18 +2,23 @@ import { Readable } from 'node:stream';
 
 import { BehaviorSubject } from 'rxjs';
 
-import { PostgresDataSource, Repository } from '../data-source';
-import { inject, repositoryTokenFor, ZIBRI_DI_TOKENS } from '../di';
-import { GlobalRegistry } from '../global';
-import { LoggerInterface } from '../logging';
-import { Newable } from '../types';
-import { MetadataUtilities, PromiseUtilities, validateEntitiesRegistered } from '../utilities';
 import { BackupEntity, BackupEntityCreateData } from './backup-entity.model';
 import { BackupResourceEntity, BackupResourceEntityCreateData } from './backup-resource-entity.model';
 import { BackupResourceInterface } from './backup-resource.interface';
 import { BackupCreateData, BackupServiceInterface } from './backup-service.interface';
-import { BackupResourceMetadata } from './decorators';
-import { BackupTransportInterface } from './transports';
+import { PostgresDataSource } from '../data-source/data-sources/postgres-data-source.model';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { inject } from '../di/inject.function';
+import { GlobalRegistry } from '../global/global-registry';
+import { LoggerInterface } from '../logging/logger.interface';
+import { Newable } from '../types/newable.type';
+import { MetadataUtilities } from '../utilities/metadata.utilities';
+import { PromiseUtilities } from '../utilities/promise.utilities';
+import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function';
+import { BackupResourceMetadata } from './decorators/backup-resource-metadata.model';
+import { BackupTransportInterface } from './transports/backup-transport.interface';
+import { Repository } from '../data-source/repository';
 
 /**
  * Default implementation of the backup service.

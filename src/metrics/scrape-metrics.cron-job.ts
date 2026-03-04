@@ -1,7 +1,8 @@
-
-import { CronJob, InitialCronConfig } from '../cron';
-import { inject, Injectable, ZIBRI_DI_TOKENS } from '../di';
 import { MetricsServiceInterface } from './metrics-service.interface';
+import { CronJob, InitialCronConfig } from '../cron/cron-job.model';
+import { Injectable } from '../di/decorators/injectable.decorator';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { inject } from '../di/inject.function';
 
 /**
  * CronJob that cleans up the temp folder of the form data body parser.

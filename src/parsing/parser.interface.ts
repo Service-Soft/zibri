@@ -1,8 +1,9 @@
 import { ZibriApplication } from '../application';
-import { HttpRequest } from '../http';
-import { HttpClientResponse } from '../http-client';
-import { BodyMetadata, HeaderParamMetadata, PathParamMetadata, QueryParamMetadata } from '../routing';
-import { WebsocketRequest } from '../websocket';
+import { HttpRequest } from '../http/http-request.model';
+import { HttpClientResponse } from '../http-client/http-client-response.model';
+import { BodyMetadata } from '../routing/decorators/body.decorator';
+import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from '../routing/decorators/param.decorator';
+import { WebsocketRequest } from '../websocket/models/websocket-request.model';
 
 /**
  * Interface for a parser.

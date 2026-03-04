@@ -1,8 +1,9 @@
-import { FsUtilities, ObjectUtilities, Path } from '../utilities';
 import { AstProgram } from './ast.model';
 import { HandlebarUtilities } from './handlebar.utilities';
 import { resolveAllArrayKeys } from './resolve-all-array-keys.function';
 import { resolveTree } from './resolve-tree.function';
+import { FsUtilities, Path } from '../utilities/fs.utilities';
+import { ObjectUtilities } from '../utilities/object.utilities';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 export type PathTree = {

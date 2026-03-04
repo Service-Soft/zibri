@@ -1,7 +1,12 @@
-import { ManyToManyPropertyMetadata, ManyToOnePropertyMetadata, OneToManyPropertyMetadata, OneToOnePropertyMetadata, Relation, RelationMetadata } from '../entity';
 import { BaseEntity } from '../entity/base-entity.model';
+import { RelationMetadata } from '../entity/decorators/property.decorator';
 import { FileSize } from '../entity/models/file-property-metadata.model';
-import { MimeType } from '../http';
+import { ManyToManyPropertyMetadata } from '../entity/models/many-to-many-property-metadata.model';
+import { ManyToOnePropertyMetadata } from '../entity/models/many-to-one-property-metadata.model';
+import { OneToManyPropertyMetadata } from '../entity/models/one-to-many-property-metadata.model';
+import { OneToOnePropertyMetadata } from '../entity/models/one-to-one-property-metadata.model';
+import { Relation } from '../entity/models/relation.enum';
+import { MimeType } from '../http/mime-type.enum';
 
 /**
  * A validation problem, consisting of the key where the problem is located and a description of the problem.

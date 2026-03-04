@@ -1,7 +1,7 @@
 import { parentPort } from 'node:worker_threads';
 
-import { Percentage } from '../../../types';
-import { ThreadJobMessage } from '../../models';
+import { Percentage } from '../../../types/percentage.type';
+import { ThreadJobMessage } from '../../models/thread-job-message.model';
 
 /**
  * Reports the given progress to the thread job service.

@@ -1,9 +1,8 @@
-import { GlobalRegistry } from '../../global';
-import { Newable } from '../../types';
-import { MetadataUtilities } from '../../utilities';
+import { GlobalRegistry } from '../../global/global-registry';
+import { Newable } from '../../types/newable.type';
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { BodyParserInterface } from '../body-parser.interface';
 
-// eslint-disable-next-line jsdoc/require-returns
 /**
  * Marks a request body parser.
  */

@@ -4,7 +4,9 @@ import { parentPort } from 'node:worker_threads';
 import { register } from 'ts-node';
 
 import { reportCompletion } from './helpers';
-import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData, ThreadJobFunction, ThreadJobMessage } from '../../models';
+import { BaseThreadJobWorkerData, BaseFunctionThreadJobWorkerData } from '../../models/base-thread-job-worker-data.model';
+import { ThreadJobFunction } from '../../models/thread-job-function.model';
+import { ThreadJobMessage } from '../../models/thread-job-message.model';
 
 if (!parentPort) {
     throw new Error('Internal Error with the thread-job-worker: parentPort not available.');

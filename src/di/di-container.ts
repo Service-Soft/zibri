@@ -1,10 +1,12 @@
-import { GlobalRegistry } from '../global';
-import { Newable } from '../types';
-import { MetadataUtilities, ObjectUtilities } from '../utilities';
-import { ZIBRI_DI_TOKENS } from './default';
+import { GlobalRegistry } from '../global/global-registry';
+import { Newable } from '../types/newable.type';
+import { MetadataUtilities } from '../utilities/metadata.utilities';
+import { ObjectUtilities } from '../utilities/object.utilities';
 import { ZIBRI_DI_PROVIDERS } from './default/zibri-di-providers.default';
+import { ZIBRI_DI_TOKENS } from './default/zibri-di-tokens.default';
 import { NoProviderError } from './errors/no-provider.error';
-import { DiToken, DiProvider, providersFromTokenRecord } from './models';
+import { DiProvider } from './models/di-provider.model';
+import { DiToken, providersFromTokenRecord } from './models/di-token.model';
 
 /**
  * The dependency injection container.

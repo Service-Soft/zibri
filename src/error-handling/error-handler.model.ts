@@ -1,8 +1,9 @@
 import { NextFunction } from 'express';
 
-import { HttpRequest, HttpResponse } from '../http';
-import { PreactComponent } from '../preact';
-import { HttpError } from './errors';
+import { HttpRequest } from '../http/http-request.model';
+import { HttpResponse } from '../http/http-response.model';
+import { PreactComponent } from '../preact/preact-component.model';
+import { HttpError } from './errors/http.error';
 
 /**
  * Properties of an error page component.

@@ -1,5 +1,5 @@
 import { CompanyInfo } from './company-info.model';
-import { PdfImageDefinition } from '../../../document';
+import { PdfImageDefinition } from '../../../document/pdf.utilities';
 
 /**
  * Options used throughout the plugin.

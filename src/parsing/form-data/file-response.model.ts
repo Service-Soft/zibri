@@ -1,10 +1,12 @@
 import { Readable } from 'stream';
 
-import { inject, ZIBRI_DI_TOKENS } from '../../di';
-import { LooseFileMimeType, resolveMimeType } from '../../http';
-import { LoggerInterface } from '../../logging';
-import { OmitStrict } from '../../types';
-import { FsUtilities, Path } from '../../utilities';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
+import { inject } from '../../di/inject.function';
+import { LooseFileMimeType } from '../../http/mime-type.enum';
+import { resolveMimeType } from '../../http/mime-type.helpers';
+import { LoggerInterface } from '../../logging/logger.interface';
+import { OmitStrict } from '../../types/omit-strict.type';
+import { FsUtilities, Path } from '../../utilities/fs.utilities';
 
 /**
  * Data shared by all FileResponses.

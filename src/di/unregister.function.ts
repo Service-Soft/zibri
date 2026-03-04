@@ -1,6 +1,6 @@
-import { GlobalRegistry } from '../global';
 import { DiContainer } from './di-container';
-import { DiToken } from './models';
+import { GlobalRegistry } from '../global/global-registry';
+import { DiToken } from './models/di-token.model';
 
 /**
  * Removes the provided token from the dependency injection system.

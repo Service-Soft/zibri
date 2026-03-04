@@ -2,7 +2,7 @@ import { FindManyOptions } from 'typeorm';
 
 import { BaseRepositoryOptions } from './base-repository-options.model';
 import { BaseEntity } from '../../../entity/base-entity.model';
-import { Where } from '../where';
+import { Where } from '../where/where-filter.model';
 
 /**
  * Options for finding multiple entities.

@@ -1,6 +1,7 @@
-import { inject, ZIBRI_DI_TOKENS } from '../../di';
-import { LanguageCode } from '../models';
 import { FormatDateFn } from './format-date-fn.model';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
+import { inject } from '../../di/inject.function';
+import { LanguageCode } from '../models/language-code.model';
 
 /**
  * Default implementation for formatting dates.

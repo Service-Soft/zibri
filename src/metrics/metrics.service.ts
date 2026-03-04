@@ -5,15 +5,17 @@ import si from 'systeminformation';
 
 import { CounterMetricName, GaugeMetricName, HistogramMetricName, MetricsServiceInterface, MetricsSnapshot } from './metrics-service.interface';
 import { ZibriApplication } from '../application';
-import { HttpRequest, HttpResponse } from '../http';
 import { CounterInterface } from './counter.interface';
 import { GaugeInterface } from './gauge.interface';
 import { HistogramInterface } from './histogram.interface';
 import { MetricType } from './metric-type.enum';
 import { Metric } from './metric.model';
 import { ScrapeMetricsCronJob } from './scrape-metrics.cron-job';
-import { AssetServiceInterface } from '../assets';
-import { inject, ZIBRI_DI_TOKENS } from '../di';
+import { AssetServiceInterface } from '../assets/asset-service.interface';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { inject } from '../di/inject.function';
+import { HttpRequest } from '../http/http-request.model';
+import { HttpResponse } from '../http/http-response.model';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 class PromCounter implements CounterInterface {

@@ -1,6 +1,5 @@
-
-import { Property } from '../../entity';
-import { type Path } from '../../utilities';
+import { Property } from '../../entity/decorators/property.decorator';
+import { type Path } from '../../utilities/fs.utilities';
 
 /**
  * An email attachment, consisting of filename and path.

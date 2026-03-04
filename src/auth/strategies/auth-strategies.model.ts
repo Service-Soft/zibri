@@ -1,5 +1,5 @@
-import { AuthStrategyInterface } from '.';
-import { Newable } from '../../types';
+import { AuthStrategyInterface } from './auth-strategy.interface';
+import { Newable } from '../../types/newable.type';
 import { BaseUser } from '../models/base-user.model';
 
 /**

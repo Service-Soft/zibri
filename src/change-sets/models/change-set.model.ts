@@ -1,9 +1,10 @@
 
 import { ChangeSetType } from './change-set-type.enum';
 import { Change, NewChange } from './change.model';
-import { Entity, Property } from '../../entity';
 import { BaseEntity } from '../../entity/base-entity.model';
-import { OmitStrict } from '../../types';
+import { Entity } from '../../entity/decorators/entity.decorator';
+import { Property } from '../../entity/decorators/property.decorator';
+import { OmitStrict } from '../../types/omit-strict.type';
 
 /**
  * A single change set.

@@ -1,5 +1,5 @@
 import { HttpError } from './http.error';
-import { HttpStatus } from '../../http';
+import { HttpStatus } from '../../http/http-status.enum';
 
 /**
  * An error to throw when the requested resource could not be found.

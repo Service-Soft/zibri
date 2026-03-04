@@ -1,7 +1,9 @@
 
-import { BigNumber, BigNumberUtilities } from '../../../utilities';
-import { Invoice as BaseInvoice, Invoice, InvoiceItem, Vat } from '../models';
 import { InvoiceCalcServiceInterface } from './invoice-calc-service.interface';
+import { BigNumberUtilities } from '../../../utilities/big-number.utilities';
+import { InvoiceItem } from '../models/invoice-item.model';
+import { Invoice as BaseInvoice, Invoice } from '../models/invoice.model';
+import { Vat } from '../models/vat.model';
 
 /**
  * Default implementation of the invoice calculation service.

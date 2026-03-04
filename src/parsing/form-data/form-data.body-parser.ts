@@ -4,20 +4,33 @@ import { pipeline } from 'stream/promises';
 
 import { Busboy, BusboyFileStream } from '@fastify/busboy';
 
-import { File } from './file.model';
-import { ZibriApplication } from '../../application';
-import { inject, ZIBRI_DI_TOKENS } from '../../di';
-import { ContentTooLargeError } from '../../error-handling';
-import { FileExtension, HttpRequest, KnownHeader, MimeType, resolveFileExtension } from '../../http';
-import { HttpClientResponse } from '../../http-client';
-import { BodyMetadata } from '../../routing';
-import { BodyParserInterface } from '../body-parser.interface';
-import { BodyParser } from '../decorators';
 import { FormDataBodyParserCleanupCronJob } from './form-data-body-parser-cleanup.cron-job';
 import { FormData, FormDataValue } from './form-data.model';
-import { PropertyMetadata, Relation } from '../../entity';
-import { BigNumberUtilities, FsUtilities, MetadataUtilities, Path, UUIDUtilities } from '../../utilities';
-import { parseArray, parseBoolean, parseDate, parseNumber, parseObject, parseString } from '../functions';
+import { ZibriApplication } from '../../application';
+import { inject } from '../../di/inject.function';
+import { HttpRequest } from '../../http/http-request.model';
+import { MimeType } from '../../http/mime-type.enum';
+import { BodyMetadata } from '../../routing/decorators/body.decorator';
+import { BodyParserInterface } from '../body-parser.interface';
+import { File } from './file.model';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
+import { PropertyMetadata } from '../../entity/decorators/property.decorator';
+import { Relation } from '../../entity/models/relation.enum';
+import { ContentTooLargeError } from '../../error-handling/errors/content-too-large.error';
+import { KnownHeader } from '../../http/known-header.enum';
+import { FileExtension, resolveFileExtension } from '../../http/mime-type.helpers';
+import { HttpClientResponse } from '../../http-client/http-client-response.model';
+import { BigNumberUtilities } from '../../utilities/big-number.utilities';
+import { FsUtilities, Path } from '../../utilities/fs.utilities';
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { BodyParser } from '../decorators/body-parser.decorator';
+import { parseArray } from '../functions/parse-array.function';
+import { parseBoolean } from '../functions/parse-boolean.function';
+import { parseDate } from '../functions/parse-date.function';
+import { parseNumber } from '../functions/parse-number.function';
+import { parseObject } from '../functions/parse-object.function';
+import { parseString } from '../functions/parse-string.function';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 type ParsedForm = {
@@ -341,11 +354,9 @@ export class FormDataBodyParser implements BodyParserInterface {
                 }));
             });
 
-            // eslint-disable-next-line typescript/no-misused-promises
-            bb.on('finish', async () => {
+            bb.on('finish', () => {
                 try {
-                    await Promise.all(filePromises);
-                    resolve({ fields, filesMap });
+                    void Promise.all(filePromises).then(() => resolve({ fields, filesMap }));
                 }
                 catch (error) {
                     reject(error);

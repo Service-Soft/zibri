@@ -1,11 +1,16 @@
-import { AuthServiceInterface, CurrentUserMetadata } from '../auth';
-import { HttpRequest } from '../http';
-import { ParserInterface } from '../parsing';
-import { Newable } from '../types';
-import { MetadataUtilities, ObjectUtilities } from '../utilities';
-import { ValidationServiceInterface } from '../validation';
-import { BaseWebsocketConnection, CurrentWebsocketConnectionMetadata, WebsocketRequest } from '../websocket';
-import { BodyMetadata, HeaderParamMetadata, PathParamMetadata, QueryParamMetadata } from './decorators';
+import { AuthServiceInterface } from '../auth/auth-service.interface';
+import { CurrentUserMetadata } from '../auth/decorators/current-user.decorator';
+import { HttpRequest } from '../http/http-request.model';
+import { ParserInterface } from '../parsing/parser.interface';
+import { Newable } from '../types/newable.type';
+import { MetadataUtilities } from '../utilities/metadata.utilities';
+import { ObjectUtilities } from '../utilities/object.utilities';
+import { ValidationServiceInterface } from '../validation/validation-service.interface';
+import { BodyMetadata } from './decorators/body.decorator';
+import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from './decorators/param.decorator';
+import { CurrentWebsocketConnectionMetadata } from '../websocket/decorators/current-websocket-connection.decorator';
+import { BaseWebsocketConnection } from '../websocket/models/connection/base-websocket-connection.model';
+import { WebsocketRequest } from '../websocket/models/websocket-request.model';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 export async function resolveRouteParams(

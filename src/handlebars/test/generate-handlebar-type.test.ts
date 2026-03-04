@@ -2,7 +2,7 @@ import * as fsPromises from 'node:fs/promises';
 
 import { describe, expect, it, jest } from '@jest/globals';
 
-import { FsUtilities } from '../../utilities';
+import { FsUtilities } from '../../utilities/fs.utilities';
 import { AstProgram } from '../ast.model';
 import { generateHandlebarType } from '../generate-handlebar-type-files.function';
 import { HandlebarUtilities } from '../handlebar.utilities';
@@ -27,7 +27,7 @@ describe('generateHandlebarType', () => {
             '// auto-generated — do not edit',
             'import raw from \'./example.hbs\';',
             '',
-            'interface Context {',
+            'type Context = {',
             '    user: {',
             '        name: string',
             '    },',
@@ -44,7 +44,7 @@ describe('generateHandlebarType', () => {
             '        }[]',
             '    }[],',
             '    categories: string[]',
-            '}',
+            '};',
             '',
             'const renderTemplate: (ctx: Context) => string = raw;',
             'export default renderTemplate;'
@@ -60,7 +60,7 @@ describe('generateHandlebarType', () => {
             '// auto-generated — do not edit',
             'import raw from \'./example-2.hbs\';',
             '',
-            'interface Context {',
+            'type Context = {',
             '    currentUser: {',
             '        name: string,',
             '        role: string,',
@@ -84,7 +84,7 @@ describe('generateHandlebarType', () => {
             '        mode: string',
             '    },',
             '    year: string',
-            '}',
+            '};',
             '',
             'const renderTemplate: (ctx: Context) => string = raw;',
             'export default renderTemplate;'

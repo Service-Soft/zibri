@@ -3,16 +3,31 @@ import { isDeepStrictEqual } from 'util';
 
 import { Repository as TORepository } from 'typeorm';
 
-import { BaseRepositoryOptions, CreateAllOptions, CreateOptions, UpdateAllOptions, UpdateByIdOptions, Where } from '../data-source';
+import { AuthServiceInterface } from '../auth/auth-service.interface';
+import { ChangeSetEntity } from './models/change-set-entity.model';
+import { ChangeSetType } from './models/change-set-type.enum';
+import { ChangeSet, CreateChangeSetData } from './models/change-set.model';
+import { BaseUser } from '../auth/models/base-user.model';
+import { BaseRepositoryOptions } from '../data-source/models/options/base-repository-options.model';
+import { CreateAllOptions } from '../data-source/models/options/create-all-options.model';
+import { CreateOptions } from '../data-source/models/options/create-options.model';
+import { UpdateAllOptions } from '../data-source/models/options/update-all-options.model';
+import { UpdateByIdOptions } from '../data-source/models/options/update-by-id-options.model';
+import { Where } from '../data-source/models/where/where-filter.model';
 import { Repository } from '../data-source/repository';
-import { DeepPartial, Newable } from '../types';
-import { ChangeSet, ChangeSetEntity, ChangeSetType, CreateChangeSetData, NewChange } from './models';
-import { AuthServiceInterface, BaseUser } from '../auth';
-import { inject, repositoryTokenFor, ZIBRI_DI_TOKENS } from '../di';
-import { PropertyMetadata } from '../entity';
-import { BadRequestError } from '../error-handling';
-import { HttpRequest } from '../http';
-import { MetadataUtilities, ObjectUtilities, PromiseUtilities } from '../utilities';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { inject } from '../di/inject.function';
+import { PropertyMetadata } from '../entity/decorators/property.decorator';
+import { BadRequestError } from '../error-handling/errors/bad-request.error';
+import { HttpRequest } from '../http/http-request.model';
+import { LoggerInterface } from '../logging/logger.interface';
+import { Newable } from '../types/newable.type';
+import { MetadataUtilities } from '../utilities/metadata.utilities';
+import { ObjectUtilities } from '../utilities/object.utilities';
+import { PromiseUtilities } from '../utilities/promise.utilities';
+import { NewChange } from './models/change.model';
+import { DeepPartial } from '../types/deep-partial.type';
 
 /**
  * The result for resetting a change set on an entity.
@@ -50,8 +65,8 @@ export class ChangeSetRepository<
         return inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
     }
 
-    constructor(entityClass: Newable<T>, repo: TORepository<T> | Repository<T>) {
-        super(entityClass, repo);
+    constructor(entityClass: Newable<T>, repo: TORepository<T> | Repository<T>, logger: LoggerInterface) {
+        super(entityClass, repo, logger);
 
         this.keysToExcludeFromChangeSets = ['changeSets'];
         const props: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(entityClass);
