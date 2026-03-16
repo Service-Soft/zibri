@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module';
 
-import { FsUtilities, Path } from '../utilities/fs.utilities';
+import { FsUtilities, FsPath } from '../utilities/fs.utilities';
 import { toKebabCase } from '../utilities/to-kebab-case.function';
 
 /**
@@ -16,7 +16,7 @@ import { toKebabCase } from '../utilities/to-kebab-case.function';
 export async function generateClientScripts(): Promise<void> {
     const allPackages: Set<string> = new Set<string>();
     const packagesByComponent: Record<string, string[]> = {};
-    const templateFiles: Path[] = await FsUtilities.glob('src/templates/**/*.tsx');
+    const templateFiles: FsPath[] = await FsUtilities.glob('src/templates/**/*.tsx');
 
     await Promise.all(templateFiles.map(async f => {
         const src: string = await FsUtilities.readFile(f);
@@ -36,12 +36,12 @@ export async function generateClientScripts(): Promise<void> {
         }
     }));
 
-    const vendorPath: Path = FsUtilities.getPath('assets', 'public', 'vendor');
+    const vendorPath: FsPath = FsUtilities.getPath('assets', 'public', 'vendor');
     await FsUtilities.mkdir(vendorPath);
 
     await Promise.all([...allPackages].map(async pkg => {
         const code: string = await resolveBrowserDist(pkg);
-        const outFile: Path = FsUtilities.getPath(vendorPath, pkgToFilename(pkg));
+        const outFile: FsPath = FsUtilities.getPath(vendorPath, pkgToFilename(pkg));
         if (await FsUtilities.exists(outFile)) {
             const oldFileContent: string = await FsUtilities.readFile(outFile);
             if (oldFileContent.trim() === code.trim()) {
@@ -51,7 +51,7 @@ export async function generateClientScripts(): Promise<void> {
         await FsUtilities.upsertFile(outFile, code);
     }));
 
-    const manifestFile: Path = FsUtilities.getPath(vendorPath, 'manifest.json');
+    const manifestFile: FsPath = FsUtilities.getPath(vendorPath, 'manifest.json');
     const sorted: Record<string, string[]> = Object.fromEntries(
         Object.entries(packagesByComponent).sort(([a], [b]) => a.localeCompare(b))
     );
@@ -119,10 +119,10 @@ async function findPackageDir(pkg: string, userRequire: NodeJS.Require): Promise
     }
 
     // Fallback — resolve main entry and walk up to find the package root
-    const main: Path = FsUtilities.getPath(userRequire.resolve(pkg));
+    const main: FsPath = FsUtilities.getPath(userRequire.resolve(pkg));
     let dir: string = FsUtilities.dirName(main);
     while (true) {
-        const candidate: Path = FsUtilities.getPath(dir, 'package.json');
+        const candidate: FsPath = FsUtilities.getPath(dir, 'package.json');
         try {
             // eslint-disable-next-line typescript/no-unsafe-assignment
             const json: Record<string, unknown> = JSON.parse(await FsUtilities.readFile(candidate));

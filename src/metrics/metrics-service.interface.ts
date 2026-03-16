@@ -1,4 +1,3 @@
-import { ZibriApplication } from '../application';
 import { CounterInterface } from './counter.interface';
 import { GaugeInterface } from './gauge.interface';
 import { HistogramInterface } from './histogram.interface';
@@ -39,10 +38,6 @@ export type MetricsSnapshot = {
  * Interface for a metrics service.
  */
 export interface MetricsServiceInterface {
-    /**
-     * Attaches the service to the Zibri application.
-     */
-    attachTo: (app: ZibriApplication) => void | Promise<void>,
     /**
      * Collects metrics about a finished request.
      */

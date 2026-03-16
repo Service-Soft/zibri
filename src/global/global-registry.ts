@@ -1,4 +1,5 @@
 import { ZibriApplicationOptions } from '../application-options.model';
+import { AppState } from './app-state.enum';
 import { UserRepositories } from '../auth/models/user-repositories.model';
 import { BackupResourceInterface } from '../backup/backup-resource.interface';
 import { DataSourceInterface } from '../data-source/data-sources/data-source.interface';
@@ -7,16 +8,6 @@ import { BaseEntity } from '../entity/base-entity.model';
 import { BodyParserInterface } from '../parsing/body-parser.interface';
 import { Newable } from '../types/newable.type';
 import { Version } from '../types/version.type';
-
-/**
- * The possible state that the app can be in.
- */
-export enum AppState {
-    OFFLINE = 'offline',
-    CREATED = 'created',
-    INITIALIZED = 'initialized',
-    RUNNING = 'running'
-}
 
 /**
  * The data of the app.
@@ -95,7 +86,7 @@ export abstract class GlobalRegistry {
                 case AppState.INITIALIZED: {
                     throw new Error('The app has already been marked as initialized.');
                 }
-                case AppState.RUNNING: {
+                case AppState.STARTED: {
                     throw new Error('The app has already been marked as running.');
                 }
             }
@@ -111,12 +102,12 @@ export abstract class GlobalRegistry {
                 case AppState.INITIALIZED: {
                     throw new Error('The app has already been marked as initialized.');
                 }
-                case AppState.RUNNING: {
+                case AppState.STARTED: {
                     throw new Error('The app has already been marked as running');
                 }
             }
         },
-        [AppState.RUNNING]: () => {
+        [AppState.STARTED]: () => {
             switch (this.appData.state) {
                 case AppState.OFFLINE: {
                     throw new Error('The app has not been marked as initialized yet.');
@@ -127,7 +118,7 @@ export abstract class GlobalRegistry {
                 case AppState.INITIALIZED: {
                     return;
                 }
-                case AppState.RUNNING: {
+                case AppState.STARTED: {
                     throw new Error('The app has already been marked as running.');
                 }
             }
@@ -171,7 +162,7 @@ export abstract class GlobalRegistry {
      * Marks the app as running.
      */
     static markAppAsRunning(): void {
-        this.changeAppState(AppState.RUNNING);
+        this.changeAppState(AppState.STARTED);
     }
 
     /**
@@ -179,7 +170,7 @@ export abstract class GlobalRegistry {
      * @returns True when the app has the state of running, false otherwise.
      */
     static isAppRunning(): boolean {
-        return this.appData.state === AppState.RUNNING;
+        return this.appData.state === AppState.STARTED;
     }
 
     /**

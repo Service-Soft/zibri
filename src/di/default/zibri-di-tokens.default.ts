@@ -24,7 +24,7 @@ import { MultithreadingServiceInterface } from '../../multithreading/services/mu
 import { OpenApiServiceInterface } from '../../open-api/open-api-service.interface';
 import { ParserInterface } from '../../parsing/parser.interface';
 import { RouterInterface } from '../../routing/router.interface';
-import { Path } from '../../utilities/fs.utilities';
+import { FsPath } from '../../utilities/fs.utilities';
 import { ValidationServiceInterface } from '../../validation/validation-service.interface';
 import { WebsocketOptions } from '../../websocket/models/websocket-options.model';
 import { WebsocketServiceInterface } from '../../websocket/services/websocket-service.interface';
@@ -69,7 +69,7 @@ export const ZIBRI_DI_TOKENS = {
     ),
     USER_SERVICE: ziToken<UserServiceInterface>('zi.user_service'),
     CRON_SERVICE: ziToken<CronServiceInterface>('zi.cron_service'),
-    FILE_UPLOAD_TEMP_FOLDER: ziToken<Path>('zi.file_upload_temp_folder'),
+    FILE_UPLOAD_TEMP_FOLDER: ziToken<FsPath>('zi.file_upload_temp_folder'),
     LOCALIZE_OPTIONS_INPUT: ziToken<LocalizeOptionsInput>('zi.localize_options_input'),
     LOCALIZE_OPTIONS: ziToken<LocalizeOptions>('zi.localize_options'),
     FORMAT_DATE: ziToken<FormatDateFn>('zi.format_date'),
@@ -78,7 +78,7 @@ export const ZIBRI_DI_TOKENS = {
     EMAIL_SERVICE: ziToken<EmailServiceInterface>('zi.email_service'),
     EMAIL_CONFIG: ziToken<EmailConfigInput | undefined>('zi.email_config'),
     MAILING_LIST_SERVICE: ziToken<MailingListServiceInterface | undefined>('zi.mailing_list_service'),
-    CURRENT_REQUEST: ziToken<HttpRequest>('zi.current_request'),
+    CURRENT_REQUEST: ziToken<HttpRequest | undefined>('zi.current_request'),
     MULTITHREADING_SERVICE: ziToken<MultithreadingServiceInterface>('zi.multithreading_service'),
     MULTITHREADING_OPTIONS: ziToken<MultithreadingOptions>('zi.multithreading_options'),
     // eslint-disable-next-line typescript/no-explicit-any

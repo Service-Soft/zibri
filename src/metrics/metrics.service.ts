@@ -14,6 +14,7 @@ import { ScrapeMetricsCronJob } from './scrape-metrics.cron-job';
 import { AssetServiceInterface } from '../assets/asset-service.interface';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
+import { OnAppInit } from '../global/on-app-init.interface';
 import { HttpRequest } from '../http/http-request.model';
 import { HttpResponse } from '../http/http-response.model';
 
@@ -60,7 +61,7 @@ class PromHistogram implements HistogramInterface {
 /**
  * Default metrics service implementation of Zibri.
  */
-export class PrometheusMetricsService implements MetricsServiceInterface {
+export class PrometheusMetricsService implements MetricsServiceInterface, OnAppInit {
     private readonly registry: Registry;
     private readonly counters: Map<string, Counter<string>> = new Map<string, Counter<string>>();
     private readonly gauges: Map<string, Gauge<string>> = new Map<string, Gauge<string>>();
@@ -79,7 +80,7 @@ export class PrometheusMetricsService implements MetricsServiceInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    attachTo(app: ZibriApplication): void {
+    onAppInit(app: ZibriApplication): void {
         app.options.cronJobs.push(ScrapeMetricsCronJob);
         app.use((req, res, next) => {
             const start: number = performance.now();

@@ -1,6 +1,8 @@
+import { ZibriApplication } from '../../application';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { register } from '../../di/register.function';
+import { OnAppInit } from '../../global/on-app-init.interface';
 import { HttpRequest } from '../../http/http-request.model';
 import { LoggerInterface } from '../../logging/logger.interface';
 import { WebsocketRequest } from '../../websocket/models/websocket-request.model';
@@ -12,7 +14,7 @@ import { TwoFactorServiceInterface } from './two-factor-service.interface';
 /**
  * Default implementation of the two factor service.
  */
-export class TwoFactorService implements TwoFactorServiceInterface {
+export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly twoFactorMethods: TwoFactorMethods = [];
 
@@ -26,7 +28,8 @@ export class TwoFactorService implements TwoFactorServiceInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async init(twoFactorMethods: TwoFactorMethods): Promise<void> {
+    async onAppInit({ options }: ZibriApplication): Promise<void> {
+        const { twoFactorMethods } = options;
         for (const method of twoFactorMethods) {
             register({ token: method, useClass: method });
             this.twoFactorMethods.push(method);

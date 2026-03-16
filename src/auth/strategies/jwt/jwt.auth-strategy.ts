@@ -88,15 +88,15 @@ implements AuthStrategyInterface<
     constructor() {
         const accessTokenSecret: string | undefined = inject(ZIBRI_DI_TOKENS.JWT_ACCESS_TOKEN_SECRET);
         if (!accessTokenSecret) {
-            throw new NoProviderError(ZIBRI_DI_TOKENS.JWT_ACCESS_TOKEN_SECRET, [JwtAuthStrategy]);
+            throw new NoProviderError(ZIBRI_DI_TOKENS.JWT_ACCESS_TOKEN_SECRET, []);
         }
         const refreshTokenSecret: string | undefined = inject(ZIBRI_DI_TOKENS.JWT_REFRESH_TOKEN_SECRET);
         if (!refreshTokenSecret) {
-            throw new NoProviderError(ZIBRI_DI_TOKENS.JWT_REFRESH_TOKEN_SECRET, [JwtAuthStrategy]);
+            throw new NoProviderError(ZIBRI_DI_TOKENS.JWT_REFRESH_TOKEN_SECRET, []);
         }
         const confirmPasswordResetUrl: string | undefined = inject(ZIBRI_DI_TOKENS.JWT_CONFIRM_PASSWORD_RESET_URL);
         if (!confirmPasswordResetUrl) {
-            throw new NoProviderError(ZIBRI_DI_TOKENS.JWT_CONFIRM_PASSWORD_RESET_URL, [JwtAuthStrategy]);
+            throw new NoProviderError(ZIBRI_DI_TOKENS.JWT_CONFIRM_PASSWORD_RESET_URL, []);
         }
         this.accessTokenSecret = accessTokenSecret;
         this.accessTokenExpiresInMs = inject(ZIBRI_DI_TOKENS.JWT_ACCESS_TOKEN_EXPIRES_IN_MS);

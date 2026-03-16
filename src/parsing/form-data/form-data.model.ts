@@ -1,5 +1,5 @@
 import { File } from './file.model';
-import { FsUtilities, Path } from '../../utilities/fs.utilities';
+import { FsUtilities, FsPath } from '../../utilities/fs.utilities';
 
 /**
  * The raw value that a form-data property has.
@@ -26,9 +26,9 @@ export class FormData<FormDataType extends object> {
      * The temporary folder where all files are cached.
      * Should be deleted after you handled the form data with the cleanup method.
      */
-    readonly tempFolder: Path;
+    readonly tempFolder: FsPath;
 
-    private constructor(value: FormDataType, tempFolder: Path) {
+    private constructor(value: FormDataType, tempFolder: FsPath) {
         this.value = value;
         this.tempFolder = tempFolder;
     }
@@ -42,7 +42,7 @@ export class FormData<FormDataType extends object> {
      */
     static async create<FormDataType extends object>(
         value: FormDataType,
-        tempFolder: Path,
+        tempFolder: FsPath,
         cleanupAfterMs: number
     ): Promise<FormData<FormDataType>> {
         const res: FormData<FormDataType> = new this(value, tempFolder);

@@ -9,7 +9,7 @@ import { inject } from '../../di/inject.function';
 import { GlobalRegistry } from '../../global/global-registry';
 import { BaseEmailTemplateData, renderTemplateString, renderTemplate } from '../../handlebars/render-template.function';
 import { Route } from '../../routing/controller-route-configuration.model';
-import { FsUtilities, Path } from '../../utilities/fs.utilities';
+import { FsUtilities, FsPath } from '../../utilities/fs.utilities';
 import { PromiseUtilities } from '../../utilities/promise.utilities';
 import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function';
 import { EmailServiceInterface } from '../email-service.interface';
@@ -17,11 +17,12 @@ import { EmailPriority } from '../models/email-priority.enum';
 import { MailingListSubscriber } from './models/mailing-list-subscriber.model';
 import { MailingListSubscriptionConfirmationToken, MailingListSubscriptionConfirmationTokenCreateData } from './models/mailing-list-subscription-confirmation-token.model';
 import { MailingList } from './models/mailing-list.model';
+import { OnAppInit } from '../../global/on-app-init.interface';
 
 /**
  * Default mailing list service implementation of Zibri.
  */
-export class MailingListService implements MailingListServiceInterface {
+export class MailingListService implements MailingListServiceInterface, OnAppInit {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly mailingListBaseRoute: Route = '/mailing-lists';
     /**
@@ -64,7 +65,7 @@ export class MailingListService implements MailingListServiceInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    attachTo(): void {
+    onAppInit(): void {
         validateEntitiesRegistered(this.constructor.name, MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken);
     }
 
@@ -88,7 +89,7 @@ export class MailingListService implements MailingListServiceInterface {
                     base
                 });
                 const html: string = await renderTemplate(
-                    FsUtilities.getPath(this.assetService.emailTemplatePath, 'base-email.hbs') as `${Path}.hbs`,
+                    FsUtilities.getPath(this.assetService.emailTemplatePath, 'base-email.hbs') as `${FsPath}.hbs`,
                     { content, base }
                 );
                 await this.emailService.queue({
@@ -132,7 +133,7 @@ export class MailingListService implements MailingListServiceInterface {
             base: emailData.templateData.base
         });
         const html: string = await renderTemplate(
-            FsUtilities.getPath(this.assetService.emailTemplatePath, 'base-email.hbs') as `${Path}.hbs`,
+            FsUtilities.getPath(this.assetService.emailTemplatePath, 'base-email.hbs') as `${FsPath}.hbs`,
             { content, base: emailData.templateData.base }
         );
         await this.emailService.queue({ ...emailData, html, recipients: [subscriber.email] });

@@ -11,25 +11,14 @@ import { type PaymentPluginOptions } from '../models/payment-plugin-options.mode
 import { PaymentStatus } from '../models/payment-status.enum';
 import { Payment } from '../models/payment.model';
 import { ZIBRI_PAYMENT_DI_TOKENS } from '../payment.tokens';
-import { PaymentProviderInterface } from '../providers/payment-provider.interface';
+import { AnyPaymentProviderInterface } from '../providers/payment-provider.interface';
 
 /**
  * Default payment service implementation of zibri.
  */
 export class PaymentService<
     Methods extends readonly PaymentMethod[],
-    P extends readonly PaymentProviderInterface<
-        Methods[number][],
-        // eslint-disable-next-line jsdoc/require-jsdoc
-        Record<Methods[number], AnyObject & { transactionId: string }>,
-        // eslint-disable-next-line jsdoc/require-jsdoc
-        Record<Methods[number], AnyObject & { transactionId: string }>,
-        Record<Methods[number], AnyObject>,
-        Record<Methods[number], AnyObject>,
-        Record<Methods[number], boolean>,
-        Record<Methods[number], boolean>,
-        Record<Methods[number], boolean>
-    >[]
+    P extends readonly AnyPaymentProviderInterface[]
 >implements PaymentServiceInterface<Methods, P> {
 
     constructor(
@@ -60,8 +49,11 @@ export class PaymentService<
             method,
             data
         ) as ValidatedPaymentDataForMethod<Methods, M, P>;
-        if ((await this.paymentRepository.findAll({ where: { transactionId: data.transactionId } })).length) {
-            throw new Error(`a payment for the transactionId "${data.transactionId}" already exists`);
+
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        const { transactionId } = data as unknown as { transactionId: string };
+        if ((await this.paymentRepository.findAll({ where: { transactionId } })).length) {
+            throw new Error(`a payment for the transactionId "${transactionId}" already exists`);
         }
         return res;
     }
@@ -81,7 +73,7 @@ export class PaymentService<
         data: ValidatedPaymentDataForMethod<Methods, M, P>
     ): Promise<PaymentReservationForMethod<Methods, M, P>> {
         const provider: P[number] = this.findPaymentProviderForMethod(method);
-        return await provider.startPayment(method, data) as PaymentReservationForMethod<Methods, M, P>;
+        return await provider.startPaymentReservation(method, data) as PaymentReservationForMethod<Methods, M, P>;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

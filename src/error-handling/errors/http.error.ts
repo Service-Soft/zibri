@@ -30,8 +30,8 @@ export abstract class HttpError extends Error {
 /**
  * Check whether or not the given value is a http error.
  * @param value - The value to check.
- * @returns True when value is an instance of HttpError, false otherwise.
+ * @returns True when values name is 'HttpError', false otherwise.
  */
 export function isHttpError(value: unknown): value is HttpError {
-    return value instanceof HttpError;
+    return typeof value === 'object' && value != undefined && 'name' in value && value.name === 'HttpError';
 }

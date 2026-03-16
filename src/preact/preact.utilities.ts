@@ -7,7 +7,7 @@ import { preactHooks } from './hooks/hooks';
 import { PreactComponent } from './preact-component.model';
 import { findStringEnd, stringAwareReplace } from './string-aware-replace.function';
 import { HtmlResponse } from '../parsing/html/html-response.model';
-import { FsUtilities, Path } from '../utilities/fs.utilities';
+import { FsUtilities, FsPath } from '../utilities/fs.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
 
 /**
@@ -286,7 +286,7 @@ export abstract class PreactUtilities {
             return this.clientManifest;
         }
         try {
-            const manifestPath: Path = FsUtilities.getPath(process.cwd(), 'assets', 'public', 'vendor', 'manifest.json');
+            const manifestPath: FsPath = FsUtilities.getPath(process.cwd(), 'assets', 'public', 'vendor', 'manifest.json');
             // eslint-disable-next-line typescript/no-unsafe-assignment
             this.clientManifest = JSON.parse(await FsUtilities.readFile(manifestPath));
         }

@@ -1,4 +1,3 @@
-import { ZibriApplication } from '../application';
 import { HttpRequest } from '../http/http-request.model';
 import { MimeType } from '../http/mime-type.enum';
 import { HttpClientResponse } from '../http-client/http-client-response.model';
@@ -13,10 +12,6 @@ export interface BodyParserInterface {
      * The content type that can be handled by this parser.
      */
     readonly contentType: MimeType,
-    /**
-     * Attaches the body parser to the Zibri application.
-     */
-    attachTo?: (app: ZibriApplication) => Promise<void> | void,
     /**
      * Parses the body of the http request.
      */

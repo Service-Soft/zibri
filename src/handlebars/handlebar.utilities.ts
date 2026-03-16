@@ -3,7 +3,7 @@ import handlebars, { ParseOptions } from 'handlebars';
 import { AstProgram } from './ast.model';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
-import { FsUtilities, Path } from '../utilities/fs.utilities';
+import { FsUtilities, FsPath } from '../utilities/fs.utilities';
 import { MaskUtilities } from '../utilities/mask.utilities';
 import { toCamelCase } from '../utilities/to-camel-case.function';
 
@@ -45,7 +45,7 @@ export abstract class HandlebarUtilities {
         });
 
         const componentsDir: string = inject(ZIBRI_DI_TOKENS.ASSET_SERVICE).componentTemplatePath;
-        const files: Path[] = await FsUtilities.glob(FsUtilities.getPath(componentsDir, '*.hbs'));
+        const files: FsPath[] = await FsUtilities.glob(FsUtilities.getPath(componentsDir, '*.hbs'));
         for (const file of files) {
             const src: string = await FsUtilities.readFile(file);
             const base: string = FsUtilities.baseName(file).split('.hbs')[0];

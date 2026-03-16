@@ -6,7 +6,7 @@ import { MailingListSubscriber } from '../email/mailing-list/models/mailing-list
 import { MailingList } from '../email/mailing-list/models/mailing-list.model';
 import { GlobalRegistry } from '../global/global-registry';
 import { OmitStrict } from '../types/omit-strict.type';
-import { FsUtilities, Path } from '../utilities/fs.utilities';
+import { FsUtilities, FsPath } from '../utilities/fs.utilities';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 export type BaseEmailTemplateData = {
@@ -84,9 +84,12 @@ export type BasePageTemplateDataInput = {
 export async function renderEmailTemplate<T extends BaseEmailTemplateDataInput>(templateName: `${string}.hbs`, data: T): Promise<string> {
     (data.base as BasePageTemplateData['base']).baseUrl = GlobalRegistry.getAppData('baseUrl') ?? '';
     const assetService: AssetServiceInterface = inject(ZIBRI_DI_TOKENS.ASSET_SERVICE);
-    const content: string = await renderTemplate(FsUtilities.getPath(assetService.emailTemplatePath, templateName) as `${Path}.hbs`, data);
+    const content: string = await renderTemplate(
+        FsUtilities.getPath(assetService.emailTemplatePath, templateName) as `${FsPath}.hbs`,
+        data
+    );
     return await renderTemplate(
-        FsUtilities.getPath(assetService.emailTemplatePath, 'base-email.hbs') as `${Path}.hbs`,
+        FsUtilities.getPath(assetService.emailTemplatePath, 'base-email.hbs') as `${FsPath}.hbs`,
         { content, base: data.base }
     );
 }
@@ -97,8 +100,8 @@ export async function renderEmailTemplate<T extends BaseEmailTemplateDataInput>(
  * @param data - The data to fill into the template.
  * @returns The rendered html string.
  */
-export async function renderTemplate<T extends Record<string, unknown>>(path: `${Path}.hbs`, data: T): Promise<string> {
-    const source: string = await FsUtilities.readFile(path as Path);
+export async function renderTemplate<T extends Record<string, unknown>>(path: `${FsPath}.hbs`, data: T): Promise<string> {
+    const source: string = await FsUtilities.readFile(path as FsPath);
     return renderTemplateString(source, data);
 }
 

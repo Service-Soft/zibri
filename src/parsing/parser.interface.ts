@@ -1,4 +1,3 @@
-import { ZibriApplication } from '../application';
 import { HttpRequest } from '../http/http-request.model';
 import { HttpClientResponse } from '../http-client/http-client-response.model';
 import { BodyMetadata } from '../routing/decorators/body.decorator';
@@ -27,9 +26,5 @@ export interface ParserInterface {
     /**
      * Parses the header param resolved from the given metadata.
      */
-    parseHeaderParam: (req: HttpRequest | WebsocketRequest | HttpClientResponse, metadata: HeaderParamMetadata) => unknown,
-    /**
-     * Attaches the parser to the Zibri application.
-     */
-    attachTo: (app: ZibriApplication) => Promise<void> | void
+    parseHeaderParam: (req: HttpRequest | WebsocketRequest | HttpClientResponse, metadata: HeaderParamMetadata) => unknown
 }

@@ -1,4 +1,5 @@
 import { AuthServiceInterface } from './auth-service.interface';
+import { ZibriApplication } from '../application';
 import { register } from '../di/register.function';
 import { BaseEntity } from '../entity/base-entity.model';
 import { TwoFactorServiceInterface } from './2fa/two-factor-service.interface';
@@ -14,6 +15,7 @@ import { AuthStrategyInterface } from './strategies/auth-strategy.interface';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { UnauthorizedError } from '../error-handling/errors/unauthorized.error';
+import { OnAppInit } from '../global/on-app-init.interface';
 import { HttpRequest } from '../http/http-request.model';
 import { LoggerInterface } from '../logging/logger.interface';
 import { Newable } from '../types/newable.type';
@@ -24,7 +26,7 @@ import { WebsocketRequest } from '../websocket/models/websocket-request.model';
 /**
  * Default auth service implementation of Zibri.
  */
-export class AuthService implements AuthServiceInterface {
+export class AuthService implements AuthServiceInterface, OnAppInit {
     /**
      * A logger.
      */
@@ -43,7 +45,8 @@ export class AuthService implements AuthServiceInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async init(authStrategies: AuthStrategies): Promise<void> {
+    async onAppInit({ options }: ZibriApplication): Promise<void> {
+        const { authStrategies } = options;
         for (const strategy of authStrategies) {
             register({ token: strategy, useClass: strategy });
             this.strategies.push(strategy);

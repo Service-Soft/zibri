@@ -18,7 +18,7 @@ async function start(): Promise<void> {
     const app: ZibriApplication = new ZibriApplication({
         name: 'Zibri Api',
         baseUrl: 'http://localhost:3000',
-        plugins: [new ZibriInvoicingPlugin()],
+        plugins: [ZibriInvoicingPlugin],
         controllers: [
             TestController,
             FileController,

@@ -8,6 +8,7 @@ import { FormDataBodyParserCleanupCronJob } from './form-data-body-parser-cleanu
 import { FormData, FormDataValue } from './form-data.model';
 import { ZibriApplication } from '../../application';
 import { inject } from '../../di/inject.function';
+import { OnAppInit } from '../../global/on-app-init.interface';
 import { HttpRequest } from '../../http/http-request.model';
 import { MimeType } from '../../http/mime-type.enum';
 import { BodyMetadata } from '../../routing/decorators/body.decorator';
@@ -21,7 +22,7 @@ import { KnownHeader } from '../../http/known-header.enum';
 import { FileExtension, resolveFileExtension } from '../../http/mime-type.helpers';
 import { HttpClientResponse } from '../../http-client/http-client-response.model';
 import { BigNumberUtilities } from '../../utilities/big-number.utilities';
-import { FsUtilities, Path } from '../../utilities/fs.utilities';
+import { FsUtilities, FsPath } from '../../utilities/fs.utilities';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { BodyParser } from '../decorators/body-parser.decorator';
@@ -44,12 +45,12 @@ type ParsedForm = {
  * Body parser for form data.
  */
 @BodyParser()
-export class FormDataBodyParser implements BodyParserInterface {
+export class FormDataBodyParser implements BodyParserInterface, OnAppInit {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly contentType: MimeType = MimeType.FORM_DATA;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    attachTo(app: ZibriApplication): void {
+    onAppInit(app: ZibriApplication): void {
         app.options.cronJobs.push(FormDataBodyParserCleanupCronJob);
     }
 
@@ -88,7 +89,7 @@ export class FormDataBodyParser implements BodyParserInterface {
             throw new ContentTooLargeError();
         }
 
-        const tempFolder: Path = this.getTempFolder();
+        const tempFolder: FsPath = this.getTempFolder();
 
         try {
             const parsed: ParsedForm = await this.parseMultipartStreamToDisk(stream, headers, tempFolder, metadata);
@@ -107,8 +108,8 @@ export class FormDataBodyParser implements BodyParserInterface {
         }
     }
 
-    private getTempFolder(): Path {
-        const tempPath: Path = inject(ZIBRI_DI_TOKENS.FILE_UPLOAD_TEMP_FOLDER);
+    private getTempFolder(): FsPath {
+        const tempPath: FsPath = inject(ZIBRI_DI_TOKENS.FILE_UPLOAD_TEMP_FOLDER);
         return FsUtilities.getPath(tempPath, `temp-${UUIDUtilities.generate()}`);
     }
 
@@ -121,7 +122,7 @@ export class FormDataBodyParser implements BodyParserInterface {
         return id;
     }
 
-    private async removeTempFolder(tempFolder: Path): Promise<void> {
+    private async removeTempFolder(tempFolder: FsPath): Promise<void> {
         try {
             await FsUtilities.rm(tempFolder);
         }
@@ -242,7 +243,7 @@ export class FormDataBodyParser implements BodyParserInterface {
     private async parseMultipartStreamToDisk(
         stream: Readable,
         headers: Partial<Record<string, string | undefined>>,
-        tempFolder: Path,
+        tempFolder: FsPath,
         metadata: BodyMetadata
     ): Promise<ParsedForm> {
         const contentType: string | undefined = headers[KnownHeader.CONTENT_TYPE]
@@ -293,7 +294,7 @@ export class FormDataBodyParser implements BodyParserInterface {
 
             bb.on('file', (fieldname: string, fileStream: BusboyFileStream, originalname: string, _: string, mimetype: string) => {
                 const filename: string = this.getTempFileName(mimetype);
-                const destination: Path = FsUtilities.getPath(tempFolder, filename);
+                const destination: FsPath = FsUtilities.getPath(tempFolder, filename);
                 const writeStream: WriteStream = FsUtilities.createWriteStream(destination);
                 let size: number = 0;
 

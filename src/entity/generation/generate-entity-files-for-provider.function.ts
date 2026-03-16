@@ -4,7 +4,7 @@ import { getEntityFileName } from './get-entity-file-name.function';
 import { EntityGenerationProvider } from './providers/entity-generation-provider.interface';
 import { warn } from '../../logging/logger.helpers';
 import { OpenApiDefinition, OpenApiSchemas, OpenApiOperation, OpenApiResponseObject, OpenApiReferenceObject, OpenApiSchemaObject } from '../../open-api/open-api.model';
-import { FsUtilities, Path } from '../../utilities/fs.utilities';
+import { FsUtilities, FsPath } from '../../utilities/fs.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
 import { toKebabCase } from '../../utilities/to-kebab-case.function';
 import { toPascalCase } from '../../utilities/to-pascal-case.function';
@@ -16,7 +16,7 @@ export type FileToGenerate = {
     /**
      * The path where the file should be generated.
      */
-    path: Path,
+    path: FsPath,
     /**
      * The actual content of the file in lines.
      */
@@ -123,7 +123,7 @@ export async function generateEntityFilesForProvider(
             const fileName: string = getEntityFileName(provider.prefix, key);
 
             // eslint-disable-next-line sonar/no-duplicate-string
-            const filePath: Path = FsUtilities.getPath(cwd, 'src/models/generated', toKebabCase(provider.prefix), fileName);
+            const filePath: FsPath = FsUtilities.getPath(cwd, 'src/models/generated', toKebabCase(provider.prefix), fileName);
             if (await FsUtilities.exists(filePath)) {
                 processedSchemas.add(key);
                 continue;

@@ -27,6 +27,25 @@ export class DiContainer {
     }
 
     /**
+     * Gets all registered tokens of the DI Container.
+     * @returns The tokens as an array.
+     */
+    getAllRegisteredTokens(): DiToken<unknown>[] {
+        const seen: Set<unknown> = new Set<unknown>();
+        const unique: DiToken<unknown>[] = [];
+
+        for (const [token, provider] of this.providers) {
+            const identity: unknown = provider.useClass ?? provider.useFactory ?? provider.useValue ?? token;
+            if (!seen.has(identity)) {
+                seen.add(identity);
+                unique.push(token);
+            }
+        }
+
+        return unique;
+    }
+
+    /**
      * Gets the DI Container instance.
      * @returns The instance.
      */
@@ -70,6 +89,13 @@ export class DiContainer {
             throw new NoProviderError(token, resolvingStack);
         }
 
+        // If useClass, check if we already have an instance of that class cached under the class itself
+        if (provider.useClass && this.instances.has(provider.useClass as unknown as DiToken<unknown>)) {
+            const existing: T = this.instances.get(provider.useClass as unknown as DiToken<unknown>) as T;
+            this.instances.set(token, existing); // cache under this token too for next time
+            return existing;
+        }
+
         if (provider.useClass || provider.useFactory) {
             resolvingStack.push(provider.useClass ?? provider.useFactory);
         }
@@ -78,6 +104,11 @@ export class DiContainer {
         resolvingStack.pop();
 
         this.instances.set(provider.token, instance);
+
+        if (provider.useClass) {
+            this.instances.set(provider.useClass as unknown as DiToken<unknown>, instance);
+        }
+
         return instance;
     }
 

@@ -15,7 +15,7 @@ import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from '../r
 import { ExcludeStrict } from '../types/exclude-strict.type';
 import { Newable } from '../types/newable.type';
 import { OmitStrict } from '../types/omit-strict.type';
-import { type Path } from '../utilities/fs.utilities';
+import { type FsPath } from '../utilities/fs.utilities';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
 import { WebsocketRequest } from '../websocket/models/websocket-request.model';
@@ -148,7 +148,7 @@ export class ValidationService implements ValidationServiceInterface {
             value!: typeof meta.modelClass;
             // eslint-disable-next-line jsdoc/require-jsdoc
             @Property.string({ description: 'the path to the temporary folder where uploaded files are cached' })
-            tempFolder!: Path;
+            tempFolder!: FsPath;
         }
 
         const cls: Newable<unknown> = meta.type === MimeType.FORM_DATA ? Temp : meta.modelClass;

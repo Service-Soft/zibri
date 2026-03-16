@@ -17,11 +17,12 @@ import { EmailAttachment } from './models/email-attachment.model';
 import { EmailConfig, EmailConfigInput } from './models/email-config.model';
 import { EmailPriority } from './models/email-priority.enum';
 import { EmailStatus } from './models/email-status.enum';
+import { OnAppInit } from '../global/on-app-init.interface';
 
 /**
  * Default email service implementation of Zibri.
  */
-export class EmailService implements EmailServiceInterface {
+export class EmailService implements EmailServiceInterface, OnAppInit {
     /**
      * The internal nodemailer transporter.
      */
@@ -59,7 +60,7 @@ export class EmailService implements EmailServiceInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    attachTo(app: ZibriApplication): void {
+    onAppInit(app: ZibriApplication): void {
         app.options.cronJobs.push(SendQueuedEmailsCronJob);
     }
 

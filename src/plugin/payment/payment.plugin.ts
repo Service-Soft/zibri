@@ -9,6 +9,7 @@ import { DiProvider } from '../../di/models/di-provider.model';
 import { DiTokenProviderRecord, providersFromTokenRecord } from '../../di/models/di-token.model';
 import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function';
 import { ZibriPlugin } from '../plugin.model';
+import { PaymentService } from './services/payment.service';
 
 /**
  * Plugin that includes everything for handling payments.
@@ -32,6 +33,9 @@ export class ZibriPaymentPlugin extends ZibriPlugin {
                 };
                 return res;
             }
+        },
+        PAYMENT_SERVICE: {
+            useClass: PaymentService
         }
     };
 
@@ -44,12 +48,26 @@ export class ZibriPaymentPlugin extends ZibriPlugin {
         const options: PaymentPluginOptions<PaymentMethod[], DefaultPaymentProviderArray> = inject(ZIBRI_PAYMENT_DI_TOKENS.OPTIONS);
 
         const allNames: string[] = options.paymentProviders.map(p => p.name);
-        if (allNames.length >= [...new Set(allNames)].length) {
-            throw new Error('There are duplicate payment provider names');
+        const duplicateNames: string[] = allNames.filter(name => allNames.filter(n => name === n).length > 1);
+        if (duplicateNames.length) {
+            throw new Error(
+                [
+                    'There are duplicate payment provider names:',
+                    [...new Set(duplicateNames)].map(n => `- ${n}`)
+                ].join('\n')
+            );
         }
 
-        if (options.paymentMethods.length >= [...new Set(options.paymentMethods)].length) {
-            throw new Error('There are duplicate payment methods');
+        const duplicatePaymentMethods: string[] = options.paymentMethods.filter(
+            method => options.paymentMethods.filter(m => method === m).length > 1
+        );
+        if (duplicatePaymentMethods.length) {
+            throw new Error(
+                [
+                    'There are duplicate payment methods:',
+                    [...new Set(duplicatePaymentMethods)].map(m => `- ${m}`)
+                ].join('\n')
+            );
         }
     }
 }

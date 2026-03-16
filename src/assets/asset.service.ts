@@ -5,12 +5,15 @@ import express from 'express';
 import { AssetServiceInterface } from './asset-service.interface';
 import { ZibriApplication } from '../application';
 import { Inject } from '../di/decorators/inject.decorator';
+import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { inject } from '../di/inject.function';
+import { OnAppInit } from '../global/on-app-init.interface';
 import { HttpMethod } from '../http/http-method.enum';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { FileResponse } from '../parsing/form-data/file-response.model';
 import { Route } from '../routing/controller-route-configuration.model';
-import { FsUtilities, Path } from '../utilities/fs.utilities';
+import { FsUtilities, FsPath } from '../utilities/fs.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
@@ -31,17 +34,18 @@ type WalkedPath = { relPath: string, isFile: boolean };
 /**
  * Default asset service implementation of Zibri.
  */
-export class AssetService implements AssetServiceInterface {
+@Injectable()
+export class AssetService implements AssetServiceInterface, OnAppInit {
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly assetsPath: Path = FsUtilities.getPath(__dirname, 'assets');
+    readonly assetsPath: FsPath = FsUtilities.getPath(__dirname, 'assets');
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly publicAssetsPath: Path = FsUtilities.getPath(this.assetsPath, 'public');
+    readonly publicAssetsPath: FsPath = FsUtilities.getPath(this.assetsPath, 'public');
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly pageTemplatePath: Path = FsUtilities.getPath(this.assetsPath, 'templates', 'pages');
+    readonly pageTemplatePath: FsPath = FsUtilities.getPath(this.assetsPath, 'templates', 'pages');
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly emailTemplatePath: Path = FsUtilities.getPath(this.assetsPath, 'templates', 'emails');
+    readonly emailTemplatePath: FsPath = FsUtilities.getPath(this.assetsPath, 'templates', 'emails');
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly componentTemplatePath: Path = FsUtilities.getPath(this.assetsPath, 'templates', 'components');
+    readonly componentTemplatePath: FsPath = FsUtilities.getPath(this.assetsPath, 'templates', 'components');
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly assetsRoute: Route = '/assets';
 
@@ -51,14 +55,21 @@ export class AssetService implements AssetServiceInterface {
     ) {}
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async attachTo(app: ZibriApplication): Promise<void> {
+    async onAppInit(app: ZibriApplication): Promise<void> {
         await this.logger.info(`registers public static assets from folder "${this.publicAssetsPath}" at ${this.assetsRoute}`);
         app.use(this.assetsRoute, express.static(this.publicAssetsPath));
-        await app.router.register({
+
+        await inject(ZIBRI_DI_TOKENS.ROUTER).register({
             httpMethod: HttpMethod.GET,
             route: '/favicon.ico',
             handler: () => FileResponse.fromPath(FsUtilities.getPath(this.publicAssetsPath, 'favicon.png'))
         });
+
+        // await app.router.register({
+        //     httpMethod: HttpMethod.GET,
+        //     route: '/favicon.ico',
+        //     handler: () => FileResponse.fromPath(FsUtilities.getPath(this.publicAssetsPath, 'favicon.png'))
+        // });
 
     }
 
@@ -117,14 +128,14 @@ export class AssetService implements AssetServiceInterface {
     }
 
     private async walk(
-        dir: Path,
-        base: Path = dir
+        dir: FsPath,
+        base: FsPath = dir
     ): Promise<WalkedPath[]> {
         const entries: Dirent[] = await FsUtilities.readdir(dir);
         const results: WalkedPath[] = [];
         for (const entry of entries) {
-            const abs: Path = FsUtilities.getPath(dir, entry.name);
-            const rel: Path = FsUtilities.relative(base, abs);
+            const abs: FsPath = FsUtilities.getPath(dir, entry.name);
+            const rel: FsPath = FsUtilities.relative(base, abs);
             if (entry.isDirectory()) {
                 results.push({ relPath: rel, isFile: false });
                 results.push(...await this.walk(abs, base));

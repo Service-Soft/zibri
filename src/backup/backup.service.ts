@@ -8,6 +8,7 @@ import { BackupResourceInterface } from './backup-resource.interface';
 import { BackupCreateData, BackupServiceInterface } from './backup-service.interface';
 import { PostgresDataSource } from '../data-source/data-sources/postgres-data-source.model';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
+import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { GlobalRegistry } from '../global/global-registry';
@@ -19,11 +20,13 @@ import { validateEntitiesRegistered } from '../utilities/validate-entities-regis
 import { BackupResourceMetadata } from './decorators/backup-resource-metadata.model';
 import { BackupTransportInterface } from './transports/backup-transport.interface';
 import { Repository } from '../data-source/repository';
+import { OnAppInit } from '../global/on-app-init.interface';
 
 /**
  * Default implementation of the backup service.
  */
-export class BackupService implements BackupServiceInterface {
+@Injectable()
+export class BackupService implements BackupServiceInterface, OnAppInit {
     private readonly logger: LoggerInterface;
     private readonly backupResources: Newable<BackupResourceInterface>[] = [];
 
@@ -42,7 +45,7 @@ export class BackupService implements BackupServiceInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async init(): Promise<void> {
+    async onAppInit(): Promise<void> {
         if (GlobalRegistry.backupResources.length) {
             // eslint-disable-next-line stylistic/max-len
             await this.logger.info(`configures ${GlobalRegistry.backupResources.length} ${GlobalRegistry.backupResources.length > 1 ? 'resources' : 'resource'} to be backed up:`);

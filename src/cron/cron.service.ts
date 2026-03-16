@@ -1,10 +1,11 @@
 import { CronJobEntity } from './cron-job-entity.model';
 import { CronJob } from './cron-job.model';
 import { CronServiceInterface } from './cron-service.interface';
+import { ZibriApplication } from '../application';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
+import { OnAppInit } from '../global/on-app-init.interface';
 import { LoggerInterface } from '../logging/logger.interface';
-import { Newable } from '../types/newable.type';
 import { OmitStrict } from '../types/omit-strict.type';
 
 /**
@@ -15,7 +16,7 @@ export type CronUpdateData = Partial<OmitStrict<CronJobEntity, 'id' | 'cron' | '
 /**
  * Default cron service implementation of Zibri.
  */
-export class CronService implements CronServiceInterface {
+export class CronService implements CronServiceInterface, OnAppInit {
 
     /**
      * A logger.
@@ -29,7 +30,8 @@ export class CronService implements CronServiceInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async init(cronJobs: Newable<CronJob>[]): Promise<void> {
+    async onAppInit({ options }: ZibriApplication): Promise<void> {
+        const { cronJobs } = options;
         if (this.cronJobs.length) {
             throw new Error('has already been initialized');
         }

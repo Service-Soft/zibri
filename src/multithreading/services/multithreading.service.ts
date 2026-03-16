@@ -8,12 +8,14 @@ import { ThreadJob } from './thread-job';
 import { ThreadJobWorker } from './thread-job-worker';
 import { type AssetServiceInterface } from '../../assets/asset-service.interface';
 import { Repository } from '../../data-source/repository';
-import { InjectRepository } from '../../di/decorators/inject-repository.decorator';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
+import { inject } from '../../di/inject.function';
+import { OnAppInit } from '../../global/on-app-init.interface';
 import { type LoggerInterface } from '../../logging/logger.interface';
 import { OmitStrict } from '../../types/omit-strict.type';
-import { FsUtilities, Path } from '../../utilities/fs.utilities';
+import { FsUtilities, FsPath } from '../../utilities/fs.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from '../models/base-thread-job-worker-data.model';
 import { type MultithreadingOptions } from '../models/multithreading-options.model';
@@ -26,7 +28,7 @@ import { ThreadJobStatus } from '../models/thread-job-status.enum';
 /**
  * A service that handles multithreading.
  */
-export class MultithreadingService implements MultithreadingServiceInterface {
+export class MultithreadingService implements MultithreadingServiceInterface, OnAppInit {
     /**
      * All thread jobs.
      */
@@ -39,13 +41,12 @@ export class MultithreadingService implements MultithreadingServiceInterface {
      * The workers that are currently idle.
      */
     private idleWorkers: ThreadJobWorker[] = [];
-    private readonly threadJobWorkerFilePath: Path;
+    private readonly threadJobWorkerFilePath: FsPath;
+    private threadJobEntityRepository!: Repository<ThreadJobEntity<BaseThreadJobWorkerData, unknown>>;
 
     constructor(
         @Inject(ZIBRI_DI_TOKENS.MULTITHREADING_OPTIONS)
         private readonly options: MultithreadingOptions,
-        @InjectRepository(ThreadJobEntity)
-        private readonly threadJobEntityRepository: Repository<ThreadJobEntity<BaseThreadJobWorkerData, unknown>>,
         @Inject(ZIBRI_DI_TOKENS.ASSET_SERVICE)
         private readonly assetService: AssetServiceInterface,
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
@@ -55,7 +56,8 @@ export class MultithreadingService implements MultithreadingServiceInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async init(): Promise<void> {
+    async onAppInit(): Promise<void> {
+        this.threadJobEntityRepository = inject(repositoryTokenFor(ThreadJobEntity));
         await this.validateInputs();
 
         await this.logger.info('initializes worker pool for multithreading');

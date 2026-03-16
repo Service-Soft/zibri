@@ -10,7 +10,7 @@ import { Payment } from '../../models/payment.model';
 /**
  * The environment of the pay-pal client.
  */
-type PayPalEnv = 'sandbox' | 'live';
+export type PayPalEnv = 'sandbox' | 'live';
 
 /**
  * The supported methods of the PayPalPaymentProvider.
@@ -20,7 +20,7 @@ type SupportedMethods = [KnownPaymentMethod.PAY_PAL];
 /**
  * The data for creating a new payment.
  */
-type PayPalPaymentData = {
+export type PayPalPaymentData = {
     /**
      * The amount of the payment.
      */
@@ -46,12 +46,12 @@ type PayPalPaymentData = {
 /**
  * The validated payment data.
  */
-type PayPalValidatedPaymentData = PayPalPaymentData;
+export type PayPalValidatedPaymentData = PayPalPaymentData;
 
 /**
  * The payment data stored by the provider.
  */
-type PayPalProviderPaymentData = {
+export type PayPalPaymentProviderPaymentData = {
     /**
      * The id of the order.
      */
@@ -67,13 +67,17 @@ type PayPalProviderPaymentData = {
     /**
      * The id of the payment capture.
      */
-    captureId?: string
+    captureId?: string,
+    /**
+     * The id of the refund.
+     */
+    refundId?: string
 };
 
 /**
  * The payment reservation data.
  */
-type PayPalProviderReservationPaymentData = PayPalProviderPaymentData;
+type PayPalProviderReservationPaymentData = PayPalPaymentProviderPaymentData;
 
 /**
  * Maps payment methods to their payment data.
@@ -102,7 +106,7 @@ type ProviderPaymentDataMap = {
     /**
      * The provider payment data for the PayPal payment method.
      */
-    PAY_PAL: PayPalProviderPaymentData
+    PAY_PAL: PayPalPaymentProviderPaymentData
 };
 
 /**
@@ -148,7 +152,7 @@ type ReservationSupport = {
 /**
  * Options for configuring the PayPalPaymentProvider.
  */
-export type PayPalProviderOptions = {
+export type PayPalPaymentProviderOptions = {
     /**
      * The clientId needed to authenticate with the api.
      */
@@ -177,11 +181,21 @@ export class PayPalPaymentProvider implements PaymentProviderInterface<
     ReservationSupport
 > {
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly cancellationSupported: CancellationSupport = { PAY_PAL: true };
+    declare readonly __supportedMethods: SupportedMethods;
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly refundSupported: RefundSupport = { PAY_PAL: true };
+    declare readonly __paymentDataMap: PaymentDataMap;
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly reservationSupported: ReservationSupport = { PAY_PAL: true };
+    declare readonly __validatedDataMap: ValidatedPaymentDataMap;
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    declare readonly __providerPaymentDataMap: ProviderPaymentDataMap;
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    declare readonly __providerReservationPaymentDataMap: ProviderReservationPaymentDataMap;
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    declare readonly __cancellationSupportMap: CancellationSupport;
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    declare readonly __refundSupportMap: RefundSupport;
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    declare readonly __reservationSupportMap: ReservationSupport;
 
     /**
      * Client that encapsulates the PayPal API.
@@ -190,7 +204,7 @@ export class PayPalPaymentProvider implements PaymentProviderInterface<
 
     constructor(
         readonly name: string,
-        options: PayPalProviderOptions
+        options: PayPalPaymentProviderOptions
     ) {
         this.client = new PayPalClient(options);
     }
@@ -300,7 +314,7 @@ export class PayPalPaymentProvider implements PaymentProviderInterface<
         }
 
         try {
-            const resp: GetOrderResp = await this.client.getOrder(payment.data.orderId);
+            const resp: GetOrderResp = await this.client.authorizeOrder(payment.data.orderId);
 
             let foundAuthId: string | undefined;
             for (const pu of resp.purchase_units ?? []) {

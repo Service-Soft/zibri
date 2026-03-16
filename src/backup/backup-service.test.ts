@@ -3,7 +3,7 @@ import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers
 
 import { BackupEntity } from './backup-entity.model';
 import { BackupResourceEntity } from './backup-resource-entity.model';
-import { BackupServiceInterface } from './backup-service.interface';
+import { BackupService } from './backup.service';
 import { POSTGRES_TEST_IMAGE, testFileFolder } from '../__testing__/constants';
 import { Backup } from './decorators/backup-resource.decorator';
 import { FsBackupTransport } from './transports/fs.backup-transport';
@@ -11,15 +11,14 @@ import { PostgresDataSource, PostgresOptions } from '../data-source/data-sources
 import { DataSource } from '../data-source/decorators/data-source.decorator';
 import { MigrationEntity } from '../data-source/migration/migration-entity.model';
 import { Repository } from '../data-source/repository';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { BaseEntity } from '../entity/base-entity.model';
 import { Entity } from '../entity/decorators/entity.decorator';
 import { Property } from '../entity/decorators/property.decorator';
 import { Newable } from '../types/newable.type';
-import { FsUtilities, Path } from '../utilities/fs.utilities';
+import { FsUtilities, FsPath } from '../utilities/fs.utilities';
 
-const backupFsFolder: Path = FsUtilities.getPath(testFileFolder, 'backups');
+const backupFsFolder: FsPath = FsUtilities.getPath(testFileFolder, 'backups');
 
 @Entity()
 class Item {
@@ -57,7 +56,7 @@ describe('Create and restore postgres backup', () => {
     let itemRepository: Repository<Item>;
     let backupRepository: Repository<BackupEntity>;
     let container: StartedPostgreSqlContainer;
-    let backupService: BackupServiceInterface;
+    let backupService: BackupService;
 
     beforeAll(async () => {
         await FsUtilities.rm(backupFsFolder);
@@ -79,8 +78,8 @@ describe('Create and restore postgres backup', () => {
         // seed one row without `value`
         await itemRepository.create({ value: '42' });
 
-        backupService = inject(ZIBRI_DI_TOKENS.BACKUP_SERVICE);
-        await backupService.init();
+        backupService = inject(BackupService);
+        await backupService.onAppInit();
     }, 15000);
 
     it('should create and restore a backup', async () => {

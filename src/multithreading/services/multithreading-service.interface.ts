@@ -9,10 +9,6 @@ import { ThreadJobFunction } from '../models/thread-job-function.model';
  */
 export interface MultithreadingServiceInterface {
     /**
-     * Initializes the service.
-     */
-    init: () => void | Promise<void>,
-    /**
      * Creates and queues a thread job with the given data.
      * @param threadJobData - The data to create the thread job from.
      * @returns The id of the created thread job in the data source and queue.

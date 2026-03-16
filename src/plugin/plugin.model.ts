@@ -37,7 +37,7 @@ export abstract class ZibriPlugin {
      * Validates that the plugin can work correctly. This should check that all entities exist,
      * all required providers exist etc.
      *
-     * It's called after the initialization of the app, so that data sources etc. Should all be available.
+     * It's called at the end of app initialization, so that data sources etc. Should all be available.
      */
     abstract validate(app: ZibriApplication): void | Promise<void>;
 }

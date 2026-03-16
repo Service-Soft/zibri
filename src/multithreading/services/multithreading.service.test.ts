@@ -6,6 +6,8 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { MultithreadingService } from './multithreading.service';
 import { AssetService } from '../../assets/asset.service';
 import { Repository } from '../../data-source/repository';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
+import { register } from '../../di/register.function';
 import { LogLevel } from '../../logging/log-level.enum';
 import { Logger } from '../../logging/logger';
 import { LoggerInterface } from '../../logging/logger.interface';
@@ -93,8 +95,9 @@ describe('MultithreadingService - performance vs main event loop', () => {
         }
         // eslint-disable-next-line no-console
         console.debug('allThreads', allThreads);
-        multithreadingService = new MultithreadingService(options, repo, assetService, logger);
-        await multithreadingService.init();
+        register({ token: repositoryTokenFor(ThreadJobEntity), useFactory: () => repo });
+        multithreadingService = new MultithreadingService(options, assetService, logger);
+        await multithreadingService.onAppInit();
     }, 30000);
     afterAll(async () => {
         if (allThreads <= 2) {

@@ -4,35 +4,26 @@ import cors from 'cors';
 import express, { RequestHandler } from 'express';
 
 import { ZibriApplicationOptions } from './application-options.model';
-import { AssetServiceInterface } from './assets/asset-service.interface';
 import { OtpTwoFactorMethod } from './auth/2fa/methods/otp/otp.two-factor-method';
-import { TwoFactorServiceInterface } from './auth/2fa/two-factor-service.interface';
-import { AuthServiceInterface } from './auth/auth-service.interface';
 import { JwtAuthStrategy } from './auth/strategies/jwt/jwt.auth-strategy';
-import { BackupServiceInterface } from './backup/backup-service.interface';
-import { CronServiceInterface } from './cron/cron-service.interface';
 import { DataSourceServiceInterface } from './data-source/data-source-service.interface';
 import { ZIBRI_DI_TOKENS } from './di/default/zibri-di-tokens.default';
+import { getAllRegisteredTokens } from './di/get-all-registered-tokens.function';
 import { inject } from './di/inject.function';
 import { register } from './di/register.function';
-import { EmailServiceInterface } from './email/email-service.interface';
-import { MailingListServiceInterface } from './email/mailing-list/mailing-list-service.interface';
 import { GlobalErrorHandler } from './error-handling/error-handler.model';
 import { UnmatchedRouteError } from './error-handling/errors/unmatched-route.error';
 import { GlobalRegistry } from './global/global-registry';
+import { isOnAppInitInterface } from './global/on-app-init.interface';
+import { isOnAppStartInterface } from './global/on-app-start.interface';
 import { HandlebarUtilities } from './handlebars/handlebar.utilities';
 import { LoggerInterface } from './logging/logger.interface';
-import { MetricsServiceInterface } from './metrics/metrics-service.interface';
-import { MultithreadingServiceInterface } from './multithreading/services/multithreading-service.interface';
-import { OpenApiServiceInterface } from './open-api/open-api-service.interface';
 import { FormDataBodyParser } from './parsing/form-data/form-data.body-parser';
 import { JsonBodyParser } from './parsing/json/json.body-parser';
-import { ParserInterface } from './parsing/parser.interface';
+import { ZibriPlugin } from './plugin/plugin.model';
 import { Route } from './routing/controller-route-configuration.model';
 import { RouterInterface } from './routing/router.interface';
 import { OmitStrict } from './types/omit-strict.type';
-import { BaseWebsocketConnection } from './websocket/models/connection/base-websocket-connection.model';
-import { WebsocketServiceInterface } from './websocket/services/websocket-service.interface';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 type FullZibriApplicationOptions = Required<OmitStrict<ZibriApplicationOptions, 'plugins'>>;
@@ -53,28 +44,17 @@ export class ZibriApplication {
      */
     readonly server: Server = createServer(this.express);
 
-    private _router!: RouterInterface;
     // eslint-disable-next-line jsdoc/require-returns
     /**
      * The router used by the application.
      */
     get router(): RouterInterface {
-        return this._router;
+        return inject(ZIBRI_DI_TOKENS.ROUTER);
     }
-    private logger!: LoggerInterface;
-    private metricsService!: MetricsServiceInterface;
-    private assetService!: AssetServiceInterface;
-    private openApiService!: OpenApiServiceInterface;
-    private parser!: ParserInterface;
+    private get logger(): LoggerInterface {
+        return inject(ZIBRI_DI_TOKENS.LOGGER);
+    }
     private dataSourceService!: DataSourceServiceInterface;
-    private authService!: AuthServiceInterface;
-    private twoFactorService!: TwoFactorServiceInterface;
-    private cronService!: CronServiceInterface;
-    private multithreadingService!: MultithreadingServiceInterface;
-    private websocketService!: WebsocketServiceInterface<BaseWebsocketConnection>;
-    private emailService!: EmailServiceInterface;
-    private backupService!: BackupServiceInterface;
-    private mailingListService?: MailingListServiceInterface;
     /**
      * The options of which the application was build.
      */
@@ -113,57 +93,23 @@ export class ZibriApplication {
             register(provider);
         }
 
-        this.logger = inject(ZIBRI_DI_TOKENS.LOGGER);
-        await this.logger.attachTo(this);
-
-        this.metricsService = inject(ZIBRI_DI_TOKENS.METRICS_SERVICE);
-        await this.metricsService.attachTo(this);
-
-        if (!this.providedOptions.authStrategies) {
-            await this.logger.info('No auth strategies provided, defaults to:');
-            for (const strategy of this.options.authStrategies) {
-                await this.logger.info(`  - ${strategy.name}`);
-            }
-        }
-        if (!this.providedOptions.twoFactorMethods) {
-            await this.logger.info('No two factor methods provided, defaults to:');
-            for (const strategy of this.options.twoFactorMethods) {
-                await this.logger.info(`  - ${strategy.name}`);
-            }
-        }
-        if (!this.providedOptions.bodyParsers) {
-            await this.logger.info('No body parsers provided, defaults to:');
-            for (const bodyParser of this.options.bodyParsers) {
-                await this.logger.info(`  - ${bodyParser.name}`);
-            }
-        }
+        await this.logDefaults();
 
         this.dataSourceService = inject(ZIBRI_DI_TOKENS.DATA_SOURCE_SERVICE);
         await this.dataSourceService.init();
 
-        this.twoFactorService = inject(ZIBRI_DI_TOKENS.TWO_FACTOR_SERVICE);
-        await this.twoFactorService.init(this.options.twoFactorMethods);
-
-        this.authService = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
-        await this.authService.init(this.options.authStrategies);
-
-        this.parser = inject(ZIBRI_DI_TOKENS.PARSER);
-        await this.parser.attachTo(this);
-
-        this._router = inject(ZIBRI_DI_TOKENS.ROUTER);
-        await this._router.init(this);
-
-        this.assetService = inject(ZIBRI_DI_TOKENS.ASSET_SERVICE);
-        await this.assetService.attachTo(this);
-
-        this.emailService = inject(ZIBRI_DI_TOKENS.EMAIL_SERVICE);
-        this.emailService.attachTo(this);
-
-        this.mailingListService = inject(ZIBRI_DI_TOKENS.MAILING_LIST_SERVICE);
-        this.mailingListService?.attachTo(this);
-
-        this.openApiService = inject(ZIBRI_DI_TOKENS.OPEN_API_SERVICE);
-        await this.openApiService.attachTo(this);
+        for (const token of getAllRegisteredTokens()) {
+            const x: unknown = inject(token);
+            if (x instanceof ZibriPlugin) {
+                throw new Error([
+                    `Invalid class marked with @Injectable: ${x.constructor.name}`,
+                    'Plugins interfere with the injection system, making them injectable is forbidden.'
+                ].join('\n'));
+            }
+            if (isOnAppInitInterface(x)) {
+                await x.onAppInit(this);
+            }
+        }
 
         for (const controller of this.options.controllers) {
             inject(controller);
@@ -172,18 +118,6 @@ export class ZibriApplication {
         for (const websocketController of this.options.websocketControllers) {
             inject(websocketController);
         }
-
-        this.cronService = inject(ZIBRI_DI_TOKENS.CRON_SERVICE);
-        await this.cronService.init(this.options.cronJobs);
-
-        this.multithreadingService = inject(ZIBRI_DI_TOKENS.MULTITHREADING_SERVICE);
-        await this.multithreadingService.init();
-
-        this.websocketService = inject<WebsocketServiceInterface<BaseWebsocketConnection>>(ZIBRI_DI_TOKENS.WEBSOCKET_SERVICE);
-        await this.websocketService.attachTo(this);
-
-        this.backupService = inject(ZIBRI_DI_TOKENS.BACKUP_SERVICE);
-        await this.backupService.init();
 
         for (const plugin of this.providedOptions.plugins ?? []) {
             await plugin.validate(this);
@@ -204,7 +138,13 @@ export class ZibriApplication {
             // and then this.app.listen fails.
             throw new Error('The application has already been started');
         }
-        await this.router.attachTo(this);
+
+        for (const token of getAllRegisteredTokens()) {
+            const x: unknown = inject(token);
+            if (isOnAppStartInterface(x)) {
+                await x.onAppStart(this);
+            }
+        }
         this.use((req, _, next) => next(new UnmatchedRouteError(req.originalUrl)));
         this.use(inject(ZIBRI_DI_TOKENS.GLOBAL_ERROR_HANDLER));
         this.server.listen(port);
@@ -242,5 +182,26 @@ export class ZibriApplication {
         }
 
         return res;
+    }
+
+    private async logDefaults(): Promise<void> {
+        if (!this.providedOptions.authStrategies) {
+            await this.logger.info('No auth strategies provided, defaults to:');
+            for (const strategy of this.options.authStrategies) {
+                await this.logger.info(`  - ${strategy.name}`);
+            }
+        }
+        if (!this.providedOptions.twoFactorMethods) {
+            await this.logger.info('No two factor methods provided, defaults to:');
+            for (const strategy of this.options.twoFactorMethods) {
+                await this.logger.info(`  - ${strategy.name}`);
+            }
+        }
+        if (!this.providedOptions.bodyParsers) {
+            await this.logger.info('No body parsers provided, defaults to:');
+            for (const bodyParser of this.options.bodyParsers) {
+                await this.logger.info(`  - ${bodyParser.name}`);
+            }
+        }
     }
 }

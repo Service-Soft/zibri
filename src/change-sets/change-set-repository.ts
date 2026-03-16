@@ -425,7 +425,10 @@ export class ChangeSetRepository<
      * @returns The id of the currently logged in user or undefined if that didn't work.
      */
     protected async getCreatedBy(): Promise<string | undefined> {
-        const currentRequest: HttpRequest = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST);
+        const currentRequest: HttpRequest | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST);
+        if (!currentRequest) {
+            throw new Error('No request in context');
+        }
         const user: BaseUser<string> | undefined = await this.authService.getCurrentUser(
             currentRequest,
             this.authService.strategies,

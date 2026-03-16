@@ -16,6 +16,7 @@ import { HttpError, isHttpError } from '../../error-handling/errors/http.error';
 import { NotFoundError } from '../../error-handling/errors/not-found.error';
 import { isError } from '../../error-handling/is-error.function';
 import { GlobalRegistry } from '../../global/global-registry';
+import { OnAppInit } from '../../global/on-app-init.interface';
 import { HttpStatus } from '../../http/http-status.enum';
 import { KnownHeader } from '../../http/known-header.enum';
 import { type LoggerInterface } from '../../logging/logger.interface';
@@ -49,7 +50,7 @@ type SocketIOWebsocketHandler = (
  * Default implementation for handling websockets.
  * Uses socket.io under the hood.
  */
-export class WebsocketService implements WebsocketServiceInterface<SocketIOWebsocketConnection> {
+export class WebsocketService implements WebsocketServiceInterface<SocketIOWebsocketConnection>, OnAppInit {
     private socketServer!: Server;
     private readonly websocketHandlers: Record<string, SocketIOWebsocketHandler | undefined> = {};
     private readonly websocketChannels: Record<string, SocketIOWebsocketConnection[] | undefined> = {};
@@ -73,7 +74,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
     ) {}
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async attachTo(app: ZibriApplication): Promise<void> {
+    async onAppInit(app: ZibriApplication): Promise<void> {
         this.socketServer = new Server(app.server, { connectionStateRecovery: {} });
 
         await this.logger.info('starts socket.io server');

@@ -1,4 +1,3 @@
-import { ZibriApplication } from '../../application';
 import { MailingListSubscriber } from './models/mailing-list-subscriber.model';
 import { OmitClass } from '../../entity/omit-class.model';
 import { BaseEmailTemplateData } from '../../handlebars/render-template.function';
@@ -44,10 +43,6 @@ export interface MailingListServiceInterface {
      * The base route for everything regarding mailing lists.
      */
     readonly mailingListBaseRoute: Route,
-    /**
-     * Attaches the service to the Zibri application.
-     */
-    attachTo: (app: ZibriApplication) => void,
     /**
      * Queues a new email for the mailing list with the provided id.
      */

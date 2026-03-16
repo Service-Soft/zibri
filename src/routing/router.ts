@@ -17,6 +17,8 @@ import { JwtAuthController } from '../auth/strategies/jwt/jwt-auth.controller';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { GlobalRegistry } from '../global/global-registry';
+import { OnAppInit } from '../global/on-app-init.interface';
+import { OnAppStart } from '../global/on-app-start.interface';
 import { HttpMethod } from '../http/http-method.enum';
 import { HttpRequest } from '../http/http-request.model';
 import { HttpResponse } from '../http/http-response.model';
@@ -35,7 +37,7 @@ import { ValidationServiceInterface } from '../validation/validation-service.int
 /**
  * Default router implementation of Zibri.
  */
-export class Router implements RouterInterface {
+export class Router implements RouterInterface, OnAppInit, OnAppStart {
     private readonly expressRouter: ExpressRouter = ExpressRouter();
     private readonly logger: LoggerInterface;
     private readonly parser: ParserInterface;
@@ -60,7 +62,7 @@ export class Router implements RouterInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async init(app: ZibriApplication): Promise<void> {
+    async onAppInit(app: ZibriApplication): Promise<void> {
         await this.logger.info(`registers ${app.options.controllers.length} controllers:`);
         for (const controller of app.options.controllers) {
             const routes: ControllerRouteConfiguration[] = MetadataUtilities.getControllerRoutes(controller);
@@ -71,7 +73,7 @@ export class Router implements RouterInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    attachTo(app: ZibriApplication): void {
+    onAppStart(app: ZibriApplication): void {
         app.use(this.expressRouter);
         app.use((req, _res, next) => runWithRequest(req as HttpRequest, () => next()));
     }

@@ -5,7 +5,7 @@ import { CronJob, InitialCronConfig } from '../../cron/cron-job.model';
 import { Injectable } from '../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
-import { FsUtilities, Path } from '../../utilities/fs.utilities';
+import { FsUtilities, FsPath } from '../../utilities/fs.utilities';
 
 /**
  * CronJob that cleans up the temp folder of the form data body parser.
@@ -21,7 +21,7 @@ export class FormDataBodyParserCleanupCronJob extends CronJob {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async onTick(): Promise<void> {
-        const tempPath: Path = inject(ZIBRI_DI_TOKENS.FILE_UPLOAD_TEMP_FOLDER);
+        const tempPath: FsPath = inject(ZIBRI_DI_TOKENS.FILE_UPLOAD_TEMP_FOLDER);
 
         await this.logger.info(`cleans up temp folder ${tempPath}`);
 
@@ -31,7 +31,7 @@ export class FormDataBodyParserCleanupCronJob extends CronJob {
             let foldersToPreserve: number = 0;
             for (const folder of folders) {
                 try {
-                    const folderPath: Path = FsUtilities.getPath(tempPath, folder.parentPath, folder.name);
+                    const folderPath: FsPath = FsUtilities.getPath(tempPath, folder.parentPath, folder.name);
                     const shouldBePreserved: boolean = await this.hasRecentlyBeenCreated(folderPath);
 
                     if (!shouldBePreserved) {
@@ -53,8 +53,8 @@ export class FormDataBodyParserCleanupCronJob extends CronJob {
         }
     }
 
-    private async hasRecentlyBeenCreated(folderPath: Path): Promise<boolean> {
-        const cleanupAtPath: Path = FsUtilities.getPath(folderPath, CLEANUP_AT_FILE_NAME);
+    private async hasRecentlyBeenCreated(folderPath: FsPath): Promise<boolean> {
+        const cleanupAtPath: FsPath = FsUtilities.getPath(folderPath, CLEANUP_AT_FILE_NAME);
         try {
             // Check if the file/folder has been modified within the last 24 hours
             const cleanupAtMs: number = Number(await FsUtilities.readFile(cleanupAtPath));

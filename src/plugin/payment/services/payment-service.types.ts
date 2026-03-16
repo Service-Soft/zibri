@@ -1,9 +1,8 @@
-/* eslint-disable unusedImports/no-unused-vars */
-import { AnyObject } from '../../../entity/any-object.model';
+/* eslint-disable jsdoc/require-jsdoc */
 import { PaymentMethod } from '../models/payment-method.model';
 import { PaymentPluginOptions } from '../models/payment-plugin-options.model';
 import { Payment } from '../models/payment.model';
-import { PaymentProviderInterface } from '../providers/payment-provider.interface';
+import { AnyPaymentProviderInterface } from '../providers/payment-provider.interface';
 
 /**
  * Helper: pick the provider *instance* (from the P tuple) for the given method M.
@@ -11,21 +10,10 @@ import { PaymentProviderInterface } from '../providers/payment-provider.interfac
 type ProviderInstanceForMethod<
     Methods extends readonly PaymentMethod[],
     M extends Methods[number],
-    P extends readonly PaymentProviderInterface<
-        Methods[number][],
-        // eslint-disable-next-line jsdoc/require-jsdoc
-        Record<Methods[number], AnyObject & { transactionId: string }>,
-        // eslint-disable-next-line jsdoc/require-jsdoc
-        Record<Methods[number], AnyObject & { transactionId: string }>,
-        Record<Methods[number], AnyObject>,
-        Record<Methods[number], AnyObject>,
-        Record<Methods[number], boolean>,
-        Record<Methods[number], boolean>,
-        Record<Methods[number], boolean>
-    >[]
+    P extends readonly AnyPaymentProviderInterface[]
 > = Extract<
     P[number],
-    // eslint-disable-next-line jsdoc/require-jsdoc
+
     { name: PaymentPluginOptions<Methods, P>['providerNameForMethod'][M] }
 >;
 
@@ -35,31 +23,11 @@ type ProviderInstanceForMethod<
 export type PaymentDataForMethod<
     Methods extends readonly PaymentMethod[],
     M extends Methods[number],
-    P extends readonly PaymentProviderInterface<
-        Methods[number][],
-        // eslint-disable-next-line jsdoc/require-jsdoc
-        Record<Methods[number], AnyObject & { transactionId: string }>,
-        // eslint-disable-next-line jsdoc/require-jsdoc
-        Record<Methods[number], AnyObject & { transactionId: string }>,
-        Record<Methods[number], AnyObject>,
-        Record<Methods[number], AnyObject>,
-        Record<Methods[number], boolean>,
-        Record<Methods[number], boolean>,
-        Record<Methods[number], boolean>
-    >[]
->
-    = ProviderInstanceForMethod<Methods, M, P> extends PaymentProviderInterface<
-        infer _SM,
-        infer PaymentDataMap,
-        infer _ValidatedMap,
-        infer _ProviderPaymentData,
-        infer _ProviderReservationPaymentData,
-        infer _CS,
-        infer _RS,
-        infer _ReservationSupport
-    >
-        ? PaymentDataMap[M]
-        : never;
+    P extends readonly AnyPaymentProviderInterface[]
+> = ProviderInstanceForMethod<Methods, M, P> extends { __paymentDataMap: infer DataMap }
+    // eslint-disable-next-line typescript/no-explicit-any
+    ? (DataMap & Record<string, any>)[M] & { transactionId: string }
+    : never;
 
 /**
  * ValidatedPaymentDataForMethod: the validated/normalized data type returned by validatePaymentData.
@@ -67,31 +35,12 @@ export type PaymentDataForMethod<
 export type ValidatedPaymentDataForMethod<
     Methods extends readonly PaymentMethod[],
     M extends Methods[number],
-    P extends readonly PaymentProviderInterface<
-        Methods[number][],
-        // eslint-disable-next-line jsdoc/require-jsdoc
-        Record<Methods[number], AnyObject & { transactionId: string }>,
-        // eslint-disable-next-line jsdoc/require-jsdoc
-        Record<Methods[number], AnyObject & { transactionId: string }>,
-        Record<Methods[number], AnyObject>,
-        Record<Methods[number], AnyObject>,
-        Record<Methods[number], boolean>,
-        Record<Methods[number], boolean>,
-        Record<Methods[number], boolean>
-    >[]
->
-    = ProviderInstanceForMethod<Methods, M, P> extends PaymentProviderInterface<
-        infer _SM,
-        infer _PaymentDataMap,
-        infer ValidatedMap,
-        infer _ProviderPaymentData,
-        infer _ProviderReservationPaymentData,
-        infer _CS,
-        infer _RS,
-        infer _ReservationSupport
-    >
-        ? ValidatedMap[M]
-        : never;
+    P extends readonly AnyPaymentProviderInterface[]
+
+> = ProviderInstanceForMethod<Methods, M, P> extends { __validatedDataMap: infer DataMap }
+    // eslint-disable-next-line typescript/no-explicit-any
+    ? (DataMap & Record<string, any>)[M]
+    : never;
 
 /**
  * The payment entity type used for payments.
@@ -99,31 +48,9 @@ export type ValidatedPaymentDataForMethod<
 export type PaymentForMethod<
     Methods extends readonly PaymentMethod[],
     M extends Methods[number],
-    P extends readonly PaymentProviderInterface<
-        Methods[number][],
-        // eslint-disable-next-line jsdoc/require-jsdoc
-        Record<Methods[number], AnyObject & { transactionId: string }>,
-        // eslint-disable-next-line jsdoc/require-jsdoc
-        Record<Methods[number], AnyObject & { transactionId: string }>,
-        Record<Methods[number], AnyObject>,
-        Record<Methods[number], AnyObject>,
-        Record<Methods[number], boolean>,
-        Record<Methods[number], boolean>,
-        Record<Methods[number], boolean>
-    >[]
->
-    = ProviderInstanceForMethod<Methods, M, P> extends PaymentProviderInterface<
-        infer _SM,
-        infer _PaymentDataMap,
-        infer _ValidatedMap,
-        infer ProviderPaymentDataMap,
-        infer _ProviderReservationPaymentData,
-        infer _CS,
-        infer _RS,
-        infer _ReservationSupport
-    >
-        ? Payment<M, ProviderPaymentDataMap[M]>
-        : never;
+    P extends readonly AnyPaymentProviderInterface[]
+
+> = Payment<M, (ProviderInstanceForMethod<Methods, M, P>['__providerPaymentDataMap'])[M]>;
 
 /**
  * The payment entity type used for reservation payments.
@@ -131,63 +58,19 @@ export type PaymentForMethod<
 export type PaymentReservationForMethod<
     Methods extends readonly PaymentMethod[],
     M extends Methods[number],
-    P extends readonly PaymentProviderInterface<
-        Methods[number][],
-        // eslint-disable-next-line jsdoc/require-jsdoc
-        Record<Methods[number], AnyObject & { transactionId: string }>,
-        // eslint-disable-next-line jsdoc/require-jsdoc
-        Record<Methods[number], AnyObject & { transactionId: string }>,
-        Record<Methods[number], AnyObject>,
-        Record<Methods[number], AnyObject>,
-        Record<Methods[number], boolean>,
-        Record<Methods[number], boolean>,
-        Record<Methods[number], boolean>
-    >[]
->
-    = ProviderInstanceForMethod<Methods, M, P> extends PaymentProviderInterface<
-        infer _SM,
-        infer _PaymentDataMap,
-        infer _ValidatedMap,
-        infer _ProviderPaymentDataMap,
-        infer ProviderReservationPaymentDataMap,
-        infer _CS,
-        infer _RS,
-        infer _ReservationSupport
-    >
-        ? Payment<M, ProviderReservationPaymentDataMap[M]>
-        : never;
+    P extends readonly AnyPaymentProviderInterface[]
+> = Payment<M, (ProviderInstanceForMethod<Methods, M, P>['__providerReservationPaymentDataMap'])[M]>;
 
 /**
  * Filters to all methods that are allowed for reservation.
  */
 export type AllowedReservationMethods<
     Methods extends readonly PaymentMethod[],
-    P extends readonly PaymentProviderInterface<
-        Methods[number][],
-        // eslint-disable-next-line jsdoc/require-jsdoc
-        Record<Methods[number], AnyObject & { transactionId: string }>,
-        // eslint-disable-next-line jsdoc/require-jsdoc
-        Record<Methods[number], AnyObject & { transactionId: string }>,
-        Record<Methods[number], AnyObject>,
-        Record<Methods[number], AnyObject>,
-        Record<Methods[number], boolean>,
-        Record<Methods[number], boolean>,
-        Record<Methods[number], boolean>
-    >[]
+    P extends readonly AnyPaymentProviderInterface[]
 > = {
-    [K in Methods[number]]: ProviderInstanceForMethod<Methods, K, P> extends PaymentProviderInterface<
-        infer _SM,
-        infer _PaymentDataMap,
-        infer _ValidatedMap,
-        infer _ProviderPaymentDataMap,
-        infer _ProviderReservationPaymentDataMap,
-        infer _CancellationSupport,
-        infer _RefundSupport,
-        infer ReservationSupport
-    >
-        ? ReservationSupport[K] extends true
-            ? K
-            : never
+    [K in Methods[number]]: ProviderInstanceForMethod<Methods, K, P> extends { __reservationSupportMap: infer RS }
+        // eslint-disable-next-line typescript/no-explicit-any
+        ? (RS & Record<string, any>)[K] extends true ? K : never
         : never;
 }[Methods[number]];
 
@@ -196,32 +79,12 @@ export type AllowedReservationMethods<
  */
 export type AllowedCancellationMethods<
     Methods extends readonly PaymentMethod[],
-    P extends readonly PaymentProviderInterface<
-        Methods[number][],
-        // eslint-disable-next-line jsdoc/require-jsdoc
-        Record<Methods[number], AnyObject & { transactionId: string }>,
-        // eslint-disable-next-line jsdoc/require-jsdoc
-        Record<Methods[number], AnyObject & { transactionId: string }>,
-        Record<Methods[number], AnyObject>,
-        Record<Methods[number], AnyObject>,
-        Record<Methods[number], boolean>,
-        Record<Methods[number], boolean>,
-        Record<Methods[number], boolean>
-    >[]
+    P extends readonly AnyPaymentProviderInterface[]
 > = {
-    [K in Methods[number]]: ProviderInstanceForMethod<Methods, K, P> extends PaymentProviderInterface<
-        infer _SM,
-        infer _PaymentDataMap,
-        infer _ValidatedMap,
-        infer _ProviderPaymentDataMap,
-        infer _ProviderReservationPaymentDataMap,
-        infer CancellationSupport,
-        infer _RefundSupport,
-        infer ReservationSupport
-    >
-        ? CancellationSupport[K] extends true
-            ? K
-            : ReservationSupport[K] extends true ? K : never
+    // eslint-disable-next-line stylistic/max-len
+    [K in Methods[number]]: ProviderInstanceForMethod<Methods, K, P> extends { __cancellationSupportMap: infer CS, __reservationSupportMap: infer RS }
+        // eslint-disable-next-line typescript/no-explicit-any
+        ? (CS & Record<string, any>)[K] extends true ? K : (RS & Record<string, any>)[K] extends true ? K : never
         : never;
 }[Methods[number]];
 
@@ -230,31 +93,10 @@ export type AllowedCancellationMethods<
  */
 export type AllowedRefundMethods<
     Methods extends readonly PaymentMethod[],
-    P extends readonly PaymentProviderInterface<
-        Methods[number][],
-        // eslint-disable-next-line jsdoc/require-jsdoc
-        Record<Methods[number], AnyObject & { transactionId: string }>,
-        // eslint-disable-next-line jsdoc/require-jsdoc
-        Record<Methods[number], AnyObject & { transactionId: string }>,
-        Record<Methods[number], AnyObject>,
-        Record<Methods[number], AnyObject>,
-        Record<Methods[number], boolean>,
-        Record<Methods[number], boolean>,
-        Record<Methods[number], boolean>
-    >[]
+    P extends readonly AnyPaymentProviderInterface[]
 > = {
-    [K in Methods[number]]: ProviderInstanceForMethod<Methods, K, P> extends PaymentProviderInterface<
-        infer _SM,
-        infer _PaymentDataMap,
-        infer _ValidatedMap,
-        infer _ProviderPaymentDataMap,
-        infer _ProviderReservationPaymentDataMap,
-        infer _CancellationSupport,
-        infer _RefundSupport,
-        infer _ReservationSupport
-    >
-        ? _RefundSupport[K] extends true
-            ? K
-            : never
+    [K in Methods[number]]: ProviderInstanceForMethod<Methods, K, P> extends { __refundSupportMap: infer RS }
+        // eslint-disable-next-line typescript/no-explicit-any
+        ? (RS & Record<string, any>)[K] extends true ? K : never
         : never;
 }[Methods[number]];
