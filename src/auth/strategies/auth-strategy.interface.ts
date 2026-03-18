@@ -19,10 +19,6 @@ export interface AuthStrategyInterface<
     LogoutData
 > {
     /**
-     * Initializes the strategy.
-     */
-    init: () => void,
-    /**
      * Resolves the current user.
      */
     resolveUser: (request: HttpRequest | WebsocketRequest) => Promise<UserType | undefined>,

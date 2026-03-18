@@ -11,9 +11,10 @@ import { HistogramInterface } from './histogram.interface';
 import { MetricType } from './metric-type.enum';
 import { Metric } from './metric.model';
 import { ScrapeMetricsCronJob } from './scrape-metrics.cron-job';
-import { AssetServiceInterface } from '../assets/asset-service.interface';
+import { type AssetServiceInterface } from '../assets/asset-service.interface';
+import { Inject } from '../di/decorators/inject.decorator';
+import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
 import { OnAppInit } from '../global/on-app-init.interface';
 import { HttpRequest } from '../http/http-request.model';
 import { HttpResponse } from '../http/http-response.model';
@@ -61,6 +62,7 @@ class PromHistogram implements HistogramInterface {
 /**
  * Default metrics service implementation of Zibri.
  */
+@Injectable()
 export class PrometheusMetricsService implements MetricsServiceInterface, OnAppInit {
     private readonly registry: Registry;
     private readonly counters: Map<string, Counter<string>> = new Map<string, Counter<string>>();
@@ -68,7 +70,10 @@ export class PrometheusMetricsService implements MetricsServiceInterface, OnAppI
     private readonly histograms: Map<string, Histogram<string>> = new Map<string, Histogram<string>>();
     private readonly metricSnapshots: MetricsSnapshot[] = [];
 
-    constructor() {
+    constructor(
+        @Inject(ZIBRI_DI_TOKENS.ASSET_SERVICE)
+        private readonly assetService: AssetServiceInterface
+    ) {
         this.registry = new Registry();
         collectDefaultMetrics({ register: this.registry, eventLoopMonitoringPrecision: 10 });
 
@@ -96,9 +101,8 @@ export class PrometheusMetricsService implements MetricsServiceInterface, OnAppI
     measureFinishedRequest(req: HttpRequest, res: HttpResponse, durationInMs: number): void {
         // eslint-disable-next-line typescript/no-unsafe-member-access
         const route: string = req.originalUrl ?? req.route?.path ?? req.path;
-        const assetService: AssetServiceInterface = inject(ZIBRI_DI_TOKENS.ASSET_SERVICE);
 
-        if (route.startsWith(assetService.assetsRoute)) {
+        if (route.startsWith(this.assetService.assetsRoute)) {
             return;
         }
 

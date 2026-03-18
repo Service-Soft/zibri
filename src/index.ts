@@ -118,8 +118,14 @@ export * from './assets/asset.service';
 
 // global
 export * from './global/app-state.enum';
+// export * from './global/on-app-creation.interface';
+export * from './global/before-app-init.interface';
 export * from './global/on-app-init.interface';
+export * from './global/after-app-init.interface';
 export * from './global/on-app-start.interface';
+export * from './global/before-app-shutdown.interface';
+export * from './global/on-app-shutdown.interface';
+export * from './global/after-app-shutdown.interface';
 export * from './global/global-registry';
 
 // logging

@@ -17,6 +17,11 @@ export class Payment<M extends PaymentMethod, Data extends AnyObject> extends Ba
     @Property.string({ format: 'uuid', unique: true })
     transactionId!: string;
     /**
+     * The createdAt date. Is set to now by default.
+     */
+    @Property.date({ default: () => new Date() })
+    createdAt!: Date;
+    /**
      * The status of the payment.
      */
     @Property.string({ enum: PaymentStatus })

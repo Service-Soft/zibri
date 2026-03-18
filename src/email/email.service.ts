@@ -7,10 +7,12 @@ import { CreateEmailData, QueueEmailData } from './models/create-email-data.mode
 import { SendQueuedEmailsCronJob } from './send-queued-emails.cron-job';
 import { Repository } from '../data-source/repository';
 import { Email } from './models/email.model';
-import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
+import { InjectRepository } from '../di/decorators/inject-repository.decorator';
+import { Inject } from '../di/decorators/inject.decorator';
+import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
-import { LoggerInterface } from '../logging/logger.interface';
+import { type LoggerInterface } from '../logging/logger.interface';
 import { RateLimiter } from '../rate-limiting/rate-limiter';
 import { FsUtilities } from '../utilities/fs.utilities';
 import { EmailAttachment } from './models/email-attachment.model';
@@ -18,19 +20,17 @@ import { EmailConfig, EmailConfigInput } from './models/email-config.model';
 import { EmailPriority } from './models/email-priority.enum';
 import { EmailStatus } from './models/email-status.enum';
 import { OnAppInit } from '../global/on-app-init.interface';
+import { OnAppShutdown } from '../global/on-app-shutdown.interface';
 
 /**
  * Default email service implementation of Zibri.
  */
-export class EmailService implements EmailServiceInterface, OnAppInit {
+@Injectable()
+export class EmailService implements EmailServiceInterface, OnAppInit, OnAppShutdown {
     /**
      * The internal nodemailer transporter.
      */
     protected readonly transporter: Transporter<SMTPTransport.SentMessageInfo, SMTPTransport.Options>;
-    /**
-     * The repository that handles storing and receiving emails from the db.
-     */
-    protected readonly emailRepository: Repository<Email, CreateEmailData>;
     /**
      * The email configuration.
      */
@@ -39,13 +39,13 @@ export class EmailService implements EmailServiceInterface, OnAppInit {
      * A rate limiter to prevent overloading the email provider.
      */
     protected readonly rateLimiter: RateLimiter;
-    /**
-     * A logger.
-     */
-    protected readonly logger: LoggerInterface;
 
-    constructor() {
-        this.emailRepository = inject(repositoryTokenFor(Email));
+    constructor(
+        @Inject(ZIBRI_DI_TOKENS.LOGGER)
+        private readonly logger: LoggerInterface,
+        @InjectRepository(Email)
+        private readonly emailRepository: Repository<Email, CreateEmailData>
+    ) {
         const config: EmailConfigInput | undefined = inject(ZIBRI_DI_TOKENS.EMAIL_CONFIG);
         if (!config) {
             throw new Error('no email config was provided for the token "ZIBRI_DI_TOKENS.MAIL_CONFIG"');
@@ -56,12 +56,16 @@ export class EmailService implements EmailServiceInterface, OnAppInit {
         };
         this.rateLimiter = RateLimiter.perHour(this.config.maxEmailsPerHour);
         this.transporter = createTransport({ ...this.config, secure: config?.port === 465 });
-        this.logger = inject(ZIBRI_DI_TOKENS.LOGGER);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     onAppInit(app: ZibriApplication): void {
         app.options.cronJobs.push(SendQueuedEmailsCronJob);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    onAppShutdown(): void {
+        this.transporter.close();
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

@@ -1,8 +1,8 @@
-import { EmailServiceInterface } from './email-service.interface';
+import { type EmailServiceInterface } from './email-service.interface';
 import { CronJob, InitialCronConfig } from '../cron/cron-job.model';
+import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
 
 /**
  * Cron Job for sending out queued emails.
@@ -16,12 +16,18 @@ export class SendQueuedEmailsCronJob extends CronJob {
         runOnInit: false
     };
 
+    constructor(
+        @Inject(ZIBRI_DI_TOKENS.EMAIL_SERVICE)
+        private readonly emailService: EmailServiceInterface
+    ) {
+        super();
+    }
+
     // eslint-disable-next-line jsdoc/require-jsdoc
     async onTick(): Promise<void> {
-        const emailService: EmailServiceInterface = inject(ZIBRI_DI_TOKENS.EMAIL_SERVICE);
         let goOn: boolean = true;
         while (goOn) {
-            goOn = await emailService.sendQueuedEmails();
+            goOn = await this.emailService.sendQueuedEmails();
         }
     }
 }

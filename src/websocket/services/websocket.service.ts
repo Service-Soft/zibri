@@ -8,6 +8,7 @@ import { WhereFilter } from '../../data-source/models/where/where-filter.model';
 import { Repository } from '../../data-source/repository';
 import { InjectRepository } from '../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../di/decorators/inject.decorator';
+import { Injectable } from '../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { toHttpError } from '../../error-handling/error-handler';
@@ -15,6 +16,7 @@ import { BadRequestError } from '../../error-handling/errors/bad-request.error';
 import { HttpError, isHttpError } from '../../error-handling/errors/http.error';
 import { NotFoundError } from '../../error-handling/errors/not-found.error';
 import { isError } from '../../error-handling/is-error.function';
+import { BeforeAppShutdown } from '../../global/before-app-shutdown.interface';
 import { GlobalRegistry } from '../../global/global-registry';
 import { OnAppInit } from '../../global/on-app-init.interface';
 import { HttpStatus } from '../../http/http-status.enum';
@@ -50,7 +52,8 @@ type SocketIOWebsocketHandler = (
  * Default implementation for handling websockets.
  * Uses socket.io under the hood.
  */
-export class WebsocketService implements WebsocketServiceInterface<SocketIOWebsocketConnection>, OnAppInit {
+@Injectable()
+export class WebsocketService implements WebsocketServiceInterface<SocketIOWebsocketConnection>, OnAppInit, BeforeAppShutdown {
     private socketServer!: Server;
     private readonly websocketHandlers: Record<string, SocketIOWebsocketHandler | undefined> = {};
     private readonly websocketChannels: Record<string, SocketIOWebsocketConnection[] | undefined> = {};
@@ -88,6 +91,11 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         this.checkForOrphanedControllers(app.options.websocketControllers);
 
         this.socketServer.on('connection', socket => this.onConnect(socket));
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async beforeAppShutdown(): Promise<void> {
+        await this.socketServer.close();
     }
 
     private async onConnect(socket: Socket): Promise<void> {

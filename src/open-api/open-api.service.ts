@@ -3,11 +3,13 @@ import swaggerUi from 'swagger-ui-express';
 import { ZibriApplication } from '../application';
 import { OpenApiServiceInterface } from './open-api-service.interface';
 import { OpenApiDefinition, OpenApiTagObject, OpenApiSecuritySchemeObject, OpenApiPaths, OpenApiResponse, OpenApiOperation, OpenApiResponsesObject, OpenApiResponseObject, OpenApiContentObject, OpenApiSchemaObject, OpenApiSecurityRequirementObject, OpenApiRequestBodyObject, OpenApiParameterLocation, OpenApiParameter } from './open-api.model';
-import { AssetServiceInterface } from '../assets/asset-service.interface';
-import { AuthServiceInterface } from '../auth/auth-service.interface';
+import { type AssetServiceInterface } from '../assets/asset-service.interface';
+import { type AuthServiceInterface } from '../auth/auth-service.interface';
 import { BelongsToMetadata } from '../auth/models/belongs-to-metadata.model';
 import { HasRoleMetadata } from '../auth/models/has-role-metadata.model';
 import { IsLoggedInMetadata } from '../auth/models/is-logged-in-metadata.model';
+import { Inject } from '../di/decorators/inject.decorator';
+import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { BaseEntity } from '../entity/base-entity.model';
@@ -24,14 +26,14 @@ import { HttpMethod } from '../http/http-method.enum';
 import { HttpStatus } from '../http/http-status.enum';
 import { KnownHeader } from '../http/known-header.enum';
 import { MimeType } from '../http/mime-type.enum';
-import { LoggerInterface } from '../logging/logger.interface';
+import { type LoggerInterface } from '../logging/logger.interface';
 import { FileResponse } from '../parsing/form-data/file-response.model';
 import { Route, ControllerRouteConfiguration } from '../routing/controller-route-configuration.model';
 import { BodyMetadata } from '../routing/decorators/body.decorator';
 import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from '../routing/decorators/param.decorator';
 import { MissingBaseRouteError } from '../routing/missing-base-route.error';
 import { RouteHandler } from '../routing/route-configuration.model';
-import { RouterInterface } from '../routing/router.interface';
+import { type RouterInterface } from '../routing/router.interface';
 import { Newable } from '../types/newable.type';
 import { FsUtilities, FsPath } from '../utilities/fs.utilities';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
@@ -81,20 +83,21 @@ const defaultDescriptionForHttpStatus: Record<HttpStatus | 'default', string> = 
 /**
  * Default open api service implementation of Zibri.
  */
+@Injectable()
 export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly openApiRoute: Route = '/explorer';
-    private readonly logger: LoggerInterface;
-    private readonly assetService: AssetServiceInterface;
-    private readonly authService: AuthServiceInterface;
-    private readonly router: RouterInterface;
 
-    constructor() {
-        this.logger = inject(ZIBRI_DI_TOKENS.LOGGER);
-        this.assetService = inject(ZIBRI_DI_TOKENS.ASSET_SERVICE);
-        this.authService = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
-        this.router = inject(ZIBRI_DI_TOKENS.ROUTER);
-    }
+    constructor(
+        @Inject(ZIBRI_DI_TOKENS.LOGGER)
+        private readonly logger: LoggerInterface,
+        @Inject(ZIBRI_DI_TOKENS.ASSET_SERVICE)
+        private readonly assetService: AssetServiceInterface,
+        @Inject(ZIBRI_DI_TOKENS.AUTH_SERVICE)
+        private readonly authService: AuthServiceInterface,
+        @Inject(ZIBRI_DI_TOKENS.ROUTER)
+        private readonly router: RouterInterface
+    ) { }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async onAppInit(app: ZibriApplication): Promise<void> {

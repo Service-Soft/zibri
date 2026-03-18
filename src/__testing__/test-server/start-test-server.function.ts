@@ -1,5 +1,6 @@
 import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import H from 'handlebars/runtime';
+import { AbstractStartedContainer } from 'testcontainers';
 
 import { DefaultTestServerDataSource } from './database';
 import { defaultTestServerPlugins } from './plugins';
@@ -16,13 +17,25 @@ import { noOp, POSTGRES_TEST_IMAGE } from '../constants';
 
 type StartTestServerOptions = Partial<Pick<ZibriApplicationOptions, 'dataSources' | 'providers' | 'plugins'>>;
 
+export class StartedTestServer {
+    constructor(
+        private readonly app: ZibriApplication,
+        private readonly containers: AbstractStartedContainer[]
+    ) {}
+
+    async shutdown(): Promise<void> {
+        await this.app.shutdown();
+        await Promise.all(this.containers.map(c => c.stop()));
+    }
+}
+
 export async function startTestServer(
     {
         dataSources = [DefaultTestServerDataSource],
         providers = defaultTestServerProviders,
         plugins = defaultTestServerPlugins
     }: StartTestServerOptions = {}
-): Promise<StartedPostgreSqlContainer> {
+): Promise<StartedTestServer> {
     // Reset singleton — every test file gets a clean container with no stale instances.
     DiContainer['singleton'] = undefined;
 
@@ -57,5 +70,5 @@ export async function startTestServer(
     logger.info = info;
     await logger.info('test server started');
 
-    return container;
+    return new StartedTestServer(app, [container]);
 }

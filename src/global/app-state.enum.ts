@@ -5,5 +5,6 @@ export enum AppState {
     OFFLINE = 'offline',
     CREATED = 'created',
     INITIALIZED = 'initialized',
-    STARTED = 'started'
+    STARTED = 'started',
+    SHUTTING_DOWN = 'shutting down'
 }

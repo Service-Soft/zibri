@@ -2,10 +2,10 @@ import { Dirent } from 'node:fs';
 
 import { CLEANUP_AT_FILE_NAME } from './form-data.model';
 import { CronJob, InitialCronConfig } from '../../cron/cron-job.model';
+import { Inject } from '../../di/decorators/inject.decorator';
 import { Injectable } from '../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { FsUtilities, FsPath } from '../../utilities/fs.utilities';
+import { FsUtilities, type FsPath } from '../../utilities/fs.utilities';
 
 /**
  * CronJob that cleans up the temp folder of the form data body parser.
@@ -19,19 +19,24 @@ export class FormDataBodyParserCleanupCronJob extends CronJob {
         runOnInit: false
     };
 
+    constructor(
+        @Inject(ZIBRI_DI_TOKENS.FILE_UPLOAD_TEMP_FOLDER)
+        private readonly tempPath: FsPath
+    ) {
+        super();
+    }
+
     // eslint-disable-next-line jsdoc/require-jsdoc
     async onTick(): Promise<void> {
-        const tempPath: FsPath = inject(ZIBRI_DI_TOKENS.FILE_UPLOAD_TEMP_FOLDER);
-
-        await this.logger.info(`cleans up temp folder ${tempPath}`);
+        await this.logger.info(`cleans up temp folder ${this.tempPath}`);
 
         try {
-            const folders: Dirent[] = await FsUtilities.readdir(tempPath);
+            const folders: Dirent[] = await FsUtilities.readdir(this.tempPath);
 
             let foldersToPreserve: number = 0;
             for (const folder of folders) {
                 try {
-                    const folderPath: FsPath = FsUtilities.getPath(tempPath, folder.parentPath, folder.name);
+                    const folderPath: FsPath = FsUtilities.getPath(this.tempPath, folder.parentPath, folder.name);
                     const shouldBePreserved: boolean = await this.hasRecentlyBeenCreated(folderPath);
 
                     if (!shouldBePreserved) {

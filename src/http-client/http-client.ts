@@ -5,6 +5,7 @@ import { HttpClientResponse, HttpClientResponseForBodyType } from './http-client
 import { HttpClientError } from './http-client.error';
 import { HttpClientHeaderValue, HttpClientInterface, HttpOptionsInput } from './http-client.interface';
 import { Inject } from '../di/decorators/inject.decorator';
+import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { HttpMethod } from '../http/http-method.enum';
 import { KnownHeader } from '../http/known-header.enum';
@@ -41,6 +42,7 @@ const responseTypeForMimeType: Record<BodyMetadata['type'], ResponseType> = {
 /**
  * Default http client implementation of Zibri.
  */
+@Injectable()
 export class HttpClient implements HttpClientInterface {
     private readonly axios: AxiosInstance;
 

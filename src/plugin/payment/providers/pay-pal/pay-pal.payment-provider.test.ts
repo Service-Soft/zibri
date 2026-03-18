@@ -1,13 +1,12 @@
 import assert from 'node:assert';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
-import { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 // eslint-disable-next-line eslintImport/no-unassigned-import
 import 'dotenv/config';
 
 import { PayPalPaymentData, PayPalPaymentProvider, PayPalPaymentProviderPaymentData, PayPalValidatedPaymentData } from './pay-pal.payment-provider';
 import { defaultTestServerProviders } from '../../../../__testing__/test-server/providers';
-import { startTestServer } from '../../../../__testing__/test-server/start-test-server.function';
+import { StartedTestServer, startTestServer } from '../../../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../../../data-source/repository';
 import { repositoryTokenFor } from '../../../../di/decorators/inject-repository.decorator';
 import { inject } from '../../../../di/inject.function';
@@ -80,7 +79,7 @@ describe('PayPalPaymentProvider (sandbox)', () => {
     let paymentRepository: Repository<Payment<KnownPaymentMethod.PAY_PAL, PayPalPaymentProviderPaymentData>>;
 
     let sandboxToken: string;
-    let testServer: StartedPostgreSqlContainer;
+    let testServer: StartedTestServer;
 
     // eslint-disable-next-line cspell/spellchecker
     const clientId: string | undefined = process.env['PAYPAL_CLIENT_ID'];
@@ -131,7 +130,7 @@ describe('PayPalPaymentProvider (sandbox)', () => {
     });
 
     afterAll(async () => {
-        await testServer.stop();
+        await testServer.shutdown();
     });
 
     describe('validatePaymentData', () => {

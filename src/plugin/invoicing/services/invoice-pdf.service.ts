@@ -2,6 +2,7 @@ import { InvoiceConformanceServiceInterface, InvoiceConformance } from './confor
 import { type InvoiceCalcServiceInterface } from './invoice-calc-service.interface';
 import { InvoicePdfServiceInterface } from './invoice-pdf-service.interface';
 import { Inject } from '../../../di/decorators/inject.decorator';
+import { Injectable } from '../../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { PdfContentDefinition, PdfColumnDefinition, PdfDocument, PdfDocumentDefinition, PdfUtilities, PdfTableCellDefinition, PdfContentSize } from '../../../document/pdf.utilities';
 import { type FormatDateFn } from '../../../localization/formatting/format-date-fn.model';
@@ -15,6 +16,7 @@ import { Vat } from '../models/vat.model';
 /**
  * Default implementation of the invoice pdf service.
  */
+@Injectable()
 export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
     /**
      * The definition of the header of the pdf.

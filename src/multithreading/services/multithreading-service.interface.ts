@@ -66,9 +66,5 @@ export interface MultithreadingServiceInterface {
      */
     waitForThreadJob: <ResultType, WorkerData extends BaseThreadJobWorkerData = BaseThreadJobWorkerData>(
         jobId: string
-    ) => Promise<ThreadJobEntity<WorkerData, ResultType>> | ThreadJobEntity<WorkerData, ResultType>,
-    /**
-     * Terminates all the workers.
-     */
-    shutdown: () => Promise<void> | void
+    ) => Promise<ThreadJobEntity<WorkerData, ResultType>> | ThreadJobEntity<WorkerData, ResultType>
 }

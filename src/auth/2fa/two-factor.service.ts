@@ -1,10 +1,12 @@
 import { ZibriApplication } from '../../application';
+import { Inject } from '../../di/decorators/inject.decorator';
+import { Injectable } from '../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { register } from '../../di/register.function';
 import { OnAppInit } from '../../global/on-app-init.interface';
 import { HttpRequest } from '../../http/http-request.model';
-import { LoggerInterface } from '../../logging/logger.interface';
+import { type LoggerInterface } from '../../logging/logger.interface';
 import { WebsocketRequest } from '../../websocket/models/websocket-request.model';
 import { BaseUser } from '../models/base-user.model';
 import { TwoFactorMethod } from './methods/two-factor-method.interface';
@@ -14,18 +16,15 @@ import { TwoFactorServiceInterface } from './two-factor-service.interface';
 /**
  * Default implementation of the two factor service.
  */
+@Injectable()
 export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly twoFactorMethods: TwoFactorMethods = [];
 
-    /**
-     * A logger.
-     */
-    protected readonly logger: LoggerInterface;
-
-    constructor() {
-        this.logger = inject(ZIBRI_DI_TOKENS.LOGGER);
-    }
+    constructor(
+        @Inject(ZIBRI_DI_TOKENS.LOGGER)
+        private readonly logger: LoggerInterface
+    ) { }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async onAppInit({ options }: ZibriApplication): Promise<void> {
@@ -40,7 +39,6 @@ export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
             );
             for (const method of twoFactorMethods) {
                 await this.logger.info(`  - ${method.name}`);
-                inject(method).init();
             }
         }
     }

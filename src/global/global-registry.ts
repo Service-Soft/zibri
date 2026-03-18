@@ -87,7 +87,12 @@ export abstract class GlobalRegistry {
                     throw new Error('The app has already been marked as initialized.');
                 }
                 case AppState.STARTED: {
-                    throw new Error('The app has already been marked as running.');
+                    // eslint-disable-next-line sonar/no-duplicate-string
+                    throw new Error('The app has already been marked as started.');
+                }
+                case AppState.SHUTTING_DOWN: {
+                    // eslint-disable-next-line sonar/no-duplicate-string
+                    throw new Error('The app has already been marked as shutting down.');
                 }
             }
         },
@@ -103,7 +108,10 @@ export abstract class GlobalRegistry {
                     throw new Error('The app has already been marked as initialized.');
                 }
                 case AppState.STARTED: {
-                    throw new Error('The app has already been marked as running');
+                    throw new Error('The app has already been marked as started.');
+                }
+                case AppState.SHUTTING_DOWN: {
+                    throw new Error('The app has already been marked as shutting down.');
                 }
             }
         },
@@ -119,7 +127,25 @@ export abstract class GlobalRegistry {
                     return;
                 }
                 case AppState.STARTED: {
-                    throw new Error('The app has already been marked as running.');
+                    throw new Error('The app has already been marked as started.');
+                }
+                case AppState.SHUTTING_DOWN: {
+                    throw new Error('The app has already been marked as shutting down.');
+                }
+            }
+        },
+        [AppState.SHUTTING_DOWN]: () => {
+            switch (this.appData.state) {
+                case AppState.CREATED:
+                case AppState.INITIALIZED:
+                case AppState.STARTED: {
+                    return;
+                }
+                case AppState.OFFLINE: {
+                    throw new Error('The app has not been marked as created yet.');
+                }
+                case AppState.SHUTTING_DOWN: {
+                    throw new Error('The app has already been marked as shutting down.');
                 }
             }
         }
@@ -159,23 +185,30 @@ export abstract class GlobalRegistry {
     }
 
     /**
-     * Marks the app as running.
+     * Marks the app as started.
      */
-    static markAppAsRunning(): void {
+    static markAppAsStarted(): void {
         this.changeAppState(AppState.STARTED);
     }
 
     /**
-     * Checks if the app is running.
-     * @returns True when the app has the state of running, false otherwise.
+     * Marks the app as shutting down.
      */
-    static isAppRunning(): boolean {
+    static markAppAsShuttingDown(): void {
+        this.changeAppState(AppState.SHUTTING_DOWN);
+    }
+
+    /**
+     * Checks if the app has been started.
+     * @returns True when the app has the state of AppState.STARTED, false otherwise.
+     */
+    static isAppStarted(): boolean {
         return this.appData.state === AppState.STARTED;
     }
 
     /**
      * Checks if the app is initialized.
-     * @returns True when the app has the state of initialized, false otherwise.
+     * @returns True when the app has the state of AppState.INITIALIZED, false otherwise.
      */
     static isAppInitialized(): boolean {
         return this.appData.state === AppState.INITIALIZED;
@@ -183,10 +216,18 @@ export abstract class GlobalRegistry {
 
     /**
      * Checks if the app is created.
-     * @returns True when the app has the state of created, false otherwise.
+     * @returns True when the app has the state of AppState.CREATED, false otherwise.
      */
     static isAppCreated(): boolean {
         return this.appData.state === AppState.CREATED;
+    }
+
+    /**
+     * Checks if the app is shutting down.
+     * @returns True when the app has the state of AppState.SHUTTING_DOWN, false otherwise.
+     */
+    static isAppShuttingDown(): boolean {
+        return this.appData.state === AppState.SHUTTING_DOWN;
     }
 
     private static changeAppState(state: AppState): void {

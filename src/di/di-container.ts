@@ -66,7 +66,7 @@ export class DiContainer {
     /**
      * Removes the provided token from the dependency injection system.
      * @param token - The token to unregister.
-     * @throws When the app is initialized or running.
+     * @throws When the app is initialized or started.
      */
     unregister<T>(token: DiToken<T>): void {
         this.providers.delete(token);

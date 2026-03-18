@@ -6,6 +6,7 @@ import { validateDate } from './functions/validate-date.function';
 import { validateFile } from './functions/validate-file.function';
 import { validateNumber } from './functions/validate-number.function';
 import { validateString } from './functions/validate-string.function';
+import { Injectable } from '../di/decorators/injectable.decorator';
 import { PropertyMetadata, Property, RelationMetadata } from '../entity/decorators/property.decorator';
 import { ValidationError } from '../error-handling/errors/validation.error';
 import { MimeType } from '../http/mime-type.enum';
@@ -64,6 +65,7 @@ type PropertyValidationFunction = (
 /**
  * The default validation service implementation of Zibri.
  */
+@Injectable()
 export class ValidationService implements ValidationServiceInterface {
 
     private readonly pathParamValidationFunctions: Record<PathParamMetadata['type'], PathParamValidationFunction> = {

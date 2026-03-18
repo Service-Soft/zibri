@@ -103,7 +103,7 @@ describe('MultithreadingService - performance vs main event loop', () => {
         if (allThreads <= 2) {
             return;
         }
-        await multithreadingService.shutdown();
+        await multithreadingService.onAppShutdown();
     });
 
     it('runs CPU heavy tasks significantly faster via worker threads', async () => {

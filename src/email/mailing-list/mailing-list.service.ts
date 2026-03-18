@@ -1,73 +1,48 @@
 import { randomBytes } from 'crypto';
 
 import { MailingListSubscriberCreateData, MailingListQueueEmailData, MailingListServiceInterface, BaseMailingListEmailTemplateData } from './mailing-list-service.interface';
-import { AssetServiceInterface } from '../../assets/asset-service.interface';
+import { type AssetServiceInterface } from '../../assets/asset-service.interface';
 import { Repository } from '../../data-source/repository';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
+import { InjectRepository } from '../../di/decorators/inject-repository.decorator';
+import { Inject } from '../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
 import { GlobalRegistry } from '../../global/global-registry';
 import { BaseEmailTemplateData, renderTemplateString, renderTemplate } from '../../handlebars/render-template.function';
 import { Route } from '../../routing/controller-route-configuration.model';
 import { FsUtilities, FsPath } from '../../utilities/fs.utilities';
 import { PromiseUtilities } from '../../utilities/promise.utilities';
-import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function';
-import { EmailServiceInterface } from '../email-service.interface';
+import { type EmailServiceInterface } from '../email-service.interface';
 import { EmailPriority } from '../models/email-priority.enum';
 import { MailingListSubscriber } from './models/mailing-list-subscriber.model';
 import { MailingListSubscriptionConfirmationToken, MailingListSubscriptionConfirmationTokenCreateData } from './models/mailing-list-subscription-confirmation-token.model';
 import { MailingList } from './models/mailing-list.model';
-import { OnAppInit } from '../../global/on-app-init.interface';
+import { Injectable } from '../../di/decorators/injectable.decorator';
 
 /**
  * Default mailing list service implementation of Zibri.
  */
-export class MailingListService implements MailingListServiceInterface, OnAppInit {
+@Injectable()
+export class MailingListService implements MailingListServiceInterface {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly mailingListBaseRoute: Route = '/mailing-lists';
-    /**
-     * The email service.
-     */
-    protected readonly emailService: EmailServiceInterface;
-    /**
-     * The asset service.
-     */
-    protected readonly assetService: AssetServiceInterface;
-    /**
-     * The time in ms after which the token to confirm a new mailing list subscription expires.
-     */
-    protected readonly mailingListSubscriptionConfirmationTokenExpiresInMs: number;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    protected get mailingListRepository(): Repository<MailingList> {
-        return inject(repositoryTokenFor(MailingList));
-    }
-
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    protected get subscriberRepository(): Repository<MailingListSubscriber, MailingListSubscriberCreateData> {
-        return inject(repositoryTokenFor(MailingListSubscriber));
-    }
-
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    protected get confirmationTokenRepository(): Repository<
-        MailingListSubscriptionConfirmationToken,
-        MailingListSubscriptionConfirmationTokenCreateData
-    > {
-        return inject(repositoryTokenFor(MailingListSubscriptionConfirmationToken));
-    }
-
-    constructor() {
-        this.emailService = inject(ZIBRI_DI_TOKENS.EMAIL_SERVICE);
-        this.assetService = inject(ZIBRI_DI_TOKENS.ASSET_SERVICE);
-        this.mailingListSubscriptionConfirmationTokenExpiresInMs = inject(
-            ZIBRI_DI_TOKENS.MAILING_LIST_SUBSCRIPTION_CONFIRMATION_TOKEN_EXPIRES_IN_MS
-        );
-    }
-
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    onAppInit(): void {
-        validateEntitiesRegistered(this.constructor.name, MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken);
-    }
+    constructor(
+        @Inject(ZIBRI_DI_TOKENS.EMAIL_SERVICE)
+        protected readonly emailService: EmailServiceInterface,
+        @Inject(ZIBRI_DI_TOKENS.ASSET_SERVICE)
+        protected readonly assetService: AssetServiceInterface,
+        @Inject(ZIBRI_DI_TOKENS.MAILING_LIST_SUBSCRIPTION_CONFIRMATION_TOKEN_EXPIRES_IN_MS)
+        protected readonly mailingListSubscriptionConfirmationTokenExpiresInMs: number,
+        @InjectRepository(MailingList)
+        protected readonly mailingListRepository: Repository<MailingList>,
+        @InjectRepository(MailingListSubscriber)
+        protected readonly subscriberRepository: Repository<MailingListSubscriber, MailingListSubscriberCreateData>,
+        @InjectRepository(MailingListSubscriptionConfirmationToken)
+        protected readonly confirmationTokenRepository: Repository<
+            MailingListSubscriptionConfirmationToken,
+            MailingListSubscriptionConfirmationTokenCreateData
+        >
+    ) {}
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async queueEmailForList<T extends BaseMailingListEmailTemplateData>(listId: string, data: MailingListQueueEmailData<T>): Promise<void> {

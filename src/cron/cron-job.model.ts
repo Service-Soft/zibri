@@ -8,7 +8,7 @@ import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { unknownToErrorString } from '../error-handling/unknown-to-error-string.function';
-import { LoggerInterface } from '../logging/logger.interface';
+import { type LoggerInterface } from '../logging/logger.interface';
 import { OmitStrict } from '../types/omit-strict.type';
 import { Ms } from '../utilities/ms';
 import { UUIDUtilities } from '../utilities/uuid.utilities';
@@ -115,6 +115,14 @@ export abstract class CronJob {
 
         this.entity = await this.resolveEntity();
         await this.initTask();
+    }
+
+    /**
+     * Shuts down the cron job.
+     * Should be called from the cron service BeforeAppShutdown hook.
+     */
+    async shutdown(): Promise<void> {
+        await this.task?.stop();
     }
 
     /**

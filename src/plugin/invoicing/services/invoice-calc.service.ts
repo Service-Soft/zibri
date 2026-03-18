@@ -1,5 +1,6 @@
 
 import { InvoiceCalcServiceInterface } from './invoice-calc-service.interface';
+import { Injectable } from '../../../di/decorators/injectable.decorator';
 import { BigNumberUtilities } from '../../../utilities/big-number.utilities';
 import { InvoiceItem } from '../models/invoice-item.model';
 import { Invoice as BaseInvoice, Invoice } from '../models/invoice.model';
@@ -8,6 +9,7 @@ import { Vat } from '../models/vat.model';
 /**
  * Default implementation of the invoice calculation service.
  */
+@Injectable()
 export class InvoiceCalcService implements InvoiceCalcServiceInterface<Invoice> {
     // eslint-disable-next-line jsdoc/require-jsdoc
     getItemTotalPriceBeforeTax(item: InvoiceItem): BigNumber {

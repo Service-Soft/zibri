@@ -2,10 +2,13 @@ import { CronJobEntity } from './cron-job-entity.model';
 import { CronJob } from './cron-job.model';
 import { CronServiceInterface } from './cron-service.interface';
 import { ZibriApplication } from '../application';
+import { Inject } from '../di/decorators/inject.decorator';
+import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
+import { BeforeAppShutdown } from '../global/before-app-shutdown.interface';
 import { OnAppInit } from '../global/on-app-init.interface';
-import { LoggerInterface } from '../logging/logger.interface';
+import { type LoggerInterface } from '../logging/logger.interface';
 import { OmitStrict } from '../types/omit-strict.type';
 
 /**
@@ -16,18 +19,15 @@ export type CronUpdateData = Partial<OmitStrict<CronJobEntity, 'id' | 'cron' | '
 /**
  * Default cron service implementation of Zibri.
  */
-export class CronService implements CronServiceInterface, OnAppInit {
-
-    /**
-     * A logger.
-     */
-    protected readonly logger: LoggerInterface;
+@Injectable()
+export class CronService implements CronServiceInterface, OnAppInit, BeforeAppShutdown {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly cronJobs: CronJob[] = [];
 
-    constructor() {
-        this.logger = inject(ZIBRI_DI_TOKENS.LOGGER);
-    }
+    constructor(
+        @Inject(ZIBRI_DI_TOKENS.LOGGER)
+        private readonly logger: LoggerInterface
+    ) {}
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async onAppInit({ options }: ZibriApplication): Promise<void> {
@@ -44,6 +44,11 @@ export class CronService implements CronServiceInterface, OnAppInit {
             await this.logger.info(`  -  ${cronJobClass.name} (${cronJob.active ? 'active' : 'not active'})`);
             this.cronJobs.push(cronJob);
         }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async beforeAppShutdown(): Promise<void> {
+        await Promise.all(this.cronJobs.map(j => j.shutdown()));
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

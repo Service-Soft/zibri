@@ -30,6 +30,12 @@ export interface DataSourceInterface extends BackupResourceInterface {
     init: () => Promise<void>,
 
     /**
+     * Shuts down the data source.
+     * Should be called from the data source service AfterAppShutdown hook.
+     */
+    shutDown: () => Promise<void>,
+
+    /**
      * Gets a repository to manage the provided entity class in the data source.
      * @param cls - The entity class to get the repository for.
      * @returns A repository for the provided entity class.

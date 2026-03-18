@@ -3,6 +3,7 @@ import { PaymentDataForMethod, ValidatedPaymentDataForMethod, PaymentForMethod, 
 import { Repository } from '../../../data-source/repository';
 import { InjectRepository } from '../../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../../di/decorators/inject.decorator';
+import { Injectable } from '../../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { AnyObject } from '../../../entity/any-object.model';
 import { type LoggerInterface } from '../../../logging/logger.interface';
@@ -16,6 +17,7 @@ import { AnyPaymentProviderInterface } from '../providers/payment-provider.inter
 /**
  * Default payment service implementation of zibri.
  */
+@Injectable()
 export class PaymentService<
     Methods extends readonly PaymentMethod[],
     P extends readonly AnyPaymentProviderInterface[]

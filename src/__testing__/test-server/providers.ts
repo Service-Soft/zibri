@@ -51,7 +51,6 @@ export const defaultTestServerProviders: DiProvider<unknown>[] = [
         useFactory: () => {
             const res: MultithreadingServiceInterface = {
                 requeueThreadJob: noOp,
-                shutdown: noOp,
                 queueThreadJob: () => '42',
                 runThreadJob: () => {
                     throw new Error('mock');

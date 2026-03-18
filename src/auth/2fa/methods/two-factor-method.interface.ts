@@ -7,10 +7,6 @@ import { BaseUser } from '../../models/base-user.model';
  */
 export interface TwoFactorMethod<TwoFactorRequestRegisterData, TwoFactorConfirmRegisterData> {
     /**
-     * Initializes the two factor method.
-     */
-    init: () => void,
-    /**
      * Requests to register the two factor method for the given user.
      */
     requestRegisterForUser: <Role extends string, UserType extends BaseUser<Role>>(

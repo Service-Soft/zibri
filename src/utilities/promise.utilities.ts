@@ -1,3 +1,5 @@
+import { setTimeout } from 'node:timers/promises';
+
 /**
  * Options for chunking.
  */
@@ -36,6 +38,7 @@ export abstract class PromiseUtilities {
 
         return results;
     }
+
     /**
      * Like Promise.any, but it doesn't only checks if the promise resolves at all, but if it does so with the value true.
      * @param items - The items that are mapped to promises.
@@ -66,5 +69,36 @@ export abstract class PromiseUtilities {
         }
 
         return false;
+    }
+
+    /**
+     * Waits for the given promise for a given timeout.
+     * @param promise - The promise to await.
+     * @param timeoutInMs - The timeout after which an error should be thrown.
+     * @returns The result of the function if finished in time.
+     */
+    static async withTimeout<Res>(
+        promise: Res | Promise<Res>,
+        timeoutInMs: number
+    ): Promise<Res> {
+        const ac: AbortController = new AbortController();
+        const timeoutFn: () => Promise<never> = async () => {
+            await setTimeout(timeoutInMs, undefined, { signal: ac.signal });
+            throw new Error('Timed out');
+        };
+
+        try {
+            const res: Res = await Promise.race([
+                promise,
+                timeoutFn()
+            ]);
+
+            ac.abort();
+            return res;
+        }
+        catch (error) {
+            ac.abort();
+            throw error;
+        }
     }
 }

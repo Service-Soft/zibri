@@ -1,9 +1,8 @@
 import { Log } from './log.model';
 import { CronJob, InitialCronConfig } from '../cron/cron-job.model';
 import { Repository } from '../data-source/repository';
-import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
+import { InjectRepository } from '../di/decorators/inject-repository.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
-import { inject } from '../di/inject.function';
 
 /**
  * CronJob that cleans up the temp folder of the form data body parser.
@@ -17,11 +16,11 @@ export class LogCleanupCronJob extends CronJob {
         runOnInit: false
     };
 
-    private readonly logRepository: Repository<Log>;
-
-    constructor() {
+    constructor(
+        @InjectRepository(Log)
+        private readonly logRepository: Repository<Log>
+    ) {
         super();
-        this.logRepository = inject(repositoryTokenFor(Log));
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

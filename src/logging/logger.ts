@@ -7,6 +7,7 @@ import { LoggerInterface } from './logger.interface';
 import { ZibriApplication } from '../application';
 import { BaseLoggerTransportConfig, LoggerTransport } from './transport/logger-transport.model';
 import { Inject } from '../di/decorators/inject.decorator';
+import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { GlobalRegistry } from '../global/global-registry';
 import { OnAppInit } from '../global/on-app-init.interface';
@@ -15,6 +16,7 @@ import { UUIDUtilities } from '../utilities/uuid.utilities';
 /**
  * Default logger implementation of Zibri.
  */
+@Injectable()
 export class Logger implements LoggerInterface, OnAppInit {
 
     constructor(
@@ -77,7 +79,7 @@ export class Logger implements LoggerInterface, OnAppInit {
             if (transport.config.level > level) {
                 return;
             }
-            if (transport.config.register !== 'directly' && !GlobalRegistry.isAppInitialized() && !GlobalRegistry.isAppRunning()) {
+            if (transport.config.register !== 'directly' && !GlobalRegistry.isAppInitialized() && !GlobalRegistry.isAppStarted()) {
                 return;
             }
 

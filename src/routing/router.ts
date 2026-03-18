@@ -12,8 +12,10 @@ import { ZibriApplication } from '../application';
 import { runWithRequest } from './request.context';
 import { resolveRouteParams } from './resolve-route-params.function';
 import { OpenApiRouteConfiguration, RouteConfiguration, RouteConfigurationInput } from './route-configuration.model';
-import { AuthServiceInterface } from '../auth/auth-service.interface';
+import type { AuthServiceInterface } from '../auth/auth-service.interface';
 import { JwtAuthController } from '../auth/strategies/jwt/jwt-auth.controller';
+import { Inject } from '../di/decorators/inject.decorator';
+import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { GlobalRegistry } from '../global/global-registry';
@@ -24,25 +26,22 @@ import { HttpRequest } from '../http/http-request.model';
 import { HttpResponse } from '../http/http-response.model';
 import { KnownHeader } from '../http/known-header.enum';
 import { MimeType } from '../http/mime-type.enum';
-import { LoggerInterface } from '../logging/logger.interface';
+import { type LoggerInterface } from '../logging/logger.interface';
 import { OpenApiResponse } from '../open-api/open-api.model';
 import { FileResponse } from '../parsing/form-data/file-response.model';
 import { HtmlResponse } from '../parsing/html/html-response.model';
-import { ParserInterface } from '../parsing/parser.interface';
+import type { ParserInterface } from '../parsing/parser.interface';
 import { Newable } from '../types/newable.type';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { Ms } from '../utilities/ms';
-import { ValidationServiceInterface } from '../validation/validation-service.interface';
+import type { ValidationServiceInterface } from '../validation/validation-service.interface';
 
 /**
  * Default router implementation of Zibri.
  */
+@Injectable()
 export class Router implements RouterInterface, OnAppInit, OnAppStart {
     private readonly expressRouter: ExpressRouter = ExpressRouter();
-    private readonly logger: LoggerInterface;
-    private readonly parser: ParserInterface;
-    private readonly validationService: ValidationServiceInterface;
-    private readonly authService: AuthServiceInterface;
     private readonly allowedOrphans: Newable<unknown>[] = [JwtAuthController];
     private readonly allBaseRoutes: string[] = [];
     private readonly allFinalRoutes: string[] = [];
@@ -54,12 +53,16 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
         Record<string, HeaderParamMetadata>
     >[] = [];
 
-    constructor() {
-        this.logger = inject(ZIBRI_DI_TOKENS.LOGGER);
-        this.parser = inject(ZIBRI_DI_TOKENS.PARSER);
-        this.validationService = inject(ZIBRI_DI_TOKENS.VALIDATION_SERVICE);
-        this.authService = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
-    }
+    constructor(
+        @Inject(ZIBRI_DI_TOKENS.LOGGER)
+        private readonly logger: LoggerInterface,
+        @Inject(ZIBRI_DI_TOKENS.PARSER)
+        private readonly parser: ParserInterface,
+        @Inject(ZIBRI_DI_TOKENS.VALIDATION_SERVICE)
+        private readonly validationService: ValidationServiceInterface,
+        @Inject(ZIBRI_DI_TOKENS.AUTH_SERVICE)
+        private readonly authService: AuthServiceInterface
+    ) {}
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async onAppInit(app: ZibriApplication): Promise<void> {

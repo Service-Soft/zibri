@@ -6,27 +6,44 @@ import express, { RequestHandler } from 'express';
 import { ZibriApplicationOptions } from './application-options.model';
 import { OtpTwoFactorMethod } from './auth/2fa/methods/otp/otp.two-factor-method';
 import { JwtAuthStrategy } from './auth/strategies/jwt/jwt.auth-strategy';
-import { DataSourceServiceInterface } from './data-source/data-source-service.interface';
 import { ZIBRI_DI_TOKENS } from './di/default/zibri-di-tokens.default';
 import { getAllRegisteredTokens } from './di/get-all-registered-tokens.function';
 import { inject } from './di/inject.function';
+import { DiToken } from './di/models/di-token.model';
 import { register } from './di/register.function';
 import { GlobalErrorHandler } from './error-handling/error-handler.model';
 import { UnmatchedRouteError } from './error-handling/errors/unmatched-route.error';
+import { implementsAfterAppInit } from './global/after-app-init.interface';
+import { AfterAppShutdown, implementsAfterAppShutdown } from './global/after-app-shutdown.interface';
+import { AppState } from './global/app-state.enum';
+import { implementsBeforeAppInit } from './global/before-app-init.interface';
+import { BeforeAppShutdown, implementsBeforeAppShutdown } from './global/before-app-shutdown.interface';
 import { GlobalRegistry } from './global/global-registry';
-import { isOnAppInitInterface } from './global/on-app-init.interface';
-import { isOnAppStartInterface } from './global/on-app-start.interface';
+import { implementsOnAppInit } from './global/on-app-init.interface';
+import { implementsOnAppShutdown, OnAppShutdown } from './global/on-app-shutdown.interface';
+import { implementsOnAppStart } from './global/on-app-start.interface';
 import { HandlebarUtilities } from './handlebars/handlebar.utilities';
 import { LoggerInterface } from './logging/logger.interface';
 import { FormDataBodyParser } from './parsing/form-data/form-data.body-parser';
 import { JsonBodyParser } from './parsing/json/json.body-parser';
 import { ZibriPlugin } from './plugin/plugin.model';
 import { Route } from './routing/controller-route-configuration.model';
-import { RouterInterface } from './routing/router.interface';
 import { OmitStrict } from './types/omit-strict.type';
+import { Ms } from './utilities/ms';
+import { PromiseUtilities } from './utilities/promise.utilities';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 type FullZibriApplicationOptions = Required<OmitStrict<ZibriApplicationOptions, 'plugins'>>;
+
+// eslint-disable-next-line typescript/typedef
+const SHUTDOWN_SIGNALS = ['SIGTERM', 'SIGINT', 'SIGHUP'] as const;
+
+const DEFAULT_SHUTDOWN_TIMEOUT_IN_MS: number = Ms.SECOND * 30;
+
+/**
+ * A os signal that triggers the shutdown of a Zibri application.
+ */
+export type ShutdownSignal = typeof SHUTDOWN_SIGNALS[number];
 
 /**
  * A Zibri application.
@@ -44,17 +61,10 @@ export class ZibriApplication {
      */
     readonly server: Server = createServer(this.express);
 
-    // eslint-disable-next-line jsdoc/require-returns
-    /**
-     * The router used by the application.
-     */
-    get router(): RouterInterface {
-        return inject(ZIBRI_DI_TOKENS.ROUTER);
-    }
     private get logger(): LoggerInterface {
         return inject(ZIBRI_DI_TOKENS.LOGGER);
     }
-    private dataSourceService!: DataSourceServiceInterface;
+
     /**
      * The options of which the application was build.
      */
@@ -62,6 +72,11 @@ export class ZibriApplication {
 
     constructor(private readonly providedOptions: ZibriApplicationOptions) {
         this.options = this.createFullOptions();
+
+        for (const signal of SHUTDOWN_SIGNALS) {
+            process.on(signal, () => void this.shutdown(signal));
+        }
+
         GlobalRegistry.markAppAsCreated();
     }
 
@@ -95,21 +110,21 @@ export class ZibriApplication {
 
         await this.logDefaults();
 
-        this.dataSourceService = inject(ZIBRI_DI_TOKENS.DATA_SOURCE_SERVICE);
-        await this.dataSourceService.init();
+        const tokens: DiToken<unknown>[] = getAllRegisteredTokens();
+        await this.beforeAppInit(tokens);
 
-        for (const token of getAllRegisteredTokens()) {
-            const x: unknown = inject(token);
-            if (x instanceof ZibriPlugin) {
+        const injectables: unknown[] = tokens.map(t => inject(t));
+        for (const element of injectables) {
+            if (element instanceof ZibriPlugin) {
                 throw new Error([
-                    `Invalid class marked with @Injectable: ${x.constructor.name}`,
+                    `Invalid class marked with @Injectable: ${element.constructor.name}`,
                     'Plugins interfere with the injection system, making them injectable is forbidden.'
                 ].join('\n'));
             }
-            if (isOnAppInitInterface(x)) {
-                await x.onAppInit(this);
-            }
         }
+
+        await this.onAppInit(injectables);
+        await this.afterAppInit(injectables);
 
         for (const controller of this.options.controllers) {
             inject(controller);
@@ -132,24 +147,152 @@ export class ZibriApplication {
      * @throws When the app has already been started.
      */
     async start(port: number): Promise<void> {
-        if (GlobalRegistry.isAppRunning()) {
+        if (GlobalRegistry.isAppStarted()) {
             // We need this check in addition to the one in the registry.
-            // Because we would otherwise have a wrong state when we call markAppAsRunning
+            // Because we would otherwise have a wrong state when we call markAppAsStarted
             // and then this.app.listen fails.
             throw new Error('The application has already been started');
         }
 
-        for (const token of getAllRegisteredTokens()) {
-            const x: unknown = inject(token);
-            if (isOnAppStartInterface(x)) {
-                await x.onAppStart(this);
-            }
+        const injectables: unknown[] = getAllRegisteredTokens().map(t => inject(t));
+        for (const element of injectables.filter(i => implementsOnAppStart(i))) {
+            await element.onAppStart(this);
         }
+
         this.use((req, _, next) => next(new UnmatchedRouteError(req.originalUrl)));
         this.use(inject(ZIBRI_DI_TOKENS.GLOBAL_ERROR_HANDLER));
         this.server.listen(port);
-        GlobalRegistry.markAppAsRunning();
+        GlobalRegistry.markAppAsStarted();
         await this.logger.info(`${this.options.name} is running on port ${port}`);
+    }
+
+    /**
+     * Gracefully shuts down the application.
+     * @param signal - The signal that shuts down the application. Can be left empty if manually called.
+     */
+    async shutdown(signal?: ShutdownSignal): Promise<void> {
+        switch (GlobalRegistry.getAppData('state')) {
+            case AppState.OFFLINE:
+            case AppState.SHUTTING_DOWN: {
+                // is already offline or shutting down, nothing to do here
+                return;
+            }
+            case AppState.CREATED: {
+                // nothing has been initialized yet, can simply quit without handling shutdown hooks
+                await this.logger.info('shutting down...');
+                GlobalRegistry.markAppAsShuttingDown();
+                process.exit(0);
+            }
+            case AppState.INITIALIZED:
+            case AppState.STARTED: {
+                await this.logger.info('shutting down...');
+                GlobalRegistry.markAppAsShuttingDown();
+
+                await this.shutdownHttpServer();
+                const injectables: unknown[] = getAllRegisteredTokens().map(t => inject(t));
+                await this.beforeAppShutdown(injectables, signal);
+                await this.onAppShutdown(injectables, signal);
+                await this.afterAppShutdown(injectables, signal);
+
+                process.exit(0);
+            }
+        }
+    }
+
+    private async beforeAppInit(tokens: DiToken<unknown>[]): Promise<void> {
+        const sortedTokens: DiToken<unknown>[] = tokens.sort((a, b) => {
+            if ('key' in a && a.key === ZIBRI_DI_TOKENS.DATA_SOURCE_SERVICE.key) {
+                return -1;
+            }
+            if ('key' in b && b.key === ZIBRI_DI_TOKENS.DATA_SOURCE_SERVICE.key) {
+                return 1;
+            }
+            return 0;
+        });
+
+        for (const token of sortedTokens) {
+            const injectable: unknown = inject(token);
+            if (implementsBeforeAppInit(injectable)) {
+                await injectable.beforeAppInit(this);
+            }
+        }
+    }
+
+    private async onAppInit(injectables: unknown[]): Promise<void> {
+        for (const element of injectables.filter(i => implementsOnAppInit(i))) {
+            await element.onAppInit(this);
+        }
+    }
+
+    private async afterAppInit(injectables: unknown[]): Promise<void> {
+        for (const element of injectables.filter(i => implementsAfterAppInit(i))) {
+            await element.afterAppInit(this);
+        }
+    }
+
+    private async afterAppShutdown(injectables: unknown[], signal: ShutdownSignal | undefined): Promise<void> {
+        const elements: AfterAppShutdown[] = injectables.filter(i => implementsAfterAppShutdown(i));
+        await Promise.all(elements.map(async e => {
+            try {
+                const timeoutInMs: number = e.shutdownTimeoutInMs ?? DEFAULT_SHUTDOWN_TIMEOUT_IN_MS;
+                await PromiseUtilities.withTimeout(e.afterAppShutdown(this, signal), timeoutInMs);
+            }
+            catch (error) {
+                await this.logger.error(
+                    error instanceof Error
+                        ? error
+                        : new Error(`Error running afterAppShutdown for "${e.constructor.name}":`, { cause: error })
+                );
+            }
+        }));
+    }
+
+    private async onAppShutdown(injectables: unknown[], signal: ShutdownSignal | undefined): Promise<void> {
+        const elements: OnAppShutdown[] = injectables.filter(i => implementsOnAppShutdown(i));
+        await Promise.all(elements.map(async e => {
+            try {
+                const timeoutInMs: number = e.shutdownTimeoutInMs ?? DEFAULT_SHUTDOWN_TIMEOUT_IN_MS;
+                await PromiseUtilities.withTimeout(e.onAppShutdown(this, signal), timeoutInMs);
+            }
+            catch (error) {
+                await this.logger.error(
+                    error instanceof Error
+                        ? error
+                        : new Error(`Error running onAppShutdown for "${e.constructor.name}":`, { cause: error })
+                );
+            }
+        }));
+    }
+
+    private async beforeAppShutdown(injectables: unknown[], signal: ShutdownSignal | undefined): Promise<void> {
+        const elements: BeforeAppShutdown[] = injectables.filter(i => implementsBeforeAppShutdown(i));
+        await Promise.all(elements.map(async e => {
+            try {
+                const timeoutInMs: number = e.shutdownTimeoutInMs ?? DEFAULT_SHUTDOWN_TIMEOUT_IN_MS;
+                await PromiseUtilities.withTimeout(e.beforeAppShutdown(this, signal), timeoutInMs);
+            }
+            catch (error) {
+                await this.logger.error(
+                    error instanceof Error
+                        ? error
+                        : new Error(`Error running beforeAppShutdown for "${e.constructor.name}":`, { cause: error })
+                );
+            }
+        }));
+    }
+
+    private async shutdownHttpServer(): Promise<void> {
+        return new Promise((resolve, reject) => {
+            // eslint-disable-next-line promise/prefer-await-to-callbacks
+            this.server.close(err => {
+                if (err) {
+                    reject(err);
+                }
+                else {
+                    resolve();
+                }
+            });
+        });
     }
 
     private createFullOptions(): FullZibriApplicationOptions {

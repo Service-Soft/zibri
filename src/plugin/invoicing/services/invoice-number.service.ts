@@ -4,6 +4,7 @@ import { Repository } from '../../../data-source/repository';
 import { Transaction } from '../../../data-source/transaction/transaction.model';
 import { InjectRepository } from '../../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../../di/decorators/inject.decorator';
+import { Injectable } from '../../../di/decorators/injectable.decorator';
 import { ConflictError } from '../../../error-handling/errors/conflict.error';
 import { OmitStrict } from '../../../types/omit-strict.type';
 import { InvoiceAddress } from '../models/invoice-address.model';
@@ -14,6 +15,7 @@ import { NumberInvoices } from '../models/number-invoices.model';
 /**
  * Default implementation of the invoice number service.
  */
+@Injectable()
 export class InvoiceNumberService implements InvoiceNumberServiceInterface<InvoiceAddress> {
     constructor(
         @InjectRepository(Invoice)

@@ -5,7 +5,7 @@ import { ZibriApplication } from '../application';
  * Checks if the given value implements the OnAppStart interface.
  * @param value - The value to check.
  */
-export function isOnAppStartInterface(value: unknown): value is OnAppStart {
+export function implementsOnAppStart(value: unknown): value is OnAppStart {
     if (typeof value !== 'object') {
         return false;
     }
