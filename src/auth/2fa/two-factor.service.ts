@@ -16,7 +16,7 @@ import { TwoFactorServiceInterface } from './two-factor-service.interface';
 /**
  * Default implementation of the two factor service.
  */
-@Injectable()
+@Injectable({ register: 'onUse' })
 export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly twoFactorMethods: TwoFactorMethods = [];

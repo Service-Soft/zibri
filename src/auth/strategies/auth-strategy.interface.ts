@@ -1,3 +1,4 @@
+import { AuthStrategies } from './auth-strategies.model';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { HttpRequest } from '../../http/http-request.model';
 import { OpenApiSecuritySchemeObject } from '../../open-api/open-api.model';
@@ -67,4 +68,34 @@ export interface AuthStrategyInterface<
      * The name of the auth strategy.
      */
     name: string
+}
+
+/**
+ * Checks whether or not the given value is a auth strategy.
+ * @param value - The value to check.
+ * @returns True if all keys of the AuthStrategyInterface are present, false otherwise.
+ */
+export function isAuthStrategy(value: unknown): value is InstanceType<AuthStrategies[number]> {
+    if (value == undefined) {
+        return false;
+    }
+    if (typeof value !== 'object') {
+        return false;
+    }
+
+    const keys: (keyof InstanceType<AuthStrategies[number]>)[] = [
+        'belongsTo',
+        'confirmPasswordReset',
+        'hasRole',
+        'isLoggedIn',
+        'login',
+        'logout',
+        'name',
+        'refreshLogin',
+        'requestPasswordReset',
+        'resolveUser',
+        'securityScheme'
+    ];
+
+    return !keys.find(key => !(key in value));
 }

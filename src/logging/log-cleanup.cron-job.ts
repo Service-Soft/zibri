@@ -2,12 +2,10 @@ import { Log } from './log.model';
 import { CronJob, InitialCronConfig } from '../cron/cron-job.model';
 import { Repository } from '../data-source/repository';
 import { InjectRepository } from '../di/decorators/inject-repository.decorator';
-import { Injectable } from '../di/decorators/injectable.decorator';
 
 /**
  * CronJob that cleans up the temp folder of the form data body parser.
  */
-@Injectable()
 export class LogCleanupCronJob extends CronJob {
     // eslint-disable-next-line jsdoc/require-jsdoc
     initialConfig: InitialCronConfig = {

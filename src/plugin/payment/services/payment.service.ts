@@ -17,7 +17,7 @@ import { AnyPaymentProviderInterface } from '../providers/payment-provider.inter
 /**
  * Default payment service implementation of zibri.
  */
-@Injectable()
+@Injectable({ register: 'onUse' })
 export class PaymentService<
     Methods extends readonly PaymentMethod[],
     P extends readonly AnyPaymentProviderInterface[]

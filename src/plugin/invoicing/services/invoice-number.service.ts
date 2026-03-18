@@ -15,7 +15,7 @@ import { NumberInvoices } from '../models/number-invoices.model';
 /**
  * Default implementation of the invoice number service.
  */
-@Injectable()
+@Injectable({ register: 'onUse' })
 export class InvoiceNumberService implements InvoiceNumberServiceInterface<InvoiceAddress> {
     constructor(
         @InjectRepository(Invoice)

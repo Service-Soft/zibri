@@ -62,7 +62,7 @@ class PromHistogram implements HistogramInterface {
 /**
  * Default metrics service implementation of Zibri.
  */
-@Injectable()
+@Injectable({ register: 'onUse' })
 export class PrometheusMetricsService implements MetricsServiceInterface, OnAppInit {
     private readonly registry: Registry;
     private readonly counters: Map<string, Counter<string>> = new Map<string, Counter<string>>();

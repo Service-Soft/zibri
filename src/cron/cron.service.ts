@@ -6,8 +6,9 @@ import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
+import { register } from '../di/register.function';
+import { AfterAppInit } from '../global/after-app-init.interface';
 import { BeforeAppShutdown } from '../global/before-app-shutdown.interface';
-import { OnAppInit } from '../global/on-app-init.interface';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { OmitStrict } from '../types/omit-strict.type';
 
@@ -19,8 +20,8 @@ export type CronUpdateData = Partial<OmitStrict<CronJobEntity, 'id' | 'cron' | '
 /**
  * Default cron service implementation of Zibri.
  */
-@Injectable()
-export class CronService implements CronServiceInterface, OnAppInit, BeforeAppShutdown {
+@Injectable({ register: 'onUse' })
+export class CronService implements CronServiceInterface, AfterAppInit, BeforeAppShutdown {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly cronJobs: CronJob[] = [];
 
@@ -30,7 +31,7 @@ export class CronService implements CronServiceInterface, OnAppInit, BeforeAppSh
     ) {}
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async onAppInit({ options }: ZibriApplication): Promise<void> {
+    async afterAppInit({ options }: ZibriApplication): Promise<void> {
         const { cronJobs } = options;
         if (this.cronJobs.length) {
             throw new Error('has already been initialized');
@@ -39,6 +40,7 @@ export class CronService implements CronServiceInterface, OnAppInit, BeforeAppSh
             await this.logger.info(`registers ${cronJobs.length} ${cronJobs.length > 1 ? 'cron jobs' : 'cron job'}`);
         }
         for (const cronJobClass of cronJobs) {
+            register({ token: cronJobClass, useClass: cronJobClass });
             const cronJob: CronJob = inject(cronJobClass);
             await cronJob.init();
             await this.logger.info(`  -  ${cronJobClass.name} (${cronJob.active ? 'active' : 'not active'})`);

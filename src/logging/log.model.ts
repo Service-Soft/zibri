@@ -8,7 +8,7 @@ import { Property } from '../entity/decorators/property.decorator';
 /**
  * The data saved for a log entry.
  */
-@Entity()
+@Entity({ allowOrphan: true })
 export class Log extends BaseEntity {
     /**
      * The log level.

@@ -28,7 +28,7 @@ import { Ms } from '../utilities/ms';
 /**
  * Default implementation of the backup service.
  */
-@Injectable()
+@Injectable({ register: 'onUse' })
 export class BackupService implements BackupServiceInterface, OnAppInit, OnAppShutdown {
     private readonly backupResources: Newable<BackupResourceInterface>[] = [];
 

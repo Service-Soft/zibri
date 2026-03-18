@@ -19,7 +19,7 @@ import { DataSource } from '../decorators/data-source.decorator';
 import { Repository } from '../repository';
 import { Transaction } from '../transaction/transaction.model';
 
-@Entity('item')
+@Entity({ tableName: 'item' })
 class LegacyItem {
     @Property.string({ primary: true })
     id!: string;
@@ -37,7 +37,7 @@ class LegacyDbDataSource extends PostgresDataSource {
     entities: Newable<BaseEntity>[] = [MigrationEntity, LegacyItem];
 }
 
-@Entity('item')
+@Entity({ tableName: 'item' })
 class Item {
     @Property.string({ primary: true })
     id!: string;

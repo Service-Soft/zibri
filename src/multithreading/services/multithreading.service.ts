@@ -29,7 +29,7 @@ import { ThreadJobStatus } from '../models/thread-job-status.enum';
 /**
  * A service that handles multithreading.
  */
-@Injectable()
+@Injectable({ register: 'onUse' })
 export class MultithreadingService implements MultithreadingServiceInterface, OnAppInit, OnAppShutdown {
     /**
      * All thread jobs.

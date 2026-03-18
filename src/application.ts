@@ -5,7 +5,10 @@ import express, { RequestHandler } from 'express';
 
 import { ZibriApplicationOptions } from './application-options.model';
 import { OtpTwoFactorMethod } from './auth/2fa/methods/otp/otp.two-factor-method';
+import { isTwoFactorMethod } from './auth/2fa/methods/two-factor-method.interface';
+import { isAuthStrategy } from './auth/strategies/auth-strategy.interface';
 import { JwtAuthStrategy } from './auth/strategies/jwt/jwt.auth-strategy';
+import { CronJob } from './cron/cron-job.model';
 import { ZIBRI_DI_TOKENS } from './di/default/zibri-di-tokens.default';
 import { getAllRegisteredTokens } from './di/get-all-registered-tokens.function';
 import { inject } from './di/inject.function';
@@ -119,6 +122,24 @@ export class ZibriApplication {
                 throw new Error([
                     `Invalid class marked with @Injectable: ${element.constructor.name}`,
                     'Plugins interfere with the injection system, making them injectable is forbidden.'
+                ].join('\n'));
+            }
+            if (element instanceof CronJob) {
+                throw new Error([
+                    `Invalid class marked with @Injectable: ${element.constructor.name}`,
+                    'Cron jobs should be registered by the cron service.'
+                ].join('\n'));
+            }
+            if (isTwoFactorMethod(element)) {
+                throw new Error([
+                    `Invalid class marked with @Injectable: ${element.constructor.name}`,
+                    'Two factor methods should be registered by the two factor service.'
+                ].join('\n'));
+            }
+            if (isAuthStrategy(element)) {
+                throw new Error([
+                    `Invalid class marked with @Injectable: ${element.constructor.name}`,
+                    'Auth strategies should be registered by the auth service.'
                 ].join('\n'));
             }
         }

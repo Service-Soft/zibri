@@ -30,6 +30,7 @@ import { type LoggerInterface } from '../logging/logger.interface';
 import { FileResponse } from '../parsing/form-data/file-response.model';
 import { Route, ControllerRouteConfiguration } from '../routing/controller-route-configuration.model';
 import { BodyMetadata } from '../routing/decorators/body.decorator';
+import { ControllerData } from '../routing/decorators/controller.decorator';
 import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from '../routing/decorators/param.decorator';
 import { MissingBaseRouteError } from '../routing/missing-base-route.error';
 import { RouteHandler } from '../routing/route-configuration.model';
@@ -83,7 +84,7 @@ const defaultDescriptionForHttpStatus: Record<HttpStatus | 'default', string> = 
 /**
  * Default open api service implementation of Zibri.
  */
-@Injectable()
+@Injectable({ register: 'onUse' })
 export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly openApiRoute: Route = '/explorer';
@@ -104,7 +105,7 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
         const definition: OpenApiDefinition = await this.createOpenApiDefinition(app);
         await this.logger.info(`registers the OpenAPI Explorer at ${this.openApiRoute}`);
 
-        await this.router.register({
+        await this.router.registerRoute({
             httpMethod: HttpMethod.GET,
             route: `${this.openApiRoute}/swagger-ui.css`,
             handler: () => {
@@ -112,7 +113,7 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
                 return FileResponse.fromPath(filePath);
             }
         });
-        await this.router.register({
+        await this.router.registerRoute({
             httpMethod: HttpMethod.GET,
             route: `${this.openApiRoute}/swagger-ui-bundle.js`,
             handler: () => {
@@ -120,7 +121,7 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
                 return FileResponse.fromPath(filePath);
             }
         });
-        await this.router.register({
+        await this.router.registerRoute({
             httpMethod: HttpMethod.GET,
             route: `${this.openApiRoute}/swagger-ui-standalone-preset.js`,
             handler: () => {
@@ -132,7 +133,7 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
                 return FileResponse.fromPath(filePath);
             }
         });
-        await this.router.register({
+        await this.router.registerRoute({
             httpMethod: HttpMethod.GET,
             route: `${this.openApiRoute}/swagger-ui-init.js`,
             handler: (_, res) => {
@@ -159,7 +160,7 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
             }
         });
 
-        await this.router.register({
+        await this.router.registerRoute({
             httpMethod: HttpMethod.GET,
             route: `${this.openApiRoute}/custom.js`,
             handler: (_, res) => {
@@ -265,7 +266,7 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
         });
 
         app.use(this.openApiRoute, swaggerUi.serve);
-        await this.router.register({
+        await this.router.registerRoute({
             httpMethod: HttpMethod.GET,
             route: this.openApiRoute,
             handler: swaggerUi.setup(
@@ -311,8 +312,8 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
         const res: OpenApiPaths = {};
 
         for (const controllerClass of app.options.controllers) {
-            const baseRoute: Route | undefined = MetadataUtilities.getControllerBaseRoute(controllerClass);
-            if (!baseRoute) {
+            const controllerData: ControllerData | undefined = MetadataUtilities.getControllerData(controllerClass);
+            if (!controllerData) {
                 throw new MissingBaseRouteError(controllerClass);
             }
 
@@ -335,7 +336,7 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
 
                 const bodyMetadata: BodyMetadata | undefined = MetadataUtilities.getRouteBody(controllerClass, route.controllerMethod);
                 // Ensure an entry exists
-                const finalRoute: string = baseRoute === '/' ? route.route : `${baseRoute}${route.route}`;
+                const finalRoute: string = controllerData.baseRoute === '/' ? route.route : `${controllerData.baseRoute}${route.route}`;
                 const fullPath: string = finalRoute.replaceAll(/:([^/]+)/g, '{$1}');
                 res[fullPath] ??= {};
 

@@ -21,7 +21,7 @@ import { Injectable } from '../../di/decorators/injectable.decorator';
 /**
  * Default mailing list service implementation of Zibri.
  */
-@Injectable()
+@Injectable({ register: 'onUse' })
 export class MailingListService implements MailingListServiceInterface {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly mailingListBaseRoute: Route = '/mailing-lists';

@@ -25,7 +25,7 @@ import { OnAppShutdown } from '../global/on-app-shutdown.interface';
 /**
  * Default email service implementation of Zibri.
  */
-@Injectable()
+@Injectable({ register: 'onUse' })
 export class EmailService implements EmailServiceInterface, OnAppInit, OnAppShutdown {
     /**
      * The internal nodemailer transporter.

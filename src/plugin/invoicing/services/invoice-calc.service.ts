@@ -9,7 +9,7 @@ import { Vat } from '../models/vat.model';
 /**
  * Default implementation of the invoice calculation service.
  */
-@Injectable()
+@Injectable({ register: 'onUse' })
 export class InvoiceCalcService implements InvoiceCalcServiceInterface<Invoice> {
     // eslint-disable-next-line jsdoc/require-jsdoc
     getItemTotalPriceBeforeTax(item: InvoiceItem): BigNumber {

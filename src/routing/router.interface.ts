@@ -16,7 +16,7 @@ export interface RouterInterface {
     /**
      * Register a route.
      */
-    register: <
+    registerRoute: <
         // eslint-disable-next-line jsdoc/require-jsdoc
         BodyMetaInputObject extends BodyMetadataInput & { modelClass: Newable<unknown> },
         PathMetaInputObject extends Record<string, PathParamMetadataInput>,

@@ -10,7 +10,7 @@ import { OmitStrict } from '../types/omit-strict.type';
 /**
  * The entity of a single backup.
  */
-@Entity()
+@Entity({ allowOrphan: true })
 export class BackupEntity extends BaseEntity {
     /**
      * The name of the backup. Should be unique.

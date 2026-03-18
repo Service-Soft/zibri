@@ -16,7 +16,7 @@ import { Vat } from '../models/vat.model';
 /**
  * Default implementation of the invoice pdf service.
  */
-@Injectable()
+@Injectable({ register: 'onUse' })
 export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
     /**
      * The definition of the header of the pdf.

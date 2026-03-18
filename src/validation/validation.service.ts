@@ -65,7 +65,7 @@ type PropertyValidationFunction = (
 /**
  * The default validation service implementation of Zibri.
  */
-@Injectable()
+@Injectable({ register: 'onUse' })
 export class ValidationService implements ValidationServiceInterface {
 
     private readonly pathParamValidationFunctions: Record<PathParamMetadata['type'], PathParamValidationFunction> = {

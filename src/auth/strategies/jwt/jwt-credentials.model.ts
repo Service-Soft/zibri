@@ -7,7 +7,7 @@ import { BaseUser } from '../../models/base-user.model';
 /**
  * The credentials used by the jwt auth strategy.
  */
-@Entity()
+@Entity({ allowOrphan: true })
 export class JwtCredentials extends BaseEntity implements Pick<BaseUser<string>, 'id' | 'email'> {
     /**
      * The id of the user that this credentials belong to.

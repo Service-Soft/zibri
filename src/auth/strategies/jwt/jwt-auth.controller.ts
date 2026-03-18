@@ -33,7 +33,7 @@ class JwtVerifyPasswordResetTokenResponse {
     isValid!: boolean;
 }
 
-@Controller('/auth')
+@Controller('/auth', { allowOrphan: true })
 export class JwtAuthController implements AuthControllerInterface<
     JwtCredentialsDto,
     JwtAuthData<string>,

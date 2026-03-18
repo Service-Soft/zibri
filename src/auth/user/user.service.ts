@@ -11,7 +11,7 @@ export const NO_USER_REPOSITORIES_PROVIDED_ERROR_MESSAGE: string = 'No user repo
 /**
  * Default user service implementation of Zibri.
  */
-@Injectable()
+@Injectable({ register: 'onUse' })
 export class UserService implements UserServiceInterface {
 
     // eslint-disable-next-line jsdoc/require-jsdoc

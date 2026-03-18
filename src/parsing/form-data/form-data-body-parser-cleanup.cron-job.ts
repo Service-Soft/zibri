@@ -3,14 +3,12 @@ import { Dirent } from 'node:fs';
 import { CLEANUP_AT_FILE_NAME } from './form-data.model';
 import { CronJob, InitialCronConfig } from '../../cron/cron-job.model';
 import { Inject } from '../../di/decorators/inject.decorator';
-import { Injectable } from '../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { FsUtilities, type FsPath } from '../../utilities/fs.utilities';
 
 /**
  * CronJob that cleans up the temp folder of the form data body parser.
  */
-@Injectable()
 export class FormDataBodyParserCleanupCronJob extends CronJob {
     // eslint-disable-next-line jsdoc/require-jsdoc
     initialConfig: InitialCronConfig = {

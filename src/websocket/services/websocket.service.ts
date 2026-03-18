@@ -52,7 +52,7 @@ type SocketIOWebsocketHandler = (
  * Default implementation for handling websockets.
  * Uses socket.io under the hood.
  */
-@Injectable()
+@Injectable({ register: 'onUse' })
 export class WebsocketService implements WebsocketServiceInterface<SocketIOWebsocketConnection>, OnAppInit, BeforeAppShutdown {
     private socketServer!: Server;
     private readonly websocketHandlers: Record<string, SocketIOWebsocketHandler | undefined> = {};
@@ -280,7 +280,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async registerController(controllerClass: Newable<unknown>): Promise<void> {
-        const controllerData: WebsocketControllerData | undefined = MetadataUtilities.getWebsocketController(controllerClass);
+        const controllerData: WebsocketControllerData | undefined = MetadataUtilities.getWebsocketControllerData(controllerClass);
         if (controllerData == undefined) {
             // eslint-disable-next-line stylistic/max-len
             throw new Error(`Could not find websocket controller data on class ${controllerClass.name}. Did you forget to decorate it with @WebsocketController?`);
@@ -623,7 +623,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
 
     private checkForOrphanedControllers(controllers: Newable<unknown>[]): void {
         const orphanedControllers: Newable<unknown>[] = GlobalRegistry.websocketControllerClasses.filter(c => {
-            return !controllers.includes(c);
+            return !controllers.includes(c) && !(MetadataUtilities.getWebsocketControllerData(c)?.allowOrphan ?? false);
         });
         if (orphanedControllers.length) {
             const message: string[] = ['Error initializing websocket service.', 'Found orphaned controllers:'];

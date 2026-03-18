@@ -9,7 +9,7 @@ import { type CurrencyCode } from '../../../localization/models/currency-code.mo
 /**
  * Entity for an payment that has been made.
  */
-@Entity()
+@Entity({ allowOrphan: true })
 export class Payment<M extends PaymentMethod, Data extends AnyObject> extends BaseEntity {
     /**
      * The transactionId, should be provided eg. From the client side of a checkout to prevent duplicate payments.

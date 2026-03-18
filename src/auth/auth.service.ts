@@ -28,7 +28,7 @@ import { WebsocketRequest } from '../websocket/models/websocket-request.model';
 /**
  * Default auth service implementation of Zibri.
  */
-@Injectable()
+@Injectable({ register: 'onUse' })
 export class AuthService implements AuthServiceInterface, OnAppInit {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly strategies: AuthStrategies = [];

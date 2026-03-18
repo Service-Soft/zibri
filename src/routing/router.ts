@@ -2,7 +2,7 @@ import { Readable } from 'stream';
 
 import { NextFunction, RequestHandler, Router as ExpressRouter } from 'express';
 
-import { Route, ControllerRouteConfiguration } from './controller-route-configuration.model';
+import { ControllerRouteConfiguration } from './controller-route-configuration.model';
 import { BodyMetadata, BodyMetadataInput, resolveMaxBodySize } from './decorators/body.decorator';
 import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata, PathParamMetadataInput, QueryParamMetadataInput, HeaderParamMetadataInput } from './decorators/param.decorator';
 import { MissingBaseRouteError } from './missing-base-route.error';
@@ -13,7 +13,6 @@ import { runWithRequest } from './request.context';
 import { resolveRouteParams } from './resolve-route-params.function';
 import { OpenApiRouteConfiguration, RouteConfiguration, RouteConfigurationInput } from './route-configuration.model';
 import type { AuthServiceInterface } from '../auth/auth-service.interface';
-import { JwtAuthController } from '../auth/strategies/jwt/jwt-auth.controller';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
@@ -35,14 +34,14 @@ import { Newable } from '../types/newable.type';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { Ms } from '../utilities/ms';
 import type { ValidationServiceInterface } from '../validation/validation-service.interface';
+import { ControllerData } from './decorators/controller.decorator';
 
 /**
  * Default router implementation of Zibri.
  */
-@Injectable()
+@Injectable({ register: 'onUse' })
 export class Router implements RouterInterface, OnAppInit, OnAppStart {
     private readonly expressRouter: ExpressRouter = ExpressRouter();
-    private readonly allowedOrphans: Newable<unknown>[] = [JwtAuthController];
     private readonly allBaseRoutes: string[] = [];
     private readonly allFinalRoutes: string[] = [];
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -83,7 +82,7 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
 
     private checkForOrphanedControllers(controllers: Newable<unknown>[]): void {
         const orphanedControllers: Newable<unknown>[] = GlobalRegistry.controllerClasses.filter(c => {
-            return !controllers.includes(c) && !this.allowedOrphans.includes(c);
+            return !controllers.includes(c) && !(MetadataUtilities.getControllerData(c)?.allowOrphan ?? false);
         });
         if (orphanedControllers.length) {
             const message: string[] = ['Error initializing router.', 'Found orphaned controllers:'];
@@ -96,7 +95,7 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async register<
+    async registerRoute<
         // eslint-disable-next-line jsdoc/require-jsdoc
         BodyMetaInputObject extends BodyMetadataInput & { modelClass: Newable<unknown> },
         PathMetaInputObject extends Record<string, PathParamMetadataInput>,
@@ -195,19 +194,19 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async registerController(controllerClass: Newable<unknown>): Promise<void> {
-        const baseRoute: Route | undefined = MetadataUtilities.getControllerBaseRoute(controllerClass);
-        if (baseRoute == undefined) {
+        const controllerData: ControllerData | undefined = MetadataUtilities.getControllerData(controllerClass);
+        if (controllerData == undefined) {
             throw new MissingBaseRouteError(controllerClass);
         }
-        if (this.allBaseRoutes.includes(baseRoute)) {
-            throw new Error(`The base route "${baseRoute}" has been defined on more than one controller.`);
+        if (this.allBaseRoutes.includes(controllerData.baseRoute)) {
+            throw new Error(`The base route "${controllerData.baseRoute}" has been defined on more than one controller.`);
         }
-        this.allBaseRoutes.push(baseRoute);
+        this.allBaseRoutes.push(controllerData.baseRoute);
         const routes: ControllerRouteConfiguration[] = MetadataUtilities.getControllerRoutes(controllerClass);
 
         for (const route of routes) {
             const handler: RequestHandler = await this.controllerRouteToRequestHandler(controllerClass, route);
-            const finalRoute: string = baseRoute === '/' ? route.route : `${baseRoute}${route.route}`;
+            const finalRoute: string = controllerData.baseRoute === '/' ? route.route : `${controllerData.baseRoute}${route.route}`;
             if (this.allFinalRoutes.includes(`${route.httpMethod.toUpperCase()} ${finalRoute}`)) {
                 throw new Error(
                     `The route "${route.httpMethod.toUpperCase()} ${finalRoute}" has been defined more than once.`,

@@ -19,8 +19,10 @@ function getNoProviderMessage(token: DiToken<unknown>, resolvingStack: Function[
             return `No provider for token "${token.key}". Did you forget to decorate it with @Inject()?`;
         }
         const currentClass: Function = resolvingStack[resolvingStack.length - 1];
-        const paramTypes: unknown[] = MetadataUtilities.getParamTypes(currentClass);
-        const index: number = paramTypes.findIndex(param => param === token);
+        const injectTokens: Record<number, DiToken<unknown>> = MetadataUtilities.getInjectParamTokens(currentClass);
+        const index: number = Number(
+            Object.entries(injectTokens).find(([, t]) => t === token)?.[0] ?? -1
+        );
         return `No provider for the token at index ${index} of class "${currentClass.name}". Did you forget to decorate it with @Inject()?`;
     }
     return `No provider for class "${token.name}". Did you forget to decorate it with @Injectable()?`;

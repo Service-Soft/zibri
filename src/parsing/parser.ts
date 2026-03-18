@@ -42,7 +42,7 @@ type HeaderParamParseFunction = (rawValue: string | undefined, meta: HeaderParam
 /**
  * Default parser implementation of Zibri.
  */
-@Injectable()
+@Injectable({ register: 'onUse' })
 export class Parser implements ParserInterface, OnAppInit {
     private readonly logger: LoggerInterface;
     private readonly bodyParsers: BodyParserInterface[] = [];

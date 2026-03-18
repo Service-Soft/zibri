@@ -5,7 +5,7 @@ import { EN16931ConformanceService, EN16931DocumentContextId } from './en16931-c
 /**
  * Handles conforming to the peppol standard.
  */
-@Injectable()
+@Injectable({ register: 'onUse' })
 export class PeppolConformanceService extends EN16931ConformanceService {
     override readonly name: InvoiceConformance = 'peppol';
     // eslint-disable-next-line stylistic/max-len

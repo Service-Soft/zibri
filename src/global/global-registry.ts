@@ -43,6 +43,10 @@ export abstract class GlobalRegistry {
      */
     static readonly injectables: DiProvider<unknown>[] = [];
     /**
+     * All injectables registered via \@Injectable but with the { register: 'onUse' } flag.
+     */
+    static readonly lazyInjectables: DiProvider<unknown>[] = [];
+    /**
      * All controllers registered with \@Controller.
      */
     static readonly controllerClasses: Newable<unknown>[] = [];

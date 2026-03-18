@@ -42,7 +42,7 @@ const responseTypeForMimeType: Record<BodyMetadata['type'], ResponseType> = {
 /**
  * Default http client implementation of Zibri.
  */
-@Injectable()
+@Injectable({ register: 'onUse' })
 export class HttpClient implements HttpClientInterface {
     private readonly axios: AxiosInstance;
 

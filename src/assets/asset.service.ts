@@ -34,7 +34,7 @@ type WalkedPath = { relPath: string, isFile: boolean };
 /**
  * Default asset service implementation of Zibri.
  */
-@Injectable()
+@Injectable({ register: 'onUse' })
 export class AssetService implements AssetServiceInterface, OnAppInit {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly assetsPath: FsPath = FsUtilities.getPath(__dirname, 'assets');
@@ -59,13 +59,13 @@ export class AssetService implements AssetServiceInterface, OnAppInit {
         await this.logger.info(`registers public static assets from folder "${this.publicAssetsPath}" at ${this.assetsRoute}`);
         app.use(this.assetsRoute, express.static(this.publicAssetsPath));
 
-        await inject(ZIBRI_DI_TOKENS.ROUTER).register({
+        await inject(ZIBRI_DI_TOKENS.ROUTER).registerRoute({
             httpMethod: HttpMethod.GET,
             route: '/favicon.ico',
             handler: () => FileResponse.fromPath(FsUtilities.getPath(this.publicAssetsPath, 'favicon.png'))
         });
 
-        // await app.router.register({
+        // await app.router.registerRoute({
         //     httpMethod: HttpMethod.GET,
         //     route: '/favicon.ico',
         //     handler: () => FileResponse.fromPath(FsUtilities.getPath(this.publicAssetsPath, 'favicon.png'))

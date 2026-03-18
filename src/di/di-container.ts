@@ -84,7 +84,15 @@ export class DiContainer {
             return this.instances.get(token) as T;
         }
 
-        const provider: DiProvider<T> | undefined = this.providers.get(token) as DiProvider<T> | undefined;
+        let provider: DiProvider<T> | undefined = this.providers.get(token) as DiProvider<T> | undefined;
+        if (!provider) {
+            const lazy: DiProvider<unknown> | undefined = GlobalRegistry.lazyInjectables.find(p => p.token === token);
+            if (lazy) {
+                this.register(lazy); // promote into providers so future lookups are O(1)
+                provider = lazy as DiProvider<T>;
+            }
+        }
+
         if (!provider) {
             throw new NoProviderError(token, resolvingStack);
         }

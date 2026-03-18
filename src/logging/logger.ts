@@ -16,7 +16,7 @@ import { UUIDUtilities } from '../utilities/uuid.utilities';
 /**
  * Default logger implementation of Zibri.
  */
-@Injectable()
+@Injectable({ register: 'onUse' })
 export class Logger implements LoggerInterface, OnAppInit {
 
     constructor(

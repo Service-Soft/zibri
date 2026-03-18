@@ -11,17 +11,23 @@ export type EntityMetadata = {
     /**
      * The name of the table in the db.
      */
-    tableName: string
+    tableName: string,
+    /**
+     * Whether or not this entity is allowed to exist without belonging to a data source.
+     */
+    allowOrphan: boolean
 };
 
 /**
  * Marks an entity.
- * @param tableName - The name of the table to generate for the entity.
+ * @param options - Configuration options for the entity.
  */
-export function Entity(tableName?: string): ClassDecorator {
+export function Entity(options: Partial<EntityMetadata> = {}): ClassDecorator {
+    const { tableName, allowOrphan = false } = options;
     return target => {
         const metadata: EntityMetadata = {
-            tableName: tableName ?? toSnakeCase(target.name)
+            tableName: tableName ?? toSnakeCase(target.name),
+            allowOrphan
         };
         MetadataUtilities.setEntityMetadata(target as unknown as Newable<BaseEntity>, metadata);
         GlobalRegistry.entityClasses.push(target as unknown as Newable<BaseEntity>);

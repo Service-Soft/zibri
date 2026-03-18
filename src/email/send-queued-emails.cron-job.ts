@@ -1,13 +1,11 @@
 import { type EmailServiceInterface } from './email-service.interface';
 import { CronJob, InitialCronConfig } from '../cron/cron-job.model';
 import { Inject } from '../di/decorators/inject.decorator';
-import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 
 /**
  * Cron Job for sending out queued emails.
  */
-@Injectable()
 export class SendQueuedEmailsCronJob extends CronJob {
     // eslint-disable-next-line jsdoc/require-jsdoc
     initialConfig: InitialCronConfig = {

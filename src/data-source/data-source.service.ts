@@ -1,48 +1,20 @@
 import { DataSourceServiceInterface } from './data-source-service.interface';
-import { BaseEntity } from '../entity/base-entity.model';
 import { DataSourceInterface } from './data-sources/data-source.interface';
-import { OtpCredentials } from '../auth/2fa/methods/otp/otp-credentials.model';
-import { PasswordResetToken } from '../auth/models/password-reset-token.model';
-import { JwtCredentials } from '../auth/strategies/jwt/jwt-credentials.model';
-import { JwtRefreshToken } from '../auth/strategies/jwt/jwt-refresh-token.model';
-import { BackupEntity } from '../backup/backup-entity.model';
-import { BackupResourceEntity } from '../backup/backup-resource-entity.model';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
-import { MailingListSubscriber } from '../email/mailing-list/models/mailing-list-subscriber.model';
-import { MailingList } from '../email/mailing-list/models/mailing-list.model';
 import { GlobalRegistry } from '../global/global-registry';
-import { Log } from '../logging/log.model';
 import { type LoggerInterface } from '../logging/logger.interface';
-import { Invoice } from '../plugin/invoicing/models/invoice.model';
-import { NumberInvoices } from '../plugin/invoicing/models/number-invoices.model';
-import { Payment } from '../plugin/payment/models/payment.model';
-import { Newable } from '../types/newable.type';
+import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function';
 
 /**
  * Default data source service implementation of Zibri.
  */
-@Injectable()
+@Injectable({ register: 'onUse' })
 export class DataSourceService implements DataSourceServiceInterface {
     private readonly dataSources: DataSourceInterface[] = [];
-
-    private readonly allowedOrphans: Newable<BaseEntity>[] = [
-        JwtRefreshToken,
-        JwtCredentials,
-        PasswordResetToken,
-        OtpCredentials,
-        MailingList,
-        MailingListSubscriber,
-        Log,
-        BackupResourceEntity,
-        BackupEntity,
-        NumberInvoices,
-        Invoice,
-        Payment
-    ];
 
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
@@ -65,7 +37,7 @@ export class DataSourceService implements DataSourceServiceInterface {
 
         validateEntitiesRegistered(
             this.constructor.name,
-            ...GlobalRegistry.entityClasses.filter(e => !this.allowedOrphans.includes(e))
+            ...GlobalRegistry.entityClasses.filter(e => !(MetadataUtilities.getEntityMetadata(e)?.allowOrphan ?? false))
         );
     }
 
