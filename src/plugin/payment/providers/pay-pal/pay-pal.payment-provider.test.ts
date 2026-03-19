@@ -19,7 +19,7 @@ import { PaymentPluginOptionsInput } from '../../models/payment-plugin-options-i
 import { PaymentStatus } from '../../models/payment-status.enum';
 import { Payment } from '../../models/payment.model';
 import { ZibriPaymentPlugin } from '../../payment.plugin';
-import { DefaultPaymentProviderArray, ZIBRI_PAYMENT_DI_TOKENS } from '../../payment.tokens';
+import { DefaultPaymentProviderArray, ZIBRI_PAYMENT_PLUGIN_DI_TOKENS } from '../../payment.tokens';
 import { PaymentServiceInterface } from '../../services/payment-service.interface';
 
 async function getSandboxToken(clientId: string, clientSecret: string): Promise<string> {
@@ -101,7 +101,7 @@ describe('PayPalPaymentProvider (sandbox)', () => {
             providers: [
                 ...defaultTestServerProviders,
                 defineProvider({
-                    token: ZIBRI_PAYMENT_DI_TOKENS.OPTIONS_INPUT,
+                    token: ZIBRI_PAYMENT_PLUGIN_DI_TOKENS.OPTIONS_INPUT,
                     useFactory: () => {
                         const res: PaymentPluginOptionsInput<
                             [KnownPaymentMethod.PAY_PAL],
@@ -124,7 +124,7 @@ describe('PayPalPaymentProvider (sandbox)', () => {
                 })
             ]
         });
-        paymentService = inject<PaymentServiceInterface<[KnownPaymentMethod.PAY_PAL], [PayPalPaymentProvider]>>(ZIBRI_PAYMENT_DI_TOKENS.PAYMENT_SERVICE);
+        paymentService = inject<PaymentServiceInterface<[KnownPaymentMethod.PAY_PAL], [PayPalPaymentProvider]>>(ZIBRI_PAYMENT_PLUGIN_DI_TOKENS.PAYMENT_SERVICE);
         paymentRepository = inject(repositoryTokenFor(Payment<KnownPaymentMethod.PAY_PAL, PayPalPaymentProviderPaymentData>));
         sandboxToken = await getSandboxToken(clientId, clientSecret);
     });

@@ -8,9 +8,6 @@ import { CronJobEntity } from '../../cron/cron-job-entity.model';
 import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres-data-source.model';
 import { DataSource } from '../../data-source/decorators/data-source.decorator';
 import { MigrationEntity } from '../../data-source/migration/migration-entity.model';
-import { MailingListSubscriber } from '../../email/mailing-list/models/mailing-list-subscriber.model';
-import { MailingListSubscriptionConfirmationToken } from '../../email/mailing-list/models/mailing-list-subscription-confirmation-token.model';
-import { MailingList } from '../../email/mailing-list/models/mailing-list.model';
 import { Email } from '../../email/models/email.model';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Log } from '../../logging/log.model';
@@ -36,7 +33,6 @@ export class DefaultTestServerDataSource extends PostgresDataSource {
         MigrationEntity,
         CronJobEntity,
         Email,
-        MailingListSubscriptionConfirmationToken,
         ThreadJobEntity,
         WebsocketChannel,
         WebsocketMessage,
@@ -46,8 +42,6 @@ export class DefaultTestServerDataSource extends PostgresDataSource {
         JwtRefreshToken,
         JwtCredentials,
         OtpCredentials,
-        MailingList,
-        MailingListSubscriber,
         ThreadJobEntity,
         Payment
     ];

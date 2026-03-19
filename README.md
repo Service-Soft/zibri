@@ -54,7 +54,7 @@ With Zibri you can rely on a strong foundation of battle tested libraries that h
 - express as the server
 - typeorm for handling everything database related
 - nodemailer for sending emails
-- handlebars for templating
+- handlebars and preact for templating
 - busboy for file uploads (the foundation of multer)
 - socket.io for websockets
 - node-cron for cron jobs

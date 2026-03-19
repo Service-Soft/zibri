@@ -1,5 +1,5 @@
 import H from 'handlebars/runtime';
-import { inject, isVersion, JwtAuthController, LoggerInterface, ZIBRI_DI_TOKENS, ZibriApplication, ZibriInvoicingPlugin } from 'zibri';
+import { inject, isVersion, JwtAuthController, LoggerInterface, ZIBRI_DI_TOKENS, ZibriApplication, ZibriInvoicingPlugin, ZibriMailingListPlugin } from 'zibri';
 
 import { CronController, FileController, MailingListController, MetricsController, PageController, TemplateController, TestController, TestCrudController, TestWebsocketController } from './controllers';
 import { createDefaultData } from './create-default-data.function';
@@ -18,7 +18,7 @@ async function start(): Promise<void> {
     const app: ZibriApplication = new ZibriApplication({
         name: 'Zibri Api',
         baseUrl: 'http://localhost:3000',
-        plugins: [new ZibriInvoicingPlugin()],
+        plugins: [new ZibriInvoicingPlugin(), new ZibriMailingListPlugin()],
         controllers: [
             TestController,
             FileController,

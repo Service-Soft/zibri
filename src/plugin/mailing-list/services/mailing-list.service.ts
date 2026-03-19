@@ -1,22 +1,23 @@
 import { randomBytes } from 'crypto';
 
 import { MailingListSubscriberCreateData, MailingListQueueEmailData, MailingListServiceInterface, BaseMailingListEmailTemplateData } from './mailing-list-service.interface';
-import { type AssetServiceInterface } from '../../assets/asset-service.interface';
-import { Repository } from '../../data-source/repository';
-import { InjectRepository } from '../../di/decorators/inject-repository.decorator';
-import { Inject } from '../../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { GlobalRegistry } from '../../global/global-registry';
-import { BaseEmailTemplateData, renderTemplateString, renderTemplate } from '../../handlebars/render-template.function';
-import { Route } from '../../routing/controller-route-configuration.model';
-import { FsUtilities, FsPath } from '../../utilities/fs.utilities';
-import { PromiseUtilities } from '../../utilities/promise.utilities';
-import { type EmailServiceInterface } from '../email-service.interface';
-import { EmailPriority } from '../models/email-priority.enum';
-import { MailingListSubscriber } from './models/mailing-list-subscriber.model';
-import { MailingListSubscriptionConfirmationToken, MailingListSubscriptionConfirmationTokenCreateData } from './models/mailing-list-subscription-confirmation-token.model';
-import { MailingList } from './models/mailing-list.model';
-import { Injectable } from '../../di/decorators/injectable.decorator';
+import { type AssetServiceInterface } from '../../../assets/asset-service.interface';
+import { Repository } from '../../../data-source/repository';
+import { InjectRepository } from '../../../di/decorators/inject-repository.decorator';
+import { Inject } from '../../../di/decorators/inject.decorator';
+import { Injectable } from '../../../di/decorators/injectable.decorator';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
+import { type EmailServiceInterface } from '../../../email/email-service.interface';
+import { EmailPriority } from '../../../email/models/email-priority.enum';
+import { GlobalRegistry } from '../../../global/global-registry';
+import { BaseEmailTemplateData, renderTemplateString, renderTemplate } from '../../../handlebars/render-template.function';
+import { Route } from '../../../routing/controller-route-configuration.model';
+import { FsUtilities, FsPath } from '../../../utilities/fs.utilities';
+import { PromiseUtilities } from '../../../utilities/promise.utilities';
+import { ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from '../mailing-list.tokens';
+import { MailingListSubscriber } from '../models/mailing-list-subscriber.model';
+import { MailingListSubscriptionConfirmationToken, MailingListSubscriptionConfirmationTokenCreateData } from '../models/mailing-list-subscription-confirmation-token.model';
+import { MailingList } from '../models/mailing-list.model';
 
 /**
  * Default mailing list service implementation of Zibri.
@@ -31,7 +32,7 @@ export class MailingListService implements MailingListServiceInterface {
         protected readonly emailService: EmailServiceInterface,
         @Inject(ZIBRI_DI_TOKENS.ASSET_SERVICE)
         protected readonly assetService: AssetServiceInterface,
-        @Inject(ZIBRI_DI_TOKENS.MAILING_LIST_SUBSCRIPTION_CONFIRMATION_TOKEN_EXPIRES_IN_MS)
+        @Inject(ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS.CONFIRMATION_TOKEN_EXPIRES_IN_MS)
         protected readonly mailingListSubscriptionConfirmationTokenExpiresInMs: number,
         @InjectRepository(MailingList)
         protected readonly mailingListRepository: Repository<MailingList>,

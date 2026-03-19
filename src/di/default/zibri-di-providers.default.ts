@@ -14,7 +14,6 @@ import { BackupService } from '../../backup/backup.service';
 import { CronService } from '../../cron/cron.service';
 import { DataSourceService } from '../../data-source/data-source.service';
 import { EmailService } from '../../email/email.service';
-import { MailingListService } from '../../email/mailing-list/mailing-list.service';
 import { errorHandler } from '../../error-handling/error-handler';
 import { HttpClient } from '../../http-client/http-client';
 import { LocalizeOptionsInput } from '../../localization/models/localize-options.model';
@@ -81,8 +80,6 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
     JWT_REFRESH_TOKEN_EXPIRES_IN_MS: { useFactory: () => 100 * Ms.DAY },
     CRON_SERVICE: { useClass: CronService },
     EMAIL_SERVICE: { useClass: EmailService },
-    MAILING_LIST_SERVICE: { useClass: MailingListService },
-    MAILING_LIST_SUBSCRIPTION_CONFIRMATION_TOKEN_EXPIRES_IN_MS: { useFactory: () => Ms.DAY },
     FILE_UPLOAD_TEMP_FOLDER: { useFactory: () => FsUtilities.getPath(__dirname, 'temp') },
     LOCALIZE_OPTIONS_INPUT: { useFactory: () => ({}) },
     LOCALIZE_OPTIONS: {

@@ -1,4 +1,3 @@
-import { ZIBRI_INVOICING_DI_TOKENS } from '../invoicing.tokens';
 import { InvoiceNumberServiceInterface } from './invoice-number-service.interface';
 import { Repository } from '../../../data-source/repository';
 import { Transaction } from '../../../data-source/transaction/transaction.model';
@@ -7,6 +6,7 @@ import { Inject } from '../../../di/decorators/inject.decorator';
 import { Injectable } from '../../../di/decorators/injectable.decorator';
 import { ConflictError } from '../../../error-handling/errors/conflict.error';
 import { OmitStrict } from '../../../types/omit-strict.type';
+import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../invoicing.tokens';
 import { InvoiceAddress } from '../models/invoice-address.model';
 import { Invoice } from '../models/invoice.model';
 import { type InvoicingOptions } from '../models/invoicing-options.model';
@@ -25,7 +25,7 @@ export class InvoiceNumberService implements InvoiceNumberServiceInterface<Invoi
             NumberInvoices,
             OmitStrict<NumberInvoices, 'id'>
         >,
-        @Inject(ZIBRI_INVOICING_DI_TOKENS.OPTIONS)
+        @Inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.OPTIONS)
         protected readonly options: InvoicingOptions
     ) {}
 

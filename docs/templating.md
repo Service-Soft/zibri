@@ -38,7 +38,7 @@ These are also hot reloaded when you change your templates and eg. introduce or 
 # Pages
 For simple html pages Zibri uses [preact](https://preactjs.com/), but with some [heavy modifications](#additional-functionality).
 
-This system is pretty great for a server side framework to render some basic pages. If you have more advanced use cases you should however you will probably be better of by creating a separate client application that consumes the Zibri API.
+This system is pretty great for a server side framework to render some basic pages. If you have more advanced use cases however you will probably be better of by creating a separate client application that consumes the Zibri API.
 
 ```ts
 import { Controller, Get, GlobalRegistry, HtmlResponse, PreactUtilities, Response } from 'zibri';
@@ -115,7 +115,7 @@ NO imports are resolved automatically.
 
 This means that you can't simply leak server side secrets like api keys to the client just because you used `environment.apiUrl` somewhere and the `index.ts` where its imported from also contains some secrets that tsx compiles into the code. (A reoccuring problem with frameworks that mix the line between front- and backend)
 
-But this also means that the functionality is a lot more restrictive than React, because every hook has to be custom provided. There are currently only two hooks available: `onClient` and `onServer`. Everything else that you might know (useState etc.) simply won't work.
+But this also means that the functionality is a lot more restrictive than React, because every hook has to be custom provided. There are currently only two hooks available: `onClient` and `onServer`. Everything else that you might know (useState etc.) simply won't work (yet).
 
 Let's take the metrics page as an example (full content down below), because we have a lot of client functionality that gets restored.
 The first thing you will probably notice is the strange import at the start of the file:
@@ -143,7 +143,7 @@ let snaps: MetricsSnapshot[] = [];
 let automaticReload: boolean = true;
 
 // the onClient hook provides a way to mark logic that should only be called on the client.
-// In this case window would throw an error on the server side, because it does not exist there.
+// In this case, window would throw an error on the server side, because it does not exist there.
 onClient(() => {
     window.addEventListener('load', () => {
         void loadSnapshots();

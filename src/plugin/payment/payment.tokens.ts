@@ -13,7 +13,7 @@ export type DefaultPaymentProviderArray = readonly AnyPaymentProviderInterface[]
  * The dependency injection tokens used by the ZibriPaymentPlugin.
  */
 // eslint-disable-next-line typescript/typedef
-export const ZIBRI_PAYMENT_DI_TOKENS = {
+export const ZIBRI_PAYMENT_PLUGIN_DI_TOKENS = {
     OPTIONS_INPUT: paymentToken<PaymentPluginOptionsInput<PaymentMethod[], DefaultPaymentProviderArray>>('zi.payment.options_input'),
     OPTIONS: paymentToken<PaymentPluginOptions<PaymentMethod[], DefaultPaymentProviderArray>>('zi.payment.options'),
     /**

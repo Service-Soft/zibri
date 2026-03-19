@@ -110,6 +110,7 @@ export * from './error-handling/errors/unauthorized.error';
 export * from './error-handling/errors/too-many-requests.error';
 export * from './error-handling/errors/conflict.error';
 export * from './error-handling/errors/missing-entities.error';
+export * from './error-handling/errors/missing-tokens.error';
 export * from './error-handling/errors/content-too-large.error';
 
 // assets
@@ -262,15 +263,6 @@ export * from './email/models/email-priority.enum';
 export * from './email/models/create-email-data.model';
 export * from './email/models/email-config.model';
 
-// mailing list
-export * from './email/mailing-list/mailing-list-service.interface';
-export * from './email/mailing-list/mailing-list.service';
-
-export * from './email/mailing-list/models/mailing-list-subscriber.model';
-export * from './email/mailing-list/models/mailing-list.model';
-export * from './email/mailing-list/models/mailing-list-subscription-confirmation-token.model';
-export * from './email/mailing-list/models/update-mailing-list-preferences.model';
-
 // rate limiting
 export * from './rate-limiting/rate-limiter';
 
@@ -319,6 +311,18 @@ export * from './document/xml.utilities';
 
 // plugin
 export * from './plugin/plugin.model';
+
+// mailing list
+export * from './plugin/mailing-list/mailing-list.plugin';
+export * from './plugin/mailing-list/mailing-list.tokens';
+
+export * from './plugin/mailing-list/services/mailing-list-service.interface';
+export * from './plugin/mailing-list/services/mailing-list.service';
+
+export * from './plugin/mailing-list/models/mailing-list-subscriber.model';
+export * from './plugin/mailing-list/models/mailing-list.model';
+export * from './plugin/mailing-list/models/mailing-list-subscription-confirmation-token.model';
+export * from './plugin/mailing-list/models/update-mailing-list-preferences.model';
 
 // plugin invoicing
 export * from './plugin/invoicing/invoicing.plugin';
@@ -439,6 +443,7 @@ export * from './utilities/promise.utilities';
 export * from './utilities/ms';
 export * from './utilities/big-number.utilities';
 export * from './utilities/validate-entities-registered.function';
+export * from './utilities/validate-tokens-registered.function';
 export * from './utilities/uuid.utilities';
 export * from './utilities/mask.utilities';
 export * from './utilities/fs.utilities';

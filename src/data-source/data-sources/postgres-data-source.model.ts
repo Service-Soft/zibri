@@ -164,6 +164,12 @@ export abstract class PostgresDataSource implements DataSourceInterface {
             throw new Error('The postgres data source has already been initialized.');
         }
 
+        if (this.options.username === 'postgres' && this.options.password === 'password') {
+            await this.logger.warn(
+                `The data source "${this.constructor.name}" uses the default credentials, you probably want to change that.`
+            );
+        }
+
         for (const entityClass of this.entities) {
             register({
                 token: repositoryTokenFor(entityClass),

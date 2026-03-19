@@ -11,7 +11,7 @@ import { PaymentMethod } from '../models/payment-method.model';
 import { type PaymentPluginOptions } from '../models/payment-plugin-options.model';
 import { PaymentStatus } from '../models/payment-status.enum';
 import { Payment } from '../models/payment.model';
-import { ZIBRI_PAYMENT_DI_TOKENS } from '../payment.tokens';
+import { ZIBRI_PAYMENT_PLUGIN_DI_TOKENS } from '../payment.tokens';
 import { AnyPaymentProviderInterface } from '../providers/payment-provider.interface';
 
 /**
@@ -24,7 +24,7 @@ export class PaymentService<
 >implements PaymentServiceInterface<Methods, P> {
 
     constructor(
-        @Inject(ZIBRI_PAYMENT_DI_TOKENS.OPTIONS)
+        @Inject(ZIBRI_PAYMENT_PLUGIN_DI_TOKENS.OPTIONS)
         protected readonly options: PaymentPluginOptions<Methods, P>,
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
         protected readonly logger: LoggerInterface,

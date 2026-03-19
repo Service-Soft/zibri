@@ -117,32 +117,7 @@ export class ZibriApplication {
         await this.beforeAppInit(tokens);
 
         const injectables: unknown[] = tokens.map(t => inject(t));
-        for (const element of injectables) {
-            if (element instanceof ZibriPlugin) {
-                throw new Error([
-                    `Invalid class marked with @Injectable: ${element.constructor.name}`,
-                    'Plugins interfere with the injection system, making them injectable is forbidden.'
-                ].join('\n'));
-            }
-            if (element instanceof CronJob) {
-                throw new Error([
-                    `Invalid class marked with @Injectable: ${element.constructor.name}`,
-                    'Cron jobs should be registered by the cron service.'
-                ].join('\n'));
-            }
-            if (isTwoFactorMethod(element)) {
-                throw new Error([
-                    `Invalid class marked with @Injectable: ${element.constructor.name}`,
-                    'Two factor methods should be registered by the two factor service.'
-                ].join('\n'));
-            }
-            if (isAuthStrategy(element)) {
-                throw new Error([
-                    `Invalid class marked with @Injectable: ${element.constructor.name}`,
-                    'Auth strategies should be registered by the auth service.'
-                ].join('\n'));
-            }
-        }
+        this.validateInjectables(injectables);
 
         await this.onAppInit(injectables);
         await this.afterAppInit(injectables);
@@ -314,6 +289,35 @@ export class ZibriApplication {
                 }
             });
         });
+    }
+
+    private validateInjectables(injectables: unknown[]): void {
+        for (const element of injectables) {
+            if (element instanceof ZibriPlugin) {
+                throw new Error([
+                    `Invalid class marked with @Injectable: ${element.constructor.name}`,
+                    'Plugins interfere with the injection system, making them injectable is forbidden.'
+                ].join('\n'));
+            }
+            if (element instanceof CronJob) {
+                throw new Error([
+                    `Invalid class marked with @Injectable: ${element.constructor.name}`,
+                    'Cron jobs should be registered by the cron service.'
+                ].join('\n'));
+            }
+            if (isTwoFactorMethod(element)) {
+                throw new Error([
+                    `Invalid class marked with @Injectable: ${element.constructor.name}`,
+                    'Two factor methods should be registered by the two factor service.'
+                ].join('\n'));
+            }
+            if (isAuthStrategy(element)) {
+                throw new Error([
+                    `Invalid class marked with @Injectable: ${element.constructor.name}`,
+                    'Auth strategies should be registered by the auth service.'
+                ].join('\n'));
+            }
+        }
     }
 
     private createFullOptions(): FullZibriApplicationOptions {

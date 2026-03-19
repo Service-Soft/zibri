@@ -2,9 +2,9 @@ import { HandlebarUtilities } from './handlebar.utilities';
 import { AssetServiceInterface } from '../assets/asset-service.interface';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
-import { MailingListSubscriber } from '../email/mailing-list/models/mailing-list-subscriber.model';
-import { MailingList } from '../email/mailing-list/models/mailing-list.model';
 import { GlobalRegistry } from '../global/global-registry';
+import { MailingListSubscriber } from '../plugin/mailing-list/models/mailing-list-subscriber.model';
+import { MailingList } from '../plugin/mailing-list/models/mailing-list.model';
 import { OmitStrict } from '../types/omit-strict.type';
 import { FsUtilities, FsPath } from '../utilities/fs.utilities';
 

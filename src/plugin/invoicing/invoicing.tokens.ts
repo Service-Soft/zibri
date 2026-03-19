@@ -12,7 +12,7 @@ import { InjectionToken } from '../../di/models/injection-token.model';
  * The dependency injection tokens used by the ZibriInvoicingPlugin.
  */
 // eslint-disable-next-line typescript/typedef
-export const ZIBRI_INVOICING_DI_TOKENS = {
+export const ZIBRI_INVOICING_PLUGIN_DI_TOKENS = {
     // eslint-disable-next-line typescript/no-explicit-any
     INVOICE_NUMBER_SERVICE: invoicingToken<InvoiceNumberServiceInterface<any>>('zi.invoicing.invoice_number_service'),
     OPTIONS_INPUT: invoicingToken<InvoicingOptionsInput>('zi.invoicing.options_input'),

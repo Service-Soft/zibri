@@ -1,4 +1,4 @@
-import { defineProvider, DiProvider, LoggerTransport, LogLevel, ZIBRI_DI_TOKENS, ZIBRI_INVOICING_DI_TOKENS } from 'zibri';
+import { defineProvider, DiProvider, LoggerTransport, LogLevel, ZIBRI_DI_TOKENS, ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from 'zibri';
 
 import { ErrorPage } from './templates/pages/error';
 
@@ -39,7 +39,7 @@ export const providers: DiProvider<unknown>[] = [
         useFactory: () => 'http://localhost:4200/confirm-password-reset'
     }),
     defineProvider({
-        token: ZIBRI_INVOICING_DI_TOKENS.OPTIONS_INPUT,
+        token: ZIBRI_INVOICING_PLUGIN_DI_TOKENS.OPTIONS_INPUT,
         useFactory: () => {
             return {
                 companyInfo: {
