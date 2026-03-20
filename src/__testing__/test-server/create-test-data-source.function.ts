@@ -12,37 +12,56 @@ import { Email } from '../../email/models/email.model';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Log } from '../../logging/log.model';
 import { ThreadJobEntity } from '../../multithreading/models/thread-job-entity.model';
-import { Payment } from '../../plugin/payment/models/payment.model';
 import { Newable } from '../../types/newable.type';
 import { WebsocketChannel } from '../../websocket/models/websocket-channel.model';
 import { WebsocketMessage } from '../../websocket/models/websocket-message.model';
 import { JwtUser } from '../mocks/entities/jwt-user.entity';
 
-@DataSource()
-export class DefaultTestServerDataSource extends PostgresDataSource {
-    options: PostgresOptions = {
-        host: 'localhost',
-        username: 'postgres',
-        password: 'password',
-        database: 'db',
-        synchronize: true
-    };
-    entities: Newable<BaseEntity>[] = [
-        Change,
-        ChangeSet,
-        MigrationEntity,
-        CronJobEntity,
-        Email,
-        ThreadJobEntity,
-        WebsocketChannel,
-        WebsocketMessage,
-        Log,
-        PasswordResetToken,
-        JwtUser,
-        JwtRefreshToken,
-        JwtCredentials,
-        OtpCredentials,
-        ThreadJobEntity,
-        Payment
-    ];
+export type CreateTestDataSourceOptions = {
+    entities?: Newable<BaseEntity>[],
+    host?: string,
+    username?: string,
+    password?: string,
+    database?: string
+};
+
+export const defaultTestServerEntities: Newable<BaseEntity>[] = [
+    Change,
+    ChangeSet,
+    MigrationEntity,
+    CronJobEntity,
+    Email,
+    ThreadJobEntity,
+    WebsocketChannel,
+    WebsocketMessage,
+    Log,
+    PasswordResetToken,
+    JwtUser,
+    JwtRefreshToken,
+    JwtCredentials,
+    OtpCredentials,
+    ThreadJobEntity
+];
+
+export function createTestDataSource({
+    entities = defaultTestServerEntities,
+    host = 'localhost',
+    username = 'postgres',
+    password = 'password',
+    database = 'db'
+}: CreateTestDataSourceOptions = {}): Newable<PostgresDataSource> {
+
+    @DataSource()
+    class DbDataSource extends PostgresDataSource {
+        options: PostgresOptions = {
+            host,
+            username,
+            password,
+            database,
+            synchronize: true
+        };
+        entities: Newable<BaseEntity>[] = entities;
+    }
+
+    return DbDataSource;
 }

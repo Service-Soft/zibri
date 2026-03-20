@@ -6,6 +6,7 @@ import { BackupEntity, BackupEntityCreateData } from './backup-entity.model';
 import { BackupResourceEntity, BackupResourceEntityCreateData } from './backup-resource-entity.model';
 import { BackupResourceInterface } from './backup-resource.interface';
 import { BackupCreateData, BackupServiceInterface } from './backup-service.interface';
+import { ZibriApplication } from '../application';
 import { PostgresDataSource } from '../data-source/data-sources/postgres-data-source.model';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { Inject } from '../di/decorators/inject.decorator';
@@ -51,11 +52,11 @@ export class BackupService implements BackupServiceInterface, OnAppInit, OnAppSh
     ) {}
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async onAppInit(): Promise<void> {
+    async onAppInit(app: ZibriApplication): Promise<void> {
         if (GlobalRegistry.backupResources.length) {
             // eslint-disable-next-line stylistic/max-len
             await this.logger.info(`configures ${GlobalRegistry.backupResources.length} ${GlobalRegistry.backupResources.length > 1 ? 'resources' : 'resource'} to be backed up:`);
-            validateEntitiesRegistered(BackupService.name, BackupResourceEntity, BackupEntity);
+            validateEntitiesRegistered(BackupService.name, app, BackupResourceEntity, BackupEntity);
         }
 
         for (const resourceClass of GlobalRegistry.backupResources) {

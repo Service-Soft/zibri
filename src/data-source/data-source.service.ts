@@ -1,4 +1,5 @@
 import { DataSourceServiceInterface } from './data-source-service.interface';
+import { ZibriApplication } from '../application';
 import { DataSourceInterface } from './data-sources/data-source.interface';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
@@ -22,14 +23,17 @@ export class DataSourceService implements DataSourceServiceInterface {
     ) { }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async beforeAppInit(): Promise<void> {
-        if (GlobalRegistry.dataSourceClasses.length) {
-            // eslint-disable-next-line stylistic/max-len
-            await this.logger.info(`initializes ${GlobalRegistry.dataSourceClasses.length} ${GlobalRegistry.dataSourceClasses.length > 1 ? 'data sources' : 'data source'}`);
+    async beforeAppInit(app: ZibriApplication): Promise<void> {
+        const { dataSources } = app.options;
+        if (dataSources.length) {
+            await this.logger.info(`initializes ${dataSources.length} ${dataSources.length > 1 ? 'data sources' : 'data source'}`);
         }
 
-        for (const dataSourceClass of GlobalRegistry.dataSourceClasses) {
+        for (const dataSourceClass of dataSources) {
             const dataSource: DataSourceInterface = inject(dataSourceClass);
+            if (!MetadataUtilities.getFilePath(dataSourceClass)) {
+                throw new Error(`The data source ${dataSourceClass.name} is not decorated with @DataSource.`);
+            }
             this.dataSources.push(dataSource);
             await this.logger.info(`  - ${dataSourceClass.name} (${dataSource.entities.length} entities)`);
             await dataSource.init();
@@ -37,6 +41,7 @@ export class DataSourceService implements DataSourceServiceInterface {
 
         validateEntitiesRegistered(
             this.constructor.name,
+            app,
             ...GlobalRegistry.entityClasses.filter(e => !(MetadataUtilities.getEntityMetadata(e)?.allowOrphan ?? false))
         );
     }

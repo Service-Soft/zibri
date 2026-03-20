@@ -6,7 +6,7 @@ import { MissingTokensError } from '../error-handling/errors/missing-tokens.erro
 /**
  * Validates that the tokens from the given record are registered and available for injection.
  * @param context - The name of the class where this function was called. Is needed to provide information about who expects the tokens to exist.
- * @param record
+ * @param record - The record to check.
  * @throws When one of the entities is not registered in a data source.
  */
 export function validateTokensRegistered(context: string, record: TokenRecord): void {
@@ -15,7 +15,7 @@ export function validateTokensRegistered(context: string, record: TokenRecord): 
         try {
             inject(token);
         }
-        catch (error) {
+        catch {
             missingTokens.push(token);
         }
     }

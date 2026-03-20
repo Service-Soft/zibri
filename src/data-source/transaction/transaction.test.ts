@@ -1,17 +1,16 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
-import { PostgreSqlContainer } from '@testcontainers/postgresql';
-import { StartedTestContainer } from 'testcontainers';
 
-import { POSTGRES_TEST_IMAGE } from '../../__testing__/constants';
-import { BaseEntity } from '../../entity/base-entity.model';
+import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
+import { inject } from '../../di/inject.function';
 import { Repository } from '../repository';
 import { Transaction } from './transaction.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { Newable } from '../../types/newable.type';
-import { PostgresDataSource, PostgresOptions } from '../data-sources/postgres-data-source.model';
-import { DataSource } from '../decorators/data-source.decorator';
-import { MigrationEntity } from '../migration/migration-entity.model';
+import { DataSourceInterface } from '../data-sources/data-source.interface';
+import { PostgresDataSource } from '../data-sources/postgres-data-source.model';
 
 @Entity()
 class Item {
@@ -22,36 +21,16 @@ class Item {
     value!: string;
 }
 
-@DataSource()
-class DbDataSource extends PostgresDataSource {
-    options: PostgresOptions = {
-        host: 'localhost',
-        username: 'postgres',
-        password: 'password',
-        database: 'db',
-        synchronize: true
-    };
-    entities: Newable<BaseEntity>[] = [MigrationEntity, Item];
-}
-
-let container: StartedTestContainer;
-let dataSource: DbDataSource;
+let server: StartedTestServer;
+let dataSource: DataSourceInterface;
 let repo: Repository<Item>;
 
 describe('transaction', () => {
     beforeAll(async () => {
-        container = await new PostgreSqlContainer(POSTGRES_TEST_IMAGE)
-            .withDatabase('db')
-            .withUsername('postgres')
-            .withPassword('password')
-            .start();
-        dataSource = new DbDataSource();
-        dataSource.options = {
-            ...dataSource.options,
-            port: container.getMappedPort(5432)
-        };
-        await dataSource.init();
-        repo = dataSource.getRepository(Item);
+        const dataSourceClass: Newable<PostgresDataSource> = createTestDataSource({ entities: [...defaultTestServerEntities, Item] });
+        server = await startTestServer({ dataSources: [dataSourceClass] });
+        dataSource = inject(dataSourceClass);
+        repo = inject(repositoryTokenFor(Item));
     }, 15000);
 
     it('should see changes inside transaction, but not outside until committed', async () => {
@@ -71,6 +50,6 @@ describe('transaction', () => {
     });
 
     afterAll(async () => {
-        await container?.stop();
+        await server.shutdown();
     });
 });

@@ -3,6 +3,7 @@ import { PaymentPluginOptionsInput } from './models/payment-plugin-options-input
 import { PaymentPluginOptions } from './models/payment-plugin-options.model';
 import { Payment } from './models/payment.model';
 import { DefaultPaymentProviderArray, ZIBRI_PAYMENT_PLUGIN_DI_TOKENS } from './payment.tokens';
+import { ZibriApplication } from '../../application';
 import { NoProviderError } from '../../di/errors/no-provider.error';
 import { inject } from '../../di/inject.function';
 import { DiProvider } from '../../di/models/di-provider.model';
@@ -10,7 +11,6 @@ import { DiTokenProviderRecord, providersFromTokenRecord } from '../../di/models
 import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function';
 import { ZibriPlugin } from '../plugin.model';
 import { PaymentService } from './services/payment.service';
-import { InjectionToken } from '../../di/models/injection-token.model';
 import { validateTokensRegistered } from '../../utilities/validate-tokens-registered.function';
 
 /**
@@ -44,8 +44,8 @@ export class ZibriPaymentPlugin extends ZibriPlugin {
     providers: DiProvider<unknown>[] = providersFromTokenRecord(ZIBRI_PAYMENT_PLUGIN_DI_TOKENS, this.defaultDiProviders);
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    validate(): void {
-        validateEntitiesRegistered(this.constructor.name, Payment);
+    validate(app: ZibriApplication): void {
+        validateEntitiesRegistered(this.constructor.name, app, Payment);
         validateTokensRegistered(this.constructor.name, ZIBRI_PAYMENT_PLUGIN_DI_TOKENS);
 
         const options: PaymentPluginOptions<PaymentMethod[], DefaultPaymentProviderArray> = inject(ZIBRI_PAYMENT_PLUGIN_DI_TOKENS.OPTIONS);
@@ -72,9 +72,4 @@ export class ZibriPaymentPlugin extends ZibriPlugin {
             );
         }
     }
-}
-
-// eslint-disable-next-line jsdoc/require-jsdoc
-function paymentToken<T = never>(k: `zi.payment.${string}`): InjectionToken<T> {
-    return new InjectionToken<T>(k);
 }

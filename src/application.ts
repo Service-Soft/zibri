@@ -9,6 +9,7 @@ import { isTwoFactorMethod } from './auth/2fa/methods/two-factor-method.interfac
 import { isAuthStrategy } from './auth/strategies/auth-strategy.interface';
 import { JwtAuthStrategy } from './auth/strategies/jwt/jwt.auth-strategy';
 import { CronJob } from './cron/cron-job.model';
+import { isDataSource } from './data-source/data-sources/data-source.interface';
 import { ZIBRI_DI_TOKENS } from './di/default/zibri-di-tokens.default';
 import { getAllRegisteredTokens } from './di/get-all-registered-tokens.function';
 import { inject } from './di/inject.function';
@@ -59,6 +60,8 @@ export class ZibriApplication {
         .disable('x-powered-by')
         .use(cors());
 
+    private readonly signalHandlers: Map<ShutdownSignal, () => void> = new Map<ShutdownSignal, () => void>();
+
     /**
      * The underlying http server.
      */
@@ -77,7 +80,9 @@ export class ZibriApplication {
         this.options = this.createFullOptions();
 
         for (const signal of SHUTDOWN_SIGNALS) {
-            process.on(signal, () => void this.shutdown(signal));
+            const handler: () => void = () => void this.shutdown(signal);
+            this.signalHandlers.set(signal, handler);
+            process.on(signal, handler);
         }
 
         GlobalRegistry.markAppAsCreated();
@@ -177,12 +182,18 @@ export class ZibriApplication {
                 // nothing has been initialized yet, can simply quit without handling shutdown hooks
                 await this.logger.info('shutting down...');
                 GlobalRegistry.markAppAsShuttingDown();
+                for (const [signal, handler] of this.signalHandlers) {
+                    process.off(signal, handler);
+                }
                 process.exit(0);
             }
             case AppState.INITIALIZED:
             case AppState.STARTED: {
                 await this.logger.info('shutting down...');
                 GlobalRegistry.markAppAsShuttingDown();
+                for (const [signal, handler] of this.signalHandlers) {
+                    process.off(signal, handler);
+                }
 
                 await this.shutdownHttpServer();
                 const injectables: unknown[] = getAllRegisteredTokens().map(t => inject(t));
@@ -278,6 +289,9 @@ export class ZibriApplication {
     }
 
     private async shutdownHttpServer(): Promise<void> {
+        if (!this.server.listening) {
+            return;
+        }
         return new Promise((resolve, reject) => {
             // eslint-disable-next-line promise/prefer-await-to-callbacks
             this.server.close(err => {
@@ -315,6 +329,12 @@ export class ZibriApplication {
                 throw new Error([
                     `Invalid class marked with @Injectable: ${element.constructor.name}`,
                     'Auth strategies should be registered by the auth service.'
+                ].join('\n'));
+            }
+            if (isDataSource(element) && !this.options.dataSources.find(ds => ds.name === element.constructor.name)) {
+                throw new Error([
+                    `Invalid class marked with @DataSource: ${element.constructor.name}`,
+                    'The data source has not been included in the application options.'
                 ].join('\n'));
             }
         }
