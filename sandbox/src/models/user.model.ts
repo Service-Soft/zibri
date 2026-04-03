@@ -6,6 +6,9 @@ import { OmitStrict } from '../types';
 
 @Entity()
 export class User extends BaseUserEntity(Roles) {
+    @Property.string()
+    name!: string;
+
     @Property.manyToOne({ target: () => Company, inverseSide: 'workers', required: false })
     company?: Company;
 }

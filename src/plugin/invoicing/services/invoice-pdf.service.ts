@@ -2,12 +2,13 @@ import { InvoiceConformanceServiceInterface, InvoiceConformance } from './confor
 import { type InvoiceCalcServiceInterface } from './invoice-calc-service.interface';
 import { InvoicePdfServiceInterface } from './invoice-pdf-service.interface';
 import { Inject } from '../../../di/decorators/inject.decorator';
+import { Injectable } from '../../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { PdfContentDefinition, PdfColumnDefinition, PdfDocument, PdfDocumentDefinition, PdfUtilities, PdfTableCellDefinition, PdfContentSize } from '../../../document/pdf.utilities';
 import { type FormatDateFn } from '../../../localization/formatting/format-date-fn.model';
 import { type FormatPercentFn } from '../../../localization/formatting/format-percent-fn.model';
 import { type FormatPriceFn } from '../../../localization/formatting/format-price-fn.model';
-import { ZIBRI_INVOICING_DI_TOKENS } from '../invoicing.tokens';
+import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../invoicing.tokens';
 import { Invoice } from '../models/invoice.model';
 import { type InvoicingOptions } from '../models/invoicing-options.model';
 import { Vat } from '../models/vat.model';
@@ -15,6 +16,7 @@ import { Vat } from '../models/vat.model';
 /**
  * Default implementation of the invoice pdf service.
  */
+@Injectable({ register: 'onUse' })
 export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
     /**
      * The definition of the header of the pdf.
@@ -30,11 +32,11 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
     protected readonly companyLetterheadColumn: PdfColumnDefinition;
 
     constructor(
-        @Inject(ZIBRI_INVOICING_DI_TOKENS.OPTIONS)
+        @Inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.OPTIONS)
         protected readonly options: InvoicingOptions,
-        @Inject(ZIBRI_INVOICING_DI_TOKENS.INVOICE_CALC_SERVICE)
+        @Inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.INVOICE_CALC_SERVICE)
         private readonly invoiceCalcService: InvoiceCalcServiceInterface<Invoice>,
-        @Inject(ZIBRI_INVOICING_DI_TOKENS.INVOICE_CONFORMANCE_SERVICES)
+        @Inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.INVOICE_CONFORMANCE_SERVICES)
         private readonly invoiceConformanceServices: InvoiceConformanceServiceInterface<Invoice>[],
         @Inject(ZIBRI_DI_TOKENS.FORMAT_DATE)
         private readonly formatDate: FormatDateFn,

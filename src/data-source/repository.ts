@@ -84,7 +84,6 @@ export class Repository<
                     }
                     case Relation.MANY_TO_MANY:
                     case Relation.ONE_TO_MANY: {
-                        // TODO
                         await this.setDefaultValuesForArray(data[key as keyof Data] as unknown[], {
                             ...property,
                             type: 'array',

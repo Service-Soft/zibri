@@ -7,10 +7,6 @@ import { BaseUser } from '../../models/base-user.model';
  */
 export interface TwoFactorMethod<TwoFactorRequestRegisterData, TwoFactorConfirmRegisterData> {
     /**
-     * Initializes the two factor method.
-     */
-    init: () => void,
-    /**
      * Requests to register the two factor method for the given user.
      */
     requestRegisterForUser: <Role extends string, UserType extends BaseUser<Role>>(
@@ -35,4 +31,27 @@ export interface TwoFactorMethod<TwoFactorRequestRegisterData, TwoFactorConfirmR
         user: UserType,
         request: HttpRequest | WebsocketRequest
     ) => void | Promise<void>
+}
+
+/**
+ * Checks whether or not the given value is a two factor method.
+ * @param value - The value to check.
+ * @returns True if all keys of the TwoFactorMethod interface are present, false otherwise.
+ */
+export function isTwoFactorMethod(value: unknown): value is TwoFactorMethod<unknown, unknown> {
+    if (value == undefined) {
+        return false;
+    }
+    if (typeof value !== 'object') {
+        return false;
+    }
+
+    const keys: (keyof TwoFactorMethod<unknown, unknown>)[] = [
+        'requestRegisterForUser',
+        'confirmRegisterForUser',
+        'unregisterForUser',
+        'validate'
+    ];
+
+    return !keys.find(key => !(key in value));
 }

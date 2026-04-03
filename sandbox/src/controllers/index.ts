@@ -6,4 +6,3 @@ export * from './metrics.controller';
 export * from './test-crud.controller';
 export * from './test.websocket-controller';
 export * from './page.controller';
-export * from './mailing-list.controller';

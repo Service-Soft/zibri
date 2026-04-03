@@ -2,7 +2,7 @@ import { AstProgram } from './ast.model';
 import { HandlebarUtilities } from './handlebar.utilities';
 import { resolveAllArrayKeys } from './resolve-all-array-keys.function';
 import { resolveTree } from './resolve-tree.function';
-import { FsUtilities, Path } from '../utilities/fs.utilities';
+import { FsUtilities, FsPath } from '../utilities/fs.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
@@ -10,11 +10,14 @@ export type PathTree = {
     [key: string]: PathTree
 };
 
+const defaultGlobs: string[] = ['src/templates/**/*.hbs'];
+
 /**
- * Generate type files for handlebar files (.hbs), so that they expose a correctly typed "renderTemplate" function.
+ * Generate type files for handlebar files, so that they expose a correctly typed "renderTemplate" function.
+ * @param glob - The glob(s) to find your handlebar files from.
  */
-export async function generateHandlebarTypeFiles(): Promise<void> {
-    const templateFiles: Path[] = await FsUtilities.glob('src/templates/**/*.hbs');
+export async function generateHandlebarTypeFiles(glob: string | string[] = defaultGlobs): Promise<void> {
+    const templateFiles: FsPath[] = await FsUtilities.glob(glob);
 
     for (const file of templateFiles) {
         if (await canBeSkipped(file)) {
@@ -34,7 +37,7 @@ export async function generateHandlebarTypeFiles(): Promise<void> {
 }
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-export async function generateHandlebarType(ast: AstProgram, file: Path): Promise<string[]> {
+export async function generateHandlebarType(ast: AstProgram, file: FsPath): Promise<string[]> {
     const arrayKeys: string[] = [...new Set(resolveAllArrayKeys(ast, undefined))];
     const tree: PathTree = resolveTree(ast, arrayKeys);
     const arrayKeysWithoutThis: string[] = arrayKeys.map(k => k.replaceAll('this.', ''));
@@ -42,7 +45,7 @@ export async function generateHandlebarType(ast: AstProgram, file: Path): Promis
 }
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-async function generateTypeFile(tree: PathTree, arrayKeys: string[], file: Path): Promise<string[]> {
+async function generateTypeFile(tree: PathTree, arrayKeys: string[], file: FsPath): Promise<string[]> {
     const typeLines: string[] = generateInterfaceLines(tree, arrayKeys);
     const type: string[] = typeLines.length
         ? [
@@ -64,7 +67,7 @@ async function generateTypeFile(tree: PathTree, arrayKeys: string[], file: Path)
         .join('\n')
         .replace('mailingListData:', 'mailingListData?:');
 
-    const outFile: Path = FsUtilities.getPath(FsUtilities.dirName(file), `${FsUtilities.baseName(file)}.ts`);
+    const outFile: FsPath = FsUtilities.getPath(FsUtilities.dirName(file), `${FsUtilities.baseName(file)}.ts`);
     await FsUtilities.upsertFile(outFile, content);
 
     return content.split('\n');
@@ -105,8 +108,8 @@ function generateInterfaceLines(
 }
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-async function canBeSkipped(hbsFile: Path): Promise<boolean> {
-    const tsFile: Path = FsUtilities.getPath(`${hbsFile}.ts`);
+async function canBeSkipped(hbsFile: FsPath): Promise<boolean> {
+    const tsFile: FsPath = FsUtilities.getPath(`${hbsFile}.ts`);
 
     if (!await FsUtilities.exists(tsFile)) {
         return false;

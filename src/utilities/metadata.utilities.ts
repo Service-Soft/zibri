@@ -15,8 +15,9 @@ import { BaseEntity } from '../entity/base-entity.model';
 import { EntityMetadata } from '../entity/decorators/entity.decorator';
 import { PropertyMetadata } from '../entity/decorators/property.decorator';
 import { OpenApiResponse } from '../open-api/open-api.model';
-import { ControllerRouteConfiguration, Route } from '../routing/controller-route-configuration.model';
+import { ControllerRouteConfiguration } from '../routing/controller-route-configuration.model';
 import { BodyMetadata } from '../routing/decorators/body.decorator';
+import { ControllerData } from '../routing/decorators/controller.decorator';
 import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from '../routing/decorators/param.decorator';
 import { Newable } from '../types/newable.type';
 import { CurrentWebsocketConnectionMetadata } from '../websocket/decorators/current-websocket-connection.decorator';
@@ -111,7 +112,14 @@ export abstract class MetadataUtilities {
     }
 
     static getInjectParamTokens(target: Object): Record<number, DiToken<unknown>> {
-        return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.DI_INJECT_PARAM_TOKENS, target) ?? {};
+        const ownInjectParamTokens: unknown = ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.DI_INJECT_PARAM_TOKENS, target);
+        if (ownInjectParamTokens != undefined) {
+            return ownInjectParamTokens as Record<number, DiToken<unknown>>;
+        }
+        return MetadataUtilities.ensureInheritedReflectMetadata<Record<number, DiToken<unknown>>>(
+            MetadataInjectionKeys.DI_INJECT_PARAM_TOKENS,
+            target as Function
+        ) ?? {};
     }
 
     // ---------- controller routes ----------
@@ -137,12 +145,12 @@ export abstract class MetadataUtilities {
     }
 
     // ---------- controller base route ----------
-    static setControllerBaseRoute(controller: Function, baseRoute: Route): void {
-        ReflectUtilities.setMetadata(MetadataInjectionKeys.CONTROLLER_BASE_ROUTE, baseRoute, controller);
+    static setControllerData(controller: Function, data: ControllerData): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.CONTROLLER_DATA, data, controller);
     }
 
-    static getControllerBaseRoute(controller: Function): Route | undefined {
-        return ReflectUtilities.getMetadata(MetadataInjectionKeys.CONTROLLER_BASE_ROUTE, controller);
+    static getControllerData(controller: Function): ControllerData | undefined {
+        return ReflectUtilities.getMetadata(MetadataInjectionKeys.CONTROLLER_DATA, controller);
     }
 
     // ---------- route params / body / current user (method-level, inherit) ----------
@@ -410,6 +418,9 @@ export abstract class MetadataUtilities {
 
     // ---------- parent constructor helper ----------
     private static getParentConstructor<T extends Function>(ctor: T): Newable<unknown> | undefined {
+        if (ctor.prototype == undefined) {
+            return undefined;
+        }
         const proto: unknown = Object.getPrototypeOf(ctor.prototype);
         if (proto == undefined || proto === Object.prototype) {
             return undefined;
@@ -481,12 +492,12 @@ export abstract class MetadataUtilities {
     }
 
     // websocket controller
-    static setWebsocketController(controller: Function, data: WebsocketControllerData): void {
-        ReflectUtilities.setMetadata(MetadataInjectionKeys.WEBSOCKET_CONTROLLER, data, controller);
+    static setWebsocketControllerData(controller: Function, data: WebsocketControllerData): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.WEBSOCKET_CONTROLLER_DATA, data, controller);
     }
 
-    static getWebsocketController(controller: Function): WebsocketControllerData | undefined {
-        return ReflectUtilities.getMetadata(MetadataInjectionKeys.WEBSOCKET_CONTROLLER, controller);
+    static getWebsocketControllerData(controller: Function): WebsocketControllerData | undefined {
+        return ReflectUtilities.getMetadata(MetadataInjectionKeys.WEBSOCKET_CONTROLLER_DATA, controller);
     }
 
     // websocket routes

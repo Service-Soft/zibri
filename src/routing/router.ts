@@ -2,7 +2,7 @@ import { Readable } from 'stream';
 
 import { NextFunction, RequestHandler, Router as ExpressRouter } from 'express';
 
-import { Route, ControllerRouteConfiguration } from './controller-route-configuration.model';
+import { ControllerRouteConfiguration } from './controller-route-configuration.model';
 import { BodyMetadata, BodyMetadataInput, resolveMaxBodySize } from './decorators/body.decorator';
 import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata, PathParamMetadataInput, QueryParamMetadataInput, HeaderParamMetadataInput } from './decorators/param.decorator';
 import { MissingBaseRouteError } from './missing-base-route.error';
@@ -12,36 +12,36 @@ import { ZibriApplication } from '../application';
 import { runWithRequest } from './request.context';
 import { resolveRouteParams } from './resolve-route-params.function';
 import { OpenApiRouteConfiguration, RouteConfiguration, RouteConfigurationInput } from './route-configuration.model';
-import { AuthServiceInterface } from '../auth/auth-service.interface';
-import { JwtAuthController } from '../auth/strategies/jwt/jwt-auth.controller';
+import type { AuthServiceInterface } from '../auth/auth-service.interface';
+import { Inject } from '../di/decorators/inject.decorator';
+import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { GlobalRegistry } from '../global/global-registry';
+import { OnAppInit } from '../global/on-app-init.interface';
+import { OnAppStart } from '../global/on-app-start.interface';
 import { HttpMethod } from '../http/http-method.enum';
 import { HttpRequest } from '../http/http-request.model';
 import { HttpResponse } from '../http/http-response.model';
 import { KnownHeader } from '../http/known-header.enum';
 import { MimeType } from '../http/mime-type.enum';
-import { LoggerInterface } from '../logging/logger.interface';
+import { type LoggerInterface } from '../logging/logger.interface';
 import { OpenApiResponse } from '../open-api/open-api.model';
 import { FileResponse } from '../parsing/form-data/file-response.model';
 import { HtmlResponse } from '../parsing/html/html-response.model';
-import { ParserInterface } from '../parsing/parser.interface';
+import type { ParserInterface } from '../parsing/parser.interface';
 import { Newable } from '../types/newable.type';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { Ms } from '../utilities/ms';
-import { ValidationServiceInterface } from '../validation/validation-service.interface';
+import type { ValidationServiceInterface } from '../validation/validation-service.interface';
+import { ControllerData } from './decorators/controller.decorator';
 
 /**
  * Default router implementation of Zibri.
  */
-export class Router implements RouterInterface {
+@Injectable({ register: 'onUse' })
+export class Router implements RouterInterface, OnAppInit, OnAppStart {
     private readonly expressRouter: ExpressRouter = ExpressRouter();
-    private readonly logger: LoggerInterface;
-    private readonly parser: ParserInterface;
-    private readonly validationService: ValidationServiceInterface;
-    private readonly authService: AuthServiceInterface;
-    private readonly allowedOrphans: Newable<unknown>[] = [JwtAuthController];
     private readonly allBaseRoutes: string[] = [];
     private readonly allFinalRoutes: string[] = [];
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -52,15 +52,19 @@ export class Router implements RouterInterface {
         Record<string, HeaderParamMetadata>
     >[] = [];
 
-    constructor() {
-        this.logger = inject(ZIBRI_DI_TOKENS.LOGGER);
-        this.parser = inject(ZIBRI_DI_TOKENS.PARSER);
-        this.validationService = inject(ZIBRI_DI_TOKENS.VALIDATION_SERVICE);
-        this.authService = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
-    }
+    constructor(
+        @Inject(ZIBRI_DI_TOKENS.LOGGER)
+        private readonly logger: LoggerInterface,
+        @Inject(ZIBRI_DI_TOKENS.PARSER)
+        private readonly parser: ParserInterface,
+        @Inject(ZIBRI_DI_TOKENS.VALIDATION_SERVICE)
+        private readonly validationService: ValidationServiceInterface,
+        @Inject(ZIBRI_DI_TOKENS.AUTH_SERVICE)
+        private readonly authService: AuthServiceInterface
+    ) {}
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async init(app: ZibriApplication): Promise<void> {
+    async onAppInit(app: ZibriApplication): Promise<void> {
         await this.logger.info(`registers ${app.options.controllers.length} controllers:`);
         for (const controller of app.options.controllers) {
             const routes: ControllerRouteConfiguration[] = MetadataUtilities.getControllerRoutes(controller);
@@ -71,14 +75,14 @@ export class Router implements RouterInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    attachTo(app: ZibriApplication): void {
+    onAppStart(app: ZibriApplication): void {
         app.use(this.expressRouter);
         app.use((req, _res, next) => runWithRequest(req as HttpRequest, () => next()));
     }
 
     private checkForOrphanedControllers(controllers: Newable<unknown>[]): void {
         const orphanedControllers: Newable<unknown>[] = GlobalRegistry.controllerClasses.filter(c => {
-            return !controllers.includes(c) && !this.allowedOrphans.includes(c);
+            return !controllers.includes(c) && !(MetadataUtilities.getControllerData(c)?.allowOrphan ?? false);
         });
         if (orphanedControllers.length) {
             const message: string[] = ['Error initializing router.', 'Found orphaned controllers:'];
@@ -91,7 +95,7 @@ export class Router implements RouterInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async register<
+    async registerRoute<
         // eslint-disable-next-line jsdoc/require-jsdoc
         BodyMetaInputObject extends BodyMetadataInput & { modelClass: Newable<unknown> },
         PathMetaInputObject extends Record<string, PathParamMetadataInput>,
@@ -190,19 +194,19 @@ export class Router implements RouterInterface {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async registerController(controllerClass: Newable<unknown>): Promise<void> {
-        const baseRoute: Route | undefined = MetadataUtilities.getControllerBaseRoute(controllerClass);
-        if (baseRoute == undefined) {
+        const controllerData: ControllerData | undefined = MetadataUtilities.getControllerData(controllerClass);
+        if (controllerData == undefined) {
             throw new MissingBaseRouteError(controllerClass);
         }
-        if (this.allBaseRoutes.includes(baseRoute)) {
-            throw new Error(`The base route "${baseRoute}" has been defined on more than one controller.`);
+        if (this.allBaseRoutes.includes(controllerData.baseRoute)) {
+            throw new Error(`The base route "${controllerData.baseRoute}" has been defined on more than one controller.`);
         }
-        this.allBaseRoutes.push(baseRoute);
+        this.allBaseRoutes.push(controllerData.baseRoute);
         const routes: ControllerRouteConfiguration[] = MetadataUtilities.getControllerRoutes(controllerClass);
 
         for (const route of routes) {
             const handler: RequestHandler = await this.controllerRouteToRequestHandler(controllerClass, route);
-            const finalRoute: string = baseRoute === '/' ? route.route : `${baseRoute}${route.route}`;
+            const finalRoute: string = controllerData.baseRoute === '/' ? route.route : `${controllerData.baseRoute}${route.route}`;
             if (this.allFinalRoutes.includes(`${route.httpMethod.toUpperCase()} ${finalRoute}`)) {
                 throw new Error(
                     `The route "${route.httpMethod.toUpperCase()} ${finalRoute}" has been defined more than once.`,

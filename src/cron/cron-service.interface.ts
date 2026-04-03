@@ -1,6 +1,5 @@
 import { CronJob } from './cron-job.model';
 import { CronUpdateData } from './cron.service';
-import { Newable } from '../types/newable.type';
 
 /**
  * Interface for a cron service.
@@ -10,10 +9,6 @@ export interface CronServiceInterface {
      * The cron jobs that are registered.
      */
     readonly cronJobs: CronJob[],
-    /**
-     * Initializes all cron jobs.
-     */
-    init: (cronJobs: Newable<CronJob>[]) => Promise<void>,
     /**
      * Schedules the given cron job.
      */

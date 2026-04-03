@@ -1,12 +1,12 @@
 import { AssetServiceInterface } from '../../assets/asset-service.interface';
 import { TwoFactorServiceInterface } from '../../auth/2fa/two-factor-service.interface';
 import { AuthServiceInterface } from '../../auth/auth-service.interface';
+import { PasswordResetEmailTemplate } from '../../auth/strategies/jwt/jwt-auth.controller';
 import { UserServiceInterface } from '../../auth/user/user-service.interface';
 import { BackupServiceInterface } from '../../backup/backup-service.interface';
 import { CronServiceInterface } from '../../cron/cron-service.interface';
 import { DataSourceServiceInterface } from '../../data-source/data-source-service.interface';
 import { EmailServiceInterface } from '../../email/email-service.interface';
-import { MailingListServiceInterface } from '../../email/mailing-list/mailing-list-service.interface';
 import { EmailConfigInput } from '../../email/models/email-config.model';
 import { GlobalErrorHandler, ErrorPageTemplate } from '../../error-handling/error-handler.model';
 import { HttpRequest } from '../../http/http-request.model';
@@ -24,7 +24,7 @@ import { MultithreadingServiceInterface } from '../../multithreading/services/mu
 import { OpenApiServiceInterface } from '../../open-api/open-api-service.interface';
 import { ParserInterface } from '../../parsing/parser.interface';
 import { RouterInterface } from '../../routing/router.interface';
-import { Path } from '../../utilities/fs.utilities';
+import { FsPath } from '../../utilities/fs.utilities';
 import { ValidationServiceInterface } from '../../validation/validation-service.interface';
 import { WebsocketOptions } from '../../websocket/models/websocket-options.model';
 import { WebsocketServiceInterface } from '../../websocket/services/websocket-service.interface';
@@ -64,12 +64,11 @@ export const ZIBRI_DI_TOKENS = {
     JWT_REFRESH_TOKEN_EXPIRES_IN_MS: ziToken<number>('zi.jwt_refresh_token_expires_in_ms'),
     JWT_PASSWORD_RESET_TOKEN_EXPIRES_IN_MS: ziToken<number>('zi.jwt_password_reset_token_expires_in_ms'),
     JWT_CONFIRM_PASSWORD_RESET_URL: ziToken<string | undefined>('zi.jwt_confirm_password_reset_url'),
-    MAILING_LIST_SUBSCRIPTION_CONFIRMATION_TOKEN_EXPIRES_IN_MS: ziToken<number>(
-        'zi.mailing_list_subscription_confirmation_token_expires_in_ms'
-    ),
+    // eslint-disable-next-line typescript/no-explicit-any
+    JWT_PASSWORD_RESET_EMAIL_TEMPLATE: ziToken<PasswordResetEmailTemplate<any, any> | undefined>('zi.jwt_password_reset_email_template'),
     USER_SERVICE: ziToken<UserServiceInterface>('zi.user_service'),
     CRON_SERVICE: ziToken<CronServiceInterface>('zi.cron_service'),
-    FILE_UPLOAD_TEMP_FOLDER: ziToken<Path>('zi.file_upload_temp_folder'),
+    FILE_UPLOAD_TEMP_FOLDER: ziToken<FsPath>('zi.file_upload_temp_folder'),
     LOCALIZE_OPTIONS_INPUT: ziToken<LocalizeOptionsInput>('zi.localize_options_input'),
     LOCALIZE_OPTIONS: ziToken<LocalizeOptions>('zi.localize_options'),
     FORMAT_DATE: ziToken<FormatDateFn>('zi.format_date'),
@@ -77,8 +76,7 @@ export const ZIBRI_DI_TOKENS = {
     FORMAT_PERCENT: ziToken<FormatPercentFn>('zi.format_percent'),
     EMAIL_SERVICE: ziToken<EmailServiceInterface>('zi.email_service'),
     EMAIL_CONFIG: ziToken<EmailConfigInput | undefined>('zi.email_config'),
-    MAILING_LIST_SERVICE: ziToken<MailingListServiceInterface | undefined>('zi.mailing_list_service'),
-    CURRENT_REQUEST: ziToken<HttpRequest>('zi.current_request'),
+    CURRENT_REQUEST: ziToken<HttpRequest | undefined>('zi.current_request'),
     MULTITHREADING_SERVICE: ziToken<MultithreadingServiceInterface>('zi.multithreading_service'),
     MULTITHREADING_OPTIONS: ziToken<MultithreadingOptions>('zi.multithreading_options'),
     // eslint-disable-next-line typescript/no-explicit-any

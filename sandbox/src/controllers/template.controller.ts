@@ -1,25 +1,8 @@
-import { Controller, errorToLoggedError, FormatDateFn, Get, GlobalRegistry, HtmlResponse, HttpMethod, inject, Log, LogLevel, Param, PreactUtilities, Response, UUIDUtilities, ZIBRI_DI_TOKENS } from 'zibri';
+import { Controller, errorToLoggedError, Get, HtmlResponse, HttpMethod, Log, LogLevel, Param, PreactUtilities, Response, UUIDUtilities } from 'zibri';
 
-import renderBaseEmail from '../templates/emails/base-email.hbs';
-import renderLog from '../templates/emails/log.hbs';
-import renderPasswordResetTemplate from '../templates/emails/password-reset.hbs';
+import { LogEmail } from '../templates/emails/log';
+import { PasswordResetEmail } from '../templates/emails/password-reset';
 import { SocketIoTestPage } from '../templates/pages/socket-io-test';
-
-const logLevelLabels: Record<LogLevel, string> = {
-    [LogLevel.DEBUG]: 'Debug Log',
-    [LogLevel.INFO]: 'Info Log',
-    [LogLevel.WARN]: 'Warning',
-    [LogLevel.ERROR]: 'Error',
-    [LogLevel.CRITICAL]: 'Critical Error'
-};
-
-const bgColorForLogLevel: Record<LogLevel, string> = {
-    [LogLevel.DEBUG]: '#00b4d8',
-    [LogLevel.INFO]: '#00b4d8',
-    [LogLevel.WARN]: '#edff4aff',
-    [LogLevel.ERROR]: '#ff5959ff',
-    [LogLevel.CRITICAL]: '#cc6cffff'
-};
 
 @Controller('/templates')
 export class TemplateController {
@@ -33,27 +16,18 @@ export class TemplateController {
     @Response.html()
     @Get('/password-reset-mail')
     getMailTemplate(): HtmlResponse {
-        const content: string = renderPasswordResetTemplate({
-            confirmPasswordResetUrl: 'http://localhost:4200/confirm-password-reset',
-            resetToken: 'test-token',
-            user: { name: 'Max Mustermann' }
-        });
-        const html: string = renderBaseEmail({
-            content,
-            base: {
-                title: 'Password Reset',
-                baseUrl: 'http://localhost:3000',
-                mailingListData: {
-                    mailingList: {
-                        id: '42'
-                    },
-                    mailingListBaseRoute: 'mailing-lists',
-                    subscriber: {
-                        id: '43'
-                    }
+        const html: string = PreactUtilities.renderEmail(
+            PasswordResetEmail,
+            {
+                confirmPasswordResetLink: 'http://localhost:4200/confirm-password-reset/test-token',
+                user: {
+                    id: '42',
+                    email: 'admin@test.com',
+                    name: 'root',
+                    roles: []
                 }
             }
-        });
+        );
         return HtmlResponse.fromString(html);
     }
 
@@ -63,8 +37,6 @@ export class TemplateController {
         @Param.query('level', { type: 'number', min: LogLevel.DEBUG, max: LogLevel.CRITICAL })
         logLevel: LogLevel
     ): HtmlResponse {
-        const formatDate: FormatDateFn = inject(ZIBRI_DI_TOKENS.FORMAT_DATE);
-
         // eslint-disable-next-line unicorn/error-message
         const line: string = (new Error().stack ?? '').split('\n')[1];
         const matches: RegExpMatchArray | null = line.match(/\((.*):\d+:\d+\)/);
@@ -81,26 +53,13 @@ export class TemplateController {
                 request: {
                     method: HttpMethod.GET,
                     url: 'http://localhost:3000/templates/log',
-                    clientIp: '192.168.237.42',
+                    clientIp: '123.456.789.10',
                     userAgent: 'Mozilla/Firefox'
                 }
             }
         };
-        const content: string = renderLog({
-            // eslint-disable-next-line typescript/no-unsafe-assignment, typescript/no-explicit-any
-            log: log as any,
-            levelName: logLevelLabels[log.level],
-            appName: GlobalRegistry.getAppData('name') ?? '',
-            boxBgColor: bgColorForLogLevel[log.level],
-            createdAtString: formatDate(log.createdAt, true)
-        });
-        const html: string = renderBaseEmail({
-            content,
-            base: {
-                title: 'New log event',
-                baseUrl: 'http://localhost:3000'
-            }
-        });
-        return HtmlResponse.fromString(html);
+
+        const preactHtml: string = PreactUtilities.renderEmail(LogEmail, { log });
+        return HtmlResponse.fromString(preactHtml);
     }
 }

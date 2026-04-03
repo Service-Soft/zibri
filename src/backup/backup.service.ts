@@ -1,17 +1,20 @@
 import { Readable } from 'node:stream';
 
-import { BehaviorSubject } from 'rxjs';
+import { BehaviorSubject, first, firstValueFrom } from 'rxjs';
 
 import { BackupEntity, BackupEntityCreateData } from './backup-entity.model';
 import { BackupResourceEntity, BackupResourceEntityCreateData } from './backup-resource-entity.model';
 import { BackupResourceInterface } from './backup-resource.interface';
 import { BackupCreateData, BackupServiceInterface } from './backup-service.interface';
+import { ZibriApplication } from '../application';
 import { PostgresDataSource } from '../data-source/data-sources/postgres-data-source.model';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
+import { Inject } from '../di/decorators/inject.decorator';
+import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { GlobalRegistry } from '../global/global-registry';
-import { LoggerInterface } from '../logging/logger.interface';
+import { type LoggerInterface } from '../logging/logger.interface';
 import { Newable } from '../types/newable.type';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { PromiseUtilities } from '../utilities/promise.utilities';
@@ -19,12 +22,15 @@ import { validateEntitiesRegistered } from '../utilities/validate-entities-regis
 import { BackupResourceMetadata } from './decorators/backup-resource-metadata.model';
 import { BackupTransportInterface } from './transports/backup-transport.interface';
 import { Repository } from '../data-source/repository';
+import { OnAppInit } from '../global/on-app-init.interface';
+import { OnAppShutdown } from '../global/on-app-shutdown.interface';
+import { Ms } from '../utilities/ms';
 
 /**
  * Default implementation of the backup service.
  */
-export class BackupService implements BackupServiceInterface {
-    private readonly logger: LoggerInterface;
+@Injectable({ register: 'onUse' })
+export class BackupService implements BackupServiceInterface, OnAppInit, OnAppShutdown {
     private readonly backupResources: Newable<BackupResourceInterface>[] = [];
 
     private get backupRepository(): Repository<BackupEntity, BackupEntityCreateData> {
@@ -37,16 +43,20 @@ export class BackupService implements BackupServiceInterface {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly isRestoringBackup: BehaviorSubject<boolean> = new BehaviorSubject(false);
 
-    constructor() {
-        this.logger = inject(ZIBRI_DI_TOKENS.LOGGER);
-    }
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly shutdownTimeoutInMs: number = Ms.MINUTE * 15;
+
+    constructor(
+        @Inject(ZIBRI_DI_TOKENS.LOGGER)
+        private readonly logger: LoggerInterface
+    ) {}
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async init(): Promise<void> {
+    async onAppInit(app: ZibriApplication): Promise<void> {
         if (GlobalRegistry.backupResources.length) {
             // eslint-disable-next-line stylistic/max-len
             await this.logger.info(`configures ${GlobalRegistry.backupResources.length} ${GlobalRegistry.backupResources.length > 1 ? 'resources' : 'resource'} to be backed up:`);
-            validateEntitiesRegistered(BackupService.name, BackupResourceEntity, BackupEntity);
+            validateEntitiesRegistered(BackupService.name, app, BackupResourceEntity, BackupEntity);
         }
 
         for (const resourceClass of GlobalRegistry.backupResources) {
@@ -65,6 +75,14 @@ export class BackupService implements BackupServiceInterface {
         }
 
         await this.syncBackupEntities();
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async onAppShutdown(): Promise<void> {
+        await Promise.all([
+            firstValueFrom(this.isCreatingBackup.pipe(first(v => !v))),
+            firstValueFrom(this.isRestoringBackup.pipe(first(v => !v)))
+        ]);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -254,6 +272,6 @@ export class BackupService implements BackupServiceInterface {
             }
         }
 
-        throw new Error('Could not resolve data for');
+        throw new Error(`Could not resolve backup data for resource "${resource.name}".`);
     }
 }

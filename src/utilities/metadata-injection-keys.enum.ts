@@ -3,11 +3,12 @@
  */
 export enum MetadataInjectionKeys {
     FILE_LOCATION = 'file:location',
-    PARAM_TYPES = 'design:param_types',
+    // eslint-disable-next-line cspell/spellchecker
+    PARAM_TYPES = 'design:paramtypes',
     DI_TOKEN = 'di:token',
     DI_INJECT_PARAM_TOKENS = 'di:inject_param_tokens',
     DI_INJECT_PARAM_OPTIONS = 'di:inject_param_options',
-    CONTROLLER_BASE_ROUTE = 'controller:base_route',
+    CONTROLLER_DATA = 'controller:data',
     CONTROLLER_ROUTES = 'controller:routes',
     CONTROLLER_IS_LOGGED_IN = 'controller:is_logged_in',
     CONTROLLER_SKIP_IS_LOGGED_IN = 'controller:skip_is_logged_in',
@@ -40,7 +41,7 @@ export enum MetadataInjectionKeys {
     MODEL_RELATIONS = 'model:relations',
     ENTITY_METADATA = 'entity:metadata',
     BACKUP_RESOURCE_METADATA = 'backup_resource:metadata',
-    WEBSOCKET_CONTROLLER = 'websocket_controller',
+    WEBSOCKET_CONTROLLER_DATA = 'websocket_controller:data',
     WEBSOCKET_CONTROLLER_ROUTES = 'websocket_controller:routes',
     ROUTE_CURRENT_WEBSOCKET_CONNECTION = 'route:current_websocket_connection'
 }

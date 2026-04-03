@@ -2,7 +2,7 @@ import { Inject } from '../../../../../di/decorators/inject.decorator';
 import { PdfDocumentDefinition, PdfAttachmentDefinition, PdfDocument } from '../../../../../document/pdf.utilities';
 import { XML, XmlUtilities } from '../../../../../document/xml.utilities';
 import { MimeType } from '../../../../../http/mime-type.enum';
-import { ZIBRI_INVOICING_DI_TOKENS } from '../../../invoicing.tokens';
+import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../../../invoicing.tokens';
 import { InvoiceItem } from '../../../models/invoice-item.model';
 import { Invoice } from '../../../models/invoice.model';
 import { type InvoicingOptions } from '../../../models/invoicing-options.model';
@@ -26,9 +26,9 @@ export abstract class EN16931ConformanceService implements InvoiceConformanceSer
     abstract readonly documentContextId: EN16931DocumentContextId;
 
     constructor(
-        @Inject(ZIBRI_INVOICING_DI_TOKENS.OPTIONS)
+        @Inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.OPTIONS)
         protected readonly options: InvoicingOptions,
-        @Inject(ZIBRI_INVOICING_DI_TOKENS.INVOICE_CALC_SERVICE)
+        @Inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.INVOICE_CALC_SERVICE)
         private readonly invoiceCalcService: InvoiceCalcServiceInterface<Invoice>
     ) {}
 

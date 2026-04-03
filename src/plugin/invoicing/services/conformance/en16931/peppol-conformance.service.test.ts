@@ -1,22 +1,23 @@
 import { afterAll, beforeAll, describe, it } from '@jest/globals';
-import { PostgreSqlContainer } from '@testcontainers/postgresql';
-import { StartedTestContainer } from 'testcontainers';
 
 import { PeppolConformanceService } from './peppol-conformance.service';
-import { POSTGRES_TEST_IMAGE, testFileFolder } from '../../../../../__testing__/constants';
-import { PostgresDataSource, PostgresOptions } from '../../../../../data-source/data-sources/postgres-data-source.model';
-import { DataSource } from '../../../../../data-source/decorators/data-source.decorator';
-import { MigrationEntity } from '../../../../../data-source/migration/migration-entity.model';
+import { testFileFolder } from '../../../../../__testing__/constants';
+import { createTestDataSource, defaultTestServerEntities } from '../../../../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerProviders } from '../../../../../__testing__/test-server/providers';
+import { StartedTestServer, startTestServer } from '../../../../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../../../../data-source/repository';
+import { repositoryTokenFor } from '../../../../../di/decorators/inject-repository.decorator';
+import { inject } from '../../../../../di/inject.function';
+import { defineProvider } from '../../../../../di/models/di-provider.model';
 import { XML } from '../../../../../document/xml.utilities';
-import { BaseEntity } from '../../../../../entity/base-entity.model';
-import { Newable } from '../../../../../types/newable.type';
 import { OmitStrict } from '../../../../../types/omit-strict.type';
 import { FsUtilities } from '../../../../../utilities/fs.utilities';
 import { Ms } from '../../../../../utilities/ms';
+import { ZibriInvoicingPlugin } from '../../../invoicing.plugin';
+import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../../../invoicing.tokens';
 import { Invoice } from '../../../models/invoice.model';
 import { InvoicingOptions } from '../../../models/invoicing-options.model';
-import { InvoiceCalcService } from '../../invoice-calc.service';
+import { NumberInvoices } from '../../../models/number-invoices.model';
 
 const invoicingOptions: InvoicingOptions = {
     footerFontSize: 10,
@@ -72,44 +73,28 @@ const invoicingOptions: InvoicingOptions = {
     taxOffice: 'Tax Office Example City'
 };
 
-const invoiceCalcService: InvoiceCalcService = new InvoiceCalcService();
-const conformanceService: PeppolConformanceService = new PeppolConformanceService(invoicingOptions, invoiceCalcService);
+let conformanceService: PeppolConformanceService;
 
-@DataSource()
-class DbDataSource extends PostgresDataSource {
-    options: PostgresOptions = {
-        host: 'localhost',
-        username: 'postgres',
-        password: 'password',
-        database: 'db',
-        synchronize: true
-    };
-    entities: Newable<BaseEntity>[] = [Invoice, MigrationEntity];
-}
-
-let container: StartedTestContainer;
-let dataSource: DbDataSource;
+let server: StartedTestServer;
 let repo: Repository<Invoice, OmitStrict<Invoice, 'id'>>;
 
 describe('generateXml', () => {
     beforeAll(async () => {
         await FsUtilities.mkdir(testFileFolder);
-        container = await new PostgreSqlContainer(POSTGRES_TEST_IMAGE)
-            .withDatabase('db')
-            .withUsername('postgres')
-            .withPassword('password')
-            .start();
-        dataSource = new DbDataSource();
-        dataSource.options = {
-            ...dataSource.options,
-            port: container.getMappedPort(5432)
-        };
-        await dataSource.init();
-        repo = dataSource.getRepository(Invoice);
+        server = await startTestServer({
+            plugins: [new ZibriInvoicingPlugin()],
+            dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Invoice, NumberInvoices] })],
+            providers: [
+                ...defaultTestServerProviders,
+                defineProvider({ token: ZIBRI_INVOICING_PLUGIN_DI_TOKENS.OPTIONS_INPUT, useValue: invoicingOptions })
+            ]
+        });
+        repo = inject(repositoryTokenFor(Invoice));
+        conformanceService = inject(PeppolConformanceService);
     }, 15000);
 
     afterAll(async () => {
-        await container.stop();
+        await server.shutdown();
     });
 
     it('should create the expected result', async () => {

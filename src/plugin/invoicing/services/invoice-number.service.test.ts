@@ -1,18 +1,18 @@
 /* eslint-disable cspell/spellchecker */
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
-import { PostgreSqlContainer } from '@testcontainers/postgresql';
-import { StartedTestContainer } from 'testcontainers';
 
-import { InvoiceCalcService } from './invoice-calc.service';
 import { InvoiceNumberService } from './invoice-number.service';
-import { POSTGRES_TEST_IMAGE } from '../../../__testing__/constants';
-import { PostgresDataSource, PostgresOptions } from '../../../data-source/data-sources/postgres-data-source.model';
-import { DataSource } from '../../../data-source/decorators/data-source.decorator';
-import { MigrationEntity } from '../../../data-source/migration/migration-entity.model';
+import { createTestDataSource, defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerPlugins } from '../../../__testing__/test-server/plugins';
+import { defaultTestServerProviders } from '../../../__testing__/test-server/providers';
+import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../../data-source/repository';
-import { BaseEntity } from '../../../entity/base-entity.model';
-import { Newable } from '../../../types/newable.type';
+import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
+import { inject } from '../../../di/inject.function';
+import { defineProvider } from '../../../di/models/di-provider.model';
 import { OmitStrict } from '../../../types/omit-strict.type';
+import { ZibriInvoicingPlugin } from '../invoicing.plugin';
+import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../invoicing.tokens';
 import { InvoiceAddress } from '../models/invoice-address.model';
 import { Invoice } from '../models/invoice.model';
 import { InvoicingOptions } from '../models/invoicing-options.model';
@@ -101,47 +101,26 @@ const privateCustomerData: InvoiceAddress = {
     countryId: 'DE'
 };
 
-// eslint-disable-next-line unusedImports/no-unused-vars
-const invoiceCalcService: InvoiceCalcService = new InvoiceCalcService();
-
-@DataSource()
-class DbDataSource extends PostgresDataSource {
-    options: PostgresOptions = {
-        host: 'localhost',
-        username: 'postgres',
-        password: 'password',
-        database: 'db',
-        synchronize: true
-    };
-    entities: Newable<BaseEntity>[] = [Invoice, NumberInvoices, MigrationEntity];
-}
-
-let container: StartedTestContainer;
-let dataSource: DbDataSource;
+let testServer: StartedTestServer;
 let invoiceRepo: Repository<Invoice, OmitStrict<Invoice, 'id'>>;
-let numberInvoicesRepo: Repository<NumberInvoices, OmitStrict<NumberInvoices, 'id'>>;
 let invoiceNumberService: InvoiceNumberService;
 
 describe('generateInvoiceNumber', () => {
     beforeAll(async () => {
-        container = await new PostgreSqlContainer(POSTGRES_TEST_IMAGE)
-            .withDatabase('db')
-            .withUsername('postgres')
-            .withPassword('password')
-            .start();
-        dataSource = new DbDataSource();
-        dataSource.options = {
-            ...dataSource.options,
-            port: container.getMappedPort(5432)
-        };
-        await dataSource.init();
-        invoiceRepo = dataSource.getRepository(Invoice);
-        numberInvoicesRepo = dataSource.getRepository(NumberInvoices);
-        invoiceNumberService = new InvoiceNumberService(invoiceRepo, numberInvoicesRepo, invoicingOptions);
+        testServer = await startTestServer({
+            dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Invoice, NumberInvoices] })],
+            plugins: [...defaultTestServerPlugins, new ZibriInvoicingPlugin()],
+            providers: [
+                ...defaultTestServerProviders,
+                defineProvider({ token: ZIBRI_INVOICING_PLUGIN_DI_TOKENS.OPTIONS_INPUT, useValue: invoicingOptions })
+            ]
+        });
+        invoiceRepo = inject(repositoryTokenFor(Invoice));
+        invoiceNumberService = inject(InvoiceNumberService);
     }, 15000);
 
     afterAll(async () => {
-        await container.stop();
+        await testServer.shutdown();
     });
 
     it('should generate the expected number for a company customer', async () => {

@@ -5,14 +5,12 @@ import { TwoFactorMethod } from '../two-factor-method.interface';
 import { OtpCredentials, OtpCredentialsCreateData } from './otp-credentials.model';
 import { OtpUtilities } from './otp.utilities';
 import { Repository } from '../../../../data-source/repository';
-import { repositoryTokenFor } from '../../../../di/decorators/inject-repository.decorator';
+import { InjectRepository } from '../../../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../../di/inject.function';
 import { UnauthorizedError } from '../../../../error-handling/errors/unauthorized.error';
 import { HttpRequest } from '../../../../http/http-request.model';
 import { KnownHeader } from '../../../../http/known-header.enum';
-import { validateEntitiesRegistered } from '../../../../utilities/validate-entities-registered.function';
 import { WebsocketRequest } from '../../../../websocket/models/websocket-request.model';
 import { BaseUser } from '../../../models/base-user.model';
 
@@ -31,28 +29,14 @@ export type OtpConfirmRegisterData = {
  */
 export class OtpTwoFactorMethod implements TwoFactorMethod<never, OtpConfirmRegisterData> {
 
-    private get otpCredentialsRepository(): Repository<OtpCredentials, OtpCredentialsCreateData> {
-        return inject(repositoryTokenFor(OtpCredentials));
-    }
-
     constructor(
         @Inject(ZIBRI_DI_TOKENS.OTP_HEADER)
         private readonly otpHeader: KnownHeader,
         @Inject(ZIBRI_DI_TOKENS.OTP_LENGTH)
-        private readonly otpLength: number
+        private readonly otpLength: number,
+        @InjectRepository(OtpCredentials)
+        private readonly otpCredentialsRepository: Repository<OtpCredentials, OtpCredentialsCreateData>
     ) {}
-
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    init(): void {
-        if (this.otpHeader == undefined) {
-            throw new Error('No value provided for ZIBRI_DI_TOKENS.OTP_HEADER');
-        }
-        if (this.otpLength == undefined) {
-            throw new Error('No value provided for ZIBRI_DI_TOKENS.OTP_LENGTH');
-        }
-
-        validateEntitiesRegistered(this.constructor.name, OtpCredentials);
-    }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async requestRegisterForUser<Role extends string, UserType extends BaseUser<Role>>(

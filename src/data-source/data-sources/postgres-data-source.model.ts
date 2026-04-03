@@ -14,6 +14,7 @@ import { isChangeSetEntityNewable, ChangeSetEntity } from '../../change-sets/mod
 import { isSoftDeleteEntityNewable, SoftDeleteEntity } from '../../change-sets/models/soft-delete-entity.model';
 import { SoftDeleteRepository } from '../../change-sets/soft-delete-repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
+import { Inject } from '../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { register } from '../../di/register.function';
@@ -24,7 +25,7 @@ import { FilePropertyMetadata } from '../../entity/models/file-property-metadata
 import { Relation } from '../../entity/models/relation.enum';
 import { StringPropertyMetadata } from '../../entity/models/string-property-metadata.model';
 import { GlobalRegistry } from '../../global/global-registry';
-import { LoggerInterface } from '../../logging/logger.interface';
+import { type LoggerInterface } from '../../logging/logger.interface';
 import { ExcludeStrict } from '../../types/exclude-strict.type';
 import { Newable } from '../../types/newable.type';
 import { OmitStrict } from '../../types/omit-strict.type';
@@ -92,14 +93,11 @@ export abstract class PostgresDataSource implements DataSourceInterface {
      * The internal typeorm data source.
      */
     protected ds?: TODataSource;
-    /**
-     * A logger.
-     */
-    protected readonly logger: LoggerInterface;
 
-    constructor() {
-        this.logger = inject(ZIBRI_DI_TOKENS.LOGGER);
-    }
+    constructor(
+        @Inject(ZIBRI_DI_TOKENS.LOGGER)
+        private readonly logger: LoggerInterface
+    ) { }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     createBackupData(): Readable {
@@ -166,6 +164,12 @@ export abstract class PostgresDataSource implements DataSourceInterface {
             throw new Error('The postgres data source has already been initialized.');
         }
 
+        if (this.options.username === 'postgres' && this.options.password === 'password') {
+            await this.logger.warn(
+                `The data source "${this.constructor.name}" uses the default credentials, you probably want to change that.`
+            );
+        }
+
         for (const entityClass of this.entities) {
             register({
                 token: repositoryTokenFor(entityClass),
@@ -188,6 +192,11 @@ export abstract class PostgresDataSource implements DataSourceInterface {
         if (this.options.synchronize !== false) {
             await this.ds.synchronize();
         }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async shutDown(): Promise<void> {
+        await this.ds?.destroy();
     }
 
     /**
@@ -435,6 +444,7 @@ export abstract class PostgresDataSource implements DataSourceInterface {
     async runMigrations(): Promise<void> {
         await this.createMigrationTableIfNotExists();
 
+        // we need to dynamically inject here because the repositories aren't ready in the constructor.
         const migrationsRepository: Repository<MigrationEntity> = inject(repositoryTokenFor(MigrationEntity));
         const finishedMigrationVersions: string[] = (await migrationsRepository.findAll()).map(m => m.version);
         const allMigrations: MigrationWithName[] = this.migrations.map(m => ({ migration: inject(m), name: m.name }));

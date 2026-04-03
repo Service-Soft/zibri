@@ -6,7 +6,7 @@ import { OmitClass } from '../../../entity/omit-class.model';
 /**
  * The jwt refresh token that gets stored in the data source.
  */
-@Entity()
+@Entity({ allowOrphan: true })
 export class JwtRefreshToken extends BaseEntity {
     /**
      * The id of the user that this token belongs to.

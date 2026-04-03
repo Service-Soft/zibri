@@ -2,14 +2,14 @@ import { register } from 'ts-node';
 
 import { FileToGenerate, generateEntityFilesForProvider, GenerateEntityFilesForProviderResult } from './generate-entity-files-for-provider.function';
 import { EntityGenerationProvider } from './providers/entity-generation-provider.interface';
-import { FsUtilities, Path } from '../../utilities/fs.utilities';
+import { FsUtilities, FsPath } from '../../utilities/fs.utilities';
 
 /**
  * Resolves providers from the src/models/generated/providers.ts file and generates entities from them.
  */
 export async function generateEntityFiles(): Promise<void> {
     const cwd: string = process.cwd();
-    const providersPath: Path = await resolveProvidersPath(cwd);
+    const providersPath: FsPath = await resolveProvidersPath(cwd);
     const ext: string = FsUtilities.extensionName(providersPath).toLowerCase();
     if (ext !== '.ts') {
         return;
@@ -44,14 +44,14 @@ export async function generateEntityFiles(): Promise<void> {
 }
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-async function resolveProvidersPath(cwd: string): Promise<Path> {
-    const candidates: Path[] = [
+async function resolveProvidersPath(cwd: string): Promise<FsPath> {
+    const candidates: FsPath[] = [
         FsUtilities.getPath(cwd, 'src/models/generated/providers.js'),
         FsUtilities.getPath(cwd, 'src/models/generated/providers.cjs'),
         FsUtilities.getPath(cwd, 'src/models/generated/providers.mjs'),
         FsUtilities.getPath(cwd, 'src/models/generated/providers.ts')
     ];
-    const providersPath: Path = await Promise.any(candidates.map(async p => {
+    const providersPath: FsPath = await Promise.any(candidates.map(async p => {
         if (await FsUtilities.exists(p)) {
             return p;
         }

@@ -8,6 +8,7 @@ import { WhereFilter } from '../../data-source/models/where/where-filter.model';
 import { Repository } from '../../data-source/repository';
 import { InjectRepository } from '../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../di/decorators/inject.decorator';
+import { Injectable } from '../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { toHttpError } from '../../error-handling/error-handler';
@@ -15,7 +16,9 @@ import { BadRequestError } from '../../error-handling/errors/bad-request.error';
 import { HttpError, isHttpError } from '../../error-handling/errors/http.error';
 import { NotFoundError } from '../../error-handling/errors/not-found.error';
 import { isError } from '../../error-handling/is-error.function';
+import { BeforeAppShutdown } from '../../global/before-app-shutdown.interface';
 import { GlobalRegistry } from '../../global/global-registry';
+import { OnAppInit } from '../../global/on-app-init.interface';
 import { HttpStatus } from '../../http/http-status.enum';
 import { KnownHeader } from '../../http/known-header.enum';
 import { type LoggerInterface } from '../../logging/logger.interface';
@@ -49,7 +52,8 @@ type SocketIOWebsocketHandler = (
  * Default implementation for handling websockets.
  * Uses socket.io under the hood.
  */
-export class WebsocketService implements WebsocketServiceInterface<SocketIOWebsocketConnection> {
+@Injectable({ register: 'onUse' })
+export class WebsocketService implements WebsocketServiceInterface<SocketIOWebsocketConnection>, OnAppInit, BeforeAppShutdown {
     private socketServer!: Server;
     private readonly websocketHandlers: Record<string, SocketIOWebsocketHandler | undefined> = {};
     private readonly websocketChannels: Record<string, SocketIOWebsocketConnection[] | undefined> = {};
@@ -73,7 +77,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
     ) {}
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async attachTo(app: ZibriApplication): Promise<void> {
+    async onAppInit(app: ZibriApplication): Promise<void> {
         this.socketServer = new Server(app.server, { connectionStateRecovery: {} });
 
         await this.logger.info('starts socket.io server');
@@ -87,6 +91,11 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         this.checkForOrphanedControllers(app.options.websocketControllers);
 
         this.socketServer.on('connection', socket => this.onConnect(socket));
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async beforeAppShutdown(): Promise<void> {
+        await this.socketServer.close();
     }
 
     private async onConnect(socket: Socket): Promise<void> {
@@ -271,7 +280,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async registerController(controllerClass: Newable<unknown>): Promise<void> {
-        const controllerData: WebsocketControllerData | undefined = MetadataUtilities.getWebsocketController(controllerClass);
+        const controllerData: WebsocketControllerData | undefined = MetadataUtilities.getWebsocketControllerData(controllerClass);
         if (controllerData == undefined) {
             // eslint-disable-next-line stylistic/max-len
             throw new Error(`Could not find websocket controller data on class ${controllerClass.name}. Did you forget to decorate it with @WebsocketController?`);
@@ -614,7 +623,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
 
     private checkForOrphanedControllers(controllers: Newable<unknown>[]): void {
         const orphanedControllers: Newable<unknown>[] = GlobalRegistry.websocketControllerClasses.filter(c => {
-            return !controllers.includes(c);
+            return !controllers.includes(c) && !(MetadataUtilities.getWebsocketControllerData(c)?.allowOrphan ?? false);
         });
         if (orphanedControllers.length) {
             const message: string[] = ['Error initializing websocket service.', 'Found orphaned controllers:'];

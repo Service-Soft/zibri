@@ -1,4 +1,3 @@
-// TODO: add functionality to initialize functions in a registry that should be precompiled to avoid eval and improve performance.
 import { BaseThreadJobWorkerData } from '../models/base-thread-job-worker-data.model';
 import { ThreadJobData, ThreadJobDataFunctions } from '../models/thread-job-data.model';
 import { ThreadJobEntity } from '../models/thread-job-entity.model';
@@ -8,10 +7,6 @@ import { ThreadJobFunction } from '../models/thread-job-function.model';
  * Definition for a service that handles multithreading.
  */
 export interface MultithreadingServiceInterface {
-    /**
-     * Initializes the service.
-     */
-    init: () => void | Promise<void>,
     /**
      * Creates and queues a thread job with the given data.
      * @param threadJobData - The data to create the thread job from.
@@ -70,9 +65,5 @@ export interface MultithreadingServiceInterface {
      */
     waitForThreadJob: <ResultType, WorkerData extends BaseThreadJobWorkerData = BaseThreadJobWorkerData>(
         jobId: string
-    ) => Promise<ThreadJobEntity<WorkerData, ResultType>> | ThreadJobEntity<WorkerData, ResultType>,
-    /**
-     * Terminates all the workers.
-     */
-    shutdown: () => Promise<void> | void
+    ) => Promise<ThreadJobEntity<WorkerData, ResultType>> | ThreadJobEntity<WorkerData, ResultType>
 }

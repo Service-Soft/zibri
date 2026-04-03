@@ -1,4 +1,3 @@
-import { ZibriApplication } from '../../application';
 import { Newable } from '../../types/newable.type';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { BaseWebsocketConnection } from '../models/connection/base-websocket-connection.model';
@@ -109,10 +108,6 @@ export type WebsocketSendToMultipleResult<
  * A service for handling websockets.
  */
 export interface WebsocketServiceInterface<Connection extends BaseWebsocketConnection> {
-    /**
-     * Attaches the service to the application.
-     */
-    attachTo: (app: ZibriApplication) => void | Promise<void>,
     /**
      * Registers a websocket controller that listens to events.
      */

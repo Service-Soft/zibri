@@ -6,7 +6,7 @@ import { OmitClass } from '../../../../entity/omit-class.model';
 /**
  * Credentials for a one time password.
  */
-@Entity()
+@Entity({ allowOrphan: true })
 export class OtpCredentials extends BaseEntity {
     /**
      * The user id that these credentials belong to.

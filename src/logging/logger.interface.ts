@@ -1,4 +1,3 @@
-import { ZibriApplication } from '../application';
 import { LogContextInput } from './log-context.model';
 import { BaseLoggerTransportConfig, LoggerTransport } from './transport/logger-transport.model';
 
@@ -10,10 +9,6 @@ export interface LoggerInterface {
      * The transports to be used by the logger.
      */
     transports: LoggerTransport<BaseLoggerTransportConfig>[],
-    /**
-     * Attaches the service to the Zibri application.
-     */
-    attachTo: (app: ZibriApplication) => void | Promise<void>,
     /**
      * Logs a debug message.
      */

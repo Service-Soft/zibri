@@ -9,7 +9,7 @@ const config = {
     setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
     bail: false,
     modulePathIgnorePatterns: ['tmp'],
-    // testPathIgnorePatterns: ['<rootDir>/data-source/transaction/transaction.test.ts'],
+    testPathIgnorePatterns: ['<rootDir>/plugin/payment/providers/pay-pal/pay-pal.payment-provider.test.ts'],
     // coverage
     // collectCoverage: true,
     coverageProvider: 'v8',

@@ -1,7 +1,8 @@
 import { AuthServiceInterface } from './auth-service.interface';
+import { ZibriApplication } from '../application';
 import { register } from '../di/register.function';
 import { BaseEntity } from '../entity/base-entity.model';
-import { TwoFactorServiceInterface } from './2fa/two-factor-service.interface';
+import { type TwoFactorServiceInterface } from './2fa/two-factor-service.interface';
 import { BaseUser } from './models/base-user.model';
 import { BelongsToMetadata, SkipBelongsToMetadata } from './models/belongs-to-metadata.model';
 import { HasRoleMetadata, SkipHasRoleMetadata } from './models/has-role-metadata.model';
@@ -11,11 +12,14 @@ import { Require2faMetadata, SkipRequire2faMetadata } from './models/require-2fa
 import { SkipAuthMetadata } from './models/skip-auth-metadata.model';
 import { AuthStrategies } from './strategies/auth-strategies.model';
 import { AuthStrategyInterface } from './strategies/auth-strategy.interface';
+import { Inject } from '../di/decorators/inject.decorator';
+import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { UnauthorizedError } from '../error-handling/errors/unauthorized.error';
+import { OnAppInit } from '../global/on-app-init.interface';
 import { HttpRequest } from '../http/http-request.model';
-import { LoggerInterface } from '../logging/logger.interface';
+import { type LoggerInterface } from '../logging/logger.interface';
 import { Newable } from '../types/newable.type';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { PromiseUtilities } from '../utilities/promise.utilities';
@@ -24,26 +28,21 @@ import { WebsocketRequest } from '../websocket/models/websocket-request.model';
 /**
  * Default auth service implementation of Zibri.
  */
-export class AuthService implements AuthServiceInterface {
-    /**
-     * A logger.
-     */
-    protected readonly logger: LoggerInterface;
-
+@Injectable({ register: 'onUse' })
+export class AuthService implements AuthServiceInterface, OnAppInit {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly strategies: AuthStrategies = [];
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    get twoFactorService(): TwoFactorServiceInterface {
-        return inject(ZIBRI_DI_TOKENS.TWO_FACTOR_SERVICE);
-    }
-
-    constructor() {
-        this.logger = inject(ZIBRI_DI_TOKENS.LOGGER);
-    }
+    constructor(
+        @Inject(ZIBRI_DI_TOKENS.LOGGER)
+        private readonly logger: LoggerInterface,
+        @Inject(ZIBRI_DI_TOKENS.TWO_FACTOR_SERVICE)
+        private readonly twoFactorService: TwoFactorServiceInterface
+    ) {}
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async init(authStrategies: AuthStrategies): Promise<void> {
+    async onAppInit({ options }: ZibriApplication): Promise<void> {
+        const { authStrategies } = options;
         for (const strategy of authStrategies) {
             register({ token: strategy, useClass: strategy });
             this.strategies.push(strategy);
@@ -54,7 +53,6 @@ export class AuthService implements AuthServiceInterface {
             );
             for (const strategy of authStrategies) {
                 await this.logger.info(`  - ${strategy.name}`);
-                inject(strategy).init();
             }
         }
     }

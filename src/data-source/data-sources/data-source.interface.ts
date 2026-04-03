@@ -30,6 +30,12 @@ export interface DataSourceInterface extends BackupResourceInterface {
     init: () => Promise<void>,
 
     /**
+     * Shuts down the data source.
+     * Should be called from the data source service AfterAppShutdown hook.
+     */
+    shutDown: () => Promise<void>,
+
+    /**
      * Gets a repository to manage the provided entity class in the data source.
      * @param cls - The entity class to get the repository for.
      * @returns A repository for the provided entity class.
@@ -78,4 +84,34 @@ export interface DataSourceInterface extends BackupResourceInterface {
         },
         transaction: Transaction
     ) => Promise<void>
+}
+
+/**
+ * Checks whether or not the given value is a data source.
+ * @param value - The value to check.
+ * @returns True if all keys of the DataSourceInterface are present, false otherwise.
+ */
+export function isDataSource(value: unknown): value is DataSourceInterface {
+    if (typeof value !== 'object') {
+        return false;
+    }
+    if (value == undefined) {
+        return false;
+    }
+
+    const keys: (keyof DataSourceInterface)[] = [
+        'addPropertyToEntity',
+        'changePropertyOfEntity',
+        'createBackupData',
+        'entities',
+        'getRepository',
+        'init',
+        'migrations',
+        'restoreBackup',
+        'runMigrations',
+        'shutDown',
+        'startTransaction'
+    ];
+
+    return !keys.find(key => !(key in value));
 }

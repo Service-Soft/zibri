@@ -1,4 +1,4 @@
-import { PayPalProviderOptions } from './pay-pal.payment-provider';
+import { PayPalPaymentProviderOptions } from './pay-pal.payment-provider';
 import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../../di/inject.function';
 import { Property } from '../../../../entity/decorators/property.decorator';
@@ -317,7 +317,7 @@ export class PayPalClient {
     private token?: PayPalAccessToken;
     private readonly http: HttpClientInterface;
 
-    constructor(private readonly options: PayPalProviderOptions) {
+    constructor(private readonly options: PayPalPaymentProviderOptions) {
         this.baseUrl = options.env === 'live' ? 'https://api-m.paypal.com' : 'https://api-m.sandbox.paypal.com';
         this.http = inject(ZIBRI_DI_TOKENS.HTTP_CLIENT);
     }
@@ -338,7 +338,7 @@ export class PayPalClient {
                 [KnownHeader.AUTHORIZATION]: `Basic ${auth}`,
                 [KnownHeader.CONTENT_TYPE]: MimeType.FORM_URL_ENCODED
             },
-            responseBody: AuthResp
+            responseBody: { type: MimeType.JSON, modelClass: AuthResp, allowAdditionalProperties: true }
         })).body;
 
         this.token = {
@@ -420,6 +420,24 @@ export class PayPalClient {
 
         return (await this.http.post(url, { amount }, {
             responseBody: AuthorizationCaptureResp,
+            headers: {
+                Authorization: `Bearer ${token}`
+            }
+        })).body;
+    }
+
+    /**
+     * Authorizes an AUTHORIZE-intent order that the buyer has already approved.
+     * Must be called before confirmPaymentReservation can read the authorization id.
+     * @param orderId - The id of the approved order to authorize.
+     * @returns The authorized order, including purchase_units[].payments.authorizations.
+     */
+    async authorizeOrder(orderId: string): Promise<GetOrderResp> {
+        const token: string = await this.getAccessToken();
+        const url: string = `${this.baseUrl}/v2/checkout/orders/${encodeURIComponent(orderId)}/authorize`;
+
+        return (await this.http.post(url, {}, {
+            responseBody: GetOrderResp,
             headers: {
                 Authorization: `Bearer ${token}`
             }

@@ -60,7 +60,7 @@ export function CrudController<
     // eslint-disable-next-line jsdoc/require-jsdoc
     class Temp implements CrudControllerInterface<T, CreateData, UpdateData> {
         // eslint-disable-next-line jsdoc/require-jsdoc
-        protected repo: Repository<T, CreateData, UpdateData>;
+        protected readonly repo: Repository<T, CreateData, UpdateData>;
 
         constructor() {
             this.repo = inject(repositoryTokenFor(entityClass));
