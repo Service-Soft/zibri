@@ -5,7 +5,7 @@ import { AssetServiceInterface } from './asset-service.interface';
 import { TreeNode } from './asset.service';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
-import { FsUtilities, Path } from '../utilities/fs.utilities';
+import { FsUtilities, FsPath } from '../utilities/fs.utilities';
 
 describe('AssetService', () => {
     let assetService: AssetServiceInterface;
@@ -16,8 +16,8 @@ describe('AssetService', () => {
 
     describe('buildFileTree', () => {
         it('should build a file tree for a given directory', async () => {
-            const mockDirPath: Path = FsUtilities.getPath(__dirname, '..', '__testing__', 'mocks', 'tree');
-            (assetService.publicAssetsPath as unknown as Path) = mockDirPath;
+            const mockDirPath: FsPath = FsUtilities.getPath(__dirname, '..', '__testing__', 'mocks', 'tree');
+            (assetService.publicAssetsPath as unknown as FsPath) = mockDirPath;
             const expectedTree: TreeNode[] = [
                 // Mocked file tree structure
                 { name: 'file1.txt', type: 'file', route: '/assets/file1.txt' },

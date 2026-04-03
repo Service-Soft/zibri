@@ -24,7 +24,7 @@ async function createDefaultAdmin(dataSource: DataSourceInterface): Promise<void
     await logger.info('  - default admin');
     const transaction: Transaction = await dataSource.startTransaction();
     try {
-        const user: User = await userRepository.create({ email: 'admin@test.com', roles: [Roles.ADMIN] }, { transaction });
+        const user: User = await userRepository.create({ name: 'root', email: 'admin@test.com', roles: [Roles.ADMIN] }, { transaction });
         await credentialsRepository.create(
             { email: user.email, password: await HashUtilities.hash('password'), userId: user.id },
             { transaction }

@@ -1,25 +1,25 @@
 import { beforeAll, afterAll, describe, it, expect } from '@jest/globals';
-import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 
 import { BackupEntity } from './backup-entity.model';
 import { BackupResourceEntity } from './backup-resource-entity.model';
-import { BackupServiceInterface } from './backup-service.interface';
-import { POSTGRES_TEST_IMAGE, testFileFolder } from '../__testing__/constants';
+import { BackupService } from './backup.service';
+import { testFileFolder } from '../__testing__/constants';
 import { Backup } from './decorators/backup-resource.decorator';
 import { FsBackupTransport } from './transports/fs.backup-transport';
+import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { PostgresDataSource, PostgresOptions } from '../data-source/data-sources/postgres-data-source.model';
 import { DataSource } from '../data-source/decorators/data-source.decorator';
-import { MigrationEntity } from '../data-source/migration/migration-entity.model';
 import { Repository } from '../data-source/repository';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { inject } from '../di/inject.function';
 import { BaseEntity } from '../entity/base-entity.model';
 import { Entity } from '../entity/decorators/entity.decorator';
 import { Property } from '../entity/decorators/property.decorator';
 import { Newable } from '../types/newable.type';
-import { FsUtilities, Path } from '../utilities/fs.utilities';
+import { FsUtilities, FsPath } from '../utilities/fs.utilities';
 
-const backupFsFolder: Path = FsUtilities.getPath(testFileFolder, 'backups');
+const backupFsFolder: FsPath = FsUtilities.getPath(testFileFolder, 'backups');
 
 @Entity()
 class Item {
@@ -49,39 +49,29 @@ class DbDataSource extends PostgresDataSource {
         database: 'db',
         synchronize: true
     };
-    entities: Newable<BaseEntity>[] = [Item, MigrationEntity, BackupResourceEntity, BackupEntity];
+    entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, Item, BackupResourceEntity, BackupEntity];
 }
 
 describe('Create and restore postgres backup', () => {
-    let dataSource: DbDataSource;
+    let server: StartedTestServer;
+    let backupService: BackupService;
     let itemRepository: Repository<Item>;
     let backupRepository: Repository<BackupEntity>;
-    let container: StartedPostgreSqlContainer;
-    let backupService: BackupServiceInterface;
 
     beforeAll(async () => {
         await FsUtilities.rm(backupFsFolder);
-        container = await new PostgreSqlContainer(POSTGRES_TEST_IMAGE)
-            .withDatabase('db')
-            .withUsername('postgres')
-            .withPassword('password')
-            .start();
-
-        dataSource = inject(DbDataSource);
-        dataSource.options = {
-            ...dataSource.options,
-            port: container.getMappedPort(5432)
-        };
-        await dataSource.init();
-        itemRepository = dataSource.getRepository(Item);
-        backupRepository = dataSource.getRepository(BackupEntity);
+        server = await startTestServer({ dataSources: [DbDataSource] });
+        itemRepository = inject(repositoryTokenFor(Item));
+        backupRepository = inject(repositoryTokenFor(BackupEntity));
+        backupService = inject(BackupService);
 
         // seed one row without `value`
         await itemRepository.create({ value: '42' });
-
-        backupService = inject(ZIBRI_DI_TOKENS.BACKUP_SERVICE);
-        await backupService.init();
     }, 15000);
+
+    afterAll(async () => {
+        await server.shutdown();
+    });
 
     it('should create and restore a backup', async () => {
         expect((await itemRepository.findAll()).length).toEqual(1);
@@ -97,8 +87,4 @@ describe('Create and restore postgres backup', () => {
         await backupService.restore(backup);
         expect((await itemRepository.findAll()).length).toEqual(1);
     }, 15000);
-
-    afterAll(async () => {
-        await container.stop();
-    });
 });

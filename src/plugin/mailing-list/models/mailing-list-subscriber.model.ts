@@ -6,7 +6,7 @@ import { Property } from '../../../entity/decorators/property.decorator';
 /**
  * Defines a subscriber to a single or multiple mailing lists.
  */
-@Entity()
+@Entity({ allowOrphan: true })
 export class MailingListSubscriber extends BaseEntity {
     /**
      * The optional name of the subscriber.

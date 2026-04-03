@@ -1,8 +1,11 @@
-import axios, { AxiosInstance, AxiosResponse, RawAxiosRequestConfig, ResponseType } from 'axios';
+
+import axios, { AxiosInstance, AxiosResponse, isAxiosError, RawAxiosRequestConfig, ResponseType } from 'axios';
 
 import { HttpClientResponse, HttpClientResponseForBodyType } from './http-client-response.model';
+import { HttpClientError } from './http-client.error';
 import { HttpClientHeaderValue, HttpClientInterface, HttpOptionsInput } from './http-client.interface';
 import { Inject } from '../di/decorators/inject.decorator';
+import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { HttpMethod } from '../http/http-method.enum';
 import { KnownHeader } from '../http/known-header.enum';
@@ -39,6 +42,7 @@ const responseTypeForMimeType: Record<BodyMetadata['type'], ResponseType> = {
 /**
  * Default http client implementation of Zibri.
  */
+@Injectable({ register: 'onUse' })
 export class HttpClient implements HttpClientInterface {
     private readonly axios: AxiosInstance;
 
@@ -236,6 +240,29 @@ export class HttpClient implements HttpClientInterface {
         }
 
         if (!axiosResponse) {
+            if (isAxiosError(error)) {
+                throw new HttpClientError(
+                    error.message,
+                    {
+                        responseData: error.response
+                            ? {
+                                body: error.response.data,
+                                headers: error.response.headers as Record<string, unknown>,
+                                status: error.response.status,
+                                statusText: error.response.statusText
+                            }
+                            : undefined,
+                        requestData: error.config
+                            ? {
+                                method,
+                                url,
+                                body: requestBody,
+                                headers: error.config.headers
+                            }
+                            : undefined
+                    }
+                );
+            }
             throw error instanceof Error ? error : new Error('Could not get a response');
         }
 
@@ -249,7 +276,7 @@ export class HttpClient implements HttpClientInterface {
             body: undefined as unknown as T,
             status: axiosResponse.status,
             statusText: axiosResponse.statusText,
-            headers: axiosResponse.headers as HeaderParamsObject
+            headers: axiosResponse.headers
         } as HttpClientResponseForBodyType<
             T,
             HeaderMetaObjectToParamsObject<HeaderMetaInputObjectToMetaObject<ResponseHeaderMetaInputObject>>,

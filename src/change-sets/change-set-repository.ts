@@ -1,4 +1,4 @@
-import { setTimeout } from 'timers/promises';
+import { setTimeout } from 'node:timers/promises';
 import { isDeepStrictEqual } from 'util';
 
 import { Repository as TORepository } from 'typeorm';
@@ -57,16 +57,14 @@ export class ChangeSetRepository<
      */
     protected readonly keysToExcludeFromChangeSets: (keyof T)[];
 
-    private get changeSetRepository(): Repository<ChangeSet, CreateChangeSetData> {
-        return inject(repositoryTokenFor(ChangeSet));
-    }
-
-    private get authService(): AuthServiceInterface {
-        return inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
-    }
+    private readonly changeSetRepository: Repository<ChangeSet, CreateChangeSetData>;
+    private readonly authService: AuthServiceInterface;
 
     constructor(entityClass: Newable<T>, repo: TORepository<T> | Repository<T>, logger: LoggerInterface) {
         super(entityClass, repo, logger);
+
+        this.authService = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
+        this.changeSetRepository = inject(repositoryTokenFor(ChangeSet));
 
         this.keysToExcludeFromChangeSets = ['changeSets'];
         const props: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(entityClass);
@@ -425,7 +423,10 @@ export class ChangeSetRepository<
      * @returns The id of the currently logged in user or undefined if that didn't work.
      */
     protected async getCreatedBy(): Promise<string | undefined> {
-        const currentRequest: HttpRequest = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST);
+        const currentRequest: HttpRequest | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST);
+        if (!currentRequest) {
+            throw new Error('No request in context');
+        }
         const user: BaseUser<string> | undefined = await this.authService.getCurrentUser(
             currentRequest,
             this.authService.strategies,

@@ -13,10 +13,6 @@ export interface TwoFactorServiceInterface {
      */
     readonly twoFactorMethods: TwoFactorMethods,
     /**
-     * Initializes the service.
-     */
-    init: (twoFactorMethods: TwoFactorMethods) => Promise<void>,
-    /**
      * Requests the registration of the given two factor method for the given user.
      */
     requestRegisterTwoFactorMethodForUser: <

@@ -27,6 +27,25 @@ export class DiContainer {
     }
 
     /**
+     * Gets all registered tokens of the DI Container.
+     * @returns The tokens as an array.
+     */
+    getAllRegisteredTokens(): DiToken<unknown>[] {
+        const seen: Set<unknown> = new Set<unknown>();
+        const unique: DiToken<unknown>[] = [];
+
+        for (const [token, provider] of this.providers) {
+            const identity: unknown = provider.useClass ?? provider.useFactory ?? provider.useValue ?? token;
+            if (!seen.has(identity)) {
+                seen.add(identity);
+                unique.push(token);
+            }
+        }
+
+        return unique;
+    }
+
+    /**
      * Gets the DI Container instance.
      * @returns The instance.
      */
@@ -47,7 +66,7 @@ export class DiContainer {
     /**
      * Removes the provided token from the dependency injection system.
      * @param token - The token to unregister.
-     * @throws When the app is initialized or running.
+     * @throws When the app is initialized or started.
      */
     unregister<T>(token: DiToken<T>): void {
         this.providers.delete(token);
@@ -65,9 +84,24 @@ export class DiContainer {
             return this.instances.get(token) as T;
         }
 
-        const provider: DiProvider<T> | undefined = this.providers.get(token) as DiProvider<T> | undefined;
+        let provider: DiProvider<T> | undefined = this.providers.get(token) as DiProvider<T> | undefined;
+        if (!provider) {
+            const lazy: DiProvider<unknown> | undefined = GlobalRegistry.lazyInjectables.find(p => p.token === token);
+            if (lazy) {
+                this.register(lazy); // promote into providers so future lookups are O(1)
+                provider = lazy as DiProvider<T>;
+            }
+        }
+
         if (!provider) {
             throw new NoProviderError(token, resolvingStack);
+        }
+
+        // If useClass, check if we already have an instance of that class cached under the class itself
+        if (provider.useClass && this.instances.has(provider.useClass as unknown as DiToken<unknown>)) {
+            const existing: T = this.instances.get(provider.useClass as unknown as DiToken<unknown>) as T;
+            this.instances.set(token, existing); // cache under this token too for next time
+            return existing;
         }
 
         if (provider.useClass || provider.useFactory) {
@@ -78,6 +112,11 @@ export class DiContainer {
         resolvingStack.pop();
 
         this.instances.set(provider.token, instance);
+
+        if (provider.useClass) {
+            this.instances.set(provider.useClass as unknown as DiToken<unknown>, instance);
+        }
+
         return instance;
     }
 

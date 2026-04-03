@@ -1,22 +1,12 @@
 import { ZibriApplicationOptions } from '../application-options.model';
+import { AppState } from './app-state.enum';
 import { UserRepositories } from '../auth/models/user-repositories.model';
 import { BackupResourceInterface } from '../backup/backup-resource.interface';
-import { DataSourceInterface } from '../data-source/data-sources/data-source.interface';
 import { DiProvider } from '../di/models/di-provider.model';
 import { BaseEntity } from '../entity/base-entity.model';
 import { BodyParserInterface } from '../parsing/body-parser.interface';
 import { Newable } from '../types/newable.type';
 import { Version } from '../types/version.type';
-
-/**
- * The possible state that the app can be in.
- */
-export enum AppState {
-    OFFLINE = 'offline',
-    CREATED = 'created',
-    INITIALIZED = 'initialized',
-    RUNNING = 'running'
-}
 
 /**
  * The data of the app.
@@ -52,6 +42,10 @@ export abstract class GlobalRegistry {
      */
     static readonly injectables: DiProvider<unknown>[] = [];
     /**
+     * All injectables registered via \@Injectable but with the { register: 'onUse' } flag.
+     */
+    static readonly lazyInjectables: DiProvider<unknown>[] = [];
+    /**
      * All controllers registered with \@Controller.
      */
     static readonly controllerClasses: Newable<unknown>[] = [];
@@ -59,10 +53,6 @@ export abstract class GlobalRegistry {
      * All websocket controllers registered with \@WebsocketController.
      */
     static readonly websocketControllerClasses: Newable<unknown>[] = [];
-    /**
-     * All datasources registered with \@DataSource.
-     */
-    static readonly dataSourceClasses: Newable<DataSourceInterface>[] = [];
     /**
      * All entities registered with \@Entity.
      */
@@ -90,45 +80,67 @@ export abstract class GlobalRegistry {
                     return;
                 }
                 case AppState.CREATED: {
-                    throw new Error('The app has already been marked as created.');
+                    throw new Error(`The app has already been marked as "${AppState.CREATED}".`);
                 }
                 case AppState.INITIALIZED: {
-                    throw new Error('The app has already been marked as initialized.');
+                    throw new Error(`The app has already been marked as "${AppState.INITIALIZED}".`);
                 }
-                case AppState.RUNNING: {
-                    throw new Error('The app has already been marked as running.');
+                case AppState.STARTED: {
+                    throw new Error(`The app has already been marked as "${AppState.STARTED}".`);
+                }
+                case AppState.SHUTTING_DOWN: {
+                    throw new Error(`The app has already been marked as "${AppState.SHUTTING_DOWN}".`);
                 }
             }
         },
         [AppState.INITIALIZED]: () => {
             switch (this.appData.state) {
                 case AppState.OFFLINE: {
-                    throw new Error('The app has not been marked as created yet.');
+                    throw new Error(`The app has not been marked as "${AppState.CREATED}" yet.`);
                 }
                 case AppState.CREATED: {
                     return;
                 }
                 case AppState.INITIALIZED: {
-                    throw new Error('The app has already been marked as initialized.');
+                    throw new Error(`The app has already been marked as "${AppState.INITIALIZED}".`);
                 }
-                case AppState.RUNNING: {
-                    throw new Error('The app has already been marked as running');
+                case AppState.STARTED: {
+                    throw new Error(`The app has already been marked as "${AppState.STARTED}".`);
+                }
+                case AppState.SHUTTING_DOWN: {
+                    throw new Error(`The app has already been marked as "${AppState.SHUTTING_DOWN}".`);
                 }
             }
         },
-        [AppState.RUNNING]: () => {
+        [AppState.STARTED]: () => {
             switch (this.appData.state) {
+                case AppState.CREATED:
                 case AppState.OFFLINE: {
-                    throw new Error('The app has not been marked as initialized yet.');
-                }
-                case AppState.CREATED: {
-                    throw new Error('The app has not been marked as initialized yet.');
+                    throw new Error(`The app has not been marked as "${AppState.INITIALIZED}" yet.`);
                 }
                 case AppState.INITIALIZED: {
                     return;
                 }
-                case AppState.RUNNING: {
-                    throw new Error('The app has already been marked as running.');
+                case AppState.STARTED: {
+                    throw new Error(`The app has already been marked as "${AppState.STARTED}".`);
+                }
+                case AppState.SHUTTING_DOWN: {
+                    throw new Error(`The app has already been marked as "${AppState.SHUTTING_DOWN}".`);
+                }
+            }
+        },
+        [AppState.SHUTTING_DOWN]: () => {
+            switch (this.appData.state) {
+                case AppState.CREATED:
+                case AppState.INITIALIZED:
+                case AppState.STARTED: {
+                    return;
+                }
+                case AppState.OFFLINE: {
+                    throw new Error(`The app has not been marked as "${AppState.CREATED}" yet.`);
+                }
+                case AppState.SHUTTING_DOWN: {
+                    throw new Error(`The app has already been marked as "${AppState.SHUTTING_DOWN}".`);
                 }
             }
         }
@@ -168,23 +180,30 @@ export abstract class GlobalRegistry {
     }
 
     /**
-     * Marks the app as running.
+     * Marks the app as started.
      */
-    static markAppAsRunning(): void {
-        this.changeAppState(AppState.RUNNING);
+    static markAppAsStarted(): void {
+        this.changeAppState(AppState.STARTED);
     }
 
     /**
-     * Checks if the app is running.
-     * @returns True when the app has the state of running, false otherwise.
+     * Marks the app as shutting down.
      */
-    static isAppRunning(): boolean {
-        return this.appData.state === AppState.RUNNING;
+    static markAppAsShuttingDown(): void {
+        this.changeAppState(AppState.SHUTTING_DOWN);
+    }
+
+    /**
+     * Checks if the app has been started.
+     * @returns True when the app has the state of AppState.STARTED, false otherwise.
+     */
+    static isAppStarted(): boolean {
+        return this.appData.state === AppState.STARTED;
     }
 
     /**
      * Checks if the app is initialized.
-     * @returns True when the app has the state of initialized, false otherwise.
+     * @returns True when the app has the state of AppState.INITIALIZED, false otherwise.
      */
     static isAppInitialized(): boolean {
         return this.appData.state === AppState.INITIALIZED;
@@ -192,10 +211,18 @@ export abstract class GlobalRegistry {
 
     /**
      * Checks if the app is created.
-     * @returns True when the app has the state of created, false otherwise.
+     * @returns True when the app has the state of AppState.CREATED, false otherwise.
      */
     static isAppCreated(): boolean {
         return this.appData.state === AppState.CREATED;
+    }
+
+    /**
+     * Checks if the app is shutting down.
+     * @returns True when the app has the state of AppState.SHUTTING_DOWN, false otherwise.
+     */
+    static isAppShuttingDown(): boolean {
+        return this.appData.state === AppState.SHUTTING_DOWN;
     }
 
     private static changeAppState(state: AppState): void {

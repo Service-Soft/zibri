@@ -4,38 +4,51 @@ import cors from 'cors';
 import express, { RequestHandler } from 'express';
 
 import { ZibriApplicationOptions } from './application-options.model';
-import { AssetServiceInterface } from './assets/asset-service.interface';
 import { OtpTwoFactorMethod } from './auth/2fa/methods/otp/otp.two-factor-method';
-import { TwoFactorServiceInterface } from './auth/2fa/two-factor-service.interface';
-import { AuthServiceInterface } from './auth/auth-service.interface';
+import { isTwoFactorMethod } from './auth/2fa/methods/two-factor-method.interface';
+import { isAuthStrategy } from './auth/strategies/auth-strategy.interface';
 import { JwtAuthStrategy } from './auth/strategies/jwt/jwt.auth-strategy';
-import { BackupServiceInterface } from './backup/backup-service.interface';
-import { CronServiceInterface } from './cron/cron-service.interface';
-import { DataSourceServiceInterface } from './data-source/data-source-service.interface';
+import { CronJob } from './cron/cron-job.model';
+import { isDataSource } from './data-source/data-sources/data-source.interface';
 import { ZIBRI_DI_TOKENS } from './di/default/zibri-di-tokens.default';
+import { getAllRegisteredTokens } from './di/get-all-registered-tokens.function';
 import { inject } from './di/inject.function';
+import { DiToken } from './di/models/di-token.model';
 import { register } from './di/register.function';
-import { EmailServiceInterface } from './email/email-service.interface';
-import { MailingListServiceInterface } from './email/mailing-list/mailing-list-service.interface';
 import { GlobalErrorHandler } from './error-handling/error-handler.model';
 import { UnmatchedRouteError } from './error-handling/errors/unmatched-route.error';
+import { implementsAfterAppInit } from './global/after-app-init.interface';
+import { AfterAppShutdown, implementsAfterAppShutdown } from './global/after-app-shutdown.interface';
+import { AppState } from './global/app-state.enum';
+import { implementsBeforeAppInit } from './global/before-app-init.interface';
+import { BeforeAppShutdown, implementsBeforeAppShutdown } from './global/before-app-shutdown.interface';
 import { GlobalRegistry } from './global/global-registry';
+import { implementsOnAppInit } from './global/on-app-init.interface';
+import { implementsOnAppShutdown, OnAppShutdown } from './global/on-app-shutdown.interface';
+import { implementsOnAppStart } from './global/on-app-start.interface';
 import { HandlebarUtilities } from './handlebars/handlebar.utilities';
 import { LoggerInterface } from './logging/logger.interface';
-import { MetricsServiceInterface } from './metrics/metrics-service.interface';
-import { MultithreadingServiceInterface } from './multithreading/services/multithreading-service.interface';
-import { OpenApiServiceInterface } from './open-api/open-api-service.interface';
 import { FormDataBodyParser } from './parsing/form-data/form-data.body-parser';
 import { JsonBodyParser } from './parsing/json/json.body-parser';
-import { ParserInterface } from './parsing/parser.interface';
+import { ZibriPlugin } from './plugin/plugin.model';
 import { Route } from './routing/controller-route-configuration.model';
-import { RouterInterface } from './routing/router.interface';
 import { OmitStrict } from './types/omit-strict.type';
-import { BaseWebsocketConnection } from './websocket/models/connection/base-websocket-connection.model';
-import { WebsocketServiceInterface } from './websocket/services/websocket-service.interface';
+import { FsUtilities } from './utilities/fs.utilities';
+import { Ms } from './utilities/ms';
+import { PromiseUtilities } from './utilities/promise.utilities';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 type FullZibriApplicationOptions = Required<OmitStrict<ZibriApplicationOptions, 'plugins'>>;
+
+// eslint-disable-next-line typescript/typedef
+const SHUTDOWN_SIGNALS = ['SIGTERM', 'SIGINT', 'SIGHUP'] as const;
+
+const DEFAULT_SHUTDOWN_TIMEOUT_IN_MS: number = Ms.SECOND * 30;
+
+/**
+ * A os signal that triggers the shutdown of a Zibri application.
+ */
+export type ShutdownSignal = typeof SHUTDOWN_SIGNALS[number];
 
 /**
  * A Zibri application.
@@ -48,33 +61,17 @@ export class ZibriApplication {
         .disable('x-powered-by')
         .use(cors());
 
+    private readonly signalHandlers: Map<ShutdownSignal, () => void> = new Map<ShutdownSignal, () => void>();
+
     /**
      * The underlying http server.
      */
     readonly server: Server = createServer(this.express);
 
-    private _router!: RouterInterface;
-    // eslint-disable-next-line jsdoc/require-returns
-    /**
-     * The router used by the application.
-     */
-    get router(): RouterInterface {
-        return this._router;
+    private get logger(): LoggerInterface {
+        return inject(ZIBRI_DI_TOKENS.LOGGER);
     }
-    private logger!: LoggerInterface;
-    private metricsService!: MetricsServiceInterface;
-    private assetService!: AssetServiceInterface;
-    private openApiService!: OpenApiServiceInterface;
-    private parser!: ParserInterface;
-    private dataSourceService!: DataSourceServiceInterface;
-    private authService!: AuthServiceInterface;
-    private twoFactorService!: TwoFactorServiceInterface;
-    private cronService!: CronServiceInterface;
-    private multithreadingService!: MultithreadingServiceInterface;
-    private websocketService!: WebsocketServiceInterface<BaseWebsocketConnection>;
-    private emailService!: EmailServiceInterface;
-    private backupService!: BackupServiceInterface;
-    private mailingListService?: MailingListServiceInterface;
+
     /**
      * The options of which the application was build.
      */
@@ -82,6 +79,13 @@ export class ZibriApplication {
 
     constructor(private readonly providedOptions: ZibriApplicationOptions) {
         this.options = this.createFullOptions();
+
+        for (const signal of SHUTDOWN_SIGNALS) {
+            const handler: () => void = () => void this.shutdown(signal);
+            this.signalHandlers.set(signal, handler);
+            process.on(signal, handler);
+        }
+
         GlobalRegistry.markAppAsCreated();
     }
 
@@ -104,66 +108,29 @@ export class ZibriApplication {
     /**
      * Initializes the app.
      * @param H - The global handlebars instance, needed to provide some helpers used in templating.
+     * @param handlebarComponentsDir - Directory where handlebars components reside. Defaults to assetService.assetsPath/templates/components.
      */
-    async init(H: typeof Handlebars): Promise<void> {
-        await HandlebarUtilities.init(H);
+    async init(
+        H: typeof Handlebars,
+        handlebarComponentsDir: string = FsUtilities.getPath(inject(ZIBRI_DI_TOKENS.ASSET_SERVICE).assetsPath, 'templates', 'components')
+    ): Promise<void> {
+        await HandlebarUtilities.init(H, handlebarComponentsDir);
         GlobalRegistry.setAppData(this.options);
 
         for (const provider of this.options.providers) {
             register(provider);
         }
 
-        this.logger = inject(ZIBRI_DI_TOKENS.LOGGER);
-        await this.logger.attachTo(this);
+        await this.logDefaults();
 
-        this.metricsService = inject(ZIBRI_DI_TOKENS.METRICS_SERVICE);
-        await this.metricsService.attachTo(this);
+        const tokens: DiToken<unknown>[] = getAllRegisteredTokens();
+        await this.beforeAppInit(tokens);
 
-        if (!this.providedOptions.authStrategies) {
-            await this.logger.info('No auth strategies provided, defaults to:');
-            for (const strategy of this.options.authStrategies) {
-                await this.logger.info(`  - ${strategy.name}`);
-            }
-        }
-        if (!this.providedOptions.twoFactorMethods) {
-            await this.logger.info('No two factor methods provided, defaults to:');
-            for (const strategy of this.options.twoFactorMethods) {
-                await this.logger.info(`  - ${strategy.name}`);
-            }
-        }
-        if (!this.providedOptions.bodyParsers) {
-            await this.logger.info('No body parsers provided, defaults to:');
-            for (const bodyParser of this.options.bodyParsers) {
-                await this.logger.info(`  - ${bodyParser.name}`);
-            }
-        }
+        const injectables: unknown[] = tokens.map(t => inject(t));
+        this.validateInjectables(injectables);
 
-        this.dataSourceService = inject(ZIBRI_DI_TOKENS.DATA_SOURCE_SERVICE);
-        await this.dataSourceService.init();
-
-        this.twoFactorService = inject(ZIBRI_DI_TOKENS.TWO_FACTOR_SERVICE);
-        await this.twoFactorService.init(this.options.twoFactorMethods);
-
-        this.authService = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
-        await this.authService.init(this.options.authStrategies);
-
-        this.parser = inject(ZIBRI_DI_TOKENS.PARSER);
-        await this.parser.attachTo(this);
-
-        this._router = inject(ZIBRI_DI_TOKENS.ROUTER);
-        await this._router.init(this);
-
-        this.assetService = inject(ZIBRI_DI_TOKENS.ASSET_SERVICE);
-        await this.assetService.attachTo(this);
-
-        this.emailService = inject(ZIBRI_DI_TOKENS.EMAIL_SERVICE);
-        this.emailService.attachTo(this);
-
-        this.mailingListService = inject(ZIBRI_DI_TOKENS.MAILING_LIST_SERVICE);
-        this.mailingListService?.attachTo(this);
-
-        this.openApiService = inject(ZIBRI_DI_TOKENS.OPEN_API_SERVICE);
-        await this.openApiService.attachTo(this);
+        await this.onAppInit(injectables);
+        await this.afterAppInit(injectables);
 
         for (const controller of this.options.controllers) {
             inject(controller);
@@ -172,18 +139,6 @@ export class ZibriApplication {
         for (const websocketController of this.options.websocketControllers) {
             inject(websocketController);
         }
-
-        this.cronService = inject(ZIBRI_DI_TOKENS.CRON_SERVICE);
-        await this.cronService.init(this.options.cronJobs);
-
-        this.multithreadingService = inject(ZIBRI_DI_TOKENS.MULTITHREADING_SERVICE);
-        await this.multithreadingService.init();
-
-        this.websocketService = inject<WebsocketServiceInterface<BaseWebsocketConnection>>(ZIBRI_DI_TOKENS.WEBSOCKET_SERVICE);
-        await this.websocketService.attachTo(this);
-
-        this.backupService = inject(ZIBRI_DI_TOKENS.BACKUP_SERVICE);
-        await this.backupService.init();
 
         for (const plugin of this.providedOptions.plugins ?? []) {
             await plugin.validate(this);
@@ -198,18 +153,196 @@ export class ZibriApplication {
      * @throws When the app has already been started.
      */
     async start(port: number): Promise<void> {
-        if (GlobalRegistry.isAppRunning()) {
+        if (GlobalRegistry.isAppStarted()) {
             // We need this check in addition to the one in the registry.
-            // Because we would otherwise have a wrong state when we call markAppAsRunning
+            // Because we would otherwise have a wrong state when we call markAppAsStarted
             // and then this.app.listen fails.
             throw new Error('The application has already been started');
         }
-        await this.router.attachTo(this);
+
+        const injectables: unknown[] = getAllRegisteredTokens().map(t => inject(t));
+        for (const element of injectables.filter(i => implementsOnAppStart(i))) {
+            await element.onAppStart(this);
+        }
+
         this.use((req, _, next) => next(new UnmatchedRouteError(req.originalUrl)));
         this.use(inject(ZIBRI_DI_TOKENS.GLOBAL_ERROR_HANDLER));
         this.server.listen(port);
-        GlobalRegistry.markAppAsRunning();
+        GlobalRegistry.markAppAsStarted();
         await this.logger.info(`${this.options.name} is running on port ${port}`);
+    }
+
+    /**
+     * Gracefully shuts down the application.
+     * @param signal - The signal that shuts down the application. Can be left empty if manually called.
+     */
+    async shutdown(signal?: ShutdownSignal): Promise<void> {
+        switch (GlobalRegistry.getAppData('state')) {
+            case AppState.OFFLINE:
+            case AppState.SHUTTING_DOWN: {
+                // is already offline or shutting down, nothing to do here
+                return;
+            }
+            case AppState.CREATED: {
+                // nothing has been initialized yet, can simply quit without handling shutdown hooks
+                await this.logger.info('shutting down...');
+                GlobalRegistry.markAppAsShuttingDown();
+                for (const [signal, handler] of this.signalHandlers) {
+                    process.off(signal, handler);
+                }
+                process.exit(0);
+            }
+            case AppState.INITIALIZED:
+            case AppState.STARTED: {
+                await this.logger.info('shutting down...');
+                GlobalRegistry.markAppAsShuttingDown();
+                for (const [signal, handler] of this.signalHandlers) {
+                    process.off(signal, handler);
+                }
+
+                await this.shutdownHttpServer();
+                const injectables: unknown[] = getAllRegisteredTokens().map(t => inject(t));
+                await this.beforeAppShutdown(injectables, signal);
+                await this.onAppShutdown(injectables, signal);
+                await this.afterAppShutdown(injectables, signal);
+
+                process.exit(0);
+            }
+        }
+    }
+
+    private async beforeAppInit(tokens: DiToken<unknown>[]): Promise<void> {
+        const sortedTokens: DiToken<unknown>[] = tokens.sort((a, b) => {
+            if ('key' in a && a.key === ZIBRI_DI_TOKENS.DATA_SOURCE_SERVICE.key) {
+                return -1;
+            }
+            if ('key' in b && b.key === ZIBRI_DI_TOKENS.DATA_SOURCE_SERVICE.key) {
+                return 1;
+            }
+            return 0;
+        });
+
+        for (const token of sortedTokens) {
+            const injectable: unknown = inject(token);
+            if (implementsBeforeAppInit(injectable)) {
+                await injectable.beforeAppInit(this);
+            }
+        }
+    }
+
+    private async onAppInit(injectables: unknown[]): Promise<void> {
+        for (const element of injectables.filter(i => implementsOnAppInit(i))) {
+            await element.onAppInit(this);
+        }
+    }
+
+    private async afterAppInit(injectables: unknown[]): Promise<void> {
+        for (const element of injectables.filter(i => implementsAfterAppInit(i))) {
+            await element.afterAppInit(this);
+        }
+    }
+
+    private async afterAppShutdown(injectables: unknown[], signal: ShutdownSignal | undefined): Promise<void> {
+        const elements: AfterAppShutdown[] = injectables.filter(i => implementsAfterAppShutdown(i));
+        await Promise.all(elements.map(async e => {
+            try {
+                const timeoutInMs: number = e.shutdownTimeoutInMs ?? DEFAULT_SHUTDOWN_TIMEOUT_IN_MS;
+                await PromiseUtilities.withTimeout(e.afterAppShutdown(this, signal), timeoutInMs);
+            }
+            catch (error) {
+                await this.logger.error(
+                    error instanceof Error
+                        ? error
+                        : new Error(`Error running afterAppShutdown for "${e.constructor.name}":`, { cause: error })
+                );
+            }
+        }));
+    }
+
+    private async onAppShutdown(injectables: unknown[], signal: ShutdownSignal | undefined): Promise<void> {
+        const elements: OnAppShutdown[] = injectables.filter(i => implementsOnAppShutdown(i));
+        await Promise.all(elements.map(async e => {
+            try {
+                const timeoutInMs: number = e.shutdownTimeoutInMs ?? DEFAULT_SHUTDOWN_TIMEOUT_IN_MS;
+                await PromiseUtilities.withTimeout(e.onAppShutdown(this, signal), timeoutInMs);
+            }
+            catch (error) {
+                await this.logger.error(
+                    error instanceof Error
+                        ? error
+                        : new Error(`Error running onAppShutdown for "${e.constructor.name}":`, { cause: error })
+                );
+            }
+        }));
+    }
+
+    private async beforeAppShutdown(injectables: unknown[], signal: ShutdownSignal | undefined): Promise<void> {
+        const elements: BeforeAppShutdown[] = injectables.filter(i => implementsBeforeAppShutdown(i));
+        await Promise.all(elements.map(async e => {
+            try {
+                const timeoutInMs: number = e.shutdownTimeoutInMs ?? DEFAULT_SHUTDOWN_TIMEOUT_IN_MS;
+                await PromiseUtilities.withTimeout(e.beforeAppShutdown(this, signal), timeoutInMs);
+            }
+            catch (error) {
+                await this.logger.error(
+                    error instanceof Error
+                        ? error
+                        : new Error(`Error running beforeAppShutdown for "${e.constructor.name}":`, { cause: error })
+                );
+            }
+        }));
+    }
+
+    private async shutdownHttpServer(): Promise<void> {
+        if (!this.server.listening) {
+            return;
+        }
+        return new Promise((resolve, reject) => {
+            // eslint-disable-next-line promise/prefer-await-to-callbacks
+            this.server.close(err => {
+                if (err) {
+                    reject(err);
+                }
+                else {
+                    resolve();
+                }
+            });
+        });
+    }
+
+    private validateInjectables(injectables: unknown[]): void {
+        for (const element of injectables) {
+            if (element instanceof ZibriPlugin) {
+                throw new Error([
+                    `Invalid class marked with @Injectable: ${element.constructor.name}`,
+                    'Plugins interfere with the injection system, making them injectable is forbidden.'
+                ].join('\n'));
+            }
+            if (element instanceof CronJob) {
+                throw new Error([
+                    `Invalid class marked with @Injectable: ${element.constructor.name}`,
+                    'Cron jobs should be registered by the cron service.'
+                ].join('\n'));
+            }
+            if (isTwoFactorMethod(element)) {
+                throw new Error([
+                    `Invalid class marked with @Injectable: ${element.constructor.name}`,
+                    'Two factor methods should be registered by the two factor service.'
+                ].join('\n'));
+            }
+            if (isAuthStrategy(element)) {
+                throw new Error([
+                    `Invalid class marked with @Injectable: ${element.constructor.name}`,
+                    'Auth strategies should be registered by the auth service.'
+                ].join('\n'));
+            }
+            if (isDataSource(element) && !this.options.dataSources.find(ds => ds.name === element.constructor.name)) {
+                throw new Error([
+                    `Invalid class marked with @DataSource: ${element.constructor.name}`,
+                    'The data source has not been included in the application options.'
+                ].join('\n'));
+            }
+        }
     }
 
     private createFullOptions(): FullZibriApplicationOptions {
@@ -242,5 +375,26 @@ export class ZibriApplication {
         }
 
         return res;
+    }
+
+    private async logDefaults(): Promise<void> {
+        if (!this.providedOptions.authStrategies) {
+            await this.logger.info('No auth strategies provided, defaults to:');
+            for (const strategy of this.options.authStrategies) {
+                await this.logger.info(`  - ${strategy.name}`);
+            }
+        }
+        if (!this.providedOptions.twoFactorMethods) {
+            await this.logger.info('No two factor methods provided, defaults to:');
+            for (const strategy of this.options.twoFactorMethods) {
+                await this.logger.info(`  - ${strategy.name}`);
+            }
+        }
+        if (!this.providedOptions.bodyParsers) {
+            await this.logger.info('No body parsers provided, defaults to:');
+            for (const bodyParser of this.options.bodyParsers) {
+                await this.logger.info(`  - ${bodyParser.name}`);
+            }
+        }
     }
 }

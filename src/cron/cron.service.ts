@@ -1,10 +1,15 @@
 import { CronJobEntity } from './cron-job-entity.model';
 import { CronJob } from './cron-job.model';
 import { CronServiceInterface } from './cron-service.interface';
+import { ZibriApplication } from '../application';
+import { Inject } from '../di/decorators/inject.decorator';
+import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
-import { LoggerInterface } from '../logging/logger.interface';
-import { Newable } from '../types/newable.type';
+import { register } from '../di/register.function';
+import { AfterAppInit } from '../global/after-app-init.interface';
+import { BeforeAppShutdown } from '../global/before-app-shutdown.interface';
+import { type LoggerInterface } from '../logging/logger.interface';
 import { OmitStrict } from '../types/omit-strict.type';
 
 /**
@@ -15,21 +20,19 @@ export type CronUpdateData = Partial<OmitStrict<CronJobEntity, 'id' | 'cron' | '
 /**
  * Default cron service implementation of Zibri.
  */
-export class CronService implements CronServiceInterface {
-
-    /**
-     * A logger.
-     */
-    protected readonly logger: LoggerInterface;
+@Injectable({ register: 'onUse' })
+export class CronService implements CronServiceInterface, AfterAppInit, BeforeAppShutdown {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly cronJobs: CronJob[] = [];
 
-    constructor() {
-        this.logger = inject(ZIBRI_DI_TOKENS.LOGGER);
-    }
+    constructor(
+        @Inject(ZIBRI_DI_TOKENS.LOGGER)
+        private readonly logger: LoggerInterface
+    ) {}
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async init(cronJobs: Newable<CronJob>[]): Promise<void> {
+    async afterAppInit({ options }: ZibriApplication): Promise<void> {
+        const { cronJobs } = options;
         if (this.cronJobs.length) {
             throw new Error('has already been initialized');
         }
@@ -37,11 +40,17 @@ export class CronService implements CronServiceInterface {
             await this.logger.info(`registers ${cronJobs.length} ${cronJobs.length > 1 ? 'cron jobs' : 'cron job'}`);
         }
         for (const cronJobClass of cronJobs) {
+            register({ token: cronJobClass, useClass: cronJobClass });
             const cronJob: CronJob = inject(cronJobClass);
             await cronJob.init();
             await this.logger.info(`  -  ${cronJobClass.name} (${cronJob.active ? 'active' : 'not active'})`);
             this.cronJobs.push(cronJob);
         }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async beforeAppShutdown(): Promise<void> {
+        await Promise.all(this.cronJobs.map(j => j.shutdown()));
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

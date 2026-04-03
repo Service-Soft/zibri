@@ -6,7 +6,7 @@ import { OmitClass } from '../../entity/omit-class.model';
 /**
  * A short lived token used to confirm a password reset.
  */
-@Entity()
+@Entity({ allowOrphan: true })
 export class PasswordResetToken extends BaseEntity {
     /**
      * The expiration date of the password reset token.

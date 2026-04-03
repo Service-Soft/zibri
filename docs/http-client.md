@@ -8,12 +8,7 @@ import { HttpClientInterface, inject, ZIBRI_DI_TOKENS } from 'zibri';
 // ...
 const http: HttpClientInterface = inject(ZIBRI_DI_TOKENS.HTTP_CLIENT);
 // undefined is assumed for the response body because we did not define anything
-const response: HttpClientResponse<undefined> = await http.get(
-    'https://some-api.com/tests',
-    {
-
-    }
-);
+const response: HttpClientResponse<undefined> = await http.get('https://some-api.com/tests');
 // ...
 ```
 

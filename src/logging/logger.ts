@@ -7,14 +7,17 @@ import { LoggerInterface } from './logger.interface';
 import { ZibriApplication } from '../application';
 import { BaseLoggerTransportConfig, LoggerTransport } from './transport/logger-transport.model';
 import { Inject } from '../di/decorators/inject.decorator';
+import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { GlobalRegistry } from '../global/global-registry';
+import { OnAppInit } from '../global/on-app-init.interface';
 import { UUIDUtilities } from '../utilities/uuid.utilities';
 
 /**
  * Default logger implementation of Zibri.
  */
-export class Logger implements LoggerInterface {
+@Injectable({ register: 'onUse' })
+export class Logger implements LoggerInterface, OnAppInit {
 
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOGGER_TRANSPORTS)
@@ -24,7 +27,7 @@ export class Logger implements LoggerInterface {
     ) {}
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    attachTo(app: ZibriApplication): void {
+    onAppInit(app: ZibriApplication): void {
         app.options.cronJobs.push(LogCleanupCronJob);
     }
 
@@ -76,7 +79,7 @@ export class Logger implements LoggerInterface {
             if (transport.config.level > level) {
                 return;
             }
-            if (transport.config.register !== 'directly' && !GlobalRegistry.isAppInitialized() && !GlobalRegistry.isAppRunning()) {
+            if (transport.config.register !== 'directly' && !GlobalRegistry.isAppInitialized() && !GlobalRegistry.isAppStarted()) {
                 return;
             }
 

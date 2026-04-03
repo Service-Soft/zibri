@@ -20,10 +20,6 @@ export interface AuthServiceInterface {
      */
     readonly strategies: AuthStrategies,
     /**
-     * Initializes the service.
-     */
-    init: (strategies: AuthStrategies) => void | Promise<void>,
-    /**
      * Checks if the provided method on the provided controller can be accessed by the current user.
      */
     checkAccess: (

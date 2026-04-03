@@ -9,7 +9,7 @@
 
 Zibri is an opiniated typescript backend framework based on express. It's heavily inspired by frameworks like [LoopBack](https://loopback.io/doc/en/lb4/index.html) and [Nest](https://docs.nestjs.com/).
 
-What differentiates it from such frameworks can be found in our [goals section](#goals).
+What differentiates it from such frameworks can be found in our [goals section](#-goals).
 
 # 📑 Documentation
 The official documentation of Zibri can be found under [https://service-soft.github.io/zibri](https://service-soft.github.io/zibri)
@@ -54,7 +54,7 @@ With Zibri you can rely on a strong foundation of battle tested libraries that h
 - express as the server
 - typeorm for handling everything database related
 - nodemailer for sending emails
-- handlebars for templating
+- handlebars and preact for templating
 - busboy for file uploads (the foundation of multer)
 - socket.io for websockets
 - node-cron for cron jobs

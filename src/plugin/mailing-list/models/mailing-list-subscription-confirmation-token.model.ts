@@ -6,7 +6,7 @@ import { OmitClass } from '../../../entity/omit-class.model';
 /**
  * A short lived token used to confirm a mailing list subscription.
  */
-@Entity()
+@Entity({ allowOrphan: true })
 export class MailingListSubscriptionConfirmationToken extends BaseEntity {
     /**
      * The expiration date of the confirmation token.

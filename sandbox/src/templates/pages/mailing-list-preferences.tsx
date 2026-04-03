@@ -1,5 +1,5 @@
 /* eslint-disable typescript/no-non-null-assertion */
-import { MailingList, MailingListSubscriber, MaskUtilities, onClient, PreactComponent } from 'zibri';
+import { MailingList, MailingListPreferencesPageTemplate, MaskUtilities, onClient } from 'zibri';
 
 import { Button } from '../components/button';
 import { Card } from '../components/card';
@@ -7,19 +7,13 @@ import { Checkbox } from '../components/checkbox';
 import { EmptyPage } from '../components/empty-page';
 import { Heading } from '../components/heading';
 
-type Props = {
-    subscriber: MailingListSubscriber,
-    mailingLists: MailingList[]
-};
-
 type MailingListDisplayData = MailingList & {
     isSubscribedTo: boolean
 };
 
-export const MailingListPreferencesPage: PreactComponent<Props> = ({ subscriber, mailingLists }) => {
+export const MailingListPreferencesPage: MailingListPreferencesPageTemplate = ({ subscriber, mailingLists, managePreferencesLink }) => {
     let updateButton: HTMLButtonElement;
     let statusBar: HTMLDivElement;
-    let subscriberId: string;
 
     const email: string = MaskUtilities.mask(subscriber.email);
     const lists: MailingListDisplayData[] = mailingLists.map(l => ({
@@ -33,12 +27,6 @@ export const MailingListPreferencesPage: PreactComponent<Props> = ({ subscriber,
     onClient(() => {
         updateButton = document.querySelector('#update-button')!;
         statusBar = document.querySelector('#status-bar')!;
-        const subscriberIdParam: string | null = new URL(window.location.href).searchParams.get('subscriberId');
-        if (!subscriberIdParam) {
-            location.href = '/';
-            return;
-        }
-        subscriberId = subscriberIdParam;
     });
 
     function updateCheckedMailingListIds(l: MailingListDisplayData): void {
@@ -69,7 +57,7 @@ export const MailingListPreferencesPage: PreactComponent<Props> = ({ subscriber,
         setIsLoading();
 
         const success: boolean = (await fetch(
-            `/mailing-lists/preferences?subscriberId=${subscriberId}`,
+            managePreferencesLink,
             {
                 method: 'PATCH',
                 body: JSON.stringify({ mailingListIds: currentCheckedMailingListIds }),

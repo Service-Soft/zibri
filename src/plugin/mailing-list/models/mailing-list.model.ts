@@ -6,7 +6,7 @@ import { Property } from '../../../entity/decorators/property.decorator';
 /**
  * A mailing list like a newsletter that people can easily subscribe and unsubscribe to.
  */
-@Entity()
+@Entity({ allowOrphan: true })
 export class MailingList extends BaseEntity {
     /**
      * The name of the mailing list.

@@ -29,10 +29,7 @@ export function runWithRequest<T>(req: HttpRequest, fn: () => T): T {
  * @returns The currently active http request.
  * @throws When the async local storage store has not been initialized yet.
  */
-export function getCurrentRequest(): HttpRequest {
+export function getCurrentRequest(): HttpRequest | undefined {
     const store: AslData | undefined = als.getStore();
-    if (!store) {
-        throw new Error('No request in context');
-    }
-    return store.request;
+    return store?.request;
 }

@@ -11,30 +11,30 @@ import { JwtRefreshToken, JwtRefreshTokenCreateDto } from './jwt-refresh-token.m
 import { JwtRequestPasswordResetData } from './jwt-request-password-reset-data.model';
 import { JwtUtilities } from './jwt.utilities';
 import { Repository } from '../../../data-source/repository';
-import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
+import { InjectRepository, repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
+import { Inject } from '../../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { NoProviderError } from '../../../di/errors/no-provider.error';
 import { inject } from '../../../di/inject.function';
-import { EmailServiceInterface } from '../../../email/email-service.interface';
+import { type EmailServiceInterface } from '../../../email/email-service.interface';
 import { EmailPriority } from '../../../email/models/email-priority.enum';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { TooManyRequestsError } from '../../../error-handling/errors/too-many-requests.error';
 import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.error';
 import { GlobalRegistry } from '../../../global/global-registry';
-import { renderEmailTemplate } from '../../../handlebars/render-template.function';
 import { HttpRequest } from '../../../http/http-request.model';
 import { OpenApiSecuritySchemeObject } from '../../../open-api/open-api.model';
 import { Newable } from '../../../types/newable.type';
 import { Ms } from '../../../utilities/ms';
 import { UUIDUtilities } from '../../../utilities/uuid.utilities';
-import { validateEntitiesRegistered } from '../../../utilities/validate-entities-registered.function';
 import { WebsocketRequest } from '../../../websocket/models/websocket-request.model';
 import { HashUtilities } from '../../hash.utilities';
 import { BaseUser } from '../../models/base-user.model';
 import { PasswordResetToken, PasswordResetTokenCreateData } from '../../models/password-reset-token.model';
-import { UserServiceInterface } from '../../user/user-service.interface';
-import { NO_USER_REPOSITORIES_PROVIDED_ERROR_MESSAGE } from '../../user/user.service';
+import { type UserServiceInterface } from '../../user/user-service.interface';
 import { AuthStrategyInterface } from '../auth-strategy.interface';
+import { PasswordResetEmailTemplate } from './jwt-auth.controller';
+import { PreactUtilities } from '../../../preact/preact.utilities';
 
 /**
  * Jwt auth strategy implementation of Zibri.
@@ -65,65 +65,51 @@ implements AuthStrategyInterface<
     };
 
     private readonly accessTokenSecret: string;
-    private readonly accessTokenExpiresInMs: number;
     private readonly refreshTokenSecret: string;
-    private readonly refreshTokenExpiresInMs: number;
-    private readonly passwordResetTokenExpiresInMs: number;
-    private readonly userService: UserServiceInterface;
-    private readonly emailService: EmailServiceInterface;
     private readonly confirmPasswordResetUrl: string;
+    private readonly PasswordResetEmail: PasswordResetEmailTemplate<RoleType, UserType>;
 
-    private get refreshTokenRepository(): Repository<JwtRefreshToken> {
-        return inject(repositoryTokenFor(JwtRefreshToken));
-    }
-
-    private get passwordResetTokenRepository(): Repository<PasswordResetToken, PasswordResetTokenCreateData> {
-        return inject(repositoryTokenFor(PasswordResetToken));
-    }
-
-    private get credentialsRepository(): Repository<JwtCredentials> {
-        return inject(repositoryTokenFor(JwtCredentials));
-    }
-
-    constructor() {
+    constructor(
+        @InjectRepository(JwtRefreshToken)
+        private readonly refreshTokenRepository: Repository<JwtRefreshToken>,
+        @InjectRepository(PasswordResetToken)
+        private readonly passwordResetTokenRepository: Repository<PasswordResetToken, PasswordResetTokenCreateData>,
+        @InjectRepository(JwtCredentials)
+        private readonly credentialsRepository: Repository<JwtCredentials>,
+        @Inject(ZIBRI_DI_TOKENS.JWT_ACCESS_TOKEN_EXPIRES_IN_MS)
+        private readonly accessTokenExpiresInMs: number,
+        @Inject(ZIBRI_DI_TOKENS.JWT_REFRESH_TOKEN_EXPIRES_IN_MS)
+        private readonly refreshTokenExpiresInMs: number,
+        @Inject(ZIBRI_DI_TOKENS.JWT_PASSWORD_RESET_TOKEN_EXPIRES_IN_MS)
+        private readonly passwordResetTokenExpiresInMs: number,
+        @Inject(ZIBRI_DI_TOKENS.USER_SERVICE)
+        private readonly userService: UserServiceInterface,
+        @Inject(ZIBRI_DI_TOKENS.EMAIL_SERVICE)
+        private readonly emailService: EmailServiceInterface
+    ) {
         const accessTokenSecret: string | undefined = inject(ZIBRI_DI_TOKENS.JWT_ACCESS_TOKEN_SECRET);
         if (!accessTokenSecret) {
-            throw new NoProviderError(ZIBRI_DI_TOKENS.JWT_ACCESS_TOKEN_SECRET, [JwtAuthStrategy]);
+            throw new NoProviderError(ZIBRI_DI_TOKENS.JWT_ACCESS_TOKEN_SECRET, []);
         }
         const refreshTokenSecret: string | undefined = inject(ZIBRI_DI_TOKENS.JWT_REFRESH_TOKEN_SECRET);
         if (!refreshTokenSecret) {
-            throw new NoProviderError(ZIBRI_DI_TOKENS.JWT_REFRESH_TOKEN_SECRET, [JwtAuthStrategy]);
+            throw new NoProviderError(ZIBRI_DI_TOKENS.JWT_REFRESH_TOKEN_SECRET, []);
         }
         const confirmPasswordResetUrl: string | undefined = inject(ZIBRI_DI_TOKENS.JWT_CONFIRM_PASSWORD_RESET_URL);
         if (!confirmPasswordResetUrl) {
-            throw new NoProviderError(ZIBRI_DI_TOKENS.JWT_CONFIRM_PASSWORD_RESET_URL, [JwtAuthStrategy]);
+            throw new NoProviderError(ZIBRI_DI_TOKENS.JWT_CONFIRM_PASSWORD_RESET_URL, []);
         }
+        const PasswordResetEmail: PasswordResetEmailTemplate<RoleType, UserType> | undefined = inject(
+            ZIBRI_DI_TOKENS.JWT_PASSWORD_RESET_EMAIL_TEMPLATE
+        );
+        if (!PasswordResetEmail) {
+            throw new NoProviderError(ZIBRI_DI_TOKENS.JWT_PASSWORD_RESET_EMAIL_TEMPLATE, []);
+        }
+
         this.accessTokenSecret = accessTokenSecret;
-        this.accessTokenExpiresInMs = inject(ZIBRI_DI_TOKENS.JWT_ACCESS_TOKEN_EXPIRES_IN_MS);
         this.refreshTokenSecret = refreshTokenSecret;
-        this.refreshTokenExpiresInMs = inject(ZIBRI_DI_TOKENS.JWT_REFRESH_TOKEN_EXPIRES_IN_MS);
-        this.passwordResetTokenExpiresInMs = inject(ZIBRI_DI_TOKENS.JWT_PASSWORD_RESET_TOKEN_EXPIRES_IN_MS);
-        this.userService = inject(ZIBRI_DI_TOKENS.USER_SERVICE);
-        this.emailService = inject(ZIBRI_DI_TOKENS.EMAIL_SERVICE);
         this.confirmPasswordResetUrl = confirmPasswordResetUrl;
-    }
-
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    init(): void {
-        if (!this.accessTokenSecret) {
-            throw new Error('No value provided for ZIBRI_DI_TOKENS.JWT_ACCESS_TOKEN_SECRET');
-        }
-        if (!this.refreshTokenSecret) {
-            throw new Error('No value provided for ZIBRI_DI_TOKENS.JWT_REFRESH_TOKEN_SECRET');
-        }
-        if (!this.confirmPasswordResetUrl) {
-            throw new Error('No value provided for ZIBRI_DI_TOKENS.JWT_CONFIRM_PASSWORD_RESET_URL');
-        }
-        if (!GlobalRegistry.userRepositories.length) {
-            throw new Error(NO_USER_REPOSITORIES_PROVIDED_ERROR_MESSAGE);
-        }
-
-        validateEntitiesRegistered(this.constructor.name, JwtRefreshToken, JwtCredentials, PasswordResetToken);
+        this.PasswordResetEmail = PasswordResetEmail;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -250,20 +236,18 @@ implements AuthStrategyInterface<
         };
         const resetToken: PasswordResetToken = await this.passwordResetTokenRepository.create(resetTokenData);
 
+        const html: string = PreactUtilities.renderEmail(
+            this.PasswordResetEmail,
+            {
+                user: data.user,
+                confirmPasswordResetLink: `${data.emailData?.confirmPasswordResetUrl ?? this.confirmPasswordResetUrl}/${resetToken.value}`
+            }
+        );
+
         await this.emailService.queue({
             recipients: [data.user.email],
             subject: 'Password Reset',
-            html: await renderEmailTemplate(
-                'password-reset.hbs',
-                {
-                    user: data.user,
-                    confirmPasswordResetUrl: data.emailData?.confirmPasswordResetUrl ?? this.confirmPasswordResetUrl,
-                    resetToken,
-                    base: {
-                        title: 'Password Reset'
-                    }
-                }
-            ),
+            html,
             priority: EmailPriority.HIGH,
             ...data
         });

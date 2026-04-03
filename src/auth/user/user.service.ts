@@ -1,4 +1,5 @@
 import { UserServiceInterface } from './user-service.interface';
+import { Injectable } from '../../di/decorators/injectable.decorator';
 import { inject } from '../../di/inject.function';
 import { NotFoundError } from '../../error-handling/errors/not-found.error';
 import { GlobalRegistry } from '../../global/global-registry';
@@ -10,6 +11,7 @@ export const NO_USER_REPOSITORIES_PROVIDED_ERROR_MESSAGE: string = 'No user repo
 /**
  * Default user service implementation of Zibri.
  */
+@Injectable({ register: 'onUse' })
 export class UserService implements UserServiceInterface {
 
     // eslint-disable-next-line jsdoc/require-jsdoc

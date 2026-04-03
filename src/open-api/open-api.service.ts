@@ -3,11 +3,13 @@ import swaggerUi from 'swagger-ui-express';
 import { ZibriApplication } from '../application';
 import { OpenApiServiceInterface } from './open-api-service.interface';
 import { OpenApiDefinition, OpenApiTagObject, OpenApiSecuritySchemeObject, OpenApiPaths, OpenApiResponse, OpenApiOperation, OpenApiResponsesObject, OpenApiResponseObject, OpenApiContentObject, OpenApiSchemaObject, OpenApiSecurityRequirementObject, OpenApiRequestBodyObject, OpenApiParameterLocation, OpenApiParameter } from './open-api.model';
-import { AssetServiceInterface } from '../assets/asset-service.interface';
-import { AuthServiceInterface } from '../auth/auth-service.interface';
+import { type AssetServiceInterface } from '../assets/asset-service.interface';
+import { type AuthServiceInterface } from '../auth/auth-service.interface';
 import { BelongsToMetadata } from '../auth/models/belongs-to-metadata.model';
 import { HasRoleMetadata } from '../auth/models/has-role-metadata.model';
 import { IsLoggedInMetadata } from '../auth/models/is-logged-in-metadata.model';
+import { Inject } from '../di/decorators/inject.decorator';
+import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { BaseEntity } from '../entity/base-entity.model';
@@ -19,19 +21,22 @@ import { OneToOnePropertyMetadata } from '../entity/models/one-to-one-property-m
 import { Relation } from '../entity/models/relation.enum';
 import { OmitClass } from '../entity/omit-class.model';
 import { GlobalRegistry } from '../global/global-registry';
+import { OnAppInit } from '../global/on-app-init.interface';
 import { HttpMethod } from '../http/http-method.enum';
 import { HttpStatus } from '../http/http-status.enum';
 import { KnownHeader } from '../http/known-header.enum';
 import { MimeType } from '../http/mime-type.enum';
-import { LoggerInterface } from '../logging/logger.interface';
+import { type LoggerInterface } from '../logging/logger.interface';
 import { FileResponse } from '../parsing/form-data/file-response.model';
 import { Route, ControllerRouteConfiguration } from '../routing/controller-route-configuration.model';
 import { BodyMetadata } from '../routing/decorators/body.decorator';
+import { ControllerData } from '../routing/decorators/controller.decorator';
 import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from '../routing/decorators/param.decorator';
 import { MissingBaseRouteError } from '../routing/missing-base-route.error';
 import { RouteHandler } from '../routing/route-configuration.model';
+import { type RouterInterface } from '../routing/router.interface';
 import { Newable } from '../types/newable.type';
-import { FsUtilities, Path } from '../utilities/fs.utilities';
+import { FsUtilities, FsPath } from '../utilities/fs.utilities';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
 
@@ -79,45 +84,48 @@ const defaultDescriptionForHttpStatus: Record<HttpStatus | 'default', string> = 
 /**
  * Default open api service implementation of Zibri.
  */
-export class OpenApiService implements OpenApiServiceInterface {
+@Injectable({ register: 'onUse' })
+export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly openApiRoute: Route = '/explorer';
-    private readonly logger: LoggerInterface;
-    private readonly assetService: AssetServiceInterface;
-    private readonly authService: AuthServiceInterface;
 
-    constructor() {
-        this.logger = inject(ZIBRI_DI_TOKENS.LOGGER);
-        this.assetService = inject(ZIBRI_DI_TOKENS.ASSET_SERVICE);
-        this.authService = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
-    }
+    constructor(
+        @Inject(ZIBRI_DI_TOKENS.LOGGER)
+        private readonly logger: LoggerInterface,
+        @Inject(ZIBRI_DI_TOKENS.ASSET_SERVICE)
+        private readonly assetService: AssetServiceInterface,
+        @Inject(ZIBRI_DI_TOKENS.AUTH_SERVICE)
+        private readonly authService: AuthServiceInterface,
+        @Inject(ZIBRI_DI_TOKENS.ROUTER)
+        private readonly router: RouterInterface
+    ) { }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async attachTo(app: ZibriApplication): Promise<void> {
+    async onAppInit(app: ZibriApplication): Promise<void> {
         const definition: OpenApiDefinition = await this.createOpenApiDefinition(app);
         await this.logger.info(`registers the OpenAPI Explorer at ${this.openApiRoute}`);
 
-        await app.router.register({
+        await this.router.registerRoute({
             httpMethod: HttpMethod.GET,
             route: `${this.openApiRoute}/swagger-ui.css`,
             handler: () => {
-                const filePath: Path = FsUtilities.getPath(this.assetService.publicAssetsPath, 'open-api', 'swagger-ui.css');
+                const filePath: FsPath = FsUtilities.getPath(this.assetService.publicAssetsPath, 'open-api', 'swagger-ui.css');
                 return FileResponse.fromPath(filePath);
             }
         });
-        await app.router.register({
+        await this.router.registerRoute({
             httpMethod: HttpMethod.GET,
             route: `${this.openApiRoute}/swagger-ui-bundle.js`,
             handler: () => {
-                const filePath: Path = FsUtilities.getPath(this.assetService.publicAssetsPath, 'open-api', 'swagger-ui-bundle.js');
+                const filePath: FsPath = FsUtilities.getPath(this.assetService.publicAssetsPath, 'open-api', 'swagger-ui-bundle.js');
                 return FileResponse.fromPath(filePath);
             }
         });
-        await app.router.register({
+        await this.router.registerRoute({
             httpMethod: HttpMethod.GET,
             route: `${this.openApiRoute}/swagger-ui-standalone-preset.js`,
             handler: () => {
-                const filePath: Path = FsUtilities.getPath(
+                const filePath: FsPath = FsUtilities.getPath(
                     this.assetService.publicAssetsPath,
                     'open-api',
                     'swagger-ui-standalone-preset.js'
@@ -125,7 +133,7 @@ export class OpenApiService implements OpenApiServiceInterface {
                 return FileResponse.fromPath(filePath);
             }
         });
-        await app.router.register({
+        await this.router.registerRoute({
             httpMethod: HttpMethod.GET,
             route: `${this.openApiRoute}/swagger-ui-init.js`,
             handler: (_, res) => {
@@ -152,7 +160,7 @@ export class OpenApiService implements OpenApiServiceInterface {
             }
         });
 
-        await app.router.register({
+        await this.router.registerRoute({
             httpMethod: HttpMethod.GET,
             route: `${this.openApiRoute}/custom.js`,
             handler: (_, res) => {
@@ -258,7 +266,7 @@ export class OpenApiService implements OpenApiServiceInterface {
         });
 
         app.use(this.openApiRoute, swaggerUi.serve);
-        await app.router.register({
+        await this.router.registerRoute({
             httpMethod: HttpMethod.GET,
             route: this.openApiRoute,
             handler: swaggerUi.setup(
@@ -304,8 +312,8 @@ export class OpenApiService implements OpenApiServiceInterface {
         const res: OpenApiPaths = {};
 
         for (const controllerClass of app.options.controllers) {
-            const baseRoute: Route | undefined = MetadataUtilities.getControllerBaseRoute(controllerClass);
-            if (!baseRoute) {
+            const controllerData: ControllerData | undefined = MetadataUtilities.getControllerData(controllerClass);
+            if (!controllerData) {
                 throw new MissingBaseRouteError(controllerClass);
             }
 
@@ -328,7 +336,8 @@ export class OpenApiService implements OpenApiServiceInterface {
 
                 const bodyMetadata: BodyMetadata | undefined = MetadataUtilities.getRouteBody(controllerClass, route.controllerMethod);
                 // Ensure an entry exists
-                const fullPath: string = `${baseRoute}${route.route}`.replaceAll(/:([^/]+)/g, '{$1}');
+                const finalRoute: string = controllerData.baseRoute === '/' ? route.route : `${controllerData.baseRoute}${route.route}`;
+                const fullPath: string = finalRoute.replaceAll(/:([^/]+)/g, '{$1}');
                 res[fullPath] ??= {};
 
                 const responses: OpenApiResponse[] = MetadataUtilities.getRouteResponses(controllerClass, route.controllerMethod);
@@ -354,7 +363,7 @@ export class OpenApiService implements OpenApiServiceInterface {
             }
         }
 
-        for (const route of app.router.manuallyRegisteredRoutes.filter(r => r.openApi.useInOpenApi)) {
+        for (const route of this.router.manuallyRegisteredRoutes.filter(r => r.openApi.useInOpenApi)) {
             // Ensure an entry exists
             const fullPath: string = `${route.route}`.replaceAll(/:([^/]+)/g, '{$1}');
             res[fullPath] ??= {};

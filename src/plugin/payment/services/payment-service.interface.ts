@@ -1,25 +1,25 @@
 import { PaymentDataForMethod, ValidatedPaymentDataForMethod, PaymentForMethod, AllowedReservationMethods, PaymentReservationForMethod, AllowedCancellationMethods, AllowedRefundMethods } from './payment-service.types';
-import { AnyObject } from '../../../entity/any-object.model';
 import { PaymentMethod } from '../models/payment-method.model';
-import { PaymentProviderInterface } from '../providers/payment-provider.interface';
+import { AnyPaymentProviderInterface } from '../providers/payment-provider.interface';
+
+// eslint-disable-next-line jsdoc/require-jsdoc
+type MethodsCoveredByProviders<P extends readonly AnyPaymentProviderInterface[]>
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    = P[number] extends { __supportedMethods: infer SM }
+        ? SM extends readonly (infer S)[] ? S : never
+        : never;
 
 /**
  * Interface for a payment service.
  */
 export interface PaymentServiceInterface<
     Methods extends readonly PaymentMethod[],
-    P extends readonly PaymentProviderInterface<
-        Methods[number][],
-        // eslint-disable-next-line jsdoc/require-jsdoc
-        Record<Methods[number], AnyObject & { transactionId: string }>,
-        // eslint-disable-next-line jsdoc/require-jsdoc
-        Record<Methods[number], AnyObject & { transactionId: string }>,
-        Record<Methods[number], AnyObject>,
-        Record<Methods[number], AnyObject>,
-        Record<Methods[number], boolean>,
-        Record<Methods[number], boolean>,
-        Record<Methods[number], boolean>
-    >[]
+    P extends readonly AnyPaymentProviderInterface[],
+    // eslint-disable-next-line unusedImports/no-unused-vars
+    _Check extends (Methods[number] extends MethodsCoveredByProviders<P>
+        // eslint-disable-next-line stylistic/max-len
+        ? unknown : 'Error: not all payment methods are covered by the provided providers') = Methods[number] extends MethodsCoveredByProviders<P>
+        ? unknown : 'Error: not all payment methods are covered by the provided providers'
 > {
     /**
      * Validates the given data of the given payment method.

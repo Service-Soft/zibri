@@ -2,10 +2,11 @@ import assert from 'assert';
 
 import { BodyParserInterface } from './body-parser.interface';
 import { ParserInterface } from './parser.interface';
-import { ZibriApplication } from '../application';
+import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { GlobalRegistry } from '../global/global-registry';
+import { OnAppInit } from '../global/on-app-init.interface';
 import { HttpRequest, isHttpRequest } from '../http/http-request.model';
 import { KnownHeader } from '../http/known-header.enum';
 import { MimeType } from '../http/mime-type.enum';
@@ -20,6 +21,7 @@ import { parseObject } from './functions/parse-object.function';
 import { parseString } from './functions/parse-string.function';
 import { BodyMetadata } from '../routing/decorators/body.decorator';
 import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from '../routing/decorators/param.decorator';
+import { UUIDUtilities } from '../utilities/uuid.utilities';
 import { WebsocketRequest } from '../websocket/models/websocket-request.model';
 
 /**
@@ -40,7 +42,8 @@ type HeaderParamParseFunction = (rawValue: string | undefined, meta: HeaderParam
 /**
  * Default parser implementation of Zibri.
  */
-export class Parser implements ParserInterface {
+@Injectable({ register: 'onUse' })
+export class Parser implements ParserInterface, OnAppInit {
     private readonly logger: LoggerInterface;
     private readonly bodyParsers: BodyParserInterface[] = [];
 
@@ -81,8 +84,11 @@ export class Parser implements ParserInterface {
         }
     };
 
+    private readonly id: string;
+
     constructor() {
         this.logger = inject(ZIBRI_DI_TOKENS.LOGGER);
+        this.id = UUIDUtilities.generate();
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -123,6 +129,7 @@ export class Parser implements ParserInterface {
         if (metadata.type !== contentType) {
             throw new Error(`Unsupported ${KnownHeader.CONTENT_TYPE}: "${contentType}"`);
         }
+
         const fittingParsers: BodyParserInterface[] = this.bodyParsers.filter(p => p.contentType === contentType);
         if (!fittingParsers.length) {
             throw new Error(`Unsupported ${KnownHeader.CONTENT_TYPE}: "${contentType}"`);
@@ -140,13 +147,12 @@ export class Parser implements ParserInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async attachTo(app: ZibriApplication): Promise<void> {
+    async onAppInit(): Promise<void> {
         await this.logger.info(`registers ${GlobalRegistry.bodyParsers.length} request body parsers:`);
         for (const parserClass of GlobalRegistry.bodyParsers) {
             const parser: BodyParserInterface = inject(parserClass);
             this.bodyParsers.push(parser);
             await this.logger.info(`  - ${parserClass.name} (${parser.contentType})`);
-            await parser.attachTo?.(app);
         }
     }
 }

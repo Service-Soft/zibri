@@ -6,7 +6,7 @@ import { LooseFileMimeType } from '../../http/mime-type.enum';
 import { resolveMimeType } from '../../http/mime-type.helpers';
 import { LoggerInterface } from '../../logging/logger.interface';
 import { OmitStrict } from '../../types/omit-strict.type';
-import { FsUtilities, Path } from '../../utilities/fs.utilities';
+import { FsUtilities, FsPath } from '../../utilities/fs.utilities';
 
 /**
  * Data shared by all FileResponses.
@@ -70,8 +70,8 @@ export class FileResponse {
      * @param options - Additional options like file size.
      * @returns A new FileResponse.
      */
-    static async fromPath(p: Path, options?: OmitStrict<PathFileResponseData, 'path'>): Promise<FileResponse> {
-        const fullPath: Path = FsUtilities.resolve(p);
+    static async fromPath(p: FsPath, options?: OmitStrict<PathFileResponseData, 'path'>): Promise<FileResponse> {
+        const fullPath: FsPath = FsUtilities.resolve(p);
         const fileName: string = options?.filename ?? FsUtilities.baseName(fullPath);
         const mimeType: string = options?.mimeType ?? resolveMimeType(fileName);
 

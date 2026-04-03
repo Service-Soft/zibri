@@ -8,7 +8,7 @@ import { type CurrencyCode } from '../../../localization/models/currency-code.mo
 /**
  * Contains information about an invoice.
  */
-@Entity()
+@Entity({ allowOrphan: true })
 export class Invoice extends BaseEntity {
     /**
      * The unique invoice number for this invoice.

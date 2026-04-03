@@ -7,7 +7,7 @@ import { OmitStrict } from '../types/omit-strict.type';
 /**
  * A single resource entity.
  */
-@Entity()
+@Entity({ allowOrphan: true })
 export class BackupResourceEntity extends BaseEntity {
     /**
      * The name of the resource.

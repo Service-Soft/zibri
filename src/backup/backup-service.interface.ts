@@ -27,10 +27,6 @@ export interface BackupServiceInterface {
      */
     isRestoringBackup: BehaviorSubject<boolean>,
     /**
-     * Initializes the service.
-     */
-    init: () => void | Promise<void>,
-    /**
      * Synchronizes backup entities with the data from all transports.
      */
     syncBackupEntities: () => Promise<void>,

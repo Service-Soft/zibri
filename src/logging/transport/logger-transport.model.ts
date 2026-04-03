@@ -1,8 +1,24 @@
+import { PreactEmailComponent } from '../../preact/preact-email-component.model';
 import { LogLevel } from '../log-level.enum';
 import { Log } from '../log.model';
 import { logToConsole } from './log-to-console.function';
 import { logToDb } from './log-to-db.function';
 import { EmailLoggerTransportConfig, EmailLoggerTransportConfigInput, logToEmail } from './log-to-email.function';
+
+/**
+ * Properties for a log email template.
+ */
+type LogEmailTemplateProps = {
+    /**
+     * The log.
+     */
+    log: Log
+};
+
+/**
+ * Definition for a log email template.
+ */
+export type LogEmailTemplate = PreactEmailComponent<LogEmailTemplateProps>;
 
 /**
  * The base configuration options shared by all logger transports.

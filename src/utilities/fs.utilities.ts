@@ -7,7 +7,7 @@ import { glob } from 'glob';
 /**
  * The type for a file path.
  */
-export type Path = string & {
+export type FsPath = string & {
     // eslint-disable-next-line jsdoc/require-jsdoc
     __brand: 'Path'
 };
@@ -42,7 +42,7 @@ export abstract class FsUtilities {
      * @param options - Additional streaming options.
      * @returns The newly created read stream.
      */
-    static createReadStream(path: Path, options?: Exclude<Parameters<typeof createReadStream>[1], BufferEncoding>): ReadStream {
+    static createReadStream(path: FsPath, options?: Exclude<Parameters<typeof createReadStream>[1], BufferEncoding>): ReadStream {
         return createReadStream(path, { encoding: 'utf8', ...options });
     }
 
@@ -52,7 +52,7 @@ export abstract class FsUtilities {
      * @param options - Additional streaming options.
      * @returns The newly created write stream.
      */
-    static createWriteStream(path: Path, options?: Exclude<Parameters<typeof createWriteStream>[1], BufferEncoding>): WriteStream {
+    static createWriteStream(path: FsPath, options?: Exclude<Parameters<typeof createWriteStream>[1], BufferEncoding>): WriteStream {
         return createWriteStream(path, { encoding: 'utf8', ...options });
     }
 
@@ -61,7 +61,7 @@ export abstract class FsUtilities {
      * @param p - The path to evaluate.
      * @returns The file extension.
      */
-    static extensionName(p: Path): string {
+    static extensionName(p: FsPath): string {
         return path.extname(p);
     }
 
@@ -70,7 +70,7 @@ export abstract class FsUtilities {
      * @param p - The path to evaluate.
      * @returns The last portion of the given path.
      */
-    static baseName(p: Path): string {
+    static baseName(p: FsPath): string {
         return path.basename(p);
     }
 
@@ -79,7 +79,7 @@ export abstract class FsUtilities {
      * @param p - The path to evaluate.
      * @returns The name of the directory as a string.
      */
-    static dirName(p: Path): string {
+    static dirName(p: FsPath): string {
         return path.dirname(p);
     }
 
@@ -91,8 +91,8 @@ export abstract class FsUtilities {
      * @param to - Where the relative path should end/point to.
      * @returns The fully resolved relative path.
      */
-    static relative(from: Path, to: Path): Path {
-        return path.relative(from, to) as Path;
+    static relative(from: FsPath, to: FsPath): FsPath {
+        return path.relative(from, to) as FsPath;
     }
 
     /**
@@ -104,8 +104,8 @@ export abstract class FsUtilities {
      * @param paths - The paths that should be resolved.
      * @returns The resolved path.
      */
-    static resolve(...paths: string[]): Path {
-        return path.resolve(...paths) as Path;
+    static resolve(...paths: string[]): FsPath {
+        return path.resolve(...paths) as FsPath;
     }
 
     /**
@@ -113,8 +113,8 @@ export abstract class FsUtilities {
      * @param pattern - The pattern to search for.
      * @returns The matching paths.
      */
-    static async glob(pattern: string | string[]): Promise<Path[]> {
-        return await glob(pattern) as Path[];
+    static async glob(pattern: string | string[]): Promise<FsPath[]> {
+        return await glob(pattern) as FsPath[];
     }
 
     /**
@@ -123,13 +123,13 @@ export abstract class FsUtilities {
      * @returns The cleaned up path.
      * @throws When the path could not be built from the provided segments.
      */
-    static getPath(...paths: string[]): Path {
+    static getPath(...paths: string[]): FsPath {
         try {
             const basePath: string = path.join(...paths);
             if (path.isAbsolute(basePath)) {
-                return basePath as Path;
+                return basePath as FsPath;
             }
-            return path.join('', basePath) as Path;
+            return path.join('', basePath) as FsPath;
         }
         catch (error) {
             throw new Error(`Error trying to get the path ${paths.join()}`, { cause: error });
@@ -141,7 +141,7 @@ export abstract class FsUtilities {
      * @param path - The path to get info on.
      * @returns Information like file size etc.
      */
-    static async stat(path: Path): Promise<Stats> {
+    static async stat(path: FsPath): Promise<Stats> {
         return await stat(path);
     }
 
@@ -150,7 +150,7 @@ export abstract class FsUtilities {
      * @param path - The path to check.
      * @returns True when a file could be accessed and false otherwise.
      */
-    static async exists(path: Path): Promise<boolean> {
+    static async exists(path: FsPath): Promise<boolean> {
         try {
             await access(path);
             return true;
@@ -175,12 +175,12 @@ export abstract class FsUtilities {
      * @param data - The data to write into the file. Can be a raw data string or an array of lines, which are joined by \n.
      * @param recursive - Whether or not to recursively create the file.
      */
-    static async createFile(p: Path, data: string | string[], recursive: boolean = true): Promise<void> {
+    static async createFile(p: FsPath, data: string | string[], recursive: boolean = true): Promise<void> {
         if (await this.exists(p)) {
             throw new Error(`File at ${p} already exists. Did you mean to call "updateFile"?`);
         }
         data = this.normalizeData(data);
-        const parentDir: Path = path.dirname(p) as Path;
+        const parentDir: FsPath = path.dirname(p) as FsPath;
         if (recursive && !await this.exists(parentDir)) {
             await this.mkdir(parentDir, true);
         }
@@ -202,7 +202,7 @@ export abstract class FsUtilities {
      * @param action - Whether the data should replace the current content or be pre-/appended.
      */
     static async updateFile(
-        path: Path,
+        path: FsPath,
         data: string | string[],
         action: 'replace' | 'prepend' | 'append'
     ): Promise<void> {
@@ -236,7 +236,7 @@ export abstract class FsUtilities {
      * @param path - The path of the file to create/override.
      * @param data - The data to write into the file. Can be a raw data string or an array of lines, which are joined by \n.
      */
-    static async upsertFile(path: Path, data: string | string[]): Promise<void> {
+    static async upsertFile(path: FsPath, data: string | string[]): Promise<void> {
         if (!await this.exists(path)) {
             await this.createFile(path, data);
             return;
@@ -251,7 +251,7 @@ export abstract class FsUtilities {
      * @param path - The path of the file to read.
      * @returns The content as a single string.
      */
-    static async readFile(path: Path): Promise<string> {
+    static async readFile(path: FsPath): Promise<string> {
         return readFile(path, { encoding: 'utf8' });
     }
 
@@ -260,7 +260,7 @@ export abstract class FsUtilities {
      * @param path - The path of the file to read the lines from.
      * @returns The content as an array of line strings.
      */
-    static async readFileLines(path: Path): Promise<string[]> {
+    static async readFileLines(path: FsPath): Promise<string[]> {
         const content: string = await this.readFile(path);
         return content.split('\n');
     }
@@ -270,7 +270,7 @@ export abstract class FsUtilities {
      * @param path - The path to remove.
      * @param recursive - Whether or not subdirectories should be deleted as well. Defaults to true.
      */
-    static async rm(path: Path, recursive: boolean = true): Promise<void> {
+    static async rm(path: FsPath, recursive: boolean = true): Promise<void> {
         if (!await this.exists(path)) {
             return;
         }
@@ -282,7 +282,7 @@ export abstract class FsUtilities {
      * @param path - The path of the directory to create.
      * @param recursive - Whether or not missing directories in the path should be created as well. Defaults to true.
      */
-    static async mkdir(path: Path, recursive: boolean = true): Promise<void> {
+    static async mkdir(path: FsPath, recursive: boolean = true): Promise<void> {
         await mkdir(path, { recursive });
     }
 
@@ -291,7 +291,7 @@ export abstract class FsUtilities {
      * @param path - The path of the directory to get the contents of.
      * @returns An array of the directory contents.
      */
-    static async readdir(path: Path): Promise<Dirent[]> {
+    static async readdir(path: FsPath): Promise<Dirent[]> {
         return readdir(path, { withFileTypes: true });
     }
 }
