@@ -1,6 +1,7 @@
 import { AssetServiceInterface } from '../../assets/asset-service.interface';
 import { TwoFactorServiceInterface } from '../../auth/2fa/two-factor-service.interface';
 import { AuthServiceInterface } from '../../auth/auth-service.interface';
+import { PasswordResetEmailTemplate } from '../../auth/strategies/jwt/jwt-auth.controller';
 import { UserServiceInterface } from '../../auth/user/user-service.interface';
 import { BackupServiceInterface } from '../../backup/backup-service.interface';
 import { CronServiceInterface } from '../../cron/cron-service.interface';
@@ -63,6 +64,8 @@ export const ZIBRI_DI_TOKENS = {
     JWT_REFRESH_TOKEN_EXPIRES_IN_MS: ziToken<number>('zi.jwt_refresh_token_expires_in_ms'),
     JWT_PASSWORD_RESET_TOKEN_EXPIRES_IN_MS: ziToken<number>('zi.jwt_password_reset_token_expires_in_ms'),
     JWT_CONFIRM_PASSWORD_RESET_URL: ziToken<string | undefined>('zi.jwt_confirm_password_reset_url'),
+    // eslint-disable-next-line typescript/no-explicit-any
+    JWT_PASSWORD_RESET_EMAIL_TEMPLATE: ziToken<PasswordResetEmailTemplate<any, any> | undefined>('zi.jwt_password_reset_email_template'),
     USER_SERVICE: ziToken<UserServiceInterface>('zi.user_service'),
     CRON_SERVICE: ziToken<CronServiceInterface>('zi.cron_service'),
     FILE_UPLOAD_TEMP_FOLDER: ziToken<FsPath>('zi.file_upload_temp_folder'),

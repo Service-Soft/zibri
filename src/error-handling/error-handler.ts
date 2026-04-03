@@ -61,7 +61,7 @@ export const errorHandler: GlobalErrorHandler = async (error: unknown, req: Http
     }
 
     try {
-        const html: string = await PreactUtilities.render(template, { error: httpError });
+        const html: string = await PreactUtilities.renderPage(template, { error: httpError });
         res.setHeader(KnownHeader.CONTENT_TYPE, MimeType.HTML);
         res.status(httpError.status).send(html);
     }

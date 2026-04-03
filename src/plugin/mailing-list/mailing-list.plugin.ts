@@ -17,7 +17,12 @@ import { MailingListService } from './services/mailing-list.service';
 export class ZibriMailingListPlugin extends ZibriPlugin {
     private readonly defaultDiProviders: DiTokenProviderRecord<typeof ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS> = {
         MAILING_LIST_SERVICE: { useClass: MailingListService },
-        CONFIRMATION_TOKEN_EXPIRES_IN_MS: { useFactory: () => Ms.DAY }
+        CONFIRMATION_TOKEN_EXPIRES_IN_MS: { useFactory: () => Ms.DAY },
+        SUBSCRIBE_CONFIRMATION_EMAIL_TEMPLATE: { useFactory: () => undefined },
+        PREFERENCES_PAGE_TEMPLATE: { useFactory: () => undefined },
+        UNSUBSCRIBE_CONFIRMATION_PAGE_TEMPLATE: { useFactory: () => undefined },
+        SUBSCRIBE_SUCCESS_PAGE_TEMPLATE: { useFactory: () => undefined },
+        BASE_EMAIL_TEMPLATE: { useFactory: () => undefined }
     };
 
     // eslint-disable-next-line jsdoc/require-jsdoc

@@ -1,15 +1,14 @@
-import { MailingList, MailingListSubscriber, MaskUtilities, PreactComponent } from 'zibri';
+import { MailingListUnsubscribeConfirmationPageTemplate, MaskUtilities } from 'zibri';
 
 import { Card } from '../components/card';
 import { EmptyPage } from '../components/empty-page';
 import { Heading } from '../components/heading';
 
-type Props = {
-    subscriber: MailingListSubscriber,
-    mailingList: MailingList
-};
-
-export const MailingListUnsubscribeConfirmationPage: PreactComponent<Props> = ({ subscriber, mailingList }) => {
+export const MailingListUnsubscribeConfirmationPage: MailingListUnsubscribeConfirmationPageTemplate = ({
+    subscriber,
+    mailingList,
+    managePreferencesLink
+}) => {
     const email: string = MaskUtilities.mask(subscriber.email);
 
     return (
@@ -31,8 +30,7 @@ export const MailingListUnsubscribeConfirmationPage: PreactComponent<Props> = ({
                 <p>
                     Unsubscribed by accident?
                     <br/>
-                    {/* TODO */}
-                    <a href="">Subscribe again</a> or <a href="/mailing-lists/preferences">manage other email preferences</a>
+                    <a href={managePreferencesLink}>Manage your preferences</a>
                 </p>
             </Card>
         </EmptyPage>

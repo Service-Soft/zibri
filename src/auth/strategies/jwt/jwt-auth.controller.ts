@@ -9,6 +9,7 @@ import { Inject } from '../../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { Property } from '../../../entity/decorators/property.decorator';
 import { Response } from '../../../open-api/decorators/response.decorator';
+import { PreactEmailComponent } from '../../../preact/preact-email-component.model';
 import { Body } from '../../../routing/decorators/body.decorator';
 import { Controller } from '../../../routing/decorators/controller.decorator';
 import { Post } from '../../../routing/decorators/post.decorator';
@@ -17,6 +18,21 @@ import { type AuthServiceInterface } from '../../auth-service.interface';
 import { BaseUser } from '../../models/base-user.model';
 import { PasswordResetToken } from '../../models/password-reset-token.model';
 import { type UserServiceInterface } from '../../user/user-service.interface';
+
+/**
+ * Properties of a password reset email.
+ */
+type PasswordResetEmailTemplateProps<Role extends string, UserType extends BaseUser<Role>> = {
+    confirmPasswordResetLink: string,
+    user: UserType
+};
+
+/**
+ * Definition for a password reset email template.
+ */
+export type PasswordResetEmailTemplate<
+    Role extends string, UserType extends BaseUser<Role>
+> = PreactEmailComponent<PasswordResetEmailTemplateProps<Role, UserType>>;
 
 class JwtRequestPasswordResetInput {
     @Property.string({ format: 'email' })

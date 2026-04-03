@@ -41,10 +41,6 @@ export class AssetService implements AssetServiceInterface, OnAppInit {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly publicAssetsPath: FsPath = FsUtilities.getPath(this.assetsPath, 'public');
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly pageTemplatePath: FsPath = FsUtilities.getPath(this.assetsPath, 'templates', 'pages');
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly emailTemplatePath: FsPath = FsUtilities.getPath(this.assetsPath, 'templates', 'emails');
-    // eslint-disable-next-line jsdoc/require-jsdoc
     readonly componentTemplatePath: FsPath = FsUtilities.getPath(this.assetsPath, 'templates', 'components');
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly assetsRoute: Route = '/assets';

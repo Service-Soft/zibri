@@ -1,39 +1,35 @@
 import { QueueEmailData } from '../../../email/models/create-email-data.model';
 import { OmitClass } from '../../../entity/omit-class.model';
-import { BaseEmailTemplateData } from '../../../handlebars/render-template.function';
 import { Route } from '../../../routing/controller-route-configuration.model';
 import { OmitStrict } from '../../../types/omit-strict.type';
+import { MailingListTemplateData } from '../models/mailing-list-base-email-template.model';
 import { MailingListSubscriber } from '../models/mailing-list-subscriber.model';
 
 /**
  * The data required to queue a new mailing list email.
  */
-export type MailingListQueueEmailData<T extends Record<string, unknown>> = OmitStrict<
+export type MailingListQueueEmailData<T> = OmitStrict<
     QueueEmailData,
     'bcc' | 'cc' | 'recipients' | 'userId' | 'priority' | 'html'
 > & {
     /**
-     * The template string in handlebars format.
+     * The title used in the template. Defaults to the subject.
      */
-    templateString: string,
+    title?: string,
     /**
-     * The data to use inside the template string.
+     * The template. Can be a template string, html or anything else, like a TSX component function.
      */
-    templateData: T
+    template: T,
+    /**
+     * A function that compiles the given template.
+     */
+    compile: (template: T, data: MailingListTemplateData) => string | Promise<string>
 };
 
 /**
  * The required data to create a new mailing list subscriber.
  */
 export class MailingListSubscriberCreateData extends OmitClass(MailingListSubscriber, ['id']) {}
-
-// eslint-disable-next-line jsdoc/require-jsdoc
-export type BaseMailingListEmailTemplateData = OmitStrict<BaseEmailTemplateData, 'base'> & {
-    /**
-     * The base data shared by all mailing list email templates.
-     */
-    base: OmitStrict<BaseEmailTemplateData['base'], 'mailingListData'>
-};
 
 /**
  * Interface for a mailing list service.
@@ -46,22 +42,34 @@ export interface MailingListServiceInterface {
     /**
      * Queues a new email for the mailing list with the provided id.
      */
-    queueEmailForList: <T extends BaseMailingListEmailTemplateData>(listId: string, data: MailingListQueueEmailData<T>) => Promise<void>,
+    queueEmailForList: <T>(listId: string, data: MailingListQueueEmailData<T>) => Promise<void>,
     /**
      * Requests for a new subscriber to the be added to the mailing list with the provided id.
      * This should initialize a two step process required by the GDPR.
      */
-    requestSubscribeToList: <T extends BaseMailingListEmailTemplateData>(
+    requestSubscribeToList: <T>(
         listId: string,
         subscriber: MailingListSubscriberCreateData,
-        emailData: MailingListQueueEmailData<T>
+        emailData: OmitStrict<MailingListQueueEmailData<T>, 'template' | 'compile'>
     ) => Promise<void>,
     /**
      * Confirms that a new subscriber is added to the mailing list.
      */
-    confirmSubscribeToList: (confirmationTokenValue: string) => Promise<void>,
+    confirmSubscribeToList: (confirmationTokenValue: string) => Promise<MailingListSubscriber>,
     /**
      * Removes a subscriber with the given id from the mailing list with the provided id.
      */
-    unsubscribeFromList: (listId: string, subscriberId: string) => Promise<void>
+    unsubscribeFromList: (listId: string, subscriberId: string) => Promise<void>,
+    /**
+     * Gets the subscribe confirmation link for the list with the given id and the confirmationToken.
+     */
+    getSubscribeConfirmationLink: (listId: string, confirmationToken: string) => string,
+    /**
+     * Gets the unsubscribe link for the list with the given id and the subscriber with the given id.
+     */
+    getUnsubscribeLink: (listId: string, subscriberId: string) => string,
+    /**
+     * Gets the link to the manage preferences page for the subscriber with the given id.
+     */
+    getManagePreferencesLink: (subscriberId: string) => string
 }

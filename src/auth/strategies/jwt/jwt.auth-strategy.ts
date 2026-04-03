@@ -22,7 +22,6 @@ import { BaseEntity } from '../../../entity/base-entity.model';
 import { TooManyRequestsError } from '../../../error-handling/errors/too-many-requests.error';
 import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.error';
 import { GlobalRegistry } from '../../../global/global-registry';
-import { renderEmailTemplate } from '../../../handlebars/render-template.function';
 import { HttpRequest } from '../../../http/http-request.model';
 import { OpenApiSecuritySchemeObject } from '../../../open-api/open-api.model';
 import { Newable } from '../../../types/newable.type';
@@ -34,6 +33,8 @@ import { BaseUser } from '../../models/base-user.model';
 import { PasswordResetToken, PasswordResetTokenCreateData } from '../../models/password-reset-token.model';
 import { type UserServiceInterface } from '../../user/user-service.interface';
 import { AuthStrategyInterface } from '../auth-strategy.interface';
+import { PasswordResetEmailTemplate } from './jwt-auth.controller';
+import { PreactUtilities } from '../../../preact/preact.utilities';
 
 /**
  * Jwt auth strategy implementation of Zibri.
@@ -66,6 +67,7 @@ implements AuthStrategyInterface<
     private readonly accessTokenSecret: string;
     private readonly refreshTokenSecret: string;
     private readonly confirmPasswordResetUrl: string;
+    private readonly PasswordResetEmail: PasswordResetEmailTemplate<RoleType, UserType>;
 
     constructor(
         @InjectRepository(JwtRefreshToken)
@@ -97,10 +99,17 @@ implements AuthStrategyInterface<
         if (!confirmPasswordResetUrl) {
             throw new NoProviderError(ZIBRI_DI_TOKENS.JWT_CONFIRM_PASSWORD_RESET_URL, []);
         }
+        const PasswordResetEmail: PasswordResetEmailTemplate<RoleType, UserType> | undefined = inject(
+            ZIBRI_DI_TOKENS.JWT_PASSWORD_RESET_EMAIL_TEMPLATE
+        );
+        if (!PasswordResetEmail) {
+            throw new NoProviderError(ZIBRI_DI_TOKENS.JWT_PASSWORD_RESET_EMAIL_TEMPLATE, []);
+        }
 
         this.accessTokenSecret = accessTokenSecret;
         this.refreshTokenSecret = refreshTokenSecret;
         this.confirmPasswordResetUrl = confirmPasswordResetUrl;
+        this.PasswordResetEmail = PasswordResetEmail;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -227,20 +236,18 @@ implements AuthStrategyInterface<
         };
         const resetToken: PasswordResetToken = await this.passwordResetTokenRepository.create(resetTokenData);
 
+        const html: string = PreactUtilities.renderEmail(
+            this.PasswordResetEmail,
+            {
+                user: data.user,
+                confirmPasswordResetLink: `${data.emailData?.confirmPasswordResetUrl ?? this.confirmPasswordResetUrl}/${resetToken.value}`
+            }
+        );
+
         await this.emailService.queue({
             recipients: [data.user.email],
             subject: 'Password Reset',
-            html: await renderEmailTemplate(
-                'password-reset.hbs',
-                {
-                    user: data.user,
-                    confirmPasswordResetUrl: data.emailData?.confirmPasswordResetUrl ?? this.confirmPasswordResetUrl,
-                    resetToken,
-                    base: {
-                        title: 'Password Reset'
-                    }
-                }
-            ),
+            html,
             priority: EmailPriority.HIGH,
             ...data
         });

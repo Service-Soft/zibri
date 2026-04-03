@@ -14,7 +14,7 @@ export const ErrorPage: ErrorPageTemplate = ({ error }) => {
 
     return <EmptyPage title={error.title} className='flex items-center justify-center'>
         <div className="flex gap-8">
-            <Card className='!py-0 max-w-64'>
+            <Card className='!pt-0 max-w-64'>
                 <Link href="/">
                     <img src="/assets/logo.jpg" width="256px" height="256px" />
                 </Link>

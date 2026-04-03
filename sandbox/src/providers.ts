@@ -1,6 +1,12 @@
-import { defineProvider, DiProvider, LoggerTransport, LogLevel, ZIBRI_DI_TOKENS, ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from 'zibri';
+import { defineProvider, DiProvider, LoggerTransport, LogLevel, ZIBRI_DI_TOKENS, ZIBRI_INVOICING_PLUGIN_DI_TOKENS, ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from 'zibri';
 
+import { MailingListBaseEmail } from './templates/email-components/mailing-list-base-email';
+import { MailingListSubscribeConfirmationEmail } from './templates/emails/mailing-list-subscribe-confirmation';
+import { PasswordResetEmail } from './templates/emails/password-reset';
 import { ErrorPage } from './templates/pages/error';
+import { MailingListPreferencesPage } from './templates/pages/mailing-list-preferences';
+import { MailingListUnsubscribeConfirmationPage } from './templates/pages/mailing-list-unsubscribe-confirmation';
+import { SubscribeSuccessPage } from './templates/pages/subscribe-success';
 
 export const providers: DiProvider<unknown>[] = [
     defineProvider({
@@ -10,6 +16,10 @@ export const providers: DiProvider<unknown>[] = [
     defineProvider({
         token: ZIBRI_DI_TOKENS.LOGGER_TRANSPORTS,
         useFactory: () => [LoggerTransport.console(LogLevel.INFO)]
+    }),
+    defineProvider({
+        token: ZIBRI_DI_TOKENS.JWT_PASSWORD_RESET_EMAIL_TEMPLATE,
+        useFactory: () => PasswordResetEmail
     }),
     defineProvider({
         token: ZIBRI_DI_TOKENS.JWT_ACCESS_TOKEN_SECRET,
@@ -37,6 +47,26 @@ export const providers: DiProvider<unknown>[] = [
     defineProvider({
         token: ZIBRI_DI_TOKENS.JWT_CONFIRM_PASSWORD_RESET_URL,
         useFactory: () => 'http://localhost:4200/confirm-password-reset'
+    }),
+    defineProvider({
+        token: ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS.PREFERENCES_PAGE_TEMPLATE,
+        useFactory: () => MailingListPreferencesPage
+    }),
+    defineProvider({
+        token: ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS.UNSUBSCRIBE_CONFIRMATION_PAGE_TEMPLATE,
+        useFactory: () => MailingListUnsubscribeConfirmationPage
+    }),
+    defineProvider({
+        token: ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS.SUBSCRIBE_CONFIRMATION_EMAIL_TEMPLATE,
+        useFactory: () => MailingListSubscribeConfirmationEmail
+    }),
+    defineProvider({
+        token: ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS.BASE_EMAIL_TEMPLATE,
+        useFactory: () => MailingListBaseEmail
+    }),
+    defineProvider({
+        token: ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS.SUBSCRIBE_SUCCESS_PAGE_TEMPLATE,
+        useFactory: () => SubscribeSuccessPage
     }),
     defineProvider({
         token: ZIBRI_INVOICING_PLUGIN_DI_TOKENS.OPTIONS_INPUT,

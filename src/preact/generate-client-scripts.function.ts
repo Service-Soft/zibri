@@ -3,20 +3,18 @@ import { createRequire } from 'node:module';
 import { FsUtilities, FsPath } from '../utilities/fs.utilities';
 import { toKebabCase } from '../utilities/to-kebab-case.function';
 
+const defaultGlobs: string[] = ['src/templates/pages/**/*.tsx', 'src/templates/components/**/*.tsx'];
+
 /**
- * Scans compiled JS files in srcDir for ?client imports, resolves their browser
- * distributions, and writes them to outputDir with predictable names.
+ * Scans compiled JS files in the given template files for ?client imports, resolves their browser
+ * distributions, and writes them to assets/public/vendor with predictable names.
  * Call this from your build plugin before compilation completes.
- * @example
- * // webpack plugin:
- * compiler.hooks.beforeCompile.tapPromise('ZibriClientScripts', () =>
- *     generateClientScripts({ srcDir: './dist', outputDir: './assets' })
- * );
+ * @param glob - The glob(s) to find your .tsx templates from.
  */
-export async function generateClientScripts(): Promise<void> {
+export async function generateClientScripts(glob: string | string[] = defaultGlobs): Promise<void> {
     const allPackages: Set<string> = new Set<string>();
     const packagesByComponent: Record<string, string[]> = {};
-    const templateFiles: FsPath[] = await FsUtilities.glob('src/templates/**/*.tsx');
+    const templateFiles: FsPath[] = await FsUtilities.glob(glob);
 
     await Promise.all(templateFiles.map(async f => {
         const src: string = await FsUtilities.readFile(f);

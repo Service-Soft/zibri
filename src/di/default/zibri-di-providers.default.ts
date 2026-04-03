@@ -76,6 +76,7 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
     USER_SERVICE: { useClass: UserService },
     JWT_ACCESS_TOKEN_SECRET: { useFactory: () => undefined },
     JWT_REFRESH_TOKEN_SECRET: { useFactory: () => undefined },
+    JWT_PASSWORD_RESET_EMAIL_TEMPLATE: { useFactory: () => undefined },
     JWT_ACCESS_TOKEN_EXPIRES_IN_MS: { useFactory: () => Ms.HOUR },
     JWT_REFRESH_TOKEN_EXPIRES_IN_MS: { useFactory: () => 100 * Ms.DAY },
     CRON_SERVICE: { useClass: CronService },

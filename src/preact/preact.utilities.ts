@@ -1,10 +1,11 @@
-import { VNode } from 'preact';
+import { JSX, VNode } from 'preact';
 import renderToString from 'preact-render-to-string';
 
 import { NestedComponentEntry, PreactCollector } from './collector';
 import { pkgToFilename } from './generate-client-scripts.function';
 import { preactHooks } from './hooks/hooks';
 import { PreactComponent } from './preact-component.model';
+import { PreactEmailComponent } from './preact-email-component.model';
 import { findStringEnd, stringAwareReplace } from './string-aware-replace.function';
 import { HtmlResponse } from '../parsing/html/html-response.model';
 import { FsUtilities, FsPath } from '../utilities/fs.utilities';
@@ -45,21 +46,46 @@ export abstract class PreactUtilities {
     private static clientManifest: Record<string, string[]> | undefined;
 
     /**
-     * Render a component and inline the component "body" (everything before the top-level return)
-     * into the same <script> tag that also contains the handler bootstrap.
+     * Renders the given component as an email, so no script injection is happening.
      * @example
      * ```ts
-     * PreactUtilities.render(TestPage, { initialCount: 1 });
+     * PreactUtilities.renderEmail(TestEmail, { recipient: 'James Smith' });
+     * ```
+     * @param args - Component and props.
+     * @param args.component - The function component to render.
+     * @param args.props - The properties to pass into the component.
+     * @returns The fully rendered html.
+     */
+    static renderEmail<T = {}>(
+        ...args: keyof T extends never
+            ? [component: PreactEmailComponent<T>]
+            : [component: PreactEmailComponent<T>, props: T]
+    ): string {
+        const [component, props] = args;
+        const node: JSX.Element = component(props ?? ({} as T));
+
+        return [
+            '<!DOCTYPE html>',
+            this.unescapeConditionalComments(renderToString(node))
+        ].join('\n');
+    }
+
+    /**
+     * Renders the given component as a page with the component "body" (everything before the top-level return)
+     * inlined into the same <script> tag that also contains the handler bootstrap.
+     * @example
+     * ```ts
+     * PreactUtilities.renderPage(TestPage, { initialCount: 1 });
      * ```
      * @param args - Component and props.
      * @param args.component - The function component to render.
      * @param args.props - The properties to pass into the component.
      * @returns The fully rendered html string, with the body and any handlers attached in a script tag.
      */
-    static async render<P = {}>(
-        ...args: keyof P extends never
-            ? [component: PreactComponent<P>]
-            : [component: PreactComponent<P>, props: P]
+    static async renderPage<T = {}>(
+        ...args: keyof T extends never
+            ? [component: PreactComponent<T>]
+            : [component: PreactComponent<T>, props: T]
     ): Promise<string> {
         const [component, props] = args;
         // ---------- extract component source and prepare inlined script ----------
@@ -74,7 +100,7 @@ export abstract class PreactUtilities {
         const propsSection: string = this.getInlinedPropsSection(paramsText, props ?? {});
 
         const collector: PreactCollector = new PreactCollector();
-        const rootVNode: VNode = component(props ?? ({} as P));
+        const rootVNode: VNode = component(props ?? ({} as T));
 
         if (rootVNode instanceof Promise) {
             throw new Error(
@@ -237,8 +263,35 @@ export abstract class PreactUtilities {
     ): Promise<HtmlResponse> {
         const [component, props] = args;
         // eslint-disable-next-line typescript/no-explicit-any
-        const htmlString: string = await this.render<any>(component, props);
+        const htmlString: string = await this.renderPage<any>(component, props);
         return HtmlResponse.fromString(htmlString);
+    }
+
+    private static unescapeConditionalComments(html: string): string {
+        let result: string = html;
+        // Standard MSO blocks — both opening and closing are escaped
+        // &lt;!--[if ...]>...&lt;![endif]-->
+        result = result.replaceAll(
+            /&lt;!--\[if ([^\]]*)]>([\S\s]*?)&lt;!\[endif]-->/g,
+            (_match, condition, inner: string) => {
+                const unescaped: string = inner
+                    .replaceAll('&lt;', '<')
+                    .replaceAll('&gt;', '>')
+                    .replaceAll('&quot;', '"')
+                    .replaceAll('&amp;', '&');
+                return `<!--[if ${condition}]>${unescaped}<![endif]-->`;
+            }
+        );
+
+        // "Show in non-MSO" open: &lt;!--[if !mso]>&lt;!-->
+        result = result.replaceAll(
+            /&lt;!--\[if ([^\]]*)]>&lt;!-->/g,
+            '<!--[if $1]><!-->'
+        );
+
+        // "Show in non-MSO" close: <!--<![endif]--> (already unescaped by preact, no change needed)
+
+        return result;
     }
 
     private static resolveInAncestors(

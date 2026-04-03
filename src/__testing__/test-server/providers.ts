@@ -1,3 +1,4 @@
+import { PasswordResetEmailTemplate } from '../../auth/strategies/jwt/jwt-auth.controller';
 import { CronServiceInterface } from '../../cron/cron-service.interface';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { defineProvider, DiProvider } from '../../di/models/di-provider.model';
@@ -16,6 +17,11 @@ export const defaultTestServerProviders: DiProvider<unknown>[] = [
     defineProvider({
         token: ZIBRI_DI_TOKENS.JWT_CONFIRM_PASSWORD_RESET_URL,
         useFactory: () => 'http://localhost:4200/confirm-password-reset'
+    }),
+    defineProvider({
+        token: ZIBRI_DI_TOKENS.JWT_PASSWORD_RESET_EMAIL_TEMPLATE,
+        // eslint-disable-next-line typescript/no-explicit-any
+        useValue: (() => 'string') as unknown as PasswordResetEmailTemplate<any, any>
     }),
     defineProvider({
         token: ZIBRI_DI_TOKENS.EMAIL_CONFIG,

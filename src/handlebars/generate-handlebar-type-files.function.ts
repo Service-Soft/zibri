@@ -10,11 +10,14 @@ export type PathTree = {
     [key: string]: PathTree
 };
 
+const defaultGlobs: string[] = ['src/templates/**/*.hbs'];
+
 /**
- * Generate type files for handlebar files (.hbs), so that they expose a correctly typed "renderTemplate" function.
+ * Generate type files for handlebar files, so that they expose a correctly typed "renderTemplate" function.
+ * @param glob - The glob(s) to find your handlebar files from.
  */
-export async function generateHandlebarTypeFiles(): Promise<void> {
-    const templateFiles: FsPath[] = await FsUtilities.glob('src/templates/**/*.hbs');
+export async function generateHandlebarTypeFiles(glob: string | string[] = defaultGlobs): Promise<void> {
+    const templateFiles: FsPath[] = await FsUtilities.glob(glob);
 
     for (const file of templateFiles) {
         if (await canBeSkipped(file)) {

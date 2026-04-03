@@ -27,11 +27,7 @@ export abstract class HttpError extends Error {
     }
 }
 
-/**
- * Check whether or not the given value is a http error.
- * @param value - The value to check.
- * @returns True when values name is 'HttpError', false otherwise.
- */
+// eslint-disable-next-line jsdoc/require-jsdoc
 export function isHttpError(value: unknown): value is HttpError {
-    return typeof value === 'object' && value != undefined && 'name' in value && value.name === 'HttpError';
+    return value instanceof HttpError;
 }

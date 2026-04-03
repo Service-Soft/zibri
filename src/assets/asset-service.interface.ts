@@ -15,14 +15,6 @@ export interface AssetServiceInterface {
      */
     readonly publicAssetsPath: FsPath,
     /**
-     * The path of the email templates.
-     */
-    readonly emailTemplatePath: FsPath,
-    /**
-     * The path of the page templates.
-     */
-    readonly pageTemplatePath: FsPath,
-    /**
      * The path of the component templates.
      */
     readonly componentTemplatePath: FsPath,

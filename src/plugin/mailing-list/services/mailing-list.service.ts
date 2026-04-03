@@ -1,20 +1,24 @@
 import { randomBytes } from 'crypto';
 
-import { MailingListSubscriberCreateData, MailingListQueueEmailData, MailingListServiceInterface, BaseMailingListEmailTemplateData } from './mailing-list-service.interface';
+import { MailingListSubscriberCreateData, MailingListQueueEmailData, MailingListServiceInterface } from './mailing-list-service.interface';
 import { type AssetServiceInterface } from '../../../assets/asset-service.interface';
 import { Repository } from '../../../data-source/repository';
 import { InjectRepository } from '../../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../../di/decorators/inject.decorator';
 import { Injectable } from '../../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
+import { inject } from '../../../di/inject.function';
 import { type EmailServiceInterface } from '../../../email/email-service.interface';
 import { EmailPriority } from '../../../email/models/email-priority.enum';
 import { GlobalRegistry } from '../../../global/global-registry';
-import { BaseEmailTemplateData, renderTemplateString, renderTemplate } from '../../../handlebars/render-template.function';
+import { OnAppInit } from '../../../global/on-app-init.interface';
+import { PreactUtilities } from '../../../preact/preact.utilities';
 import { Route } from '../../../routing/controller-route-configuration.model';
-import { FsUtilities, FsPath } from '../../../utilities/fs.utilities';
+import { OmitStrict } from '../../../types/omit-strict.type';
 import { PromiseUtilities } from '../../../utilities/promise.utilities';
 import { ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from '../mailing-list.tokens';
+import { type MailingListBaseEmailTemplate } from '../models/mailing-list-base-email-template.model';
+import { type MailingListSubscribeConfirmationEmailTemplate } from '../models/mailing-list-subscribe-confirmation-email-template.model';
 import { MailingListSubscriber } from '../models/mailing-list-subscriber.model';
 import { MailingListSubscriptionConfirmationToken, MailingListSubscriptionConfirmationTokenCreateData } from '../models/mailing-list-subscription-confirmation-token.model';
 import { MailingList } from '../models/mailing-list.model';
@@ -23,7 +27,7 @@ import { MailingList } from '../models/mailing-list.model';
  * Default mailing list service implementation of Zibri.
  */
 @Injectable({ register: 'onUse' })
-export class MailingListService implements MailingListServiceInterface {
+export class MailingListService implements MailingListServiceInterface, OnAppInit {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly mailingListBaseRoute: Route = '/mailing-lists';
 
@@ -42,36 +46,69 @@ export class MailingListService implements MailingListServiceInterface {
         protected readonly confirmationTokenRepository: Repository<
             MailingListSubscriptionConfirmationToken,
             MailingListSubscriptionConfirmationTokenCreateData
-        >
+        >,
+        @Inject(ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS.SUBSCRIBE_CONFIRMATION_EMAIL_TEMPLATE)
+        protected readonly MailingListSubscribeConfirmationEmail: MailingListSubscribeConfirmationEmailTemplate,
+        @Inject(ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS.BASE_EMAIL_TEMPLATE)
+        protected readonly MailingListBaseEmail: MailingListBaseEmailTemplate
     ) {}
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async queueEmailForList<T extends BaseMailingListEmailTemplateData>(listId: string, data: MailingListQueueEmailData<T>): Promise<void> {
+    onAppInit(): void {
+        if (inject(ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS.SUBSCRIBE_CONFIRMATION_EMAIL_TEMPLATE) == undefined) {
+            throw new Error([
+                'The builtin MailingListService requires that a value for',
+                'ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS.SUBSCRIBE_CONFIRMATION_EMAIL_TEMPLATE is provided.'
+            ].join(' '));
+        }
+        if (inject(ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS.BASE_EMAIL_TEMPLATE) == undefined) {
+            throw new Error([
+                'The builtin MailingListService requires that a value for',
+                'ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS.BASE_EMAIL_TEMPLATE is provided.'
+            ].join(' '));
+        }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    getSubscribeConfirmationLink(listId: string, confirmationToken: string): string {
+        const baseUrl: string = GlobalRegistry.getAppData('baseUrl') ?? '';
+        return `${baseUrl}${this.mailingListBaseRoute}/${listId}/subscribe/${confirmationToken}`;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    getUnsubscribeLink(listId: string, subscriberId: string): string {
+        const baseUrl: string = GlobalRegistry.getAppData('baseUrl') ?? '';
+        return `${baseUrl}${this.mailingListBaseRoute}/${listId}/unsubscribe?subscriberId=${subscriberId}`;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    getManagePreferencesLink(subscriberId: string): string {
+        const baseUrl: string = GlobalRegistry.getAppData('baseUrl') ?? '';
+        return `${baseUrl}${this.mailingListBaseRoute}/preferences?subscriberId=${subscriberId}`;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async queueEmailForList<T>(listId: string, data: MailingListQueueEmailData<T>): Promise<void> {
         const list: MailingList = await this.mailingListRepository.findById(listId);
         await PromiseUtilities.allChunked(
             list.subscribers,
-            async s => {
-                const base: BaseEmailTemplateData['base'] = {
-                    ...data.templateData.base,
-                    baseUrl: GlobalRegistry.getAppData('baseUrl') ?? '',
-                    mailingListData: {
+            async subscriber => {
+                const content: string = await data.compile(data.template, { subscriber, list });
+
+                const html: string = PreactUtilities.renderEmail(
+                    this.MailingListBaseEmail,
+                    {
                         list,
-                        subscriber: s,
-                        mailingListBaseRoute: this.mailingListBaseRoute
+                        subscriber,
+                        html: content,
+                        title: data.title ?? data.subject
                     }
-                };
-                const content: string = renderTemplateString(data.templateString, {
-                    ...data.templateData,
-                    base
-                });
-                const html: string = await renderTemplate(
-                    FsUtilities.getPath(this.assetService.emailTemplatePath, 'base-email.hbs') as `${FsPath}.hbs`,
-                    { content, base }
                 );
+
                 await this.emailService.queue({
                     html,
                     priority: EmailPriority.LOW,
-                    recipients: [s.email],
+                    recipients: [subscriber.email],
                     persist: false,
                     ...data
                 });
@@ -80,23 +117,23 @@ export class MailingListService implements MailingListServiceInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async requestSubscribeToList<T extends BaseMailingListEmailTemplateData>(
+    async requestSubscribeToList<T>(
         listId: string,
         subscriber: MailingListSubscriberCreateData,
-        emailData: MailingListQueueEmailData<T>
+        emailData: OmitStrict<MailingListQueueEmailData<T>, 'template' | 'compile'>
     ): Promise<void> {
 
         const foundSubscriber: MailingListSubscriber | undefined = await this.subscriberRepository.findOne(
             { where: { email: subscriber.email } },
             false
         );
+        const list: MailingList = await this.mailingListRepository.findById(listId);
         if (foundSubscriber) {
-            const list: MailingList = await this.mailingListRepository.findById(listId);
             await this.subscriberRepository.updateById(foundSubscriber.id, { mailingLists: [...foundSubscriber.mailingLists, list] });
             return;
         }
 
-        await this.confirmationTokenRepository.create({
+        const token: MailingListSubscriptionConfirmationToken = await this.confirmationTokenRepository.create({
             email: subscriber.email,
             value: randomBytes(16).toString('hex'),
             expirationDate: new Date(Date.now() + this.mailingListSubscriptionConfirmationTokenExpiresInMs),
@@ -104,19 +141,20 @@ export class MailingListService implements MailingListServiceInterface {
             listId
         });
 
-        const content: string = renderTemplateString(emailData.templateString, {
-            ...emailData.templateData,
-            base: emailData.templateData.base
-        });
-        const html: string = await renderTemplate(
-            FsUtilities.getPath(this.assetService.emailTemplatePath, 'base-email.hbs') as `${FsPath}.hbs`,
-            { content, base: emailData.templateData.base }
+        const html: string = PreactUtilities.renderEmail(
+            this.MailingListSubscribeConfirmationEmail,
+            {
+                subscriber,
+                mailingList: list,
+                confirmEmailLink: this.getSubscribeConfirmationLink(listId, token.value)
+            }
         );
+
         await this.emailService.queue({ ...emailData, html, recipients: [subscriber.email] });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async confirmSubscribeToList(confirmationTokenValue: string): Promise<void> {
+    async confirmSubscribeToList(confirmationTokenValue: string): Promise<MailingListSubscriber> {
         const foundToken: MailingListSubscriptionConfirmationToken = await this.confirmationTokenRepository.findOne(
             { where: { value: confirmationTokenValue } }
         );
@@ -126,14 +164,16 @@ export class MailingListService implements MailingListServiceInterface {
             false
         );
         if (!foundSubscriber) {
-            await this.subscriberRepository.create({ email: foundToken.email, name: foundToken.name, mailingLists: [mailingList] });
-            return;
+            return await this.subscriberRepository.create({ email: foundToken.email, name: foundToken.name, mailingLists: [mailingList] });
         }
         if (foundSubscriber.mailingLists.find(l => l.id === mailingList.id)) {
             // already subscribed, do nothing
-            return;
+            return foundSubscriber;
         }
-        await this.subscriberRepository.updateById(foundSubscriber.id, { mailingLists: [...foundSubscriber.mailingLists, mailingList] });
+        return await this.subscriberRepository.updateById(
+            foundSubscriber.id,
+            { mailingLists: [...foundSubscriber.mailingLists, mailingList] }
+        );
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

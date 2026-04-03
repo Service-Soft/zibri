@@ -1,8 +1,6 @@
 import handlebars, { ParseOptions } from 'handlebars';
 
 import { AstProgram } from './ast.model';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
 import { FsUtilities, FsPath } from '../utilities/fs.utilities';
 import { MaskUtilities } from '../utilities/mask.utilities';
 import { toCamelCase } from '../utilities/to-camel-case.function';
@@ -16,8 +14,9 @@ export abstract class HandlebarUtilities {
     /**
      * Initializes the handlebar utilities.
      * @param H - The external handlebar object. Is needed so helpers can be registered both inside and outside of Zibri.
+     * @param componentsDir - The directory where components reside.
      */
-    static async init(H: typeof Handlebars): Promise<void> {
+    static async init(H: typeof Handlebars, componentsDir: string): Promise<void> {
         this.H = H;
         this.registerHelper('json', (context) => JSON.stringify(context));
         this.registerHelper('concat', (...args: unknown[]) => {
@@ -44,7 +43,6 @@ export abstract class HandlebarUtilities {
             return new handlebars.SafeString(MaskUtilities.mask(value));
         });
 
-        const componentsDir: string = inject(ZIBRI_DI_TOKENS.ASSET_SERVICE).componentTemplatePath;
         const files: FsPath[] = await FsUtilities.glob(FsUtilities.getPath(componentsDir, '*.hbs'));
         for (const file of files) {
             const src: string = await FsUtilities.readFile(file);
@@ -65,6 +63,32 @@ export abstract class HandlebarUtilities {
             return handlebars.compile(input, options);
         }
         return this.H.compile(input, options);
+    }
+
+    /**
+     * Renders the template at the given path with the given data.
+     * @param path - The path of the handlebars template file.
+     * @param data - The data to fill into the template.
+     * @returns The rendered html string.
+     */
+    static async renderTemplate<T extends Record<string, unknown>>(path: `${FsPath}.hbs`, data: T): Promise<string> {
+        const source: string = await FsUtilities.readFile(path as FsPath);
+        return this.renderTemplateString(source, data);
+    }
+
+    /**
+     * Renders the given handlebars template string as html, using the provided data as variables.
+     * @param templateString - The handlebars template string.
+     * @param data - The data to use inside the template.
+     * @returns The rendered html content.
+     */
+    static renderTemplateString<T extends Record<string, unknown>>(
+        templateString: string,
+        data: T
+    ): string {
+        const template: HandlebarsTemplateDelegate<T> = this.render(templateString);
+        const html: string = template(data);
+        return html;
     }
 
     /**

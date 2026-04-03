@@ -33,6 +33,7 @@ import { JsonBodyParser } from './parsing/json/json.body-parser';
 import { ZibriPlugin } from './plugin/plugin.model';
 import { Route } from './routing/controller-route-configuration.model';
 import { OmitStrict } from './types/omit-strict.type';
+import { FsUtilities } from './utilities/fs.utilities';
 import { Ms } from './utilities/ms';
 import { PromiseUtilities } from './utilities/promise.utilities';
 
@@ -107,9 +108,13 @@ export class ZibriApplication {
     /**
      * Initializes the app.
      * @param H - The global handlebars instance, needed to provide some helpers used in templating.
+     * @param handlebarComponentsDir - Directory where handlebars components reside. Defaults to assetService.assetsPath/templates/components.
      */
-    async init(H: typeof Handlebars): Promise<void> {
-        await HandlebarUtilities.init(H);
+    async init(
+        H: typeof Handlebars,
+        handlebarComponentsDir: string = FsUtilities.getPath(inject(ZIBRI_DI_TOKENS.ASSET_SERVICE).assetsPath, 'templates', 'components')
+    ): Promise<void> {
+        await HandlebarUtilities.init(H, handlebarComponentsDir);
         GlobalRegistry.setAppData(this.options);
 
         for (const provider of this.options.providers) {

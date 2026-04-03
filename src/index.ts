@@ -268,13 +268,14 @@ export * from './rate-limiting/rate-limiter';
 
 // handlebars
 export * from './handlebars/generate-handlebar-type-files.function';
-export * from './handlebars/render-template.function';
 export * from './handlebars/handlebar.utilities';
 
 // preact
 export * from './preact/preact.utilities';
 export * from './preact/preact-component.model';
+export * from './preact/preact-email-component.model';
 export * from './preact/generate-client-scripts.function';
+export * from './preact/validate-email-templates.function';
 
 export * from './preact/hooks/on-client.hook';
 export * from './preact/hooks/on-server.hook';
@@ -318,10 +319,16 @@ export * from './plugin/mailing-list/mailing-list.tokens';
 
 export * from './plugin/mailing-list/services/mailing-list-service.interface';
 export * from './plugin/mailing-list/services/mailing-list.service';
+export * from './plugin/mailing-list/mailing-list.controller';
 
+export * from './plugin/mailing-list/models/mailing-list-base-email-template.model';
+export * from './plugin/mailing-list/models/mailing-list-preferences-page-template.model';
+export * from './plugin/mailing-list/models/mailing-list-subscribe-confirmation-email-template.model';
+export * from './plugin/mailing-list/models/mailing-list-subscribe-success-page-template.model';
 export * from './plugin/mailing-list/models/mailing-list-subscriber.model';
-export * from './plugin/mailing-list/models/mailing-list.model';
 export * from './plugin/mailing-list/models/mailing-list-subscription-confirmation-token.model';
+export * from './plugin/mailing-list/models/mailing-list-unsubscribe-confirmation-page-template.model';
+export * from './plugin/mailing-list/models/mailing-list.model';
 export * from './plugin/mailing-list/models/update-mailing-list-preferences.model';
 
 // plugin invoicing

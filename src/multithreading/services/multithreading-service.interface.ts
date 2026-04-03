@@ -1,4 +1,3 @@
-// TODO: add functionality to initialize functions in a registry that should be precompiled to avoid eval and improve performance.
 import { BaseThreadJobWorkerData } from '../models/base-thread-job-worker-data.model';
 import { ThreadJobData, ThreadJobDataFunctions } from '../models/thread-job-data.model';
 import { ThreadJobEntity } from '../models/thread-job-entity.model';
