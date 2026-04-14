@@ -1,16 +1,21 @@
 import { errorToLoggedError } from './error-to-logged-error.function';
 import { LogCleanupCronJob } from './log-cleanup.cron-job';
-import { LogContextInput } from './log-context.model';
+import { LogContextInput, LogRequestContext } from './log-context.model';
 import { LogLevel } from './log-level.enum';
 import { Log } from './log.model';
 import { LoggerInterface } from './logger.interface';
 import { ZibriApplication } from '../application';
 import { BaseLoggerTransportConfig, LoggerTransport } from './transport/logger-transport.model';
+import { HttpRequestContext } from '../context/request/http-request.context';
+import { WebsocketRequestContext } from '../context/request/websocket-request.context';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { inject } from '../di/inject.function';
 import { GlobalRegistry } from '../global/global-registry';
 import { OnAppInit } from '../global/on-app-init.interface';
+import { HttpMethod } from '../http/http-method.enum';
+import { KnownHeader } from '../http/known-header.enum';
 import { UUIDUtilities } from '../utilities/uuid.utilities';
 
 /**
@@ -65,13 +70,26 @@ export class Logger implements LoggerInterface, OnAppInit {
         const line: string = (new Error().stack ?? '').split('\n')[3];
         const matches: RegExpMatchArray | null = line.match(/\((.*):\d+:\d+\)/);
         const origin: string = matches?.[0].split('(')[1].split(')')[0] ?? 'unknown';
+        let request: LogRequestContext | undefined = context?.request;
+        const requestContext: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
+        if (!request && requestContext?.type === 'http-request') {
+            request = {
+                status: requestContext.request.res?.statusCode,
+                // TODO
+                // durationInMs: currentRequest.res?.app,
+                method: requestContext.request.method as HttpMethod,
+                url: requestContext.request.originalUrl,
+                userAgent: requestContext.request.headers[KnownHeader.USER_AGENT] ?? '',
+                clientIp: requestContext.request.ip ?? requestContext.request.socket?.remoteAddress ?? ''
+            };
+        }
         const log: Log = {
             id: UUIDUtilities.generate(),
             createdAt: new Date(),
             cleanupAt: new Date(Date.now() + this.cleanupAfterMs[level]),
             message,
             error: error ? errorToLoggedError(error) : undefined,
-            context: { ...context, origin },
+            context: { origin, request },
             level
         };
 

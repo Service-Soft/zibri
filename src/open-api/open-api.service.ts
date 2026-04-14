@@ -448,7 +448,7 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
                     return undefined;
                 }
                 const propMeta: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(response.cls);
-                const schema: OpenApiSchemaObject = this.buildOpenApiSchemaForProperties(propMeta, response.cls);
+                const schema: OpenApiSchemaObject = this.buildOpenApiSchemaForProperties(propMeta, response.cls, 'response');
 
                 if (response.isArray === true) {
                     return { [MimeType.JSON]: { schema: { type: 'array', items: schema } } };
@@ -490,7 +490,7 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
                         continue;
                     }
                     const propMeta: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(response.cls);
-                    const schema: OpenApiSchemaObject = this.buildOpenApiSchemaForProperties(propMeta, response.cls);
+                    const schema: OpenApiSchemaObject = this.buildOpenApiSchemaForProperties(propMeta, response.cls, 'response');
                     if (response.isArray === true) {
                         schemas.push({ type: 'array', items: schema });
                         continue;
@@ -543,7 +543,7 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
             return undefined;
         }
         const propMeta: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(metadata.modelClass);
-        const schema: OpenApiSchemaObject = this.buildOpenApiSchemaForProperties(propMeta, metadata.modelClass);
+        const schema: OpenApiSchemaObject = this.buildOpenApiSchemaForProperties(propMeta, metadata.modelClass, 'request');
         return {
             required: typeof metadata.required === 'boolean' ? metadata.required : undefined,
             description: metadata.description,
@@ -552,17 +552,23 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
     }
 
     // eslint-disable-next-line sonar/cognitive-complexity
-    private buildOpenApiSchemaForProperties(propMeta: Record<string, PropertyMetadata>, entity: Newable<unknown>): OpenApiSchemaObject {
+    private buildOpenApiSchemaForProperties(
+        propMeta: Record<string, PropertyMetadata>,
+        entity: Newable<unknown>,
+        context: 'request' | 'response'
+    ): OpenApiSchemaObject {
         const properties: Record<string, OpenApiSchemaObject> = {};
         const required: string[] = [];
 
         for (const [key, meta] of ObjectUtilities.entries(propMeta)) {
+            if (meta.exclude === true && context === 'response') {
+                continue;
+            }
             // mark required
-            if ((
-                typeof meta.required === 'boolean'
-                    ? meta.required
-                    : false)
+            if (
+                (typeof meta.required === 'boolean' ? meta.required : false)
                 && (!('default' in meta) || meta.default == undefined)
+                && (meta.exclude === false || context === 'response')
             ) {
                 required.push(key);
             }
@@ -605,14 +611,20 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
                 }
                 case 'object': {
                     const objectPropMeta: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(meta.cls());
-                    properties[key] = { ...this.buildOpenApiSchemaForProperties(objectPropMeta, entity), description: meta.description };
+                    properties[key] = {
+                        ...this.buildOpenApiSchemaForProperties(objectPropMeta, entity, context),
+                        description: meta.description
+                    };
                     continue;
                 }
                 case Relation.ONE_TO_ONE:
                 case Relation.MANY_TO_ONE: {
                     const targetClass: Newable<BaseEntity> = this.getTargetClassForRelation(meta, entity);
                     const objectPropMeta: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(targetClass);
-                    properties[key] = { ...this.buildOpenApiSchemaForProperties(objectPropMeta, entity), description: meta.description };
+                    properties[key] = {
+                        ...this.buildOpenApiSchemaForProperties(objectPropMeta, entity, context),
+                        description: meta.description
+                    };
                     continue;
                 }
                 case Relation.MANY_TO_MANY:
@@ -627,10 +639,12 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
                                 required: true,
                                 description: undefined,
                                 excludeFromChangeSets: false,
+                                exclude: false,
                                 allowAdditionalProperties: false
                             }
                         },
-                        entity
+                        entity,
+                        context
                     );
                     properties[key] = {
                         type: 'array',
@@ -643,7 +657,7 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
                     if (meta.items.type === 'object') {
                         entity = meta.items.cls();
                     }
-                    const items: OpenApiSchemaObject = this.buildOpenApiSchemaForProperties({ items: meta.items }, entity);
+                    const items: OpenApiSchemaObject = this.buildOpenApiSchemaForProperties({ items: meta.items }, entity, context);
                     properties[key] = {
                         type: 'array',
                         description: meta.description,
@@ -756,7 +770,7 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
                 const propMeta: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(meta.cls());
                 return {
                     description: meta.description,
-                    ...this.buildOpenApiSchemaForProperties(propMeta, meta.cls())
+                    ...this.buildOpenApiSchemaForProperties(propMeta, meta.cls(), 'request')
                 };
             }
             case 'array': {

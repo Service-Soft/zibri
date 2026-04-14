@@ -7,7 +7,10 @@ import { AuthServiceInterface } from '../auth/auth-service.interface';
 import { ChangeSetEntity } from './models/change-set-entity.model';
 import { ChangeSetType } from './models/change-set-type.enum';
 import { ChangeSet, CreateChangeSetData } from './models/change-set.model';
+import { NewChange } from './models/change.model';
 import { BaseUser } from '../auth/models/base-user.model';
+import { HttpRequestContext } from '../context/request/http-request.context';
+import { WebsocketRequestContext } from '../context/request/websocket-request.context';
 import { BaseRepositoryOptions } from '../data-source/models/options/base-repository-options.model';
 import { CreateAllOptions } from '../data-source/models/options/create-all-options.model';
 import { CreateOptions } from '../data-source/models/options/create-options.model';
@@ -20,14 +23,14 @@ import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { PropertyMetadata } from '../entity/decorators/property.decorator';
 import { BadRequestError } from '../error-handling/errors/bad-request.error';
-import { HttpRequest } from '../http/http-request.model';
+import { removeExcludeProperties } from '../global/model-registry/remove-exclude-properties.function';
+import { restoreExcludeProperties } from '../global/model-registry/restore-exclude-properties.function';
 import { LoggerInterface } from '../logging/logger.interface';
+import { DeepPartial } from '../types/deep-partial.type';
 import { Newable } from '../types/newable.type';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
 import { PromiseUtilities } from '../utilities/promise.utilities';
-import { NewChange } from './models/change.model';
-import { DeepPartial } from '../types/deep-partial.type';
 
 /**
  * The result for resetting a change set on an entity.
@@ -55,7 +58,7 @@ export class ChangeSetRepository<
     /**
      * Any keys that should be excluded from the change set.
      */
-    protected readonly keysToExcludeFromChangeSets: (keyof T)[];
+    protected readonly keysToExcludeFromChangeSets: Set<keyof T> = new Set();
 
     private readonly changeSetRepository: Repository<ChangeSet, CreateChangeSetData>;
     private readonly authService: AuthServiceInterface;
@@ -66,11 +69,11 @@ export class ChangeSetRepository<
         this.authService = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
         this.changeSetRepository = inject(repositoryTokenFor(ChangeSet));
 
-        this.keysToExcludeFromChangeSets = ['changeSets'];
+        this.keysToExcludeFromChangeSets.add('changeSets');
         const props: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(entityClass);
         for (const [key, m] of ObjectUtilities.entries(props)) {
             if (m.excludeFromChangeSets) {
-                this.keysToExcludeFromChangeSets.push(key as keyof T);
+                this.keysToExcludeFromChangeSets.add(key as keyof T);
             }
         }
     }
@@ -348,16 +351,26 @@ export class ChangeSetRepository<
         force: boolean = false
     ): Promise<void> {
         await setTimeout(1); // TODO: Better way to guarantee a different time stamp on change sets.
+
+        restoreExcludeProperties(entityPriorChanges, this.entityClass);
+        restoreExcludeProperties(data, this.entityClass);
+        const changes: NewChange[] = this.getChangesFromData(entityPriorChanges, data, type);
+        await Promise.all([
+            removeExcludeProperties(entityPriorChanges, this.entityClass),
+            removeExcludeProperties(data, this.entityClass)
+        ]);
+
+        if (!force && !changes.length) {
+            return;
+        }
+
         const changeSetData: CreateChangeSetData = {
             changeSetEntityId: entityPriorChanges.id,
             type: type,
             createdAt: new Date(),
             createdBy: await this.getCreatedBy(),
-            changes: this.getChangesFromData(entityPriorChanges, data, type)
+            changes
         };
-        if (!force && !changeSetData.changes.length) {
-            return;
-        }
         await this.changeSetRepository.create(changeSetData, options);
     }
 
@@ -379,12 +392,23 @@ export class ChangeSetRepository<
     ): Promise<void> {
         const userId: string | undefined = await this.getCreatedBy();
         await setTimeout(1); // TODO: Better way to guarantee a different time stamp on change sets.
-        let changeSetData: CreateChangeSetData[] = entitiesPriorChanges.map((e, i) => ({
-            changeSetEntityId: e.id,
-            type: type,
-            createdAt: new Date(),
-            createdByUserId: userId,
-            changes: this.getChangesFromData(e, data[i], type)
+
+        let changeSetData: CreateChangeSetData[] = await Promise.all(entitiesPriorChanges.map(async (e, i) => {
+            restoreExcludeProperties(e, this.entityClass);
+            restoreExcludeProperties(data[i], this.entityClass);
+            const changes: NewChange[] = this.getChangesFromData(e, data[i], type);
+            await Promise.all([
+                removeExcludeProperties(e, this.entityClass),
+                removeExcludeProperties(data[i], this.entityClass)
+            ]);
+
+            return {
+                changeSetEntityId: e.id,
+                type,
+                createdAt: new Date(),
+                createdByUserId: userId,
+                changes
+            };
         }));
         if (!force) {
             changeSetData = changeSetData.filter(d => d.changes.length);
@@ -423,12 +447,12 @@ export class ChangeSetRepository<
      * @returns The id of the currently logged in user or undefined if that didn't work.
      */
     protected async getCreatedBy(): Promise<string | undefined> {
-        const currentRequest: HttpRequest | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST);
-        if (!currentRequest) {
+        const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
+        if (!context) {
             throw new Error('No request in context');
         }
         const user: BaseUser<string> | undefined = await this.authService.getCurrentUser(
-            currentRequest,
+            context,
             this.authService.strategies,
             false
         );
@@ -445,7 +469,7 @@ export class ChangeSetRepository<
     ): (keyof (CreateData | UpdateData | DeepPartial<T>))[] {
         const keys: (keyof (CreateData | UpdateData | DeepPartial<T>))[] = [];
         for (const key in data) {
-            if (!this.keysToExcludeFromChangeSets.includes(key as keyof T)) {
+            if (!this.keysToExcludeFromChangeSets.has(key as keyof T)) {
                 keys.push(key as keyof (CreateData | UpdateData | DeepPartial<T>));
             }
         }

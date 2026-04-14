@@ -11,10 +11,12 @@ import { TwoFactorService } from '../../auth/2fa/two-factor.service';
 import { AuthService } from '../../auth/auth.service';
 import { UserService } from '../../auth/user/user.service';
 import { BackupService } from '../../backup/backup.service';
+import { AlsUtilities } from '../../context/als.utilities';
 import { CronService } from '../../cron/cron.service';
 import { DataSourceService } from '../../data-source/data-source.service';
 import { EmailService } from '../../email/email.service';
 import { errorHandler } from '../../error-handling/error-handler';
+import { EventService } from '../../event/event.service';
 import { HttpClient } from '../../http-client/http-client';
 import { LocalizeOptionsInput } from '../../localization/models/localize-options.model';
 import { LogLevel } from '../../logging/log-level.enum';
@@ -24,7 +26,6 @@ import { PrometheusMetricsService } from '../../metrics/metrics.service';
 import { MultithreadingService } from '../../multithreading/services/multithreading.service';
 import { OpenApiService } from '../../open-api/open-api.service';
 import { Parser } from '../../parsing/parser';
-import { getCurrentRequest } from '../../routing/request.context';
 import { Router } from '../../routing/router';
 import { FsUtilities } from '../../utilities/fs.utilities';
 import { Ms } from '../../utilities/ms';
@@ -71,7 +72,7 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
     DATA_SOURCE_SERVICE: { useClass: DataSourceService },
     AUTH_SERVICE: { useClass: AuthService },
     TWO_FACTOR_SERVICE: { useClass: TwoFactorService },
-    OTP_HEADER: { useFactory: () => 'X-Authorization-OTP' },
+    OTP_HEADER: { useFactory: () => 'x-authorization-otp' },
     OTP_LENGTH: { useFactory: () => 6 },
     USER_SERVICE: { useClass: UserService },
     JWT_ACCESS_TOKEN_SECRET: { useFactory: () => undefined },
@@ -99,7 +100,6 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
     EMAIL_CONFIG: { useFactory: () => undefined },
     JWT_PASSWORD_RESET_TOKEN_EXPIRES_IN_MS: { useFactory: () => 300000 },
     JWT_CONFIRM_PASSWORD_RESET_URL: { useFactory: () => undefined },
-    CURRENT_REQUEST: { useFactory: () => getCurrentRequest() },
     MULTITHREADING_OPTIONS: {
         useFactory: () => ({
             maxThreads,
@@ -111,5 +111,11 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
     MULTITHREADING_SERVICE: { useClass: MultithreadingService },
     WEBSOCKET_SERVICE: { useClass: WebsocketService },
     WEBSOCKET_OPTIONS: { useFactory: () => ({ timeoutInMs: Ms.SECOND * 5, isAllowedToConnect: () => true }) },
-    HTTP_CLIENT: { useClass: HttpClient }
+    HTTP_CLIENT: { useClass: HttpClient },
+    EVENT_SERVICE: { useClass: EventService },
+    // dynamic
+    CURRENT_REQUEST_CONTEXT: {
+        useFactory: () => AlsUtilities.getCurrentRequestContext(),
+        cache: false
+    }
 };

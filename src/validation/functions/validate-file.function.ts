@@ -1,3 +1,7 @@
+import { HttpRequestContext } from '../../context/request/http-request.context';
+import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
+import { inject } from '../../di/inject.function';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { fileSizeToBytes } from '../../entity/models/file-property-metadata.model';
 import { MimeType } from '../../http/mime-type.enum';
@@ -15,30 +19,21 @@ import { MaxFileSizeValidationProblem, IsRequiredValidationProblem, TypeMismatch
  * @returns All validation problems found.
  * @throws When the property is not a file property.
  */
-export function validateFile(
+export async function validateFile(
     key: string,
     property: unknown,
     metadata: PropertyMetadata,
     parentKey: string | undefined,
     entity: unknown | undefined
-): ValidationProblem[] {
+): Promise<ValidationProblem[]> {
     if (metadata.type !== 'file') {
         throw new Error(`Tried to validate a file but received metadata of type "${metadata.type}"`);
     }
     const fullKey: string = parentKey ? `${parentKey}.${key}` : key;
-    if (
-        property == undefined
-        && 'required' in metadata
-        && (typeof metadata.required === 'boolean' ? metadata.required : metadata.required(entity))
-    ) {
-        return [new IsRequiredValidationProblem(fullKey)];
-    }
-    if (
-        property == undefined
-        && 'required' in metadata
-        && !(typeof metadata.required === 'boolean' ? metadata.required : metadata.required(entity))
-    ) {
-        return [];
+    if (property == undefined && 'required' in metadata) {
+        const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
+        const isRequired: boolean = typeof metadata.required === 'boolean' ? metadata.required : await metadata.required(entity, context);
+        return isRequired ? [new IsRequiredValidationProblem(fullKey)] : [];
     }
     if (!(property instanceof File)) {
         return [new TypeMismatchValidationProblem(fullKey, 'file')];

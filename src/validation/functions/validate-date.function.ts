@@ -1,3 +1,5 @@
+import { HttpRequestContext } from '../../context/request/http-request.context';
+import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
@@ -16,30 +18,24 @@ import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationP
  * @param entity - The entity that this value belongs to.
  * @returns All validation problems found.
  */
-export function validateDate(
+export async function validateDate(
     key: string,
     property: unknown,
     metadata: PropertyMetadata | QueryParamMetadata | HeaderParamMetadata | PathParamMetadata,
     parentKey: string | undefined,
     entity: unknown | undefined
-): ValidationProblem[] {
+): Promise<ValidationProblem[]> {
     const meta: DatePropertyMetadata | DateParamMetadata = metadata as DatePropertyMetadata | DateParamMetadata;
     const fullKey: string = parentKey ? `${parentKey}.${key}` : key;
-    if (
-        property == undefined
-        && (meta as DatePropertyMetadata).default == undefined
-        && (typeof metadata.required === 'boolean' ? metadata.required : metadata.required(entity))
-    ) {
-        return [new IsRequiredValidationProblem(fullKey)];
-    }
-    if (
-        property == undefined
-        && (
-            !(typeof metadata.required === 'boolean' ? metadata.required : metadata.required(entity))
-            || (meta as DatePropertyMetadata).default != undefined
-        )
-    ) {
-        return [];
+    if (property == undefined) {
+        const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
+        const isRequired: boolean = typeof metadata.required === 'boolean' ? metadata.required : await metadata.required(entity, context);
+        if ((meta as DatePropertyMetadata).default == undefined && isRequired) {
+            return [new IsRequiredValidationProblem(fullKey)];
+        }
+        if (!isRequired || (meta as DatePropertyMetadata).default != undefined) {
+            return [];
+        }
     }
     if (!(property instanceof Date)) {
         return [new TypeMismatchValidationProblem(fullKey, 'date')];

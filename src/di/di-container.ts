@@ -111,7 +111,9 @@ export class DiContainer {
         const instance: T = this.createInstanceFromProvider(provider, resolvingStack);
         resolvingStack.pop();
 
-        this.instances.set(provider.token, instance);
+        if (provider.useValue != undefined || ((provider.useFactory || provider.useClass) && provider.cache !== false)) {
+            this.instances.set(provider.token, instance);
+        }
 
         if (provider.useClass) {
             this.instances.set(provider.useClass as unknown as DiToken<unknown>, instance);

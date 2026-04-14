@@ -11,7 +11,7 @@ type MailingListDisplayData = MailingList & {
     isSubscribedTo: boolean
 };
 
-export const MailingListPreferencesPage: MailingListPreferencesPageTemplate = ({ subscriber, mailingLists, managePreferencesLink }) => {
+export const MailingListPreferencesPage: MailingListPreferencesPageTemplate = ({ subscriber, mailingLists, managePreferencesApiUrl }) => {
     let updateButton: HTMLButtonElement;
     let statusBar: HTMLDivElement;
 
@@ -57,7 +57,7 @@ export const MailingListPreferencesPage: MailingListPreferencesPageTemplate = ({
         setIsLoading();
 
         const success: boolean = (await fetch(
-            managePreferencesLink,
+            managePreferencesApiUrl,
             {
                 method: 'PATCH',
                 body: JSON.stringify({ mailingListIds: currentCheckedMailingListIds }),

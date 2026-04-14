@@ -1,3 +1,7 @@
+import { HttpRequestContext } from '../../context/request/http-request.context';
+import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
+import { inject } from '../../di/inject.function';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { BooleanPropertyMetadata } from '../../entity/models/boolean-property-metadata.model';
 import { QueryParamMetadata, HeaderParamMetadata, PathParamMetadata } from '../../routing/decorators/param.decorator';
@@ -13,30 +17,24 @@ import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationP
  * @param entity - The entity that the value belongs to.
  * @returns All validation problems found.
  */
-export function validateBoolean(
+export async function validateBoolean(
     key: string,
     property: unknown,
     metadata: PropertyMetadata | QueryParamMetadata | HeaderParamMetadata | PathParamMetadata,
     parentKey: string | undefined,
     entity: unknown | undefined
-): ValidationProblem[] {
+): Promise<ValidationProblem[]> {
     const meta: BooleanPropertyMetadata | BooleanParamMetadata = metadata as BooleanPropertyMetadata | BooleanParamMetadata;
     const fullKey: string = parentKey ? `${parentKey}.${key}` : key;
-    if (
-        property == undefined
-        && (meta as BooleanPropertyMetadata).default == undefined
-        && (typeof metadata.required === 'boolean' ? metadata.required : metadata.required(entity))
-    ) {
-        return [new IsRequiredValidationProblem(fullKey)];
-    }
-    if (
-        property == undefined
-        && (
-            !(typeof metadata.required === 'boolean' ? metadata.required : metadata.required(entity))
-            || (meta as BooleanPropertyMetadata).default != undefined
-        )
-    ) {
-        return [];
+    if (property == undefined) {
+        const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
+        const isRequired: boolean = typeof metadata.required === 'boolean' ? metadata.required : await metadata.required(entity, context);
+        if ((meta as BooleanPropertyMetadata).default == undefined && isRequired) {
+            return [new IsRequiredValidationProblem(fullKey)];
+        }
+        if (!isRequired || (meta as BooleanPropertyMetadata).default != undefined) {
+            return [];
+        }
     }
     if (typeof property !== 'boolean') {
         return [new TypeMismatchValidationProblem(fullKey, 'boolean')];

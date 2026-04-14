@@ -1,7 +1,7 @@
 import { BasePropertyMetadata } from './base-property-metadata.model';
 import { MimeType } from '../../http/mime-type.enum';
 import { OmitStrict } from '../../types/omit-strict.type';
-import { BigNumberUtilities } from '../../utilities/big-number.utilities';
+import { BigNumber, BigNumberUtilities } from '../../utilities/big-number.utilities';
 
 /**
  * Possible file size values.

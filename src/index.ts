@@ -71,6 +71,14 @@ export * from './di/get-all-registered-tokens.function';
 export * from './di/errors/get-dependency-stack-trace.function';
 export * from './di/errors/no-provider.error';
 
+// event
+export * from './event/event-service.interface';
+export * from './event/event.service';
+export * from './event/event-subscriber-run.model';
+export * from './event/event.model';
+export * from './event/event-cleanup.cron-job';
+export * from './event/event-processing.error';
+
 // routing
 export * from './routing/router';
 export * from './routing/router.interface';
@@ -93,7 +101,12 @@ export * from './routing/models/object-param-metadata.model';
 export * from './routing/models/array-param-metadata.model';
 export * from './routing/models/crud-controller.model';
 
-export * from './routing/request.context';
+// context
+export * from './context/als.utilities';
+export * from './context/base-context';
+export * from './context/request/http-request.context';
+export * from './context/request/websocket-request.context';
+export * from './context/request/request-context-token.model';
 
 // error handling
 export * from './error-handling/error-handler';
@@ -128,6 +141,10 @@ export * from './global/before-app-shutdown.interface';
 export * from './global/on-app-shutdown.interface';
 export * from './global/after-app-shutdown.interface';
 export * from './global/global-registry';
+
+export * from './global/model-registry/remove-exclude-properties.function';
+export * from './global/model-registry/restore-exclude-properties.function';
+export * from './global/model-registry/set-default-values.function';
 
 // logging
 export * from './logging/logger.interface';

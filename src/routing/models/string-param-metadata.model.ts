@@ -5,7 +5,10 @@ import { OmitStrict } from '../../types/omit-strict.type';
 /**
  * Metadata for string parameters.
  */
-export type StringParamMetadata = BaseParamMetadata & OmitStrict<StringPropertyMetadata, 'primary' | 'default' | 'excludeFromChangeSets'>;
+export type StringParamMetadata = BaseParamMetadata & OmitStrict<
+    StringPropertyMetadata,
+    'primary' | 'default' | 'exclude' | 'excludeFromChangeSets'
+>;
 
 /**
  * Metadata Input for string parameters.

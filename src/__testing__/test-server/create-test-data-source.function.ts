@@ -10,6 +10,8 @@ import { DataSource } from '../../data-source/decorators/data-source.decorator';
 import { MigrationEntity } from '../../data-source/migration/migration-entity.model';
 import { Email } from '../../email/models/email.model';
 import { BaseEntity } from '../../entity/base-entity.model';
+import { EventSubscriberRun } from '../../event/event-subscriber-run.model';
+import { Event } from '../../event/event.model';
 import { Log } from '../../logging/log.model';
 import { ThreadJobEntity } from '../../multithreading/models/thread-job-entity.model';
 import { Newable } from '../../types/newable.type';
@@ -40,7 +42,9 @@ export const defaultTestServerEntities: Newable<BaseEntity>[] = [
     JwtRefreshToken,
     JwtCredentials,
     OtpCredentials,
-    ThreadJobEntity
+    ThreadJobEntity,
+    Event,
+    EventSubscriberRun
 ];
 
 export function createTestDataSource({

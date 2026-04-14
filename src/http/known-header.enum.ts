@@ -4,31 +4,31 @@ import { ObjectUtilities } from '../utilities/object.utilities';
  * Known http headers.
  */
 export enum KnownHeader {
-    ACCEPT = 'Accept',
-    ACCEPT_ENCODING = 'Accept-Encoding',
-    AUTHORIZATION = 'Authorization',
-    CACHE_CONTROL = 'Cache-Control',
-    CONTENT_LENGTH = 'Content-Length',
-    CONTENT_TYPE = 'Content-Type',
-    CONTENT_DISPOSITION = 'Content-Disposition',
-    COOKIE = 'Cookie',
-    HOST = 'Host',
-    ORIGIN = 'Origin',
-    REFERER = 'Referer',
-    USER_AGENT = 'User-Agent',
-    X_REQUESTED_WITH = 'X-Requested-With',
-    X_FORWARDED_FOR = 'X-Forwarded-For',
-    X_FORWARDED_HOST = 'X-Forwarded-Host',
-    X_FORWARDED_PROTO = 'X-Forwarded-Proto',
-    X_REAL_IP = 'X-Real-IP',
-    X_CORRELATION_ID = 'X-Correlation-ID',
-    IF_NONE_MATCH = 'If-None-Match',
-    IIF_MODIFIED_SINCE = 'If-Modified-Since',
-    CONNECTION = 'Connection',
-    DNT = 'DNT',
-    SEC_FETCH_MODE = 'Sec-Fetch-Mode',
-    SEC_FETCH_SITE = 'Sec-Fetch-Site',
-    TE = 'TE'
+    ACCEPT = 'accept',
+    ACCEPT_ENCODING = 'accept-encoding',
+    AUTHORIZATION = 'authorization',
+    CACHE_CONTROL = 'cache-control',
+    CONTENT_LENGTH = 'content-length',
+    CONTENT_TYPE = 'content-type',
+    CONTENT_DISPOSITION = 'content-disposition',
+    COOKIE = 'cookie',
+    HOST = 'host',
+    ORIGIN = 'origin',
+    REFERER = 'referer',
+    USER_AGENT = 'user-agent',
+    X_REQUESTED_WITH = 'x-requested-with',
+    X_FORWARDED_FOR = 'x-forwarded-for',
+    X_FORWARDED_HOST = 'x-forwarded-host',
+    X_FORWARDED_PROTO = 'x-forwarded-proto',
+    X_REAL_IP = 'x-real-ip',
+    X_CORRELATION_ID = 'x-correlation-id',
+    IF_NONE_MATCH = 'if-none-match',
+    IIF_MODIFIED_SINCE = 'if-modified-since',
+    CONNECTION = 'connection',
+    DNT = 'dnt',
+    SEC_FETCH_MODE = 'sec-fetch-mode',
+    SEC_FETCH_SITE = 'sec-fetch-site',
+    TE = 'te'
 }
 
 /**
@@ -37,5 +37,5 @@ export enum KnownHeader {
  * @returns True when the KnownHeader enum values include the given value, false otherwise.
  */
 export function isKnownHeader(value: string): value is KnownHeader {
-    return ObjectUtilities.values(KnownHeader).includes(value as KnownHeader);
+    return ObjectUtilities.values(KnownHeader).includes(value.toLowerCase() as KnownHeader);
 }

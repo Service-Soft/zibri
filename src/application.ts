@@ -1,4 +1,5 @@
 import { createServer, Server } from 'node:http';
+import { AddressInfo } from 'node:net';
 
 import cors from 'cors';
 import express, { RequestHandler } from 'express';
@@ -168,6 +169,12 @@ export class ZibriApplication {
         this.use((req, _, next) => next(new UnmatchedRouteError(req.originalUrl)));
         this.use(inject(ZIBRI_DI_TOKENS.GLOBAL_ERROR_HANDLER));
         this.server.listen(port);
+        if (port === 0) {
+            const address: string | AddressInfo | null = this.server.address();
+            if (address != undefined && typeof address !== 'string') {
+                port = address.port;
+            }
+        }
         GlobalRegistry.markAppAsStarted();
         await this.logger.info(`${this.options.name} is running on port ${port}`);
     }
@@ -247,7 +254,8 @@ export class ZibriApplication {
         await Promise.all(elements.map(async e => {
             try {
                 const timeoutInMs: number = e.shutdownTimeoutInMs ?? DEFAULT_SHUTDOWN_TIMEOUT_IN_MS;
-                await PromiseUtilities.withTimeout(e.afterAppShutdown(this, signal), timeoutInMs);
+                // no abort signal here because stopping the api does that.
+                await PromiseUtilities.withTimeout(() => e.afterAppShutdown(this, signal), timeoutInMs);
             }
             catch (error) {
                 await this.logger.error(
@@ -264,7 +272,8 @@ export class ZibriApplication {
         await Promise.all(elements.map(async e => {
             try {
                 const timeoutInMs: number = e.shutdownTimeoutInMs ?? DEFAULT_SHUTDOWN_TIMEOUT_IN_MS;
-                await PromiseUtilities.withTimeout(e.onAppShutdown(this, signal), timeoutInMs);
+                // no abort signal here because stopping the api does that.
+                await PromiseUtilities.withTimeout(() => e.onAppShutdown(this, signal), timeoutInMs);
             }
             catch (error) {
                 await this.logger.error(
@@ -281,7 +290,8 @@ export class ZibriApplication {
         await Promise.all(elements.map(async e => {
             try {
                 const timeoutInMs: number = e.shutdownTimeoutInMs ?? DEFAULT_SHUTDOWN_TIMEOUT_IN_MS;
-                await PromiseUtilities.withTimeout(e.beforeAppShutdown(this, signal), timeoutInMs);
+                // no abort signal here because stopping the api does that.
+                await PromiseUtilities.withTimeout(() => e.beforeAppShutdown(this, signal), timeoutInMs);
             }
             catch (error) {
                 await this.logger.error(

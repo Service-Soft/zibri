@@ -1,7 +1,7 @@
 
 import { InvoiceCalcServiceInterface } from './invoice-calc-service.interface';
 import { Injectable } from '../../../di/decorators/injectable.decorator';
-import { BigNumberUtilities } from '../../../utilities/big-number.utilities';
+import { BigNumber, BigNumberUtilities } from '../../../utilities/big-number.utilities';
 import { InvoiceItem } from '../models/invoice-item.model';
 import { Invoice as BaseInvoice, Invoice } from '../models/invoice.model';
 import { Vat } from '../models/vat.model';

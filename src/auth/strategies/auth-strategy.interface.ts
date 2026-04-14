@@ -1,9 +1,9 @@
 import { AuthStrategies } from './auth-strategies.model';
+import { HttpRequestContext } from '../../context/request/http-request.context';
+import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
 import { BaseEntity } from '../../entity/base-entity.model';
-import { HttpRequest } from '../../http/http-request.model';
 import { OpenApiSecuritySchemeObject } from '../../open-api/open-api.model';
 import { Newable } from '../../types/newable.type';
-import { WebsocketRequest } from '../../websocket/models/websocket-request.model';
 import { BaseUser } from '../models/base-user.model';
 
 /**
@@ -22,7 +22,7 @@ export interface AuthStrategyInterface<
     /**
      * Resolves the current user.
      */
-    resolveUser: (request: HttpRequest | WebsocketRequest) => Promise<UserType | undefined>,
+    resolveUser: (context: HttpRequestContext | WebsocketRequestContext) => Promise<UserType | undefined>,
     /**
      * Logs in a user.
      */
@@ -38,16 +38,16 @@ export interface AuthStrategyInterface<
     /**
      * Checks whether a user is currently logged in.
      */
-    isLoggedIn: (request: HttpRequest | WebsocketRequest) => Promise<boolean>,
+    isLoggedIn: (context: HttpRequestContext | WebsocketRequestContext) => Promise<boolean>,
     /**
      * Checks whether a currently logged in user has one of the provided roles.
      */
-    hasRole: (request: HttpRequest | WebsocketRequest, allowedRoles: RoleType[]) => Promise<boolean>,
+    hasRole: (context: HttpRequestContext | WebsocketRequestContext, allowedRoles: RoleType[]) => Promise<boolean>,
     /**
      * Checks whether a currently logged belongs to the requested resource.
      */
     belongsTo: <TargetEntity extends Newable<BaseEntity>>(
-        request: HttpRequest | WebsocketRequest,
+        context: HttpRequestContext | WebsocketRequestContext,
         targetEntity: TargetEntity,
         targetUserIdKey: keyof InstanceType<TargetEntity>,
         targetIdParamKey: string

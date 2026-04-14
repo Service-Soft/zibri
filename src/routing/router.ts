@@ -9,7 +9,6 @@ import { MissingBaseRouteError } from './missing-base-route.error';
 import { createHeaderParamMetadata, createPathParamMetadata, createQueryParamMetadata } from './param-metdata.helpers';
 import { RouterInterface } from './router.interface';
 import { ZibriApplication } from '../application';
-import { runWithRequest } from './request.context';
 import { resolveRouteParams } from './resolve-route-params.function';
 import { OpenApiRouteConfiguration, RouteConfiguration, RouteConfigurationInput } from './route-configuration.model';
 import type { AuthServiceInterface } from '../auth/auth-service.interface';
@@ -35,6 +34,9 @@ import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { Ms } from '../utilities/ms';
 import type { ValidationServiceInterface } from '../validation/validation-service.interface';
 import { ControllerData } from './decorators/controller.decorator';
+import { AlsUtilities } from '../context/als.utilities';
+import { HttpRequestContext } from '../context/request/http-request.context';
+import { ObjectUtilities } from '../utilities/object.utilities';
 
 /**
  * Default router implementation of Zibri.
@@ -77,7 +79,6 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
     // eslint-disable-next-line jsdoc/require-jsdoc
     onAppStart(app: ZibriApplication): void {
         app.use(this.expressRouter);
-        app.use((req, _res, next) => runWithRequest(req as HttpRequest, () => next()));
     }
 
     private checkForOrphanedControllers(controllers: Newable<unknown>[]): void {
@@ -226,40 +227,54 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
         HeaderMetaObject extends Record<string, HeaderParamMetadata>
     >(route: RouteConfiguration<BodyMetaObject, PathMetaObject, QueryMetaObject, HeaderMetaObject>): RequestHandler {
         const handler: RequestHandler = (async (
-            req: HttpRequest,
+            request: HttpRequest,
             res: HttpResponse,
             next: NextFunction
         ) => {
-            try {
-                if (route.bodyMetadata) {
-                    req.body = await this.parser.parseBody(req, route.bodyMetadata);
-                    this.validationService.validateBody(req.body, route.bodyMetadata);
+            const context: HttpRequestContext = new HttpRequestContext(request, undefined, undefined);
+            await AlsUtilities.runWithHttpRequestContext(context, async () => {
+                try {
+                    // parse
+                    for (const key of ObjectUtilities.keys(route.pathParams)) {
+                        (context.request.params[key] as unknown) = this.parser.parsePathParam(context.request, route.pathParams[key]);
+                    }
+                    for (const key of ObjectUtilities.keys(route.queryParams)) {
+                        (context.request.query[key] as unknown) = this.parser.parseQueryParam(
+                            context.request,
+                            route.queryParams[key]
+                        );
+                    }
+                    for (const key of ObjectUtilities.keys(route.headerParams)) {
+                        (context.request.headers[key] as unknown) = this.parser.parseHeaderParam(
+                            context.request,
+                            route.headerParams[key]
+                        );
+                    }
+                    if (route.bodyMetadata) {
+                        context.request.body = await this.parser.parseBody(context.request, route.bodyMetadata);
+                    }
+                    // validate
+                    await Promise.all([
+                        ...ObjectUtilities.keys(route.pathParams).map(async key => {
+                            await this.validationService.validatePathParam(context.request.params[key], route.pathParams[key]);
+                        }),
+                        ...ObjectUtilities.keys(route.queryParams).map(async key => {
+                            await this.validationService.validateQueryParam(context.request.query[key], route.queryParams[key]);
+                        }),
+                        ...ObjectUtilities.keys(route.headerParams).map(async key => {
+                            await this.validationService.validateHeaderParam(context.request.headers[key], route.headerParams[key]);
+                        }),
+                        ...route.bodyMetadata ? [this.validationService.validateBody(context.request.body, route.bodyMetadata)] : []
+                    ]);
+
+                    // eslint-disable-next-line typescript/no-explicit-any
+                    const result: unknown = await route.handler(context.request as HttpRequest<any, any, any, any>, res, next);
+                    this.returnResult(res, result, next);
                 }
-                for (const key in route.pathParams) {
-                    (req.params[key] as unknown) = this.parser.parsePathParam(req, route.pathParams[key]);
-                    this.validationService.validatePathParam(req.params[key], route.pathParams[key]);
+                catch (error) {
+                    next(error);
                 }
-                for (const key in route.queryParams) {
-                    (req.query[key] as unknown) = this.parser.parseQueryParam(
-                        req,
-                        route.queryParams[key]
-                    );
-                    this.validationService.validateQueryParam(req.query[key], route.queryParams[key]);
-                }
-                for (const key in route.headerParams) {
-                    (req.headers[key] as unknown) = this.parser.parseHeaderParam(
-                        req,
-                        route.headerParams[key]
-                    );
-                    this.validationService.validateHeaderParam(req.headers[key], route.headerParams[key]);
-                }
-                // eslint-disable-next-line typescript/no-explicit-any
-                const result: unknown = await route.handler(req as HttpRequest<any, any, any, any>, res, next);
-                this.returnResult(res, result, next);
-            }
-            catch (error) {
-                next(error);
-            }
+            });
         }) as RequestHandler;
         return handler;
     }
@@ -273,24 +288,27 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
             await this.logger.warn(`No responses defined on route ${controllerClass.name}.${route.controllerMethod}`);
         }
         const handler: RequestHandler = (async (req: HttpRequest, res: HttpResponse, next: NextFunction) => {
-            try {
-                await this.authService.checkAccess(controllerClass, route.controllerMethod, req);
-                const controller: unknown = inject(controllerClass);
-                const params: unknown[] = await this.resolveRouteParams(
-                    controllerClass,
-                    route.controllerMethod,
-                    // eslint-disable-next-line typescript/no-unsafe-member-access, typescript/no-explicit-any
-                    ((controller as any)[route.controllerMethod] as Function).length,
-                    req
-                );
+            const context: HttpRequestContext = new HttpRequestContext(req, controllerClass, route.controllerMethod);
+            await AlsUtilities.runWithHttpRequestContext(context, async () => {
+                try {
+                    await this.authService.checkAccess(controllerClass, route.controllerMethod, context);
+                    const controller: unknown = inject(controllerClass);
+                    const params: unknown[] = await resolveRouteParams(
+                        controllerClass,
+                        route.controllerMethod,
+                        // eslint-disable-next-line typescript/no-unsafe-member-access, typescript/no-explicit-any
+                        ((controller as any)[route.controllerMethod] as Function).length,
+                        context
+                    );
 
-                // eslint-disable-next-line typescript/no-unsafe-call, typescript/no-explicit-any, typescript/no-unsafe-member-access
-                const result: unknown = await ((controller as any)[route.controllerMethod] as Function)(...params);
-                this.returnResult(res, result, next);
-            }
-            catch (error) {
-                next(error);
-            }
+                    // eslint-disable-next-line typescript/no-unsafe-call, typescript/no-explicit-any, typescript/no-unsafe-member-access
+                    const result: unknown = await ((controller as any)[route.controllerMethod] as Function)(...params);
+                    this.returnResult(res, result, next);
+                }
+                catch (error) {
+                    next(error);
+                }
+            });
         }) as RequestHandler;
         return handler;
     }
@@ -369,23 +387,5 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
         }
 
         res.json(result);
-    }
-
-    private async resolveRouteParams(
-        controllerClass: Newable<unknown>,
-        controllerMethod: string,
-        totalParamCount: number,
-        req: HttpRequest
-    ): Promise<unknown[]> {
-        return await resolveRouteParams(
-            controllerClass,
-            controllerMethod,
-            totalParamCount,
-            req,
-            this.parser,
-            this.validationService,
-            this.authService,
-            undefined
-        );
     }
 }

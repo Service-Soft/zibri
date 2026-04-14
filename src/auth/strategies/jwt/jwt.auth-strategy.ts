@@ -10,6 +10,8 @@ import { JwtRefreshTokenPayload } from './jwt-refresh-token-payload.model';
 import { JwtRefreshToken, JwtRefreshTokenCreateDto } from './jwt-refresh-token.model';
 import { JwtRequestPasswordResetData } from './jwt-request-password-reset-data.model';
 import { JwtUtilities } from './jwt.utilities';
+import { HttpRequestContext } from '../../../context/request/http-request.context';
+import { WebsocketRequestContext } from '../../../context/request/websocket-request.context';
 import { Repository } from '../../../data-source/repository';
 import { InjectRepository, repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../../di/decorators/inject.decorator';
@@ -22,12 +24,10 @@ import { BaseEntity } from '../../../entity/base-entity.model';
 import { TooManyRequestsError } from '../../../error-handling/errors/too-many-requests.error';
 import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.error';
 import { GlobalRegistry } from '../../../global/global-registry';
-import { HttpRequest } from '../../../http/http-request.model';
 import { OpenApiSecuritySchemeObject } from '../../../open-api/open-api.model';
 import { Newable } from '../../../types/newable.type';
 import { Ms } from '../../../utilities/ms';
 import { UUIDUtilities } from '../../../utilities/uuid.utilities';
-import { WebsocketRequest } from '../../../websocket/models/websocket-request.model';
 import { HashUtilities } from '../../hash.utilities';
 import { BaseUser } from '../../models/base-user.model';
 import { PasswordResetToken, PasswordResetTokenCreateData } from '../../models/password-reset-token.model';
@@ -291,8 +291,8 @@ implements AuthStrategyInterface<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async resolveUser(request: HttpRequest | WebsocketRequest): Promise<UserType | undefined> {
-        const jwt: string | undefined = this.extractAccessTokenFromRequest(request);
+    async resolveUser(context: HttpRequestContext | WebsocketRequestContext): Promise<UserType | undefined> {
+        const jwt: string | undefined = this.extractAccessTokenFromRequestContext(context);
         if (!jwt) {
             return undefined;
         }
@@ -305,8 +305,8 @@ implements AuthStrategyInterface<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async isLoggedIn(request: HttpRequest | WebsocketRequest): Promise<boolean> {
-        const jwt: string | undefined = this.extractAccessTokenFromRequest(request);
+    async isLoggedIn(context: HttpRequestContext | WebsocketRequestContext): Promise<boolean> {
+        const jwt: string | undefined = this.extractAccessTokenFromRequestContext(context);
         if (!jwt) {
             return false;
         }
@@ -315,8 +315,8 @@ implements AuthStrategyInterface<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async hasRole(request: HttpRequest | WebsocketRequest, allowedRoles: RoleType[]): Promise<boolean> {
-        const jwt: string | undefined = this.extractAccessTokenFromRequest(request);
+    async hasRole(context: HttpRequestContext | WebsocketRequestContext, allowedRoles: RoleType[]): Promise<boolean> {
+        const jwt: string | undefined = this.extractAccessTokenFromRequestContext(context);
         if (!jwt) {
             return false;
         }
@@ -329,12 +329,12 @@ implements AuthStrategyInterface<
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async belongsTo<TargetEntity extends Newable<BaseEntity>>(
-        request: HttpRequest | WebsocketRequest,
+        context: HttpRequestContext | WebsocketRequestContext,
         targetEntity: TargetEntity,
         targetUserIdKey: keyof InstanceType<TargetEntity>,
         targetIdParamKey: string
     ): Promise<boolean> {
-        const jwt: string | undefined = this.extractAccessTokenFromRequest(request);
+        const jwt: string | undefined = this.extractAccessTokenFromRequestContext(context);
         if (!jwt) {
             return false;
         }
@@ -344,7 +344,7 @@ implements AuthStrategyInterface<
         }
         try {
             const repo: Repository<InstanceType<TargetEntity>> = inject(repositoryTokenFor(targetEntity));
-            const targetId: string | undefined = request.params?.[targetIdParamKey];
+            const targetId: string | undefined = context.request.params?.[targetIdParamKey];
             if (targetId == undefined) {
                 throw new Error(`Could not find the target id specified as path param "${targetId}"`);
             }
@@ -360,10 +360,10 @@ implements AuthStrategyInterface<
         }
     }
 
-    private extractAccessTokenFromRequest(
-        request: HttpRequest | WebsocketRequest
+    private extractAccessTokenFromRequestContext(
+        context: HttpRequestContext | WebsocketRequestContext
     ): string | undefined {
-        const authHeader: string | string[] | undefined = request.headers.Authorization;
+        const authHeader: string | string[] | undefined = context.request.headers.authorization;
         if (authHeader == undefined || typeof authHeader !== 'string') {
             return undefined;
         }

@@ -1,3 +1,5 @@
+import assert from 'node:assert';
+
 import { FindOptionsWhere as ToFindOptionsWhere, FindOptionsWhereProperty as ToFindOptionsWhereProperty, Or, FindOperator, Equal, IsNull, Not, And, Like, In, MoreThan, LessThan, MoreThanOrEqual, LessThanOrEqual, ILike, ArrayContains, ArrayContainedBy, Raw } from 'typeorm';
 
 import { ArrayWhereFilter } from './array-where-filter.model';
@@ -7,11 +9,8 @@ import { NumberWhereFilter } from './number-where-filter.model';
 import { ObjectWhereFilter } from './object-where-filter.model';
 import { StringWhereFilter } from './string-where-filter.model';
 import { WhereFilter, Where, WhereFilterProperty } from './where-filter.model';
-import { BaseEntity } from '../../../entity/base-entity.model';
 import { PropertyMetadata } from '../../../entity/decorators/property.decorator';
-import { ManyToOnePropertyMetadata } from '../../../entity/models/many-to-one-property-metadata.model';
 import { ObjectPropertyMetadata } from '../../../entity/models/object-property-metadata.model';
-import { OneToOnePropertyMetadata } from '../../../entity/models/one-to-one-property-metadata.model';
 import { Relation } from '../../../entity/models/relation.enum';
 import { ExcludeStrict } from '../../../types/exclude-strict.type';
 import { Newable } from '../../../types/newable.type';
@@ -58,14 +57,16 @@ function singleWhereFilterToFindOptionsWhere<T extends Object>(
         }
 
         const propertyMetadata: PropertyMetadata = properties[key];
+        let nestedProperties: Record<string, PropertyMetadata> | undefined;
+
         switch (propertyMetadata.type) {
             case 'object': {
-                properties = MetadataUtilities.getModelProperties(propertyMetadata.cls());
+                nestedProperties = MetadataUtilities.getModelProperties(propertyMetadata.cls());
                 break;
             }
             case Relation.ONE_TO_ONE:
             case Relation.MANY_TO_ONE: {
-                properties = MetadataUtilities.getModelProperties(propertyMetadata.target());
+                nestedProperties = MetadataUtilities.getModelProperties(propertyMetadata.target());
                 break;
             }
             case 'string':
@@ -83,7 +84,8 @@ function singleWhereFilterToFindOptionsWhere<T extends Object>(
         }
         res[key] = propertyToFindOperator(
             prop,
-            propertyMetadata
+            propertyMetadata,
+            nestedProperties
         ) as typeof key extends 'toString' ? unknown : ToFindOptionsWhereProperty<NonNullable<T[typeof key]>>;
     }
     return res;
@@ -93,16 +95,18 @@ function singleWhereFilterToFindOptionsWhere<T extends Object>(
  * Transforms a property filter or multiple property filters to a typeorm FindOperator.
  * @param property - The property filter to transform.
  * @param propertyMetadata - The metadata of the property.
+ * @param nestedProperties - Any nested properties of the where filter.
  * @returns The typeorm FindOperator.
  */
 function propertyToFindOperator<T>(
     property: WhereFilterProperty<T> | WhereFilterProperty<T>[],
-    propertyMetadata: PropertyMetadata
+    propertyMetadata: PropertyMetadata,
+    nestedProperties: Record<string, PropertyMetadata> | undefined
 ): FindOperator<T> {
     if (Array.isArray(property)) {
-        return Or(...property.map(p => singlePropertyToFindOperator(p, propertyMetadata)));
+        return Or(...property.map(p => singlePropertyToFindOperator(p, propertyMetadata, nestedProperties)));
     }
-    return singlePropertyToFindOperator(property, propertyMetadata);
+    return singlePropertyToFindOperator(property, propertyMetadata, nestedProperties);
 }
 
 /**
@@ -153,20 +157,21 @@ const whereFilterKeysRecord: Record<WhereFilterKeys, WhereFilterKeys> = {
     includes: 'includes',
     isIncludedIn: 'isIncludedIn'
 };
-
-const whereFilterKeys: WhereFilterKeys[] = ObjectUtilities.values(whereFilterKeysRecord);
+const whereFilterKeySet: Set<WhereFilterKeys> = new Set<WhereFilterKeys>(ObjectUtilities.values(whereFilterKeysRecord));
 
 /**
  * Transforms a single where filter property to a typeorm FindOperator.
  * @param property - The where filter property to transform.
  * @param propertyMetadata - The metadata of the where filter property.
+ * @param nestedProperties - Any nested properties of the where filter.
  * @returns A typeorm FindOperator.
  * @throws When the where filter property is invalid.
  */
 // eslint-disable-next-line sonar/cognitive-complexity
 function singlePropertyToFindOperator<T>(
     property: WhereFilterProperty<T>,
-    propertyMetadata: PropertyMetadata
+    propertyMetadata: PropertyMetadata,
+    nestedProperties: Record<string, PropertyMetadata> | undefined
 ): FindOperator<T> {
     if (property === null) {
         // eslint-disable-next-line typescript/no-unsafe-return
@@ -261,10 +266,11 @@ function singlePropertyToFindOperator<T>(
                         { json: nestedLiteral }
                     ) as FindOperator<T>;
                 }
-                return whereFilterToFindOptionsWhere(
-                    whereFilter.where,
-                    (propertyMetadata as OneToOnePropertyMetadata<BaseEntity> | ManyToOnePropertyMetadata<BaseEntity>)
-                        .target() as unknown as Newable<Record<string, unknown>>
+                // nestedProperties is guaranteed here since ONE_TO_ONE/MANY_TO_ONE always sets it
+                assert(nestedProperties != undefined);
+                return singleWhereFilterToFindOptionsWhere(
+                    whereFilter.where as WhereFilter<Record<string, unknown>>,
+                    nestedProperties
                 ) as unknown as FindOperator<T>;
             }
             case 'includes': {
@@ -297,5 +303,5 @@ function singlePropertyToFindOperator<T>(
  * @param key - The key to check.
  */
 function isWhereFilterKey(key: unknown): key is WhereFilterKeys {
-    return whereFilterKeys.includes(key as WhereFilterKeys);
+    return whereFilterKeySet.has(key as WhereFilterKeys);
 }

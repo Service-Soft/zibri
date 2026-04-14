@@ -4,12 +4,14 @@ import { AuthServiceInterface } from '../../auth/auth-service.interface';
 import { PasswordResetEmailTemplate } from '../../auth/strategies/jwt/jwt-auth.controller';
 import { UserServiceInterface } from '../../auth/user/user-service.interface';
 import { BackupServiceInterface } from '../../backup/backup-service.interface';
+import { HttpRequestContext } from '../../context/request/http-request.context';
+import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
 import { CronServiceInterface } from '../../cron/cron-service.interface';
 import { DataSourceServiceInterface } from '../../data-source/data-source-service.interface';
 import { EmailServiceInterface } from '../../email/email-service.interface';
 import { EmailConfigInput } from '../../email/models/email-config.model';
 import { GlobalErrorHandler, ErrorPageTemplate } from '../../error-handling/error-handler.model';
-import { HttpRequest } from '../../http/http-request.model';
+import { EventServiceInterface } from '../../event/event-service.interface';
 import { HttpClientInterface } from '../../http-client/http-client.interface';
 import { FormatDateFn } from '../../localization/formatting/format-date-fn.model';
 import { FormatPercentFn } from '../../localization/formatting/format-percent-fn.model';
@@ -41,6 +43,7 @@ function ziToken<T = never>(k: `zi.${string}`): InjectionToken<T> {
  */
 // eslint-disable-next-line typescript/typedef
 export const ZIBRI_DI_TOKENS = {
+    // static/singleton tokens
     ROUTER: ziToken<RouterInterface>('zi.router'),
     LOGGER: ziToken<LoggerInterface>('zi.logger'),
     LOGGER_TRANSPORTS: ziToken<LoggerTransport<BaseLoggerTransportConfig>[]>('zi.logger_transports'),
@@ -76,11 +79,13 @@ export const ZIBRI_DI_TOKENS = {
     FORMAT_PERCENT: ziToken<FormatPercentFn>('zi.format_percent'),
     EMAIL_SERVICE: ziToken<EmailServiceInterface>('zi.email_service'),
     EMAIL_CONFIG: ziToken<EmailConfigInput | undefined>('zi.email_config'),
-    CURRENT_REQUEST: ziToken<HttpRequest | undefined>('zi.current_request'),
     MULTITHREADING_SERVICE: ziToken<MultithreadingServiceInterface>('zi.multithreading_service'),
     MULTITHREADING_OPTIONS: ziToken<MultithreadingOptions>('zi.multithreading_options'),
     // eslint-disable-next-line typescript/no-explicit-any
     WEBSOCKET_SERVICE: ziToken<WebsocketServiceInterface<any>>('zi.websocket_service'),
     WEBSOCKET_OPTIONS: ziToken<WebsocketOptions>('zi.websocket_options'),
-    HTTP_CLIENT: ziToken<HttpClientInterface>('zi.http_client')
+    HTTP_CLIENT: ziToken<HttpClientInterface>('zi.http_client'),
+    EVENT_SERVICE: ziToken<EventServiceInterface<Record<string, unknown>>>('zi.event_service'),
+    // dynamic/context based tokens
+    CURRENT_REQUEST_CONTEXT: ziToken<HttpRequestContext | WebsocketRequestContext | undefined>('zi.current_request_context')
 } as const satisfies TokenRecord;

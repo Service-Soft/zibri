@@ -18,6 +18,7 @@ import { SoftDeleteUpdateByIdOptions } from './models/soft-delete-update-by-id-o
 import { SoftDeleteWhere } from './models/soft-delete-where.model';
 import { Where } from '../data-source/models/where/where-filter.model';
 import { NotFoundError } from '../error-handling/errors/not-found.error';
+import { removeExcludeProperties } from '../global/model-registry/remove-exclude-properties.function';
 import { LoggerInterface } from '../logging/logger.interface';
 
 /**
@@ -51,10 +52,11 @@ export class SoftDeleteRepository<
 >
     extends ChangeSetRepository<T, CreateData, UpdateData> {
 
-    protected override readonly keysToExcludeFromChangeSets: (keyof T)[] = ['changeSets', 'deleted'];
+    protected override readonly keysToExcludeFromChangeSets: Set<keyof T> = new Set();
 
     constructor(entityClass: Newable<T>, repo: TORepository<T> | Repository<T>, logger: LoggerInterface) {
         super(entityClass, repo, logger);
+        this.keysToExcludeFromChangeSets.add('deleted');
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -129,17 +131,20 @@ export class SoftDeleteRepository<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async deleteById(id: T['id'], options?: SoftDeleteByIdOptions): Promise<void> {
+    async deleteById(id: T['id'], options?: SoftDeleteByIdOptions): Promise<T> {
         if (options?.hardDelete === true) {
-            await super.deleteById(id, options);
-            return;
+            return await super.deleteById(id, options);
         }
         const entity: T = await this.findById(id, options);
         if (entity.deleted) {
             throw new NotFoundError(`Could not find ${this.entityClass.name} with id "${id}".`);
         }
-        await this.updateById(id, { deleted: true } as UpdateData, options);
-        await this.createChangeSet(entity, { deleted: true } as UpdateData, ChangeSetType.DELETE, options, true);
+        const res: T = await this.updateById(id, { deleted: true } as UpdateData, options);
+        await Promise.all([
+            this.createChangeSet(entity, { deleted: true } as UpdateData, ChangeSetType.DELETE, options, true),
+            removeExcludeProperties(res, this.entityClass)
+        ]);
+        return res;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

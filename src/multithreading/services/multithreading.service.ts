@@ -88,7 +88,7 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
 
         worker.on('message', m => void this.handleWorkerMessage(m, threadJobWorker.threadId));
         worker.on('exit', code => void this.handleWorkerExit(code, threadJobWorker.threadId));
-        worker.on('error', error => void this.handleWorkerError(error, threadJobWorker.threadId));
+        worker.on('error', (error: Error) => void this.handleWorkerError(error, threadJobWorker.threadId));
 
         this.idleWorkers.push(threadJobWorker);
     }

@@ -30,7 +30,7 @@ export type ArrayParamItemMetadataInput = StringParamMetadataInput
 /**
  * Metadata for array parameters.
  */
-export type ArrayParamMetadata = BaseParamMetadata & OmitStrict<ArrayPropertyMetadata, 'excludeFromChangeSets' | 'items'> & {
+export type ArrayParamMetadata = BaseParamMetadata & OmitStrict<ArrayPropertyMetadata, 'excludeFromChangeSets' | 'exclude' | 'items'> & {
     /**
      * Metadata for the items inside this array parameter.
      */

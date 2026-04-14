@@ -1,5 +1,4 @@
 import { BaseEntity } from '../entity/base-entity.model';
-import { HttpRequest } from '../http/http-request.model';
 import { Newable } from '../types/newable.type';
 import { BaseUser } from './models/base-user.model';
 import { BelongsToMetadata } from './models/belongs-to-metadata.model';
@@ -9,7 +8,8 @@ import { IsNotLoggedInMetadata } from './models/is-not-logged-in-metadata.model'
 import { Require2faMetadata } from './models/require-2fa-metadata.model';
 import { AuthStrategies } from './strategies/auth-strategies.model';
 import { AuthStrategyInterface } from './strategies/auth-strategy.interface';
-import { WebsocketRequest } from '../websocket/models/websocket-request.model';
+import { HttpRequestContext } from '../context/request/http-request.context';
+import { WebsocketRequestContext } from '../context/request/websocket-request.context';
 
 /**
  * Interface for an auth service.
@@ -25,24 +25,28 @@ export interface AuthServiceInterface {
     checkAccess: (
         controllerClass: Newable<unknown>,
         controllerMethod: string,
-        request: HttpRequest | WebsocketRequest
+        context: HttpRequestContext | WebsocketRequestContext
     ) => Promise<void>,
     /**
      * Checks whether there is a currently logged in user.
      */
     isLoggedIn: (
-        request: HttpRequest | WebsocketRequest,
+        context: HttpRequestContext | WebsocketRequestContext,
         allowedStrategies: AuthStrategies
     ) => Promise<boolean>,
     /**
      * Checks whether the currently logged in user has one of the provided roles.
      */
-    hasRole: (request: HttpRequest | WebsocketRequest, allowedStrategies: AuthStrategies, allowedRoles: string[]) => Promise<boolean>,
+    hasRole: (
+        context: HttpRequestContext | WebsocketRequestContext,
+        allowedStrategies: AuthStrategies,
+        allowedRoles: string[]
+    ) => Promise<boolean>,
     /**
      * Checks whether the currently logged in user belongs to the target entity.
      */
     belongsTo: <TargetEntity extends Newable<BaseEntity>>(
-        request: HttpRequest,
+        context: HttpRequestContext | WebsocketRequestContext,
         allowedStrategies: AuthStrategies,
         targetEntity: TargetEntity,
         targetUserIdKey: keyof InstanceType<TargetEntity>,
@@ -149,7 +153,7 @@ export interface AuthServiceInterface {
         UserType extends BaseUser<Role>,
         B extends boolean = true
     >(
-        request: HttpRequest | WebsocketRequest,
+        context: HttpRequestContext | WebsocketRequestContext,
         allowedStrategies: AuthStrategies,
         required: B
     ) => Promise<B extends false ? UserType | undefined : UserType>,

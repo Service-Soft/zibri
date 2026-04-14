@@ -1,4 +1,4 @@
-import { PostgresDataSource, PostgresOptions, BaseEntity, DataSource, Newable, MigrationEntity, JwtRefreshToken, JwtCredentials, PasswordResetToken, MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken, Log, Change, ChangeSet, Entity, OmitClass, OtpCredentials, BackupResourceEntity, BackupEntity, Invoice, NumberInvoices, Email, CronJobEntity, ThreadJobEntity, WebsocketChannel, WebsocketMessage } from 'zibri';
+import { PostgresDataSource, PostgresOptions, BaseEntity, DataSource, Newable, MigrationEntity, JwtRefreshToken, JwtCredentials, PasswordResetToken, MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken, Log, Change, ChangeSet, Entity, OmitClass, OtpCredentials, BackupResourceEntity, BackupEntity, Invoice, NumberInvoices, Email, CronJobEntity, ThreadJobEntity, WebsocketChannel, WebsocketMessage, Event, EventSubscriberRun } from 'zibri';
 
 import { Company, Test, User } from '../../models';
 
@@ -42,6 +42,8 @@ export class DbDataSource extends PostgresDataSource {
         CronJobEntity,
         ThreadJobEntity,
         WebsocketChannel,
-        WebsocketMessage
+        WebsocketMessage,
+        Event,
+        EventSubscriberRun
     ];
 }

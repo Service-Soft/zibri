@@ -5,7 +5,7 @@ import { KnownHeader } from '../../http/known-header.enum';
 import { MimeType } from '../../http/mime-type.enum';
 import { HttpClientResponse } from '../../http-client/http-client-response.model';
 import { BodyMetadata } from '../../routing/decorators/body.decorator';
-import { BigNumberUtilities } from '../../utilities/big-number.utilities';
+import { BigNumber, BigNumberUtilities } from '../../utilities/big-number.utilities';
 import { WebsocketRequest } from '../../websocket/models/websocket-request.model';
 import { BodyParserInterface } from '../body-parser.interface';
 import { BodyParser } from '../decorators/body-parser.decorator';

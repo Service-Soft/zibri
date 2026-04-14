@@ -5,13 +5,14 @@ import { Relation } from '../../entity/models/relation.enum';
 import { MimeType } from '../../http/mime-type.enum';
 import { Newable } from '../../types/newable.type';
 import { OmitStrict } from '../../types/omit-strict.type';
+import { BigNumber } from '../../utilities/big-number.utilities';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { Ms } from '../../utilities/ms';
 
 /**
  * Base metadata shared by all possible http request body properties.
  */
-type BaseBodyMetadata = OmitStrict<BasePropertyMetadata, 'excludeFromChangeSets'> & {
+type BaseBodyMetadata = OmitStrict<BasePropertyMetadata, 'excludeFromChangeSets' | 'exclude'> & {
     /**
      * The class that defines the structure of the body.
      */
