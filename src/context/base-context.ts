@@ -7,4 +7,6 @@ export abstract class BaseContext<T> {
      * The cached token values.
      */
     protected readonly tokenValues: Map<string, unknown> = new Map();
+
+    constructor() {}
 }

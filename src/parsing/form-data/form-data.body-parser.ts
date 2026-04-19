@@ -51,7 +51,9 @@ export class FormDataBodyParser implements BodyParserInterface, OnAppInit {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     onAppInit(app: ZibriApplication): void {
-        app.options.cronJobs.push(FormDataBodyParserCleanupCronJob);
+        if (!app.options.cronJobs.includes(FormDataBodyParserCleanupCronJob)) {
+            app.options.cronJobs.push(FormDataBodyParserCleanupCronJob);
+        }
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

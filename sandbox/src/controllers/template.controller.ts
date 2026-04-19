@@ -10,7 +10,8 @@ export class TemplateController {
     @Response.html()
     @Get('/socket')
     async socketIo(): Promise<HtmlResponse> {
-        return await PreactUtilities.renderResponse(SocketIoTestPage, { primary: '#0e456f', secondary: '#00b4d8' });
+        const html: string = await PreactUtilities.renderPage(SocketIoTestPage, { primary: '#0e456f', secondary: '#00b4d8' });
+        return HtmlResponse.fromString(html);
     }
 
     @Response.html()

@@ -68,7 +68,9 @@ implements EventServiceInterface<TEvents>, OnAppInit, OnAppStart, AfterAppShutdo
     // eslint-disable-next-line jsdoc/require-jsdoc
     onAppInit(app: ZibriApplication): void {
         validateEntitiesRegistered('EventService', app, Event, EventSubscriberRun);
-        app.options.cronJobs.push(EventCleanupCronJob);
+        if (!app.options.cronJobs.includes(EventCleanupCronJob)) {
+            app.options.cronJobs.push(EventCleanupCronJob);
+        }
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

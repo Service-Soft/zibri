@@ -1,10 +1,11 @@
 import { createServer, Server } from 'node:http';
 import { AddressInfo } from 'node:net';
 
+import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import express, { RequestHandler } from 'express';
 
-import { ZibriApplicationOptions } from './application-options.model';
+import { HstsOptions, ZibriApplicationOptions, ZibriApplicationSecurityOptions } from './application-options.model';
 import { OtpTwoFactorMethod } from './auth/2fa/methods/otp/otp.two-factor-method';
 import { isTwoFactorMethod } from './auth/2fa/methods/two-factor-method.interface';
 import { isAuthStrategy } from './auth/strategies/auth-strategy.interface';
@@ -28,23 +29,36 @@ import { implementsOnAppInit } from './global/on-app-init.interface';
 import { implementsOnAppShutdown, OnAppShutdown } from './global/on-app-shutdown.interface';
 import { implementsOnAppStart } from './global/on-app-start.interface';
 import { HandlebarUtilities } from './handlebars/handlebar.utilities';
+import { KnownHeader } from './http/known-header.enum';
 import { LoggerInterface } from './logging/logger.interface';
 import { FormDataBodyParser } from './parsing/form-data/form-data.body-parser';
 import { JsonBodyParser } from './parsing/json/json.body-parser';
 import { ZibriPlugin } from './plugin/plugin.model';
 import { Route } from './routing/controller-route-configuration.model';
+import { DeepPartial } from './types/deep-partial.type';
 import { OmitStrict } from './types/omit-strict.type';
+import { BigNumberUtilities } from './utilities/big-number.utilities';
 import { FsUtilities } from './utilities/fs.utilities';
 import { Ms } from './utilities/ms';
 import { PromiseUtilities } from './utilities/promise.utilities';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-type FullZibriApplicationOptions = Required<OmitStrict<ZibriApplicationOptions, 'plugins'>>;
+type FullZibriApplicationOptions = Required<OmitStrict<ZibriApplicationOptions, 'plugins' | 'security'>> & {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    security: ZibriApplicationSecurityOptions
+};
 
 // eslint-disable-next-line typescript/typedef
 const SHUTDOWN_SIGNALS = ['SIGTERM', 'SIGINT', 'SIGHUP'] as const;
 
 const DEFAULT_SHUTDOWN_TIMEOUT_IN_MS: number = Ms.SECOND * 30;
+
+const defaultHstsOptions: HstsOptions = {
+    maxAgeSeconds: BigNumberUtilities.multiply(Ms.YEAR, 2).dividedBy(1000)
+        .toNumber(),
+    includeSubDomains: true,
+    preload: false
+};
 
 /**
  * A os signal that triggers the shutdown of a Zibri application.
@@ -80,6 +94,29 @@ export class ZibriApplication {
 
     constructor(private readonly providedOptions: ZibriApplicationOptions) {
         this.options = this.createFullOptions();
+
+        this.use((req, res, next) => {
+            res.setHeader(KnownHeader.X_CONTENT_TYPE_OPTIONS, 'nosniff');
+            res.setHeader(KnownHeader.REFERRER_POLICY, 'strict-origin-when-cross-origin');
+
+            const hsts: boolean | HstsOptions = this.options.security.headers[KnownHeader.STRICT_TRANSPORT_SECURITY];
+            const isSecure: boolean = req.secure || req.headers[KnownHeader.X_FORWARDED_PROTO] === 'https';
+            if (isSecure && hsts !== false) {
+                const options: HstsOptions = hsts === true
+                    ? defaultHstsOptions
+                    : hsts;
+                res.setHeader(
+                    KnownHeader.STRICT_TRANSPORT_SECURITY,
+                    [
+                        `max-age=${options.maxAgeSeconds}`,
+                        ...options.includeSubDomains ? ['includeSubDomains'] : [],
+                        ...options.preload ? ['preload'] : []
+                    ].join('; ')
+                );
+            }
+
+            next();
+        });
 
         for (const signal of SHUTDOWN_SIGNALS) {
             const handler: () => void = () => void this.shutdown(signal);
@@ -131,6 +168,12 @@ export class ZibriApplication {
         this.validateInjectables(injectables);
 
         await this.onAppInit(injectables);
+
+        const secret: string | undefined = inject(ZIBRI_DI_TOKENS.COOKIE_SIGN_SECRET);
+        if (secret) {
+            this.use(cookieParser(secret));
+        }
+
         await this.afterAppInit(injectables);
 
         for (const controller of this.options.controllers) {
@@ -356,6 +399,9 @@ export class ZibriApplication {
     }
 
     private createFullOptions(): FullZibriApplicationOptions {
+        // eslint-disable-next-line stylistic/max-len
+        const hsts: DeepPartial<HstsOptions> | boolean | undefined = this.providedOptions.security?.headers?.[KnownHeader.STRICT_TRANSPORT_SECURITY];
+
         const res: FullZibriApplicationOptions = {
             dataSources: [],
             authStrategies: [],
@@ -363,7 +409,17 @@ export class ZibriApplication {
             bodyParsers: [],
             providers: [],
             cronJobs: [],
-            ...this.providedOptions
+            ...this.providedOptions,
+            security: {
+                headers: {
+                    [KnownHeader.STRICT_TRANSPORT_SECURITY]: typeof hsts === 'boolean'
+                        ? hsts
+                        : {
+                            ...defaultHstsOptions,
+                            ...hsts
+                        }
+                }
+            }
         };
         for (const plugin of this.providedOptions.plugins ?? []) {
             // TODO: handle order of plugin initialization so that everything is available for DI inside the plugin constructor.

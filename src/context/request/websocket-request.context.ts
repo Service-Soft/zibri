@@ -34,10 +34,10 @@ export class WebsocketRequestContext extends BaseContext<'websocket-request'> {
      * @param token - The token to get the value of.
      * @returns Either the cached or a new value.
      */
-    get<T>(token: RequestContextToken<T>): T | Promise<T> {
+    get<T>(token: RequestContextToken<T>): T {
         if (!this.has(token)) {
             this.tokenValues.set(token.key, token.fn(this));
         }
-        return this.tokenValues.get(token.key) as T | Promise<T>;
+        return this.tokenValues.get(token.key) as T;
     }
 }

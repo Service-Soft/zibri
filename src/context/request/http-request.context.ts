@@ -1,6 +1,8 @@
+
 import { BaseContext } from '../base-context';
 import { RequestContextToken } from './request-context-token.model';
 import { HttpRequest } from '../../http/http-request.model';
+import { HttpResponse } from '../../http/http-response.model';
 import { Newable } from '../../types/newable.type';
 
 /**
@@ -12,6 +14,7 @@ export class HttpRequestContext extends BaseContext<'http-request'> {
 
     constructor(
         readonly request: HttpRequest,
+        readonly response: HttpResponse,
         readonly controllerClass: Newable<unknown> | undefined,
         readonly controllerMethod: string | undefined
     ) {
@@ -32,10 +35,10 @@ export class HttpRequestContext extends BaseContext<'http-request'> {
      * @param token - The token to get the value of.
      * @returns Either the cached or a new value.
      */
-    get<T>(token: RequestContextToken<T>): T | Promise<T> {
+    get<T>(token: RequestContextToken<T>): T {
         if (!this.has(token)) {
             this.tokenValues.set(token.key, token.fn(this));
         }
-        return this.tokenValues.get(token.key) as T | Promise<T>;
+        return this.tokenValues.get(token.key) as T;
     }
 }

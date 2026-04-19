@@ -16,6 +16,7 @@ import { SoftDeleteFindOneOptions } from './models/soft-delete-find-one-options.
 import { SoftDeleteUpdateAllOptions } from './models/soft-delete-update-all-options.model';
 import { SoftDeleteUpdateByIdOptions } from './models/soft-delete-update-by-id-options.model';
 import { SoftDeleteWhere } from './models/soft-delete-where.model';
+import { DataSourceInterface } from '../data-source/data-sources/data-source.interface';
 import { Where } from '../data-source/models/where/where-filter.model';
 import { NotFoundError } from '../error-handling/errors/not-found.error';
 import { removeExcludeProperties } from '../global/model-registry/remove-exclude-properties.function';
@@ -54,8 +55,8 @@ export class SoftDeleteRepository<
 
     protected override readonly keysToExcludeFromChangeSets: Set<keyof T> = new Set();
 
-    constructor(entityClass: Newable<T>, repo: TORepository<T> | Repository<T>, logger: LoggerInterface) {
-        super(entityClass, repo, logger);
+    constructor(entityClass: Newable<T>, repo: TORepository<T> | Repository<T>, logger: LoggerInterface, dataSource: DataSourceInterface) {
+        super(entityClass, repo, logger, dataSource);
         this.keysToExcludeFromChangeSets.add('deleted');
     }
 

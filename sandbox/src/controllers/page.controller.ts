@@ -9,7 +9,8 @@ export class PageController {
     @Response.html()
     @Get()
     async index(): Promise<HtmlResponse> {
-        return await PreactUtilities.renderResponse(HomePage, { appName: GlobalRegistry.getAppData('name') ?? '' });
+        const html: string = await PreactUtilities.renderPage(HomePage, { appName: GlobalRegistry.getAppData('name') ?? '' });
+        return HtmlResponse.fromString(html);
     }
 
     @Response.html()
@@ -17,6 +18,7 @@ export class PageController {
     async assets(): Promise<HtmlResponse> {
         const assetService: AssetServiceInterface = inject(ZIBRI_DI_TOKENS.ASSET_SERVICE);
         const nodes: TreeNode[] = await assetService.buildFileTree();
-        return PreactUtilities.renderResponse(AssetsPage, { nodes });
+        const html: string = await PreactUtilities.renderPage(AssetsPage, { nodes });
+        return HtmlResponse.fromString(html);
     }
 }

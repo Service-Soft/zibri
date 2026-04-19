@@ -1,5 +1,6 @@
 
 import { Event, EventStatus } from './event.model';
+import { CronExpression } from '../cron/cron-expression.utilities';
 import { CronJob, InitialCronConfig } from '../cron/cron-job.model';
 import { Repository } from '../data-source/repository';
 import { InjectRepository } from '../di/decorators/inject-repository.decorator';
@@ -11,7 +12,7 @@ export class EventCleanupCronJob extends CronJob {
     // eslint-disable-next-line jsdoc/require-jsdoc
     initialConfig: InitialCronConfig = {
         name: 'Event Cleanup',
-        cron: '0 0 * * *',
+        cron: CronExpression.daily().build(),
         runOnInit: false
     };
 

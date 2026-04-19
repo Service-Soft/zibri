@@ -1,3 +1,4 @@
+import { Transaction } from '../../../data-source/transaction/transaction.model';
 import { Property } from '../../../entity/decorators/property.decorator';
 
 /**
@@ -9,4 +10,8 @@ export class JwtRefreshLoginData {
      */
     @Property.string()
     refreshToken!: string;
+    /**
+     * The transaction that this should run in.
+     */
+    transaction!: Transaction;
 }

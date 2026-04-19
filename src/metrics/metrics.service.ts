@@ -5,12 +5,12 @@ import si from 'systeminformation';
 
 import { CounterMetricName, GaugeMetricName, HistogramMetricName, MetricsServiceInterface, MetricsSnapshot } from './metrics-service.interface';
 import { ZibriApplication } from '../application';
+import { CollectMetricsCronJob } from './collect-metrics.cron-job';
 import { CounterInterface } from './counter.interface';
 import { GaugeInterface } from './gauge.interface';
 import { HistogramInterface } from './histogram.interface';
 import { MetricType } from './metric-type.enum';
 import { Metric } from './metric.model';
-import { ScrapeMetricsCronJob } from './scrape-metrics.cron-job';
 import { type AssetServiceInterface } from '../assets/asset-service.interface';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
@@ -86,7 +86,9 @@ export class PrometheusMetricsService implements MetricsServiceInterface, OnAppI
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     onAppInit(app: ZibriApplication): void {
-        app.options.cronJobs.push(ScrapeMetricsCronJob);
+        if (!app.options.cronJobs.includes(CollectMetricsCronJob)) {
+            app.options.cronJobs.push(CollectMetricsCronJob);
+        }
         app.use((req, res, next) => {
             const start: number = performance.now();
             res.on('finish', () => {

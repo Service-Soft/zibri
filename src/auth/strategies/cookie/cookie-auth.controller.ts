@@ -1,8 +1,9 @@
-import { JwtAuthData } from './jwt-auth-data.model';
-import { JwtConfirmPasswordResetData } from './jwt-confirm-password-reset-data.model';
-import { JwtCredentialsDto } from './jwt-credentials.model';
-import { JwtRefreshLoginData } from './jwt-refresh-login-data.model';
-import { JwtAuthStrategy } from './jwt.auth-strategy';
+import { CookieAuthConfirmPasswordResetData } from './cookie-auth-confirm-password-reset-data.model';
+import { CookieAuthCredentialsDto } from './cookie-auth-credentials.model';
+import { CookieAuthData } from './cookie-auth-data.model';
+import { CookieAuthLogoutData } from './cookie-auth-logout-data.model';
+import { CookieAuthRefreshLoginData } from './cookie-auth-refresh-login-data.model';
+import { CookieAuthStrategy } from './cookie-auth.auth-strategy';
 import { IsolationLevel } from '../../../data-source/data-sources/data-source.interface';
 import { Repository } from '../../../data-source/repository';
 import { Transaction } from '../../../data-source/transaction/transaction.model';
@@ -12,7 +13,6 @@ import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { Property } from '../../../entity/decorators/property.decorator';
 import { OmitClass } from '../../../entity/omit-class.model';
 import { Response } from '../../../open-api/decorators/response.decorator';
-import { PreactEmailComponent } from '../../../preact/preact-email-component.model';
 import { Body } from '../../../routing/decorators/body.decorator';
 import { Controller } from '../../../routing/decorators/controller.decorator';
 import { Post } from '../../../routing/decorators/post.decorator';
@@ -22,47 +22,34 @@ import { BaseUser } from '../../models/base-user.model';
 import { PasswordResetToken } from '../../models/password-reset-token.model';
 import { type UserServiceInterface } from '../../user/user-service.interface';
 
-/**
- * Properties of a password reset email.
- */
-type PasswordResetEmailTemplateProps<Role extends string, UserType extends BaseUser<Role>> = {
-    confirmPasswordResetLink: string,
-    user: UserType
-};
-
-/**
- * Definition for a password reset email template.
- */
-export type PasswordResetEmailTemplate<
-    Role extends string, UserType extends BaseUser<Role>
-> = PreactEmailComponent<PasswordResetEmailTemplateProps<Role, UserType>>;
-
-class JwtRequestPasswordResetInput {
+class CookieAuthRequestPasswordResetInput {
     @Property.string({ format: 'email' })
     email!: string;
 }
 
-class JwtVerifyPasswordResetTokenInput {
+class CookieAuthVerifyPasswordResetTokenInput {
     @Property.string()
     resetToken!: string;
 }
 
-class JwtVerifyPasswordResetTokenResponse {
+class CookieAuthVerifyPasswordResetTokenResponse {
     @Property.boolean()
     isValid!: boolean;
 }
 
-class JwtConfirmPasswordResetDto extends OmitClass(JwtConfirmPasswordResetData, ['transaction']) {}
+class CookieAuthConfirmPasswordResetDto extends OmitClass(CookieAuthConfirmPasswordResetData, ['transaction']) {}
 
-class JwtRefreshLoginDto extends OmitClass(JwtRefreshLoginData, ['transaction']) {}
+class CookieAuthRefreshLoginDto extends OmitClass(CookieAuthRefreshLoginData, ['transaction']) {}
+
+class CookieAuthLogoutDto extends OmitClass(CookieAuthLogoutData, ['transaction']) {}
 
 @Controller('/auth', { allowOrphan: true })
-export class JwtAuthController implements AuthControllerInterface<
-    JwtCredentialsDto,
-    JwtAuthData<string>,
-    JwtRefreshLoginData,
-    JwtRequestPasswordResetInput,
-    JwtConfirmPasswordResetData
+export class CookieAuthController implements AuthControllerInterface<
+    CookieAuthCredentialsDto,
+    CookieAuthData<string>,
+    CookieAuthRefreshLoginData,
+    CookieAuthRequestPasswordResetInput,
+    CookieAuthConfirmPasswordResetData
 > {
     constructor(
         @Inject(ZIBRI_DI_TOKENS.AUTH_SERVICE)
@@ -73,24 +60,33 @@ export class JwtAuthController implements AuthControllerInterface<
         private readonly passwordResetTokenRepository: Repository<PasswordResetToken>
     ) {}
 
-    @Response.object(JwtAuthData)
+    @Response.object(CookieAuthData)
     @Post('/login')
     async login(
-        @Body(JwtCredentialsDto)
-        credentials: JwtCredentialsDto
-    ): Promise<JwtAuthData<string>> {
-        return await this.authService.login(JwtAuthStrategy, credentials);
-    }
-
-    @Response.object(JwtAuthData)
-    @Post('/refresh-login')
-    async refreshLogin(
-        @Body(JwtRefreshLoginDto)
-        data: JwtRefreshLoginDto
-    ): Promise<JwtAuthData<string>> {
+        @Body(CookieAuthCredentialsDto)
+        credentials: CookieAuthCredentialsDto
+    ): Promise<CookieAuthData<string>> {
         const transaction: Transaction = await this.passwordResetTokenRepository.dataSource.startTransaction(IsolationLevel.READ_COMMITTED);
         try {
-            const res: JwtAuthData<string> = await this.authService.refreshLogin(JwtAuthStrategy, { ...data, transaction });
+            const res: CookieAuthData<string> = await this.authService.login(CookieAuthStrategy, { ...credentials, transaction });
+            await transaction.commit();
+            return res;
+        }
+        catch (error) {
+            await transaction.rollback();
+            throw error;
+        }
+    }
+
+    @Response.object(CookieAuthData)
+    @Post('/refresh-login')
+    async refreshLogin(
+        @Body(CookieAuthRefreshLoginDto)
+        data: CookieAuthRefreshLoginDto
+    ): Promise<CookieAuthData<string>> {
+        const transaction: Transaction = await this.passwordResetTokenRepository.dataSource.startTransaction(IsolationLevel.READ_COMMITTED);
+        try {
+            const res: CookieAuthData<string> = await this.authService.refreshLogin(CookieAuthStrategy, { ...data, transaction });
             await transaction.commit();
             return res;
         }
@@ -103,13 +99,13 @@ export class JwtAuthController implements AuthControllerInterface<
     @Response.empty()
     @Post('/request-password-reset')
     async requestPasswordReset(
-        @Body(JwtRequestPasswordResetInput)
-        data: JwtRequestPasswordResetInput
+        @Body(CookieAuthRequestPasswordResetInput)
+        data: CookieAuthRequestPasswordResetInput
     ): Promise<void> {
         const transaction: Transaction = await this.passwordResetTokenRepository.dataSource.startTransaction(IsolationLevel.READ_COMMITTED);
         try {
             const user: BaseUser<string> = await this.userService.findByEmail(data.email);
-            await this.authService.requestPasswordReset(JwtAuthStrategy, { user, transaction });
+            await this.authService.requestPasswordReset(CookieAuthStrategy, { user, transaction });
             await transaction.commit();
         }
         catch (error) {
@@ -118,12 +114,12 @@ export class JwtAuthController implements AuthControllerInterface<
         }
     }
 
-    @Response.object(JwtVerifyPasswordResetTokenResponse)
+    @Response.object(CookieAuthVerifyPasswordResetTokenResponse)
     @Post('/verify-password-reset-token')
     async verifyResetToken(
-        @Body(JwtVerifyPasswordResetTokenInput)
-        input: JwtVerifyPasswordResetTokenInput
-    ): Promise<JwtVerifyPasswordResetTokenResponse> {
+        @Body(CookieAuthVerifyPasswordResetTokenInput)
+        input: CookieAuthVerifyPasswordResetTokenInput
+    ): Promise<CookieAuthVerifyPasswordResetTokenResponse> {
         const resetToken: PasswordResetToken | undefined
             = await this.passwordResetTokenRepository.findOne({ where: { value: input.resetToken } }, false);
         if (!resetToken) {
@@ -153,12 +149,12 @@ export class JwtAuthController implements AuthControllerInterface<
     @Response.empty()
     @Post('/confirm-password-reset')
     async confirmPasswordReset(
-        @Body(JwtConfirmPasswordResetDto)
-        data: JwtConfirmPasswordResetDto
+        @Body(CookieAuthConfirmPasswordResetDto)
+        data: CookieAuthConfirmPasswordResetDto
     ): Promise<void> {
         const transaction: Transaction = await this.passwordResetTokenRepository.dataSource.startTransaction(IsolationLevel.READ_COMMITTED);
         try {
-            await this.authService.confirmPasswordReset(JwtAuthStrategy, { ...data, transaction });
+            await this.authService.confirmPasswordReset(CookieAuthStrategy, { ...data, transaction });
             await transaction.commit();
         }
         catch (error) {
@@ -170,9 +166,17 @@ export class JwtAuthController implements AuthControllerInterface<
     @Response.empty()
     @Post('/logout')
     async logout(
-        @Body(JwtRefreshLoginDto)
-        data: JwtRefreshLoginDto
+        @Body(CookieAuthLogoutDto)
+        data: CookieAuthLogoutDto
     ): Promise<void> {
-        await this.authService.logout(JwtAuthStrategy, data);
+        const transaction: Transaction = await this.passwordResetTokenRepository.dataSource.startTransaction(IsolationLevel.READ_COMMITTED);
+        try {
+            await this.authService.logout(CookieAuthStrategy, { ...data, transaction });
+            await transaction.commit();
+        }
+        catch (error) {
+            await transaction.rollback();
+            throw error;
+        }
     }
 }

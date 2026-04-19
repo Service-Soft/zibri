@@ -12,6 +12,9 @@ import { AuthService } from '../../auth/auth.service';
 import { UserService } from '../../auth/user/user.service';
 import { BackupService } from '../../backup/backup.service';
 import { AlsUtilities } from '../../context/als.utilities';
+import { HttpRequestContext } from '../../context/request/http-request.context';
+import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../../context/request/request-context-token.model';
+import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
 import { CronService } from '../../cron/cron.service';
 import { DataSourceService } from '../../data-source/data-source.service';
 import { EmailService } from '../../email/email.service';
@@ -25,6 +28,7 @@ import { LoggerTransport } from '../../logging/transport/logger-transport.model'
 import { PrometheusMetricsService } from '../../metrics/metrics.service';
 import { MultithreadingService } from '../../multithreading/services/multithreading.service';
 import { OpenApiService } from '../../open-api/open-api.service';
+import { CspSource } from '../../parsing/html/csp-options.model';
 import { Parser } from '../../parsing/parser';
 import { Router } from '../../routing/router';
 import { FsUtilities } from '../../utilities/fs.utilities';
@@ -77,7 +81,7 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
     USER_SERVICE: { useClass: UserService },
     JWT_ACCESS_TOKEN_SECRET: { useFactory: () => undefined },
     JWT_REFRESH_TOKEN_SECRET: { useFactory: () => undefined },
-    JWT_PASSWORD_RESET_EMAIL_TEMPLATE: { useFactory: () => undefined },
+    PASSWORD_RESET_EMAIL_TEMPLATE: { useFactory: () => undefined },
     JWT_ACCESS_TOKEN_EXPIRES_IN_MS: { useFactory: () => Ms.HOUR },
     JWT_REFRESH_TOKEN_EXPIRES_IN_MS: { useFactory: () => 100 * Ms.DAY },
     CRON_SERVICE: { useClass: CronService },
@@ -98,8 +102,8 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
     FORMAT_PRICE: { useFactory: () => formatPrice },
     FORMAT_PERCENT: { useFactory: () => formatPercent },
     EMAIL_CONFIG: { useFactory: () => undefined },
-    JWT_PASSWORD_RESET_TOKEN_EXPIRES_IN_MS: { useFactory: () => 300000 },
-    JWT_CONFIRM_PASSWORD_RESET_URL: { useFactory: () => undefined },
+    PASSWORD_RESET_TOKEN_EXPIRES_IN_MS: { useFactory: () => 300000 },
+    CONFIRM_PASSWORD_RESET_URL: { useFactory: () => undefined },
     MULTITHREADING_OPTIONS: {
         useFactory: () => ({
             maxThreads,
@@ -113,9 +117,53 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
     WEBSOCKET_OPTIONS: { useFactory: () => ({ timeoutInMs: Ms.SECOND * 5, isAllowedToConnect: () => true }) },
     HTTP_CLIENT: { useClass: HttpClient },
     EVENT_SERVICE: { useClass: EventService },
+    CORRELATION_ID_HEADER: { useValue: 'x-correlation-id' },
+    CSRF_TOKEN_HEADER: { useValue: 'x-csrf-token' },
+    COOKIE_AUTH_SESSION_OPTIONS: {
+        useValue: {
+            name: 'sessionId',
+            sameSite: 'lax',
+            path: '/'
+        }
+    },
+    COOKIE_AUTH_REFRESH_SESSION_OPTIONS: {
+        useValue: {
+            name: 'refreshSessionId',
+            sameSite: 'lax',
+            path: '/'
+        }
+    },
+    COOKIE_SIGN_SECRET: { useValue: undefined },
+    COOKIE_AUTH_SESSION_EXPIRES_IN_MS: { useValue: Ms.DAY },
+    COOKIE_AUTH_REFRESH_SESSION_EXPIRES_IN_MS: { useValue: Ms.DAY * 100 },
     // dynamic
     CURRENT_REQUEST_CONTEXT: {
         useFactory: () => AlsUtilities.getCurrentRequestContext(),
+        cache: false
+    },
+    DEFAULT_CSP_OPTIONS: {
+        useFactory: () => {
+            const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
+            const nonce: string | undefined = context?.get(ZIBRI_REQUEST_CONTEXT_TOKENS.NONCE);
+            const nonceSrc: CspSource | undefined = nonce ? `'nonce-${nonce}'` : undefined;
+            return {
+                baseUri: ['\'self\''],
+                connectSrc: [],
+                defaultSrc: ['\'self\''],
+                fontSrc: [],
+                formAction: ['\'self\''],
+                frameAncestors: ['\'self\''],
+                imgSrc: [],
+                mediaSrc: [],
+                objectSrc: ['\'none\''],
+                scriptSrc: [
+                    '\'self\'',
+                    ...nonceSrc ? [nonceSrc] : []
+                ],
+                scriptSrcAttr: ['\'none\''],
+                styleSrc: []
+            };
+        },
         cache: false
     }
 };

@@ -4,7 +4,7 @@ import { Property } from '../../../entity/decorators/property.decorator';
 /**
  * The data used to confirm a password reset.
  */
-export class JwtConfirmPasswordResetData {
+export class CookieAuthConfirmPasswordResetData {
     /**
      * The reset token value.
      */

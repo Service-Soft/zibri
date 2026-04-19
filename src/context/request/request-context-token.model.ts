@@ -1,3 +1,5 @@
+import { randomBytes } from 'node:crypto';
+
 import { HttpRequestContext } from './http-request.context';
 import { WebsocketRequestContext } from './websocket-request.context';
 import { TwoFactorServiceInterface } from '../../auth/2fa/two-factor-service.interface';
@@ -7,7 +9,9 @@ import { BaseUser } from '../../auth/models/base-user.model';
 import { IsLoggedInMetadata } from '../../auth/models/is-logged-in-metadata.model';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
+import { KnownHeader } from '../../http/known-header.enum';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { UUIDUtilities } from '../../utilities/uuid.utilities';
 
 const allRequestContextTokenKeys: Set<string> = new Set();
 
@@ -20,7 +24,7 @@ export class RequestContextToken<T> {
 
     constructor(
         readonly key: string,
-        readonly fn: (ctx: HttpRequestContext | WebsocketRequestContext) => T | Promise<T>
+        readonly fn: (ctx: HttpRequestContext | WebsocketRequestContext) => T
     ) {
         if (allRequestContextTokenKeys.has(key)) {
             throw new Error([`A RequestContextToken with the key "${key}" already exists.`].join('\n'));
@@ -39,6 +43,17 @@ export class RequestContextToken<T> {
  */
 // eslint-disable-next-line typescript/typedef
 export const ZIBRI_REQUEST_CONTEXT_TOKENS = {
+    NONCE: new RequestContextToken(
+        'nonce',
+        () => randomBytes(16).toString('base64')
+    ),
+    CORRELATION_ID: new RequestContextToken<string>(
+        'correlation_id',
+        ctx => {
+            const correlationIdHeader: string = inject(ZIBRI_DI_TOKENS.CORRELATION_ID_HEADER);
+            return ctx.request.headers[correlationIdHeader as KnownHeader] ?? UUIDUtilities.generate();
+        }
+    ),
     CURRENT_USER: new RequestContextToken(
         'current_user',
         async ctx => {

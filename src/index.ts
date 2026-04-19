@@ -37,6 +37,19 @@ export * from './auth/strategies/jwt/jwt-refresh-token.model';
 export * from './auth/strategies/jwt/jwt-request-password-reset-data.model';
 export * from './auth/strategies/jwt/jwt-confirm-password-reset-data.model';
 export * from './auth/strategies/jwt/jwt-auth.controller';
+export * from './auth/strategies/jwt/jwt-refresh-token-cleanup.cron-job';
+
+export * from './auth/strategies/cookie/cookie-auth-confirm-password-reset-data.model';
+export * from './auth/strategies/cookie/cookie-auth-credentials.model';
+export * from './auth/strategies/cookie/cookie-auth-data.model';
+export * from './auth/strategies/cookie/cookie-auth-logout-data.model';
+export * from './auth/strategies/cookie/cookie-auth-refresh-login-data.model';
+export * from './auth/strategies/cookie/cookie-auth-refresh-session.model';
+export * from './auth/strategies/cookie/cookie-auth-request-password-reset-data.model';
+export * from './auth/strategies/cookie/cookie-auth-session-cleanup.cron-job';
+export * from './auth/strategies/cookie/cookie-auth-session.model';
+export * from './auth/strategies/cookie/cookie-auth.auth-strategy';
+export * from './auth/strategies/cookie/cookie-auth.controller';
 
 export * from './auth/strategies/auth-strategy.interface';
 export * from './auth/strategies/auth-strategies.model';
@@ -203,6 +216,7 @@ export * from './parsing/decorators/body-parser.decorator';
 
 export * from './parsing/json/json.body-parser';
 export * from './parsing/html/html-response.model';
+export * from './parsing/html/csp-options.model';
 export * from './parsing/form-data/form-data.body-parser';
 export * from './parsing/form-data/form-data.model';
 export * from './parsing/form-data/file.model';
@@ -217,6 +231,7 @@ export * from './http/header.type';
 export * from './http/http-request.model';
 export * from './http/http-response.model';
 export * from './http/mime-type.helpers';
+export * from './http/cookie-options.model';
 
 // validation
 export * from './validation/validation-problem.model';
@@ -268,6 +283,7 @@ export * from './cron/cron-job-entity.model';
 export * from './cron/cron-job.model';
 export * from './cron/cron-service.interface';
 export * from './cron/cron.service';
+export * from './cron/cron-expression.utilities';
 
 // email
 export * from './email/email-service.interface';
@@ -305,6 +321,7 @@ export * from './metrics/gauge.interface';
 export * from './metrics/histogram.interface';
 export * from './metrics/metric-type.enum';
 export * from './metrics/metric.model';
+export * from './metrics/collect-metrics.cron-job';
 
 // change sets
 export * from './change-sets/change-set-repository';
@@ -457,7 +474,12 @@ export * from './http-client/http-client-response.model';
 export * from './http-client/http-client.error';
 
 // types
+export * from './types/any-enum.type';
+export * from './types/deep-partial.type';
+export * from './types/exclude-strict.type';
 export * from './types/newable.type';
+export * from './types/omit-strict.type';
+export * from './types/percentage.type';
 export * from './types/version.type';
 
 // utilities

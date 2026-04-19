@@ -21,4 +21,12 @@ export abstract class Ms {
      * The amount of ms in a week.
      */
     static WEEK = 604_800_000 as const;
+    /**
+     * The amount of ms in a month.
+     */
+    static MONTH = 2_629_746_000 as const;
+    /**
+     * The amount of ms in a year.
+     */
+    static YEAR = 31_556_952_000 as const;
 }

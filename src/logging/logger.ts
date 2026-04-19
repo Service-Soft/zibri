@@ -14,7 +14,6 @@ import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { GlobalRegistry } from '../global/global-registry';
 import { OnAppInit } from '../global/on-app-init.interface';
-import { HttpMethod } from '../http/http-method.enum';
 import { KnownHeader } from '../http/known-header.enum';
 import { UUIDUtilities } from '../utilities/uuid.utilities';
 
@@ -33,7 +32,9 @@ export class Logger implements LoggerInterface, OnAppInit {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     onAppInit(app: ZibriApplication): void {
-        app.options.cronJobs.push(LogCleanupCronJob);
+        if (!app.options.cronJobs.includes(LogCleanupCronJob)) {
+            app.options.cronJobs.push(LogCleanupCronJob);
+        }
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -77,7 +78,7 @@ export class Logger implements LoggerInterface, OnAppInit {
                 status: requestContext.request.res?.statusCode,
                 // TODO
                 // durationInMs: currentRequest.res?.app,
-                method: requestContext.request.method as HttpMethod,
+                method: requestContext.request.method,
                 url: requestContext.request.originalUrl,
                 userAgent: requestContext.request.headers[KnownHeader.USER_AGENT] ?? '',
                 clientIp: requestContext.request.ip ?? requestContext.request.socket?.remoteAddress ?? ''

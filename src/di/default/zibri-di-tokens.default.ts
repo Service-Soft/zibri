@@ -1,6 +1,7 @@
 import { AssetServiceInterface } from '../../assets/asset-service.interface';
 import { TwoFactorServiceInterface } from '../../auth/2fa/two-factor-service.interface';
 import { AuthServiceInterface } from '../../auth/auth-service.interface';
+import { CookieAuthSessionOptionsInput } from '../../auth/strategies/cookie/cookie-auth.auth-strategy';
 import { PasswordResetEmailTemplate } from '../../auth/strategies/jwt/jwt-auth.controller';
 import { UserServiceInterface } from '../../auth/user/user-service.interface';
 import { BackupServiceInterface } from '../../backup/backup-service.interface';
@@ -24,6 +25,7 @@ import { MetricsServiceInterface } from '../../metrics/metrics-service.interface
 import { MultithreadingOptions } from '../../multithreading/models/multithreading-options.model';
 import { MultithreadingServiceInterface } from '../../multithreading/services/multithreading-service.interface';
 import { OpenApiServiceInterface } from '../../open-api/open-api-service.interface';
+import { CspOptions } from '../../parsing/html/csp-options.model';
 import { ParserInterface } from '../../parsing/parser.interface';
 import { RouterInterface } from '../../routing/router.interface';
 import { FsPath } from '../../utilities/fs.utilities';
@@ -65,10 +67,14 @@ export const ZIBRI_DI_TOKENS = {
     JWT_ACCESS_TOKEN_EXPIRES_IN_MS: ziToken<number>('zi.jwt_access_token_expires_in_ms'),
     JWT_REFRESH_TOKEN_SECRET: ziToken<string | undefined>('zi.jwt_refresh_token_secret'),
     JWT_REFRESH_TOKEN_EXPIRES_IN_MS: ziToken<number>('zi.jwt_refresh_token_expires_in_ms'),
-    JWT_PASSWORD_RESET_TOKEN_EXPIRES_IN_MS: ziToken<number>('zi.jwt_password_reset_token_expires_in_ms'),
-    JWT_CONFIRM_PASSWORD_RESET_URL: ziToken<string | undefined>('zi.jwt_confirm_password_reset_url'),
+    COOKIE_AUTH_SESSION_OPTIONS: ziToken<CookieAuthSessionOptionsInput>('zi.cookie_auth_session_options'),
+    COOKIE_AUTH_REFRESH_SESSION_OPTIONS: ziToken<CookieAuthSessionOptionsInput>('zi.cookie_auth_refresh_session_options'),
+    COOKIE_AUTH_SESSION_EXPIRES_IN_MS: ziToken<number>('zi.cookie_auth_session_expires_in_ms'),
+    COOKIE_AUTH_REFRESH_SESSION_EXPIRES_IN_MS: ziToken<number>('zi.cookie_auth_refresh_session_expires_in_ms'),
+    PASSWORD_RESET_TOKEN_EXPIRES_IN_MS: ziToken<number>('zi.password_reset_token_expires_in_ms'),
+    CONFIRM_PASSWORD_RESET_URL: ziToken<string | undefined>('zi.confirm_password_reset_url'),
     // eslint-disable-next-line typescript/no-explicit-any
-    JWT_PASSWORD_RESET_EMAIL_TEMPLATE: ziToken<PasswordResetEmailTemplate<any, any> | undefined>('zi.jwt_password_reset_email_template'),
+    PASSWORD_RESET_EMAIL_TEMPLATE: ziToken<PasswordResetEmailTemplate<any, any> | undefined>('zi.password_reset_email_template'),
     USER_SERVICE: ziToken<UserServiceInterface>('zi.user_service'),
     CRON_SERVICE: ziToken<CronServiceInterface>('zi.cron_service'),
     FILE_UPLOAD_TEMP_FOLDER: ziToken<FsPath>('zi.file_upload_temp_folder'),
@@ -86,6 +92,10 @@ export const ZIBRI_DI_TOKENS = {
     WEBSOCKET_OPTIONS: ziToken<WebsocketOptions>('zi.websocket_options'),
     HTTP_CLIENT: ziToken<HttpClientInterface>('zi.http_client'),
     EVENT_SERVICE: ziToken<EventServiceInterface<Record<string, unknown>>>('zi.event_service'),
+    CORRELATION_ID_HEADER: ziToken<string>('zi.correlation_id_header'),
+    CSRF_TOKEN_HEADER: ziToken<string>('zi.csrf_token_header'),
+    DEFAULT_CSP_OPTIONS: ziToken<CspOptions>('zi.default_csp_options'),
+    COOKIE_SIGN_SECRET: ziToken<string | undefined>('zi.cookie_sign_secret'),
     // dynamic/context based tokens
     CURRENT_REQUEST_CONTEXT: ziToken<HttpRequestContext | WebsocketRequestContext | undefined>('zi.current_request_context')
 } as const satisfies TokenRecord;

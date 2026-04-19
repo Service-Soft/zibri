@@ -1,10 +1,11 @@
-import { Repository as TORepository, FindOptionsWhere, EntityManager, QueryFailedError as TOQueryFailedError } from 'typeorm';
+import { Repository as TORepository, FindOptionsWhere, EntityManager, QueryFailedError as TOQueryFailedError, DeepPartial as ToDeepPartial } from 'typeorm';
 
 import { BaseEntity } from '../entity/base-entity.model';
 import { LoggerInterface } from '../logging/logger.interface';
 import { PaginationResult } from '../open-api/pagination-result.model';
 import { DeepPartial } from '../types/deep-partial.type';
 import { Newable } from '../types/newable.type';
+import { DataSourceInterface } from './data-sources/data-source.interface';
 import { CreateAllOptions } from './models/options/create-all-options.model';
 import { CreateOptions } from './models/options/create-options.model';
 import { DeleteAllOptions } from './models/options/delete-all-options.model';
@@ -35,10 +36,19 @@ export class Repository<
 > {
     private readonly typeOrmRepository: TORepository<T>;
 
+    // eslint-disable-next-line jsdoc/require-returns
+    /**
+     * The data source that this repository is connected to.
+     */
+    get dataSource(): DataSourceInterface {
+        return this._dataSource;
+    }
+
     constructor(
         protected readonly entityClass: Newable<T>,
         repo: TORepository<T> | Repository<T>,
-        protected readonly logger: LoggerInterface
+        protected readonly logger: LoggerInterface,
+        private readonly _dataSource: DataSourceInterface
     ) {
         this.typeOrmRepository = repo instanceof Repository ? repo.typeOrmRepository : repo;
         ModelRegistry.get(this.entityClass);
@@ -70,7 +80,7 @@ export class Repository<
 
         const manager: EntityManager = this.getManager(options?.transaction);
         try {
-            const res: T = await manager.save(this.entityClass, data);
+            const res: T = await manager.save(this.entityClass, data as ToDeepPartial<T>);
             await removeExcludeProperties(res, this.entityClass);
             return res;
         }
@@ -108,7 +118,7 @@ export class Repository<
 
         const manager: EntityManager = this.getManager(options?.transaction);
         try {
-            const res: T[] = await manager.save(this.entityClass, data);
+            const res: T[] = await manager.save(this.entityClass, data as ToDeepPartial<T>[]);
             await Promise.all(res.map(r => removeExcludeProperties(r, this.entityClass)));
             return res;
         }
@@ -242,7 +252,7 @@ export class Repository<
         await this.beforeSave(data, false);
 
         try {
-            const res: T = await manager.save(this.entityClass, data);
+            const res: T = await manager.save(this.entityClass, data as ToDeepPartial<T>);
             await removeExcludeProperties(res, this.entityClass);
             return res;
         }
@@ -276,7 +286,7 @@ export class Repository<
         const manager: EntityManager = this.getManager(options?.transaction);
 
         try {
-            const res: T[] = await manager.save(this.entityClass, toUpdate);
+            const res: T[] = await manager.save(this.entityClass, toUpdate as ToDeepPartial<T>[]);
             await Promise.all(res.map(r => removeExcludeProperties(r, this.entityClass)));
             return res;
         }

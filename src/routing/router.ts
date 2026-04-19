@@ -27,6 +27,7 @@ import { MimeType } from '../http/mime-type.enum';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { OpenApiResponse } from '../open-api/open-api.model';
 import { FileResponse } from '../parsing/form-data/file-response.model';
+import { buildCspHeaders, CspOptions, CspSource } from '../parsing/html/csp-options.model';
 import { HtmlResponse } from '../parsing/html/html-response.model';
 import type { ParserInterface } from '../parsing/parser.interface';
 import { Newable } from '../types/newable.type';
@@ -231,7 +232,7 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
             res: HttpResponse,
             next: NextFunction
         ) => {
-            const context: HttpRequestContext = new HttpRequestContext(request, undefined, undefined);
+            const context: HttpRequestContext = new HttpRequestContext(request, res, undefined, undefined);
             await AlsUtilities.runWithHttpRequestContext(context, async () => {
                 try {
                     // parse
@@ -268,8 +269,8 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
                     ]);
 
                     // eslint-disable-next-line typescript/no-explicit-any
-                    const result: unknown = await route.handler(context.request as HttpRequest<any, any, any, any>, res, next);
-                    this.returnResult(res, result, next);
+                    const result: unknown = await route.handler(context.request as HttpRequest<any, any, any, any>, context.response, next);
+                    await this.returnResult(context.response, result, next, []);
                 }
                 catch (error) {
                     next(error);
@@ -288,7 +289,12 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
             await this.logger.warn(`No responses defined on route ${controllerClass.name}.${route.controllerMethod}`);
         }
         const handler: RequestHandler = (async (req: HttpRequest, res: HttpResponse, next: NextFunction) => {
-            const context: HttpRequestContext = new HttpRequestContext(req, controllerClass, route.controllerMethod);
+            const context: HttpRequestContext = new HttpRequestContext(
+                req,
+                res,
+                controllerClass,
+                route.controllerMethod
+            );
             await AlsUtilities.runWithHttpRequestContext(context, async () => {
                 try {
                     await this.authService.checkAccess(controllerClass, route.controllerMethod, context);
@@ -303,7 +309,7 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
 
                     // eslint-disable-next-line typescript/no-unsafe-call, typescript/no-explicit-any, typescript/no-unsafe-member-access
                     const result: unknown = await ((controller as any)[route.controllerMethod] as Function)(...params);
-                    this.returnResult(res, result, next);
+                    await this.returnResult(context.response, result, next, responses);
                 }
                 catch (error) {
                     next(error);
@@ -313,7 +319,7 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
         return handler;
     }
 
-    private returnResult(res: HttpResponse, result: unknown, next: NextFunction): void {
+    private async returnResult(res: HttpResponse, result: unknown, next: NextFunction, responses: OpenApiResponse[]): Promise<void> {
         if (res.headersSent) {
             return;
         }
@@ -322,70 +328,109 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
             return;
         }
 
-        // if (
-        //     responses.length // all non error responses are json responses
-        //     && responses.filter(r => r.type !== 'error').length === responses.filter(r => r.type === 'json').length
-        //     && ((result instanceof FileResponse) || (result instanceof HtmlResponse))
-        // ) {
-        //     throw new Error('Invalid return value, json cannot be FileResponse or HtmlResponse');
-        // }
-
-        // if (
-        //     responses.length // all non error responses are file responses
-        //     && responses.filter(r => r.type !== 'error').length === responses.filter(r => r.type === 'file').length
-        //     && !(result instanceof FileResponse)
-        // ) {
-        //     throw new Error('Invalid return value, needs to be a FileResponse');
-        // }
-
-        // if (
-        //     responses.length // all non error responses are html responses
-        //     && responses.filter(r => r.type !== 'error').length === responses.filter(r => r.type === 'html').length
-        //     && !(result instanceof FileResponse)
-        // ) {
-        //     throw new Error('Invalid return value, needs to be a HtmlResponse');
-        // }
+        this.validateResultType(responses, result);
 
         if (result instanceof FileResponse) {
-            res.setHeader(KnownHeader.CONTENT_TYPE, result.mimeType as MimeType);
-            res.setHeader(KnownHeader.CONTENT_DISPOSITION, `attachment; filename="${encodeURIComponent(result.filename)}"`);
-            if (result.size != undefined) {
-                res.setHeader(KnownHeader.CONTENT_LENGTH, result.size);
-            }
-
-            // send file from disk
-            if (typeof result.data === 'string') {
-                res.sendFile(result.data);
-                return;
-            }
-
-            // send file as stream
-            res.on('close', () => (result.data as Readable).destroy());
-            result.data.on('error', err => {
-                res.removeHeader(KnownHeader.CONTENT_TYPE);
-                res.removeHeader(KnownHeader.CONTENT_LENGTH);
-                res.removeHeader(KnownHeader.CONTENT_DISPOSITION);
-                next(err);
-            }).pipe(res);
+            await this.returnFileResult(res, result, next);
             return;
         }
 
         if (result instanceof HtmlResponse) {
-            res.setHeader(KnownHeader.CONTENT_TYPE, MimeType.HTML);
-            // send html as string
-            if (typeof result.data === 'string') {
-                res.type('.html').send(result.data);
-                return;
-            }
-            // send html as stream
-            res.on('close', () => (result.data as Readable).destroy());
-            result.data.on('error', err => {
-                res.removeHeader(KnownHeader.CONTENT_TYPE);
-                next(err);
-            }).pipe(res);
+            this.returnHtmlResult(res, result, next);
             return;
         }
 
         res.json(result);
+    }
+
+    private async returnFileResult(res: HttpResponse, result: FileResponse, next: NextFunction): Promise<void> {
+        res.setHeader(KnownHeader.CONTENT_TYPE, result.mimeType as MimeType);
+        res.setHeader(KnownHeader.CONTENT_DISPOSITION, `attachment; filename="${encodeURIComponent(result.filename)}"`);
+        if (result.size != undefined) {
+            res.setHeader(KnownHeader.CONTENT_LENGTH, result.size);
+        }
+        if (result.csp !== false) {
+            if (result.mimeType === MimeType.SVG) {
+                await this.logger.warn('Useless CSP headers found on a file that is not of type svg');
+            }
+            const csp: CspOptions = result.csp === true ? inject(ZIBRI_DI_TOKENS.DEFAULT_CSP_OPTIONS) : result.csp;
+            res.setHeader(KnownHeader.CONTENT_SECURITY_POLICY, buildCspHeaders(csp));
+            if (csp.frameAncestors.length === 1) {
+                const ancestor: CspSource = csp.frameAncestors[0];
+                if (ancestor === '\'none\'') {
+                    res.setHeader(KnownHeader.X_FRAME_OPTIONS, 'DENY');
+                }
+                else if (ancestor === '\'self\'') {
+                    // eslint-disable-next-line cspell/spellchecker
+                    res.setHeader(KnownHeader.X_FRAME_OPTIONS, 'SAMEORIGIN');
+                }
+            }
+        }
+
+        // send file from disk
+        if (typeof result.data === 'string') {
+            res.sendFile(result.data);
+            return;
+        }
+
+        // send file as stream
+        res.on('close', () => (result.data as Readable).destroy());
+        result.data.on('error', err => {
+            res.removeHeader(KnownHeader.CONTENT_TYPE);
+            res.removeHeader(KnownHeader.CONTENT_LENGTH);
+            res.removeHeader(KnownHeader.CONTENT_DISPOSITION);
+            res.removeHeader(KnownHeader.CONTENT_SECURITY_POLICY);
+            next(err);
+        }).pipe(res);
+    }
+
+    private returnHtmlResult(res: HttpResponse, result: HtmlResponse, next: NextFunction): void {
+        res.setHeader(KnownHeader.CONTENT_TYPE, MimeType.HTML);
+        if (result.csp !== false) {
+            const csp: CspOptions = result.csp === true ? inject(ZIBRI_DI_TOKENS.DEFAULT_CSP_OPTIONS) : result.csp;
+            res.setHeader(KnownHeader.CONTENT_SECURITY_POLICY, buildCspHeaders(csp));
+            if (csp.frameAncestors.length === 1) {
+                const ancestor: CspSource = csp.frameAncestors[0];
+                if (ancestor === '\'none\'') {
+                    res.setHeader(KnownHeader.X_FRAME_OPTIONS, 'DENY');
+                }
+                else if (ancestor === '\'self\'') {
+                    // eslint-disable-next-line cspell/spellchecker
+                    res.setHeader(KnownHeader.X_FRAME_OPTIONS, 'SAMEORIGIN');
+                }
+            }
+        }
+        // send html as string
+        if (typeof result.data === 'string') {
+            res.type('.html').send(result.data);
+            return;
+        }
+        // send html as stream
+        res.on('close', () => (result.data as Readable).destroy());
+        result.data.on('error', err => {
+            res.removeHeader(KnownHeader.CONTENT_TYPE);
+            res.removeHeader(KnownHeader.CONTENT_SECURITY_POLICY);
+            next(err);
+        }).pipe(res);
+    }
+
+    private validateResultType(responses: OpenApiResponse[], result: {}): void {
+        if (responses.some(r => r.type === 'json') // all non error responses are json responses
+            && responses.filter(r => r.type !== 'error').length === responses.filter(r => r.type === 'json').length
+            && ((result instanceof FileResponse) || (result instanceof HtmlResponse))) {
+            throw new Error('Invalid return value, json cannot be FileResponse or HtmlResponse');
+        }
+
+        if (responses.some(r => r.type === 'file') // all non error responses are file responses
+            && responses.filter(r => r.type !== 'error').length === responses.filter(r => r.type === 'file').length
+            && !(result instanceof FileResponse)) {
+            throw new Error('Invalid return value, needs to be a FileResponse');
+        }
+
+        if (responses.some(r => r.type === 'html') // all non error responses are html responses
+            && responses.filter(r => r.type !== 'error').length === responses.filter(r => r.type === 'html').length
+            && !(result instanceof HtmlResponse)) {
+            throw new Error('Invalid return value, needs to be a HtmlResponse');
+        }
     }
 }

@@ -3,9 +3,9 @@ import { QueueEmailData } from '../../../email/models/create-email-data.model';
 import { BaseUser } from '../../models/base-user.model';
 
 /**
- * The data used by the jwt auth strategy to request a password reset.
+ * The data used by the cookie auth strategy to request a password reset.
  */
-export type JwtRequestPasswordResetData<RoleType extends string, UserType extends BaseUser<RoleType>> = {
+export type CookieAuthRequestPasswordResetData<RoleType extends string, UserType extends BaseUser<RoleType>> = {
     /**
      * The user which password should be reset.
      */

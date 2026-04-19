@@ -42,8 +42,8 @@ export class AuthService implements AuthServiceInterface, OnAppInit {
     ) {}
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async onAppInit({ options }: ZibriApplication): Promise<void> {
-        const { authStrategies } = options;
+    async onAppInit(app: ZibriApplication): Promise<void> {
+        const { authStrategies } = app.options;
         for (const strategy of authStrategies) {
             register({ token: strategy, useClass: strategy });
             this.strategies.push(strategy);
@@ -54,6 +54,7 @@ export class AuthService implements AuthServiceInterface, OnAppInit {
             );
             for (const strategy of authStrategies) {
                 await this.logger.info(`  - ${strategy.name}`);
+                await inject(strategy).init?.(app);
             }
         }
     }

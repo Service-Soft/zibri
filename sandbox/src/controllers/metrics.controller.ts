@@ -19,6 +19,7 @@ export class MetricsController {
     @Get('/dashboard')
     async dashboard(): Promise<HtmlResponse> {
         const version: string = GlobalRegistry.getAppData('version') ?? '-';
-        return await PreactUtilities.renderResponse(MetricsPage, { version, primary: '#0e456f', secondary: '#00b4d8' });
+        const html: string = await PreactUtilities.renderPage(MetricsPage, { version, primary: '#0e456f', secondary: '#00b4d8' });
+        return HtmlResponse.fromString(html);
     }
 }

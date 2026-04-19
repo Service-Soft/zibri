@@ -60,7 +60,9 @@ export class EmailService implements EmailServiceInterface, OnAppInit, OnAppShut
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     onAppInit(app: ZibriApplication): void {
-        app.options.cronJobs.push(SendQueuedEmailsCronJob);
+        if (!app.options.cronJobs.includes(SendQueuedEmailsCronJob)) {
+            app.options.cronJobs.push(SendQueuedEmailsCronJob);
+        }
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

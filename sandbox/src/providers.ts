@@ -18,7 +18,7 @@ export const providers: DiProvider<unknown>[] = [
         useFactory: () => [LoggerTransport.console(LogLevel.INFO)]
     }),
     defineProvider({
-        token: ZIBRI_DI_TOKENS.JWT_PASSWORD_RESET_EMAIL_TEMPLATE,
+        token: ZIBRI_DI_TOKENS.PASSWORD_RESET_EMAIL_TEMPLATE,
         useFactory: () => PasswordResetEmail
     }),
     defineProvider({
@@ -45,7 +45,7 @@ export const providers: DiProvider<unknown>[] = [
         }
     }),
     defineProvider({
-        token: ZIBRI_DI_TOKENS.JWT_CONFIRM_PASSWORD_RESET_URL,
+        token: ZIBRI_DI_TOKENS.CONFIRM_PASSWORD_RESET_URL,
         useFactory: () => 'http://localhost:4200/confirm-password-reset'
     }),
     defineProvider({

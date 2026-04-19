@@ -2,6 +2,8 @@ import { CronJobEntity } from './cron-job-entity.model';
 import { CronJob } from './cron-job.model';
 import { CronServiceInterface } from './cron-service.interface';
 import { ZibriApplication } from '../application';
+import { CronExpressionString } from './cron-expression.utilities';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
@@ -42,7 +44,7 @@ export class CronService implements CronServiceInterface, AfterAppInit, BeforeAp
         for (const cronJobClass of cronJobs) {
             register({ token: cronJobClass, useClass: cronJobClass });
             const cronJob: CronJob = inject(cronJobClass);
-            await cronJob.init();
+            await cronJob.init(this.logger, inject(repositoryTokenFor(CronJobEntity)));
             await this.logger.info(`  -  ${cronJobClass.name} (${cronJob.active ? 'active' : 'not active'})`);
             this.cronJobs.push(cronJob);
         }
@@ -55,7 +57,7 @@ export class CronService implements CronServiceInterface, AfterAppInit, BeforeAp
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async schedule(cronJob: CronJob): Promise<void> {
-        await cronJob.init();
+        await cronJob.init(this.logger, inject(repositoryTokenFor(CronJobEntity)));
         this.cronJobs.push(cronJob);
     }
 
@@ -78,7 +80,7 @@ export class CronService implements CronServiceInterface, AfterAppInit, BeforeAp
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async changeCron(name: string, cron: string): Promise<void> {
+    async changeCron(name: string, cron: CronExpressionString): Promise<void> {
         const foundJob: CronJob | undefined = this.cronJobs.find(c => c.name === name);
         if (!foundJob) {
             throw new Error(`Could not find cron job with name ${name}`);

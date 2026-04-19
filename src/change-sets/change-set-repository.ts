@@ -11,6 +11,7 @@ import { NewChange } from './models/change.model';
 import { BaseUser } from '../auth/models/base-user.model';
 import { HttpRequestContext } from '../context/request/http-request.context';
 import { WebsocketRequestContext } from '../context/request/websocket-request.context';
+import { DataSourceInterface } from '../data-source/data-sources/data-source.interface';
 import { BaseRepositoryOptions } from '../data-source/models/options/base-repository-options.model';
 import { CreateAllOptions } from '../data-source/models/options/create-all-options.model';
 import { CreateOptions } from '../data-source/models/options/create-options.model';
@@ -63,8 +64,8 @@ export class ChangeSetRepository<
     private readonly changeSetRepository: Repository<ChangeSet, CreateChangeSetData>;
     private readonly authService: AuthServiceInterface;
 
-    constructor(entityClass: Newable<T>, repo: TORepository<T> | Repository<T>, logger: LoggerInterface) {
-        super(entityClass, repo, logger);
+    constructor(entityClass: Newable<T>, repo: TORepository<T> | Repository<T>, logger: LoggerInterface, dataSource: DataSourceInterface) {
+        super(entityClass, repo, logger, dataSource);
 
         this.authService = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
         this.changeSetRepository = inject(repositoryTokenFor(ChangeSet));

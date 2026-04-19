@@ -15,11 +15,11 @@ export const defaultTestServerProviders: DiProvider<unknown>[] = [
         useFactory: () => 'test'
     }),
     defineProvider({
-        token: ZIBRI_DI_TOKENS.JWT_CONFIRM_PASSWORD_RESET_URL,
+        token: ZIBRI_DI_TOKENS.CONFIRM_PASSWORD_RESET_URL,
         useFactory: () => 'http://localhost:4200/confirm-password-reset'
     }),
     defineProvider({
-        token: ZIBRI_DI_TOKENS.JWT_PASSWORD_RESET_EMAIL_TEMPLATE,
+        token: ZIBRI_DI_TOKENS.PASSWORD_RESET_EMAIL_TEMPLATE,
         // eslint-disable-next-line typescript/no-explicit-any
         useValue: (() => 'string') as unknown as PasswordResetEmailTemplate<any, any>
     }),

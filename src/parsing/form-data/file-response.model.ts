@@ -2,11 +2,13 @@ import { Readable } from 'stream';
 
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
-import { LooseFileMimeType } from '../../http/mime-type.enum';
+import { LooseFileMimeType, MimeType } from '../../http/mime-type.enum';
 import { resolveMimeType } from '../../http/mime-type.helpers';
 import { LoggerInterface } from '../../logging/logger.interface';
+import { DeepPartial } from '../../types/deep-partial.type';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { FsUtilities, FsPath } from '../../utilities/fs.utilities';
+import { buildCspOptions, CspOptions } from '../html/csp-options.model';
 
 /**
  * Data shared by all FileResponses.
@@ -20,7 +22,12 @@ type BaseFileResponseData = {
      * The size of the file to send in bytes.
      * Used to set the Content-Length header.
      */
-    size?: number
+    size?: number,
+    /**
+     * The configuration for CSP headers.
+     * Can either be false to not set any, true to set the default CSP headers or a custom configuration.
+     */
+    csp?: boolean | DeepPartial<CspOptions>
 };
 
 /**
@@ -61,7 +68,8 @@ export class FileResponse {
         readonly data: Readable | string,
         readonly filename: string,
         readonly mimeType: LooseFileMimeType,
-        readonly size: number | undefined
+        readonly size: number | undefined,
+        readonly csp: boolean | CspOptions
     ) {}
 
     /**
@@ -84,8 +92,9 @@ export class FileResponse {
         }
 
         const size: number = options?.size ?? (await FsUtilities.stat(fullPath)).size;
+        const csp: boolean | CspOptions = buildCspOptions(options?.csp, this.getDefaultCsp(mimeType));
 
-        return new this(fullPath, fileName, mimeType, size);
+        return new this(fullPath, fileName, mimeType, size, csp);
     }
 
     /**
@@ -95,6 +104,14 @@ export class FileResponse {
      */
     static fromStream(input: StreamFileResponseData): FileResponse {
         const mimeType: string = input.mimeType ?? resolveMimeType(input.filename);
-        return new this(input.stream, input.filename, mimeType, input.size);
+        const csp: boolean | CspOptions = buildCspOptions(input?.csp, this.getDefaultCsp(mimeType));
+        return new this(input.stream, input.filename, mimeType, input.size, csp);
+    }
+
+    private static getDefaultCsp(mimeType: string): boolean | CspOptions {
+        if (mimeType === MimeType.SVG) {
+            return inject(ZIBRI_DI_TOKENS.DEFAULT_CSP_OPTIONS);
+        }
+        return false;
     }
 }

@@ -1,4 +1,5 @@
 import { AuthStrategies } from './auth-strategies.model';
+import { ZibriApplication } from '../../application';
 import { HttpRequestContext } from '../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
 import { BaseEntity } from '../../entity/base-entity.model';
@@ -19,6 +20,10 @@ export interface AuthStrategyInterface<
     RefreshLoginDataType,
     LogoutData
 > {
+    /**
+     * Initializes the auth strategy.
+     */
+    init?: (app: ZibriApplication) => void | Promise<void>,
     /**
      * Resolves the current user.
      */

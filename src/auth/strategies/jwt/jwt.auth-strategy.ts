@@ -6,13 +6,16 @@ import { JwtAuthData } from './jwt-auth-data.model';
 import { JwtConfirmPasswordResetData } from './jwt-confirm-password-reset-data.model';
 import { JwtCredentials, JwtCredentialsDto } from './jwt-credentials.model';
 import { JwtRefreshLoginData } from './jwt-refresh-login-data.model';
+import { JwtRefreshTokenCleanupCronJob } from './jwt-refresh-token-cleanup.cron-job';
 import { JwtRefreshTokenPayload } from './jwt-refresh-token-payload.model';
 import { JwtRefreshToken, JwtRefreshTokenCreateDto } from './jwt-refresh-token.model';
 import { JwtRequestPasswordResetData } from './jwt-request-password-reset-data.model';
 import { JwtUtilities } from './jwt.utilities';
+import { ZibriApplication } from '../../../application';
 import { HttpRequestContext } from '../../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../../context/request/websocket-request.context';
 import { Repository } from '../../../data-source/repository';
+import { Transaction } from '../../../data-source/transaction/transaction.model';
 import { InjectRepository, repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
@@ -26,8 +29,8 @@ import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.e
 import { GlobalRegistry } from '../../../global/global-registry';
 import { OpenApiSecuritySchemeObject } from '../../../open-api/open-api.model';
 import { Newable } from '../../../types/newable.type';
+import { OmitStrict } from '../../../types/omit-strict.type';
 import { Ms } from '../../../utilities/ms';
-import { UUIDUtilities } from '../../../utilities/uuid.utilities';
 import { HashUtilities } from '../../hash.utilities';
 import { BaseUser } from '../../models/base-user.model';
 import { PasswordResetToken, PasswordResetTokenCreateData } from '../../models/password-reset-token.model';
@@ -35,6 +38,7 @@ import { type UserServiceInterface } from '../../user/user-service.interface';
 import { AuthStrategyInterface } from '../auth-strategy.interface';
 import { PasswordResetEmailTemplate } from './jwt-auth.controller';
 import { PreactUtilities } from '../../../preact/preact.utilities';
+import { UUIDUtilities } from '../../../utilities/uuid.utilities';
 
 /**
  * Jwt auth strategy implementation of Zibri.
@@ -51,7 +55,7 @@ implements AuthStrategyInterface<
     JwtRequestPasswordResetData<RoleType, UserType>,
     JwtConfirmPasswordResetData,
     JwtRefreshLoginData,
-    JwtRefreshLoginData
+    OmitStrict<JwtRefreshLoginData, 'transaction'>
 > {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly name: string = 'jwt';
@@ -80,7 +84,7 @@ implements AuthStrategyInterface<
         private readonly accessTokenExpiresInMs: number,
         @Inject(ZIBRI_DI_TOKENS.JWT_REFRESH_TOKEN_EXPIRES_IN_MS)
         private readonly refreshTokenExpiresInMs: number,
-        @Inject(ZIBRI_DI_TOKENS.JWT_PASSWORD_RESET_TOKEN_EXPIRES_IN_MS)
+        @Inject(ZIBRI_DI_TOKENS.PASSWORD_RESET_TOKEN_EXPIRES_IN_MS)
         private readonly passwordResetTokenExpiresInMs: number,
         @Inject(ZIBRI_DI_TOKENS.USER_SERVICE)
         private readonly userService: UserServiceInterface,
@@ -95,21 +99,28 @@ implements AuthStrategyInterface<
         if (!refreshTokenSecret) {
             throw new NoProviderError(ZIBRI_DI_TOKENS.JWT_REFRESH_TOKEN_SECRET, []);
         }
-        const confirmPasswordResetUrl: string | undefined = inject(ZIBRI_DI_TOKENS.JWT_CONFIRM_PASSWORD_RESET_URL);
+        const confirmPasswordResetUrl: string | undefined = inject(ZIBRI_DI_TOKENS.CONFIRM_PASSWORD_RESET_URL);
         if (!confirmPasswordResetUrl) {
-            throw new NoProviderError(ZIBRI_DI_TOKENS.JWT_CONFIRM_PASSWORD_RESET_URL, []);
+            throw new NoProviderError(ZIBRI_DI_TOKENS.CONFIRM_PASSWORD_RESET_URL, []);
         }
         const PasswordResetEmail: PasswordResetEmailTemplate<RoleType, UserType> | undefined = inject(
-            ZIBRI_DI_TOKENS.JWT_PASSWORD_RESET_EMAIL_TEMPLATE
+            ZIBRI_DI_TOKENS.PASSWORD_RESET_EMAIL_TEMPLATE
         );
         if (!PasswordResetEmail) {
-            throw new NoProviderError(ZIBRI_DI_TOKENS.JWT_PASSWORD_RESET_EMAIL_TEMPLATE, []);
+            throw new NoProviderError(ZIBRI_DI_TOKENS.PASSWORD_RESET_EMAIL_TEMPLATE, []);
         }
 
         this.accessTokenSecret = accessTokenSecret;
         this.refreshTokenSecret = refreshTokenSecret;
         this.confirmPasswordResetUrl = confirmPasswordResetUrl;
         this.PasswordResetEmail = PasswordResetEmail;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    init(app: ZibriApplication): void {
+        if (!app.options.cronJobs.includes(JwtRefreshTokenCleanupCronJob)) {
+            app.options.cronJobs.push(JwtRefreshTokenCleanupCronJob);
+        }
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -123,7 +134,7 @@ implements AuthStrategyInterface<
             }
             const accessTokenValue: string = await this.generateAccessToken(foundUser);
             const refreshTokenValue: string = await this.generateRefreshToken(foundUser);
-            await this.createRefreshToken(foundUser, refreshTokenValue);
+            await this.createRefreshToken(foundUser, refreshTokenValue, UUIDUtilities.generate(), undefined);
 
             return {
                 accessToken: {
@@ -144,10 +155,12 @@ implements AuthStrategyInterface<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async logout(data: JwtRefreshLoginData): Promise<void> {
+    async logout(data: OmitStrict<JwtRefreshLoginData, 'transaction'>): Promise<void> {
         try {
-            const refreshToken: JwtRefreshToken | undefined
-                = await this.refreshTokenRepository.findOne({ where: { value: data.refreshToken } }, false);
+            const refreshToken: JwtRefreshToken | undefined = await this.refreshTokenRepository.findOne(
+                { where: { value: data.refreshToken } },
+                false
+            );
             if (!refreshToken) {
                 return;
             }
@@ -158,20 +171,25 @@ implements AuthStrategyInterface<
         }
     }
 
-    private async createRefreshToken(foundUser: UserType, refreshTokenValue: string): Promise<JwtRefreshToken> {
+    private async createRefreshToken(
+        foundUser: UserType,
+        refreshTokenValue: string,
+        familyId: string,
+        transaction: Transaction | undefined
+    ): Promise<JwtRefreshToken> {
         const data: JwtRefreshTokenCreateDto = {
             userId: foundUser.id,
             value: refreshTokenValue,
-            familyId: UUIDUtilities.generate(),
+            familyId,
             blacklisted: false,
             expirationDate: new Date(Date.now() + this.refreshTokenExpiresInMs)
         };
-        return await this.refreshTokenRepository.create(data);
+        return await this.refreshTokenRepository.create(data, { transaction });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async refreshLogin(data: JwtRefreshLoginData): Promise<JwtAuthData<RoleType>> {
-        const refreshToken: JwtRefreshToken = await this.verifyAndResolveRefreshToken(data.refreshToken);
+        const refreshToken: JwtRefreshToken = await this.verifyAndResolveRefreshToken(data.refreshToken, data.transaction);
         const user: UserType = await this.userService.findById(refreshToken.userId);
         const accessTokenValue: string = await this.generateAccessToken(user);
 
@@ -189,10 +207,13 @@ implements AuthStrategyInterface<
         };
     }
 
-    private async verifyAndResolveRefreshToken(tokenValue: string): Promise<JwtRefreshToken> {
-        await JwtUtilities.verify(tokenValue, this.refreshTokenSecret);
+    private async verifyAndResolveRefreshToken(tokenValue: string, transaction: Transaction): Promise<JwtRefreshToken> {
+        const encoded: EncodedJwtAccessToken<string> | undefined = await JwtUtilities.verify(tokenValue, this.refreshTokenSecret);
+        if (!encoded) {
+            throw new UnauthorizedError('Error verifying token: Invalid Token');
+        }
         const refreshToken: JwtRefreshToken | undefined = await this.refreshTokenRepository.findOne(
-            { where: { value: tokenValue } },
+            { where: { value: tokenValue }, transaction },
             false
         );
 
@@ -200,32 +221,25 @@ implements AuthStrategyInterface<
             throw new UnauthorizedError('Error verifying token: Invalid Token');
         }
         if (refreshToken.blacklisted) {
-            await this.refreshTokenRepository.deleteAll({ familyId: refreshToken.familyId });
+            await this.refreshTokenRepository.deleteAll({ familyId: refreshToken.familyId }, { transaction });
             throw new UnauthorizedError('The given refresh token has already been used.');
         }
-
-        if (!this.isRefreshTokenExpired(refreshToken)) {
-            return refreshToken;
+        if (new Date(refreshToken.expirationDate).getTime() <= Date.now()) {
+            await this.refreshTokenRepository.deleteAll({ familyId: refreshToken.familyId }, { transaction });
+            throw new UnauthorizedError('The given refresh token is expired.');
         }
 
         const user: UserType = await this.userService.findById(refreshToken.userId);
         const refreshTokenValue: string = await this.generateRefreshToken(user);
 
-        const res: JwtRefreshToken = await this.createRefreshToken(user, refreshTokenValue);
-        await this.refreshTokenRepository.updateById(refreshToken.id, { blacklisted: true });
-        await this.refreshTokenRepository.deleteAll({ expirationDate: { before: new Date() } });
+        const res: JwtRefreshToken = await this.createRefreshToken(user, refreshTokenValue, refreshToken.familyId, transaction);
+        await this.refreshTokenRepository.updateById(refreshToken.id, { blacklisted: true }, { transaction });
         return res;
-    }
-
-    private isRefreshTokenExpired(refreshToken: JwtRefreshToken): boolean {
-        const createdAt: Date = new Date(new Date(refreshToken.expirationDate).getTime() - this.refreshTokenExpiresInMs);
-        const refreshTokenLifeTimeInMs: number = Date.now() - createdAt.getTime();
-        return refreshTokenLifeTimeInMs > this.refreshTokenExpiresInMs;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async requestPasswordReset(data: JwtRequestPasswordResetData<RoleType, UserType>): Promise<void> {
-        if (await this.activePasswordResetTokenAlreadyExists(data.user)) {
+        if (await this.activePasswordResetTokenAlreadyExists(data.user, data.transaction)) {
             throw new TooManyRequestsError('A password reset has already been requested for this account.');
         }
 
@@ -234,7 +248,10 @@ implements AuthStrategyInterface<
             userId: data.user.id,
             expirationDate: new Date(Date.now() + this.passwordResetTokenExpiresInMs)
         };
-        const resetToken: PasswordResetToken = await this.passwordResetTokenRepository.create(resetTokenData);
+        const resetToken: PasswordResetToken = await this.passwordResetTokenRepository.create(
+            resetTokenData,
+            { transaction: data.transaction }
+        );
 
         const html: string = PreactUtilities.renderEmail(
             this.PasswordResetEmail,
@@ -249,19 +266,21 @@ implements AuthStrategyInterface<
             subject: 'Password Reset',
             html,
             priority: EmailPriority.HIGH,
-            ...data
+            ...data.emailData
         });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async confirmPasswordReset(data: JwtConfirmPasswordResetData): Promise<void> {
-        // eslint-disable-next-line stylistic/max-len
-        const resetToken: PasswordResetToken | undefined = await this.passwordResetTokenRepository.findOne({ where: { value: data.resetToken } }, false);
+        const resetToken: PasswordResetToken | undefined = await this.passwordResetTokenRepository.findOne(
+            { where: { value: data.resetToken }, transaction: data.transaction },
+            false
+        );
         if (!resetToken) {
             throw new UnauthorizedError('Link invalid');
         }
         if (new Date(resetToken.expirationDate).getTime() <= Date.now()) {
-            await this.passwordResetTokenRepository.deleteById(resetToken.id);
+            await this.passwordResetTokenRepository.deleteById(resetToken.id, { transaction: data.transaction });
             throw new UnauthorizedError('Link expired');
         }
 
@@ -270,22 +289,22 @@ implements AuthStrategyInterface<
         const hashedPassword: string = await HashUtilities.hash(data.newPassword);
         credentials.password = hashedPassword;
 
-        await this.credentialsRepository.updateById(credentials.id, credentials);
-        await this.passwordResetTokenRepository.deleteById(resetToken.id);
-        await this.refreshTokenRepository.deleteAll({ userId: resetToken.userId });
+        await this.credentialsRepository.updateById(credentials.id, credentials, { transaction: data.transaction });
+        await this.passwordResetTokenRepository.deleteById(resetToken.id, { transaction: data.transaction });
+        await this.refreshTokenRepository.deleteAll({ userId: resetToken.userId }, { transaction: data.transaction });
         // TODO: set require password change to false
     }
 
-    private async activePasswordResetTokenAlreadyExists(user: BaseUser<RoleType>): Promise<boolean> {
+    private async activePasswordResetTokenAlreadyExists(user: BaseUser<RoleType>, transaction: Transaction): Promise<boolean> {
         const existingToken: PasswordResetToken | undefined = await this.passwordResetTokenRepository.findOne(
-            { where: { userId: user.id } },
+            { where: { userId: user.id }, transaction },
             false
         );
         if (existingToken) {
             if (new Date(existingToken.expirationDate).getTime() > Date.now()) {
                 return true;
             }
-            await this.passwordResetTokenRepository.deleteById(existingToken.id);
+            await this.passwordResetTokenRepository.deleteById(existingToken.id, { transaction });
         }
         return false;
     }

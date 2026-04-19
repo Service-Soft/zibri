@@ -1,7 +1,6 @@
 import { ComponentChild, ComponentChildren, Fragment, VNode } from 'preact';
 
 import { stringAwareReplace } from './string-aware-replace.function';
-import { OmitStrict } from '../types/omit-strict.type';
 import { ObjectUtilities } from '../utilities/object.utilities';
 
 const HANDLERS_DIRECTIVE: string = 'data-ssr-handlers';
@@ -24,11 +23,6 @@ type HandlerEntry = {
      */
     ownerPrefix: string | undefined
 };
-
-/**
- * A serialized event handler entry.
- */
-type SerializedHandlerEntry = OmitStrict<HandlerEntry, 'ownerPrefix'>;
 
 /**
  * Result for a simple delegate (basically just a passthrough).
@@ -384,36 +378,28 @@ export class PreactCollector {
      * @returns The js section as a string.
      */
     getHandlerReattachmentSectionForPrefix(ownerPrefix: string | undefined): string {
-        const filtered: Map<string, SerializedHandlerEntry> = new Map(
-            [...this.map.entries()]
-                // eslint-disable-next-line unusedImports/no-unused-vars
-                .filter(([_, e]) => e.ownerPrefix === ownerPrefix)
-                .map(([id, e]) => [id, { event: e.event, src: e.src }])
-        );
-        if (!filtered.size) {
+        const filtered: [string, HandlerEntry][] = [...this.map.entries()]
+            // eslint-disable-next-line unusedImports/no-unused-vars
+            .filter(([_, e]) => e.ownerPrefix === ownerPrefix);
+
+        if (!filtered.length) {
             return '';
         }
 
-        const json: string = JSON.stringify(Object.fromEntries(filtered), undefined, 4)
-            .split('\n')
-            .map((l, i) => i === 0 ? l : '            ' + l)
-            .join('\n');
+        const entries: string[] = filtered.map(([id, e]) => {
+            const safeSrc: string = e.src.replaceAll('</script>', '\\u003c/script>');
+            return `                ${JSON.stringify(id)}: { event: ${JSON.stringify(e.event)}, fn: (${safeSrc}) }`;
+        });
 
         return [
             '    (function() {',
             '        try {',
-            `            const map = ${json};`,
+            '            const map = {',
+            ...entries,
+            '            };',
             '            for (const id of Object.keys(map)) {',
             '                const info = map[id];',
-            '                const { event, src } = info;',
-            '                let fn;',
-            '                try {',
-            '                    fn = eval("(" + src + ")");',
-            '                }',
-            '                catch (error) {',
-            '                    console.error("ssr handler compile error", id, error);',
-            '                    continue;',
-            '                }',
+            '                const { event, fn } = info;',
             `                for (const el of document.querySelectorAll('[${HANDLERS_DIRECTIVE}]')) {`,
             `                    const raw = el.getAttribute('${HANDLERS_DIRECTIVE}');`,
             '                    if (!raw) { continue; }',

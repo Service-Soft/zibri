@@ -3,12 +3,11 @@ import { PassThrough, Readable, Writable } from 'node:stream';
 
 import { DataSource as TODataSource, Repository as TORepository, EntityMetadata as TOEntityMetadata, EntitySchema, EntitySchemaColumnOptions, QueryRunner, EntitySchemaRelationOptions, Table, TableColumnOptions, TableColumn, EntityTarget } from 'typeorm';
 import { PostgresConnectionOptions } from 'typeorm/driver/postgres/PostgresConnectionOptions.js';
-import { IsolationLevel } from 'typeorm/driver/types/IsolationLevel.js';
 import { ColumnMetadata } from 'typeorm/metadata/ColumnMetadata.js';
 import { OnDeleteType } from 'typeorm/metadata/types/OnDeleteType.js';
 import { OnUpdateType } from 'typeorm/metadata/types/OnUpdateType.js';
 
-import { DataSourceInterface } from './data-source.interface';
+import { DataSourceInterface, IsolationLevel } from './data-source.interface';
 import { ChangeSetRepository } from '../../change-sets/change-set-repository';
 import { isChangeSetEntityNewable, ChangeSetEntity } from '../../change-sets/models/change-set-entity.model';
 import { isSoftDeleteEntityNewable, SoftDeleteEntity } from '../../change-sets/models/soft-delete-entity.model';
@@ -397,17 +396,19 @@ export abstract class PostgresDataSource implements DataSourceInterface {
             return new SoftDeleteRepository(
                 cls,
                 repo as unknown as TORepository<SoftDeleteEntity>,
-                this.logger
+                this.logger,
+                this
             ) as unknown as Repository<T>;
         }
         if (isChangeSetEntityNewable(cls)) {
             return new ChangeSetRepository(
                 cls,
                 repo as unknown as TORepository<ChangeSetEntity>,
-                this.logger
+                this.logger,
+                this
             ) as unknown as Repository<T>;
         }
-        return new Repository(cls, repo, this.logger);
+        return new Repository(cls, repo, this.logger, this);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

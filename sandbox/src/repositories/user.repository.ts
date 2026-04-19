@@ -12,7 +12,7 @@ export class UserRepository extends Repository<User, UserCreateData>
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
         logger: LoggerInterface
     ) {
-        super(User, repo, logger);
+        super(User, repo, logger, repo.dataSource);
     }
 
     async findByEmail(email: string): Promise<User> {
