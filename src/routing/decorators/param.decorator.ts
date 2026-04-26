@@ -11,7 +11,8 @@ import { createHeaderParamMetadata, createPathParamMetadata, createQueryParamMet
 /**
  * Metadata of path parameters.
  */
-export type PathParamMetadata = StringParamMetadata
+// eslint-disable-next-line typescript/no-explicit-any
+export type PathParamMetadata = StringParamMetadata<any, any, any, any, any>
     | NumberParamMetadata
     | BooleanParamMetadata
     | DateParamMetadata;
@@ -19,7 +20,8 @@ export type PathParamMetadata = StringParamMetadata
 /**
  * Metadata Input of path parameters.
  */
-export type PathParamMetadataInput = StringParamMetadataInput
+// eslint-disable-next-line typescript/no-explicit-any
+export type PathParamMetadataInput = StringParamMetadataInput<any, any, any, any, any>
     | NumberParamMetadataInput
     | BooleanParamMetadataInput
     | DateParamMetadataInput;
@@ -27,7 +29,8 @@ export type PathParamMetadataInput = StringParamMetadataInput
 /**
  * Metadata of query parameters.
  */
-export type QueryParamMetadata = StringParamMetadata
+// eslint-disable-next-line typescript/no-explicit-any
+export type QueryParamMetadata = StringParamMetadata<any, any, any, any, any>
     | NumberParamMetadata
     | BooleanParamMetadata
     | DateParamMetadata
@@ -37,7 +40,8 @@ export type QueryParamMetadata = StringParamMetadata
 /**
  * Metadata Input of query parameters.
  */
-export type QueryParamMetadataInput = StringParamMetadataInput
+// eslint-disable-next-line typescript/no-explicit-any
+export type QueryParamMetadataInput = StringParamMetadataInput<any, any, any, any, any>
     | NumberParamMetadataInput
     | BooleanParamMetadataInput
     | DateParamMetadataInput
@@ -48,7 +52,8 @@ export type QueryParamMetadataInput = StringParamMetadataInput
  * Metadata of header parameters.
  */
 export type HeaderParamMetadata = (
-    StringParamMetadata
+    // eslint-disable-next-line typescript/no-explicit-any
+    StringParamMetadata<any, any, any, any, any>
     | NumberParamMetadata
     | BooleanParamMetadata
     | DateParamMetadata
@@ -64,7 +69,8 @@ export type HeaderParamMetadata = (
 /**
  * Metadata Input of path parameters.
  */
-export type HeaderParamMetadataInput = StringParamMetadataInput
+// eslint-disable-next-line typescript/no-explicit-any
+export type HeaderParamMetadataInput = StringParamMetadataInput<any, any, any, any, any>
     | NumberParamMetadataInput
     | BooleanParamMetadataInput
     | DateParamMetadataInput

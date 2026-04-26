@@ -1,5 +1,7 @@
 import { DefaultDescriptor } from './default-descriptor';
+import { EncryptionDescriptor } from './encryption-descriptor';
 import { ExcludeDescriptor } from './exclude-descriptor';
+import { HashDescriptor } from './hash-descriptor';
 import { Newable } from '../../types/newable.type';
 
 /**
@@ -10,6 +12,14 @@ export type ModelRegistryData<T> = {
      * Pre-built exclude descriptor for this class.
      */
     readonly excludeDescriptor: ExcludeDescriptor<T>,
+    /**
+     * Pre-built encryption descriptor for this class.
+     */
+    readonly encryptionDescriptor: EncryptionDescriptor<T>,
+    /**
+     * Pre-built hash descriptor for this class.
+     */
+    readonly hashDescriptor: HashDescriptor<T>,
     /**
      * Pre-built default descriptor for this class.
      */
@@ -50,6 +60,8 @@ export abstract class ModelRegistry {
         if (!modelRegistryData) {
             modelRegistryData = {
                 excludeDescriptor: new ExcludeDescriptor<T>(),
+                encryptionDescriptor: new EncryptionDescriptor<T>(),
+                hashDescriptor: new HashDescriptor(),
                 defaultDescriptor: new DefaultDescriptor()
             };
             this.cache.set(entityClass, modelRegistryData);
@@ -57,6 +69,8 @@ export abstract class ModelRegistry {
 
         // Resolve inherited properties first, so descriptors see the full picture
         // modelRegistryData.properties = ;
+        modelRegistryData.encryptionDescriptor.update(entityClass);
+        modelRegistryData.hashDescriptor.update(entityClass);
         modelRegistryData.excludeDescriptor.update(entityClass);
         modelRegistryData.defaultDescriptor.update(entityClass);
 

@@ -22,7 +22,6 @@ export * from './auth/models/require-2fa-metadata.model';
 
 export * from './auth/auth-service.interface';
 export * from './auth/auth.service';
-export * from './auth/hash.utilities';
 export * from './auth/auth-controller.interface';
 
 export * from './auth/strategies/jwt/jwt-access-token-payload.model';
@@ -66,6 +65,24 @@ export * from './auth/2fa/methods/two-factor-method.interface';
 export * from './auth/2fa/methods/otp/otp.two-factor-method';
 export * from './auth/2fa/methods/otp/otp-credentials.model';
 export * from './auth/2fa/methods/otp/otp.utilities';
+
+export * from './auth/encryption/encryption-key.model';
+export * from './auth/encryption/encryption-master-options.model';
+export * from './auth/encryption/encryption-service.interface';
+export * from './auth/encryption/encryption.service';
+export * from './auth/encryption/encryption.utilities';
+
+export * from './auth/encryption/strategies/aes-gcm.encryption-strategy';
+export * from './auth/encryption/strategies/encryption-strategy-entity.model';
+export * from './auth/encryption/strategies/encryption-strategy.interface';
+
+export * from './auth/hash/hash-service.interface';
+export * from './auth/hash/hash.service';
+export * from './auth/hash/hash.utilities';
+
+export * from './auth/hash/strategies/bcrypt.hash-strategy';
+export * from './auth/hash/strategies/hash-strategy-entity.model';
+export * from './auth/hash/strategies/hash-strategy.interface';
 
 // di
 export * from './di/decorators/injectable.decorator';
@@ -277,6 +294,10 @@ export * from './data-source/models/where/string-where-filter.model';
 
 export * from './data-source/migration/migration.model';
 export * from './data-source/migration/migration-entity.model';
+
+export * from './data-source/hooks/hooks.default';
+export * from './data-source/hooks/before-return';
+export * from './data-source/hooks/before-save';
 
 // cron
 export * from './cron/cron-job-entity.model';

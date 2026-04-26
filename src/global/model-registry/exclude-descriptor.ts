@@ -3,6 +3,7 @@ import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { ArrayPropertyItemMetadata } from '../../entity/models/array-property-metadata.model';
 import { ExcludePropertyValue } from '../../entity/models/base-property-metadata.model';
 import { Relation } from '../../entity/models/relation.enum';
+import { ExcludeStrict } from '../../types/exclude-strict.type';
 import { Newable } from '../../types/newable.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 
@@ -13,7 +14,7 @@ export class ExcludeDescriptor<T> {
     /**
      * Keys that have a exclude value of true or function.
      */
-    readonly keys: Map<string, ExcludePropertyValue> = new Map();
+    readonly keys: Map<string, ExcludeStrict<ExcludePropertyValue, false>> = new Map();
     /**
      * Keys with no exclude option but containing nested entities that might have exclude properties.
      */

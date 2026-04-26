@@ -217,7 +217,7 @@ export class PayPalPaymentProvider implements PaymentProviderInterface<
         M extends SupportedMethods[number],
         Data extends ProviderPaymentDataMap[M] | ProviderReservationPaymentDataMap[M]
     >(): Repository<Payment<M, Data>> {
-        return inject(repositoryTokenFor(Payment)) as Repository<Payment<M, Data>>;
+        return inject(repositoryTokenFor(Payment)) as unknown as Repository<Payment<M, Data>>;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

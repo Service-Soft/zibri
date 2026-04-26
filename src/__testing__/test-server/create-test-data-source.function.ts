@@ -1,4 +1,7 @@
 import { OtpCredentials } from '../../auth/2fa/methods/otp/otp-credentials.model';
+import { EncryptionKey } from '../../auth/encryption/encryption-key.model';
+import { EncryptionStrategyEntity } from '../../auth/encryption/strategies/encryption-strategy-entity.model';
+import { HashStrategyEntity } from '../../auth/hash/strategies/hash-strategy-entity.model';
 import { PasswordResetToken } from '../../auth/models/password-reset-token.model';
 import { JwtCredentials } from '../../auth/strategies/jwt/jwt-credentials.model';
 import { JwtRefreshToken } from '../../auth/strategies/jwt/jwt-refresh-token.model';
@@ -44,7 +47,10 @@ export const defaultTestServerEntities: Newable<BaseEntity>[] = [
     OtpCredentials,
     ThreadJobEntity,
     Event,
-    EventSubscriberRun
+    EventSubscriberRun,
+    HashStrategyEntity,
+    EncryptionKey,
+    EncryptionStrategyEntity
 ];
 
 export function createTestDataSource({

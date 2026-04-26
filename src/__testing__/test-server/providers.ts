@@ -1,3 +1,6 @@
+import { randomBytes } from 'node:crypto';
+
+import { AesGcmEncryptionStrategy } from '../../auth/encryption/strategies/aes-gcm.encryption-strategy';
 import { PasswordResetEmailTemplate } from '../../auth/strategies/jwt/jwt-auth.controller';
 import { CronServiceInterface } from '../../cron/cron-service.interface';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
@@ -36,6 +39,13 @@ export const defaultTestServerProviders: DiProvider<unknown>[] = [
                     pass: ''
                 }
             };
+        }
+    }),
+    defineProvider({
+        token: ZIBRI_DI_TOKENS.ENCRYPTION_MASTER_OPTIONS,
+        useValue: {
+            masterStrategy: new AesGcmEncryptionStrategy(),
+            currentMasterKey: { id: 'mk1', value: randomBytes(32) }
         }
     }),
     defineProvider({

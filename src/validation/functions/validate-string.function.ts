@@ -29,13 +29,19 @@ export async function validateString(
     parentKey: string | undefined,
     entity: unknown | undefined
 ): Promise<ValidationProblem[]> {
-    const meta: StringPropertyMetadata | StringParamMetadata = metadata as StringPropertyMetadata | StringParamMetadata;
+    // eslint-disable-next-line typescript/no-explicit-any
+    const meta: StringPropertyMetadata<any, any, any, any, any> | StringParamMetadata<any, any, any, any, any>
+        // eslint-disable-next-line typescript/no-explicit-any
+        = metadata as StringPropertyMetadata<any, any, any, any, any> | StringParamMetadata<any, any, any, any, any>;
     const fullKey: string = parentKey ? `${parentKey}.${key}` : key;
     const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
-    const isRequired: boolean = typeof metadata.required === 'boolean' ? metadata.required : await metadata.required(entity, context);
+    const isRequired: boolean = typeof metadata.required === 'boolean'
+        ? metadata.required
+        : await metadata.required(entity, context);
     if (
         property == undefined
-        && (meta as StringPropertyMetadata).default == undefined
+        // eslint-disable-next-line typescript/no-explicit-any
+        && (meta as StringPropertyMetadata<any, any, any, any, any>).default == undefined
         && isRequired
     ) {
         return [new IsRequiredValidationProblem(fullKey)];
@@ -44,7 +50,8 @@ export async function validateString(
         property == undefined
         && (
             !isRequired
-            || (meta as StringPropertyMetadata).default != undefined
+            // eslint-disable-next-line typescript/no-explicit-any
+            || (meta as StringPropertyMetadata<any, any, any, any, any>).default != undefined
         )
     ) {
         return [];

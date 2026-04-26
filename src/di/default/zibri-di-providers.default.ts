@@ -9,6 +9,10 @@ import { ZIBRI_DI_TOKENS } from './zibri-di-tokens.default';
 import { AssetService } from '../../assets/asset.service';
 import { TwoFactorService } from '../../auth/2fa/two-factor.service';
 import { AuthService } from '../../auth/auth.service';
+import { EncryptionService } from '../../auth/encryption/encryption.service';
+import { AesGcmEncryptionStrategy } from '../../auth/encryption/strategies/aes-gcm.encryption-strategy';
+import { HashService } from '../../auth/hash/hash.service';
+import { BcryptHashStrategy } from '../../auth/hash/strategies/bcrypt.hash-strategy';
 import { UserService } from '../../auth/user/user.service';
 import { BackupService } from '../../backup/backup.service';
 import { AlsUtilities } from '../../context/als.utilities';
@@ -136,6 +140,11 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
     COOKIE_SIGN_SECRET: { useValue: undefined },
     COOKIE_AUTH_SESSION_EXPIRES_IN_MS: { useValue: Ms.DAY },
     COOKIE_AUTH_REFRESH_SESSION_EXPIRES_IN_MS: { useValue: Ms.DAY * 100 },
+    HASH_SERVICE: { useClass: HashService },
+    HASH_STRATEGIES: { useValue: [BcryptHashStrategy] },
+    ENCRYPTION_SERVICE: { useClass: EncryptionService },
+    ENCRYPTION_STRATEGIES: { useValue: [AesGcmEncryptionStrategy] },
+    ENCRYPTION_MASTER_OPTIONS: { useValue: undefined },
     // dynamic
     CURRENT_REQUEST_CONTEXT: {
         useFactory: () => AlsUtilities.getCurrentRequestContext(),

@@ -6,6 +6,8 @@ import { PaginationResult } from '../open-api/pagination-result.model';
 import { DeepPartial } from '../types/deep-partial.type';
 import { Newable } from '../types/newable.type';
 import { DataSourceInterface } from './data-sources/data-source.interface';
+import { BeforeReturnHook } from './hooks/before-return';
+import { BeforeSaveHook } from './hooks/before-save';
 import { CreateAllOptions } from './models/options/create-all-options.model';
 import { CreateOptions } from './models/options/create-options.model';
 import { DeleteAllOptions } from './models/options/delete-all-options.model';
@@ -22,9 +24,6 @@ import { QueryFailedError } from './query-failed.error';
 import { Transaction } from './transaction/transaction.model';
 import { NotFoundError } from '../error-handling/errors/not-found.error';
 import { ModelRegistry } from '../global/model-registry/model.registry';
-import { removeExcludeProperties } from '../global/model-registry/remove-exclude-properties.function';
-import { restoreExcludeProperties } from '../global/model-registry/restore-exclude-properties.function';
-import { setDefaultValues } from '../global/model-registry/set-default-values.function';
 
 /**
  * A repository that handles data source related things for its entity.
@@ -48,7 +47,9 @@ export class Repository<
         protected readonly entityClass: Newable<T>,
         repo: TORepository<T> | Repository<T>,
         protected readonly logger: LoggerInterface,
-        private readonly _dataSource: DataSourceInterface
+        private readonly _dataSource: DataSourceInterface,
+        private readonly beforeSave: BeforeSaveHook<T, CreateData, UpdateData>,
+        private readonly beforeReturn: BeforeReturnHook<T>
     ) {
         this.typeOrmRepository = repo instanceof Repository ? repo.typeOrmRepository : repo;
         ModelRegistry.get(this.entityClass);
@@ -76,12 +77,12 @@ export class Repository<
             await this.logger.warn('Found an id on the create data, it will be ignored.');
             delete data.id;
         }
-        await this.beforeSave(data, true);
+        await this.beforeSave(data, true, this.entityClass);
 
         const manager: EntityManager = this.getManager(options?.transaction);
         try {
             const res: T = await manager.save(this.entityClass, data as ToDeepPartial<T>);
-            await removeExcludeProperties(res, this.entityClass);
+            await this.beforeReturn(res, this.entityClass);
             return res;
         }
         catch (error) {
@@ -106,7 +107,7 @@ export class Repository<
                     delete d.id;
                     hadId = true;
                 }
-                await this.beforeSave(d, true);
+                await this.beforeSave(d, true, this.entityClass);
                 return hadId;
             })
         )).filter(Boolean).length;
@@ -119,7 +120,7 @@ export class Repository<
         const manager: EntityManager = this.getManager(options?.transaction);
         try {
             const res: T[] = await manager.save(this.entityClass, data as ToDeepPartial<T>[]);
-            await Promise.all(res.map(r => removeExcludeProperties(r, this.entityClass)));
+            await Promise.all(res.map(r => this.beforeReturn(r, this.entityClass)));
             return res;
         }
         catch (error) {
@@ -176,7 +177,7 @@ export class Repository<
         if (!res) {
             return undefined as B extends false ? T | undefined : T;
         }
-        await removeExcludeProperties(res, this.entityClass);
+        await this.beforeReturn(res, this.entityClass);
         return res;
     }
 
@@ -193,7 +194,7 @@ export class Repository<
                 this.entityClass,
                 { ...options, where, relations: options?.relations as string[], transaction: undefined }
             );
-            await Promise.all(res.map(r => removeExcludeProperties(r, this.entityClass)));
+            await Promise.all(res.map(r => this.beforeReturn(r, this.entityClass)));
             return res;
         }
         catch (error) {
@@ -249,11 +250,11 @@ export class Repository<
         }
         const manager: EntityManager = this.getManager(options?.transaction);
         data.id = id;
-        await this.beforeSave(data, false);
+        await this.beforeSave(data, false, this.entityClass);
 
         try {
             const res: T = await manager.save(this.entityClass, data as ToDeepPartial<T>);
-            await removeExcludeProperties(res, this.entityClass);
+            await this.beforeReturn(res, this.entityClass);
             return res;
         }
         catch (error) {
@@ -280,14 +281,14 @@ export class Repository<
             await this.logger.warn('Found an id on the update data, it will be ignored.');
             delete data.id;
         }
-        await this.beforeSave(data, false);
+        await this.beforeSave(data, false, this.entityClass);
         const toUpdate: DeepPartial<T>[] = (await this.findAll({ where, ...options })).map(t => ({ id: t.id, ...data }));
 
         const manager: EntityManager = this.getManager(options?.transaction);
 
         try {
             const res: T[] = await manager.save(this.entityClass, toUpdate as ToDeepPartial<T>[]);
-            await Promise.all(res.map(r => removeExcludeProperties(r, this.entityClass)));
+            await Promise.all(res.map(r => this.beforeReturn(r, this.entityClass)));
             return res;
         }
         catch (error) {
@@ -306,11 +307,11 @@ export class Repository<
      */
     async deleteById(id: T['id'], options?: DeleteByIdOptions): Promise<T> {
         const entityToDelete: T = await this.findById(id, options);
-        restoreExcludeProperties(entityToDelete, this.entityClass);
+        await this.beforeSave(entityToDelete, false, this.entityClass);
         const manager: EntityManager = this.getManager(options?.transaction);
         try {
             const res: T = await manager.remove(this.entityClass, entityToDelete);
-            await removeExcludeProperties(res, this.entityClass);
+            await this.beforeReturn(res, this.entityClass);
             return res;
         }
         catch (error) {
@@ -332,13 +333,12 @@ export class Repository<
         options?: DeleteAllOptions<T>
     ): Promise<T[]> {
         const toDelete: T[] = await this.findAll({ where, ...options });
-        for (const element of toDelete) {
-            restoreExcludeProperties(element, this.entityClass);
-        }
+        await Promise.all(toDelete.map(r => this.beforeSave(r, false, this.entityClass)));
+
         const manager: EntityManager = this.getManager(options?.transaction);
         try {
             const res: T[] = await manager.remove(this.entityClass, toDelete);
-            await Promise.all(res.map(r => removeExcludeProperties(r, this.entityClass)));
+            await Promise.all(res.map(r => this.beforeReturn(r, this.entityClass)));
             return res;
         }
         catch (error) {
@@ -346,16 +346,6 @@ export class Repository<
                 throw new QueryFailedError(error as TOQueryFailedError);
             }
             throw error;
-        }
-    }
-
-    private async beforeSave(
-        data: CreateData | UpdateData,
-        setDefault: boolean
-    ): Promise<void> {
-        restoreExcludeProperties(data, this.entityClass);
-        if (setDefault) {
-            await setDefaultValues(data, this.entityClass);
         }
     }
 }

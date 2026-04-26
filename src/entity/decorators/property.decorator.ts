@@ -1,6 +1,8 @@
+import { BaseDecryptOptions, BaseEncryptOptions } from '../../auth/encryption/strategies/encryption-strategy.interface';
 import { warn } from '../../logging/logger.helpers';
 import { Newable } from '../../types/newable.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { AnyObject } from '../any-object.model';
 import type { BaseEntity } from '../base-entity.model';
 import { ArrayPropertyMetadata, ArrayPropertyMetadataInput, ArrayPropertyItemMetadataInput, ArrayPropertyItemMetadata } from '../models/array-property-metadata.model';
 import type { WithDefaultMetadata } from '../models/base-property-metadata.model';
@@ -20,7 +22,8 @@ import { UnknownPropertyMetadata, UnknownPropertyMetadataInput } from '../models
 /**
  * The metadata of a property.
  */
-export type PropertyMetadata = StringPropertyMetadata
+// eslint-disable-next-line typescript/no-explicit-any
+export type PropertyMetadata = StringPropertyMetadata<any, any, any, any, any>
     | NumberPropertyMetadata
     | ObjectPropertyMetadata
     | ArrayPropertyMetadata
@@ -41,7 +44,8 @@ export type RelationMetadata<T extends BaseEntity> = ManyToOnePropertyMetadata<T
 /**
  * The metadata input to define a property.
  */
-export type PropertyMetadataInput = StringPropertyMetadataInput
+// eslint-disable-next-line typescript/no-explicit-any
+export type PropertyMetadataInput = StringPropertyMetadataInput<any, any, any, any, any>
     | NumberPropertyMetadataInput
     | ObjectPropertyMetadataInput
     | ArrayPropertyMetadataInput
@@ -70,8 +74,14 @@ export namespace Property {
      * Defines a string property.
      * @param data - Additional data to specify the property.
      */
-    export function string(data?: StringPropertyMetadataInput): PropertyDecorator {
-        const fullMetadata: StringPropertyMetadata = {
+    export function string<
+        Data,
+        TKey,
+        TEncryptOptions extends BaseEncryptOptions<TKey>,
+        TDecryptOptions extends BaseDecryptOptions<TKey>,
+        THashOptions extends AnyObject
+    >(data?: StringPropertyMetadataInput<Data, TKey, TEncryptOptions, TDecryptOptions, THashOptions>): PropertyDecorator {
+        const fullMetadata: StringPropertyMetadata<Data, TKey, TEncryptOptions, TDecryptOptions, THashOptions> = {
             required: true,
             primary: false,
             type: 'string',
@@ -85,6 +95,8 @@ export namespace Property {
             default: undefined,
             excludeFromChangeSets: typeof data?.exclude === 'boolean' ? data.exclude : false,
             exclude: false,
+            encryption: false,
+            hash: false,
             ...data
         };
         return applyData(fullMetadata, data);
@@ -337,6 +349,13 @@ function applyData(data: PropertyMetadata, inputData: PropertyMetadataInput | un
         if ('primary' in data && data.primary && data.exclude !== false) {
             throw new Error(`${target.constructor.name}.${key.toString()}: Cannot mark a primary key with "exclude."`);
         }
+        if (
+            'encryption' in data && 'hash' in data
+            && data.encryption !== undefined && data.encryption !== false
+            && data.hash !== undefined && data.hash !== false
+        ) {
+            throw new Error(`${target.constructor.name}.${key.toString()}: Cannot set the flags "encryption" and "hash" at the same time.`);
+        }
         const ctor: Newable<unknown> = target.constructor as Newable<unknown>;
         // eslint-disable-next-line unicorn/error-message
         const stack: string = new Error().stack ?? '';
@@ -387,6 +406,8 @@ export function createArrayItemPropertyMetadata(
                 enum: undefined,
                 default: undefined,
                 exclude: false,
+                encryption: false,
+                hash: false,
                 excludeFromChangeSets: typeof data?.exclude === 'boolean' ? data.exclude : false,
                 ...data
             };

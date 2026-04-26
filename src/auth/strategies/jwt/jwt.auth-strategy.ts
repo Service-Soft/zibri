@@ -4,7 +4,7 @@ import { EncodedJwtAccessToken } from './encoded-jwt-access-token.model';
 import { JwtAccessTokenPayload } from './jwt-access-token-payload.model';
 import { JwtAuthData } from './jwt-auth-data.model';
 import { JwtConfirmPasswordResetData } from './jwt-confirm-password-reset-data.model';
-import { JwtCredentials, JwtCredentialsDto } from './jwt-credentials.model';
+import { JwtCredentials, JwtCredentialsCreateData, JwtCredentialsDto } from './jwt-credentials.model';
 import { JwtRefreshLoginData } from './jwt-refresh-login-data.model';
 import { JwtRefreshTokenCleanupCronJob } from './jwt-refresh-token-cleanup.cron-job';
 import { JwtRefreshTokenPayload } from './jwt-refresh-token-payload.model';
@@ -31,7 +31,6 @@ import { OpenApiSecuritySchemeObject } from '../../../open-api/open-api.model';
 import { Newable } from '../../../types/newable.type';
 import { OmitStrict } from '../../../types/omit-strict.type';
 import { Ms } from '../../../utilities/ms';
-import { HashUtilities } from '../../hash.utilities';
 import { BaseUser } from '../../models/base-user.model';
 import { PasswordResetToken, PasswordResetTokenCreateData } from '../../models/password-reset-token.model';
 import { type UserServiceInterface } from '../../user/user-service.interface';
@@ -39,6 +38,7 @@ import { AuthStrategyInterface } from '../auth-strategy.interface';
 import { PasswordResetEmailTemplate } from './jwt-auth.controller';
 import { PreactUtilities } from '../../../preact/preact.utilities';
 import { UUIDUtilities } from '../../../utilities/uuid.utilities';
+import { type HashServiceInterface } from '../../hash/hash-service.interface';
 
 /**
  * Jwt auth strategy implementation of Zibri.
@@ -79,7 +79,7 @@ implements AuthStrategyInterface<
         @InjectRepository(PasswordResetToken)
         private readonly passwordResetTokenRepository: Repository<PasswordResetToken, PasswordResetTokenCreateData>,
         @InjectRepository(JwtCredentials)
-        private readonly credentialsRepository: Repository<JwtCredentials>,
+        private readonly credentialsRepository: Repository<JwtCredentials, JwtCredentialsCreateData>,
         @Inject(ZIBRI_DI_TOKENS.JWT_ACCESS_TOKEN_EXPIRES_IN_MS)
         private readonly accessTokenExpiresInMs: number,
         @Inject(ZIBRI_DI_TOKENS.JWT_REFRESH_TOKEN_EXPIRES_IN_MS)
@@ -89,7 +89,9 @@ implements AuthStrategyInterface<
         @Inject(ZIBRI_DI_TOKENS.USER_SERVICE)
         private readonly userService: UserServiceInterface,
         @Inject(ZIBRI_DI_TOKENS.EMAIL_SERVICE)
-        private readonly emailService: EmailServiceInterface
+        private readonly emailService: EmailServiceInterface,
+        @Inject(ZIBRI_DI_TOKENS.HASH_SERVICE)
+        private readonly hashService: HashServiceInterface
     ) {
         const accessTokenSecret: string | undefined = inject(ZIBRI_DI_TOKENS.JWT_ACCESS_TOKEN_SECRET);
         if (!accessTokenSecret) {
@@ -128,7 +130,7 @@ implements AuthStrategyInterface<
         try {
             const foundUser: UserType = await this.userService.findByEmail(credentials.email);
             const credentialsFound: JwtCredentials = await this.userService.resolveCredentialsFor(foundUser);
-            const passwordMatched: boolean = await HashUtilities.equal(credentials.password, credentialsFound.password);
+            const passwordMatched: boolean = await this.hashService.equal(credentials.password, credentialsFound.password);
             if (!passwordMatched) {
                 throw new UnauthorizedError('Invalid email or password.');
             }
@@ -286,10 +288,8 @@ implements AuthStrategyInterface<
 
         const user: UserType = await this.userService.findById(resetToken.userId);
         const credentials: JwtCredentials = await this.userService.resolveCredentialsFor(user);
-        const hashedPassword: string = await HashUtilities.hash(data.newPassword);
-        credentials.password = hashedPassword;
 
-        await this.credentialsRepository.updateById(credentials.id, credentials, { transaction: data.transaction });
+        await this.credentialsRepository.updateById(credentials.id, { password: data.newPassword }, { transaction: data.transaction });
         await this.passwordResetTokenRepository.deleteById(resetToken.id, { transaction: data.transaction });
         await this.refreshTokenRepository.deleteAll({ userId: resetToken.userId }, { transaction: data.transaction });
         // TODO: set require password change to false

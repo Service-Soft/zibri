@@ -1,7 +1,3 @@
-/**
- * Value for the exclude setting on a property.
- */
-
 import { HttpRequestContext } from '../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
 

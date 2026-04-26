@@ -1,4 +1,4 @@
-import { defineProvider, DiProvider, LoggerTransport, LogLevel, ZIBRI_DI_TOKENS, ZIBRI_INVOICING_PLUGIN_DI_TOKENS, ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from 'zibri';
+import { AesGcmEncryptionStrategy, defineProvider, DiProvider, LoggerTransport, LogLevel, ZIBRI_DI_TOKENS, ZIBRI_INVOICING_PLUGIN_DI_TOKENS, ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from 'zibri';
 
 import { MailingListBaseEmail } from './templates/email-components/mailing-list-base-email';
 import { MailingListSubscribeConfirmationEmail } from './templates/emails/mailing-list-subscribe-confirmation';
@@ -16,6 +16,16 @@ export const providers: DiProvider<unknown>[] = [
     defineProvider({
         token: ZIBRI_DI_TOKENS.LOGGER_TRANSPORTS,
         useFactory: () => [LoggerTransport.console(LogLevel.INFO)]
+    }),
+    defineProvider({
+        token: ZIBRI_DI_TOKENS.ENCRYPTION_MASTER_OPTIONS,
+        useValue: {
+            masterStrategy: new AesGcmEncryptionStrategy(),
+            currentMasterKey: {
+                id: 'k1',
+                value: '42'
+            }
+        }
     }),
     defineProvider({
         token: ZIBRI_DI_TOKENS.PASSWORD_RESET_EMAIL_TEMPLATE,

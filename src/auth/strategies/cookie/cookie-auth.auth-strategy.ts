@@ -29,7 +29,7 @@ import { Newable } from '../../../types/newable.type';
 import { type OmitStrict } from '../../../types/omit-strict.type';
 import { Ms } from '../../../utilities/ms';
 import { UUIDUtilities } from '../../../utilities/uuid.utilities';
-import { HashUtilities } from '../../hash.utilities';
+import { type HashServiceInterface } from '../../hash/hash-service.interface';
 import { BaseUser } from '../../models/base-user.model';
 import { type UserServiceInterface } from '../../user/user-service.interface';
 import { AuthStrategyInterface } from '../auth-strategy.interface';
@@ -102,6 +102,8 @@ export class CookieAuthStrategy<
         private readonly credentialsRepository: Repository<CookieAuthCredentials>,
         @Inject(ZIBRI_DI_TOKENS.EMAIL_SERVICE)
         private readonly emailService: EmailServiceInterface,
+        @Inject(ZIBRI_DI_TOKENS.HASH_SERVICE)
+        private readonly hashService: HashServiceInterface,
         @Inject(ZIBRI_DI_TOKENS.COOKIE_SIGN_SECRET)
         secret: string | undefined
     ) {
@@ -166,7 +168,7 @@ export class CookieAuthStrategy<
         try {
             const foundUser: UserType = await this.userService.findByEmail(credentials.email);
             const credentialsFound: CookieAuthCredentials = await this.userService.resolveCredentialsFor(foundUser);
-            const passwordMatched: boolean = await HashUtilities.equal(credentials.password, credentialsFound.password);
+            const passwordMatched: boolean = await this.hashService.equal(credentials.password, credentialsFound.password);
             if (!passwordMatched) {
                 throw new UnauthorizedError('Invalid email or password.');
             }
@@ -177,8 +179,8 @@ export class CookieAuthStrategy<
                 credentials.transaction,
                 randomBytes(32).toString('base64url')
             );
-            this.setRefreshSessionCookie(refreshSession);
             const session: CookieAuthSession = await this.createSession(refreshSession, credentials.transaction);
+            this.setRefreshSessionCookie(refreshSession);
             this.setSessionCookie(session);
 
             return {
@@ -393,10 +395,8 @@ export class CookieAuthStrategy<
 
         const user: UserType = await this.userService.findById(resetToken.userId);
         const credentials: CookieAuthCredentials = await this.userService.resolveCredentialsFor(user);
-        const hashedPassword: string = await HashUtilities.hash(data.newPassword);
-        credentials.password = hashedPassword;
 
-        await this.credentialsRepository.updateById(credentials.id, credentials, { transaction: data.transaction });
+        await this.credentialsRepository.updateById(credentials.id, { password: data.newPassword }, { transaction: data.transaction });
         await this.passwordResetTokenRepository.deleteById(resetToken.id, { transaction: data.transaction });
         await this.sessionRepository.deleteAll({ userId: resetToken.userId }, { transaction: data.transaction });
         // TODO: set require password change to false

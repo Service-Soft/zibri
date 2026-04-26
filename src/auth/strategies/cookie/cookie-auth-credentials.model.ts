@@ -3,6 +3,7 @@ import { BaseEntity } from '../../../entity/base-entity.model';
 import { Entity } from '../../../entity/decorators/entity.decorator';
 import { Property } from '../../../entity/decorators/property.decorator';
 import { OmitClass } from '../../../entity/omit-class.model';
+import type { HashString } from '../../hash/hash.utilities';
 import { BaseUser } from '../../models/base-user.model';
 
 /**
@@ -23,16 +24,21 @@ export class CookieAuthCredentials extends BaseEntity implements Pick<BaseUser<s
     email!: string;
 
     /**
+     * The hashed password.
+     */
+    @Property.string({ hash: true })
+    password!: HashString;
+}
+
+/**
+ * The data that is used to login a user via the cookie auth auth strategy.
+ */
+export class CookieAuthCredentialsData extends OmitClass(CookieAuthCredentials, ['id', 'userId', 'password']) {
+    /**
      * The password.
      */
     @Property.string()
     password!: string;
-}
-
-/**
- *
- */
-export class CookieAuthCredentialsData extends OmitClass(CookieAuthCredentials, ['id', 'userId']) {
     /**
      * The transaction that this should run in.
      */

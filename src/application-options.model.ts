@@ -29,7 +29,7 @@ export type HstsOptions = {
 };
 
 /**
- * The global security options for a zibri application.
+ * The global security options for a Zibri application.
  */
 export type ZibriApplicationSecurityOptions = {
     /**

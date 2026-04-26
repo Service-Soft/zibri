@@ -2,6 +2,7 @@ import { BaseEntity } from '../../../entity/base-entity.model';
 import { Entity } from '../../../entity/decorators/entity.decorator';
 import { Property } from '../../../entity/decorators/property.decorator';
 import { OmitClass } from '../../../entity/omit-class.model';
+import type { HashString } from '../../hash/hash.utilities';
 import { BaseUser } from '../../models/base-user.model';
 
 /**
@@ -22,16 +23,22 @@ export class JwtCredentials extends BaseEntity implements Pick<BaseUser<string>,
     email!: string;
 
     /**
-     * The password.
+     * The hashed password.
      */
-    @Property.string()
-    password!: string;
+    @Property.string({ hash: true })
+    password!: HashString;
 }
 
 /**
  * The actual credentials sent over http.
  */
-export class JwtCredentialsDto extends OmitClass(JwtCredentials, ['id', 'userId']) {}
+export class JwtCredentialsDto extends OmitClass(JwtCredentials, ['id', 'userId', 'password']) {
+    /**
+     * The password.
+     */
+    @Property.string()
+    password!: string;
+}
 
 /**
  * The data for creating new jwt credentials.

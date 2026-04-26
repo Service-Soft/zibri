@@ -1,6 +1,11 @@
 import { AssetServiceInterface } from '../../assets/asset-service.interface';
 import { TwoFactorServiceInterface } from '../../auth/2fa/two-factor-service.interface';
 import { AuthServiceInterface } from '../../auth/auth-service.interface';
+import { EncryptionMasterOptions } from '../../auth/encryption/encryption-master-options.model';
+import { EncryptionServiceInterface } from '../../auth/encryption/encryption-service.interface';
+import { EncryptionStrategyInterface } from '../../auth/encryption/strategies/encryption-strategy.interface';
+import { HashServiceInterface } from '../../auth/hash/hash-service.interface';
+import { HashStrategyInterface } from '../../auth/hash/strategies/hash-strategy.interface';
 import { CookieAuthSessionOptionsInput } from '../../auth/strategies/cookie/cookie-auth.auth-strategy';
 import { PasswordResetEmailTemplate } from '../../auth/strategies/jwt/jwt-auth.controller';
 import { UserServiceInterface } from '../../auth/user/user-service.interface';
@@ -28,6 +33,7 @@ import { OpenApiServiceInterface } from '../../open-api/open-api-service.interfa
 import { CspOptions } from '../../parsing/html/csp-options.model';
 import { ParserInterface } from '../../parsing/parser.interface';
 import { RouterInterface } from '../../routing/router.interface';
+import { Newable } from '../../types/newable.type';
 import { FsPath } from '../../utilities/fs.utilities';
 import { ValidationServiceInterface } from '../../validation/validation-service.interface';
 import { WebsocketOptions } from '../../websocket/models/websocket-options.model';
@@ -96,6 +102,17 @@ export const ZIBRI_DI_TOKENS = {
     CSRF_TOKEN_HEADER: ziToken<string>('zi.csrf_token_header'),
     DEFAULT_CSP_OPTIONS: ziToken<CspOptions>('zi.default_csp_options'),
     COOKIE_SIGN_SECRET: ziToken<string | undefined>('zi.cookie_sign_secret'),
+    HASH_SERVICE: ziToken<HashServiceInterface>('zi.hash_service'),
+    HASH_STRATEGIES: ziToken<Newable<HashStrategyInterface<Record<string, unknown>>>[]>('zi.hash_strategies'),
+    ENCRYPTION_SERVICE: ziToken<EncryptionServiceInterface>('zi.encryption_service'),
+    ENCRYPTION_STRATEGIES: ziToken<
+        // eslint-disable-next-line typescript/no-explicit-any
+        Newable<EncryptionStrategyInterface<any, any, any>>[]
+    >('zi.encryption_strategies'),
+    // eslint-disable-next-line typescript/no-explicit-any
+    ENCRYPTION_MASTER_OPTIONS: ziToken<EncryptionMasterOptions<any, any, any> | undefined>(
+        'zi.encryption_master_options'
+    ),
     // dynamic/context based tokens
     CURRENT_REQUEST_CONTEXT: ziToken<HttpRequestContext | WebsocketRequestContext | undefined>('zi.current_request_context')
 } as const satisfies TokenRecord;

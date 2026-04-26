@@ -1,5 +1,5 @@
 import { setTimeout } from 'node:timers/promises';
-import { isDeepStrictEqual } from 'util';
+import { isDeepStrictEqual } from 'node:util';
 
 import { Repository as TORepository } from 'typeorm';
 
@@ -12,6 +12,8 @@ import { BaseUser } from '../auth/models/base-user.model';
 import { HttpRequestContext } from '../context/request/http-request.context';
 import { WebsocketRequestContext } from '../context/request/websocket-request.context';
 import { DataSourceInterface } from '../data-source/data-sources/data-source.interface';
+import { BeforeReturnHook } from '../data-source/hooks/before-return';
+import { BeforeSaveHook } from '../data-source/hooks/before-save';
 import { BaseRepositoryOptions } from '../data-source/models/options/base-repository-options.model';
 import { CreateAllOptions } from '../data-source/models/options/create-all-options.model';
 import { CreateOptions } from '../data-source/models/options/create-options.model';
@@ -64,8 +66,15 @@ export class ChangeSetRepository<
     private readonly changeSetRepository: Repository<ChangeSet, CreateChangeSetData>;
     private readonly authService: AuthServiceInterface;
 
-    constructor(entityClass: Newable<T>, repo: TORepository<T> | Repository<T>, logger: LoggerInterface, dataSource: DataSourceInterface) {
-        super(entityClass, repo, logger, dataSource);
+    constructor(
+        entityClass: Newable<T>,
+        repo: TORepository<T> | Repository<T>,
+        logger: LoggerInterface,
+        dataSource: DataSourceInterface,
+        beforeSave: BeforeSaveHook<T, CreateData, UpdateData>,
+        beforeReturn: BeforeReturnHook<T>
+    ) {
+        super(entityClass, repo, logger, dataSource, beforeSave, beforeReturn);
 
         this.authService = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
         this.changeSetRepository = inject(repositoryTokenFor(ChangeSet));
