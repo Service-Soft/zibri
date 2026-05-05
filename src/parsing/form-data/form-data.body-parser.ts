@@ -21,9 +21,9 @@ import { ContentTooLargeError } from '../../error-handling/errors/content-too-la
 import { KnownHeader } from '../../http/known-header.enum';
 import { FileExtension, resolveFileExtension } from '../../http/mime-type.helpers';
 import { HttpClientResponse } from '../../http-client/http-client-response.model';
-import { BigNumber, BigNumberUtilities } from '../../utilities/big-number.utilities';
 import { FsUtilities, FsPath } from '../../utilities/fs.utilities';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { BigNumber, NumberUtilities } from '../../utilities/number.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { BodyParser } from '../decorators/body-parser.decorator';
 import { parseArray } from '../functions/parse-array.function';
@@ -86,8 +86,8 @@ export class FormDataBodyParser implements BodyParserInterface, OnAppInit {
         if (metadata.type !== MimeType.FORM_DATA) {
             throw new Error(`${metadata.type} is not supported`);
         }
-        const contentLength: string | undefined = headers[KnownHeader.CONTENT_LENGTH] ?? headers[KnownHeader.CONTENT_LENGTH];
-        if (contentLength && BigNumberUtilities.new(Number(contentLength)).isGreaterThan(metadata.maxSize)) {
+        const contentLength: string | undefined = headers[KnownHeader.CONTENT_LENGTH];
+        if (contentLength && NumberUtilities.new(Number(contentLength)).isGreaterThan(metadata.maxSize)) {
             throw new ContentTooLargeError();
         }
 
@@ -259,7 +259,7 @@ export class FormDataBodyParser implements BodyParserInterface, OnAppInit {
             const filesMap: Record<string, File[]> = {};
             const filePromises: Promise<void>[] = [];
 
-            let received: BigNumber = BigNumberUtilities.new(0);
+            let received: BigNumber = NumberUtilities.new(0);
             let aborted: boolean = false;
 
             bb.on('field', (name: string, val: string) => {
@@ -268,7 +268,7 @@ export class FormDataBodyParser implements BodyParserInterface, OnAppInit {
                 }
 
                 const bytes: number = Buffer.byteLength(val, 'utf8');
-                received = BigNumberUtilities.add(received, bytes);
+                received = NumberUtilities.add(received, bytes);
                 if (received.isGreaterThan(metadata.maxSize)) {
                     aborted = true;
                     // stop parsing and abort
@@ -304,7 +304,7 @@ export class FormDataBodyParser implements BodyParserInterface, OnAppInit {
                         return;
                     }
 
-                    received = BigNumberUtilities.add(received, chunk.length);
+                    received = NumberUtilities.add(received, chunk.length);
                     if (received.isGreaterThan(metadata.maxSize)) {
                         aborted = true;
                         writeStream.destroy();

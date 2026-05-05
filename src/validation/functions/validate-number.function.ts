@@ -1,9 +1,12 @@
+import assert from 'node:assert';
+
 import { HttpRequestContext } from '../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
-import { NumberPropertyMetadata } from '../../entity/models/number-property-metadata.model';
+import { NumberFormat, NumberPropertyMetadata } from '../../entity/models/number-property-metadata.model';
+import { INTEGER_REGEX } from '../../parsing/functions/parse-number.function';
 import { QueryParamMetadata, HeaderParamMetadata, PathParamMetadata } from '../../routing/decorators/param.decorator';
 import { NumberParamMetadata } from '../../routing/models/number-param-metadata.model';
 import { ObjectUtilities } from '../../utilities/object.utilities';
@@ -38,8 +41,17 @@ export async function validateNumber(
             return [];
         }
     }
-    if (typeof property !== 'number') {
+    if (typeof property !== 'number' && meta.format !== 'bigint') {
         return [new TypeMismatchValidationProblem(fullKey, 'number')];
+    }
+    if (typeof property !== 'bigint' && meta.format === 'bigint') {
+        return [new TypeMismatchValidationProblem(fullKey, 'BigIntString')];
+    }
+
+    assert(typeof property === 'bigint' || typeof property === 'number');
+
+    if (meta.format && !isFormatValid(meta.format, property)) {
+        return [{ key: fullKey, message: `needs to be in format "${meta.format}"` }];
     }
     if (meta.enum && !ObjectUtilities.values(meta.enum).includes(property)) {
         return [{ key: fullKey, message: `needs to match one of "${ObjectUtilities.values(meta.enum)}"` }];
@@ -51,4 +63,16 @@ export async function validateNumber(
         return [{ key: fullKey, message: `needs to be at most ${meta.max}` }];
     }
     return [];
+}
+
+// eslint-disable-next-line jsdoc/require-jsdoc
+function isFormatValid(format: NumberFormat, value: number | bigint): boolean {
+    switch (format) {
+        case 'bigint': {
+            return INTEGER_REGEX.test(value.toString());
+        }
+        case 'integer': {
+            return Number.isInteger(value);
+        }
+    }
 }

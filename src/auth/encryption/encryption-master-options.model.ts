@@ -27,11 +27,15 @@ export type EncryptionMasterOptions<
      */
     currentMasterKey: EncryptionMasterKey<TKey>,
     /**
-     * Any old master keys.
-     */
-    oldMasterKeys?: EncryptionMasterKey<TKey>[],
-    /**
      * The strategy that is used to encrypt encryption keys.
      */
-    masterStrategy: EncryptionStrategyInterface<TKey, TEncryptOptions, TDecryptOptions>
+    currentMasterStrategy: EncryptionStrategyInterface<TKey, TEncryptOptions, TDecryptOptions>,
+    /**
+     * Any old master keys.
+     */
+    oldMasterKeys?: EncryptionMasterKey<unknown>[],
+    /**
+     * Any old master strategies.
+     */
+    oldMasterStrategies?: EncryptionStrategyInterface<unknown>[]
 };

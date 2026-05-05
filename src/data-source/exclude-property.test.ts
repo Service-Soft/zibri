@@ -1,10 +1,10 @@
-/* eslint-disable typescript/no-unsafe-assignment */
 import { describe, expect, it } from '@jest/globals';
 
 import { BaseEntity } from '../entity/base-entity.model';
 import { Property } from '../entity/decorators/property.decorator';
 import { removeExcludeProperties } from '../global/model-registry/remove-exclude-properties.function';
 import { restoreExcludeProperties } from '../global/model-registry/restore-exclude-properties.function';
+import { JsonUtilities } from '../utilities/json.utilities';
 
 // ─── Test entities ────────────────────────────────────────────────────────────
 
@@ -106,21 +106,21 @@ describe('removeExcludeProperties', () => {
         });
     });
 
-    describe('JSON serialization', () => {
-        it('excluded properties are absent from JSON.stringify output', async () => {
+    describe('JsonUtilities serialization', () => {
+        it('excluded properties are absent from JsonUtilities.stringify output', async () => {
             const user: User = makeUser();
             await removeExcludeProperties(user, User);
 
-            const json: unknown = JSON.parse(JSON.stringify(user));
+            const json: unknown = JsonUtilities.parse(JsonUtilities.stringify(user));
             expect(json).not.toHaveProperty('passwordHash');
             expect(json).not.toHaveProperty('secret');
         });
 
-        it('non-excluded properties are present in JSON.stringify output', async () => {
+        it('non-excluded properties are present in JsonUtilities.stringify output', async () => {
             const user: User = makeUser();
             await removeExcludeProperties(user, User);
 
-            const json: unknown = JSON.parse(JSON.stringify(user));
+            const json: unknown = JsonUtilities.parse(JsonUtilities.stringify(user));
             expect(json).toHaveProperty('name', 'Alice');
             expect(json).toHaveProperty('id', 'user-1');
         });
@@ -208,7 +208,7 @@ describe('removeExcludeProperties', () => {
             const user: User = makeUser();
             await removeExcludeProperties(user, User);
 
-            const json: User = JSON.parse(JSON.stringify(user));
+            const json: User = JsonUtilities.parse(JsonUtilities.stringify(user));
             expect(json.address).not.toHaveProperty('internalCode');
             expect(json.address).toHaveProperty('street', '123 Main St');
         });
@@ -241,7 +241,7 @@ describe('removeExcludeProperties', () => {
             const user: User = makeUser();
             await removeExcludeProperties(user, User);
 
-            const json: User = JSON.parse(JSON.stringify(user));
+            const json: User = JsonUtilities.parse(JsonUtilities.stringify(user));
             expect(json.orders[0]).not.toHaveProperty('internalNote');
             expect(json.orders[0]).toHaveProperty('total', 99);
         });
@@ -304,12 +304,12 @@ describe('restoreExcludeProperties', () => {
         expect(Object.keys(user)).toContain('secret');
     });
 
-    it('restored properties appear in JSON.stringify output', async () => {
+    it('restored properties appear in JsonUtilities.stringify output', async () => {
         const user: User = makeUser();
         await removeExcludeProperties(user, User);
         restoreExcludeProperties(user, User);
 
-        const json: User = JSON.parse(JSON.stringify(user));
+        const json: User = JsonUtilities.parse(JsonUtilities.stringify(user));
         expect(json).toHaveProperty('passwordHash', 'hashed-pw');
     });
 
@@ -352,7 +352,7 @@ describe('restoreExcludeProperties', () => {
     describe('round-trip', () => {
         it('remove then restore produces an object equal to the original', async () => {
             const user: User = makeUser();
-            const original: User = JSON.parse(JSON.stringify({
+            const original: User = JsonUtilities.parse(JsonUtilities.stringify({
                 ...user,
                 passwordHash: user.passwordHash,
                 secret: user.secret,
@@ -363,7 +363,7 @@ describe('restoreExcludeProperties', () => {
             await removeExcludeProperties(user, User);
             restoreExcludeProperties(user, User);
 
-            expect(JSON.parse(JSON.stringify(user))).toEqual(original);
+            expect(JsonUtilities.parse(JsonUtilities.stringify(user))).toEqual(original);
         });
     });
 });

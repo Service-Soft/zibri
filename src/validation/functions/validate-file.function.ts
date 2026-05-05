@@ -6,7 +6,7 @@ import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { fileSizeToBytes } from '../../entity/models/file-property-metadata.model';
 import { MimeType } from '../../http/mime-type.enum';
 import { File } from '../../parsing/form-data/file.model';
-import { BigNumberUtilities } from '../../utilities/big-number.utilities';
+import { NumberUtilities } from '../../utilities/number.utilities';
 import { MaxFileSizeValidationProblem, IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationProblem, MimeTypeMismatchValidationProblem } from '../validation-problem.model';
 
 /**
@@ -39,7 +39,7 @@ export async function validateFile(
         return [new TypeMismatchValidationProblem(fullKey, 'file')];
     }
 
-    if (BigNumberUtilities.new(property.size).isGreaterThan(fileSizeToBytes(metadata.maxSize))) {
+    if (NumberUtilities.new(property.size).isGreaterThan(fileSizeToBytes(metadata.maxSize))) {
         return [new MaxFileSizeValidationProblem(fullKey, metadata.maxSize)];
     }
     if (metadata.allowedMimeTypes !== 'all' && !metadata.allowedMimeTypes.includes(property.mimetype as MimeType)) {

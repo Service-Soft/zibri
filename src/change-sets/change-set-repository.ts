@@ -1,4 +1,3 @@
-import { setTimeout } from 'node:timers/promises';
 import { isDeepStrictEqual } from 'node:util';
 
 import { Repository as TORepository } from 'typeorm';
@@ -31,7 +30,9 @@ import { restoreExcludeProperties } from '../global/model-registry/restore-exclu
 import { LoggerInterface } from '../logging/logger.interface';
 import { DeepPartial } from '../types/deep-partial.type';
 import { Newable } from '../types/newable.type';
+import { JsonUtilities } from '../utilities/json.utilities';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
+import { nowInNs } from '../utilities/now-in-ns.function';
 import { ObjectUtilities } from '../utilities/object.utilities';
 import { PromiseUtilities } from '../utilities/promise.utilities';
 
@@ -204,7 +205,7 @@ export class ChangeSetRepository<
      * Rolls back all changes on the given entity that have happened since the given change set.
      * This DOES NOT preserve any changes that happened after the change set.
      * The given change set and any change sets after that will be deleted in the end.
-     * Calls rollbackByDate on the change set date internally.
+     * Calls rollbackToTimestamp on the change set timestamp internally.
      * @param entity - The entity to rollback.
      * @param changeSetId - The id of the changeSet to rollback to.
      * @param createChangeSet - Whether or not a change set should be created.
@@ -221,14 +222,14 @@ export class ChangeSetRepository<
         options?: BaseRepositoryOptions
     ): Promise<T> {
         const changeSet: ChangeSet = await this.changeSetRepository.findById(changeSetId, options);
-        return this.rollbackToDate(entity, changeSet.createdAt, createChangeSet, preserveCreateChangeSet, options);
+        return this.rollbackToTimestamp(entity, changeSet.createdAt, createChangeSet, preserveCreateChangeSet, options);
     }
 
     /**
      * Rolls back all changes on the entity with the given id that have happened since the given change set.
      * This DOES NOT preserve any changes that happened after the change set.
      * The given change set and any change sets after that will be deleted in the end.
-     * Calls rollbackByDate on the change set date internally.
+     * Calls rollbackToTimestampById on the change set timestamp internally.
      * @param id - The id of the entity to rollback.
      * @param changeSetId - The id of the changeSet to rollback to.
      * @param createChangeSet - Whether or not a change set should be created.
@@ -250,30 +251,30 @@ export class ChangeSetRepository<
                 'Could not rollback to the given change set: The changeSet doesn\'t belong to the entity with the given id.'
             );
         }
-        return this.rollbackToDateById(id, changeSet.createdAt, createChangeSet, preserveCreateChangeSet, options);
+        return this.rollbackToTimestampById(id, changeSet.createdAt, createChangeSet, preserveCreateChangeSet, options);
     }
 
     /**
-     * Rolls back all changes on the given entity that have happened since the given date.
-     * This DOES NOT preserve any changes that happened after the date.
-     * Any change sets after the given date will be deleted in the end.
+     * Rolls back all changes on the given entity that have happened since the given timestamp.
+     * This DOES NOT preserve any changes that happened after the timestamp.
+     * Any change sets after the given timestamp will be deleted in the end.
      * @param entity - The entity to rollback.
-     * @param date - The date to which the rollback should happen.
+     * @param timestampInNs - The timestamp to which the rollback should happen with nanosecond precision.
      * @param createChangeSet - Whether or not a change set should be created.
      * @param preserveCreateChangeSet - Whether or not create change sets should be preserved.
      * In that case the entity gets reset to the state after the create change set. Also, the create change set isn't deleted.
      * @param options - Additional options, eg. Transaction.
      * @returns The updated entity.
      */
-    async rollbackToDate(
+    async rollbackToTimestamp(
         entity: T,
-        date: Date,
+        timestampInNs: bigint,
         createChangeSet: boolean = true,
         preserveCreateChangeSet: boolean = true,
         options?: BaseRepositoryOptions
     ): Promise<T> {
         const changeSets: ChangeSet[] = await this.changeSetRepository.findAll({
-            where: { changeSetEntityId: entity.id, createdAt: { after: date } },
+            where: { changeSetEntityId: entity.id, createdAt: { greaterThan: timestampInNs } },
             relations: ['changes'],
             order: { createdAt: 'ASC' }
         });
@@ -295,33 +296,33 @@ export class ChangeSetRepository<
     }
 
     /**
-     * Rolls back all changes on the entity with the given id that have happened since the given date.
-     * This DOES NOT preserve any changes that happened after the date.
-     * Any change sets after the given date will be deleted in the end.
+     * Rolls back all changes on the entity with the given id that have happened since the given timestamp.
+     * This DOES NOT preserve any changes that happened after the timestamp.
+     * Any change sets after the given timestamp will be deleted in the end.
      * @param id - The id of the entity to rollback.
-     * @param date - The date to which the rollback should happen.
+     * @param timestampInNs - The timestamp to which the rollback should happen with nanosecond precision.
      * @param createChangeSet - Whether or not a change set should be created.
      * @param preserveCreateChangeSet - Whether or not create change sets should be preserved.
      * In that case the entity gets reset to the state after the create change set. Also, the create change set isn't deleted.
      * @param options - Additional options, eg. Transaction.
      * @returns The updated entity.
      */
-    async rollbackToDateById(
+    async rollbackToTimestampById(
         id: T['id'],
-        date: Date,
+        timestampInNs: bigint,
         createChangeSet: boolean = true,
         preserveCreateChangeSet: boolean = true,
         options?: BaseRepositoryOptions
     ): Promise<T> {
         const entity: T = await this.findById(id, options);
-        return this.rollbackToDate(entity, date, createChangeSet, preserveCreateChangeSet, options);
+        return this.rollbackToTimestamp(entity, timestampInNs, createChangeSet, preserveCreateChangeSet, options);
     }
 
     /**
-     * Rolls back all changes on the entities found with the given where filter to the state of the given date.
-     * This DOES NOT preserve any changes that happened after the date.
-     * Any change sets after the given date will be deleted in the end.
-     * @param date - The date to which the rollback should happen.
+     * Rolls back all changes on the entities found with the given where filter to the state of the given timestamp.
+     * This DOES NOT preserve any changes that happened after the timestamp.
+     * Any change sets after the given timestamp will be deleted in the end.
+     * @param timestampInNs - The timestamp to which the rollback should happen with nanosecond precision.
      * @param where - A filter to only rollback some entities.
      * @param createChangeSet - Whether or not a change set should be created.
      * @param preserveCreateChangeSet - Whether or not create change sets should be preserved.
@@ -329,8 +330,8 @@ export class ChangeSetRepository<
      * @param options - Additional options, eg. Transaction.
      * @returns The updated entity.
      */
-    async rollbackAllToDate(
-        date: Date,
+    async rollbackAllToTimestamp(
+        timestampInNs: bigint,
         where?: Where<T>,
         createChangeSet: boolean = true,
         preserveCreateChangeSet: boolean = true,
@@ -339,7 +340,7 @@ export class ChangeSetRepository<
         const entitiesToRollback: T[] = await this.findAll({ where: where, ...options });
         await PromiseUtilities.allChunked(
             entitiesToRollback,
-            e => this.rollbackToDate(e, date, createChangeSet, preserveCreateChangeSet, options)
+            e => this.rollbackToTimestamp(e, timestampInNs, createChangeSet, preserveCreateChangeSet, options)
         );
         return entitiesToRollback.length;
     }
@@ -360,8 +361,6 @@ export class ChangeSetRepository<
         options?: CreateOptions,
         force: boolean = false
     ): Promise<void> {
-        await setTimeout(1); // TODO: Better way to guarantee a different time stamp on change sets.
-
         restoreExcludeProperties(entityPriorChanges, this.entityClass);
         restoreExcludeProperties(data, this.entityClass);
         const changes: NewChange[] = this.getChangesFromData(entityPriorChanges, data, type);
@@ -377,7 +376,7 @@ export class ChangeSetRepository<
         const changeSetData: CreateChangeSetData = {
             changeSetEntityId: entityPriorChanges.id,
             type: type,
-            createdAt: new Date(),
+            createdAt: nowInNs(),
             createdBy: await this.getCreatedBy(),
             changes
         };
@@ -401,7 +400,6 @@ export class ChangeSetRepository<
         force: boolean = false
     ): Promise<void> {
         const userId: string | undefined = await this.getCreatedBy();
-        await setTimeout(1); // TODO: Better way to guarantee a different time stamp on change sets.
 
         let changeSetData: CreateChangeSetData[] = await Promise.all(entitiesPriorChanges.map(async (e, i) => {
             restoreExcludeProperties(e, this.entityClass);
@@ -415,7 +413,7 @@ export class ChangeSetRepository<
             return {
                 changeSetEntityId: e.id,
                 type,
-                createdAt: new Date(),
+                createdAt: nowInNs(),
                 createdByUserId: userId,
                 changes
             };
@@ -499,7 +497,7 @@ export class ChangeSetRepository<
     ): boolean {
         return !(
             isDeepStrictEqual(previousValue, newValue)
-            || JSON.stringify(previousValue) === JSON.stringify(newValue)
+            || JsonUtilities.stringify(previousValue) === JsonUtilities.stringify(newValue)
         );
     }
 }

@@ -12,9 +12,11 @@ import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
+import { isError } from '../error-handling/is-error.function';
 import { GlobalRegistry } from '../global/global-registry';
 import { OnAppInit } from '../global/on-app-init.interface';
 import { KnownHeader } from '../http/known-header.enum';
+import { OmitStrict } from '../types/omit-strict.type';
 import { UUIDUtilities } from '../utilities/uuid.utilities';
 
 /**
@@ -39,30 +41,30 @@ export class Logger implements LoggerInterface, OnAppInit {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async debug(message: string, context?: LogContextInput): Promise<void> {
-        await this.log(LogLevel.DEBUG, message, undefined, context);
+        await this.log(LogLevel.DEBUG, message, context);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async info(message: string, context?: LogContextInput): Promise<void> {
-        await this.log(LogLevel.INFO, message, undefined, context);
+        await this.log(LogLevel.INFO, message, context);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async warn(message: string, context?: LogContextInput): Promise<void> {
-        await this.log(LogLevel.WARN, message, undefined, context);
+        await this.log(LogLevel.WARN, message, context);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async error(error: Error, context?: LogContextInput): Promise<void> {
-        await this.log(LogLevel.ERROR, error.message, error, context);
+    async error(error: Error, context?: OmitStrict<LogContextInput, 'error'>): Promise<void> {
+        await this.log(LogLevel.ERROR, error.message, { ...context, error });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async critical(error: Error, context?: LogContextInput): Promise<void> {
-        await this.log(LogLevel.CRITICAL, error.message, error, context);
+    async critical(error: Error, context?: OmitStrict<LogContextInput, 'error'>): Promise<void> {
+        await this.log(LogLevel.CRITICAL, error.message, { ...context, error });
     }
 
-    private async log(level: LogLevel, message: string, error: Error | undefined, context: LogContextInput | undefined): Promise<void> {
+    private async log(level: LogLevel, message: string, context: LogContextInput | undefined): Promise<void> {
         if (!this.transports.find(t => t.config.level <= level)) {
             return;
         }
@@ -71,9 +73,13 @@ export class Logger implements LoggerInterface, OnAppInit {
         const line: string = (new Error().stack ?? '').split('\n')[3];
         const matches: RegExpMatchArray | null = line.match(/\((.*):\d+:\d+\)/);
         const origin: string = matches?.[0].split('(')[1].split(')')[0] ?? 'unknown';
-        let request: LogRequestContext | undefined = context?.request;
+        let error: Error | undefined;
+        if (context && 'error' in context) {
+            error = isError(context.error) ? context.error : new Error('Error');
+        }
+        let request: LogRequestContext | undefined;
         const requestContext: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
-        if (!request && requestContext?.type === 'http-request') {
+        if (requestContext?.type === 'http-request') {
             request = {
                 status: requestContext.request.res?.statusCode,
                 // TODO
@@ -89,8 +95,13 @@ export class Logger implements LoggerInterface, OnAppInit {
             createdAt: new Date(),
             cleanupAt: new Date(Date.now() + this.cleanupAfterMs[level]),
             message,
-            error: error ? errorToLoggedError(error) : undefined,
-            context: { origin, request },
+            context: {
+                ...context,
+                origin,
+                request,
+                error: error ? errorToLoggedError(error) : undefined,
+                cache: inject(ZIBRI_DI_TOKENS.CURRENT_CACHE_CONTEXT)
+            },
             level
         };
 

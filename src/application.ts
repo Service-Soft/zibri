@@ -37,9 +37,9 @@ import { ZibriPlugin } from './plugin/plugin.model';
 import { Route } from './routing/controller-route-configuration.model';
 import { DeepPartial } from './types/deep-partial.type';
 import { OmitStrict } from './types/omit-strict.type';
-import { BigNumberUtilities } from './utilities/big-number.utilities';
 import { FsUtilities } from './utilities/fs.utilities';
 import { Ms } from './utilities/ms';
+import { NumberUtilities } from './utilities/number.utilities';
 import { PromiseUtilities } from './utilities/promise.utilities';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
@@ -54,7 +54,7 @@ const SHUTDOWN_SIGNALS = ['SIGTERM', 'SIGINT', 'SIGHUP'] as const;
 const DEFAULT_SHUTDOWN_TIMEOUT_IN_MS: number = Ms.SECOND * 30;
 
 const defaultHstsOptions: HstsOptions = {
-    maxAgeSeconds: BigNumberUtilities.multiply(Ms.YEAR, 2).dividedBy(1000)
+    maxAgeSeconds: NumberUtilities.multiply(Ms.YEAR, 2).dividedBy(1000)
         .toNumber(),
     includeSubDomains: true,
     preload: false

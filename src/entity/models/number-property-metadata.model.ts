@@ -3,6 +3,11 @@ import { AnyEnum } from '../../types/any-enum.type';
 import { OmitStrict } from '../../types/omit-strict.type';
 
 /**
+ * The possible formats a number value can have.
+ */
+export type NumberFormat = 'integer' | 'bigint';
+
+/**
  * Metadata for number properties.
  */
 export type NumberPropertyMetadata = BasePropertyMetadata & WithDefaultMetadata<number> & {
@@ -19,6 +24,13 @@ export type NumberPropertyMetadata = BasePropertyMetadata & WithDefaultMetadata<
      * Whether or not the property should be unique.
      */
     unique: boolean,
+    /**
+     * The format of the property, or undefined if none.
+     *
+     * CAUTION:
+     * The 'bigint' format is handled as a string/BigIntString, because the native bigint type causes problems with serialization into json.
+     */
+    format: NumberFormat | undefined,
     /**
      * The minimum value of the property.
      */

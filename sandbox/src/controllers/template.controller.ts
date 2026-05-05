@@ -48,7 +48,6 @@ export class TemplateController {
             cleanupAt: new Date(),
             level: logLevel,
             message: 'test 42',
-            error: errorToLoggedError(new Error('Something Failed')),
             context: {
                 origin,
                 request: {
@@ -56,7 +55,8 @@ export class TemplateController {
                     url: 'http://localhost:3000/templates/log',
                     clientIp: '123.456.789.10',
                     userAgent: 'Mozilla/Firefox'
-                }
+                },
+                error: errorToLoggedError(new Error('Something Failed'))
             }
         };
 

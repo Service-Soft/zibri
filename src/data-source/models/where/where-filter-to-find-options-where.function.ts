@@ -136,7 +136,7 @@ type ArrayWhereFilterKeys = (
  */
 type WhereFilterKeys = ArrayWhereFilterKeys
     | keyof ExcludeStrict<DateWhereFilter, BaseWhereFilter<Date>>
-    | keyof ExcludeStrict<NumberWhereFilter, BaseWhereFilter<number>>
+    | keyof ExcludeStrict<NumberWhereFilter<number | bigint>, BaseWhereFilter<number | bigint>>
     | ObjectWhereFilterKeys
     | keyof ExcludeStrict<StringWhereFilter, BaseWhereFilter<string>>;
 

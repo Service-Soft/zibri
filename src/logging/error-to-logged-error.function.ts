@@ -1,5 +1,6 @@
 /* eslint-disable jsdoc/require-jsdoc */
 import { LoggedError } from './logged-error.model';
+import { JsonUtilities } from '../utilities/json.utilities';
 
 export function errorToLoggedError(error: Error): LoggedError {
     const res: LoggedError = {
@@ -26,7 +27,7 @@ function errorToParagraphs(error: Error, indent: string = ''): string[] {
             paragraphs.push(...errorToParagraphs(error.cause, newIndent));
         }
         else {
-            paragraphs.push(`${newIndent}caused by:`, ...JSON.stringify(error.cause, undefined, 2).split('\n'));
+            paragraphs.push(`${newIndent}caused by:`, ...JsonUtilities.stringify(error.cause, undefined, 2).split('\n'));
         }
     }
 

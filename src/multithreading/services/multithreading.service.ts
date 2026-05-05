@@ -17,6 +17,7 @@ import { OnAppShutdown } from '../../global/on-app-shutdown.interface';
 import { type LoggerInterface } from '../../logging/logger.interface';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { FsUtilities, FsPath } from '../../utilities/fs.utilities';
+import { JsonUtilities } from '../../utilities/json.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from '../models/base-thread-job-worker-data.model';
 import { type MultithreadingOptions } from '../models/multithreading-options.model';
@@ -321,7 +322,7 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
     }
 
     private async handleWorkerMessage<MessageType>(message: MessageType, threadId: number): Promise<void> {
-        await this.logger.debug(`got message from worker:\n${JSON.stringify(message, undefined, 2)}`);
+        await this.logger.debug(`got message from worker:\n${JsonUtilities.stringify(message, undefined, 2)}`);
 
         const job: ThreadJob<BaseThreadJobWorkerData, unknown> | undefined = this.getJobByThreadId(threadId);
         if (!job) {

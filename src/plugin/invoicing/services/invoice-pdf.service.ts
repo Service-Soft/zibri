@@ -8,7 +8,7 @@ import { PdfContentDefinition, PdfColumnDefinition, PdfDocument, PdfDocumentDefi
 import { type FormatDateFn } from '../../../localization/formatting/format-date-fn.model';
 import { type FormatPercentFn } from '../../../localization/formatting/format-percent-fn.model';
 import { type FormatPriceFn } from '../../../localization/formatting/format-price-fn.model';
-import { BigNumber } from '../../../utilities/big-number.utilities';
+import { BigNumber } from '../../../utilities/number.utilities';
 import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../invoicing.tokens';
 import { Invoice } from '../models/invoice.model';
 import { type InvoicingOptions } from '../models/invoicing-options.model';

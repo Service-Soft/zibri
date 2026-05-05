@@ -37,6 +37,7 @@ import type { ValidationServiceInterface } from '../validation/validation-servic
 import { ControllerData } from './decorators/controller.decorator';
 import { AlsUtilities } from '../context/als.utilities';
 import { HttpRequestContext } from '../context/request/http-request.context';
+import { JsonUtilities } from '../utilities/json.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
 
 /**
@@ -340,7 +341,7 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
             return;
         }
 
-        res.json(result);
+        res.json(JsonUtilities.parse(JsonUtilities.stringify(result)));
     }
 
     private async returnFileResult(res: HttpResponse, result: FileResponse, next: NextFunction): Promise<void> {

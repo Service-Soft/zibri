@@ -13,6 +13,7 @@ import { WebsocketRequestContext } from '../context/request/websocket-request.co
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { FsUtilities, FsPath } from '../utilities/fs.utilities';
+import { JsonUtilities } from '../utilities/json.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
 
 /**
@@ -324,8 +325,7 @@ export abstract class PreactUtilities {
         }
         try {
             const manifestPath: FsPath = FsUtilities.getPath(process.cwd(), 'assets', 'public', 'vendor', 'manifest.json');
-            // eslint-disable-next-line typescript/no-unsafe-assignment
-            this.clientManifest = JSON.parse(await FsUtilities.readFile(manifestPath));
+            this.clientManifest = JsonUtilities.parse(await FsUtilities.readFile(manifestPath));
         }
         catch {
             this.clientManifest = {};
@@ -744,7 +744,7 @@ export abstract class PreactUtilities {
             }
         }
 
-        const safe: string = JSON.stringify(serializableProps, undefined, 4)
+        const safe: string = JsonUtilities.stringify(serializableProps, undefined, 4)
             .split('\n')
             .map((l, i) => i === 0 ? l : '    ' + l)
             .join('\n')
@@ -1030,8 +1030,7 @@ export abstract class PreactUtilities {
 
             for (const [key, value] of ObjectUtilities.entries(propBindings)) {
                 if (key.startsWith('__propsObj_')) {
-                    // eslint-disable-next-line typescript/no-unsafe-assignment
-                    const parsed: Record<string, string> = JSON.parse(value);
+                    const parsed: Record<string, string> = JsonUtilities.parse(value);
                     for (const [propName, resolvedName] of ObjectUtilities.entries(parsed)) {
                         entries.push(`${propName}: ${resolveValue(resolvedName)}`);
                     }
@@ -1050,7 +1049,7 @@ export abstract class PreactUtilities {
             }
 
             for (const [propName, val] of ObjectUtilities.entries(propValues)) {
-                entries.push(`${propName}: ${JSON.stringify(val)}`);
+                entries.push(`${propName}: ${JsonUtilities.stringify(val)}`);
             }
 
             if (entries.length) {
@@ -1090,7 +1089,7 @@ export abstract class PreactUtilities {
                 const propName: string = destructureRenameMap.get(localName) ?? localName;
 
                 if (propName in propValues) {
-                    lines.push(`    const ${prefix}${localName} = ${JSON.stringify(propValues[propName])};`);
+                    lines.push(`    const ${prefix}${localName} = ${JsonUtilities.stringify(propValues[propName])};`);
                     continue;
                 }
                 if (defaultSrc !== undefined) {

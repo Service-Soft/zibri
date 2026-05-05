@@ -20,7 +20,7 @@ export const providers: DiProvider<unknown>[] = [
     defineProvider({
         token: ZIBRI_DI_TOKENS.ENCRYPTION_MASTER_OPTIONS,
         useValue: {
-            masterStrategy: new AesGcmEncryptionStrategy(),
+            currentMasterStrategy: new AesGcmEncryptionStrategy(),
             currentMasterKey: {
                 id: 'k1',
                 value: '42'

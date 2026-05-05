@@ -18,10 +18,10 @@ export class ChangeSet extends BaseEntity {
     @Property.string({ enum: ChangeSetType })
     type!: ChangeSetType;
     /**
-     * The time at which the change happened.
+     * The time at which the change happened with nanosecond precision.
      */
-    @Property.date()
-    createdAt!: Date;
+    @Property.number({ format: 'bigint' })
+    createdAt!: bigint;
     /**
      * The id of the user that changed something.
      */

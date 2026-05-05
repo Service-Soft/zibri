@@ -1,0 +1,57 @@
+import { AlsUtilities } from '../../../context/als.utilities';
+import { LogCacheContext } from '../../../logging/log-context.model';
+import { CacheOperation } from '../cache-operation.enum';
+import { ResultCacheKeyProvider, CacheWrapWriteOptionsWithResult } from '../cache-options.model';
+import { CacheInterface } from '../cache.interface';
+import { ReadThroughCache } from './read-through.cache';
+
+/**
+ * A write-through read-through cache.
+ */
+export abstract class WriteThroughReadThroughCache<K, V, CacheTag extends string = string>
+    extends ReadThroughCache<K, V, CacheTag>
+    implements CacheInterface<K, V, CacheTag, true> {
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    wrapWrite<TArgs extends unknown[]>(
+        fn: (...args: TArgs) => V | Promise<V>,
+        keyFn: ResultCacheKeyProvider<K, V, TArgs>,
+        options?: CacheWrapWriteOptionsWithResult<V, TArgs, CacheTag>
+    ): (...args: TArgs) => Promise<V> {
+        return async (...args) => {
+            const cacheCtx: LogCacheContext = { cache: this.name, operation: CacheOperation.WRITE };
+
+            return AlsUtilities.runWithCacheContext(cacheCtx, async () => {
+                const sourceStart: number = performance.now();
+                const value: V = await fn(...args);
+                const sourceDuration: number = performance.now() - sourceStart;
+                cacheCtx.durationInMs = sourceDuration;
+                this.metrics.sourceDuration.observe({ cache: this.name, operation: CacheOperation.WRITE }, sourceDuration);
+
+                await this.safeInvalidateTags(options?.invalidatesTags, value, args);
+
+                try {
+                    const key: K = keyFn(value, ...args);
+                    cacheCtx.key = key;
+                    const tags: CacheTag[] = this.resolveResultTags(options?.tags, value, args);
+                    const ttl: number | undefined = this.resolveResultTtl(options?.ttl, value, args);
+
+                    const storeStart: number = performance.now();
+                    await this.store.set(key, this.createCachedValue(value, tags, ttl));
+                    this.metrics.storeDuration.observe({ cache: this.name, operation: 'set' }, performance.now() - storeStart);
+                    this.metrics.writes.increase({ cache: this.name });
+                    await this.updateSizeGauge();
+                }
+                catch (error) {
+                    this.metrics.errors.increase({ cache: this.name, operation: 'set' });
+                    await this.logger.warn(
+                        'Cache store failed after successful source write, source write was not rolled back',
+                        { error }
+                    );
+                }
+
+                return value;
+            });
+        };
+    }
+}

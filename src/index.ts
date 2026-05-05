@@ -494,6 +494,41 @@ export * from './http-client/http-client.interface';
 export * from './http-client/http-client-response.model';
 export * from './http-client/http-client.error';
 
+// caching
+export * from './caching/cache-metrics.model';
+export * from './caching/cache-service.interface';
+export * from './caching/cache-tag-matchers';
+export * from './caching/cache.service';
+
+export * from './caching/cache/base-cache.model';
+export * from './caching/cache/cache-operation.enum';
+export * from './caching/cache/cache-options.model';
+export * from './caching/cache/cache.interface';
+
+export * from './caching/cache/read-aside/read-aside.cache';
+export * from './caching/cache/read-aside/write-around-read-aside.cache';
+export * from './caching/cache/read-aside/write-behind-read-aside.cache';
+export * from './caching/cache/read-aside/write-invalidate-read-aside-args-only.cache';
+export * from './caching/cache/read-aside/write-invalidate-read-aside-with-result.cache';
+export * from './caching/cache/read-aside/write-through-read-aside.cache';
+
+export * from './caching/cache/read-through/read-through.cache';
+export * from './caching/cache/read-through/write-around-read-through.cache';
+export * from './caching/cache/read-through/write-behind-read-through.cache';
+export * from './caching/cache/read-through/write-invalidate-read-through-args-only.cache';
+export * from './caching/cache/read-through/write-invalidate-read-through-with-result.cache';
+export * from './caching/cache/read-through/write-through-read-through.cache';
+
+export * from './caching/decorators/cache-delete.decorator';
+export * from './caching/decorators/cache-invalidate.decorator';
+export * from './caching/decorators/cache-write.decorator';
+export * from './caching/decorators/cache.decorator';
+export * from './caching/decorators/cached.decorator';
+
+export * from './caching/store/cache-store.interface';
+export * from './caching/store/cached-value.model';
+export * from './caching/store/in-memory.cache-store';
+
 // types
 export * from './types/any-enum.type';
 export * from './types/deep-partial.type';
@@ -504,13 +539,17 @@ export * from './types/percentage.type';
 export * from './types/version.type';
 
 // utilities
+export * from './utilities/bytes';
+export * from './utilities/doubly-linked-list';
 export * from './utilities/compare-versions.function';
 export * from './utilities/is-version.function';
+export * from './utilities/now-in-ns.function';
 export * from './utilities/promise.utilities';
 export * from './utilities/ms';
-export * from './utilities/big-number.utilities';
+export * from './utilities/number.utilities';
 export * from './utilities/validate-entities-registered.function';
 export * from './utilities/validate-tokens-registered.function';
 export * from './utilities/uuid.utilities';
 export * from './utilities/mask.utilities';
 export * from './utilities/fs.utilities';
+export * from './utilities/json.utilities';

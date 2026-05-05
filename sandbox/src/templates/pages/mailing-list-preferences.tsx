@@ -129,7 +129,10 @@ export const MailingListPreferencesPage: MailingListPreferencesPageTemplate = ({
                         </li>)}
                     </ul>
                     <Button onClick={() => void update()} className='mx-auto' disabled id='update-button'>Update</Button>
-                    <div class="flex items-center justify-center h-6 -mt-[9px] -m-[15px] transition duration-300 ease-in" id="status-bar">
+                    <div
+                        className="flex items-center justify-center h-6 -mt-[9px] -m-[15px] transition duration-300 ease-in"
+                        id="status-bar"
+                    >
                     </div>
                 </Card>
             </EmptyPage>

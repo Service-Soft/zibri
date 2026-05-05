@@ -1,8 +1,7 @@
-import { Chart as ChartJsChart } from 'chart.js?client';
-import { Metric, MetricsSnapshot, onClient, PreactComponent } from 'zibri';
+import type { Chart as ChartJsChart } from 'chart.js';
+import { Metric, MetricsSnapshot, PreactComponent } from 'zibri';
 
 import { Chart } from './chart';
-import { MetricsEvent } from '../pages/metrics';
 
 type Props = {
     className?: string,
@@ -10,19 +9,8 @@ type Props = {
 };
 
 export const RequestDurationChart: PreactComponent<Props> = ({ className = '', secondary }) => {
-    let requestDurationChart: ChartJsChart | undefined;
 
-    onClient(() => {
-        document.addEventListener('metrics:update', (ev) => {
-            if (!(ev instanceof CustomEvent) || !('snaps' in ev.detail)) {
-                throw new Error('received invalid metrics event');
-            }
-            const { snaps } = (ev as MetricsEvent).detail;
-            renderRequestDurationChart(snaps);
-        });
-    });
-
-    function renderRequestDurationChart(snaps: MetricsSnapshot[]): void {
+    function updateChart(chart: ChartJsChart, snaps: MetricsSnapshot[]): void {
         if (!snaps.length) {
             return;
         }
@@ -57,27 +45,21 @@ export const RequestDurationChart: PreactComponent<Props> = ({ className = '', s
             { labels: [], values: [] }
         );
 
-        if (requestDurationChart) {
-            requestDurationChart.data.labels = hist.labels;
-            requestDurationChart.data.datasets[0].data = hist.values;
-            requestDurationChart.update();
-            return;
-        }
-
-        const el: HTMLCanvasElement | null = document.querySelector('#requestDurationChart');
-        if (!el) {
-            return;
-        }
-        // render latency histogram
-        requestDurationChart = new ChartJsChart(el, {
-            type: 'bar',
-            data: { labels: hist.labels, datasets: [{ label: 'Count', data: hist.values, backgroundColor: secondary }] }
-        });
+        chart.data.labels = hist.labels;
+        chart.data.datasets[0].data = hist.values;
+        chart.update();
     }
 
     return (
-        <>
-            <Chart canvasId="requestDurationChart" title="Request duration" className={className}></Chart>
-        </>
+        <Chart
+            canvasId="requestDurationChart"
+            title="Request duration"
+            className={className}
+            chartConfig={{
+                type: 'bar',
+                data: { labels: [], datasets: [{ label: 'Count', data: [], backgroundColor: secondary }] }
+            }}
+            updateChart={updateChart}
+        />
     );
 };

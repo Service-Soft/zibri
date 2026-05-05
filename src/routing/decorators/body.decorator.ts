@@ -5,9 +5,9 @@ import { Relation } from '../../entity/models/relation.enum';
 import { MimeType } from '../../http/mime-type.enum';
 import { Newable } from '../../types/newable.type';
 import { OmitStrict } from '../../types/omit-strict.type';
-import { BigNumber } from '../../utilities/big-number.utilities';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { Ms } from '../../utilities/ms';
+import { BigNumber } from '../../utilities/number.utilities';
 
 /**
  * Base metadata shared by all possible http request body properties.

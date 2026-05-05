@@ -362,13 +362,20 @@ export abstract class PostgresDataSource implements DataSourceInterface {
                     nullable,
                     generated: metadata.primary ? 'increment' : undefined,
                     ...metadata,
-                    type: this.columnTypeMapping[metadata.type],
+                    type: metadata.format ?? this.columnTypeMapping[metadata.type],
                     default: undefined,
                     transformer: {
                         // eslint-disable-next-line unicorn/no-null
-                        to: (v: number | null) => v != null ? String(v) : null,
-                        // eslint-disable-next-line unicorn/no-null
-                        from: (v: string | null) => v != null ? Number(v) : undefined
+                        to: (v: number | bigint | null) => v != null ? String(v) : null,
+                        from: (v: string | null) => {
+                            if (v == undefined) {
+                                return v;
+                            }
+                            if (metadata.format === 'bigint') {
+                                return BigInt(v);
+                            }
+                            return Number(v);
+                        }
                     }
                 };
             }

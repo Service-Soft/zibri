@@ -3,33 +3,33 @@ import { BaseWhereFilter } from './base-where-filter.model';
 /**
  * A filter for a number where property.
  */
-export type NumberWhereFilter = BaseWhereFilter<number> | {
+export type NumberWhereFilter<T extends number | bigint> = BaseWhereFilter<T> | {
     /**
      * The property needs to be not this value.
      */
-    not?: number,
+    not?: T,
     /**
      * The property needs to be one of the values in the array.
      */
-    oneOf?: number[],
+    oneOf?: T[],
     /**
      * The property needs to be NOT one of the values in the array.
      */
-    notOneOf?: number[],
+    notOneOf?: T[],
     /**
      * The property needs to be greater than the provided value.
      */
-    greaterThan?: number,
+    greaterThan?: T,
     /**
      * The property needs to be greater than or equal to the provided value.
      */
-    greaterThanEquals?: number,
+    greaterThanEquals?: T,
     /**
      * The property needs to be lesser than the provided value.
      */
-    lesserThan?: number,
+    lesserThan?: T,
     /**
      * The property needs to be lesser than or equal to the provided value.
      */
-    lesserThanEquals?: number
+    lesserThanEquals?: T
 };

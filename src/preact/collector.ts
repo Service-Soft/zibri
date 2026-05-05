@@ -1,9 +1,24 @@
 import { ComponentChild, ComponentChildren, Fragment, VNode } from 'preact';
 
 import { stringAwareReplace } from './string-aware-replace.function';
+import { JsonUtilities } from '../utilities/json.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
 
 const HANDLERS_DIRECTIVE: string = 'data-ssr-handlers';
+
+/**
+ * Context of a current loop iteration.
+ */
+type LoopContext = {
+    /**
+     * The name of the currently looped over value.
+     */
+    varName: string,
+    /**
+     * The currently looped over value.
+     */
+    value: unknown
+};
 
 /**
  * A registered event handler entry.
@@ -21,7 +36,11 @@ type HandlerEntry = {
     /**
      * The prefix of the component instance whose rendered native element owns this handler.
      */
-    ownerPrefix: string | undefined
+    ownerPrefix: string | undefined,
+    /**
+     * Context of a current loop iteration that this handler is called from.
+     */
+    loopContext: LoopContext | undefined
 };
 
 /**
@@ -112,6 +131,7 @@ export class PreactCollector {
     private readonly map: Map<string, HandlerEntry> = new Map();
     private readonly nestedComponents: NestedComponentEntry[] = [];
     private readonly componentCounters: Map<string, number> = new Map();
+    private readonly loopContextMap: WeakMap<object, LoopContext> = new WeakMap();
     private readonly handlerRegex: RegExp = /^on/i;
 
     /**
@@ -143,8 +163,8 @@ export class PreactCollector {
                     }
                 }
                 else if (typeof val === 'function') {
-                    // Non-event function prop — can't be JSON.stringify'd, handle as inline binding
-                    nonHandlerFns.set(key, val as Function);
+                    // Non-event function prop — can't be JsonUtilities.stringify'd, handle as inline binding
+                    nonHandlerFns.set(key, val);
                 }
                 else {
                     // Capture non-handler props (className, type, disabled, etc.)
@@ -154,9 +174,31 @@ export class PreactCollector {
 
             let rendered: ComponentChild;
             try {
-                this.validateSingleParam(node.type as Function);
-                // eslint-disable-next-line typescript/no-unsafe-assignment, typescript/no-unsafe-call
-                rendered = (node.type as Function)(node.props);
+                this.validateSingleParam(node.type);
+                const originalMap: typeof Array.prototype.map = Array.prototype.map;
+                // eslint-disable-next-line typescript/no-this-alias
+                const self: this = this;
+                Array.prototype.map = function patchedMap<T, U>(
+                    this: T[],
+                    cb: (value: T, index: number, array: T[]) => U,
+                    thisArg?: unknown
+                ): U[] {
+                    const varName: string | undefined = self.extractFirstParamName(cb.toString());
+                    return originalMap.call(this, (item: T, index: number, arr: T[]) => {
+                        const result: U = cb.call(thisArg, item, index, arr);
+                        if (varName && result !== null && typeof result === 'object') {
+                            self.loopContextMap.set(result as object, { varName, value: item });
+                        }
+                        return result;
+                    }) as U[];
+                } as typeof Array.prototype.map;
+                try {
+                    // eslint-disable-next-line typescript/no-unsafe-assignment, typescript/no-unsafe-call
+                    rendered = (node.type as Function)(node.props);
+                }
+                finally {
+                    Array.prototype.map = originalMap;
+                }
                 if (rendered instanceof Promise) {
                     throw new Error(
                         `[ssr] Nested component '${node.type.name}' is async. `
@@ -201,7 +243,7 @@ export class PreactCollector {
                         }
                     }
                     if (ObjectUtilities.keys(resolvedProps).length) {
-                        componentBindings[`__propsObj_${propsParamName}`] = JSON.stringify(resolvedProps);
+                        componentBindings[`__propsObj_${propsParamName}`] = JsonUtilities.stringify(resolvedProps);
                     }
                 }
             }
@@ -233,7 +275,8 @@ export class PreactCollector {
             const val: unknown = node.props[key];
             if (this.handlerRegex.test(key) && typeof val === 'function') {
                 const event: string = key.slice(2).toLowerCase();
-                const id: string = this.registerHandler(val, event, parentPrefix);
+                const loopContext: LoopContext | undefined = this.loopContextMap.get(node) ?? undefined;
+                const id: string = this.registerHandler(val, event, parentPrefix, loopContext);
                 handlers.push(`${id}:${event}`);
             }
         }
@@ -330,7 +373,10 @@ export class PreactCollector {
             }
             let src: string = entry.src;
             for (const [from, to] of sorted) {
-            // Pass 1 — expand shorthand destructure properties
+                if (from === entry.loopContext?.varName) {
+                    continue;
+                }
+                // Pass 1 — expand shorthand destructure properties
                 src = stringAwareReplace(
                     src,
                     new RegExp(`(?<=[{,]\\s*)${from}(?=\\s*[,}])`, 'g'),
@@ -344,7 +390,7 @@ export class PreactCollector {
                 );
             }
             if (src !== entry.src) {
-                this.map.set(id, { event: entry.event, src, ownerPrefix: entry.ownerPrefix });
+                this.map.set(id, { src, event: entry.event, ownerPrefix: entry.ownerPrefix, loopContext: entry.loopContext });
             }
         }
     }
@@ -388,14 +434,17 @@ export class PreactCollector {
 
         const entries: string[] = filtered.map(([id, e]) => {
             const safeSrc: string = e.src.replaceAll('</script>', '\\u003c/script>');
-            return `                ${JSON.stringify(id)}: { event: ${JSON.stringify(e.event)}, fn: (${safeSrc}) }`;
+            const fnExpr: string = e.loopContext
+                ? `((${e.loopContext.varName}) => (${safeSrc}))(${this.serializeLoopValue(e.loopContext.value)})`
+                : `(${safeSrc})`;
+            return `                ${JsonUtilities.stringify(id)}: { event: ${JsonUtilities.stringify(e.event)}, fn: ${fnExpr} }`;
         });
 
         return [
             '    (function() {',
             '        try {',
             '            const map = {',
-            ...entries,
+            entries.join(',\n'),
             '            };',
             '            for (const id of Object.keys(map)) {',
             '                const info = map[id];',
@@ -428,13 +477,33 @@ export class PreactCollector {
         return `${base}${count}_`;
     }
 
-    private registerHandler(fn: Function, event: string, ownerPrefix: string | undefined): string {
+    private registerHandler(
+        fn: Function,
+        event: string,
+        ownerPrefix: string | undefined,
+        loopContext: LoopContext | undefined
+    ): string {
         const src: string = fn.toString().replaceAll('</script>', '\\u003c/script>');
-        const result: DelegateResult | undefined = this.extractDelegateName(src);
         const id: string = `h${++this.seq}`;
+
+        // If there's a loop context we must keep the full source so the IIFE
+        // can pass the captured value through. extractDelegateName would discard
+        // the argument (e.g. tab.id) and only keep the callee name.
+        const srcDelegateName: DelegateResult | undefined = this.extractDelegateName(src);
+        const storedSrc: string = loopContext
+            ? src
+            : srcDelegateName?.kind === 'simple'
+                ? srcDelegateName.name
+                : src;
+
         // For simple delegations store just the name; for complex expressions store the full src.
         // Both are renamed uniformly by applyRenames().
-        this.map.set(id, { event, src: result?.kind === 'simple' ? result.name : src, ownerPrefix });
+        this.map.set(id, {
+            event,
+            ownerPrefix,
+            loopContext,
+            src: storedSrc
+        });
         return id;
     }
 
@@ -656,5 +725,34 @@ export class PreactCollector {
 
     private isVNode(node: unknown): node is VNode {
         return !(typeof node !== 'object' || !node || !('props' in node));
+    }
+
+    private extractFirstParamName(fnSrc: string): string | undefined {
+        const s: string = fnSrc.trim().replace(/^async\s+/, '');
+        // (tab) => ... or (tab, index) => ...
+        const parenMatch: RegExpMatchArray | null = s.match(/^\(([^)]*)\)/);
+        if (parenMatch) {
+            const param: string = parenMatch[1].trim().split(',')[0].trim();
+            return param || undefined;
+        }
+        // tab => ...
+        const bareMatch: RegExpMatchArray | null = s.match(/^([$_a-z]\w*)\s*=>/i);
+        return bareMatch ? bareMatch[1] : undefined;
+    }
+
+    private serializeLoopValue(value: unknown): string {
+        if (typeof value === 'function') {
+            return value.toString();
+        }
+        if (Array.isArray(value)) {
+            return `[${value.map(v => this.serializeLoopValue(v)).join(', ')}]`;
+        }
+        if (value !== null && typeof value === 'object') {
+            const entries: string[] = Object.entries(value).map(
+                ([k, v]) => `${JsonUtilities.stringify(k)}: ${this.serializeLoopValue(v)}`
+            );
+            return `{ ${entries.join(', ')} }`;
+        }
+        return JsonUtilities.stringify(value);
     }
 }

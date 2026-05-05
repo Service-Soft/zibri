@@ -15,6 +15,7 @@ import { AfterAppShutdown } from '../global/after-app-shutdown.interface';
 import { OnAppInit } from '../global/on-app-init.interface';
 import { OnAppStart } from '../global/on-app-start.interface';
 import { type LoggerInterface } from '../logging/logger.interface';
+import { JsonUtilities } from '../utilities/json.utilities';
 import { Ms } from '../utilities/ms';
 import { ObjectUtilities } from '../utilities/object.utilities';
 import { PromiseUtilities } from '../utilities/promise.utilities';
@@ -213,7 +214,7 @@ implements EventServiceInterface<TEvents>, OnAppInit, OnAppStart, AfterAppShutdo
                 break;
             }
             catch (_error) {
-                error = _error instanceof Error ? _error : new Error(JSON.stringify(_error));
+                error = _error instanceof Error ? _error : new Error(JsonUtilities.stringify(_error));
             }
         }
 

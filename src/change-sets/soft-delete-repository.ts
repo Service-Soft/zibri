@@ -21,7 +21,6 @@ import { BeforeReturnHook } from '../data-source/hooks/before-return';
 import { BeforeSaveHook } from '../data-source/hooks/before-save';
 import { Where } from '../data-source/models/where/where-filter.model';
 import { NotFoundError } from '../error-handling/errors/not-found.error';
-import { removeExcludeProperties } from '../global/model-registry/remove-exclude-properties.function';
 import { LoggerInterface } from '../logging/logger.interface';
 
 /**
@@ -150,10 +149,7 @@ export class SoftDeleteRepository<
             throw new NotFoundError(`Could not find ${this.entityClass.name} with id "${id}".`);
         }
         const res: T = await this.updateById(id, { deleted: true } as UpdateData, options);
-        await Promise.all([
-            this.createChangeSet(entity, { deleted: true } as UpdateData, ChangeSetType.DELETE, options, true),
-            removeExcludeProperties(res, this.entityClass)
-        ]);
+        await this.createChangeSet(entity, { deleted: true } as UpdateData, ChangeSetType.DELETE, options, true);
         return res;
     }
 

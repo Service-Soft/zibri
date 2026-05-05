@@ -37,6 +37,7 @@ import { RouteHandler } from '../routing/route-configuration.model';
 import { type RouterInterface } from '../routing/router.interface';
 import { Newable } from '../types/newable.type';
 import { FsUtilities, FsPath } from '../utilities/fs.utilities';
+import { JsonUtilities } from '../utilities/json.utilities';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
 
@@ -140,7 +141,7 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
                 res.type('.js').send([
                     'window.onload = function() {',
                     '    SwaggerUIBundle({',
-                    `        spec: ${JSON.stringify(definition)},`,
+                    `        spec: ${JsonUtilities.stringify(definition)},`,
                     '        dom_id: \'#swagger-ui\',',
                     '        presets: [',
                     '            SwaggerUIBundle.presets.apis,',

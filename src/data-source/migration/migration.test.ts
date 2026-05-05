@@ -103,7 +103,7 @@ describe('AddTestValueMigration', () => {
         register({
             token: ZIBRI_DI_TOKENS.ENCRYPTION_MASTER_OPTIONS,
             useValue: {
-                masterStrategy: new AesGcmEncryptionStrategy(),
+                currentMasterStrategy: new AesGcmEncryptionStrategy(),
                 currentMasterKey: { id: 'mk1', value: randomBytes(32) }
             }
         });

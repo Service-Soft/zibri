@@ -27,6 +27,7 @@ import { type LoggerInterface } from '../../logging/logger.interface';
 import { type ParserInterface } from '../../parsing/parser.interface';
 import { resolveRouteParams } from '../../routing/resolve-route-params.function';
 import { Newable } from '../../types/newable.type';
+import { JsonUtilities } from '../../utilities/json.utilities';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { type ValidationServiceInterface } from '../../validation/validation-service.interface';
@@ -203,7 +204,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
                     persist = true;
                 }
 
-                await this.logger.debug(`got an error ${JSON.stringify(globalError)}`);
+                await this.logger.debug(`got an error ${JsonUtilities.stringify(globalError)}`);
 
                 await this.send({
                     connection,
@@ -340,13 +341,17 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
 
         if (data.expectResponse) {
             const res: WebsocketRequestWithConnection<SocketIOWebsocketConnection> = {
-                request: await data.connection.emitWithAck(data.event, message, this.options.timeoutInMs),
+                request: await data.connection.emitWithAck(
+                    data.event,
+                    JsonUtilities.parse(JsonUtilities.stringify(message)),
+                    this.options.timeoutInMs
+                ),
                 connection: data.connection
             };
             return res as B extends false ? void : WebsocketRequestWithConnection<SocketIOWebsocketConnection>;
         }
 
-        data.connection.emit(data.event, message);
+        data.connection.emit(data.event, JsonUtilities.parse(JsonUtilities.stringify(message)));
         return undefined as B extends false ? void : WebsocketRequestWithConnection<SocketIOWebsocketConnection>;
     }
 
@@ -383,7 +388,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         }
 
         if (!data.expectResponse) {
-            this.socketServer.to(channel.name).emit(data.event, message);
+            this.socketServer.to(channel.name).emit(data.event, JsonUtilities.parse(JsonUtilities.stringify(message)));
             return undefined as B extends false ? void : WebsocketRequestWithConnection<SocketIOWebsocketConnection>[];
         }
 
@@ -447,7 +452,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         }
 
         if (!expectResponse) {
-            this.socketServer.emit(data.event, message);
+            this.socketServer.emit(data.event, JsonUtilities.parse(JsonUtilities.stringify(message)));
             return undefined as B extends false ? void : WebsocketRequestWithConnection<SocketIOWebsocketConnection>[];
         }
 

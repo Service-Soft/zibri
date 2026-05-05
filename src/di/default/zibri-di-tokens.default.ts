@@ -10,6 +10,7 @@ import { CookieAuthSessionOptionsInput } from '../../auth/strategies/cookie/cook
 import { PasswordResetEmailTemplate } from '../../auth/strategies/jwt/jwt-auth.controller';
 import { UserServiceInterface } from '../../auth/user/user-service.interface';
 import { BackupServiceInterface } from '../../backup/backup-service.interface';
+import { CacheServiceInterface } from '../../caching/cache-service.interface';
 import { HttpRequestContext } from '../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
 import { CronServiceInterface } from '../../cron/cron-service.interface';
@@ -23,6 +24,7 @@ import { FormatDateFn } from '../../localization/formatting/format-date-fn.model
 import { FormatPercentFn } from '../../localization/formatting/format-percent-fn.model';
 import { FormatPriceFn } from '../../localization/formatting/format-price-fn.model';
 import { LocalizeOptionsInput, LocalizeOptions } from '../../localization/models/localize-options.model';
+import { LogCacheContext } from '../../logging/log-context.model';
 import { LogLevel } from '../../logging/log-level.enum';
 import { LoggerInterface } from '../../logging/logger.interface';
 import { LoggerTransport, BaseLoggerTransportConfig } from '../../logging/transport/logger-transport.model';
@@ -100,7 +102,6 @@ export const ZIBRI_DI_TOKENS = {
     EVENT_SERVICE: ziToken<EventServiceInterface<Record<string, unknown>>>('zi.event_service'),
     CORRELATION_ID_HEADER: ziToken<string>('zi.correlation_id_header'),
     CSRF_TOKEN_HEADER: ziToken<string>('zi.csrf_token_header'),
-    DEFAULT_CSP_OPTIONS: ziToken<CspOptions>('zi.default_csp_options'),
     COOKIE_SIGN_SECRET: ziToken<string | undefined>('zi.cookie_sign_secret'),
     HASH_SERVICE: ziToken<HashServiceInterface>('zi.hash_service'),
     HASH_STRATEGIES: ziToken<Newable<HashStrategyInterface<Record<string, unknown>>>[]>('zi.hash_strategies'),
@@ -113,6 +114,9 @@ export const ZIBRI_DI_TOKENS = {
     ENCRYPTION_MASTER_OPTIONS: ziToken<EncryptionMasterOptions<any, any, any> | undefined>(
         'zi.encryption_master_options'
     ),
+    CACHE_SERVICE: ziToken<CacheServiceInterface>('zi.cache_service'),
     // dynamic/context based tokens
-    CURRENT_REQUEST_CONTEXT: ziToken<HttpRequestContext | WebsocketRequestContext | undefined>('zi.current_request_context')
+    CURRENT_REQUEST_CONTEXT: ziToken<HttpRequestContext | WebsocketRequestContext | undefined>('zi.current_request_context'),
+    DEFAULT_CSP_OPTIONS: ziToken<CspOptions>('zi.default_csp_options'),
+    CURRENT_CACHE_CONTEXT: ziToken<LogCacheContext[] | undefined>('zi.current_cache_context')
 } as const satisfies TokenRecord;

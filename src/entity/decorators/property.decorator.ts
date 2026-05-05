@@ -119,6 +119,7 @@ export namespace Property {
             excludeFromChangeSets: typeof data?.exclude === 'boolean' ? data.exclude : false,
             exclude: false,
             enum: undefined,
+            format: undefined,
             ...data
         };
         return applyData(fullMetadata, data);

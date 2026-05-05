@@ -1,10 +1,20 @@
 import { EncryptionKeyCreateData, EncryptionKeyStatus, EncryptionKey } from './encryption-key.model';
 import { type EncryptionMasterOptions, EncryptionMasterKey } from './encryption-master-options.model';
-import { EncryptionServiceInterface, EncryptOptions } from './encryption-service.interface';
-import { EncryptionContent, EncryptionString, EncryptionUtilities } from './encryption.utilities';
-import { EncryptionStrategyEntity, EncryptionStrategyEntityCreateData, EncryptionStrategyStatus } from './strategies/encryption-strategy-entity.model';
+import { type DeleteEncryptionKeyOptions, EncryptionServiceInterface, EncryptOptions } from './encryption-service.interface';
+import { EncryptionContent, type EncryptionString, EncryptionUtilities } from './encryption.utilities';
+import { EncryptionStrategyEntity, type EncryptionStrategyEntityCreateData, EncryptionStrategyStatus } from './strategies/encryption-strategy-entity.model';
 import { BaseDecryptOptions, BaseEncryptOptions, EncryptionStrategyInterface } from './strategies/encryption-strategy.interface';
+import { WriteThroughReadThroughCache } from '../../caching/cache/read-through/write-through-read-through.cache';
+import { type CacheServiceInterface } from '../../caching/cache-service.interface';
+import { CacheDelete } from '../../caching/decorators/cache-delete.decorator';
+import { CacheWrite } from '../../caching/decorators/cache-write.decorator';
+import { Cache } from '../../caching/decorators/cache.decorator';
+import { Cached } from '../../caching/decorators/cached.decorator';
+import { InMemoryCacheStore } from '../../caching/store/in-memory.cache-store';
+import { type BaseRepositoryOptions } from '../../data-source/models/options/base-repository-options.model';
+import { Where } from '../../data-source/models/where/where-filter.model';
 import { Repository } from '../../data-source/repository';
+import { Transaction } from '../../data-source/transaction/transaction.model';
 import { InjectRepository } from '../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../di/decorators/inject.decorator';
 import { Injectable } from '../../di/decorators/injectable.decorator';
@@ -13,9 +23,14 @@ import { NoProviderError } from '../../di/errors/no-provider.error';
 import { inject } from '../../di/inject.function';
 import { register } from '../../di/register.function';
 import { AnyObject } from '../../entity/any-object.model';
+import { NotFoundError } from '../../error-handling/errors/not-found.error';
 import { OnAppInit } from '../../global/on-app-init.interface';
-import { Newable } from '../../types/newable.type';
-import { OmitStrict } from '../../types/omit-strict.type';
+import { type LoggerInterface } from '../../logging/logger.interface';
+import { type MetricsServiceInterface } from '../../metrics/metrics-service.interface';
+import { type DeepPartial } from '../../types/deep-partial.type';
+import { type Newable } from '../../types/newable.type';
+import { type OmitStrict } from '../../types/omit-strict.type';
+import { PromiseUtilities } from '../../utilities/promise.utilities';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 type StrategyAndEntity<TKey> = {
@@ -25,6 +40,23 @@ type StrategyAndEntity<TKey> = {
     entity: EncryptionStrategyEntity | undefined
 };
 
+const INIT_ERROR_MESSAGE: string = 'Error initializing encryption service.';
+
+@Cache()
+// eslint-disable-next-line jsdoc/require-jsdoc
+export class EncryptionKeyCache extends WriteThroughReadThroughCache<string, EncryptionKey> {
+    constructor(
+        @Inject(ZIBRI_DI_TOKENS.LOGGER)
+        protected readonly logger: LoggerInterface,
+        @Inject(ZIBRI_DI_TOKENS.CACHE_SERVICE)
+        protected readonly cacheService: CacheServiceInterface,
+        @Inject(ZIBRI_DI_TOKENS.CACHE_SERVICE)
+        protected readonly metricsService: MetricsServiceInterface
+    ) {
+        super('EncryptionKeyCache', new InMemoryCacheStore(), []);
+    }
+}
+
 /**
  * Default encryption service implementation of Zibri.
  */
@@ -32,11 +64,12 @@ type StrategyAndEntity<TKey> = {
 export class EncryptionService implements EncryptionServiceInterface, OnAppInit {
     private hasCreatedInitialDefaultStrategy: boolean = false;
     private readonly strategies: EncryptionStrategyInterface<unknown>[] = [];
+    private readonly strategyEntities: EncryptionStrategyEntity[] = [];
     private readonly options: EncryptionMasterOptions<unknown>;
 
     constructor(
         @InjectRepository(EncryptionStrategyEntity)
-        private readonly encryptionStrategyRepository: Repository<EncryptionStrategyEntity, EncryptionStrategyEntityCreateData>,
+        private readonly strategyRepository: Repository<EncryptionStrategyEntity, EncryptionStrategyEntityCreateData>,
         @InjectRepository(EncryptionKey)
         private readonly keyRepository: Repository<EncryptionKey, EncryptionKeyCreateData>,
         @Inject(ZIBRI_DI_TOKENS.ENCRYPTION_STRATEGIES)
@@ -59,10 +92,19 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
             register({ token: strategy, useClass: strategy });
             this.strategies.push(inject(strategy));
         }
-        const strategies: EncryptionStrategyEntity[] = await this.encryptionStrategyRepository.findAll();
+        const strategies: EncryptionStrategyEntity[] = await this.strategyRepository.findAll();
+        this.strategyEntities.push(...strategies);
         this.validateNoDuplicateEncryptionStrategy();
-        this.validateNoMissingEncryptionStrategy(strategies);
+        this.validateNoMissingEncryptionStrategy();
         this.validateStrategyNamesAndVersions();
+
+        const keys: EncryptionKey[] = await this.keyRepository.findAll();
+        this.validateNoDuplicateMasterEncryptionStrategy();
+        this.validateNoMissingMasterEncryptionStrategy(keys);
+        this.validateMasterStrategyNamesAndVersions();
+        this.validateNoDotsInMasterKeyIds();
+        this.validateNoMissingMasterKeyIds(keys);
+        await this.reEncryptKeys(keys);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -71,13 +113,13 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         options?: EncryptOptions<TKey, TEncryptOptions>
     ): Promise<EncryptionString> {
         if (!options) {
-            const strategy: StrategyAndEntity<TKey> = await this.findDefaultStrategy();
-            if (!this.hasCreatedInitialDefaultStrategy && !strategy.entity && !(await this.encryptionStrategyRepository.findAll()).length) {
+            const strategy: StrategyAndEntity<TKey> = this.findDefaultStrategy();
+            if (!this.hasCreatedInitialDefaultStrategy && !strategy.entity && !this.strategyEntities.length) {
                 const key: EncryptionKeyCreateData = {
                     status: EncryptionKeyStatus.DEFAULT,
                     value: await this.generateEncryptedKey(strategy.strategy)
                 };
-                const entity: EncryptionStrategyEntity = await this.encryptionStrategyRepository.create({
+                const entity: EncryptionStrategyEntity = await this.createStrategyEntity({
                     name: strategy.strategy.name,
                     version: strategy.strategy.version,
                     status: EncryptionStrategyStatus.DEFAULT,
@@ -97,7 +139,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
                     status: EncryptionKeyStatus.DEFAULT,
                     value: await this.generateEncryptedKey(strategy.strategy)
                 };
-                const entity: EncryptionStrategyEntity = await this.encryptionStrategyRepository.create({
+                const entity: EncryptionStrategyEntity = await this.createStrategyEntity({
                     name: strategy.strategy.name,
                     version: strategy.strategy.version,
                     status: EncryptionStrategyStatus.ACTIVE,
@@ -130,30 +172,29 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         }
 
         if (options.strategyOptions?.keyId) {
-            const decryptedKey: TKey = await this.findKey(options.strategyOptions.keyId);
+            const decryptedKey: TKey = await this.findKey(options.strategyOptions.keyId, undefined);
             return await strategy.encrypt(
                 value,
                 { key: decryptedKey, keyId: options.strategyOptions.keyId, ...options.strategyOptions }
             );
         }
 
-        const entity: EncryptionStrategyEntity | undefined = await this.encryptionStrategyRepository.findOne(
-            { where: { version: strategy.version, name: strategy.name }, relations: ['keys'] },
-            false
+        const entity: EncryptionStrategyEntity | undefined = this.strategyEntities.find(
+            s => s.name === strategy.name && s.version === strategy.version
         );
         if (!entity) {
             const key: EncryptionKeyCreateData = {
                 status: EncryptionKeyStatus.DEFAULT,
                 value: await this.generateEncryptedKey(strategy)
             };
-            const entity: EncryptionStrategyEntity = await this.encryptionStrategyRepository.create({
+            const createdEntity: EncryptionStrategyEntity = await this.createStrategyEntity({
                 name: strategy.name,
                 version: strategy.version,
                 status: EncryptionStrategyStatus.ACTIVE,
                 keys: [key]
             });
             const decryptedKey: TKey = await this.decryptKey(options.strategy, key.value);
-            return await strategy.encrypt(value, { keyId: entity.keys[0].id, key: decryptedKey, ...options.strategyOptions });
+            return await strategy.encrypt(value, { keyId: createdEntity.keys[0].id, key: decryptedKey, ...options.strategyOptions });
         }
 
         const key: EncryptionKey = await this.findOrCreateDefaultKeyForStrategy(entity);
@@ -168,29 +209,111 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
     ): Promise<string> {
         const content: EncryptionContent = EncryptionUtilities.encryptionStringToContent(value);
         const strategy: EncryptionStrategyInterface<unknown> = this.findStrategy(content.strategyName, content.version);
-        const key: unknown = await this.findKey(content.keyId);
+        const key: unknown = await this.findKey(content.keyId, undefined);
         return await strategy.decrypt(value, { key, keyId: content.keyId, ...options ?? {} });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async createKey<TKey>(
         strategyClass: Newable<EncryptionStrategyInterface<TKey>>,
-        data: OmitStrict<EncryptionKeyCreateData, 'strategy' | 'value'>
+        data: OmitStrict<EncryptionKeyCreateData, 'strategy' | 'value'>,
+        options?: BaseRepositoryOptions
     ): Promise<EncryptionKey> {
         const strategy: EncryptionStrategyInterface<TKey> = inject(strategyClass);
         const encryptedKey: EncryptionString = await this.generateEncryptedKey(strategy);
-        const entity: EncryptionStrategyEntity = await this.encryptionStrategyRepository.findOne(
-            { where: { name: strategy.name, version: strategy.version }, relations: ['keys'] }
+        const entity: EncryptionStrategyEntity | undefined = this.strategyEntities.find(
+            s => s.name === strategy.name && s.version === strategy.version
         );
+        if (!entity) {
+            throw new NotFoundError(`Could not find ${EncryptionStrategyEntity.name}.`);
+        }
         const currentDefaultKey: EncryptionKey | undefined = entity.keys.find(k => k.status === EncryptionKeyStatus.DEFAULT);
         if (data.status === EncryptionKeyStatus.DEFAULT && currentDefaultKey) {
-            await this.keyRepository.updateById(currentDefaultKey?.id, { status: EncryptionKeyStatus.ACTIVE });
+            await this.updateKeyEntityById(currentDefaultKey.id, { status: EncryptionKeyStatus.ACTIVE }, options);
         }
-        return await this.keyRepository.create({
-            value: encryptedKey,
-            strategy: { id: entity.id },
-            ...data
-        });
+        return await this.createKeyEntity(encryptedKey, entity, data, options);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async deleteKey(
+        keyId: string,
+        options?: DeleteEncryptionKeyOptions
+    ): Promise<void> {
+        const key: EncryptionKey = await this.findKeyEntityById(keyId, options);
+        if (key.status === EncryptionKeyStatus.DEFAULT && !(options?.allowDefault ?? false)) {
+            throw new Error('Cannot delete the default key. Pass allowDefault: true to override.');
+        }
+
+        await this.deleteKeyEntityById(keyId, options);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async deleteAllKeys(where: Where<EncryptionKey>, options: DeleteEncryptionKeyOptions = {}): Promise<void> {
+        const keys: EncryptionKey[] = await this.keyRepository.findAll({ where });
+
+        if (!(options.allowDefault ?? false) && keys.some(k => k.status === EncryptionKeyStatus.DEFAULT)) {
+            throw new Error('Cannot delete a default key. Pass allowDefault: true to override.');
+        }
+
+        const transaction: Transaction = options.transaction ?? await this.keyRepository.dataSource.startTransaction();
+        const ownTransaction: boolean = !options.transaction;
+        options.transaction = transaction;
+
+        try {
+            await PromiseUtilities.allChunked(keys, k => this.deleteKeyEntityById(k.id, options));
+            if (ownTransaction) {
+                await transaction.commit();
+            }
+        }
+        catch (error) {
+            if (ownTransaction) {
+                await transaction.rollback();
+            }
+            throw error;
+        }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async markKeyAsDefaultForStrategy<TKey>(
+        keyId: string,
+        strategyClass: Newable<EncryptionStrategyInterface<TKey>>,
+        options: BaseRepositoryOptions = {}
+    ): Promise<void> {
+        const transaction: Transaction = options.transaction ?? await this.keyRepository.dataSource.startTransaction();
+        const ownTransaction: boolean = !options.transaction; // track if we created it
+        options.transaction = transaction;
+
+        try {
+            const strategy: EncryptionStrategyInterface<TKey> = inject(strategyClass);
+            const entity: EncryptionStrategyEntity | undefined = this.strategyEntities.find(
+                s => s.name === strategy.name && s.version === strategy.version
+            );
+            if (!entity) {
+                throw new NotFoundError(`Could not find ${EncryptionStrategyEntity.name}.`);
+            }
+            const key: EncryptionKey = await this.findKeyEntityById(keyId, options);
+            if (key.strategy.name !== strategy.name || key.strategy.version !== strategy.version) {
+                throw new Error('The key for the given id has a different strategy than the provided one');
+            }
+
+            const currentDefaultKey: EncryptionKey | undefined = entity.keys.find(k => k.status === EncryptionKeyStatus.DEFAULT);
+            if (currentDefaultKey) {
+                await this.updateKeyEntityById(currentDefaultKey.id, { status: EncryptionKeyStatus.ACTIVE }, options);
+            }
+            await this.updateKeyEntityById(keyId, { status: EncryptionKeyStatus.DEFAULT }, options);
+
+            if (ownTransaction) {
+                await transaction.commit();
+            }
+
+        }
+        catch (error) {
+            if (ownTransaction) {
+                await transaction.rollback();
+            }
+            throw error;
+        }
+
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -203,6 +326,45 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         return await inject(strategy).deserializeKey(keyBuffer);
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async needsReEncryption(encrypted: EncryptionString): Promise<boolean> {
+        const content: EncryptionContent = EncryptionUtilities.encryptionStringToContent(encrypted);
+        const strategy: EncryptionStrategyInterface<Record<string, unknown>> = this.findStrategy(content.strategyName, content.version);
+        const strategyEntity: EncryptionStrategyEntity | undefined = this.strategyEntities.find(
+            s => s.name === strategy.name && s.version === strategy.version
+        );
+        if (!strategyEntity) {
+            throw new NotFoundError(`Could not find ${EncryptionStrategyEntity.name}.`);
+        }
+        const key: EncryptionKey = await this.findKeyEntityById(content.keyId, undefined);
+        return strategyEntity.status === EncryptionStrategyStatus.DEPRECATED || key.status === EncryptionKeyStatus.DEPRECATED;
+    }
+
+    private needsMasterReEncryption(encrypted: EncryptionString): boolean {
+        const content: EncryptionContent = EncryptionUtilities.encryptionStringToContent(encrypted);
+        const allKeys: EncryptionMasterKey<unknown>[] = [
+            this.options.currentMasterKey,
+            ...this.options.oldMasterKeys ?? []
+        ];
+        const key: EncryptionMasterKey<unknown> | undefined = allKeys.find(k => k.id === content.keyId);
+        if (!key) {
+            throw new Error(`No master key found with id "${content.keyId}"`);
+        }
+        const allStrategies: EncryptionStrategyInterface<unknown>[] = [
+            this.options.currentMasterStrategy,
+            ...this.options.oldMasterStrategies ?? []
+        ];
+        const strategy: EncryptionStrategyInterface<unknown> | undefined = allStrategies.find(
+            k => k.name === content.strategyName && k.version === content.version
+        );
+        if (!strategy) {
+            throw new Error(`No master strategy found for ${content.strategyName} (${content.version})`);
+        }
+        return strategy.name !== this.options.currentMasterStrategy.name
+            || strategy.version !== this.options.currentMasterStrategy.version
+            || key.id !== this.options.currentMasterKey.id;
+    }
+
     private async generateEncryptedKey<TKey>(strategy: EncryptionStrategyInterface<TKey>): Promise<EncryptionString> {
         const rawKey: TKey = await strategy.generateRandomKey();
         const keyBytes: Buffer = await strategy.serializeKey(rawKey);
@@ -210,14 +372,75 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         return await this.masterEncrypt(keyBase64);
     }
 
-    private async findKey<TKey>(keyId: string): Promise<TKey> {
-        const entity: EncryptionKey = await this.keyRepository.findById(keyId, { relations: ['strategy'] });
+    private async findKey<TKey>(keyId: string, options: BaseRepositoryOptions | undefined): Promise<TKey> {
+        const entity: EncryptionKey = await this.findKeyEntityById(keyId, options);
         const strategy: Newable<EncryptionStrategyInterface<TKey>> = this.findStrategyClass(
             entity.strategy.name,
             entity.strategy.version
         );
 
         return await this.decryptKey(strategy, entity.value);
+    }
+
+    // eslint-disable-next-line unusedImports/no-unused-vars
+    @Cached(EncryptionKeyCache, (id, _) => id)
+    private async findKeyEntityById(id: string, options: BaseRepositoryOptions | undefined): Promise<EncryptionKey> {
+        return await this.keyRepository.findById(id, { relations: ['strategy'], ...options });
+    }
+
+    @CacheWrite(EncryptionKeyCache, (key) => key.id)
+    private async createKeyEntity(
+        encryptedValue: EncryptionString,
+        strategy: EncryptionStrategyEntity,
+        data: OmitStrict<EncryptionKeyCreateData, 'strategy' | 'value'>,
+        options: BaseRepositoryOptions | undefined
+    ): Promise<EncryptionKey> {
+        const created: EncryptionKey = await this.keyRepository.create({
+            value: encryptedValue,
+            strategy,
+            ...data
+        }, options);
+        const key: EncryptionKey = await this.keyRepository.findById(created.id, { relations: ['strategy'], ...options });
+        this.syncStrategyEntityKey(strategy, key);
+        return key;
+    }
+
+    @CacheWrite(EncryptionKeyCache, (key) => key.id)
+    private async updateKeyEntityById(
+        id: string,
+        data: DeepPartial<EncryptionKey>,
+        options: BaseRepositoryOptions | undefined
+    ): Promise<EncryptionKey> {
+        const updated: EncryptionKey = await this.keyRepository.updateById(id, data, options);
+        const key: EncryptionKey = await this.keyRepository.findById(updated.id, { relations: ['strategy'], ...options });
+        this.syncStrategyEntityKey(updated.strategy, key);
+        return key;
+    }
+
+    // eslint-disable-next-line unusedImports/no-unused-vars
+    @CacheDelete(EncryptionKeyCache, (keyId, _) => keyId)
+    private async deleteKeyEntityById(id: string, options: BaseRepositoryOptions | undefined): Promise<void> {
+        const strategy: EncryptionStrategyEntity | undefined = this.strategyEntities.find(s => s.keys.some(k => k.id === id));
+        if (!strategy) {
+            throw new NotFoundError(`Could not find strategy for key with id ${id}`);
+        }
+        strategy.keys = strategy.keys.filter(k => k.id !== id);
+        await this.keyRepository.deleteById(id, options);
+    }
+
+    private async createStrategyEntity(data: EncryptionStrategyEntityCreateData): Promise<EncryptionStrategyEntity> {
+        const res: EncryptionStrategyEntity = await this.strategyRepository.create(data);
+        this.strategyEntities.push(res);
+        return res;
+    }
+
+    private syncStrategyEntityKey(strategy: EncryptionStrategyEntity, key: EncryptionKey): void {
+        const existingIndex: number = strategy.keys.findIndex(k => k.id === key.id);
+        if (existingIndex >= 0) {
+            strategy.keys[existingIndex] = key;
+            return;
+        }
+        strategy.keys.push(key);
     }
 
     private async findOrCreateDefaultKeyForStrategy(strategy: EncryptionStrategyEntity): Promise<EncryptionKey> {
@@ -255,7 +478,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
     }
 
     private async masterEncrypt(keyBase64: string): Promise<EncryptionString> {
-        const encrypted: EncryptionString = await this.options.masterStrategy.encrypt(
+        const encrypted: EncryptionString = await this.options.currentMasterStrategy.encrypt(
             keyBase64,
             {
                 key: this.options.currentMasterKey.value,
@@ -281,21 +504,24 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         if (!masterKey) {
             throw new Error(`Could not find master encryption key with id "${content.keyId}"`);
         }
-        return await this.options.masterStrategy.decrypt(encrypted, { key: masterKey.value, keyId: masterKey.id });
+        const masterStrategy: EncryptionStrategyInterface<unknown> | undefined = [
+            this.options.currentMasterStrategy,
+            ...this.options.oldMasterStrategies ?? []
+        ].find(s => s.name === content.strategyName && s.version === content.version);
+        if (!masterStrategy) {
+            throw new Error(`Could not find master encryption strategy ${content.strategyName} (${content.version})`);
+        }
+        return await masterStrategy.decrypt(encrypted, { key: masterKey.value, keyId: masterKey.id });
     }
 
-    private async findDefaultStrategy<TKey>(): Promise<StrategyAndEntity<TKey>> {
-        const entity: EncryptionStrategyEntity | undefined = await this.encryptionStrategyRepository.findOne(
-            { where: { status: EncryptionStrategyStatus.DEFAULT }, relations: ['keys'] },
-            false
-        );
+    private findDefaultStrategy<TKey>(): StrategyAndEntity<TKey> {
+        const entity: EncryptionStrategyEntity | undefined = this.strategyEntities.find(s => s.status === EncryptionStrategyStatus.DEFAULT);
         return entity
             ? { strategy: this.findStrategy(entity.name, entity.version), entity }
             : { strategy: this.strategies[0] as EncryptionStrategyInterface<TKey>, entity };
     }
 
     private validateNoDuplicateEncryptionStrategy(): void {
-        // validate that there is no strategy with the same name and version
         const duplicateStrategies: EncryptionStrategyInterface<unknown>[] = this.strategies.filter(
             s => this.strategies.filter(hs => hs.name === s.name && hs.version === s.version).length > 1
         );
@@ -309,14 +535,94 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         }
     }
 
-    private validateNoMissingEncryptionStrategy(strategies: EncryptionStrategyEntity[]): void {
-        const missingStrategies: EncryptionStrategyEntity[] = strategies.filter(
+    private validateNoDuplicateMasterEncryptionStrategy(): void {
+        const allMasterStrategies: EncryptionStrategyInterface<unknown>[] = [
+            this.options.currentMasterStrategy,
+            ...this.options.oldMasterStrategies ?? []
+        ];
+        const duplicateStrategies: EncryptionStrategyInterface<unknown>[] = allMasterStrategies.filter(
+            s => allMasterStrategies.filter(hs => hs.name === s.name && hs.version === s.version).length > 1
+        );
+        if (duplicateStrategies.length) {
+            throw new Error(
+                [
+                    'There are duplicate master encryption strategies:',
+                    [...new Set(duplicateStrategies)].map(s => `- ${s.name} (${s.version})`)
+                ].join('\n')
+            );
+        }
+    }
+
+    private validateNoMissingEncryptionStrategy(): void {
+        const missingStrategies: EncryptionStrategyEntity[] = this.strategyEntities.filter(
             s => !this.strategies.some(hs => hs.name === s.name && hs.version === s.version)
         );
         if (missingStrategies.length) {
-            const message: string[] = ['Error initializing encryption service.', 'There are missing strategies:'];
+            const message: string[] = [INIT_ERROR_MESSAGE, 'There are missing strategies:'];
             for (const strategy of missingStrategies) {
                 message.push(`  - ${strategy.name} (${strategy.version})`);
+            }
+            message.push('Did you remove them?');
+            throw new Error(message.join('\n'));
+        }
+    }
+
+    private validateNoDotsInMasterKeyIds(): void {
+        const allKeys: EncryptionMasterKey<unknown>[] = [
+            this.options.currentMasterKey,
+            ...this.options.oldMasterKeys ?? []
+        ];
+
+        const keysWithDotsInId: EncryptionMasterKey<unknown>[] = allKeys.filter(
+            s => s.id.includes('.')
+        );
+        if (!keysWithDotsInId.length) {
+            return;
+        }
+        const message: string[] = [INIT_ERROR_MESSAGE, 'There are master keys that use dots in their id:'];
+        for (const key of keysWithDotsInId) {
+            message.push(`  - ${key.id}`);
+        }
+        throw new Error(message.join('\n'));
+    }
+
+    private validateNoMissingMasterKeyIds(keys: EncryptionKey[]): void {
+        const allMasterKeys: EncryptionMasterKey<unknown>[] = [
+            this.options.currentMasterKey,
+            ...this.options.oldMasterKeys ?? []
+        ];
+
+        const missingKeyIds: string[] = keys
+            .map(k => EncryptionUtilities.encryptionStringToContent(k.value).keyId)
+            .filter(keyId => !allMasterKeys.some(k => k.id === keyId));
+
+        if (!missingKeyIds.length) {
+            return;
+        }
+
+        throw new Error(
+            [
+                INIT_ERROR_MESSAGE,
+                'There are missing master key ids:',
+                ...missingKeyIds.map(id => `  - ${id}`)
+            ].join('\n')
+        );
+    }
+
+    private validateNoMissingMasterEncryptionStrategy(keys: EncryptionKey[]): void {
+        const allMasterStrategies: EncryptionStrategyInterface<unknown>[] = [
+            this.options.currentMasterStrategy,
+            ...this.options.oldMasterStrategies ?? []
+        ];
+        const missingStrategies: EncryptionContent[] = keys
+            .map(k => EncryptionUtilities.encryptionStringToContent(k.value))
+            .filter(
+                s => !allMasterStrategies.some(hs => hs.name === s.strategyName && hs.version === s.version)
+            );
+        if (missingStrategies.length) {
+            const message: string[] = [INIT_ERROR_MESSAGE, 'There are missing master strategies:'];
+            for (const strategy of missingStrategies) {
+                message.push(`  - ${strategy.strategyName} (${strategy.version})`);
             }
             message.push('Did you remove them?');
             throw new Error(message.join('\n'));
@@ -331,12 +637,48 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
             return;
         }
         const message: string[] = [
-            'Error initializing encryption service.',
+            INIT_ERROR_MESSAGE,
             'There are strategies that use dots in either the version or the name:'
         ];
         for (const strategy of strategiesWithDotsInNameOrVersion) {
             message.push(`  - ${strategy.name} (${strategy.version})`);
         }
         throw new Error(message.join('\n'));
+    }
+
+    private validateMasterStrategyNamesAndVersions(): void {
+        const allMasterStrategies: EncryptionStrategyInterface<unknown>[] = [
+            this.options.currentMasterStrategy,
+            ...this.options.oldMasterStrategies ?? []
+        ];
+        const strategiesWithDotsInNameOrVersion: EncryptionStrategyInterface<unknown>[] = allMasterStrategies.filter(
+            s => s.name.includes('.') || s.version.includes('.')
+        );
+        if (!strategiesWithDotsInNameOrVersion.length) {
+            return;
+        }
+        const message: string[] = [
+            INIT_ERROR_MESSAGE,
+            'There are master strategies that use dots in either the version or the name:'
+        ];
+        for (const strategy of strategiesWithDotsInNameOrVersion) {
+            message.push(`  - ${strategy.name} (${strategy.version})`);
+        }
+        throw new Error(message.join('\n'));
+    }
+
+    private async reEncryptKeys(keys: EncryptionKey[]): Promise<void> {
+        await PromiseUtilities.allChunked(keys, key => this.reEncryptKey(key));
+    }
+
+    private async reEncryptKey(key: EncryptionKey): Promise<void> {
+        if (!this.needsMasterReEncryption(key.value)) {
+            return;
+        }
+
+        const decrypted: string = await this.masterDecrypt(key.value);
+        const newEncrypted: string = await this.masterEncrypt(decrypted);
+
+        await this.updateKeyEntityById(key.id, { value: newEncrypted }, undefined);
     }
 }

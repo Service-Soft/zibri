@@ -15,6 +15,7 @@ import { HashService } from '../../auth/hash/hash.service';
 import { BcryptHashStrategy } from '../../auth/hash/strategies/bcrypt.hash-strategy';
 import { UserService } from '../../auth/user/user.service';
 import { BackupService } from '../../backup/backup.service';
+import { CacheService } from '../../caching/cache.service';
 import { AlsUtilities } from '../../context/als.utilities';
 import { HttpRequestContext } from '../../context/request/http-request.context';
 import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../../context/request/request-context-token.model';
@@ -145,6 +146,7 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
     ENCRYPTION_SERVICE: { useClass: EncryptionService },
     ENCRYPTION_STRATEGIES: { useValue: [AesGcmEncryptionStrategy] },
     ENCRYPTION_MASTER_OPTIONS: { useValue: undefined },
+    CACHE_SERVICE: { useClass: CacheService },
     // dynamic
     CURRENT_REQUEST_CONTEXT: {
         useFactory: () => AlsUtilities.getCurrentRequestContext(),
@@ -173,6 +175,10 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
                 styleSrc: []
             };
         },
+        cache: false
+    },
+    CURRENT_CACHE_CONTEXT: {
+        useFactory: () => AlsUtilities.getCurrentCacheContext(),
         cache: false
     }
 };
