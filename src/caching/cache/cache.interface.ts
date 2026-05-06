@@ -1,15 +1,21 @@
 import { type CacheTagMatcher } from '../cache-tag-matchers';
-import { CacheKeyProvider, CacheWrapDeleteOptions, CacheWrapInvalidateOptions, CacheWrapOptions, CacheWrapWriteOptionsArgsOnly, CacheWrapWriteOptionsWithResult, OnInvalidationFailure, ResultCacheKeyProvider } from './cache-options.model';
+import { CacheKeyProvider, CacheSetDirectOptions, CacheWrapDeleteOptions, CacheWrapInvalidateOptions, CacheWrapOptions, CacheWrapWriteOptionsArgsOnly, CacheWrapWriteOptionsWithResult, OnInvalidationFailure, ResultCacheKeyProvider } from './cache-options.model';
+import { MultiTierCache } from './multi-tier.cache';
+import { ExcludeStrict } from '../../types/exclude-strict.type';
 import { type CacheStoreInterface } from '../store/cache-store.interface';
 
 /**
  * Definition for a cache.
  */
-export interface CacheInterface<K, V, CacheTag extends string, WriteResultAvailable extends boolean> {
+export interface CacheInterface<K, V, CacheTag extends string, WriteResultAvailable extends boolean, N extends string> {
+    /**
+     * Phantom carrier, only for type inference.
+     */
+    readonly _writeResultAvailable: WriteResultAvailable,
     /**
      * The name of the cache. Should be unique.
      */
-    readonly name: string,
+    readonly name: N,
     /**
      * The tags that any values inside of this cache might have.
      *
@@ -20,7 +26,7 @@ export interface CacheInterface<K, V, CacheTag extends string, WriteResultAvaila
     /**
      * The default time to live for a cached value.
      */
-    readonly defaultTtl?: number | (() => number),
+    readonly defaultTtl?: number | (() => number | Promise<number>),
     /**
      * Whether to throw when invalidation fails or to just log and ignore.
      */
@@ -73,14 +79,22 @@ export interface CacheInterface<K, V, CacheTag extends string, WriteResultAvaila
     wrapInvalidate: <TReturn, TArgs extends unknown[]>(
         fn: (...args: TArgs) => TReturn | Promise<TReturn>,
         options: CacheWrapInvalidateOptions<TArgs, CacheTag> // required — this method exists solely to invalidate
-    ) => (...args: TArgs) => Promise<TReturn>
+    ) => (...args: TArgs) => Promise<TReturn>,
+    /**
+     * Directly write a value into this cache, following its configured
+     * write strategy.
+     *
+     * Use this instead of `wrapWrite` when the source function has already
+     * been called and you only need to propagate the result.
+     */
+    setDirect: (key: K, value: V, options?: CacheSetDirectOptions<CacheTag>) => Promise<void>
 }
 
 /**
  * The type for any unspecified cache.
  */
-// eslint-disable-next-line typescript/no-explicit-any
-export type AnyCache = CacheInterface<any, any, string, true> | CacheInterface<any, any, string, false>;
+// eslint-disable-next-line typescript/no-explicit-any, stylistic/max-len
+export type AnyCache = MultiTierCache<any, any, any> | CacheInterface<any, any, string, true, any> | CacheInterface<any, any, string, false, any>;
 
 /**
  * Checks whether or not the given value is a cache.
@@ -88,7 +102,12 @@ export type AnyCache = CacheInterface<any, any, string, true> | CacheInterface<a
  * @returns True if the value has all the keys of a cache, false otherwise.
  */
 export function isCache(value: unknown): value is AnyCache {
-    const keys: (keyof AnyCache)[] = [
+
+    if (value instanceof MultiTierCache) {
+        return true;
+    }
+    // eslint-disable-next-line typescript/no-explicit-any
+    const keys: (keyof ExcludeStrict<AnyCache, MultiTierCache<any, any, any>>)[] = [
         'defaultTtl',
         'name',
         'onInvalidationFailure',

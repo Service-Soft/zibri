@@ -8,7 +8,13 @@ import { CacheKeyProvider, CacheWrapOptions } from '../cache-options.model';
 /**
  * Base class for all read through caches.
  */
-export abstract class ReadThroughCache<K, V, CacheTag extends string> extends BaseCache<K, V, CacheTag> {
+export abstract class ReadThroughCache<
+    K,
+    V,
+    CacheTag extends string,
+    WriteResultAvailable extends boolean,
+    N extends string
+> extends BaseCache<K, V, CacheTag, WriteResultAvailable, N> {
     // eslint-disable-next-line jsdoc/require-jsdoc
     wrap<TArgs extends unknown[]>(
         fn: (...args: TArgs) => V | Promise<V>,
@@ -23,7 +29,7 @@ export abstract class ReadThroughCache<K, V, CacheTag extends string> extends Ba
                 let key: K | undefined;
 
                 try {
-                    key = keyFn(...args);
+                    key = await keyFn(...args);
                     cacheCtx.key = key;
 
                     const storeStart: number = performance.now();
@@ -71,8 +77,10 @@ export abstract class ReadThroughCache<K, V, CacheTag extends string> extends Ba
                     this.metrics.sourceDuration.observe({ cache: this.name, operation: CacheOperation.WRAP }, sourceDuration);
 
                     try {
-                        const ttl: number | undefined = this.resolveResultTtl(options?.ttl, value, args);
-                        const tags: CacheTag[] = this.resolveResultTags(options?.tags, value, args);
+                        const [tags, ttl] = await Promise.all([
+                            this.resolveResultTags(options?.tags, value, args),
+                            this.resolveResultTtl(options?.ttl, value, args)
+                        ]);
 
                         const storeStart: number = performance.now();
                         await this.store.set(key, this.createCachedValue(value, tags, ttl));

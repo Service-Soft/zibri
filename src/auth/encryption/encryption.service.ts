@@ -44,15 +44,24 @@ const INIT_ERROR_MESSAGE: string = 'Error initializing encryption service.';
 
 @Cache()
 // eslint-disable-next-line jsdoc/require-jsdoc
-export class EncryptionKeyCache extends WriteThroughReadThroughCache<string, EncryptionKey> {
-    constructor(
-        @Inject(ZIBRI_DI_TOKENS.LOGGER)
-        protected readonly logger: LoggerInterface,
-        @Inject(ZIBRI_DI_TOKENS.CACHE_SERVICE)
-        protected readonly cacheService: CacheServiceInterface,
-        @Inject(ZIBRI_DI_TOKENS.CACHE_SERVICE)
-        protected readonly metricsService: MetricsServiceInterface
-    ) {
+export class EncryptionKeyCache extends WriteThroughReadThroughCache<string, EncryptionKey, 'EncryptionKeyCache'> {
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    protected get logger(): LoggerInterface {
+        return inject(ZIBRI_DI_TOKENS.LOGGER);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    protected get cacheService(): CacheServiceInterface {
+        return inject(ZIBRI_DI_TOKENS.CACHE_SERVICE);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    protected get metricsService(): MetricsServiceInterface {
+        return inject(ZIBRI_DI_TOKENS.METRICS_SERVICE);
+    }
+
+    constructor() {
         super('EncryptionKeyCache', new InMemoryCacheStore(), []);
     }
 }
@@ -383,12 +392,13 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
     }
 
     // eslint-disable-next-line unusedImports/no-unused-vars
-    @Cached(EncryptionKeyCache, (id, _) => id)
+    @Cached(EncryptionKeyCache, (id, ..._) => id)
     private async findKeyEntityById(id: string, options: BaseRepositoryOptions | undefined): Promise<EncryptionKey> {
         return await this.keyRepository.findById(id, { relations: ['strategy'], ...options });
     }
 
-    @CacheWrite(EncryptionKeyCache, (key) => key.id)
+    // eslint-disable-next-line unusedImports/no-unused-vars
+    @CacheWrite(EncryptionKeyCache, (key, ..._) => key.id)
     private async createKeyEntity(
         encryptedValue: EncryptionString,
         strategy: EncryptionStrategyEntity,
@@ -405,7 +415,8 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         return key;
     }
 
-    @CacheWrite(EncryptionKeyCache, (key) => key.id)
+    // eslint-disable-next-line unusedImports/no-unused-vars
+    @CacheWrite(EncryptionKeyCache, (key, ..._) => key.id)
     private async updateKeyEntityById(
         id: string,
         data: DeepPartial<EncryptionKey>,

@@ -1,11 +1,9 @@
 import { AlsUtilities } from '../../../context/als.utilities';
 import { LogCacheContext } from '../../../logging/log-context.model';
-import { OmitStrict } from '../../../types/omit-strict.type';
 import { CachedValue } from '../../store/cached-value.model';
 import { BaseCache } from '../base-cache.model';
 import { CacheOperation } from '../cache-operation.enum';
 import { CacheKeyProvider, CacheWrapOptions } from '../cache-options.model';
-import { CacheInterface } from '../cache.interface';
 
 /**
  * Read‑aside base class.
@@ -17,10 +15,13 @@ import { CacheInterface } from '../cache.interface';
  * `wrapDelete` and `wrapInvalidate` work exactly like their read‑through
  * counterparts.
  */
-export abstract class ReadAsideCache<K, V, CacheTag extends string = string>
-    extends BaseCache<K, V, CacheTag>
-    implements OmitStrict<CacheInterface<K, V, CacheTag, boolean>, 'wrapWrite'> {
-
+export abstract class ReadAsideCache<
+    K,
+    V,
+    CacheTag extends string,
+    WriteResultAvailable extends boolean,
+    N extends string
+> extends BaseCache<K, V, CacheTag, WriteResultAvailable, N> {
     // eslint-disable-next-line jsdoc/require-jsdoc
     wrap<TArgs extends unknown[]>(
         fn: (...args: TArgs) => V | Promise<V>,
@@ -37,7 +38,7 @@ export abstract class ReadAsideCache<K, V, CacheTag extends string = string>
 
                 // ---------- try cache read ----------
                 try {
-                    key = keyFn(...args);
+                    key = await keyFn(...args);
                     cacheCtx.key = key;
 
                     const storeStart: number = performance.now();

@@ -1,7 +1,6 @@
 import { inject } from '../../di/inject.function';
 import { DiToken } from '../../di/models/di-token.model';
 import { CacheWrapInvalidateOptions } from '../cache/cache-options.model';
-import { CacheInterface } from '../cache/cache.interface';
 
 // eslint-disable-next-line jsdoc/require-returns
 /**
@@ -9,8 +8,14 @@ import { CacheInterface } from '../cache/cache.interface';
  * @param cacheToken - The token of the cache to use.
  * @param options - Additional options, including tags to invalidate.
  */
-export function CacheInvalidate<K, V, CacheTag extends string, WriteResultAvailable extends boolean, TReturn, TArgs extends unknown[]>(
-    cacheToken: DiToken<Pick<CacheInterface<K, V, CacheTag, WriteResultAvailable>, 'wrapInvalidate'>>,
+export function CacheInvalidate<
+    // eslint-disable-next-line jsdoc/require-jsdoc, typescript/no-explicit-any
+    C extends { wrapInvalidate: (...args: any[]) => any },
+    CacheTag extends string,
+    TReturn,
+    TArgs extends unknown[]
+>(
+    cacheToken: DiToken<C>,
     options: CacheWrapInvalidateOptions<TArgs, CacheTag>
 ) {
     return (
@@ -24,7 +29,9 @@ export function CacheInvalidate<K, V, CacheTag extends string, WriteResultAvaila
 
         descriptor.value = async function(this: object, ...args: TArgs): Promise<TReturn> {
             if (!wrappedFns.has(this)) {
-                const cache: Pick<CacheInterface<K, V, CacheTag, WriteResultAvailable>, 'wrapInvalidate'> = inject(cacheToken);
+                // eslint-disable-next-line typescript/typedef
+                const cache = inject(cacheToken);
+                // eslint-disable-next-line typescript/no-unsafe-argument
                 wrappedFns.set(this, cache.wrapInvalidate(original.bind(this), options));
             }
             // eslint-disable-next-line typescript/no-non-null-assertion

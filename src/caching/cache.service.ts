@@ -1,4 +1,4 @@
-import { AnyCache, CacheInterface, isCache } from './cache/cache.interface';
+import { AnyCache, isCache } from './cache/cache.interface';
 import { CacheServiceInterface } from './cache-service.interface';
 import { matchesAnyTag } from './cache-tag-matchers';
 import { Inject } from '../di/decorators/inject.decorator';
@@ -8,6 +8,7 @@ import { inject } from '../di/inject.function';
 import { GlobalRegistry } from '../global/global-registry';
 import { OnAppInit } from '../global/on-app-init.interface';
 import { type LoggerInterface } from '../logging/logger.interface';
+import { MultiTierCache } from './cache/multi-tier.cache';
 
 /**
  * Default implementation of the cache service.
@@ -60,9 +61,9 @@ export class CacheService implements CacheServiceInterface, OnAppInit {
     // eslint-disable-next-line jsdoc/require-jsdoc
     async invalidateTags(tags: string[]): Promise<void> {
         // Only hit caches that actually declared these tags
-        const affectedCaches: CacheInterface<unknown, unknown, string, boolean>[] = this.caches.filter(
-            c => c.tags === 'all' || matchesAnyTag(c.tags, tags)
+        const affectedCaches: AnyCache[] = this.caches.filter(
+            c => !(c instanceof MultiTierCache) && (c.tags === 'all' || matchesAnyTag(c.tags, tags))
         );
-        await Promise.all(affectedCaches.map(c => c.store.invalidateTags(tags)));
+        await Promise.all(affectedCaches.map(c => c instanceof MultiTierCache ? undefined : c.store.invalidateTags(tags)));
     }
 }

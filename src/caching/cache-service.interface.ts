@@ -1,4 +1,4 @@
-import { CacheInterface } from './cache/cache.interface';
+import { AnyCache } from './cache/cache.interface';
 
 /**
  * Interface for a cache service.
@@ -7,7 +7,7 @@ export interface CacheServiceInterface {
     /**
      * All caches that have been registered.
      */
-    readonly caches: CacheInterface<unknown, unknown, string, boolean>[],
+    readonly caches: AnyCache[],
     /**
      * Invalidates the given tags through all caches.
      */

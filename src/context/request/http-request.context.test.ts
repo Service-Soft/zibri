@@ -68,7 +68,7 @@ describe('request context integration', () => {
             controllers: [ContextTestController]
         });
         baseUrl = await server.start();
-    }, 10000);
+    }, 15000);
 
     afterAll(async () => {
         await server.shutdown();

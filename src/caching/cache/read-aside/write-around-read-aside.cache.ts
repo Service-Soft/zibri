@@ -11,19 +11,20 @@ import { ReadAsideCache } from './read-aside.cache';
  * Writes update the source and then only invalidate tags (no cache population).
  * Reads (`wrap`) check the cache but **never** populate it.
  */
-export abstract class WriteAroundReadAsideCache<K, V, CacheTag extends string = string>
-    extends ReadAsideCache<K, V, CacheTag>
-    implements CacheInterface<K, V, CacheTag, false> {
+export abstract class WriteAroundReadAsideCache<K, V, N extends string, CacheTag extends string = string>
+    extends ReadAsideCache<K, V, CacheTag, false, N>
+    implements CacheInterface<K, V, CacheTag, false, N> {
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly _writeResultAvailable: false = false;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     wrapWrite<TArgs extends unknown[]>(
         fn: (...args: TArgs) => V | Promise<V>,
-        keyFn: CacheKeyProvider<K, TArgs>, // kept for interface compatibility, never used
+        _keyFn: CacheKeyProvider<K, TArgs>, // kept for interface compatibility, never used
         options?: CacheWrapWriteOptionsArgsOnly<TArgs, CacheTag>
     ): (...args: TArgs) => Promise<V> {
         return async (...args) => {
-            void keyFn;
-
             const cacheCtx: LogCacheContext = { cache: this.name, operation: CacheOperation.WRITE };
 
             return AlsUtilities.runWithCacheContext(cacheCtx, async () => {
@@ -42,5 +43,10 @@ export abstract class WriteAroundReadAsideCache<K, V, CacheTag extends string = 
                 return value;
             });
         };
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async setDirect(): Promise<void> {
+        // Write‑around: intentionally does not cache writes.
     }
 }

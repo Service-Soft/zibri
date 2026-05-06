@@ -1,35 +1,37 @@
 import { CacheStoreConfig, CacheStoreInterface } from './cache-store.interface';
 import { CachedValue } from './cached-value.model';
 import { Bytes } from '../../utilities/bytes';
+import { DoublyLinkedList, LinkedListNode } from '../../utilities/doubly-linked-list';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { NumberUtilities } from '../../utilities/number.utilities';
 
 /**
  * Internal linked list node.
  */
-type INode<K, V> = {
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    key: K,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+interface CacheEntry<K, V> {
+    /** The node inside the order list (holds the key). */
+    orderNode: LinkedListNode<K>,
+    /** The actual cached value. */
     value: CachedValue<V>,
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    prev: INode<K, V> | undefined,
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    next: INode<K, V> | undefined,
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    frequency: number,
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    byteSize: number
-};
+    /** Estimated size in bytes (for byte‑based eviction). */
+    byteSize: number,
+    /** Frequency counter (used only by LFU). */
+    frequency: number
+}
 
 /**
- * A simple in memory cache store.
- * Uses a map internally.
+ * A simple in‑memory cache store.
+ *
+ * Supports LRU, MRU, FIFO and LFU eviction when maxEntries or maxBytes
+ * are exceeded.  The implementation uses a generic {@link DoublyLinkedList}
+ * to keep O(1) access, removal and reordering.
  */
 export class InMemoryCacheStore<K, V> implements CacheStoreInterface<K, V> {
-    private readonly map: Map<K, INode<K, V>> = new Map();
-    private head: INode<K, V> | undefined; // oldest (for LRU/FIFO)
-    private tail: INode<K, V> | undefined; // newest (for MRU)
+    private readonly entries: Map<K, CacheEntry<K, V>> = new Map();
+
+    /** Order list – used by LRU, MRU, FIFO.  For LFU it’s still maintained but not used for eviction. */
+    private readonly orderList: DoublyLinkedList<K> = new DoublyLinkedList();
+
     private currentBytes: number = 0;
 
     // LFU helpers
@@ -50,20 +52,20 @@ export class InMemoryCacheStore<K, V> implements CacheStoreInterface<K, V> {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     get(key: K): CachedValue<V> | undefined {
-        const node: INode<K, V> | undefined = this.map.get(key);
-        if (!node) {
+        const entry: CacheEntry<K, V> | undefined = this.entries.get(key);
+        if (!entry) {
             return undefined;
         }
 
-        this.recordAccess(node);
-        return node.value;
+        this.recordAccess(entry);
+        return entry.value;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     set(key: K, value: CachedValue<V>): void {
-        const existing: INode<K, V> | undefined = this.map.get(key);
+        const existing: CacheEntry<K, V> | undefined = this.entries.get(key);
+
         if (existing) {
-            // Update existing entry
             this.currentBytes = NumberUtilities.subtract(this.currentBytes, existing.byteSize).toNumber();
             existing.value = value;
             existing.byteSize = this.estimateBytes(key, value);
@@ -74,112 +76,104 @@ export class InMemoryCacheStore<K, V> implements CacheStoreInterface<K, V> {
 
         const byteSize: number = this.estimateBytes(key, value);
 
-        // Evict until both constraints are satisfied
+        // Evict until there is enough space
         while (
             this.size() >= this.config.maxEntries
             || NumberUtilities.add(this.currentBytes, byteSize).comparedTo(this.config.maxBytes) === 1
         ) {
-            if (this.map.size <= 0) {
+            if (this.entries.size <= 0) {
                 // a single entry exceeds the cache, skip caching for it
                 return;
             }
             this.evictOne();
         }
 
-        const node: INode<K, V> = {
-            key,
+        const orderNode: LinkedListNode<K> = this.orderList.addLast(key);
+
+        const entry: CacheEntry<K, V> = {
+            orderNode,
             value,
-            prev: undefined,
-            next: undefined,
-            frequency: 1,
-            byteSize
+            byteSize,
+            frequency: 1
         };
-        this.map.set(key, node);
-        this.addToTail(node);
+        this.entries.set(key, entry);
         this.currentBytes = NumberUtilities.add(this.currentBytes, byteSize).toNumber();
 
         // LFU initialization
         if (this.config.removeOnOverflow === 'leastFrequentlyUsed') {
-            this.increaseFrequency(node); // will set minFrequency if needed
+            this.increaseFrequency(entry);
         }
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     delete(key: K): void {
-        const node: INode<K, V> | undefined = this.map.get(key);
-        if (!node) {
+        const entry: CacheEntry<K, V> | undefined = this.entries.get(key);
+        if (!entry) {
             return;
         }
 
-        this.removeNode(node);
-        this.map.delete(key);
+        // Remove from order list
+        this.orderList.remove(entry.orderNode);
+
+        // Subtract bytes
+        this.currentBytes = NumberUtilities.subtract(this.currentBytes, entry.byteSize).toNumber();
+
+        // LFU cleanup
+        if (this.config.removeOnOverflow === 'leastFrequentlyUsed') {
+            this.decreaseFrequency(entry);
+        }
+
+        this.entries.delete(key);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     has(key: K): boolean {
-        return this.map.has(key);
+        return this.entries.has(key);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     clear(): void {
-        this.map.clear();
+        this.entries.clear();
+        this.orderList.clear();
         this.frequencyMap.clear();
-        this.head = undefined;
-        this.tail = undefined;
         this.currentBytes = 0;
         this.minFrequency = 0;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     size(): number {
-        return this.map.size;
+        return this.entries.size;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     invalidateTags(tags: string[]): void {
-        for (const [key, node] of this.map.entries()) {
-            if (node.value.tags.some(t => tags.includes(t))) {
+        // Safe iteration – we delete while iterating
+        for (const [key, entry] of this.entries.entries()) {
+            if (entry.value.tags.some(t => tags.includes(t))) {
                 this.delete(key);
             }
         }
     }
 
-    private estimateBytes(key: K, value: CachedValue<V>): number {
-        try {
-            return Buffer.byteLength(JsonUtilities.stringify({ key, value }), 'utf8');
-        }
-        catch {
-            // non-serializable values — fall back to a conservative fixed estimate
-            return 1024;
-        }
-    }
-
     private evictOne(): void {
         switch (this.config.removeOnOverflow) {
-            case 'leastRecentlyUsed': {
-                if (this.head) {
-                    this.delete(this.head.key);
+            case 'leastRecentlyUsed':
+            case 'firstInFirstOut': {
+                // Both evict the head of the order list
+                if (this.orderList.head) {
+                    this.delete(this.orderList.head.value);
                 }
                 break;
             }
             case 'mostRecentlyUsed': {
-                if (this.tail) {
-                    this.delete(this.tail.key);
-                }
-                break;
-            }
-            // eslint-disable-next-line sonar/no-duplicated-branches
-            case 'firstInFirstOut': {
-                // Same as LRU but we never call recordAccess on get() → head remains the oldest insertion.
-                // Because we still call recordAccess on set(), we must disable moving:
-                // we handle FIFO specially in recordAccess.
-                if (this.head) {
-                    this.delete(this.head.key);
+                // Evict the tail (most recently used)
+                if (this.orderList.tail) {
+                    this.delete(this.orderList.tail.value);
                 }
                 break;
             }
             case 'leastFrequentlyUsed': {
-                // Remove any key from the set of minimum frequency
+                // Remove any key from the current minimum‑frequency bucket
                 const minSet: Set<K> | undefined = this.frequencyMap.get(this.minFrequency);
                 if (minSet && minSet.size > 0) {
                     // eslint-disable-next-line typescript/no-non-null-assertion
@@ -187,57 +181,20 @@ export class InMemoryCacheStore<K, V> implements CacheStoreInterface<K, V> {
                     this.delete(keyToEvict);
                     return;
                 }
-                if (this.head) {
-                    this.delete(this.head.key);
+                if (this.orderList.head) {
+                    this.delete(this.orderList.head.value);
                 }
                 break;
             }
         }
     }
 
-    private addToTail(node: INode<K, V>): void {
-        if (!this.tail) {
-            this.head = node;
-            this.tail = node;
-            node.prev = undefined;
-            node.next = undefined;
-            return;
-        }
-
-        node.prev = this.tail;
-        node.next = undefined;
-        this.tail.next = node;
-        this.tail = node;
-    }
-
-    private removeNode(node: INode<K, V>): void {
-        this.currentBytes = NumberUtilities.subtract(this.currentBytes, node.byteSize).toNumber();
-        if (node.prev) {
-            node.prev.next = node.next;
-        }
-        else {
-            this.head = node.next;
-        }
-        if (node.next) {
-            node.next.prev = node.prev;
-        }
-        else {
-            this.tail = node.prev;
-        }
-
-        // LFU cleanup
-        if (this.config.removeOnOverflow === 'leastFrequentlyUsed') {
-            this.decreaseFreq(node);
-        }
-    }
-
-    private recordAccess(node: INode<K, V>): void {
+    private recordAccess(entry: CacheEntry<K, V>): void {
         switch (this.config.removeOnOverflow) {
             case 'leastRecentlyUsed':
             case 'mostRecentlyUsed': {
                 // Move to tail (mark as most recent)
-                this.removeNodeFromList(node);
-                this.addToTail(node);
+                this.orderList.moveToTail(entry.orderNode);
                 break;
             }
             case 'firstInFirstOut': {
@@ -246,21 +203,21 @@ export class InMemoryCacheStore<K, V> implements CacheStoreInterface<K, V> {
             }
             case 'leastFrequentlyUsed': {
                 // Increase frequency
-                this.increaseFrequency(node);
+                this.increaseFrequency(entry);
                 break;
             }
         }
     }
 
-    private increaseFrequency(node: INode<K, V>): void {
-        const oldFrequency: number = node.frequency;
+    private increaseFrequency(entry: CacheEntry<K, V>): void {
+        const oldFrequency: number = entry.frequency;
         const newFrequency: number = oldFrequency + 1;
-        node.frequency = newFrequency;
+        entry.frequency = newFrequency;
 
         // remove from old frequency set
         const oldSet: Set<K> | undefined = this.frequencyMap.get(oldFrequency);
         if (oldSet) {
-            oldSet.delete(node.key);
+            oldSet.delete(entry.orderNode.value);
             if (oldSet.size === 0) {
                 this.frequencyMap.delete(oldFrequency);
                 if (oldFrequency === this.minFrequency) {
@@ -278,54 +235,38 @@ export class InMemoryCacheStore<K, V> implements CacheStoreInterface<K, V> {
             this.frequencyMap.set(newFrequency, new Set());
         }
         // eslint-disable-next-line typescript/no-non-null-assertion
-        this.frequencyMap.get(newFrequency)!.add(node.key);
+        this.frequencyMap.get(newFrequency)!.add(entry.orderNode.value);
         if (newFrequency < this.minFrequency || this.minFrequency === 0) {
             this.minFrequency = newFrequency;
         }
     }
 
-    private decreaseFreq(node: INode<K, V>): void {
-        // Called when a node is removed completely (delete, evict).
-        // We don't decrease frequency; we just clean up the frequency set.
-        const frequency: number = node.frequency;
+    private decreaseFrequency(entry: CacheEntry<K, V>): void {
+        // Called when a node is removed – just clean up the frequency sets.
+        const frequency: number = entry.frequency;
         const set: Set<K> | undefined = this.frequencyMap.get(frequency);
-
         if (!set) {
             return;
         }
 
-        set.delete(node.key);
-
-        if (set.size !== 0) {
-            return;
-        }
-
-        this.frequencyMap.delete(frequency);
-
-        if (frequency !== this.minFrequency) {
-            return;
-        }
-
-        this.minFrequency = Math.min(...this.frequencyMap.keys());
-
-        if (!Number.isFinite(this.minFrequency)) {
-            this.minFrequency = 0;
+        set.delete(entry.orderNode.value);
+        if (set.size === 0) {
+            this.frequencyMap.delete(frequency);
+            if (frequency === this.minFrequency) {
+                this.minFrequency = Math.min(...this.frequencyMap.keys());
+                if (!Number.isFinite(this.minFrequency)) {
+                    this.minFrequency = 0;
+                }
+            }
         }
     }
 
-    // Small helper to remove a node from the list without deleting metadata
-    private removeNodeFromList(node: INode<K, V>): void {
-        if (node.prev) {
-            node.prev.next = node.next;
+    private estimateBytes(key: K, value: CachedValue<V>): number {
+        try {
+            return Buffer.byteLength(JsonUtilities.stringify({ key, value }), 'utf8');
         }
-        else {
-            this.head = node.next;
-        }
-        if (node.next) {
-            node.next.prev = node.prev;
-        }
-        else {
-            this.tail = node.prev;
+        catch {
+            return 1024;
         }
     }
 }

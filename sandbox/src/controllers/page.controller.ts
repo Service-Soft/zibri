@@ -1,11 +1,18 @@
-import { AssetServiceInterface, Cache, Cached, Controller, Get, GlobalRegistry, HtmlResponse, inject, InMemoryCacheStore, PreactUtilities, Response, TreeNode, WriteThroughReadThroughCache, ZIBRI_DI_TOKENS } from 'zibri';
+import { AssetServiceInterface, Cache, Cached, CacheServiceInterface, Controller, Get, GlobalRegistry, HtmlResponse, Inject, inject, InMemoryCacheStore, LoggerInterface, MetricsServiceInterface, PreactUtilities, Response, TreeNode, WriteThroughReadThroughCache, ZIBRI_DI_TOKENS } from 'zibri';
 
 import { AssetsPage } from '../templates/pages/assets';
 import { HomePage } from '../templates/pages/home';
 
 @Cache()
-export class StaticPagesCache extends WriteThroughReadThroughCache<string, HtmlResponse> {
-    constructor() {
+export class StaticPagesCache extends WriteThroughReadThroughCache<string, HtmlResponse, 'StaticPagesCache'> {
+    constructor(
+        @Inject(ZIBRI_DI_TOKENS.LOGGER)
+        protected readonly logger: LoggerInterface,
+        @Inject(ZIBRI_DI_TOKENS.CACHE_SERVICE)
+        protected readonly cacheService: CacheServiceInterface,
+        @Inject(ZIBRI_DI_TOKENS.METRICS_SERVICE)
+        protected readonly metricsService: MetricsServiceInterface
+    ) {
         super('StaticPagesCache', new InMemoryCacheStore(), []);
     }
 }

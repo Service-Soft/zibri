@@ -7,7 +7,7 @@ import { CacheMetrics } from '../cache-metrics.model';
 import { CacheServiceInterface } from '../cache-service.interface';
 import { CacheTagMatcher } from '../cache-tag-matchers';
 import { CacheOperation } from './cache-operation.enum';
-import { CacheKeyProvider, CacheTagsProvider, CacheTtlProvider, CacheWrapDeleteOptions, CacheWrapInvalidateOptions, OnInvalidationFailure, ResultCacheTagsProvider, ResultCacheTtlProvider } from './cache-options.model';
+import { CacheKeyProvider, CacheSetDirectOptions, CacheTagsProvider, CacheTtlProvider, CacheWrapDeleteOptions, CacheWrapInvalidateOptions, OnInvalidationFailure, ResultCacheTagsProvider, ResultCacheTtlProvider } from './cache-options.model';
 import { CacheInterface } from './cache.interface';
 import { CacheStoreInterface } from '../store/cache-store.interface';
 import { CachedValue } from '../store/cached-value.model';
@@ -15,8 +15,8 @@ import { CachedValue } from '../store/cached-value.model';
 /**
  * Shared base class of all caches.
  */
-export abstract class BaseCache<K, V, CacheTag extends string>
-implements OmitStrict<CacheInterface<K, V, CacheTag, boolean>, 'wrap' | 'wrapWrite'> {
+export abstract class BaseCache<K, V, CacheTag extends string, WriteResultAvailable extends boolean, N extends string>
+implements OmitStrict<CacheInterface<K, V, CacheTag, WriteResultAvailable, N>, 'wrap' | 'wrapWrite'> {
 
     private readonly inFlight: Map<K, Promise<V>> = new Map();
 
@@ -28,6 +28,8 @@ implements OmitStrict<CacheInterface<K, V, CacheTag, boolean>, 'wrap' | 'wrapWri
 
     protected abstract metricsService: MetricsServiceInterface;
 
+    abstract readonly _writeResultAvailable: WriteResultAvailable;
+
     // eslint-disable-next-line jsdoc/require-returns
     /**
      * The cache metrics.
@@ -38,10 +40,10 @@ implements OmitStrict<CacheInterface<K, V, CacheTag, boolean>, 'wrap' | 'wrapWri
     }
 
     constructor(
-        readonly name: string,
+        readonly name: N,
         readonly store: CacheStoreInterface<K, V>,
         readonly tags: 'all' | readonly CacheTagMatcher[],
-        readonly defaultTtl?: number | (() => number),
+        readonly defaultTtl?: number | (() => number | Promise<number>),
         readonly onInvalidationFailure?: OnInvalidationFailure
     ) {}
 
@@ -63,7 +65,7 @@ implements OmitStrict<CacheInterface<K, V, CacheTag, boolean>, 'wrap' | 'wrapWri
                 await Promise.all([
                     Promise.resolve()
                         .then(async () => {
-                            const key: K = keyFn(...args);
+                            const key: K = await keyFn(...args);
                             cacheCtx.key = key;
 
                             const storeStart: number = performance.now();
@@ -107,6 +109,8 @@ implements OmitStrict<CacheInterface<K, V, CacheTag, boolean>, 'wrap' | 'wrapWri
             });
         };
     }
+
+    abstract setDirect(key: K, value: V, options?: CacheSetDirectOptions<CacheTag>): Promise<void>;
 
     private initMetrics(): CacheMetrics {
         const label: string[] = ['cache'];
@@ -195,8 +199,8 @@ implements OmitStrict<CacheInterface<K, V, CacheTag, boolean>, 'wrap' | 'wrapWri
     ): Promise<void> {
         try {
             const tags: CacheTag[] = maybeArgs !== undefined
-                ? this.resolveResultTags(provider as ResultCacheTagsProvider<V, TArgs, CacheTag>, resultOrArgs as V, maybeArgs)
-                : this.resolveArgTags(provider as CacheTagsProvider<TArgs, CacheTag>, resultOrArgs as TArgs);
+                ? await this.resolveResultTags(provider as ResultCacheTagsProvider<V, TArgs, CacheTag>, resultOrArgs as V, maybeArgs)
+                : await this.resolveArgTags(provider as CacheTagsProvider<TArgs, CacheTag>, resultOrArgs as TArgs);
 
             if (!tags.length) {
                 return;
@@ -229,16 +233,16 @@ implements OmitStrict<CacheInterface<K, V, CacheTag, boolean>, 'wrap' | 'wrapWri
      * @param args - Additional arguments.
      * @returns All resolved CacheTags.
      */
-    protected resolveResultTags<TArgs extends unknown[]>(
+    protected async resolveResultTags<TArgs extends unknown[]>(
         provider: ResultCacheTagsProvider<V, TArgs, CacheTag> | undefined,
         result: V,
         args: TArgs
-    ): CacheTag[] {
+    ): Promise<CacheTag[]> {
         if (!provider) {
             return [];
         }
         if (typeof provider === 'function') {
-            return provider(result, ...args);
+            return await provider(result, ...args);
         }
         return provider;
     }
@@ -249,15 +253,15 @@ implements OmitStrict<CacheInterface<K, V, CacheTag, boolean>, 'wrap' | 'wrapWri
      * @param args - The arguments.
      * @returns All resolved CacheTags.
      */
-    protected resolveArgTags<TArgs extends unknown[]>(
+    protected async resolveArgTags<TArgs extends unknown[]>(
         provider: CacheTagsProvider<TArgs, CacheTag> | undefined,
         args: TArgs
-    ): CacheTag[] {
+    ): Promise<CacheTag[]> {
         if (!provider) {
             return [];
         }
         if (typeof provider === 'function') {
-            return provider(...args);
+            return await provider(...args);
         }
         return provider;
     }
@@ -269,19 +273,19 @@ implements OmitStrict<CacheInterface<K, V, CacheTag, boolean>, 'wrap' | 'wrapWri
      * @param args - The arguments.
      * @returns The resolved time to live or undefined if values should be kept in cache without time limit.
      */
-    protected resolveResultTtl<TArgs extends unknown[]>(
+    protected async resolveResultTtl<TArgs extends unknown[]>(
         provider: ResultCacheTtlProvider<V, TArgs> | undefined,
         result: V,
         args: TArgs
-    ): number | undefined {
+    ): Promise<number | undefined> {
         if (provider == undefined) {
             if (typeof this.defaultTtl === 'function') {
-                return this.defaultTtl();
+                return await this.defaultTtl();
             }
             return this.defaultTtl;
         }
         if (typeof provider === 'function') {
-            return provider(result, ...args);
+            return await provider(result, ...args);
         }
         return provider;
     }
@@ -292,18 +296,18 @@ implements OmitStrict<CacheInterface<K, V, CacheTag, boolean>, 'wrap' | 'wrapWri
      * @param args - The arguments.
      * @returns The resolved time to live or undefined if values should be kept in cache without time limit.
      */
-    protected resolveArgsTtl<TArgs extends unknown[]>(
+    protected async resolveArgsTtl<TArgs extends unknown[]>(
         provider: CacheTtlProvider<TArgs> | undefined,
         args: TArgs
-    ): number | undefined {
+    ): Promise<number | undefined> {
         if (provider == undefined) {
             if (typeof this.defaultTtl === 'function') {
-                return this.defaultTtl();
+                return await this.defaultTtl();
             }
             return this.defaultTtl;
         }
         if (typeof provider === 'function') {
-            return provider(...args);
+            return await provider(...args);
         }
         return provider;
     }

@@ -1,38 +1,54 @@
 /**
  * Provider for a time to live value.
  */
-export type CacheTtlProvider<TArgs extends unknown[]> = number | ((...args: TArgs) => number | undefined);
+export type CacheTtlProvider<TArgs extends unknown[]> = number | ((...args: TArgs) => (number | undefined) | Promise<number | undefined>);
 
 /**
  * Provider for a time to live value where the result of the original function is available.
  */
-export type ResultCacheTtlProvider<TResult, TArgs extends unknown[]> = number | ((result: TResult, ...args: TArgs) => number | undefined);
+export type ResultCacheTtlProvider<TResult, TArgs extends unknown[]> = number
+    | ((result: TResult, ...args: TArgs) => (number | undefined) | Promise<number | undefined>);
 
 /**
  * Tags derived from args only (no result available) — wrapDelete, wrapInvalidate.
  */
-export type CacheTagsProvider<TArgs extends unknown[], CacheTag extends string> = CacheTag[] | ((...args: TArgs) => CacheTag[]);
+export type CacheTagsProvider<TArgs extends unknown[], CacheTag extends string> = CacheTag[]
+    | ((...args: TArgs) => CacheTag[] | Promise<CacheTag[]>);
 
 /**
  * Tags derived from result + args — wrap, wrapWrite.
  */
 export type ResultCacheTagsProvider<TResult, TArgs extends unknown[], CacheTag extends string> = CacheTag[]
-    | ((result: TResult, ...args: TArgs) => CacheTag[]);
+    | ((result: TResult, ...args: TArgs) => CacheTag[] | Promise<CacheTag[]>);
 
 /**
  * Provider for a cache key.
  */
-export type CacheKeyProvider<K, TArgs extends unknown[]> = (...args: TArgs) => K;
+export type CacheKeyProvider<K, TArgs extends unknown[]> = (...args: TArgs) => K | Promise<K>;
 
 /**
  * Provider for a cache key where the result of the original function is available.
  */
-export type ResultCacheKeyProvider<K, TResult, TArgs extends unknown[]> = (result: TResult, ...args: TArgs) => K;
+export type ResultCacheKeyProvider<K, TResult, TArgs extends unknown[]> = (result: TResult, ...args: TArgs) => K | Promise<K>;
 
 /**
  * The options on how to handle invalidation failures.
  */
 export type OnInvalidationFailure = 'bestEffort' | 'throw';
+
+/**
+ * Options for manually setting a value to the cache.
+ */
+export type CacheSetDirectOptions<CacheTag extends string> = {
+    /**
+     * The time to live value.
+     */
+    ttl?: number,
+    /**
+     * Additional tags to set.
+     */
+    tags?: CacheTag[]
+};
 
 /**
  * Options for the wrap method of a cache.

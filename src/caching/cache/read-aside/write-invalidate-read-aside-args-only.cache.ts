@@ -11,9 +11,12 @@ import { ReadAsideCache } from './read-aside.cache';
  * After a source write, the cache entry derived from **arguments** is deleted.
  * Reads (`wrap`) check the cache but **never** populate it.
  */
-export abstract class WriteInvalidateReadAsideArgsOnlyCache<K, V, CacheTag extends string = string>
-    extends ReadAsideCache<K, V, CacheTag>
-    implements CacheInterface<K, V, CacheTag, false> {
+export abstract class WriteInvalidateReadAsideArgsOnlyCache<K, V, N extends string, CacheTag extends string = string>
+    extends ReadAsideCache<K, V, CacheTag, false, N>
+    implements CacheInterface<K, V, CacheTag, false, N> {
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly _writeResultAvailable: false = false;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     wrapWrite<TArgs extends unknown[]>(
@@ -38,7 +41,7 @@ export abstract class WriteInvalidateReadAsideArgsOnlyCache<K, V, CacheTag exten
                     this.safeInvalidateTags(options?.invalidatesTags, args),
                     Promise.resolve()
                         .then(async () => {
-                            const key: K = keyFn(...args);
+                            const key: K = await keyFn(...args);
                             cacheCtx.key = key;
 
                             const storeStart: number = performance.now();
@@ -62,5 +65,20 @@ export abstract class WriteInvalidateReadAsideArgsOnlyCache<K, V, CacheTag exten
                 return value;
             });
         };
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async setDirect(key: K): Promise<void> {
+        try {
+            const storeStart: number = performance.now();
+            await this.store.delete(key);
+            this.metrics.storeDuration.observe({ cache: this.name, operation: 'delete' }, performance.now() - storeStart);
+            this.metrics.deletes.increase({ cache: this.name });
+            await this.updateSizeGauge();
+        }
+        catch (error) {
+            this.metrics.errors.increase({ cache: this.name, operation: 'delete' });
+            await this.logger.warn('Cache invalidation (delete) failed in setDirect', { error });
+        }
     }
 }

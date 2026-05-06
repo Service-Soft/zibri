@@ -14,7 +14,7 @@ import { type MetricsServiceInterface } from '../metrics/metrics-service.interfa
 import { WriteThroughReadThroughCache } from './cache/read-through/write-through-read-through.cache';
 
 @Cache()
-class UserTagCache extends WriteThroughReadThroughCache<string, string> {
+class UserTagCache extends WriteThroughReadThroughCache<string, string, 'User Tag Cache'> {
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOGGER) protected readonly logger: LoggerInterface,
         @Inject(ZIBRI_DI_TOKENS.METRICS_SERVICE) protected readonly metricsService: MetricsServiceInterface,
@@ -25,7 +25,7 @@ class UserTagCache extends WriteThroughReadThroughCache<string, string> {
 }
 
 @Cache()
-class PostTagCache extends WriteThroughReadThroughCache<string, string> {
+class PostTagCache extends WriteThroughReadThroughCache<string, string, 'Post Tag Cache'> {
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOGGER) protected readonly logger: LoggerInterface,
         @Inject(ZIBRI_DI_TOKENS.METRICS_SERVICE) protected readonly metricsService: MetricsServiceInterface,
@@ -36,7 +36,7 @@ class PostTagCache extends WriteThroughReadThroughCache<string, string> {
 }
 
 @Cache()
-class UserRegexCache extends WriteThroughReadThroughCache<string, string> {
+class UserRegexCache extends WriteThroughReadThroughCache<string, string, 'User Regex Cache'> {
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOGGER) protected readonly logger: LoggerInterface,
         @Inject(ZIBRI_DI_TOKENS.METRICS_SERVICE) protected readonly metricsService: MetricsServiceInterface,
@@ -47,7 +47,7 @@ class UserRegexCache extends WriteThroughReadThroughCache<string, string> {
 }
 
 @Cache()
-class PostRegexCache extends WriteThroughReadThroughCache<string, string> {
+class PostRegexCache extends WriteThroughReadThroughCache<string, string, 'Post Regex Cache'> {
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOGGER) protected readonly logger: LoggerInterface,
         @Inject(ZIBRI_DI_TOKENS.METRICS_SERVICE) protected readonly metricsService: MetricsServiceInterface,
@@ -58,7 +58,7 @@ class PostRegexCache extends WriteThroughReadThroughCache<string, string> {
 }
 
 @Cache()
-class UserPredicateCache extends WriteThroughReadThroughCache<string, string> {
+class UserPredicateCache extends WriteThroughReadThroughCache<string, string, 'User Predicate Cache'> {
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOGGER) protected readonly logger: LoggerInterface,
         @Inject(ZIBRI_DI_TOKENS.METRICS_SERVICE) protected readonly metricsService: MetricsServiceInterface,
@@ -69,7 +69,7 @@ class UserPredicateCache extends WriteThroughReadThroughCache<string, string> {
 }
 
 @Cache()
-class OtherPredicateCache extends WriteThroughReadThroughCache<string, string> {
+class OtherPredicateCache extends WriteThroughReadThroughCache<string, string, 'Other Predicate Cache'> {
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOGGER) protected readonly logger: LoggerInterface,
         @Inject(ZIBRI_DI_TOKENS.METRICS_SERVICE) protected readonly metricsService: MetricsServiceInterface,
@@ -80,7 +80,7 @@ class OtherPredicateCache extends WriteThroughReadThroughCache<string, string> {
 }
 
 @Cache()
-class AllTagsCache extends WriteThroughReadThroughCache<string, string> {
+class AllTagsCache extends WriteThroughReadThroughCache<string, string, 'All Tags Cache'> {
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOGGER) protected readonly logger: LoggerInterface,
         @Inject(ZIBRI_DI_TOKENS.METRICS_SERVICE) protected readonly metricsService: MetricsServiceInterface,
@@ -91,7 +91,7 @@ class AllTagsCache extends WriteThroughReadThroughCache<string, string> {
 }
 
 @Cache()
-class UnrelatedTagCache extends WriteThroughReadThroughCache<string, string> {
+class UnrelatedTagCache extends WriteThroughReadThroughCache<string, string, 'Unrelated Tag Cache'> {
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOGGER) protected readonly logger: LoggerInterface,
         @Inject(ZIBRI_DI_TOKENS.METRICS_SERVICE) protected readonly metricsService: MetricsServiceInterface,

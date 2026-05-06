@@ -16,7 +16,7 @@ import { CachedValue } from '../../store/cached-value.model';
 import { InMemoryCacheStore } from '../../store/in-memory.cache-store';
 
 @Cache()
-class TestCache extends WriteThroughReadThroughCache<string, number> {
+class TestCache extends WriteThroughReadThroughCache<string, number, 'Test Cache'> {
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
         protected readonly logger: LoggerInterface,
@@ -30,7 +30,7 @@ class TestCache extends WriteThroughReadThroughCache<string, number> {
 }
 
 @Cache()
-class MinuteTtlTestCache extends WriteThroughReadThroughCache<string, number> {
+class MinuteTtlTestCache extends WriteThroughReadThroughCache<string, number, 'Minute TTL Test Cache'> {
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
         protected readonly logger: LoggerInterface,
@@ -44,7 +44,7 @@ class MinuteTtlTestCache extends WriteThroughReadThroughCache<string, number> {
 }
 
 @Cache()
-class MinuteTtlIdTestCache extends WriteThroughReadThroughCache<string, { id: string }> {
+class MinuteTtlIdTestCache extends WriteThroughReadThroughCache<string, { id: string }, 'Minute TTL Id Test Cache'> {
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
         protected readonly logger: LoggerInterface,
@@ -58,7 +58,7 @@ class MinuteTtlIdTestCache extends WriteThroughReadThroughCache<string, { id: st
 }
 
 @Cache()
-class MainCacheTestCache extends WriteThroughReadThroughCache<string, { id: string }> {
+class MainCacheTestCache extends WriteThroughReadThroughCache<string, { id: string }, 'Main Cache Test Cache'> {
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
         protected readonly logger: LoggerInterface,
@@ -72,7 +72,7 @@ class MainCacheTestCache extends WriteThroughReadThroughCache<string, { id: stri
 }
 
 @Cache()
-class AffectedCache1TestCache extends WriteThroughReadThroughCache<string, string> {
+class AffectedCache1TestCache extends WriteThroughReadThroughCache<string, string, 'Affected Cache 1 Test Cache'> {
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
         protected readonly logger: LoggerInterface,
@@ -86,7 +86,7 @@ class AffectedCache1TestCache extends WriteThroughReadThroughCache<string, strin
 }
 
 @Cache()
-class UnaffectedCache1TestCache extends WriteThroughReadThroughCache<string, string> {
+class UnaffectedCache1TestCache extends WriteThroughReadThroughCache<string, string, 'Unaffected Cache 1 Test Cache'> {
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
         protected readonly logger: LoggerInterface,
@@ -100,7 +100,7 @@ class UnaffectedCache1TestCache extends WriteThroughReadThroughCache<string, str
 }
 
 @Cache()
-class OwnCacheTestCache extends WriteThroughReadThroughCache<string, void> {
+class OwnCacheTestCache extends WriteThroughReadThroughCache<string, void, 'Own Cache Test Cache'> {
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
         protected readonly logger: LoggerInterface,
@@ -114,7 +114,7 @@ class OwnCacheTestCache extends WriteThroughReadThroughCache<string, void> {
 }
 
 @Cache()
-class UnaffectedCache2TestCache extends WriteThroughReadThroughCache<string, string> {
+class UnaffectedCache2TestCache extends WriteThroughReadThroughCache<string, string, 'Unaffected Cache 2 Test Cache'> {
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
         protected readonly logger: LoggerInterface,
@@ -128,7 +128,7 @@ class UnaffectedCache2TestCache extends WriteThroughReadThroughCache<string, str
 }
 
 @Cache()
-class AbcCacheTestCache extends WriteThroughReadThroughCache<string, string> {
+class AbcCacheTestCache extends WriteThroughReadThroughCache<string, string, 'Abc Cache Test Cache'> {
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
         protected readonly logger: LoggerInterface,
@@ -224,7 +224,7 @@ describe('WriteThroughReadThroughCache', () => {
         jest.setSystemTime(new Date('2025-01-01T00:00:00.000Z'));
 
         try {
-            const cache: WriteThroughReadThroughCache<string, { id: string }> = inject(MinuteTtlIdTestCache);
+            const cache: MinuteTtlIdTestCache = inject(MinuteTtlIdTestCache);
 
             // eslint-disable-next-line typescript/typedef
             const fn = (name: string): { id: string } => ({ id: `id:${name}` });
@@ -256,7 +256,7 @@ describe('WriteThroughReadThroughCache', () => {
         jest.setSystemTime(new Date('2025-01-01T00:00:00.000Z'));
 
         try {
-            const cache: WriteThroughReadThroughCache<string, number> = inject(MinuteTtlTestCache);
+            const cache: MinuteTtlTestCache = inject(MinuteTtlTestCache);
 
             // eslint-disable-next-line typescript/typedef
             const fn = (id: string): number => id.length;
@@ -280,9 +280,9 @@ describe('WriteThroughReadThroughCache', () => {
     });
 
     it('wrapWrite invalidates matching caches and writes the result', async () => {
-        const mainCache: WriteThroughReadThroughCache<string, { id: string }> = inject(MainCacheTestCache);
-        const affectedCache: WriteThroughReadThroughCache<string, string> = inject(AffectedCache1TestCache);
-        const unaffectedCache: WriteThroughReadThroughCache<string, string> = inject(UnaffectedCache1TestCache);
+        const mainCache: MainCacheTestCache = inject(MainCacheTestCache);
+        const affectedCache: AffectedCache1TestCache = inject(AffectedCache1TestCache);
+        const unaffectedCache: UnaffectedCache1TestCache = inject(UnaffectedCache1TestCache);
 
         cacheService.caches.push(mainCache, affectedCache, unaffectedCache);
 
@@ -314,7 +314,7 @@ describe('WriteThroughReadThroughCache', () => {
         jest.setSystemTime(new Date('2025-01-01T00:00:00.000Z'));
 
         try {
-            const cache: WriteThroughReadThroughCache<string, { id: string }> = inject(MinuteTtlIdTestCache);
+            const cache: MinuteTtlIdTestCache = inject(MinuteTtlIdTestCache);
 
             // eslint-disable-next-line typescript/typedef
             const fn = (name: string): { id: string } => ({ id: `id:${name}` });
@@ -338,9 +338,9 @@ describe('WriteThroughReadThroughCache', () => {
     });
 
     it('wrapDelete deletes its own key and invalidates matching caches', async () => {
-        const cache: WriteThroughReadThroughCache<string, void> = inject(OwnCacheTestCache);
-        const affectedCache: WriteThroughReadThroughCache<string, string> = inject(AffectedCache1TestCache);
-        const unaffectedCache: WriteThroughReadThroughCache<string, string> = inject(UnaffectedCache2TestCache);
+        const cache: OwnCacheTestCache = inject(OwnCacheTestCache);
+        const affectedCache: AffectedCache1TestCache = inject(AffectedCache1TestCache);
+        const unaffectedCache: UnaffectedCache2TestCache = inject(UnaffectedCache2TestCache);
 
         cacheService.caches.push(cache, affectedCache, unaffectedCache);
 
@@ -368,8 +368,8 @@ describe('WriteThroughReadThroughCache', () => {
     });
 
     it('wrapInvalidate calls fn and then invalidates tags', async () => {
-        const cache: WriteThroughReadThroughCache<string, number, string> = inject(TestCache);
-        const affectedCache: WriteThroughReadThroughCache<string, string> = inject(AffectedCache1TestCache);
+        const cache: TestCache = inject(TestCache);
+        const affectedCache: AffectedCache1TestCache = inject(AffectedCache1TestCache);
 
         cacheService.caches.push(cache, affectedCache);
 
@@ -387,9 +387,9 @@ describe('WriteThroughReadThroughCache', () => {
     });
 
     it('wrapInvalidate supports tag providers based on args', async () => {
-        const cache: WriteThroughReadThroughCache<string, number> = inject(TestCache);
+        const cache: TestCache = inject(TestCache);
 
-        const affectedCache: WriteThroughReadThroughCache<string, string> = inject(AbcCacheTestCache);
+        const affectedCache: AbcCacheTestCache = inject(AbcCacheTestCache);
         cacheService.caches.push(cache, affectedCache);
 
         await affectedCache.store.set('a1', createCachedValue('affected', ['tag:abc'], new Date()));

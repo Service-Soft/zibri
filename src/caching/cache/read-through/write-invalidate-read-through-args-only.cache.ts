@@ -12,9 +12,12 @@ import { ReadThroughCache } from './read-through.cache';
  * argument‑derived key is **deleted**, and optional tag invalidations
  * are fired.
  */
-export abstract class WriteInvalidateReadThroughArgsOnlyCache<K, V, CacheTag extends string = string>
-    extends ReadThroughCache<K, V, CacheTag>
-    implements CacheInterface<K, V, CacheTag, false> {
+export abstract class WriteInvalidateReadThroughArgsOnlyCache<K, V, N extends string, CacheTag extends string = string>
+    extends ReadThroughCache<K, V, CacheTag, false, N>
+    implements CacheInterface<K, V, CacheTag, false, N> {
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly _writeResultAvailable: false = false;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     wrapWrite<TArgs extends unknown[]>(
@@ -40,7 +43,7 @@ export abstract class WriteInvalidateReadThroughArgsOnlyCache<K, V, CacheTag ext
                     this.safeInvalidateTags(options?.invalidatesTags, args),
                     Promise.resolve()
                         .then(async () => {
-                            const key: K = keyFn(...args);
+                            const key: K = await keyFn(...args);
                             cacheCtx.key = key;
 
                             const storeStart: number = performance.now();
@@ -64,5 +67,20 @@ export abstract class WriteInvalidateReadThroughArgsOnlyCache<K, V, CacheTag ext
                 return value;
             });
         };
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async setDirect(key: K): Promise<void> {
+        try {
+            const storeStart: number = performance.now();
+            await this.store.delete(key);
+            this.metrics.storeDuration.observe({ cache: this.name, operation: 'delete' }, performance.now() - storeStart);
+            this.metrics.deletes.increase({ cache: this.name });
+            await this.updateSizeGauge();
+        }
+        catch (error) {
+            this.metrics.errors.increase({ cache: this.name, operation: 'delete' });
+            await this.logger.warn('Cache invalidation (delete) failed in setDirect', { error });
+        }
     }
 }

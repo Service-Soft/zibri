@@ -1,16 +1,19 @@
 import { AlsUtilities } from '../../../context/als.utilities';
 import { LogCacheContext } from '../../../logging/log-context.model';
 import { CacheOperation } from '../cache-operation.enum';
-import { ResultCacheKeyProvider, CacheWrapWriteOptionsWithResult } from '../cache-options.model';
+import { ResultCacheKeyProvider, CacheWrapWriteOptionsWithResult, CacheSetDirectOptions } from '../cache-options.model';
 import { CacheInterface } from '../cache.interface';
 import { ReadThroughCache } from './read-through.cache';
 
 /**
  * A write-through read-through cache.
  */
-export abstract class WriteThroughReadThroughCache<K, V, CacheTag extends string = string>
-    extends ReadThroughCache<K, V, CacheTag>
-    implements CacheInterface<K, V, CacheTag, true> {
+export abstract class WriteThroughReadThroughCache<K, V, N extends string, CacheTag extends string = string>
+    extends ReadThroughCache<K, V, CacheTag, true, N>
+    implements CacheInterface<K, V, CacheTag, true, N> {
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly _writeResultAvailable: true = true;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     wrapWrite<TArgs extends unknown[]>(
@@ -31,10 +34,12 @@ export abstract class WriteThroughReadThroughCache<K, V, CacheTag extends string
                 await this.safeInvalidateTags(options?.invalidatesTags, value, args);
 
                 try {
-                    const key: K = keyFn(value, ...args);
+                    const key: K = await keyFn(value, ...args);
                     cacheCtx.key = key;
-                    const tags: CacheTag[] = this.resolveResultTags(options?.tags, value, args);
-                    const ttl: number | undefined = this.resolveResultTtl(options?.ttl, value, args);
+                    const [tags, ttl] = await Promise.all([
+                        this.resolveResultTags(options?.tags, value, args),
+                        this.resolveResultTtl(options?.ttl, value, args)
+                    ]);
 
                     const storeStart: number = performance.now();
                     await this.store.set(key, this.createCachedValue(value, tags, ttl));
@@ -53,5 +58,20 @@ export abstract class WriteThroughReadThroughCache<K, V, CacheTag extends string
                 return value;
             });
         };
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async setDirect(key: K, value: V, options?: CacheSetDirectOptions<CacheTag>): Promise<void> {
+        try {
+            const ttl: number | undefined = options?.ttl ?? await this.resolveResultTtl(undefined, value, []);
+            const tags: CacheTag[] = options?.tags ?? [];
+            await this.store.set(key, this.createCachedValue(value, tags, ttl));
+            this.metrics.writes.increase({ cache: this.name });
+            await this.updateSizeGauge();
+        }
+        catch (error) {
+            this.metrics.errors.increase({ cache: this.name, operation: 'set' });
+            await this.logger.warn('Cache store failed in setDirect', { error });
+        }
     }
 }

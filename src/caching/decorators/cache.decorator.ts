@@ -1,7 +1,7 @@
 import { GlobalRegistry } from '../../global/global-registry';
 import { Newable } from '../../types/newable.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { CacheInterface } from '../cache/cache.interface';
+import { AnyCache } from '../cache/cache.interface';
 
 /**
  * Marks a class that should be used as a cache.
@@ -15,7 +15,6 @@ export function Cache(): ClassDecorator {
             token: target as unknown as Newable<unknown>,
             useClass: target as unknown as Newable<unknown>
         });
-        // eslint-disable-next-line typescript/no-explicit-any
-        GlobalRegistry.cacheClasses.push(target as unknown as Newable<CacheInterface<any, any, any, any>>);
+        GlobalRegistry.cacheClasses.push(target as unknown as Newable<AnyCache>);
     };
 }

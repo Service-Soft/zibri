@@ -1,7 +1,6 @@
 import { inject } from '../../di/inject.function';
 import { DiToken } from '../../di/models/di-token.model';
 import { CacheKeyProvider, CacheWrapDeleteOptions } from '../cache/cache-options.model';
-import { CacheInterface } from '../cache/cache.interface';
 
 // eslint-disable-next-line jsdoc/require-returns
 /**
@@ -10,8 +9,15 @@ import { CacheInterface } from '../cache/cache.interface';
  * @param keyFn - How to resolve the key that should be deleted from the cache.
  * @param options - Additional options like tags to invalidate.
  */
-export function CacheDelete<K, V, CacheTag extends string, WriteResultAvailable extends boolean, TReturn, TArgs extends unknown[]>(
-    cacheToken: DiToken<Pick<CacheInterface<K, V, CacheTag, WriteResultAvailable>, 'wrapDelete'>>,
+export function CacheDelete<
+    // eslint-disable-next-line jsdoc/require-jsdoc, typescript/no-explicit-any
+    C extends { wrapDelete: (...args: any[]) => any },
+    K,
+    CacheTag extends string,
+    TReturn,
+    TArgs extends unknown[]
+>(
+    cacheToken: DiToken<C>,
     keyFn: CacheKeyProvider<K, TArgs>,
     options?: CacheWrapDeleteOptions<TArgs, CacheTag>
 ) {
@@ -26,11 +32,13 @@ export function CacheDelete<K, V, CacheTag extends string, WriteResultAvailable 
 
         descriptor.value = async function(this: object, ...args: TArgs): Promise<TReturn> {
             if (!wrappedFns.has(this)) {
-                const cache: Pick<CacheInterface<K, V, CacheTag, WriteResultAvailable>, 'wrapDelete'> = inject(cacheToken);
+                // eslint-disable-next-line typescript/typedef
+                const cache = inject(cacheToken);
+                // eslint-disable-next-line typescript/no-unsafe-argument
                 wrappedFns.set(this, cache.wrapDelete(original.bind(this), keyFn, options));
             }
             // eslint-disable-next-line typescript/no-non-null-assertion
-            return wrappedFns.get(this)!(...args);
+            return await wrappedFns.get(this)!(...args);
         };
 
         return descriptor;
