@@ -20,6 +20,8 @@ export function createPathParamMetadata(name: string, data: PathParamMetadataInp
                 minLength: undefined,
                 regex: undefined,
                 enum: undefined,
+                encryption: false,
+                hash: false,
                 ...data
             };
         }
@@ -75,6 +77,8 @@ export function createQueryParamMetadata(name: string, data: QueryParamMetadataI
                 minLength: undefined,
                 regex: undefined,
                 enum: undefined,
+                encryption: false,
+                hash: false,
                 ...data
             };
         }
@@ -167,6 +171,8 @@ export function createArrayParamItemMetadata(
                 minLength: undefined,
                 regex: undefined,
                 enum: undefined,
+                hash: false,
+                encryption: false,
                 ...data
             };
         }

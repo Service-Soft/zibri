@@ -1,16 +1,22 @@
 import { errorToLoggedError } from './error-to-logged-error.function';
 import { LogCleanupCronJob } from './log-cleanup.cron-job';
-import { LogContextInput } from './log-context.model';
+import { LogContextInput, LogRequestContext } from './log-context.model';
 import { LogLevel } from './log-level.enum';
 import { Log } from './log.model';
 import { LoggerInterface } from './logger.interface';
 import { ZibriApplication } from '../application';
 import { BaseLoggerTransportConfig, LoggerTransport } from './transport/logger-transport.model';
+import { HttpRequestContext } from '../context/request/http-request.context';
+import { WebsocketRequestContext } from '../context/request/websocket-request.context';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { inject } from '../di/inject.function';
+import { isError } from '../error-handling/is-error.function';
 import { GlobalRegistry } from '../global/global-registry';
 import { OnAppInit } from '../global/on-app-init.interface';
+import { KnownHeader } from '../http/known-header.enum';
+import { OmitStrict } from '../types/omit-strict.type';
 import { UUIDUtilities } from '../utilities/uuid.utilities';
 
 /**
@@ -28,35 +34,37 @@ export class Logger implements LoggerInterface, OnAppInit {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     onAppInit(app: ZibriApplication): void {
-        app.options.cronJobs.push(LogCleanupCronJob);
+        if (!app.options.cronJobs.includes(LogCleanupCronJob)) {
+            app.options.cronJobs.push(LogCleanupCronJob);
+        }
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async debug(message: string, context?: LogContextInput): Promise<void> {
-        await this.log(LogLevel.DEBUG, message, undefined, context);
+        await this.log(LogLevel.DEBUG, message, context);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async info(message: string, context?: LogContextInput): Promise<void> {
-        await this.log(LogLevel.INFO, message, undefined, context);
+        await this.log(LogLevel.INFO, message, context);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async warn(message: string, context?: LogContextInput): Promise<void> {
-        await this.log(LogLevel.WARN, message, undefined, context);
+        await this.log(LogLevel.WARN, message, context);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async error(error: Error, context?: LogContextInput): Promise<void> {
-        await this.log(LogLevel.ERROR, error.message, error, context);
+    async error(error: Error, context?: OmitStrict<LogContextInput, 'error'>): Promise<void> {
+        await this.log(LogLevel.ERROR, error.message, { ...context, error });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async critical(error: Error, context?: LogContextInput): Promise<void> {
-        await this.log(LogLevel.CRITICAL, error.message, error, context);
+    async critical(error: Error, context?: OmitStrict<LogContextInput, 'error'>): Promise<void> {
+        await this.log(LogLevel.CRITICAL, error.message, { ...context, error });
     }
 
-    private async log(level: LogLevel, message: string, error: Error | undefined, context: LogContextInput | undefined): Promise<void> {
+    private async log(level: LogLevel, message: string, context: LogContextInput | undefined): Promise<void> {
         if (!this.transports.find(t => t.config.level <= level)) {
             return;
         }
@@ -65,13 +73,35 @@ export class Logger implements LoggerInterface, OnAppInit {
         const line: string = (new Error().stack ?? '').split('\n')[3];
         const matches: RegExpMatchArray | null = line.match(/\((.*):\d+:\d+\)/);
         const origin: string = matches?.[0].split('(')[1].split(')')[0] ?? 'unknown';
+        let error: Error | undefined;
+        if (context && 'error' in context) {
+            error = isError(context.error) ? context.error : new Error('Error');
+        }
+        let request: LogRequestContext | undefined;
+        const requestContext: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
+        if (requestContext?.type === 'http-request') {
+            request = {
+                status: requestContext.request.res?.statusCode,
+                // TODO
+                // durationInMs: currentRequest.res?.app,
+                method: requestContext.request.method,
+                url: requestContext.request.originalUrl,
+                userAgent: requestContext.request.headers[KnownHeader.USER_AGENT] ?? '',
+                clientIp: requestContext.request.ip ?? requestContext.request.socket?.remoteAddress ?? ''
+            };
+        }
         const log: Log = {
             id: UUIDUtilities.generate(),
             createdAt: new Date(),
             cleanupAt: new Date(Date.now() + this.cleanupAfterMs[level]),
             message,
-            error: error ? errorToLoggedError(error) : undefined,
-            context: { ...context, origin },
+            context: {
+                ...context,
+                origin,
+                request,
+                error: error ? errorToLoggedError(error) : undefined,
+                cache: inject(ZIBRI_DI_TOKENS.CURRENT_CACHE_CONTEXT)
+            },
             level
         };
 

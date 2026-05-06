@@ -37,9 +37,10 @@ type HttpOptions<
      */
     timeoutMs: number,
     /**
-     * The amount of times that the request should be retried before finally failing.
+     * The amount of times that the request should be attempted before finally failing.
+     * Defaults to 1.
      */
-    retries: number,
+    attempts: number,
     /**
      * Definition on how the response body should look like. Can either be a class that defines the structure of the body or a full body metadata definition.
      *

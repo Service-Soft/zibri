@@ -3,11 +3,14 @@ import { JwtConfirmPasswordResetData } from './jwt-confirm-password-reset-data.m
 import { JwtCredentialsDto } from './jwt-credentials.model';
 import { JwtRefreshLoginData } from './jwt-refresh-login-data.model';
 import { JwtAuthStrategy } from './jwt.auth-strategy';
+import { IsolationLevel } from '../../../data-source/data-sources/data-source.interface';
 import { Repository } from '../../../data-source/repository';
+import { Transaction } from '../../../data-source/transaction/transaction.model';
 import { InjectRepository } from '../../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { Property } from '../../../entity/decorators/property.decorator';
+import { OmitClass } from '../../../entity/omit-class.model';
 import { Response } from '../../../open-api/decorators/response.decorator';
 import { PreactEmailComponent } from '../../../preact/preact-email-component.model';
 import { Body } from '../../../routing/decorators/body.decorator';
@@ -49,6 +52,10 @@ class JwtVerifyPasswordResetTokenResponse {
     isValid!: boolean;
 }
 
+class JwtConfirmPasswordResetDto extends OmitClass(JwtConfirmPasswordResetData, ['transaction']) {}
+
+class JwtRefreshLoginDto extends OmitClass(JwtRefreshLoginData, ['transaction']) {}
+
 @Controller('/auth', { allowOrphan: true })
 export class JwtAuthController implements AuthControllerInterface<
     JwtCredentialsDto,
@@ -78,10 +85,19 @@ export class JwtAuthController implements AuthControllerInterface<
     @Response.object(JwtAuthData)
     @Post('/refresh-login')
     async refreshLogin(
-        @Body(JwtRefreshLoginData)
-        data: JwtRefreshLoginData
+        @Body(JwtRefreshLoginDto)
+        data: JwtRefreshLoginDto
     ): Promise<JwtAuthData<string>> {
-        return await this.authService.refreshLogin(JwtAuthStrategy, data);
+        const transaction: Transaction = await this.passwordResetTokenRepository.dataSource.startTransaction(IsolationLevel.READ_COMMITTED);
+        try {
+            const res: JwtAuthData<string> = await this.authService.refreshLogin(JwtAuthStrategy, { ...data, transaction });
+            await transaction.commit();
+            return res;
+        }
+        catch (error) {
+            await transaction.rollback();
+            throw error;
+        }
     }
 
     @Response.empty()
@@ -90,8 +106,16 @@ export class JwtAuthController implements AuthControllerInterface<
         @Body(JwtRequestPasswordResetInput)
         data: JwtRequestPasswordResetInput
     ): Promise<void> {
-        const user: BaseUser<string> = await this.userService.findByEmail(data.email);
-        await this.authService.requestPasswordReset(JwtAuthStrategy, { user });
+        const transaction: Transaction = await this.passwordResetTokenRepository.dataSource.startTransaction(IsolationLevel.READ_COMMITTED);
+        try {
+            const user: BaseUser<string> = await this.userService.findByEmail(data.email);
+            await this.authService.requestPasswordReset(JwtAuthStrategy, { user, transaction });
+            await transaction.commit();
+        }
+        catch (error) {
+            await transaction.rollback();
+            throw error;
+        }
     }
 
     @Response.object(JwtVerifyPasswordResetTokenResponse)
@@ -129,17 +153,25 @@ export class JwtAuthController implements AuthControllerInterface<
     @Response.empty()
     @Post('/confirm-password-reset')
     async confirmPasswordReset(
-        @Body(JwtConfirmPasswordResetData)
-        data: JwtConfirmPasswordResetData
+        @Body(JwtConfirmPasswordResetDto)
+        data: JwtConfirmPasswordResetDto
     ): Promise<void> {
-        await this.authService.confirmPasswordReset(JwtAuthStrategy, data);
+        const transaction: Transaction = await this.passwordResetTokenRepository.dataSource.startTransaction(IsolationLevel.READ_COMMITTED);
+        try {
+            await this.authService.confirmPasswordReset(JwtAuthStrategy, { ...data, transaction });
+            await transaction.commit();
+        }
+        catch (error) {
+            await transaction.rollback();
+            throw error;
+        }
     }
 
     @Response.empty()
     @Post('/logout')
     async logout(
-        @Body(JwtRefreshLoginData)
-        data: JwtRefreshLoginData
+        @Body(JwtRefreshLoginDto)
+        data: JwtRefreshLoginDto
     ): Promise<void> {
         await this.authService.logout(JwtAuthStrategy, data);
     }

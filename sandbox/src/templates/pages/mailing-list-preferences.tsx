@@ -11,7 +11,7 @@ type MailingListDisplayData = MailingList & {
     isSubscribedTo: boolean
 };
 
-export const MailingListPreferencesPage: MailingListPreferencesPageTemplate = ({ subscriber, mailingLists, managePreferencesLink }) => {
+export const MailingListPreferencesPage: MailingListPreferencesPageTemplate = ({ subscriber, mailingLists, managePreferencesApiUrl }) => {
     let updateButton: HTMLButtonElement;
     let statusBar: HTMLDivElement;
 
@@ -57,7 +57,7 @@ export const MailingListPreferencesPage: MailingListPreferencesPageTemplate = ({
         setIsLoading();
 
         const success: boolean = (await fetch(
-            managePreferencesLink,
+            managePreferencesApiUrl,
             {
                 method: 'PATCH',
                 body: JSON.stringify({ mailingListIds: currentCheckedMailingListIds }),
@@ -129,7 +129,10 @@ export const MailingListPreferencesPage: MailingListPreferencesPageTemplate = ({
                         </li>)}
                     </ul>
                     <Button onClick={() => void update()} className='mx-auto' disabled id='update-button'>Update</Button>
-                    <div class="flex items-center justify-center h-6 -mt-[9px] -m-[15px] transition duration-300 ease-in" id="status-bar">
+                    <div
+                        className="flex items-center justify-center h-6 -mt-[9px] -m-[15px] transition duration-300 ease-in"
+                        id="status-bar"
+                    >
                     </div>
                 </Card>
             </EmptyPage>

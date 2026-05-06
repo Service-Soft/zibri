@@ -3,6 +3,7 @@ import { getEntityFileName } from './get-entity-file-name.function';
 import { EntityGenerationProvider } from './providers/entity-generation-provider.interface';
 import { OpenApiReferenceObject, OpenApiSchemaObject, OpenApiSchemas } from '../../open-api/open-api.model';
 import { addImportStatement } from '../../utilities/add-import-statement.function';
+import { JsonUtilities } from '../../utilities/json.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
 import { toPascalCase } from '../../utilities/to-pascal-case.function';
 
@@ -112,7 +113,7 @@ function mapSchemaToTsType(
     switch (schema.type) {
         case 'string': {
             if (schema.enum) {
-                return { type: schema.enum.map(v => JSON.stringify(v).replaceAll('"', '\'')).join(' | '), isRef: false };
+                return { type: schema.enum.map(v => JsonUtilities.stringify(v).replaceAll('"', '\'')).join(' | '), isRef: false };
             }
             if (schema.format === 'date-time') {
                 return { type: 'Date', isRef: false };
@@ -173,11 +174,11 @@ function mapSchemaToDecoratorLines(
                 if (isRequired) {
                     return ['    @Property.date()'];
                 }
-                return [`    @Property.date({ ${!isRequired ? 'required: false' : ''} })`];
+                return ['    @Property.date({ required: false })'];
             }
             // TODO
             // if (schema.enum) {
-            //     return { type: schema.enum.map(v => JSON.stringify(v)).join(' | '), isRef: false };
+            //     return { type: schema.enum.map(v => JsonUtilities.stringify(v)).join(' | '), isRef: false };
             // }
             if (isRequired) {
                 return ['    @Property.string()'];

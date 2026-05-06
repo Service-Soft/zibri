@@ -1,4 +1,4 @@
-import { Inject, inject, InjectRepository, JwtCredentials, LoggerInterface, Repository, repositoryTokenFor, UserRepo, UserRepositoryInterface, ZIBRI_DI_TOKENS } from 'zibri';
+import { getDefaultBeforeReturnHook, getDefaultBeforeSaveHook, Inject, inject, InjectRepository, JwtCredentials, LoggerInterface, Repository, repositoryTokenFor, UserRepo, UserRepositoryInterface, ZIBRI_DI_TOKENS } from 'zibri';
 
 import { Roles, User, UserCreateData } from '../models';
 
@@ -12,7 +12,7 @@ export class UserRepository extends Repository<User, UserCreateData>
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
         logger: LoggerInterface
     ) {
-        super(User, repo, logger);
+        super(User, repo, logger, repo.dataSource, getDefaultBeforeSaveHook(), getDefaultBeforeReturnHook());
     }
 
     async findByEmail(email: string): Promise<User> {

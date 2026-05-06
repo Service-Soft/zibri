@@ -1,6 +1,5 @@
 import { LogContext } from './log-context.model';
 import { LogLevel } from './log-level.enum';
-import { LoggedError } from './logged-error.model';
 import { BaseEntity } from '../entity/base-entity.model';
 import { Entity } from '../entity/decorators/entity.decorator';
 import { Property } from '../entity/decorators/property.decorator';
@@ -20,11 +19,6 @@ export class Log extends BaseEntity {
      */
     @Property.string()
     message!: string;
-    /**
-     * An error logged by LogLevel.ERROR and LogLevel.CRITICAL.
-     */
-    @Property.object({ cls: () => LoggedError, required: false })
-    error?: LoggedError;
     /**
      * The context of the log.
      */

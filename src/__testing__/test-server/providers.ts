@@ -1,3 +1,6 @@
+import { randomBytes } from 'node:crypto';
+
+import { AesGcmEncryptionStrategy } from '../../auth/encryption/strategies/aes-gcm.encryption-strategy';
 import { PasswordResetEmailTemplate } from '../../auth/strategies/jwt/jwt-auth.controller';
 import { CronServiceInterface } from '../../cron/cron-service.interface';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
@@ -15,11 +18,11 @@ export const defaultTestServerProviders: DiProvider<unknown>[] = [
         useFactory: () => 'test'
     }),
     defineProvider({
-        token: ZIBRI_DI_TOKENS.JWT_CONFIRM_PASSWORD_RESET_URL,
+        token: ZIBRI_DI_TOKENS.CONFIRM_PASSWORD_RESET_URL,
         useFactory: () => 'http://localhost:4200/confirm-password-reset'
     }),
     defineProvider({
-        token: ZIBRI_DI_TOKENS.JWT_PASSWORD_RESET_EMAIL_TEMPLATE,
+        token: ZIBRI_DI_TOKENS.PASSWORD_RESET_EMAIL_TEMPLATE,
         // eslint-disable-next-line typescript/no-explicit-any
         useValue: (() => 'string') as unknown as PasswordResetEmailTemplate<any, any>
     }),
@@ -36,6 +39,13 @@ export const defaultTestServerProviders: DiProvider<unknown>[] = [
                     pass: ''
                 }
             };
+        }
+    }),
+    defineProvider({
+        token: ZIBRI_DI_TOKENS.ENCRYPTION_MASTER_OPTIONS,
+        useValue: {
+            currentMasterStrategy: new AesGcmEncryptionStrategy(),
+            currentMasterKey: { id: 'mk1', value: randomBytes(32) }
         }
     }),
     defineProvider({

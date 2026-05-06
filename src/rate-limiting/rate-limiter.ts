@@ -52,6 +52,16 @@ export class RateLimiter {
         return new this(max, Ms.SECOND);
     }
 
+    /**
+     * Creates a rate limiter with a custom interval.
+     * @param max - The maximum available per the given interval.
+     * @param intervalInMs - The interval in ms.
+     * @returns The RateLimiter.
+     */
+    static custom(max: number, intervalInMs: number): RateLimiter {
+        return new this(max, intervalInMs);
+    }
+
     private refill(): void {
         const now: number = Date.now();
         const elapsedMs: number = now - this.lastRefill;

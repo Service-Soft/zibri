@@ -4,6 +4,8 @@ import { WebsocketSendData, WebsocketSendDataMessage, WebsocketSendToAllData, We
 import { ZibriApplication } from '../../application';
 import { type AuthServiceInterface } from '../../auth/auth-service.interface';
 import { BaseUser } from '../../auth/models/base-user.model';
+import { AlsUtilities } from '../../context/als.utilities';
+import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
 import { WhereFilter } from '../../data-source/models/where/where-filter.model';
 import { Repository } from '../../data-source/repository';
 import { InjectRepository } from '../../di/decorators/inject-repository.decorator';
@@ -25,11 +27,11 @@ import { type LoggerInterface } from '../../logging/logger.interface';
 import { type ParserInterface } from '../../parsing/parser.interface';
 import { resolveRouteParams } from '../../routing/resolve-route-params.function';
 import { Newable } from '../../types/newable.type';
+import { JsonUtilities } from '../../utilities/json.utilities';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { type ValidationServiceInterface } from '../../validation/validation-service.interface';
 import { WebsocketControllerData } from '../decorators/websocket-controller.decorator';
-import { BaseWebsocketConnection } from '../models/connection/base-websocket-connection.model';
 import { SocketIOWebsocketConnection } from '../models/connection/socket-io-websocket-connection.model';
 import { WebsocketChannel } from '../models/websocket-channel.model';
 import { WebsocketControllerRouteConfiguration } from '../models/websocket-controller-route-configuration.model';
@@ -99,14 +101,17 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
     }
 
     private async onConnect(socket: Socket): Promise<void> {
-        const websocketRequest: WebsocketRequest = {
+        const request: WebsocketRequest = {
             headers: socket.handshake.headers as Partial<Record<KnownHeader, string | undefined>>,
             body: undefined,
             query: socket.handshake.query as Partial<Record<string, string | undefined>>,
             params: {}
         };
+        let connection: SocketIOWebsocketConnection | undefined = this.connections.find(c => c.id === socket.id);
+
+        const context: WebsocketRequestContext = new WebsocketRequestContext(request, connection, undefined, undefined);
         const currentUser: BaseUser<string> | undefined = await this.authService.getCurrentUser(
-            websocketRequest,
+            context,
             this.authService.strategies,
             false
         );
@@ -117,7 +122,6 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
             return;
         }
 
-        let connection: SocketIOWebsocketConnection | undefined = this.connections.find(c => c.id === socket.id);
         if (connection) {
             connection.offset = socket.handshake.auth.offset as number;
             await this.recoverConnection(connection, currentUser);
@@ -181,7 +185,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
             }
             const req: unknown = args[0];
             try {
-                this.validationService.validateWebsocketRequest(req);
+                await this.validationService.validateWebsocketRequest(req);
                 await handler(connection, req as WebsocketRequest, responseHandler);
                 return;
             }
@@ -200,7 +204,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
                     persist = true;
                 }
 
-                await this.logger.debug(`got an error ${JSON.stringify(globalError)}`);
+                await this.logger.debug(`got an error ${JsonUtilities.stringify(globalError)}`);
 
                 await this.send({
                     connection,
@@ -337,13 +341,17 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
 
         if (data.expectResponse) {
             const res: WebsocketRequestWithConnection<SocketIOWebsocketConnection> = {
-                request: await data.connection.emitWithAck(data.event, message, this.options.timeoutInMs),
+                request: await data.connection.emitWithAck(
+                    data.event,
+                    JsonUtilities.parse(JsonUtilities.stringify(message)),
+                    this.options.timeoutInMs
+                ),
                 connection: data.connection
             };
             return res as B extends false ? void : WebsocketRequestWithConnection<SocketIOWebsocketConnection>;
         }
 
-        data.connection.emit(data.event, message);
+        data.connection.emit(data.event, JsonUtilities.parse(JsonUtilities.stringify(message)));
         return undefined as B extends false ? void : WebsocketRequestWithConnection<SocketIOWebsocketConnection>;
     }
 
@@ -380,7 +388,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         }
 
         if (!data.expectResponse) {
-            this.socketServer.to(channel.name).emit(data.event, message);
+            this.socketServer.to(channel.name).emit(data.event, JsonUtilities.parse(JsonUtilities.stringify(message)));
             return undefined as B extends false ? void : WebsocketRequestWithConnection<SocketIOWebsocketConnection>[];
         }
 
@@ -444,7 +452,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         }
 
         if (!expectResponse) {
-            this.socketServer.emit(data.event, message);
+            this.socketServer.emit(data.event, JsonUtilities.parse(JsonUtilities.stringify(message)));
             return undefined as B extends false ? void : WebsocketRequestWithConnection<SocketIOWebsocketConnection>[];
         }
 
@@ -564,59 +572,61 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
             req: WebsocketRequest,
             ack: WebsocketResponseHandler | undefined
         ) => {
-            try {
-                await this.authService.checkAccess(controllerClass, route.controllerMethod, req);
-                const controller: unknown = inject(controllerClass);
-                const params: unknown[] = await this.resolveRouteParams(
-                    controllerClass,
-                    route.controllerMethod,
-                    // eslint-disable-next-line typescript/no-unsafe-member-access, typescript/no-explicit-any
-                    ((controller as any)[route.controllerMethod] as Function).length,
-                    req,
-                    connection
-                );
+            const context: WebsocketRequestContext = new WebsocketRequestContext(req, connection, controllerClass, route.controllerMethod);
+            await AlsUtilities.runWithWebsocketRequestContext(context, async () => {
+                try {
+                    await this.authService.checkAccess(controllerClass, route.controllerMethod, context);
+                    const controller: unknown = inject(controllerClass);
+                    const params: unknown[] = await this.resolveRouteParams(
+                        controllerClass,
+                        route.controllerMethod,
+                        // eslint-disable-next-line typescript/no-unsafe-member-access, typescript/no-explicit-any
+                        ((controller as any)[route.controllerMethod] as Function).length,
+                        context
+                    );
 
-                // eslint-disable-next-line typescript/no-unsafe-call, typescript/no-explicit-any, typescript/no-unsafe-member-access
-                const res: unknown = await ((controller as any)[route.controllerMethod] as Function)(...params) as unknown;
-                await this.send({
-                    connection,
-                    event: WebsocketEvent.RESPONSE,
-                    expectResponse: true,
-                    message: {
-                        ok: true,
-                        data: res,
-                        senderConnectionId: undefined,
-                        senderUserId: undefined
-                    },
-                    persist: false,
-                    responseHandler: ack
-                });
-            }
-            catch (error) {
-                const err: HttpError = toHttpError(error);
-                await this.send({
-                    connection,
-                    event: WebsocketEvent.RESPONSE,
-                    message: {
-                        ok: false,
-                        error: err,
-                        status: err.status,
-                        senderUserId: undefined,
-                        senderConnectionId: undefined
-                    },
-                    responseHandler: ack,
-                    expectResponse: true,
-                    persist: !isHttpError(error) || error.status >= 500
-                });
-                if (err.status === HttpStatus.UNAUTHORIZED) {
-                    this.disconnect(connection, true);
+                    // eslint-disable-next-line typescript/no-unsafe-call, typescript/no-explicit-any, typescript/no-unsafe-member-access
+                    const res: unknown = await ((controller as any)[route.controllerMethod] as Function)(...params) as unknown;
+                    await this.send({
+                        connection,
+                        event: WebsocketEvent.RESPONSE,
+                        expectResponse: true,
+                        message: {
+                            ok: true,
+                            data: res,
+                            senderConnectionId: undefined,
+                            senderUserId: undefined
+                        },
+                        persist: false,
+                        responseHandler: ack
+                    });
                 }
-                if (err.status >= 500) {
-                    const globalError: Error = new Error('Global Error', { cause: error });
-                    globalError.stack = undefined;
-                    await this.logger.error(globalError);
+                catch (error) {
+                    const err: HttpError = toHttpError(error);
+                    await this.send({
+                        connection,
+                        event: WebsocketEvent.RESPONSE,
+                        message: {
+                            ok: false,
+                            error: err,
+                            status: err.status,
+                            senderUserId: undefined,
+                            senderConnectionId: undefined
+                        },
+                        responseHandler: ack,
+                        expectResponse: true,
+                        persist: !isHttpError(error) || error.status >= 500
+                    });
+                    if (err.status === HttpStatus.UNAUTHORIZED) {
+                        this.disconnect(connection, true);
+                    }
+                    if (err.status >= 500) {
+                        const globalError: Error = new Error('Global Error', { cause: error });
+                        globalError.stack = undefined;
+                        await this.logger.error(globalError);
+                    }
                 }
-            }
+            });
         };
         return handler;
     }
@@ -639,18 +649,13 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         controllerClass: Newable<unknown>,
         controllerMethod: string,
         totalParamCount: number,
-        req: WebsocketRequest,
-        connection: BaseWebsocketConnection
+        context: WebsocketRequestContext
     ): Promise<unknown[]> {
         return await resolveRouteParams(
             controllerClass,
             controllerMethod,
             totalParamCount,
-            req,
-            this.parser,
-            this.validationService,
-            this.authService,
-            connection
+            context
         );
     }
 }

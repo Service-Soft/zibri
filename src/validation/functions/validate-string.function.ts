@@ -1,3 +1,7 @@
+import { HttpRequestContext } from '../../context/request/http-request.context';
+import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
+import { inject } from '../../di/inject.function';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { StringPropertyMetadata, StringFormat } from '../../entity/models/string-property-metadata.model';
 import { QueryParamMetadata, HeaderParamMetadata, PathParamMetadata } from '../../routing/decorators/param.decorator';
@@ -18,27 +22,36 @@ const EMAIL_REGEX: RegExp = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  * @returns All validation problems found.
  */
 // eslint-disable-next-line sonar/cognitive-complexity
-export function validateString(
+export async function validateString(
     key: string,
     property: unknown,
     metadata: PropertyMetadata | QueryParamMetadata | HeaderParamMetadata | PathParamMetadata,
     parentKey: string | undefined,
     entity: unknown | undefined
-): ValidationProblem[] {
-    const meta: StringPropertyMetadata | StringParamMetadata = metadata as StringPropertyMetadata | StringParamMetadata;
+): Promise<ValidationProblem[]> {
+    // eslint-disable-next-line typescript/no-explicit-any
+    const meta: StringPropertyMetadata<any, any, any, any, any> | StringParamMetadata<any, any, any, any, any>
+        // eslint-disable-next-line typescript/no-explicit-any
+        = metadata as StringPropertyMetadata<any, any, any, any, any> | StringParamMetadata<any, any, any, any, any>;
     const fullKey: string = parentKey ? `${parentKey}.${key}` : key;
+    const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
+    const isRequired: boolean = typeof metadata.required === 'boolean'
+        ? metadata.required
+        : await metadata.required(entity, context);
     if (
         property == undefined
-        && (meta as StringPropertyMetadata).default == undefined
-        && (typeof metadata.required === 'boolean' ? metadata.required : metadata.required(entity))
+        // eslint-disable-next-line typescript/no-explicit-any
+        && (meta as StringPropertyMetadata<any, any, any, any, any>).default == undefined
+        && isRequired
     ) {
         return [new IsRequiredValidationProblem(fullKey)];
     }
     if (
         property == undefined
         && (
-            !(typeof metadata.required === 'boolean' ? metadata.required : metadata.required(entity))
-            || (meta as StringPropertyMetadata).default != undefined
+            !isRequired
+            // eslint-disable-next-line typescript/no-explicit-any
+            || (meta as StringPropertyMetadata<any, any, any, any, any>).default != undefined
         )
     ) {
         return [];

@@ -27,7 +27,7 @@ export class Change<T = unknown> extends BaseEntity {
     /**
      * The change set that this change belongs to.
      */
-    @Property.manyToOne({ target: () => ChangeSet, inverseSide: 'changes', required: false })
+    @Property.manyToOne({ target: () => ChangeSet, inverseSide: 'changes' })
     changeSet!: ChangeSet;
 }
 

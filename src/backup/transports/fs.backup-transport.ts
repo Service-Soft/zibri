@@ -7,6 +7,7 @@ import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { LoggerInterface } from '../../logging/logger.interface';
 import { FsUtilities, FsPath } from '../../utilities/fs.utilities';
+import { JsonUtilities } from '../../utilities/json.utilities';
 import { BackupEntity } from '../backup-entity.model';
 import { BackupResourceEntity } from '../backup-resource-entity.model';
 
@@ -43,7 +44,7 @@ export class FsBackupTransport implements BackupTransportInterface {
                 return;
             }
             const json: string = await FsUtilities.readFile(p);
-            return JSON.parse(json) as BackupEntity;
+            return JsonUtilities.parse<BackupEntity>(json);
         }))).filter(b => b != undefined);
         return res;
     }
@@ -52,7 +53,7 @@ export class FsBackupTransport implements BackupTransportInterface {
     async storeData(data: Readable, backup: BackupEntity, resource: BackupResourceEntity): Promise<void> {
         const p: FsPath = this.getResourcePath(backup, resource);
         await FsUtilities.mkdir(this.getBackupPath(backup));
-        await FsUtilities.createFile(this.getBackupMetadataPath(backup), JSON.stringify(backup));
+        await FsUtilities.createFile(this.getBackupMetadataPath(backup), JsonUtilities.stringify(backup));
 
         await pipeline(
             data,

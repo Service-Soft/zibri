@@ -6,6 +6,7 @@ import { whereFilterToFindOptionsWhere } from './where-filter-to-find-options-wh
 import { Where } from './where-filter.model';
 import { Address } from '../../../__testing__/mocks/entities/address.model';
 import { User } from '../../../__testing__/mocks/entities/user.entity';
+import { JsonUtilities } from '../../../utilities/json.utilities';
 
 describe('whereFilterToFindOptionsWhere - primitive filters', () => {
     it('string equality', () => {
@@ -88,7 +89,7 @@ describe('whereFilterToFindOptionsWhere - object filters', () => {
                 { json: { street: Equal('Main St') } }
             )
         };
-        expect(JSON.stringify(result)).toEqual(JSON.stringify(expectedResult));
+        expect(JsonUtilities.stringify(result)).toEqual(JsonUtilities.stringify(expectedResult));
     });
     it('nested where on relation fields yields nested filter', () => {
         const filter: Where<User> = { company: { where: { id: '42' } } };

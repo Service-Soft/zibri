@@ -22,7 +22,6 @@ export * from './auth/models/require-2fa-metadata.model';
 
 export * from './auth/auth-service.interface';
 export * from './auth/auth.service';
-export * from './auth/hash.utilities';
 export * from './auth/auth-controller.interface';
 
 export * from './auth/strategies/jwt/jwt-access-token-payload.model';
@@ -37,6 +36,19 @@ export * from './auth/strategies/jwt/jwt-refresh-token.model';
 export * from './auth/strategies/jwt/jwt-request-password-reset-data.model';
 export * from './auth/strategies/jwt/jwt-confirm-password-reset-data.model';
 export * from './auth/strategies/jwt/jwt-auth.controller';
+export * from './auth/strategies/jwt/jwt-refresh-token-cleanup.cron-job';
+
+export * from './auth/strategies/cookie/cookie-auth-confirm-password-reset-data.model';
+export * from './auth/strategies/cookie/cookie-auth-credentials.model';
+export * from './auth/strategies/cookie/cookie-auth-data.model';
+export * from './auth/strategies/cookie/cookie-auth-logout-data.model';
+export * from './auth/strategies/cookie/cookie-auth-refresh-login-data.model';
+export * from './auth/strategies/cookie/cookie-auth-refresh-session.model';
+export * from './auth/strategies/cookie/cookie-auth-request-password-reset-data.model';
+export * from './auth/strategies/cookie/cookie-auth-session-cleanup.cron-job';
+export * from './auth/strategies/cookie/cookie-auth-session.model';
+export * from './auth/strategies/cookie/cookie-auth.auth-strategy';
+export * from './auth/strategies/cookie/cookie-auth.controller';
 
 export * from './auth/strategies/auth-strategy.interface';
 export * from './auth/strategies/auth-strategies.model';
@@ -54,6 +66,24 @@ export * from './auth/2fa/methods/otp/otp.two-factor-method';
 export * from './auth/2fa/methods/otp/otp-credentials.model';
 export * from './auth/2fa/methods/otp/otp.utilities';
 
+export * from './auth/encryption/encryption-key.model';
+export * from './auth/encryption/encryption-master-options.model';
+export * from './auth/encryption/encryption-service.interface';
+export * from './auth/encryption/encryption.service';
+export * from './auth/encryption/encryption.utilities';
+
+export * from './auth/encryption/strategies/aes-gcm.encryption-strategy';
+export * from './auth/encryption/strategies/encryption-strategy-entity.model';
+export * from './auth/encryption/strategies/encryption-strategy.interface';
+
+export * from './auth/hash/hash-service.interface';
+export * from './auth/hash/hash.service';
+export * from './auth/hash/hash.utilities';
+
+export * from './auth/hash/strategies/bcrypt.hash-strategy';
+export * from './auth/hash/strategies/hash-strategy-entity.model';
+export * from './auth/hash/strategies/hash-strategy.interface';
+
 // di
 export * from './di/decorators/injectable.decorator';
 export * from './di/decorators/inject.decorator';
@@ -70,6 +100,14 @@ export * from './di/get-all-registered-tokens.function';
 
 export * from './di/errors/get-dependency-stack-trace.function';
 export * from './di/errors/no-provider.error';
+
+// event
+export * from './event/event-service.interface';
+export * from './event/event.service';
+export * from './event/event-subscriber-run.model';
+export * from './event/event.model';
+export * from './event/event-cleanup.cron-job';
+export * from './event/event-processing.error';
 
 // routing
 export * from './routing/router';
@@ -93,7 +131,12 @@ export * from './routing/models/object-param-metadata.model';
 export * from './routing/models/array-param-metadata.model';
 export * from './routing/models/crud-controller.model';
 
-export * from './routing/request.context';
+// context
+export * from './context/als.utilities';
+export * from './context/base-context';
+export * from './context/request/http-request.context';
+export * from './context/request/websocket-request.context';
+export * from './context/request/request-context-token.model';
 
 // error handling
 export * from './error-handling/error-handler';
@@ -128,6 +171,10 @@ export * from './global/before-app-shutdown.interface';
 export * from './global/on-app-shutdown.interface';
 export * from './global/after-app-shutdown.interface';
 export * from './global/global-registry';
+
+export * from './global/model-registry/remove-exclude-properties.function';
+export * from './global/model-registry/restore-exclude-properties.function';
+export * from './global/model-registry/set-default-values.function';
 
 // logging
 export * from './logging/logger.interface';
@@ -186,6 +233,7 @@ export * from './parsing/decorators/body-parser.decorator';
 
 export * from './parsing/json/json.body-parser';
 export * from './parsing/html/html-response.model';
+export * from './parsing/html/csp-options.model';
 export * from './parsing/form-data/form-data.body-parser';
 export * from './parsing/form-data/form-data.model';
 export * from './parsing/form-data/file.model';
@@ -200,6 +248,7 @@ export * from './http/header.type';
 export * from './http/http-request.model';
 export * from './http/http-response.model';
 export * from './http/mime-type.helpers';
+export * from './http/cookie-options.model';
 
 // validation
 export * from './validation/validation-problem.model';
@@ -246,11 +295,16 @@ export * from './data-source/models/where/string-where-filter.model';
 export * from './data-source/migration/migration.model';
 export * from './data-source/migration/migration-entity.model';
 
+export * from './data-source/hooks/hooks.default';
+export * from './data-source/hooks/before-return';
+export * from './data-source/hooks/before-save';
+
 // cron
 export * from './cron/cron-job-entity.model';
 export * from './cron/cron-job.model';
 export * from './cron/cron-service.interface';
 export * from './cron/cron.service';
+export * from './cron/cron-expression.utilities';
 
 // email
 export * from './email/email-service.interface';
@@ -288,6 +342,7 @@ export * from './metrics/gauge.interface';
 export * from './metrics/histogram.interface';
 export * from './metrics/metric-type.enum';
 export * from './metrics/metric.model';
+export * from './metrics/collect-metrics.cron-job';
 
 // change sets
 export * from './change-sets/change-set-repository';
@@ -439,18 +494,62 @@ export * from './http-client/http-client.interface';
 export * from './http-client/http-client-response.model';
 export * from './http-client/http-client.error';
 
+// caching
+export * from './caching/cache-metrics.model';
+export * from './caching/cache-service.interface';
+export * from './caching/cache-tag-matchers';
+export * from './caching/cache.service';
+
+export * from './caching/cache/base-cache.model';
+export * from './caching/cache/cache-operation.enum';
+export * from './caching/cache/cache-options.model';
+export * from './caching/cache/cache.interface';
+
+export * from './caching/cache/read-aside/read-aside.cache';
+export * from './caching/cache/read-aside/write-around-read-aside.cache';
+export * from './caching/cache/read-aside/write-behind-read-aside.cache';
+export * from './caching/cache/read-aside/write-invalidate-read-aside-args-only.cache';
+export * from './caching/cache/read-aside/write-invalidate-read-aside-with-result.cache';
+export * from './caching/cache/read-aside/write-through-read-aside.cache';
+
+export * from './caching/cache/read-through/read-through.cache';
+export * from './caching/cache/read-through/write-around-read-through.cache';
+export * from './caching/cache/read-through/write-behind-read-through.cache';
+export * from './caching/cache/read-through/write-invalidate-read-through-args-only.cache';
+export * from './caching/cache/read-through/write-invalidate-read-through-with-result.cache';
+export * from './caching/cache/read-through/write-through-read-through.cache';
+
+export * from './caching/decorators/cache-delete.decorator';
+export * from './caching/decorators/cache-invalidate.decorator';
+export * from './caching/decorators/cache-write.decorator';
+export * from './caching/decorators/cache.decorator';
+export * from './caching/decorators/cached.decorator';
+
+export * from './caching/store/cache-store.interface';
+export * from './caching/store/cached-value.model';
+export * from './caching/store/in-memory.cache-store';
+
 // types
+export * from './types/any-enum.type';
+export * from './types/deep-partial.type';
+export * from './types/exclude-strict.type';
 export * from './types/newable.type';
+export * from './types/omit-strict.type';
+export * from './types/percentage.type';
 export * from './types/version.type';
 
 // utilities
+export * from './utilities/bytes';
+export * from './utilities/doubly-linked-list';
 export * from './utilities/compare-versions.function';
 export * from './utilities/is-version.function';
+export * from './utilities/now-in-ns.function';
 export * from './utilities/promise.utilities';
 export * from './utilities/ms';
-export * from './utilities/big-number.utilities';
+export * from './utilities/number.utilities';
 export * from './utilities/validate-entities-registered.function';
 export * from './utilities/validate-tokens-registered.function';
 export * from './utilities/uuid.utilities';
 export * from './utilities/mask.utilities';
 export * from './utilities/fs.utilities';
+export * from './utilities/json.utilities';

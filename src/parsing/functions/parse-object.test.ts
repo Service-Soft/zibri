@@ -3,6 +3,7 @@ import { describe, expect, it } from '@jest/globals';
 
 import { parseObject } from './parse-object.function';
 import { Property } from '../../entity/decorators/property.decorator';
+import { JsonUtilities } from '../../utilities/json.utilities';
 
 class Dummy {}
 
@@ -13,7 +14,7 @@ class Dummy2 {
 
 describe('parseObject', () => {
     it('parses date correctly', () => {
-        const parsedObject: { testDate: Date } = parseObject(JSON.stringify({ testDate: new Date() }), Dummy2) as { testDate: Date };
+        const parsedObject: { testDate: Date } = parseObject(JsonUtilities.stringify({ testDate: new Date() }), Dummy2) as { testDate: Date };
         expect(parsedObject.testDate).toBeInstanceOf(Date);
     });
 

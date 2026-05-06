@@ -9,12 +9,22 @@ import { ZIBRI_DI_TOKENS } from './zibri-di-tokens.default';
 import { AssetService } from '../../assets/asset.service';
 import { TwoFactorService } from '../../auth/2fa/two-factor.service';
 import { AuthService } from '../../auth/auth.service';
+import { EncryptionService } from '../../auth/encryption/encryption.service';
+import { AesGcmEncryptionStrategy } from '../../auth/encryption/strategies/aes-gcm.encryption-strategy';
+import { HashService } from '../../auth/hash/hash.service';
+import { BcryptHashStrategy } from '../../auth/hash/strategies/bcrypt.hash-strategy';
 import { UserService } from '../../auth/user/user.service';
 import { BackupService } from '../../backup/backup.service';
+import { CacheService } from '../../caching/cache.service';
+import { AlsUtilities } from '../../context/als.utilities';
+import { HttpRequestContext } from '../../context/request/http-request.context';
+import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../../context/request/request-context-token.model';
+import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
 import { CronService } from '../../cron/cron.service';
 import { DataSourceService } from '../../data-source/data-source.service';
 import { EmailService } from '../../email/email.service';
 import { errorHandler } from '../../error-handling/error-handler';
+import { EventService } from '../../event/event.service';
 import { HttpClient } from '../../http-client/http-client';
 import { LocalizeOptionsInput } from '../../localization/models/localize-options.model';
 import { LogLevel } from '../../logging/log-level.enum';
@@ -23,8 +33,8 @@ import { LoggerTransport } from '../../logging/transport/logger-transport.model'
 import { PrometheusMetricsService } from '../../metrics/metrics.service';
 import { MultithreadingService } from '../../multithreading/services/multithreading.service';
 import { OpenApiService } from '../../open-api/open-api.service';
+import { CspSource } from '../../parsing/html/csp-options.model';
 import { Parser } from '../../parsing/parser';
-import { getCurrentRequest } from '../../routing/request.context';
 import { Router } from '../../routing/router';
 import { FsUtilities } from '../../utilities/fs.utilities';
 import { Ms } from '../../utilities/ms';
@@ -71,12 +81,12 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
     DATA_SOURCE_SERVICE: { useClass: DataSourceService },
     AUTH_SERVICE: { useClass: AuthService },
     TWO_FACTOR_SERVICE: { useClass: TwoFactorService },
-    OTP_HEADER: { useFactory: () => 'X-Authorization-OTP' },
+    OTP_HEADER: { useFactory: () => 'x-authorization-otp' },
     OTP_LENGTH: { useFactory: () => 6 },
     USER_SERVICE: { useClass: UserService },
     JWT_ACCESS_TOKEN_SECRET: { useFactory: () => undefined },
     JWT_REFRESH_TOKEN_SECRET: { useFactory: () => undefined },
-    JWT_PASSWORD_RESET_EMAIL_TEMPLATE: { useFactory: () => undefined },
+    PASSWORD_RESET_EMAIL_TEMPLATE: { useFactory: () => undefined },
     JWT_ACCESS_TOKEN_EXPIRES_IN_MS: { useFactory: () => Ms.HOUR },
     JWT_REFRESH_TOKEN_EXPIRES_IN_MS: { useFactory: () => 100 * Ms.DAY },
     CRON_SERVICE: { useClass: CronService },
@@ -97,9 +107,8 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
     FORMAT_PRICE: { useFactory: () => formatPrice },
     FORMAT_PERCENT: { useFactory: () => formatPercent },
     EMAIL_CONFIG: { useFactory: () => undefined },
-    JWT_PASSWORD_RESET_TOKEN_EXPIRES_IN_MS: { useFactory: () => 300000 },
-    JWT_CONFIRM_PASSWORD_RESET_URL: { useFactory: () => undefined },
-    CURRENT_REQUEST: { useFactory: () => getCurrentRequest() },
+    PASSWORD_RESET_TOKEN_EXPIRES_IN_MS: { useFactory: () => 300000 },
+    CONFIRM_PASSWORD_RESET_URL: { useFactory: () => undefined },
     MULTITHREADING_OPTIONS: {
         useFactory: () => ({
             maxThreads,
@@ -111,5 +120,65 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
     MULTITHREADING_SERVICE: { useClass: MultithreadingService },
     WEBSOCKET_SERVICE: { useClass: WebsocketService },
     WEBSOCKET_OPTIONS: { useFactory: () => ({ timeoutInMs: Ms.SECOND * 5, isAllowedToConnect: () => true }) },
-    HTTP_CLIENT: { useClass: HttpClient }
+    HTTP_CLIENT: { useClass: HttpClient },
+    EVENT_SERVICE: { useClass: EventService },
+    CORRELATION_ID_HEADER: { useValue: 'x-correlation-id' },
+    CSRF_TOKEN_HEADER: { useValue: 'x-csrf-token' },
+    COOKIE_AUTH_SESSION_OPTIONS: {
+        useValue: {
+            name: 'sessionId',
+            sameSite: 'lax',
+            path: '/'
+        }
+    },
+    COOKIE_AUTH_REFRESH_SESSION_OPTIONS: {
+        useValue: {
+            name: 'refreshSessionId',
+            sameSite: 'lax',
+            path: '/'
+        }
+    },
+    COOKIE_SIGN_SECRET: { useValue: undefined },
+    COOKIE_AUTH_SESSION_EXPIRES_IN_MS: { useValue: Ms.DAY },
+    COOKIE_AUTH_REFRESH_SESSION_EXPIRES_IN_MS: { useValue: Ms.DAY * 100 },
+    HASH_SERVICE: { useClass: HashService },
+    HASH_STRATEGIES: { useValue: [BcryptHashStrategy] },
+    ENCRYPTION_SERVICE: { useClass: EncryptionService },
+    ENCRYPTION_STRATEGIES: { useValue: [AesGcmEncryptionStrategy] },
+    ENCRYPTION_MASTER_OPTIONS: { useValue: undefined },
+    CACHE_SERVICE: { useClass: CacheService },
+    // dynamic
+    CURRENT_REQUEST_CONTEXT: {
+        useFactory: () => AlsUtilities.getCurrentRequestContext(),
+        cache: false
+    },
+    DEFAULT_CSP_OPTIONS: {
+        useFactory: () => {
+            const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
+            const nonce: string | undefined = context?.get(ZIBRI_REQUEST_CONTEXT_TOKENS.NONCE);
+            const nonceSrc: CspSource | undefined = nonce ? `'nonce-${nonce}'` : undefined;
+            return {
+                baseUri: ['\'self\''],
+                connectSrc: [],
+                defaultSrc: ['\'self\''],
+                fontSrc: [],
+                formAction: ['\'self\''],
+                frameAncestors: ['\'self\''],
+                imgSrc: [],
+                mediaSrc: [],
+                objectSrc: ['\'none\''],
+                scriptSrc: [
+                    '\'self\'',
+                    ...nonceSrc ? [nonceSrc] : []
+                ],
+                scriptSrcAttr: ['\'none\''],
+                styleSrc: []
+            };
+        },
+        cache: false
+    },
+    CURRENT_CACHE_CONTEXT: {
+        useFactory: () => AlsUtilities.getCurrentCacheContext(),
+        cache: false
+    }
 };

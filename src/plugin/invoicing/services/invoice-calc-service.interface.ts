@@ -1,5 +1,5 @@
 
-import { BigNumber } from '../../../utilities/big-number.utilities';
+import { BigNumber } from '../../../utilities/number.utilities';
 import { InvoiceItem } from '../models/invoice-item.model';
 import { Invoice as BaseInvoice } from '../models/invoice.model';
 import { Vat } from '../models/vat.model';

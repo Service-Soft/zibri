@@ -16,8 +16,9 @@ const startMessage: Record<ValidationErrorType, string> = {
  * An error with validation.
  */
 export class ValidationError extends BadRequestError {
-    constructor(type: ValidationErrorType, problems: ValidationProblem[], options?: ErrorOptions) {
-        const paragraphs: string[] = [startMessage[type]];
+    constructor(readonly type: ValidationErrorType, paramName: string | undefined, problems: ValidationProblem[], options?: ErrorOptions) {
+        const paramNameSuffix: string = paramName ? ` "${paramName}"` : '';
+        const paragraphs: string[] = [`${startMessage[type]}${paramNameSuffix}`];
         for (const problem of problems) {
             paragraphs.push(`- ${problem.key}: ${problem.message}`);
         }

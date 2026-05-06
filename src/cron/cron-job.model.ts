@@ -1,12 +1,10 @@
 
 import cron, { ScheduledTask } from 'node-cron';
 
+import { type CronExpressionString } from './cron-expression.utilities';
 import { CreateCronJobEntityData, CronJobEntity } from './cron-job-entity.model';
 import { CronUpdateData } from './cron.service';
 import { Repository } from '../data-source/repository';
-import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
 import { unknownToErrorString } from '../error-handling/unknown-to-error-string.function';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { OmitStrict } from '../types/omit-strict.type';
@@ -53,12 +51,12 @@ export abstract class CronJob {
     /**
      * The repository for syncing cron jobs back and forth to the db.
      */
-    protected readonly cronJobRepository: Repository<CronJobEntity, CreateCronJobEntityData>;
+    protected cronJobRepository!: Repository<CronJobEntity, CreateCronJobEntityData>;
 
     /**
      * A logger instance.
      */
-    protected readonly logger: LoggerInterface;
+    protected logger!: LoggerInterface;
 
     // eslint-disable-next-line jsdoc/require-returns
     /**
@@ -97,15 +95,16 @@ export abstract class CronJob {
         return this.entity.active;
     }
 
-    constructor(protected readonly overrideName?: string) {
-        this.cronJobRepository = inject(repositoryTokenFor(CronJobEntity));
-        this.logger = inject(ZIBRI_DI_TOKENS.LOGGER);
-    }
+    constructor(protected readonly overrideName?: string) {}
 
     /**
      * Initializes the cron job.
+     * @param logger - A logger instance.
+     * @param repo - The cron job repository to sync to a data source.
      */
-    async init(): Promise<void> {
+    async init(logger: LoggerInterface, repo: Repository<CronJobEntity, CreateCronJobEntityData>): Promise<void> {
+        this.logger = logger;
+        this.cronJobRepository = repo;
         if (this.entity) {
             throw new Error('the cron job has already been initialized.');
         }
@@ -245,7 +244,7 @@ export abstract class CronJob {
      * Changes the cron expression.
      * @param cronExpression - The new cron expression to change to.
      */
-    async changeCron(cronExpression: string): Promise<void> {
+    async changeCron(cronExpression: CronExpressionString): Promise<void> {
         if (!this.entity || !this.task) {
             throw new Error(NOT_INITIALIZED_MESSAGE);
         }

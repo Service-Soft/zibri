@@ -1,4 +1,5 @@
 import { LogContextInput } from './log-context.model';
+import { OmitStrict } from '../types/omit-strict.type';
 import { BaseLoggerTransportConfig, LoggerTransport } from './transport/logger-transport.model';
 
 /**
@@ -24,9 +25,9 @@ export interface LoggerInterface {
     /**
      * Logs a error.
      */
-    error: (error: Error, context?: LogContextInput) => void | Promise<void>,
+    error: (error: Error, context?: OmitStrict<LogContextInput, 'error'>) => void | Promise<void>,
     /**
      * Logs a critical error.
      */
-    critical: (error: Error, context?: LogContextInput) => void | Promise<void>
+    critical: (error: Error, context?: OmitStrict<LogContextInput, 'error'>) => void | Promise<void>
 }

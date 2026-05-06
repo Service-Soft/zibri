@@ -1,3 +1,4 @@
+import { type CronExpressionString } from './cron-expression.utilities';
 import { BaseEntity } from '../entity/base-entity.model';
 import { Entity } from '../entity/decorators/entity.decorator';
 import { Property } from '../entity/decorators/property.decorator';
@@ -18,7 +19,7 @@ export class CronJobEntity extends BaseEntity {
      * The cron expression.
      */
     @Property.string()
-    cron!: string;
+    cron!: CronExpressionString;
 
     /**
      * Whether or not the cron job is currently active.

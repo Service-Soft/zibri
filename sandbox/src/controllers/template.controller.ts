@@ -10,7 +10,8 @@ export class TemplateController {
     @Response.html()
     @Get('/socket')
     async socketIo(): Promise<HtmlResponse> {
-        return await PreactUtilities.renderResponse(SocketIoTestPage, { primary: '#0e456f', secondary: '#00b4d8' });
+        const html: string = await PreactUtilities.renderPage(SocketIoTestPage, { primary: '#0e456f', secondary: '#00b4d8' });
+        return HtmlResponse.fromString(html);
     }
 
     @Response.html()
@@ -47,7 +48,6 @@ export class TemplateController {
             cleanupAt: new Date(),
             level: logLevel,
             message: 'test 42',
-            error: errorToLoggedError(new Error('Something Failed')),
             context: {
                 origin,
                 request: {
@@ -55,7 +55,8 @@ export class TemplateController {
                     url: 'http://localhost:3000/templates/log',
                     clientIp: '123.456.789.10',
                     userAgent: 'Mozilla/Firefox'
-                }
+                },
+                error: errorToLoggedError(new Error('Something Failed'))
             }
         };
 

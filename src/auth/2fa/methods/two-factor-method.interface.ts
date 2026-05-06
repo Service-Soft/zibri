@@ -1,5 +1,5 @@
-import { HttpRequest } from '../../../http/http-request.model';
-import { WebsocketRequest } from '../../../websocket/models/websocket-request.model';
+import { HttpRequestContext } from '../../../context/request/http-request.context';
+import { WebsocketRequestContext } from '../../../context/request/websocket-request.context';
 import { BaseUser } from '../../models/base-user.model';
 
 /**
@@ -29,7 +29,7 @@ export interface TwoFactorMethod<TwoFactorRequestRegisterData, TwoFactorConfirmR
      */
     validate: <Role extends string, UserType extends BaseUser<Role>>(
         user: UserType,
-        request: HttpRequest | WebsocketRequest
+        context: HttpRequestContext | WebsocketRequestContext
     ) => void | Promise<void>
 }
 

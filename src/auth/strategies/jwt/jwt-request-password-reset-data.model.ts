@@ -1,3 +1,4 @@
+import { Transaction } from '../../../data-source/transaction/transaction.model';
 import { QueueEmailData } from '../../../email/models/create-email-data.model';
 import { BaseUser } from '../../models/base-user.model';
 
@@ -19,5 +20,9 @@ export type JwtRequestPasswordResetData<RoleType extends string, UserType extend
              */
             confirmPasswordResetUrl: string
         }
-    >
+    >,
+    /**
+     * The transaction that this should run in.
+     */
+    transaction: Transaction
 };

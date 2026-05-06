@@ -1,5 +1,6 @@
 import { Request } from 'express';
 
+import { HttpMethod } from './http-method.enum';
 import { KnownHeader } from './known-header.enum';
 import { OmitStrict } from '../types/omit-strict.type';
 
@@ -12,7 +13,7 @@ export type HttpRequest<
     QueryParamsObject extends Record<string, unknown> = Record<string, string | undefined>,
     HeaderParamsObject extends Record<string, unknown> = Partial<Record<KnownHeader, string | undefined>>
 // eslint-disable-next-line typescript/no-explicit-any
-> = OmitStrict<Request<Record<string, string>, any, T>, 'query' | 'headers' | 'params'> & {
+> = OmitStrict<Request<Record<string, string>, any, T>, 'query' | 'headers' | 'params' | 'method'> & {
     /**
      * The path parameters of the request, as an object.
      */
@@ -24,7 +25,11 @@ export type HttpRequest<
     /**
      * The header parameters of the request, as an object.
      */
-    headers: HeaderParamsObject
+    headers: HeaderParamsObject,
+    /**
+     * The http method of the request.
+     */
+    method: HttpMethod
 };
 
 /**

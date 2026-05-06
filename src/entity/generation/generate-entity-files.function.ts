@@ -1,4 +1,4 @@
-import { register } from 'ts-node';
+import { register as tsNodeRegister } from 'ts-node';
 
 import { FileToGenerate, generateEntityFilesForProvider, GenerateEntityFilesForProviderResult } from './generate-entity-files-for-provider.function';
 import { EntityGenerationProvider } from './providers/entity-generation-provider.interface';
@@ -14,7 +14,8 @@ export async function generateEntityFiles(): Promise<void> {
     if (ext !== '.ts') {
         return;
     }
-    register();
+    // Register ts-node so the dynamically required providers file can be loaded when it is authored in TypeScript.
+    tsNodeRegister();
     // eslint-disable-next-line typescript/no-explicit-any, typescript/no-unsafe-assignment, typescript/no-require-imports, typescript/no-var-requires
     const imported: any = require(providersPath);
     // eslint-disable-next-line typescript/no-unsafe-member-access

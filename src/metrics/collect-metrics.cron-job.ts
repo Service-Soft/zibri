@@ -1,16 +1,17 @@
 import { type MetricsServiceInterface } from './metrics-service.interface';
+import { CronExpression } from '../cron/cron-expression.utilities';
 import { CronJob, InitialCronConfig } from '../cron/cron-job.model';
 import { Inject } from '../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 
 /**
- * CronJob that cleans up the temp folder of the form data body parser.
+ * CronJob that collects metrics.
  */
-export class ScrapeMetricsCronJob extends CronJob {
+export class CollectMetricsCronJob extends CronJob {
     // eslint-disable-next-line jsdoc/require-jsdoc
     initialConfig: InitialCronConfig = {
-        name: 'Scrape Metrics',
-        cron: '*/5 * * * * *',
+        name: 'Collect Metrics',
+        cron: CronExpression.every(5, 'seconds').build(),
         runOnInit: false
     };
 
@@ -23,7 +24,7 @@ export class ScrapeMetricsCronJob extends CronJob {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async onTick(): Promise<void> {
-        await this.logger.debug('scrapes metrics');
+        await this.logger.debug('collects metrics');
         await this.metricsService.collect();
     }
 }

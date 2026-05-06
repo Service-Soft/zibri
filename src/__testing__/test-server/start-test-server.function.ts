@@ -1,3 +1,5 @@
+import { AddressInfo } from 'node:net';
+
 import { jest } from '@jest/globals';
 import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import H from 'handlebars/runtime';
@@ -15,10 +17,11 @@ import { DiContainer } from '../../di/di-container';
 import { inject } from '../../di/inject.function';
 import { LoggerInterface } from '../../logging/logger.interface';
 import { Newable } from '../../types/newable.type';
-import { noOp, POSTGRES_TEST_IMAGE } from '../constants';
+import { noOp, POSTGRES_TEST_IMAGE, testAssetsFolder } from '../constants';
 import { createTestDataSource } from './create-test-data-source.function';
+import { AssetServiceInterface } from '../../assets/asset-service.interface';
 
-type StartTestServerOptions = Partial<Pick<ZibriApplicationOptions, 'providers' | 'plugins'>> & {
+type StartTestServerOptions = Partial<Pick<ZibriApplicationOptions, 'providers' | 'plugins' | 'controllers'>> & {
     dataSources?: Newable<PostgresDataSource>[]
 };
 
@@ -28,6 +31,18 @@ export class StartedTestServer {
         private readonly containers: AbstractStartedContainer[],
         private readonly exitSpy = jest.spyOn(process, 'exit').mockImplementation(() => undefined as never)
     ) {}
+
+    async start(): Promise<string> {
+        await this.app.start(0);
+        const address: string | AddressInfo | null = this.app.server.address();
+        if (address == undefined || typeof address === 'string') {
+            throw new Error('Failed to resolve test server port.');
+        }
+        const host: string = address.address === '::' || address.address === '0.0.0.0'
+            ? '127.0.0.1'
+            : address.address;
+        return `http://${host}:${address.port}`;
+    }
 
     async shutdown(): Promise<void> {
         await this.app.shutdown();
@@ -40,7 +55,8 @@ export async function startTestServer(
     {
         dataSources = [createTestDataSource()],
         providers = defaultTestServerProviders,
-        plugins = defaultTestServerPlugins
+        plugins = defaultTestServerPlugins,
+        controllers = []
     }: StartTestServerOptions = {}
 ): Promise<StartedTestServer> {
     // Reset singleton — every test file gets a clean container with no stale instances.
@@ -66,11 +82,14 @@ export async function startTestServer(
     const info: typeof logger.info = logger.info;
     logger.info = noOp;
 
+    const assetService: AssetServiceInterface = inject(ZIBRI_DI_TOKENS.ASSET_SERVICE);
+    (assetService.assetsPath as string) = testAssetsFolder;
+
     const app: ZibriApplication = new ZibriApplication({
         name: 'test',
         version: '0.0.1',
         baseUrl: 'http://localhost:3000',
-        controllers: [],
+        controllers,
         websocketControllers: [],
         dataSources,
         providers,

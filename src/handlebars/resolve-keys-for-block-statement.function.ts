@@ -1,6 +1,7 @@
 import { AstBlockStatement, AstExpression } from './ast.model';
 import { resolveKeyForPathExpression } from './resolve-key-for-path-expression.function';
 import { resolveAllKeys } from './resolve-tree.function';
+import { JsonUtilities } from '../utilities/json.utilities';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 export function resolveKeysForBlockStatement(element: AstBlockStatement, parentKey: string | undefined): string[] {
@@ -28,8 +29,8 @@ export function resolveKeysForBlockStatement(element: AstBlockStatement, parentK
         case 'with':
         case 'log': {
             throw new Error(`Not implemented yet "${element.path.original}"`);
-            res.push(...resolveAllKeys(element.program, parentKey));
-            break;
+            // res.push(...resolveAllKeys(element.program, parentKey));
+            // break;
         }
         default: {
             throw new Error(`Unknown AST path.original "${element.path.original}"`);
@@ -41,7 +42,7 @@ export function resolveKeysForBlockStatement(element: AstBlockStatement, parentK
 // eslint-disable-next-line jsdoc/require-jsdoc
 function getKeyFromArrayParams(params: AstExpression[], parentKey: string | undefined): string {
     if (params.length !== 1) {
-        throw new Error(`Got more than 1 param ${JSON.stringify(params)}`);
+        throw new Error(`Got more than 1 param ${JsonUtilities.stringify(params)}`);
     }
 
     switch (params[0].type) {
@@ -70,7 +71,7 @@ function getKeyFromArrayParams(params: AstExpression[], parentKey: string | unde
 // eslint-disable-next-line jsdoc/require-jsdoc
 function getKeyFromIfParams(params: AstExpression[], parentKey: string | undefined): string {
     if (params.length !== 1) {
-        throw new Error(`Got more than 1 param ${JSON.stringify(params)}`);
+        throw new Error(`Got more than 1 param ${JsonUtilities.stringify(params)}`);
     }
 
     switch (params[0].type) {

@@ -77,10 +77,10 @@ export abstract class PromiseUtilities {
      * @param timeoutInMs - The timeout after which an error should be thrown.
      * @returns The result of the function if finished in time.
      */
-    static async withTimeout<Res>(
-        promise: Res | Promise<Res>,
+    static async withTimeout<T>(
+        promise: (signal: AbortSignal) => T | Promise<T>,
         timeoutInMs: number
-    ): Promise<Res> {
+    ): Promise<T> {
         const ac: AbortController = new AbortController();
         const timeoutFn: () => Promise<never> = async () => {
             await setTimeout(timeoutInMs, undefined, { signal: ac.signal });
@@ -88,8 +88,8 @@ export abstract class PromiseUtilities {
         };
 
         try {
-            const res: Res = await Promise.race([
-                promise,
+            const res: T = await Promise.race([
+                Promise.resolve().then(() => promise(ac.signal)),
                 timeoutFn()
             ]);
 

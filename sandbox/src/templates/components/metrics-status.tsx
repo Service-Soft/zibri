@@ -1,23 +1,22 @@
 import { Metric, MetricsSnapshot, onClient, PreactComponent } from 'zibri';
 
 import { Card } from './card';
-import { Checkbox } from './checkbox';
 import { Heading } from './heading';
 import { MetricsEvent } from '../pages/metrics';
 
 type Props = {
-    onReloadChange: () => void,
     version: string,
-    automaticReloadChecked: boolean,
+    id: string,
     className?: string
 };
 
 export const MetricsStatus: PreactComponent<Props> = ({
     className = '',
     version = '-',
-    onReloadChange,
-    automaticReloadChecked
+    id
 }) => {
+    const uptimeInfoId: string = `uptimeInfo-${id}`;
+    const uptimeInfoSinceId: string = `uptimeInfoSince-${id}`;
 
     onClient(() => {
         document.addEventListener('metrics:update', (ev) => {
@@ -55,11 +54,11 @@ export const MetricsStatus: PreactComponent<Props> = ({
             { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }
         );
 
-        const uptimeInfo: HTMLElement | null = document.getElementById('uptimeInfo');
+        const uptimeInfo: HTMLElement | null = document.getElementById(uptimeInfoId);
         if (uptimeInfo) {
             uptimeInfo.textContent = text;
         }
-        const uptimeInfoSince: HTMLElement | null = document.getElementById('uptimeInfoSince');
+        const uptimeInfoSince: HTMLElement | null = document.getElementById(uptimeInfoSinceId);
         if (uptimeInfoSince) {
             uptimeInfoSince.textContent = sinceText;
         }
@@ -70,8 +69,6 @@ export const MetricsStatus: PreactComponent<Props> = ({
             <Card className={className}>
                 <Heading className='!text-xl' tag="h2">Status</Heading>
 
-                <Checkbox label="Automatic reload" onChange={() => onReloadChange()} checked={automaticReloadChecked}></Checkbox>
-
                 <div className="w-fit mx-auto">
                     <div className="flex justify-between gap-10">
                         <div>Version:</div>
@@ -79,11 +76,11 @@ export const MetricsStatus: PreactComponent<Props> = ({
                     </div>
                     <div className="flex justify-between gap-10">
                         <div>Uptime:</div>
-                        <div id="uptimeInfo">...</div>
+                        <div id={uptimeInfoId}>...</div>
                     </div>
                     <div className="flex justify-between gap-10">
                         <div>Since:</div>
-                        <div id="uptimeInfoSince">...</div>
+                        <div id={uptimeInfoSinceId}>...</div>
                     </div>
                 </div>
             </Card>

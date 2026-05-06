@@ -1,8 +1,7 @@
-import { Chart as ChartJsChart } from 'chart.js?client';
-import { Metric, MetricsSnapshot, onClient, PreactComponent } from 'zibri';
+import type { Chart as ChartJsChart } from 'chart.js';
+import { Metric, MetricsSnapshot, PreactComponent } from 'zibri';
 
 import { Chart } from './chart';
-import { MetricsEvent } from '../pages/metrics';
 
 type Props = {
     primary: string,
@@ -13,20 +12,9 @@ type Props = {
 type DataPoint = { x: Date, y: number };
 
 export const ResourceUsageChart: PreactComponent<Props> = ({ primary, secondary, className = '' }) => {
-    let resourceUsageChart: ChartJsChart<'line', DataPoint[]> | undefined;
 
-    onClient(() => {
-        document.addEventListener('metrics:update', (ev) => {
-            if (!(ev instanceof CustomEvent) || !('snaps' in ev.detail)) {
-                throw new Error('received invalid metrics event');
-            }
-            const { snaps } = (ev as MetricsEvent).detail;
-            renderResourceUsageChart(snaps);
-        });
-    });
-
-    function renderResourceUsageChart(snaps: MetricsSnapshot[]): void {
-        const data: DataPoint[] = snaps.map(snap => {
+    function updateChart(chart: ChartJsChart<'line', DataPoint[]>, snaps: MetricsSnapshot[]): void {
+        const ramSeries: DataPoint[] = snaps.map(snap => {
             const mem: Metric | undefined = snap.metrics.find(m => m.name === 'process_resident_memory_bytes');
             return {
                 x: new Date(snap.timestamp),
@@ -51,71 +39,67 @@ export const ResourceUsageChart: PreactComponent<Props> = ({ primary, secondary,
             return { x: new Date(t * 1000), y: pct };
         });
 
-        if (resourceUsageChart) {
-            resourceUsageChart.data.datasets[0].data = data;
-            resourceUsageChart.data.datasets[1].data = cpuSeries;
-            resourceUsageChart.update();
-            return;
-        }
-
-        const el: HTMLCanvasElement | null = document.querySelector('#resourceUsageChart');
-        if (!el) {
-            return;
-        }
-
-        resourceUsageChart = new ChartJsChart(el, {
-            type: 'line',
-            data: {
-                datasets: [
-                    {
-                        label: 'RAM (MB)',
-                        data,
-                        yAxisID: 'y',
-                        borderColor: secondary,
-                        backgroundColor: secondary
-                    },
-                    {
-                        label: 'CPU (%)',
-                        data: cpuSeries,
-                        yAxisID: 'yCPU',
-                        borderColor: primary,
-                        backgroundColor: primary
-                    }
-                ]
-            },
-            options: {
-                scales: {
-                    x: {
-                        type: 'time',
-                        time: {
-                            unit: 'second',
-                            displayFormats: {
-                                second: 'HH:mm:ss'
-                            }
-                        },
-                        grid: { display: false }
-                    },
-                    y: {
-                        ticks: {
-                            callback: v => `${v} MB`
-                        },
-                        beginAtZero: true
-                    },
-                    yCPU: {
-                        position: 'right',
-                        grid: { drawOnChartArea: false }, // don't duplicate grid lines
-                        ticks: {
-                            callback: v => `${v}%`
-                        }
-                    }
-                }
-            }
-        });
+        chart.data.datasets[0].data = ramSeries;
+        chart.data.datasets[1].data = cpuSeries;
+        chart.update();
     }
 
     return (
-        <>
-            <Chart canvasId="resourceUsageChart" title="Resource Usage" className={className}></Chart>
-        </>
+        <Chart
+            canvasId="resourceUsageChart"
+            title="Resource Usage"
+            className={className}
+            chartConfig={{
+                type: 'line',
+                data: {
+                    datasets: [
+                        {
+                            label: 'RAM (MB)',
+                            data: [],
+                            yAxisID: 'y',
+                            borderColor: secondary,
+                            backgroundColor: secondary
+                        },
+                        {
+                            label: 'CPU (%)',
+                            data: [],
+                            yAxisID: 'yCPU',
+                            borderColor: primary,
+                            backgroundColor: primary
+                        }
+                    ]
+                },
+                options: {
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'second',
+                                displayFormats: {
+                                    second: 'HH:mm:ss'
+                                }
+                            },
+                            grid: { display: false }
+                        },
+                        y: {
+                            ticks: {
+                                callback: v => `${v} MB`
+                            },
+                            beginAtZero: true
+                        },
+                        yCPU: {
+                            position: 'right',
+                            grid: { drawOnChartArea: false }, // don't duplicate grid lines
+                            min: 0,
+                            max: 100,
+                            ticks: {
+                                callback: v => `${v}%`
+                            }
+                        }
+                    }
+                }
+            }}
+            updateChart={updateChart}
+        />
     );
 };

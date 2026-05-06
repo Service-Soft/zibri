@@ -13,6 +13,7 @@ import { inject } from '../../../../di/inject.function';
 import { defineProvider } from '../../../../di/models/di-provider.model';
 import { isHttpClientError } from '../../../../http-client/http-client.error';
 import { CurrencyCode } from '../../../../localization/models/currency-code.model';
+import { JsonUtilities } from '../../../../utilities/json.utilities';
 import { UUIDUtilities } from '../../../../utilities/uuid.utilities';
 import { KnownPaymentMethod, PaymentMethod } from '../../models/payment-method.model';
 import { PaymentPluginOptionsInput } from '../../models/payment-plugin-options-input.model';
@@ -49,7 +50,7 @@ async function simulateBuyerApproval(merchantToken: string, orderId: string, ret
                 Authorization: `Bearer ${merchantToken}`,
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
+            body: JsonUtilities.stringify({
                 payment_source: {
                     // eslint-disable-next-line cspell/spellchecker
                     paypal: {

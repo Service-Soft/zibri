@@ -1,6 +1,7 @@
 import { createRequire } from 'node:module';
 
 import { FsUtilities, FsPath } from '../utilities/fs.utilities';
+import { JsonUtilities } from '../utilities/json.utilities';
 import { toKebabCase } from '../utilities/to-kebab-case.function';
 
 const defaultGlobs: string[] = ['src/templates/pages/**/*.tsx', 'src/templates/components/**/*.tsx'];
@@ -53,7 +54,7 @@ export async function generateClientScripts(glob: string | string[] = defaultGlo
     const sorted: Record<string, string[]> = Object.fromEntries(
         Object.entries(packagesByComponent).sort(([a], [b]) => a.localeCompare(b))
     );
-    const newManifestContent: string = JSON.stringify(sorted, undefined, 4);
+    const newManifestContent: string = JsonUtilities.stringify(sorted, undefined, 4);
     if (await FsUtilities.exists(manifestFile)) {
         const oldFileContent: string = await FsUtilities.readFile(manifestFile);
         if (oldFileContent.trim() === newManifestContent.trim()) {
@@ -91,8 +92,8 @@ async function resolveBrowserDist(pkg: string): Promise<string> {
     // eslint-disable-next-line sonar/no-duplicate-string
     const userRequire: NodeJS.Require = createRequire(FsUtilities.getPath(process.cwd(), 'package.json'));
     const pkgDir: string = await findPackageDir(pkg, userRequire);
-    // eslint-disable-next-line typescript/no-unsafe-assignment
-    const pkgJson: Record<string, unknown> = JSON.parse(await FsUtilities.readFile(FsUtilities.getPath(pkgDir, 'package.json')));
+
+    const pkgJson: Record<string, unknown> = JsonUtilities.parse(await FsUtilities.readFile(FsUtilities.getPath(pkgDir, 'package.json')));
 
     const browserEntry: string | undefined = resolveBrowserEntry(pkgJson);
     if (!browserEntry) {
@@ -122,8 +123,8 @@ async function findPackageDir(pkg: string, userRequire: NodeJS.Require): Promise
     while (true) {
         const candidate: FsPath = FsUtilities.getPath(dir, 'package.json');
         try {
-            // eslint-disable-next-line typescript/no-unsafe-assignment
-            const json: Record<string, unknown> = JSON.parse(await FsUtilities.readFile(candidate));
+
+            const json: Record<string, unknown> = JsonUtilities.parse(await FsUtilities.readFile(candidate));
             if (json['name'] === pkg) {
                 return dir;
             }

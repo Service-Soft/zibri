@@ -1,3 +1,4 @@
+import { CronExpressionString } from './cron-expression.utilities';
 import { CronJob } from './cron-job.model';
 import { CronUpdateData } from './cron.service';
 
@@ -24,7 +25,7 @@ export interface CronServiceInterface {
     /**
      * Changes the cron expression of the cron job with the given name.
      */
-    changeCron: (name: string, cron: string) => Promise<void>,
+    changeCron: (name: string, cron: CronExpressionString) => Promise<void>,
     /**
      * Updates the cron job with the given name.
      */

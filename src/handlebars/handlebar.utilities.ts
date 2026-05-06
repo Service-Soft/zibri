@@ -2,6 +2,7 @@ import handlebars, { ParseOptions } from 'handlebars';
 
 import { AstProgram } from './ast.model';
 import { FsUtilities, FsPath } from '../utilities/fs.utilities';
+import { JsonUtilities } from '../utilities/json.utilities';
 import { MaskUtilities } from '../utilities/mask.utilities';
 import { toCamelCase } from '../utilities/to-camel-case.function';
 
@@ -18,7 +19,7 @@ export abstract class HandlebarUtilities {
      */
     static async init(H: typeof Handlebars, componentsDir: string): Promise<void> {
         this.H = H;
-        this.registerHelper('json', (context) => JSON.stringify(context));
+        this.registerHelper('json', (context) => JsonUtilities.stringify(context));
         this.registerHelper('concat', (...args: unknown[]) => {
             args.pop();
             return args.join('');
