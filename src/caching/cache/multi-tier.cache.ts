@@ -194,6 +194,7 @@ export abstract class MultiTierCache<
                 : await (keyFn as CacheKeyProvider<K, TArgs>)(...args);
 
             const perTier: Partial<Record<TierName<Tiers>, CacheWrapOptions<V, TArgs, CacheTag>>> | undefined = options?.perCache;
+            // eslint-disable-next-line sonar/cognitive-complexity
             await Promise.all(this.tiers.map(async (tier) => {
                 const tierOpt: CacheWrapWriteOptionsWithResult<V, TArgs, CacheTag>
                     | CacheWrapWriteOptionsArgsOnly<TArgs, CacheTag>
