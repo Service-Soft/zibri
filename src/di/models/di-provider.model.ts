@@ -39,6 +39,12 @@ type ClassDiProvider<T> = BaseDiProvider<T> & {
      * A class to register for the token.
      */
     useClass: Newable<T>,
+    /**
+     * Whether or not the newly created class instance should be cached or recreated on every injection.
+     *
+     * Defaults to true.
+     */
+    cache?: boolean,
     // eslint-disable-next-line jsdoc/require-jsdoc
     useFactory?: never,
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -51,6 +57,12 @@ type FactoryDiProvider<T> = BaseDiProvider<T> & {
      * A factory function that resolves the value to register for the token.
      */
     useFactory: (...deps: unknown[]) => T,
+    /**
+     * Whether or not the result of the function should be cached or recomputed on every injection.
+     *
+     * Defaults to true.
+     */
+    cache?: boolean,
     // eslint-disable-next-line jsdoc/require-jsdoc
     useClass?: never,
     // eslint-disable-next-line jsdoc/require-jsdoc

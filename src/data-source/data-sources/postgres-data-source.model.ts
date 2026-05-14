@@ -3,12 +3,11 @@ import { PassThrough, Readable, Writable } from 'node:stream';
 
 import { DataSource as TODataSource, Repository as TORepository, EntityMetadata as TOEntityMetadata, EntitySchema, EntitySchemaColumnOptions, QueryRunner, EntitySchemaRelationOptions, Table, TableColumnOptions, TableColumn, EntityTarget } from 'typeorm';
 import { PostgresConnectionOptions } from 'typeorm/driver/postgres/PostgresConnectionOptions.js';
-import { IsolationLevel } from 'typeorm/driver/types/IsolationLevel.js';
 import { ColumnMetadata } from 'typeorm/metadata/ColumnMetadata.js';
 import { OnDeleteType } from 'typeorm/metadata/types/OnDeleteType.js';
 import { OnUpdateType } from 'typeorm/metadata/types/OnUpdateType.js';
 
-import { DataSourceInterface } from './data-source.interface';
+import { DataSourceInterface, IsolationLevel } from './data-source.interface';
 import { ChangeSetRepository } from '../../change-sets/change-set-repository';
 import { isChangeSetEntityNewable, ChangeSetEntity } from '../../change-sets/models/change-set-entity.model';
 import { isSoftDeleteEntityNewable, SoftDeleteEntity } from '../../change-sets/models/soft-delete-entity.model';
@@ -33,6 +32,7 @@ import { Version } from '../../types/version.type';
 import { compareVersion } from '../../utilities/compare-versions.function';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
+import { getDefaultBeforeReturnHook, getDefaultBeforeSaveHook } from '../hooks/hooks.default';
 import { MigrationEntity } from '../migration/migration-entity.model';
 import { Migration } from '../migration/migration.model';
 import { ColumnType } from '../models/column-type.model';
@@ -221,7 +221,11 @@ export abstract class PostgresDataSource implements DataSourceInterface {
         }
         const props: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(cls);
 
-        const numberOfPrimaryKeys: number = ObjectUtilities.values(props).filter(d => (d as StringPropertyMetadata).primary).length;
+        const numberOfPrimaryKeys: number = ObjectUtilities
+            .values(props)
+            // eslint-disable-next-line typescript/no-explicit-any
+            .filter(d => (d as StringPropertyMetadata<any, any, any, any, any>).primary)
+            .length;
         if (numberOfPrimaryKeys === 0) {
             throw new Error(`no primary key specified for entity "${cls.name}".`);
         }
@@ -358,13 +362,20 @@ export abstract class PostgresDataSource implements DataSourceInterface {
                     nullable,
                     generated: metadata.primary ? 'increment' : undefined,
                     ...metadata,
-                    type: this.columnTypeMapping[metadata.type],
+                    type: metadata.format ?? this.columnTypeMapping[metadata.type],
                     default: undefined,
                     transformer: {
                         // eslint-disable-next-line unicorn/no-null
-                        to: (v: number | null) => v != null ? String(v) : null,
-                        // eslint-disable-next-line unicorn/no-null
-                        from: (v: string | null) => v != null ? Number(v) : undefined
+                        to: (v: number | bigint | null) => v != null ? String(v) : null,
+                        from: (v: string | null) => {
+                            if (v == undefined) {
+                                return v;
+                            }
+                            if (metadata.format === 'bigint') {
+                                return BigInt(v);
+                            }
+                            return Number(v);
+                        }
                     }
                 };
             }
@@ -397,17 +408,30 @@ export abstract class PostgresDataSource implements DataSourceInterface {
             return new SoftDeleteRepository(
                 cls,
                 repo as unknown as TORepository<SoftDeleteEntity>,
-                this.logger
+                this.logger,
+                this,
+                getDefaultBeforeSaveHook(),
+                getDefaultBeforeReturnHook()
             ) as unknown as Repository<T>;
         }
         if (isChangeSetEntityNewable(cls)) {
             return new ChangeSetRepository(
                 cls,
                 repo as unknown as TORepository<ChangeSetEntity>,
-                this.logger
+                this.logger,
+                this,
+                getDefaultBeforeSaveHook(),
+                getDefaultBeforeReturnHook()
             ) as unknown as Repository<T>;
         }
-        return new Repository(cls, repo, this.logger);
+        return new Repository<T>(
+            cls,
+            repo,
+            this.logger,
+            this,
+            getDefaultBeforeSaveHook(),
+            getDefaultBeforeReturnHook()
+        );
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

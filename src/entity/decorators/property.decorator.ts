@@ -1,6 +1,8 @@
+import { BaseDecryptOptions, BaseEncryptOptions } from '../../auth/encryption/strategies/encryption-strategy.interface';
 import { warn } from '../../logging/logger.helpers';
 import { Newable } from '../../types/newable.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { AnyObject } from '../any-object.model';
 import type { BaseEntity } from '../base-entity.model';
 import { ArrayPropertyMetadata, ArrayPropertyMetadataInput, ArrayPropertyItemMetadataInput, ArrayPropertyItemMetadata } from '../models/array-property-metadata.model';
 import type { WithDefaultMetadata } from '../models/base-property-metadata.model';
@@ -20,7 +22,8 @@ import { UnknownPropertyMetadata, UnknownPropertyMetadataInput } from '../models
 /**
  * The metadata of a property.
  */
-export type PropertyMetadata = StringPropertyMetadata
+// eslint-disable-next-line typescript/no-explicit-any
+export type PropertyMetadata = StringPropertyMetadata<any, any, any, any, any>
     | NumberPropertyMetadata
     | ObjectPropertyMetadata
     | ArrayPropertyMetadata
@@ -41,7 +44,8 @@ export type RelationMetadata<T extends BaseEntity> = ManyToOnePropertyMetadata<T
 /**
  * The metadata input to define a property.
  */
-export type PropertyMetadataInput = StringPropertyMetadataInput
+// eslint-disable-next-line typescript/no-explicit-any
+export type PropertyMetadataInput = StringPropertyMetadataInput<any, any, any, any, any>
     | NumberPropertyMetadataInput
     | ObjectPropertyMetadataInput
     | ArrayPropertyMetadataInput
@@ -70,8 +74,14 @@ export namespace Property {
      * Defines a string property.
      * @param data - Additional data to specify the property.
      */
-    export function string(data?: StringPropertyMetadataInput): PropertyDecorator {
-        const fullMetadata: StringPropertyMetadata = {
+    export function string<
+        Data,
+        TKey,
+        TEncryptOptions extends BaseEncryptOptions<TKey>,
+        TDecryptOptions extends BaseDecryptOptions<TKey>,
+        THashOptions extends AnyObject
+    >(data?: StringPropertyMetadataInput<Data, TKey, TEncryptOptions, TDecryptOptions, THashOptions>): PropertyDecorator {
+        const fullMetadata: StringPropertyMetadata<Data, TKey, TEncryptOptions, TDecryptOptions, THashOptions> = {
             required: true,
             primary: false,
             type: 'string',
@@ -83,7 +93,10 @@ export namespace Property {
             regex: undefined,
             enum: undefined,
             default: undefined,
-            excludeFromChangeSets: false,
+            excludeFromChangeSets: typeof data?.exclude === 'boolean' ? data.exclude : false,
+            exclude: false,
+            encryption: false,
+            hash: false,
             ...data
         };
         return applyData(fullMetadata, data);
@@ -103,8 +116,10 @@ export namespace Property {
             min: undefined,
             max: undefined,
             default: undefined,
-            excludeFromChangeSets: false,
+            excludeFromChangeSets: typeof data?.exclude === 'boolean' ? data.exclude : false,
+            exclude: false,
             enum: undefined,
+            format: undefined,
             ...data
         };
         return applyData(fullMetadata, data);
@@ -120,7 +135,8 @@ export namespace Property {
             type: 'boolean',
             description: undefined,
             default: undefined,
-            excludeFromChangeSets: false,
+            excludeFromChangeSets: typeof data?.exclude === 'boolean' ? data.exclude : false,
+            exclude: false,
             ...data
         };
         return applyData(fullMetadata, data);
@@ -138,7 +154,8 @@ export namespace Property {
             after: undefined,
             before: undefined,
             default: undefined,
-            excludeFromChangeSets: false,
+            exclude: false,
+            excludeFromChangeSets: typeof data?.exclude === 'boolean' ? data.exclude : false,
             ...data
         };
         return applyData(fullMetadata, data);
@@ -153,7 +170,8 @@ export namespace Property {
             required: true,
             type: 'object',
             description: undefined,
-            excludeFromChangeSets: false,
+            exclude: false,
+            excludeFromChangeSets: typeof data?.exclude === 'boolean' ? data.exclude : false,
             allowAdditionalProperties: false,
             ...data
         };
@@ -178,7 +196,8 @@ export namespace Property {
                 description: undefined,
                 allowedMimeTypes: 'all',
                 maxSize: '5mb',
-                excludeFromChangeSets: false,
+                exclude: false,
+                excludeFromChangeSets: typeof data?.exclude === 'boolean' ? data.exclude : false,
                 ...data
             };
             const ctor: Newable<unknown> = target.constructor as Newable<unknown>;
@@ -201,7 +220,8 @@ export namespace Property {
                 required: true,
                 type: 'array',
                 description: undefined,
-                excludeFromChangeSets: false,
+                exclude: false,
+                excludeFromChangeSets: typeof data?.exclude === 'boolean' ? data.exclude : false,
                 totalMaxSize: '50mb',
                 ...data,
                 items: createArrayItemPropertyMetadata(data.items, `${target.constructor.name}.${key.toString()}`)
@@ -225,7 +245,8 @@ export namespace Property {
             required: true,
             type: 'unknown',
             description: undefined,
-            excludeFromChangeSets: false,
+            exclude: false,
+            excludeFromChangeSets: typeof data?.exclude === 'boolean' ? data.exclude : false,
             ...data
         };
         return applyData(fullMetadata, data);
@@ -241,7 +262,8 @@ export namespace Property {
             type: Relation.MANY_TO_ONE,
             cascade: [],
             description: undefined,
-            excludeFromChangeSets: false,
+            exclude: false,
+            excludeFromChangeSets: typeof metadata?.exclude === 'boolean' ? metadata.exclude : false,
             ...metadata
         };
         return applyData(fullMetadata as PropertyMetadata, metadata);
@@ -257,7 +279,8 @@ export namespace Property {
             type: Relation.ONE_TO_MANY,
             cascade: ['remove', 'insert', 'update'],
             description: undefined,
-            excludeFromChangeSets: false,
+            exclude: false,
+            excludeFromChangeSets: typeof metadata?.exclude === 'boolean' ? metadata.exclude : false,
             ...metadata
         };
         return applyData(fullMetadata as PropertyMetadata, metadata);
@@ -274,7 +297,8 @@ export namespace Property {
             cascade: ['remove', 'insert', 'update'],
             joinColumn: false,
             description: undefined,
-            excludeFromChangeSets: false,
+            exclude: false,
+            excludeFromChangeSets: typeof metadata?.exclude === 'boolean' ? metadata.exclude : false,
             ...metadata
         };
         return applyData(fullMetadata as PropertyMetadata, metadata);
@@ -291,7 +315,8 @@ export namespace Property {
             cascade: [],
             joinColumn: true,
             description: undefined,
-            excludeFromChangeSets: false,
+            exclude: false,
+            excludeFromChangeSets: typeof metadata?.exclude === 'boolean' ? metadata.exclude : false,
             ...metadata
         };
         return applyData(fullMetadata as PropertyMetadata, metadata);
@@ -308,7 +333,8 @@ export namespace Property {
             cascade: [],
             description: undefined,
             persistence: true,
-            excludeFromChangeSets: false,
+            exclude: false,
+            excludeFromChangeSets: typeof metadata?.exclude === 'boolean' ? metadata.exclude : false,
             ...metadata
         };
         return applyData(fullMetadata as PropertyMetadata, metadata);
@@ -319,8 +345,17 @@ export namespace Property {
 function applyData(data: PropertyMetadata, inputData: PropertyMetadataInput | undefined): PropertyDecorator {
     return (target, key) => {
         if (inputData?.required != undefined && (inputData as WithDefaultMetadata<string>).default != undefined) {
-            // eslint-disable-next-line stylistic/max-len
-            warn(`setting "required" on ${target.constructor.name}.${key.toString()} won't have any effect, because "default" is also set.`);
+            warn(`${target.constructor.name}.${key.toString()}: setting "required" won't have any effect, because "default" is also set.`);
+        }
+        if ('primary' in data && data.primary && data.exclude !== false) {
+            throw new Error(`${target.constructor.name}.${key.toString()}: Cannot mark a primary key with "exclude."`);
+        }
+        if (
+            'encryption' in data && 'hash' in data
+            && data.encryption !== undefined && data.encryption !== false
+            && data.hash !== undefined && data.hash !== false
+        ) {
+            throw new Error(`${target.constructor.name}.${key.toString()}: Cannot set the flags "encryption" and "hash" at the same time.`);
         }
         const ctor: Newable<unknown> = target.constructor as Newable<unknown>;
         // eslint-disable-next-line unicorn/error-message
@@ -338,6 +373,7 @@ function applyData(data: PropertyMetadata, inputData: PropertyMetadataInput | un
  * @param fullPropertyKey - The full key of the property.
  * @returns The full metadata.
  */
+// eslint-disable-next-line sonar/cognitive-complexity
 export function createArrayItemPropertyMetadata(
     data: ArrayPropertyItemMetadataInput,
     fullPropertyKey: string
@@ -352,7 +388,8 @@ export function createArrayItemPropertyMetadata(
                 min: undefined,
                 max: undefined,
                 default: undefined,
-                excludeFromChangeSets: false,
+                exclude: false,
+                excludeFromChangeSets: typeof data?.exclude === 'boolean' ? data.exclude : false,
                 enum: undefined,
                 ...data
             };
@@ -369,7 +406,10 @@ export function createArrayItemPropertyMetadata(
                 regex: undefined,
                 enum: undefined,
                 default: undefined,
-                excludeFromChangeSets: false,
+                exclude: false,
+                encryption: false,
+                hash: false,
+                excludeFromChangeSets: typeof data?.exclude === 'boolean' ? data.exclude : false,
                 ...data
             };
         }
@@ -377,7 +417,8 @@ export function createArrayItemPropertyMetadata(
             return {
                 required: true,
                 description: undefined,
-                excludeFromChangeSets: false,
+                exclude: false,
+                excludeFromChangeSets: typeof data?.exclude === 'boolean' ? data.exclude : false,
                 ...data
             };
         }
@@ -385,7 +426,8 @@ export function createArrayItemPropertyMetadata(
             return {
                 required: true,
                 description: undefined,
-                excludeFromChangeSets: false,
+                exclude: false,
+                excludeFromChangeSets: typeof data?.exclude === 'boolean' ? data.exclude : false,
                 allowAdditionalProperties: false,
                 ...data
             };
@@ -395,7 +437,8 @@ export function createArrayItemPropertyMetadata(
                 required: true,
                 description: undefined,
                 default: undefined,
-                excludeFromChangeSets: false,
+                exclude: false,
+                excludeFromChangeSets: typeof data?.exclude === 'boolean' ? data.exclude : false,
                 ...data
             };
         }
@@ -406,7 +449,8 @@ export function createArrayItemPropertyMetadata(
                 after: undefined,
                 before: undefined,
                 default: undefined,
-                excludeFromChangeSets: false,
+                exclude: false,
+                excludeFromChangeSets: typeof data?.exclude === 'boolean' ? data.exclude : false,
                 ...data
             };
         }
@@ -414,7 +458,8 @@ export function createArrayItemPropertyMetadata(
             const metadata: ArrayPropertyMetadata = {
                 required: true,
                 description: undefined,
-                excludeFromChangeSets: false,
+                exclude: false,
+                excludeFromChangeSets: typeof data?.exclude === 'boolean' ? data.exclude : false,
                 totalMaxSize: '50mb',
                 ...data,
                 items: createArrayItemPropertyMetadata(data.items, fullPropertyKey)
@@ -433,7 +478,8 @@ export function createArrayItemPropertyMetadata(
                 description: undefined,
                 allowedMimeTypes: 'all',
                 maxSize: '5mb',
-                excludeFromChangeSets: false,
+                exclude: false,
+                excludeFromChangeSets: typeof data?.exclude === 'boolean' ? data.exclude : false,
                 ...data
             };
         }

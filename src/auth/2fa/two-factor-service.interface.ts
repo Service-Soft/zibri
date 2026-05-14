@@ -1,7 +1,7 @@
 import { TwoFactorMethod } from './methods/two-factor-method.interface';
 import { TwoFactorMethods } from './two-factor-methods.model';
-import { HttpRequest } from '../../http/http-request.model';
-import { WebsocketRequest } from '../../websocket/models/websocket-request.model';
+import { HttpRequestContext } from '../../context/request/http-request.context';
+import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
 import { BaseUser } from '../models/base-user.model';
 
 /**
@@ -52,7 +52,7 @@ export interface TwoFactorServiceInterface {
      */
     has2fa: (
         user: BaseUser<string>,
-        request: HttpRequest | WebsocketRequest,
+        context: HttpRequestContext | WebsocketRequestContext,
         allowedMethods?: TwoFactorMethods
     ) => Promise<boolean>
 }

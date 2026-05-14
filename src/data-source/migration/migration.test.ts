@@ -1,3 +1,5 @@
+import { randomBytes } from 'node:crypto';
+
 import { beforeAll, afterAll, describe, it, expect } from '@jest/globals';
 import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { Table, TableColumn } from 'typeorm';
@@ -5,9 +7,13 @@ import { Table, TableColumn } from 'typeorm';
 import { MigrationEntity } from './migration-entity.model';
 import { Migration } from './migration.model';
 import { POSTGRES_TEST_IMAGE } from '../../__testing__/constants';
+import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { AesGcmEncryptionStrategy } from '../../auth/encryption/strategies/aes-gcm.encryption-strategy';
 import { InjectRepository } from '../../di/decorators/inject-repository.decorator';
 import { Injectable } from '../../di/decorators/injectable.decorator';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
+import { register } from '../../di/register.function';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
@@ -34,7 +40,7 @@ class LegacyDbDataSource extends PostgresDataSource {
         database: 'db',
         synchronize: true
     };
-    entities: Newable<BaseEntity>[] = [MigrationEntity, LegacyItem];
+    entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, LegacyItem];
 }
 
 @Entity({ tableName: 'item' })
@@ -55,7 +61,7 @@ class DbDataSource extends PostgresDataSource {
         database: 'db',
         synchronize: true
     };
-    entities: Newable<BaseEntity>[] = [MigrationEntity, Item];
+    entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, Item];
     migrations: Newable<Migration>[] = [AddTestValueMigration];
 }
 
@@ -94,6 +100,13 @@ describe('AddTestValueMigration', () => {
             .start();
 
         GlobalRegistry['appData'].version = '0.0.1';
+        register({
+            token: ZIBRI_DI_TOKENS.ENCRYPTION_MASTER_OPTIONS,
+            useValue: {
+                currentMasterStrategy: new AesGcmEncryptionStrategy(),
+                currentMasterKey: { id: 'mk1', value: randomBytes(32) }
+            }
+        });
 
         const legacyDataSource: LegacyDbDataSource = inject(LegacyDbDataSource);
         legacyDataSource.options = {

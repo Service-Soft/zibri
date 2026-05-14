@@ -1,3 +1,4 @@
+import { Transaction } from '../../../data-source/transaction/transaction.model';
 import { Property } from '../../../entity/decorators/property.decorator';
 
 /**
@@ -15,4 +16,8 @@ export class JwtConfirmPasswordResetData {
      */
     @Property.string()
     newPassword!: string;
+    /**
+     * The transaction that this should run in.
+     */
+    transaction!: Transaction;
 }

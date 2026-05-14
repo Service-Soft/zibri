@@ -2,7 +2,7 @@ import { BaseEntity, Entity, File, MimeType, OmitClass, PartialClass, Property }
 
 @Entity()
 export class Test extends BaseEntity {
-    @Property.string({ minLength: 28 })
+    @Property.string({ minLength: 28, encryption: true })
     value!: string;
 }
 

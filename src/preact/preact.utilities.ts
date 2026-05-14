@@ -7,8 +7,13 @@ import { preactHooks } from './hooks/hooks';
 import { PreactComponent } from './preact-component.model';
 import { PreactEmailComponent } from './preact-email-component.model';
 import { findStringEnd, stringAwareReplace } from './string-aware-replace.function';
-import { HtmlResponse } from '../parsing/html/html-response.model';
+import { HttpRequestContext } from '../context/request/http-request.context';
+import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../context/request/request-context-token.model';
+import { WebsocketRequestContext } from '../context/request/websocket-request.context';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { inject } from '../di/inject.function';
 import { FsUtilities, FsPath } from '../utilities/fs.utilities';
+import { JsonUtilities } from '../utilities/json.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
 
 /**
@@ -230,41 +235,21 @@ export abstract class PreactUtilities {
                 .join('\n')
                 .replaceAll('</script>', '\\u003c/script>');
 
+            const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
+            const nonce: string | undefined = await context?.get(ZIBRI_REQUEST_CONTEXT_TOKENS.NONCE);
+            const nonceAttr: string = nonce ? ` nonce="${nonce}"` : '';
             if (html.includes('</body>')) {
                 html = html.replace(
                     '</body>',
-                    `<script>\n${scriptContent}\n</script>\n</body>`
+                    `<script ${nonceAttr}>\n${scriptContent}\n</script>\n</body>`
                 );
             }
             else {
-                html += `\n<script>\n${scriptContent}\n</script>`;
+                html += `\n<script ${nonceAttr}>\n${scriptContent}\n</script>`;
             }
         }
 
         return '<!DOCTYPE html>\n' + html;
-    }
-
-    /**
-     * Render a component and inline the component "body" (everything before the top-level return)
-     * into the same <script> tag that also contains the handler bootstrap. Then wrap it into a html response..
-     * @example
-     * ```ts
-     * PreactUtilities.renderResponse(TestPage, { initialCount: 1 });
-     * ```
-     * @param args - Component and props.
-     * @param args.component - The function component to render.
-     * @param args.props - The properties to pass into the component.
-     * @returns The fully rendered html as a ready to return html response.
-     */
-    static async renderResponse<P = {}>(
-        ...args: keyof P extends never
-            ? [component: PreactComponent<P>]
-            : [component: PreactComponent<P>, props: P]
-    ): Promise<HtmlResponse> {
-        const [component, props] = args;
-        // eslint-disable-next-line typescript/no-explicit-any
-        const htmlString: string = await this.renderPage<any>(component, props);
-        return HtmlResponse.fromString(htmlString);
     }
 
     private static unescapeConditionalComments(html: string): string {
@@ -340,8 +325,7 @@ export abstract class PreactUtilities {
         }
         try {
             const manifestPath: FsPath = FsUtilities.getPath(process.cwd(), 'assets', 'public', 'vendor', 'manifest.json');
-            // eslint-disable-next-line typescript/no-unsafe-assignment
-            this.clientManifest = JSON.parse(await FsUtilities.readFile(manifestPath));
+            this.clientManifest = JsonUtilities.parse(await FsUtilities.readFile(manifestPath));
         }
         catch {
             this.clientManifest = {};
@@ -760,7 +744,7 @@ export abstract class PreactUtilities {
             }
         }
 
-        const safe: string = JSON.stringify(serializableProps, undefined, 4)
+        const safe: string = JsonUtilities.stringify(serializableProps, undefined, 4)
             .split('\n')
             .map((l, i) => i === 0 ? l : '    ' + l)
             .join('\n')
@@ -1046,8 +1030,7 @@ export abstract class PreactUtilities {
 
             for (const [key, value] of ObjectUtilities.entries(propBindings)) {
                 if (key.startsWith('__propsObj_')) {
-                    // eslint-disable-next-line typescript/no-unsafe-assignment
-                    const parsed: Record<string, string> = JSON.parse(value);
+                    const parsed: Record<string, string> = JsonUtilities.parse(value);
                     for (const [propName, resolvedName] of ObjectUtilities.entries(parsed)) {
                         entries.push(`${propName}: ${resolveValue(resolvedName)}`);
                     }
@@ -1066,7 +1049,7 @@ export abstract class PreactUtilities {
             }
 
             for (const [propName, val] of ObjectUtilities.entries(propValues)) {
-                entries.push(`${propName}: ${JSON.stringify(val)}`);
+                entries.push(`${propName}: ${JsonUtilities.stringify(val)}`);
             }
 
             if (entries.length) {
@@ -1106,7 +1089,7 @@ export abstract class PreactUtilities {
                 const propName: string = destructureRenameMap.get(localName) ?? localName;
 
                 if (propName in propValues) {
-                    lines.push(`    const ${prefix}${localName} = ${JSON.stringify(propValues[propName])};`);
+                    lines.push(`    const ${prefix}${localName} = ${JsonUtilities.stringify(propValues[propName])};`);
                     continue;
                 }
                 if (defaultSrc !== undefined) {

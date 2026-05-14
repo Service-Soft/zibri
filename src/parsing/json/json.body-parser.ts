@@ -5,7 +5,7 @@ import { KnownHeader } from '../../http/known-header.enum';
 import { MimeType } from '../../http/mime-type.enum';
 import { HttpClientResponse } from '../../http-client/http-client-response.model';
 import { BodyMetadata } from '../../routing/decorators/body.decorator';
-import { BigNumberUtilities } from '../../utilities/big-number.utilities';
+import { BigNumber, NumberUtilities } from '../../utilities/number.utilities';
 import { WebsocketRequest } from '../../websocket/models/websocket-request.model';
 import { BodyParserInterface } from '../body-parser.interface';
 import { BodyParser } from '../decorators/body-parser.decorator';
@@ -63,17 +63,17 @@ export class JsonBodyParser implements BodyParserInterface {
             return req.body;
         }
         const contentLength: string | undefined = req.headers[KnownHeader.CONTENT_LENGTH];
-        if (contentLength && BigNumberUtilities.new(Number(contentLength)).isGreaterThan(metadata.maxSize)) {
+        if (contentLength && NumberUtilities.new(Number(contentLength)).isGreaterThan(metadata.maxSize)) {
             throw new ContentTooLargeError();
         }
 
         const chunks: Buffer[] = [];
-        let received: BigNumber = BigNumberUtilities.new(0);
+        let received: BigNumber = NumberUtilities.new(0);
 
         await new Promise<void>((resolve, reject) => {
             // eslint-disable-next-line typescript/typedef
             const onData = (chunk: Buffer): void => {
-                received = BigNumberUtilities.add(received, chunk.length);
+                received = NumberUtilities.add(received, chunk.length);
                 if (received.isGreaterThan(metadata.maxSize)) {
                     // eslint-disable-next-line typescript/no-use-before-define
                     cleanup();

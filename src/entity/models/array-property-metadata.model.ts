@@ -36,8 +36,8 @@ export type ArrayPropertyItemMetadata = ExcludeStrict<PropertyMetadata, Relation
 /**
  * Input Metadata for array property items.
  */
-// eslint-disable-next-line jsdoc/require-jsdoc
-export type ArrayPropertyItemMetadataInput = StringPropertyMetadataInput & { type: 'string' }
+// eslint-disable-next-line jsdoc/require-jsdoc, typescript/no-explicit-any
+export type ArrayPropertyItemMetadataInput = StringPropertyMetadataInput<any, any, any, any, any> & { type: 'string' }
     // eslint-disable-next-line jsdoc/require-jsdoc
     | NumberPropertyMetadataInput & { type: 'number' }
     // eslint-disable-next-line jsdoc/require-jsdoc

@@ -1,7 +1,10 @@
 name: CI
-on: 
+on:
     push:
         branches-ignore: [release]
+
+permissions:
+    contents: read
 
 jobs:
     lint:

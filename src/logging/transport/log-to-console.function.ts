@@ -27,14 +27,14 @@ export const logToConsole: LoggerTransportSend<BaseLoggerTransportConfig> = (log
         }
         case LogLevel.ERROR: {
             console.error(timeStamp, `${red}${bright}ERROR${reset}${spacing}${log.context.origin}`);
-            for (const p of log.error?.paragraphs ?? []) {
+            for (const p of log.context.error?.paragraphs ?? []) {
                 console.error(p);
             }
             return;
         }
         case LogLevel.CRITICAL: {
             console.error(timeStamp, `${purple}${bright}CRITICAL${reset}${spacing}${log.context.origin}`);
-            for (const p of log.error?.paragraphs ?? []) {
+            for (const p of log.context.error?.paragraphs ?? []) {
                 console.error(p);
             }
             return;

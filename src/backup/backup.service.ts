@@ -24,6 +24,7 @@ import { BackupTransportInterface } from './transports/backup-transport.interfac
 import { Repository } from '../data-source/repository';
 import { OnAppInit } from '../global/on-app-init.interface';
 import { OnAppShutdown } from '../global/on-app-shutdown.interface';
+import { JsonUtilities } from '../utilities/json.utilities';
 import { Ms } from '../utilities/ms';
 
 /**
@@ -266,7 +267,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, OnAppSh
                     [
                         `Could not resolve backup data for resource "${resource.name}" from transport: ${transport.name}.`,
                         'Cause:',
-                        error instanceof Error ? error.message : JSON.stringify(error)
+                        error instanceof Error ? error.message : JsonUtilities.stringify(error)
                     ].join('\n')
                 );
             }

@@ -2,8 +2,8 @@
     "compilerOptions": {
         "declaration": false,
         "declarationMap": false,
-        "module": "esnext",
-        "moduleResolution": "node",
+        "module": "nodenext",
+        "moduleResolution": "nodenext",
         "outDir": "dist/esm"
     },
     "extends": "./tsconfig.base.json"

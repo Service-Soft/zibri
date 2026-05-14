@@ -43,5 +43,6 @@ export enum MetadataInjectionKeys {
     BACKUP_RESOURCE_METADATA = 'backup_resource:metadata',
     WEBSOCKET_CONTROLLER_DATA = 'websocket_controller:data',
     WEBSOCKET_CONTROLLER_ROUTES = 'websocket_controller:routes',
-    ROUTE_CURRENT_WEBSOCKET_CONNECTION = 'route:current_websocket_connection'
+    ROUTE_CURRENT_WEBSOCKET_CONNECTION = 'route:current_websocket_connection',
+    EXCLUDED_PROPERTY_VALUE = 'entity:excluded_property_value'
 }

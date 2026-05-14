@@ -13,3 +13,6 @@ PGPASSWORD
 psql
 esnext
 SEPA
+hsts
+nosniff
+csrf

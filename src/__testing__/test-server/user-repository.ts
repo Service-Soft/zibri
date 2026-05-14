@@ -21,7 +21,7 @@ export class DefaultTestServerUserRepository extends Repository<JwtUser>
         @InjectRepository(JwtUser)
         private readonly credentialsRepository: Repository<JwtCredentials>
     ) {
-        super(JwtUser, repo, logger);
+        super(JwtUser, repo, logger, repo.dataSource);
     }
 
     async findByEmail(email: string): Promise<JwtUser> {

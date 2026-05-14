@@ -7,11 +7,12 @@ import { Newable } from '../../types/newable.type';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { Ms } from '../../utilities/ms';
+import { BigNumber } from '../../utilities/number.utilities';
 
 /**
  * Base metadata shared by all possible http request body properties.
  */
-type BaseBodyMetadata = OmitStrict<BasePropertyMetadata, 'excludeFromChangeSets'> & {
+type BaseBodyMetadata = OmitStrict<BasePropertyMetadata, 'excludeFromChangeSets' | 'exclude'> & {
     /**
      * The class that defines the structure of the body.
      */

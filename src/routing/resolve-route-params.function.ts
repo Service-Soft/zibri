@@ -1,29 +1,64 @@
-import { AuthServiceInterface } from '../auth/auth-service.interface';
+import { BodyMetadata } from './decorators/body.decorator';
+import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from './decorators/param.decorator';
 import { CurrentUserMetadata } from '../auth/decorators/current-user.decorator';
-import { HttpRequest } from '../http/http-request.model';
+import { BaseUser } from '../auth/models/base-user.model';
+import { HttpRequestContext } from '../context/request/http-request.context';
+import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../context/request/request-context-token.model';
+import { WebsocketRequestContext } from '../context/request/websocket-request.context';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { inject } from '../di/inject.function';
+import { KnownHeader } from '../http/known-header.enum';
 import { ParserInterface } from '../parsing/parser.interface';
 import { Newable } from '../types/newable.type';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
 import { ValidationServiceInterface } from '../validation/validation-service.interface';
-import { BodyMetadata } from './decorators/body.decorator';
-import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from './decorators/param.decorator';
 import { CurrentWebsocketConnectionMetadata } from '../websocket/decorators/current-websocket-connection.decorator';
-import { BaseWebsocketConnection } from '../websocket/models/connection/base-websocket-connection.model';
-import { WebsocketRequest } from '../websocket/models/websocket-request.model';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 export async function resolveRouteParams(
     controllerClass: Newable<unknown>,
     controllerMethod: string,
     totalParamCount: number,
-    req: HttpRequest | WebsocketRequest,
-    parser: ParserInterface,
-    validationService: ValidationServiceInterface,
-    authService: AuthServiceInterface,
-    currentWebsocketConnection: BaseWebsocketConnection | undefined
+    context: HttpRequestContext | WebsocketRequestContext
 ): Promise<unknown[]> {
-    // TODO: validate that no additional parameters have been provided that are unused in the controller.
+    const params: unknown[] = await parseRouteParams(controllerClass, controllerMethod, totalParamCount, context);
+
+    const validationService: ValidationServiceInterface = inject(ZIBRI_DI_TOKENS.VALIDATION_SERVICE);
+
+    // validate
+    const pathParams: Record<string, PathParamMetadata> = MetadataUtilities.getRoutePathParams(controllerClass, controllerMethod);
+    const queryParams: Record<string, QueryParamMetadata> = MetadataUtilities.getRouteQueryParams(controllerClass, controllerMethod);
+    const headerParams: Record<string, HeaderParamMetadata> = MetadataUtilities.getRouteHeaderParams(controllerClass, controllerMethod);
+    const requestBody: BodyMetadata | undefined = MetadataUtilities.getRouteBody(controllerClass, controllerMethod);
+
+    await Promise.all([
+        ...ObjectUtilities.entries(pathParams).map(async ([indexStr, metadata]) => {
+            const idx: number = Number(indexStr);
+            await validationService.validatePathParam(params[idx], metadata);
+        }),
+        ...ObjectUtilities.entries(queryParams).map(async ([indexStr, metadata]) => {
+            const idx: number = Number(indexStr);
+            await validationService.validateQueryParam(params[idx], metadata);
+        }),
+        ...ObjectUtilities.entries(headerParams).map(async ([indexStr, metadata]) => {
+            const idx: number = Number(indexStr);
+            await validationService.validateHeaderParam(params[idx], metadata);
+        }),
+        ...requestBody ? [validationService.validateBody(params[requestBody.index], requestBody)] : []
+    ]);
+
+    return params;
+}
+
+// eslint-disable-next-line jsdoc/require-jsdoc
+async function parseRouteParams(
+    controllerClass: Newable<unknown>,
+    controllerMethod: string,
+    totalParamCount: number,
+    context: HttpRequestContext | WebsocketRequestContext
+): Promise<unknown[]> {
+    const parser: ParserInterface = inject(ZIBRI_DI_TOKENS.PARSER);
 
     let resolvedParamCount: number = 0;
     const params: unknown[] = new Array(totalParamCount).fill(undefined);
@@ -32,25 +67,19 @@ export async function resolveRouteParams(
     const pathParams: Record<string, PathParamMetadata> = MetadataUtilities.getRoutePathParams(controllerClass, controllerMethod);
     for (const [indexStr, metadata] of ObjectUtilities.entries(pathParams)) {
         const idx: number = Number(indexStr);
-        params[idx] = parser.parsePathParam(req, metadata);
-        validationService.validatePathParam(params[idx], metadata);
+        context.request.params ??= {};
+        context.request.params[metadata.name] = parser.parsePathParam(context.request, metadata) as string | undefined;
+        params[idx] = context.request.params[metadata.name];
     }
     resolvedParamCount += ObjectUtilities.keys(pathParams).length;
 
-    // 2) Body decorator
-    const requestBody: BodyMetadata | undefined = MetadataUtilities.getRouteBody(controllerClass, controllerMethod);
-    if (requestBody) {
-        resolvedParamCount++;
-        params[requestBody.index] = await parser.parseBody(req, requestBody);
-        validationService.validateBody(params[requestBody.index], requestBody);
-    }
-
-    // 3) Query decorators
+    // 2) Query decorators
     const queryParams: Record<string, QueryParamMetadata> = MetadataUtilities.getRouteQueryParams(controllerClass, controllerMethod);
     for (const [indexStr, metadata] of ObjectUtilities.entries(queryParams)) {
         const idx: number = Number(indexStr);
-        params[idx] = parser.parseQueryParam(req, metadata);
-        validationService.validateQueryParam(params[idx], metadata);
+        context.request.query ??= {};
+        context.request.query[metadata.name] = parser.parseQueryParam(context.request, metadata) as string | undefined;
+        params[idx] = context.request.query[metadata.name];
     }
     resolvedParamCount += ObjectUtilities.keys(queryParams).length;
 
@@ -58,28 +87,41 @@ export async function resolveRouteParams(
     const headerParams: Record<string, HeaderParamMetadata> = MetadataUtilities.getRouteHeaderParams(controllerClass, controllerMethod);
     for (const [indexStr, metadata] of ObjectUtilities.entries(headerParams)) {
         const idx: number = Number(indexStr);
-        params[idx] = parser.parseHeaderParam(req, metadata);
-        validationService.validateHeaderParam(params[idx], metadata);
+        context.request.headers[metadata.name as KnownHeader] = parser.parseHeaderParam(context.request, metadata) as string | undefined;
+        params[idx] = parser.parseHeaderParam(context.request, metadata);
     }
     resolvedParamCount += ObjectUtilities.keys(headerParams).length;
 
-    // 4) CurrentUser decorator
-    const currentUser: CurrentUserMetadata | undefined = MetadataUtilities.getRouteCurrentUser(controllerClass, controllerMethod);
-    if (currentUser) {
+    // 4) Body decorator
+    const requestBody: BodyMetadata | undefined = MetadataUtilities.getRouteBody(controllerClass, controllerMethod);
+    if (requestBody) {
+        context.request.body = await parser.parseBody(context.request, requestBody);
+        params[requestBody.index] = context.request.body;
         resolvedParamCount++;
-        params[currentUser.index] = await authService.getCurrentUser(
-            req,
-            currentUser.allowedStrategies ?? authService.strategies,
-            currentUser.required
-        );
     }
 
-    // 4) CurrentWebsocketConnection decorator
+    // 5) CurrentUser decorator
+    const currentUserMetadata: CurrentUserMetadata | undefined = MetadataUtilities.getRouteCurrentUser(controllerClass, controllerMethod);
+    if (currentUserMetadata) {
+        const currentUser: BaseUser<string> | undefined = await context.get(ZIBRI_REQUEST_CONTEXT_TOKENS.CURRENT_USER);
+        params[currentUserMetadata.index] = currentUser;
+        resolvedParamCount++;
+    }
+
+    // 6) CurrentWebsocketConnection decorator
     // eslint-disable-next-line stylistic/max-len
     const currentWebsocketConnectionMetadata: CurrentWebsocketConnectionMetadata | undefined = MetadataUtilities.getRouteCurrentWebsocketConnection(controllerClass, controllerMethod);
     if (currentWebsocketConnectionMetadata) {
+        switch (context.type) {
+            case 'http-request': {
+                throw new Error('Tried to inject a websocket connection on a http request.');
+            }
+            case 'websocket-request': {
+                params[currentWebsocketConnectionMetadata.index] = context.connection;
+                break;
+            }
+        }
         resolvedParamCount++;
-        params[currentWebsocketConnectionMetadata.index] = currentWebsocketConnection;
     }
 
     if (resolvedParamCount < totalParamCount) {

@@ -9,7 +9,6 @@ import { MissingBaseRouteError } from './missing-base-route.error';
 import { createHeaderParamMetadata, createPathParamMetadata, createQueryParamMetadata } from './param-metdata.helpers';
 import { RouterInterface } from './router.interface';
 import { ZibriApplication } from '../application';
-import { runWithRequest } from './request.context';
 import { resolveRouteParams } from './resolve-route-params.function';
 import { OpenApiRouteConfiguration, RouteConfiguration, RouteConfigurationInput } from './route-configuration.model';
 import type { AuthServiceInterface } from '../auth/auth-service.interface';
@@ -28,6 +27,7 @@ import { MimeType } from '../http/mime-type.enum';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { OpenApiResponse } from '../open-api/open-api.model';
 import { FileResponse } from '../parsing/form-data/file-response.model';
+import { buildCspHeaders, CspOptions, CspSource } from '../parsing/html/csp-options.model';
 import { HtmlResponse } from '../parsing/html/html-response.model';
 import type { ParserInterface } from '../parsing/parser.interface';
 import { Newable } from '../types/newable.type';
@@ -35,6 +35,10 @@ import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { Ms } from '../utilities/ms';
 import type { ValidationServiceInterface } from '../validation/validation-service.interface';
 import { ControllerData } from './decorators/controller.decorator';
+import { AlsUtilities } from '../context/als.utilities';
+import { HttpRequestContext } from '../context/request/http-request.context';
+import { JsonUtilities } from '../utilities/json.utilities';
+import { ObjectUtilities } from '../utilities/object.utilities';
 
 /**
  * Default router implementation of Zibri.
@@ -77,7 +81,6 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
     // eslint-disable-next-line jsdoc/require-jsdoc
     onAppStart(app: ZibriApplication): void {
         app.use(this.expressRouter);
-        app.use((req, _res, next) => runWithRequest(req as HttpRequest, () => next()));
     }
 
     private checkForOrphanedControllers(controllers: Newable<unknown>[]): void {
@@ -226,40 +229,54 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
         HeaderMetaObject extends Record<string, HeaderParamMetadata>
     >(route: RouteConfiguration<BodyMetaObject, PathMetaObject, QueryMetaObject, HeaderMetaObject>): RequestHandler {
         const handler: RequestHandler = (async (
-            req: HttpRequest,
+            request: HttpRequest,
             res: HttpResponse,
             next: NextFunction
         ) => {
-            try {
-                if (route.bodyMetadata) {
-                    req.body = await this.parser.parseBody(req, route.bodyMetadata);
-                    this.validationService.validateBody(req.body, route.bodyMetadata);
+            const context: HttpRequestContext = new HttpRequestContext(request, res, undefined, undefined);
+            await AlsUtilities.runWithHttpRequestContext(context, async () => {
+                try {
+                    // parse
+                    for (const key of ObjectUtilities.keys(route.pathParams)) {
+                        (context.request.params[key] as unknown) = this.parser.parsePathParam(context.request, route.pathParams[key]);
+                    }
+                    for (const key of ObjectUtilities.keys(route.queryParams)) {
+                        (context.request.query[key] as unknown) = this.parser.parseQueryParam(
+                            context.request,
+                            route.queryParams[key]
+                        );
+                    }
+                    for (const key of ObjectUtilities.keys(route.headerParams)) {
+                        (context.request.headers[key] as unknown) = this.parser.parseHeaderParam(
+                            context.request,
+                            route.headerParams[key]
+                        );
+                    }
+                    if (route.bodyMetadata) {
+                        context.request.body = await this.parser.parseBody(context.request, route.bodyMetadata);
+                    }
+                    // validate
+                    await Promise.all([
+                        ...ObjectUtilities.keys(route.pathParams).map(async key => {
+                            await this.validationService.validatePathParam(context.request.params[key], route.pathParams[key]);
+                        }),
+                        ...ObjectUtilities.keys(route.queryParams).map(async key => {
+                            await this.validationService.validateQueryParam(context.request.query[key], route.queryParams[key]);
+                        }),
+                        ...ObjectUtilities.keys(route.headerParams).map(async key => {
+                            await this.validationService.validateHeaderParam(context.request.headers[key], route.headerParams[key]);
+                        }),
+                        ...route.bodyMetadata ? [this.validationService.validateBody(context.request.body, route.bodyMetadata)] : []
+                    ]);
+
+                    // eslint-disable-next-line typescript/no-explicit-any
+                    const result: unknown = await route.handler(context.request as HttpRequest<any, any, any, any>, context.response, next);
+                    await this.returnResult(context.response, result, next, []);
                 }
-                for (const key in route.pathParams) {
-                    (req.params[key] as unknown) = this.parser.parsePathParam(req, route.pathParams[key]);
-                    this.validationService.validatePathParam(req.params[key], route.pathParams[key]);
+                catch (error) {
+                    next(error);
                 }
-                for (const key in route.queryParams) {
-                    (req.query[key] as unknown) = this.parser.parseQueryParam(
-                        req,
-                        route.queryParams[key]
-                    );
-                    this.validationService.validateQueryParam(req.query[key], route.queryParams[key]);
-                }
-                for (const key in route.headerParams) {
-                    (req.headers[key] as unknown) = this.parser.parseHeaderParam(
-                        req,
-                        route.headerParams[key]
-                    );
-                    this.validationService.validateHeaderParam(req.headers[key], route.headerParams[key]);
-                }
-                // eslint-disable-next-line typescript/no-explicit-any
-                const result: unknown = await route.handler(req as HttpRequest<any, any, any, any>, res, next);
-                this.returnResult(res, result, next);
-            }
-            catch (error) {
-                next(error);
-            }
+            });
         }) as RequestHandler;
         return handler;
     }
@@ -273,29 +290,37 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
             await this.logger.warn(`No responses defined on route ${controllerClass.name}.${route.controllerMethod}`);
         }
         const handler: RequestHandler = (async (req: HttpRequest, res: HttpResponse, next: NextFunction) => {
-            try {
-                await this.authService.checkAccess(controllerClass, route.controllerMethod, req);
-                const controller: unknown = inject(controllerClass);
-                const params: unknown[] = await this.resolveRouteParams(
-                    controllerClass,
-                    route.controllerMethod,
-                    // eslint-disable-next-line typescript/no-unsafe-member-access, typescript/no-explicit-any
-                    ((controller as any)[route.controllerMethod] as Function).length,
-                    req
-                );
+            const context: HttpRequestContext = new HttpRequestContext(
+                req,
+                res,
+                controllerClass,
+                route.controllerMethod
+            );
+            await AlsUtilities.runWithHttpRequestContext(context, async () => {
+                try {
+                    await this.authService.checkAccess(controllerClass, route.controllerMethod, context);
+                    const controller: unknown = inject(controllerClass);
+                    const params: unknown[] = await resolveRouteParams(
+                        controllerClass,
+                        route.controllerMethod,
+                        // eslint-disable-next-line typescript/no-unsafe-member-access, typescript/no-explicit-any
+                        ((controller as any)[route.controllerMethod] as Function).length,
+                        context
+                    );
 
-                // eslint-disable-next-line typescript/no-unsafe-call, typescript/no-explicit-any, typescript/no-unsafe-member-access
-                const result: unknown = await ((controller as any)[route.controllerMethod] as Function)(...params);
-                this.returnResult(res, result, next);
-            }
-            catch (error) {
-                next(error);
-            }
+                    // eslint-disable-next-line typescript/no-unsafe-call, typescript/no-explicit-any, typescript/no-unsafe-member-access
+                    const result: unknown = await ((controller as any)[route.controllerMethod] as Function)(...params);
+                    await this.returnResult(context.response, result, next, responses);
+                }
+                catch (error) {
+                    next(error);
+                }
+            });
         }) as RequestHandler;
         return handler;
     }
 
-    private returnResult(res: HttpResponse, result: unknown, next: NextFunction): void {
+    private async returnResult(res: HttpResponse, result: unknown, next: NextFunction, responses: OpenApiResponse[]): Promise<void> {
         if (res.headersSent) {
             return;
         }
@@ -304,88 +329,109 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
             return;
         }
 
-        // if (
-        //     responses.length // all non error responses are json responses
-        //     && responses.filter(r => r.type !== 'error').length === responses.filter(r => r.type === 'json').length
-        //     && ((result instanceof FileResponse) || (result instanceof HtmlResponse))
-        // ) {
-        //     throw new Error('Invalid return value, json cannot be FileResponse or HtmlResponse');
-        // }
-
-        // if (
-        //     responses.length // all non error responses are file responses
-        //     && responses.filter(r => r.type !== 'error').length === responses.filter(r => r.type === 'file').length
-        //     && !(result instanceof FileResponse)
-        // ) {
-        //     throw new Error('Invalid return value, needs to be a FileResponse');
-        // }
-
-        // if (
-        //     responses.length // all non error responses are html responses
-        //     && responses.filter(r => r.type !== 'error').length === responses.filter(r => r.type === 'html').length
-        //     && !(result instanceof FileResponse)
-        // ) {
-        //     throw new Error('Invalid return value, needs to be a HtmlResponse');
-        // }
+        this.validateResultType(responses, result);
 
         if (result instanceof FileResponse) {
-            res.setHeader(KnownHeader.CONTENT_TYPE, result.mimeType as MimeType);
-            res.setHeader(KnownHeader.CONTENT_DISPOSITION, `attachment; filename="${encodeURIComponent(result.filename)}"`);
-            if (result.size != undefined) {
-                res.setHeader(KnownHeader.CONTENT_LENGTH, result.size);
-            }
-
-            // send file from disk
-            if (typeof result.data === 'string') {
-                res.sendFile(result.data);
-                return;
-            }
-
-            // send file as stream
-            res.on('close', () => (result.data as Readable).destroy());
-            result.data.on('error', err => {
-                res.removeHeader(KnownHeader.CONTENT_TYPE);
-                res.removeHeader(KnownHeader.CONTENT_LENGTH);
-                res.removeHeader(KnownHeader.CONTENT_DISPOSITION);
-                next(err);
-            }).pipe(res);
+            await this.returnFileResult(res, result, next);
             return;
         }
 
         if (result instanceof HtmlResponse) {
-            res.setHeader(KnownHeader.CONTENT_TYPE, MimeType.HTML);
-            // send html as string
-            if (typeof result.data === 'string') {
-                res.type('.html').send(result.data);
-                return;
-            }
-            // send html as stream
-            res.on('close', () => (result.data as Readable).destroy());
-            result.data.on('error', err => {
-                res.removeHeader(KnownHeader.CONTENT_TYPE);
-                next(err);
-            }).pipe(res);
+            this.returnHtmlResult(res, result, next);
             return;
         }
 
-        res.json(result);
+        res.json(JsonUtilities.parse(JsonUtilities.stringify(result)));
     }
 
-    private async resolveRouteParams(
-        controllerClass: Newable<unknown>,
-        controllerMethod: string,
-        totalParamCount: number,
-        req: HttpRequest
-    ): Promise<unknown[]> {
-        return await resolveRouteParams(
-            controllerClass,
-            controllerMethod,
-            totalParamCount,
-            req,
-            this.parser,
-            this.validationService,
-            this.authService,
-            undefined
-        );
+    private async returnFileResult(res: HttpResponse, result: FileResponse, next: NextFunction): Promise<void> {
+        res.setHeader(KnownHeader.CONTENT_TYPE, result.mimeType as MimeType);
+        res.setHeader(KnownHeader.CONTENT_DISPOSITION, `attachment; filename="${encodeURIComponent(result.filename)}"`);
+        if (result.size != undefined) {
+            res.setHeader(KnownHeader.CONTENT_LENGTH, result.size);
+        }
+        if (result.csp !== false) {
+            if (result.mimeType === MimeType.SVG) {
+                await this.logger.warn('Useless CSP headers found on a file that is not of type svg');
+            }
+            const csp: CspOptions = result.csp === true ? inject(ZIBRI_DI_TOKENS.DEFAULT_CSP_OPTIONS) : result.csp;
+            res.setHeader(KnownHeader.CONTENT_SECURITY_POLICY, buildCspHeaders(csp));
+            if (csp.frameAncestors.length === 1) {
+                const ancestor: CspSource = csp.frameAncestors[0];
+                if (ancestor === '\'none\'') {
+                    res.setHeader(KnownHeader.X_FRAME_OPTIONS, 'DENY');
+                }
+                else if (ancestor === '\'self\'') {
+                    // eslint-disable-next-line cspell/spellchecker
+                    res.setHeader(KnownHeader.X_FRAME_OPTIONS, 'SAMEORIGIN');
+                }
+            }
+        }
+
+        // send file from disk
+        if (typeof result.data === 'string') {
+            res.sendFile(result.data);
+            return;
+        }
+
+        // send file as stream
+        res.on('close', () => (result.data as Readable).destroy());
+        result.data.on('error', err => {
+            res.removeHeader(KnownHeader.CONTENT_TYPE);
+            res.removeHeader(KnownHeader.CONTENT_LENGTH);
+            res.removeHeader(KnownHeader.CONTENT_DISPOSITION);
+            res.removeHeader(KnownHeader.CONTENT_SECURITY_POLICY);
+            next(err);
+        }).pipe(res);
+    }
+
+    private returnHtmlResult(res: HttpResponse, result: HtmlResponse, next: NextFunction): void {
+        res.setHeader(KnownHeader.CONTENT_TYPE, MimeType.HTML);
+        if (result.csp !== false) {
+            const csp: CspOptions = result.csp === true ? inject(ZIBRI_DI_TOKENS.DEFAULT_CSP_OPTIONS) : result.csp;
+            res.setHeader(KnownHeader.CONTENT_SECURITY_POLICY, buildCspHeaders(csp));
+            if (csp.frameAncestors.length === 1) {
+                const ancestor: CspSource = csp.frameAncestors[0];
+                if (ancestor === '\'none\'') {
+                    res.setHeader(KnownHeader.X_FRAME_OPTIONS, 'DENY');
+                }
+                else if (ancestor === '\'self\'') {
+                    // eslint-disable-next-line cspell/spellchecker
+                    res.setHeader(KnownHeader.X_FRAME_OPTIONS, 'SAMEORIGIN');
+                }
+            }
+        }
+        // send html as string
+        if (typeof result.data === 'string') {
+            res.type('.html').send(result.data);
+            return;
+        }
+        // send html as stream
+        res.on('close', () => (result.data as Readable).destroy());
+        result.data.on('error', err => {
+            res.removeHeader(KnownHeader.CONTENT_TYPE);
+            res.removeHeader(KnownHeader.CONTENT_SECURITY_POLICY);
+            next(err);
+        }).pipe(res);
+    }
+
+    private validateResultType(responses: OpenApiResponse[], result: {}): void {
+        if (responses.some(r => r.type === 'json') // all non error responses are json responses
+            && responses.filter(r => r.type !== 'error').length === responses.filter(r => r.type === 'json').length
+            && ((result instanceof FileResponse) || (result instanceof HtmlResponse))) {
+            throw new Error('Invalid return value, json cannot be FileResponse or HtmlResponse');
+        }
+
+        if (responses.some(r => r.type === 'file') // all non error responses are file responses
+            && responses.filter(r => r.type !== 'error').length === responses.filter(r => r.type === 'file').length
+            && !(result instanceof FileResponse)) {
+            throw new Error('Invalid return value, needs to be a FileResponse');
+        }
+
+        if (responses.some(r => r.type === 'html') // all non error responses are html responses
+            && responses.filter(r => r.type !== 'error').length === responses.filter(r => r.type === 'html').length
+            && !(result instanceof HtmlResponse)) {
+            throw new Error('Invalid return value, needs to be a HtmlResponse');
+        }
     }
 }

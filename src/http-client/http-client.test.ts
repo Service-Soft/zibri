@@ -16,6 +16,7 @@ import { FormDataBodyParser } from '../parsing/form-data/form-data.body-parser';
 import { FormData } from '../parsing/form-data/form-data.model';
 import { JsonBodyParser } from '../parsing/json/json.body-parser';
 import { Parser } from '../parsing/parser';
+import { JsonUtilities } from '../utilities/json.utilities';
 
 class Item {
     @Property.string()
@@ -49,15 +50,15 @@ describe('post', () => {
         });
         app.post('/form-data/valid', (_req, res) => {
             const form: NodeFormData = new NodeFormData();
-            form.append('file', JSON.stringify({ hello: 'world' }), {
+            form.append('file', JsonUtilities.stringify({ hello: 'world' }), {
                 filename: 'payload.json',
                 contentType: MimeType.JSON
             });
-            form.append('files', JSON.stringify({ hello: 'world2' }), {
+            form.append('files', JsonUtilities.stringify({ hello: 'world2' }), {
                 filename: 'files.json',
                 contentType: MimeType.JSON
             });
-            form.append('files', JSON.stringify({ hello: 'world3' }), {
+            form.append('files', JsonUtilities.stringify({ hello: 'world3' }), {
                 filename: 'files.json',
                 contentType: MimeType.JSON
             });
@@ -67,7 +68,7 @@ describe('post', () => {
         });
         app.post('/form-data/invalid', (_req, res) => {
             const form: NodeFormData = new NodeFormData();
-            form.append('file', JSON.stringify({ hello: 'world' }), {
+            form.append('file', JsonUtilities.stringify({ hello: 'world' }), {
                 filename: 'payload.json',
                 contentType: MimeType.JSON
             });

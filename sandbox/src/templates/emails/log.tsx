@@ -49,14 +49,14 @@ export const LogEmail: LogEmailTemplate = ({ log }) => {
                         </EmailColumn>
                     </EmailSection>
 
-                    <EmailSection title='Details' paddingBottom={!log.error && !log.context.request ? '0px' : '20px'}>
+                    <EmailSection title='Details' paddingBottom={!log.context.error && !log.context.request ? '0px' : '20px'}>
                         <BaseEmailDataListItem label='ID' value={log.id}></BaseEmailDataListItem>
                         <BaseEmailDataListItem label='Time' value={createdAtString}></BaseEmailDataListItem>
                         <BaseEmailDataListItem label='Origin' value={log.context.origin} twoRows></BaseEmailDataListItem>
                     </EmailSection>
 
                     {log.context.request && <>
-                        <EmailSection title='Request' paddingBottom={!log.error ? '0px' : '20px'}>
+                        <EmailSection title='Request' paddingBottom={!log.context.error ? '0px' : '20px'}>
                             <BaseEmailDataListItem label='Method' value={log.context.request.method}></BaseEmailDataListItem>
                             <BaseEmailDataListItem label='URL' value={log.context.request.url}></BaseEmailDataListItem>
                             <BaseEmailDataListItem label='Client IP' value={log.context.request.clientIp}></BaseEmailDataListItem>
@@ -64,11 +64,11 @@ export const LogEmail: LogEmailTemplate = ({ log }) => {
                         </EmailSection>
                     </>}
 
-                    {log.error && <>
+                    {log.context.error && <>
                         <EmailSection title='Error' paddingBottom='0px'>
-                            <BaseEmailDataListItem label='Name' value={log.error.name}></BaseEmailDataListItem>
-                            <BaseEmailDataListItem label='Message' value={log.error.paragraphs} twoRows></BaseEmailDataListItem>
-                            <BaseEmailDataListItem label='Stack Trace' value={log.error.stackTrace} twoRows></BaseEmailDataListItem>
+                            <BaseEmailDataListItem label='Name' value={log.context.error.name}></BaseEmailDataListItem>
+                            <BaseEmailDataListItem label='Message' value={log.context.error.paragraphs} twoRows></BaseEmailDataListItem>
+                            <BaseEmailDataListItem label='Stack Trace' value={log.context.error.stackTrace} twoRows></BaseEmailDataListItem>
                         </EmailSection>
                     </>}
                 </EmailWrapper>

@@ -1,4 +1,4 @@
-import { BigNumber } from '../../utilities/big-number.utilities';
+import { BigNumber } from '../../utilities/number.utilities';
 import { CurrencyCode } from '../models/currency-code.model';
 import { LanguageCode } from '../models/language-code.model';
 

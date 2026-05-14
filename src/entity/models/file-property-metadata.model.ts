@@ -1,7 +1,7 @@
 import { BasePropertyMetadata } from './base-property-metadata.model';
 import { MimeType } from '../../http/mime-type.enum';
 import { OmitStrict } from '../../types/omit-strict.type';
-import { BigNumberUtilities } from '../../utilities/big-number.utilities';
+import { BigNumber, NumberUtilities } from '../../utilities/number.utilities';
 
 /**
  * Possible file size values.
@@ -16,18 +16,18 @@ export type FileSize = `${number}b` | `${number}kb` | `${number}mb` | `${number}
 export function fileSizeToBytes(size: FileSize): BigNumber {
     if (size.endsWith('gb')) {
         const [amount] = size.split('gb');
-        return BigNumberUtilities.new(Number(amount)).multipliedBy(1073741824);
+        return NumberUtilities.new(Number(amount)).multipliedBy(1073741824);
     }
     if (size.endsWith('mb')) {
         const [amount] = size.split('mb');
-        return BigNumberUtilities.new(Number(amount)).multipliedBy(1048576);
+        return NumberUtilities.new(Number(amount)).multipliedBy(1048576);
     }
     if (size.endsWith('kb')) {
         const [amount] = size.split('kb');
-        return BigNumberUtilities.new(Number(amount)).multipliedBy(1024);
+        return NumberUtilities.new(Number(amount)).multipliedBy(1024);
     }
     const [amount] = size.split('b');
-    return BigNumberUtilities.new(Number(amount));
+    return NumberUtilities.new(Number(amount));
 }
 
 /**

@@ -61,12 +61,6 @@ export class AssetService implements AssetServiceInterface, OnAppInit {
             handler: () => FileResponse.fromPath(FsUtilities.getPath(this.publicAssetsPath, 'favicon.png'))
         });
 
-        // await app.router.registerRoute({
-        //     httpMethod: HttpMethod.GET,
-        //     route: '/favicon.ico',
-        //     handler: () => FileResponse.fromPath(FsUtilities.getPath(this.publicAssetsPath, 'favicon.png'))
-        // });
-
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

@@ -20,17 +20,19 @@ export type WhereFilter<T extends Object> = {
 /**
  * The definition for a single where filter property.
  */
-export type WhereFilterProperty<T> = T extends string
-    ? StringWhereFilter
-    : T extends number
-        ? NumberWhereFilter
-        : T extends boolean
-            ? BooleanWhereFilter
+export type WhereFilterProperty<T> = T extends bigint
+    ? NumberWhereFilter<bigint>
+    : T extends string
+        ? StringWhereFilter
+        : T extends number
+            ? NumberWhereFilter<number>
+            : T extends boolean
+                ? BooleanWhereFilter
             // eslint-disable-next-line typescript/no-explicit-any
-            : T extends any[]
-                ? ArrayWhereFilter<T[number]>
-                : T extends Date
-                    ? DateWhereFilter
-                    : T extends object
-                        ? ObjectWhereFilter<T>
-                        : never;
+                : T extends any[]
+                    ? ArrayWhereFilter<T[number]>
+                    : T extends Date
+                        ? DateWhereFilter
+                        : T extends object
+                            ? ObjectWhereFilter<T>
+                            : never;

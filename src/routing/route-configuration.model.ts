@@ -63,8 +63,10 @@ export type HeaderMetaInputObjectToMetaObject<HeaderMetaInputObject extends Reco
 
 // eslint-disable-next-line stylistic/max-len, jsdoc/require-jsdoc
 type ParamMetadataInputToMeta<M extends (PathParamMetadataInput | QueryParamMetadataInput | HeaderParamMetadataInput | ArrayPropertyItemMetadataInput)>
-    = M extends StringParamMetadataInput
-        ? StringParamMetadata
+    // eslint-disable-next-line typescript/no-explicit-any
+    = M extends StringParamMetadataInput<any, any, any, any, any>
+        // eslint-disable-next-line typescript/no-explicit-any
+        ? StringParamMetadata<any, any, any, any, any>
         : M extends NumberParamMetadataInput
             ? NumberParamMetadata
             : M extends BooleanParamMetadataInput
@@ -85,7 +87,8 @@ type RawParamMetadataToType<M extends (
     PathParamMetadata | QueryParamMetadata | HeaderParamMetadata | ArrayPropertyItemMetadata
     | OmitStrict<PathParamMetadata, 'name'> | OmitStrict<QueryParamMetadata, 'name'> | OmitStrict<HeaderParamMetadata, 'name'>
 )>
-    = M extends StringParamMetadata
+    // eslint-disable-next-line typescript/no-explicit-any
+    = M extends StringParamMetadata<any, any, any, any, any>
         ? string
         : M extends NumberParamMetadata
             ? number

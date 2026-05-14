@@ -21,9 +21,9 @@ import { ContentTooLargeError } from '../../error-handling/errors/content-too-la
 import { KnownHeader } from '../../http/known-header.enum';
 import { FileExtension, resolveFileExtension } from '../../http/mime-type.helpers';
 import { HttpClientResponse } from '../../http-client/http-client-response.model';
-import { BigNumberUtilities } from '../../utilities/big-number.utilities';
 import { FsUtilities, FsPath } from '../../utilities/fs.utilities';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { BigNumber, NumberUtilities } from '../../utilities/number.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { BodyParser } from '../decorators/body-parser.decorator';
 import { parseArray } from '../functions/parse-array.function';
@@ -51,7 +51,9 @@ export class FormDataBodyParser implements BodyParserInterface, OnAppInit {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     onAppInit(app: ZibriApplication): void {
-        app.options.cronJobs.push(FormDataBodyParserCleanupCronJob);
+        if (!app.options.cronJobs.includes(FormDataBodyParserCleanupCronJob)) {
+            app.options.cronJobs.push(FormDataBodyParserCleanupCronJob);
+        }
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -84,8 +86,8 @@ export class FormDataBodyParser implements BodyParserInterface, OnAppInit {
         if (metadata.type !== MimeType.FORM_DATA) {
             throw new Error(`${metadata.type} is not supported`);
         }
-        const contentLength: string | undefined = headers[KnownHeader.CONTENT_LENGTH] ?? headers[KnownHeader.CONTENT_LENGTH];
-        if (contentLength && BigNumberUtilities.new(Number(contentLength)).isGreaterThan(metadata.maxSize)) {
+        const contentLength: string | undefined = headers[KnownHeader.CONTENT_LENGTH];
+        if (contentLength && NumberUtilities.new(Number(contentLength)).isGreaterThan(metadata.maxSize)) {
             throw new ContentTooLargeError();
         }
 
@@ -133,10 +135,10 @@ export class FormDataBodyParser implements BodyParserInterface, OnAppInit {
 
     private requestToDataObject<T extends object>(request: ParsedForm, metadata: BodyMetadata): T {
         const multiPartMap: Map<keyof T, FormDataValue> = new Map();
-        this.addStringValuesToMap(request, multiPartMap);
-        this.addFilesToMap<T>(request, multiPartMap, metadata);
-
         const properties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(metadata.modelClass);
+        this.addStringValuesToMap(request, multiPartMap);
+        this.addFilesToMap<T>(request, multiPartMap, properties);
+
         const res: Partial<Record<keyof T, unknown>> = {};
         for (const [key, value] of multiPartMap) {
             if (typeof value !== 'string') {
@@ -187,11 +189,10 @@ export class FormDataBodyParser implements BodyParserInterface, OnAppInit {
     private addFilesToMap<T extends object>(
         request: ParsedForm,
         values: Map<keyof T, FormDataValue>,
-        metadata: BodyMetadata
+        properties: Record<string, PropertyMetadata>
     ): void {
         for (const key in request.filesMap) {
-            const formDataProperties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(metadata.modelClass);
-            const property: PropertyMetadata = formDataProperties[key];
+            const property: PropertyMetadata = properties[key];
             this.addFileArrayToMap(request.filesMap[key], values, property);
         }
     }
@@ -258,7 +259,7 @@ export class FormDataBodyParser implements BodyParserInterface, OnAppInit {
             const filesMap: Record<string, File[]> = {};
             const filePromises: Promise<void>[] = [];
 
-            let received: BigNumber = BigNumberUtilities.new(0);
+            let received: BigNumber = NumberUtilities.new(0);
             let aborted: boolean = false;
 
             bb.on('field', (name: string, val: string) => {
@@ -267,7 +268,7 @@ export class FormDataBodyParser implements BodyParserInterface, OnAppInit {
                 }
 
                 const bytes: number = Buffer.byteLength(val, 'utf8');
-                received = BigNumberUtilities.add(received, bytes);
+                received = NumberUtilities.add(received, bytes);
                 if (received.isGreaterThan(metadata.maxSize)) {
                     aborted = true;
                     // stop parsing and abort
@@ -303,7 +304,7 @@ export class FormDataBodyParser implements BodyParserInterface, OnAppInit {
                         return;
                     }
 
-                    received = BigNumberUtilities.add(received, chunk.length);
+                    received = NumberUtilities.add(received, chunk.length);
                     if (received.isGreaterThan(metadata.maxSize)) {
                         aborted = true;
                         writeStream.destroy();

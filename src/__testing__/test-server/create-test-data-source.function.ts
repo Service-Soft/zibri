@@ -1,4 +1,7 @@
 import { OtpCredentials } from '../../auth/2fa/methods/otp/otp-credentials.model';
+import { EncryptionKey } from '../../auth/encryption/encryption-key.model';
+import { EncryptionStrategyEntity } from '../../auth/encryption/strategies/encryption-strategy-entity.model';
+import { HashStrategyEntity } from '../../auth/hash/strategies/hash-strategy-entity.model';
 import { PasswordResetToken } from '../../auth/models/password-reset-token.model';
 import { JwtCredentials } from '../../auth/strategies/jwt/jwt-credentials.model';
 import { JwtRefreshToken } from '../../auth/strategies/jwt/jwt-refresh-token.model';
@@ -10,6 +13,8 @@ import { DataSource } from '../../data-source/decorators/data-source.decorator';
 import { MigrationEntity } from '../../data-source/migration/migration-entity.model';
 import { Email } from '../../email/models/email.model';
 import { BaseEntity } from '../../entity/base-entity.model';
+import { EventSubscriberRun } from '../../event/event-subscriber-run.model';
+import { Event } from '../../event/event.model';
 import { Log } from '../../logging/log.model';
 import { ThreadJobEntity } from '../../multithreading/models/thread-job-entity.model';
 import { Newable } from '../../types/newable.type';
@@ -40,7 +45,12 @@ export const defaultTestServerEntities: Newable<BaseEntity>[] = [
     JwtRefreshToken,
     JwtCredentials,
     OtpCredentials,
-    ThreadJobEntity
+    ThreadJobEntity,
+    Event,
+    EventSubscriberRun,
+    HashStrategyEntity,
+    EncryptionKey,
+    EncryptionStrategyEntity
 ];
 
 export function createTestDataSource({

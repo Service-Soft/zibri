@@ -1,4 +1,5 @@
 import { isError } from './is-error.function';
+import { JsonUtilities } from '../utilities/json.utilities';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 export function unknownToErrorString(error: unknown): string {
@@ -6,5 +7,5 @@ export function unknownToErrorString(error: unknown): string {
         return error.message;
     }
 
-    return JSON.stringify(error);
+    return JsonUtilities.stringify(error);
 }

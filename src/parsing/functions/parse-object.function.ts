@@ -6,6 +6,7 @@ import { parseString } from './parse-string.function';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { Relation } from '../../entity/models/relation.enum';
 import { Newable } from '../../types/newable.type';
+import { JsonUtilities } from '../../utilities/json.utilities';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
 
@@ -21,7 +22,7 @@ export function parseObject(
     let simpleParsedValue: unknown = rawValue;
     try {
         if (typeof rawValue === 'string') {
-            simpleParsedValue = JSON.parse(rawValue);
+            simpleParsedValue = JsonUtilities.parse(rawValue);
         }
     }
     catch {

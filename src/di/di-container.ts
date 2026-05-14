@@ -111,7 +111,9 @@ export class DiContainer {
         const instance: T = this.createInstanceFromProvider(provider, resolvingStack);
         resolvingStack.pop();
 
-        this.instances.set(provider.token, instance);
+        if (provider.useValue != undefined || ((provider.useFactory || provider.useClass) && provider.cache !== false)) {
+            this.instances.set(provider.token, instance);
+        }
 
         if (provider.useClass) {
             this.instances.set(provider.useClass as unknown as DiToken<unknown>, instance);
@@ -121,9 +123,12 @@ export class DiContainer {
     }
 
     private createInstanceFromProvider<T>(provider: DiProvider<T>, resolvingStack: Function[]): T {
+        if ('useValue' in provider) {
+            return provider.useValue as T;
+        }
+
         const provide: Newable<T> | ((...deps: unknown[]) => T) | T | undefined = provider.useClass
-            ?? provider.useFactory
-            ?? provider.useValue;
+            ?? provider.useFactory;
 
         if (provide == undefined) {
             throw new Error(`Provider for ${provider.token.toString()} is invalid`);
@@ -153,11 +158,8 @@ export class DiContainer {
         if (provider.useClass) {
             return new provider.useClass(...deps);
         }
-        if (provider.useFactory) {
+        if (provider.useFactory != undefined) {
             return provider.useFactory(...deps);
-        }
-        if ('useValue' in provider) {
-            return provider.useValue;
         }
 
         throw new Error(`Provider for ${(provider as DiProvider<T>).token.toString()} is invalid`);

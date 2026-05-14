@@ -2,12 +2,21 @@ import { Chart } from 'chart.js?client';
 import { MetricsSnapshot, onClient, PreactComponent } from 'zibri';
 
 import { BasePage } from '../components/base-page';
+import { CacheDetailSection } from '../components/cache-details-section';
+import { CacheHitRateStatCard } from '../components/cache-hit-rate-stat-card';
+import { CacheInFlightStatCard } from '../components/cache-inflight-stat-card';
+import { CacheOverviewChart } from '../components/cache-overview-chart';
+import { CacheSizeStatCard } from '../components/cache-size-stat-card';
+import { Checkbox } from '../components/checkbox';
 import { Heading } from '../components/heading';
 import { MetricsStatus } from '../components/metrics-status';
 import { NetworkChart } from '../components/network-chart';
 import { RequestDurationChart } from '../components/request-duration-chart';
 import { RequestsPerSecondChart } from '../components/requests-per-second-chart';
 import { ResourceUsageChart } from '../components/resource-usage-chart';
+import { StatCard } from '../components/stat-card';
+import { TabBar } from '../components/tab-bar';
+import { TabItem } from '../components/tab-item';
 
 export type MetricsEvent = CustomEvent<{
     snaps: MetricsSnapshot[]
@@ -16,10 +25,11 @@ export type MetricsEvent = CustomEvent<{
 type Props = {
     version: string,
     primary: string,
-    secondary: string
+    secondary: string,
+    cacheNames: string[]
 };
 
-export const MetricsPage: PreactComponent<Props> = ({ version, primary, secondary }) => {
+export const MetricsPage: PreactComponent<Props> = ({ version, primary, secondary, cacheNames }) => {
     Chart.defaults.color = 'whitesmoke';
     Chart.defaults.borderColor = 'whitesmoke';
     Chart.defaults.scale.grid.color = 'rgba(200, 200, 200, 0.3)';
@@ -27,12 +37,37 @@ export const MetricsPage: PreactComponent<Props> = ({ version, primary, secondar
     let snaps: MetricsSnapshot[] = [];
     let automaticReload: boolean = true;
 
+    const tabs: string[] = ['overview', 'caches'];
+
     onClient(() => {
         window.addEventListener('load', () => {
+            activateTab('overview');
+
+            for (const id of tabs) {
+                const btn: HTMLElement | null = document.querySelector(`[data-tab-btn="${id}"]`);
+                btn?.addEventListener('click', () => activateTab(id));
+            }
+
             void loadSnapshots();
             setInterval(() => void loadSnapshots(), 1000);
         });
     });
+
+    function activateTab(activeId: string): void {
+        for (const id of tabs) {
+            const panel: HTMLElement | null = document.querySelector(`[data-tab-panel="${id}"]`);
+            const btn: HTMLElement | null = document.querySelector(`[data-tab-btn="${id}"]`);
+            if (!panel || !btn) {
+                continue;
+            }
+
+            const isActive: boolean = id === activeId;
+            panel.style.display = isActive ? '' : 'none';
+            btn.classList.toggle('bg-secondary', isActive);
+            btn.classList.toggle('bg-dark-gray', !isActive);
+            btn.classList.toggle('hover:bg-secondary', !isActive);
+        }
+    }
 
     async function loadSnapshots(): Promise<void> {
         if (!automaticReload) {
@@ -58,24 +93,43 @@ export const MetricsPage: PreactComponent<Props> = ({ version, primary, secondar
                 className="flex flex-col gap-4 py-8"
             >
                 <Heading className="text-center">Metrics</Heading>
-                <div className="w-full px-10 flex flex-col gap-5">
-                    <div className="grid grid-cols-5 gap-5">
-                        <div className="col-span-2 flex flex-col gap-5">
-                            <MetricsStatus
-                                automaticReloadChecked={automaticReload}
-                                onReloadChange={() => automaticReload = !automaticReload}
-                                version={version}
-                                className="flex-1"
-                            >
-                            </MetricsStatus>
-                            <RequestDurationChart className="flex-1" secondary={secondary}></RequestDurationChart>
-                        </div>
-                        <RequestsPerSecondChart secondary={secondary} className="col-span-3"></RequestsPerSecondChart>
-                    </div>
-                    <div className="grid grid-cols-2 gap-5">
-                        <ResourceUsageChart primary={primary} secondary={secondary}></ResourceUsageChart>
-                        <NetworkChart primary={primary} secondary={secondary}></NetworkChart>
-                    </div>
+                <Checkbox
+                    className='text-white'
+                    label="Automatic reload"
+                    onChange={() => automaticReload = !automaticReload} checked={automaticReload}
+                />
+                <div className="w-full px-10 flex">
+                    <TabBar className='w-full' tabs={[{ id: 'overview', label: 'Overview' }, { id: 'caches', label: 'Caches' }]}>
+                        <TabItem id='overview'>
+                            <div className="grid grid-cols-5 gap-5 mb-5">
+                                <div className="col-span-2 flex flex-col gap-5">
+                                    <MetricsStatus id='overview' version={version} className="flex-1">
+                                    </MetricsStatus>
+                                    <RequestDurationChart className="flex-1" secondary={secondary}></RequestDurationChart>
+                                </div>
+                                <RequestsPerSecondChart className="col-span-3" secondary={secondary}></RequestsPerSecondChart>
+                            </div>
+                            <div className="grid grid-cols-2 gap-5">
+                                <ResourceUsageChart primary={primary} secondary={secondary}></ResourceUsageChart>
+                                <NetworkChart primary={primary} secondary={secondary}></NetworkChart>
+                            </div>
+                        </TabItem>
+                        <TabItem id='caches'>
+                            <div className="grid grid-cols-5 gap-5 mb-5">
+                                <div className="col-span-2 flex flex-col gap-5">
+                                    <MetricsStatus id='caches' version={version} className="flex-1" />
+                                    <div className='grid grid-cols-2 gap-5'>
+                                        <StatCard id='cacheCountStat' title='Total caches' unit='registered'>{cacheNames.length}</StatCard>
+                                        <CacheSizeStatCard />
+                                        <CacheHitRateStatCard />
+                                        <CacheInFlightStatCard />
+                                    </div>
+                                </div>
+                                <CacheOverviewChart className='col-span-3' secondary={secondary} />
+                            </div>
+                            <CacheDetailSection cacheNames={cacheNames} primary={primary} secondary={secondary} />
+                        </TabItem>
+                    </TabBar>
                 </div>
             </BasePage>
         </>

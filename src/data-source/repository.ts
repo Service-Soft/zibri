@@ -1,18 +1,13 @@
-import { Repository as TORepository, FindOptionsWhere, EntityManager, QueryFailedError as TOQueryFailedError } from 'typeorm';
+import { Repository as TORepository, FindOptionsWhere, EntityManager, QueryFailedError as TOQueryFailedError, DeepPartial as ToDeepPartial } from 'typeorm';
 
-import { QueryFailedError } from './query-failed.error';
 import { BaseEntity } from '../entity/base-entity.model';
-import { Transaction } from './transaction/transaction.model';
-import { PropertyMetadata } from '../entity/decorators/property.decorator';
-import { ArrayPropertyMetadata } from '../entity/models/array-property-metadata.model';
-import { Relation } from '../entity/models/relation.enum';
 import { LoggerInterface } from '../logging/logger.interface';
 import { PaginationResult } from '../open-api/pagination-result.model';
 import { DeepPartial } from '../types/deep-partial.type';
 import { Newable } from '../types/newable.type';
-import { MetadataUtilities } from '../utilities/metadata.utilities';
-import { whereFilterToFindOptionsWhere } from './models/where/where-filter-to-find-options-where.function';
-import { NotFoundError } from '../error-handling/errors/not-found.error';
+import { DataSourceInterface } from './data-sources/data-source.interface';
+import { BeforeReturnHook } from './hooks/before-return';
+import { BeforeSaveHook } from './hooks/before-save';
 import { CreateAllOptions } from './models/options/create-all-options.model';
 import { CreateOptions } from './models/options/create-options.model';
 import { DeleteAllOptions } from './models/options/delete-all-options.model';
@@ -23,7 +18,12 @@ import { FindByIdOptions } from './models/options/find-by-id-options.model';
 import { FindOneOptions } from './models/options/find-one-options.model';
 import { UpdateAllOptions } from './models/options/update-all-options.model';
 import { UpdateByIdOptions } from './models/options/update-by-id-options.model';
+import { whereFilterToFindOptionsWhere } from './models/where/where-filter-to-find-options-where.function';
 import { Where } from './models/where/where-filter.model';
+import { QueryFailedError } from './query-failed.error';
+import { Transaction } from './transaction/transaction.model';
+import { NotFoundError } from '../error-handling/errors/not-found.error';
+import { ModelRegistry } from '../global/model-registry/model.registry';
 
 /**
  * A repository that handles data source related things for its entity.
@@ -35,12 +35,24 @@ export class Repository<
 > {
     private readonly typeOrmRepository: TORepository<T>;
 
+    // eslint-disable-next-line jsdoc/require-returns
+    /**
+     * The data source that this repository is connected to.
+     */
+    get dataSource(): DataSourceInterface {
+        return this._dataSource;
+    }
+
     constructor(
         protected readonly entityClass: Newable<T>,
         repo: TORepository<T> | Repository<T>,
-        protected readonly logger: LoggerInterface
+        protected readonly logger: LoggerInterface,
+        private readonly _dataSource: DataSourceInterface,
+        private readonly beforeSave: BeforeSaveHook<T, CreateData, UpdateData>,
+        private readonly beforeReturn: BeforeReturnHook<T>
     ) {
         this.typeOrmRepository = repo instanceof Repository ? repo.typeOrmRepository : repo;
+        ModelRegistry.get(this.entityClass);
     }
 
     private getManager(transaction: Transaction | undefined): EntityManager {
@@ -54,94 +66,6 @@ export class Repository<
         return whereFilterToFindOptionsWhere(where, this.entityClass);
     }
 
-    private async setDefaultValues<Data, EntityClass>(data: Data, entityClass: Newable<EntityClass>): Promise<void> {
-        const props: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(entityClass);
-        for (const key in props) {
-            const property: PropertyMetadata = props[key];
-
-            if (data[key as keyof Data] !== undefined) {
-                switch (property.type) {
-                    case 'string':
-                    case 'number':
-                    case 'boolean':
-                    case 'date':
-                    case 'file':
-                    case 'unknown': {
-                        break;
-                    }
-                    case Relation.MANY_TO_ONE:
-                    case Relation.ONE_TO_ONE: {
-                        await this.setDefaultValues(data[key as keyof Data], property.target());
-                        break;
-                    }
-                    case 'object': {
-                        await this.setDefaultValues(data[key as keyof Data], property.cls());
-                        break;
-                    }
-                    case 'array': {
-                        await this.setDefaultValuesForArray(data[key as keyof Data] as unknown[], property);
-                        break;
-                    }
-                    case Relation.MANY_TO_MANY:
-                    case Relation.ONE_TO_MANY: {
-                        await this.setDefaultValuesForArray(data[key as keyof Data] as unknown[], {
-                            ...property,
-                            type: 'array',
-                            totalMaxSize: '50mb',
-                            items: {
-                                type: 'object',
-                                cls: property.target,
-                                description: undefined,
-                                allowAdditionalProperties: false,
-                                excludeFromChangeSets: property.excludeFromChangeSets,
-                                required: property.required
-                            }
-                        });
-                        break;
-                    }
-                }
-                continue;
-            }
-
-            if (!('default' in property) || property.default == undefined) {
-                continue;
-            }
-
-            if (
-                typeof property.default === 'string'
-                || typeof property.default === 'number'
-                || typeof property.default === 'boolean'
-                || property.default instanceof Date
-            ) {
-                data[key as keyof Data] = property.default as Data[keyof Data];
-                continue;
-            }
-            data[key as keyof Data] = await property.default(data) as Data[keyof Data];
-        }
-    }
-
-    private async setDefaultValuesForArray(values: unknown[], property: ArrayPropertyMetadata): Promise<void> {
-        for (const item of values) {
-            switch (property.items.type) {
-                case 'string':
-                case 'number':
-                case 'boolean':
-                case 'date':
-                case 'file':
-                case 'unknown': {
-                    break;
-                }
-                case 'object': {
-                    await this.setDefaultValues(item, property.items.cls());
-                    break;
-                }
-                case 'array': {
-                    await this.setDefaultValuesForArray(item as unknown[], property.items);
-                }
-            }
-        }
-    }
-
     /**
      * Creates a new entity from the given data.
      * @param data - The create data.
@@ -153,10 +77,13 @@ export class Repository<
             await this.logger.warn('Found an id on the create data, it will be ignored.');
             delete data.id;
         }
-        await this.setDefaultValues(data, this.entityClass);
+        await this.beforeSave(data, true, this.entityClass);
+
         const manager: EntityManager = this.getManager(options?.transaction);
         try {
-            return await manager.save(this.entityClass, data);
+            const res: T = await manager.save(this.entityClass, data as ToDeepPartial<T>);
+            await this.beforeReturn(res, this.entityClass);
+            return res;
         }
         catch (error) {
             if (error instanceof TOQueryFailedError) {
@@ -173,14 +100,17 @@ export class Repository<
      * @returns All newly created entities.
      */
     async createAll(data: CreateData[], options?: CreateAllOptions): Promise<T[]> {
-        let entitiesWithIdCount: number = 0;
-        for (const d of data) {
-            if (d.id != undefined && options?.allowId != true) {
-                delete d.id;
-                entitiesWithIdCount++;
-            }
-            await this.setDefaultValues(d, this.entityClass);
-        }
+        const entitiesWithIdCount: number = (await Promise.all(
+            data.map(async d => {
+                let hadId: boolean = false;
+                if (d.id != undefined && options?.allowId != true) {
+                    delete d.id;
+                    hadId = true;
+                }
+                await this.beforeSave(d, true, this.entityClass);
+                return hadId;
+            })
+        )).filter(Boolean).length;
         if (entitiesWithIdCount) {
             await this.logger.warn(
                 `Found an id on ${entitiesWithIdCount} out of ${data.length} entries of the create data. These ids will be ignored.`
@@ -189,7 +119,9 @@ export class Repository<
 
         const manager: EntityManager = this.getManager(options?.transaction);
         try {
-            return await manager.save(this.entityClass, data);
+            const res: T[] = await manager.save(this.entityClass, data as ToDeepPartial<T>[]);
+            await Promise.all(res.map(r => this.beforeReturn(r, this.entityClass)));
+            return res;
         }
         catch (error) {
             if (error instanceof TOQueryFailedError) {
@@ -242,7 +174,11 @@ export class Repository<
         if (!res && required) {
             throw new NotFoundError(`Could not find ${this.entityClass.name}.`);
         }
-        return (res ?? undefined) as B extends false ? T | undefined : T;
+        if (!res) {
+            return undefined as B extends false ? T | undefined : T;
+        }
+        await this.beforeReturn(res, this.entityClass);
+        return res;
     }
 
     /**
@@ -254,10 +190,12 @@ export class Repository<
         const manager: EntityManager = this.getManager(options?.transaction);
         const where: FindOptionsWhere<T> | FindOptionsWhere<T>[] | undefined = this.resolveFindOptionsWhere(options?.where);
         try {
-            return await manager.find(
+            const res: T[] = await manager.find(
                 this.entityClass,
                 { ...options, where, relations: options?.relations as string[], transaction: undefined }
             );
+            await Promise.all(res.map(r => this.beforeReturn(r, this.entityClass)));
+            return res;
         }
         catch (error) {
             if (error instanceof TOQueryFailedError) {
@@ -311,10 +249,13 @@ export class Repository<
             delete data.id;
         }
         const manager: EntityManager = this.getManager(options?.transaction);
-        const dataWithId: DeepPartial<T> = { id, ...data };
+        data.id = id;
+        await this.beforeSave(data, false, this.entityClass);
 
         try {
-            return await manager.save(this.entityClass, dataWithId);
+            const res: T = await manager.save(this.entityClass, data as ToDeepPartial<T>);
+            await this.beforeReturn(res, this.entityClass);
+            return res;
         }
         catch (error) {
             if (error instanceof TOQueryFailedError) {
@@ -340,12 +281,15 @@ export class Repository<
             await this.logger.warn('Found an id on the update data, it will be ignored.');
             delete data.id;
         }
+        await this.beforeSave(data, false, this.entityClass);
         const toUpdate: DeepPartial<T>[] = (await this.findAll({ where, ...options })).map(t => ({ id: t.id, ...data }));
 
         const manager: EntityManager = this.getManager(options?.transaction);
 
         try {
-            return await manager.save(this.entityClass, toUpdate);
+            const res: T[] = await manager.save(this.entityClass, toUpdate as ToDeepPartial<T>[]);
+            await Promise.all(res.map(r => this.beforeReturn(r, this.entityClass)));
+            return res;
         }
         catch (error) {
             if (error instanceof TOQueryFailedError) {
@@ -359,12 +303,16 @@ export class Repository<
      * Deletes an entity with the provided id.
      * @param id - The id of the entity to deleted.
      * @param options - Additional options, like a transaction.
+     * @returns The deleted entity.
      */
-    async deleteById(id: T['id'], options?: DeleteByIdOptions): Promise<void> {
+    async deleteById(id: T['id'], options?: DeleteByIdOptions): Promise<T> {
         const entityToDelete: T = await this.findById(id, options);
+        await this.beforeSave(entityToDelete, false, this.entityClass);
         const manager: EntityManager = this.getManager(options?.transaction);
         try {
-            await manager.remove(this.entityClass, entityToDelete);
+            const res: T = await manager.remove(this.entityClass, entityToDelete);
+            await this.beforeReturn(res, this.entityClass);
+            return res;
         }
         catch (error) {
             if (error instanceof TOQueryFailedError) {
@@ -378,16 +326,20 @@ export class Repository<
      * Deletes all entities that match the provided where filter.
      * @param where - The where filter to find the entities that should be deleted.
      * @param options - Additional options, like a transaction.
-     * @returns An array of all the updated entities.
+     * @returns An array of all the deleted entities.
      */
     async deleteAll(
         where: Where<T>,
         options?: DeleteAllOptions<T>
     ): Promise<T[]> {
         const toDelete: T[] = await this.findAll({ where, ...options });
+        await Promise.all(toDelete.map(r => this.beforeSave(r, false, this.entityClass)));
+
         const manager: EntityManager = this.getManager(options?.transaction);
         try {
-            return await manager.remove(this.entityClass, toDelete);
+            const res: T[] = await manager.remove(this.entityClass, toDelete);
+            await Promise.all(res.map(r => this.beforeReturn(r, this.entityClass)));
+            return res;
         }
         catch (error) {
             if (error instanceof TOQueryFailedError) {

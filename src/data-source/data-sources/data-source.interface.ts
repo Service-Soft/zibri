@@ -1,5 +1,3 @@
-import { IsolationLevel } from 'typeorm/driver/types/IsolationLevel';
-
 import { BackupResourceInterface } from '../../backup/backup-resource.interface';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { PropertyMetadataInput, PropertyMetadata, RelationMetadata } from '../../entity/decorators/property.decorator';
@@ -9,6 +7,16 @@ import { Newable } from '../../types/newable.type';
 import { Migration } from '../migration/migration.model';
 import { Repository } from '../repository';
 import { Transaction } from '../transaction/transaction.model';
+
+/**
+ * The isolation level of any data source calls made inside a transaction.
+ */
+export enum IsolationLevel {
+    READ_UNCOMMITTED = 'READ UNCOMMITTED',
+    READ_COMMITTED = 'READ COMMITTED',
+    REPEATABLE_READ = 'REPEATABLE READ',
+    SERIALIZABLE = 'SERIALIZABLE'
+}
 
 /**
  * Definition for a data source.

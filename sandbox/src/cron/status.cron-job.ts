@@ -1,9 +1,9 @@
-import { CronJob, inject, LoggerInterface, ZIBRI_DI_TOKENS, InitialCronConfig } from 'zibri';
+import { CronJob, inject, LoggerInterface, ZIBRI_DI_TOKENS, InitialCronConfig, CronExpression } from 'zibri';
 
 export class StatusCronJob extends CronJob {
     readonly initialConfig: InitialCronConfig = {
         name: 'Status',
-        cron: '* * * * * *',
+        cron: CronExpression.every(1, 'seconds').build(),
         active: false
     };
 

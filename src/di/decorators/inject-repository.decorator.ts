@@ -15,7 +15,7 @@ const allRepositoryTokens: Record<string, DiToken<Repository<BaseEntity>>> = {};
 export function repositoryTokenFor<T extends Newable<BaseEntity>>(entity: T): DiToken<Repository<InstanceType<T>>> {
     const key: string = `Repository<${entity.name}>`;
     allRepositoryTokens[key] ??= new InjectionToken(key);
-    return allRepositoryTokens[key] as DiToken<Repository<InstanceType<T>>>;
+    return allRepositoryTokens[key] as unknown as DiToken<Repository<InstanceType<T>>>;
 }
 
 /**

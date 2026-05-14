@@ -4,14 +4,14 @@ import { HiBase32Utilities } from './hi-base32.utilities';
 import { TwoFactorMethod } from '../two-factor-method.interface';
 import { OtpCredentials, OtpCredentialsCreateData } from './otp-credentials.model';
 import { OtpUtilities } from './otp.utilities';
+import { HttpRequestContext } from '../../../../context/request/http-request.context';
+import { WebsocketRequestContext } from '../../../../context/request/websocket-request.context';
 import { Repository } from '../../../../data-source/repository';
 import { InjectRepository } from '../../../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default';
 import { UnauthorizedError } from '../../../../error-handling/errors/unauthorized.error';
-import { HttpRequest } from '../../../../http/http-request.model';
 import { KnownHeader } from '../../../../http/known-header.enum';
-import { WebsocketRequest } from '../../../../websocket/models/websocket-request.model';
 import { BaseUser } from '../../../models/base-user.model';
 
 /**
@@ -71,10 +71,10 @@ export class OtpTwoFactorMethod implements TwoFactorMethod<never, OtpConfirmRegi
     // eslint-disable-next-line jsdoc/require-jsdoc
     async validate<Role extends string, UserType extends BaseUser<Role>>(
         user: UserType,
-        request: HttpRequest | WebsocketRequest
+        context: HttpRequestContext | WebsocketRequestContext
     ): Promise<void> {
         const credentials: OtpCredentials[] = await this.otpCredentialsRepository.findAll({ where: { userId: user.id } });
-        const token: string = this.extractTokenFromRequest(request);
+        const token: string = this.extractTokenFromRequestContext(context);
         for (const c of credentials) {
             if (OtpUtilities.validate(c.secret, token)) {
                 return;
@@ -83,8 +83,8 @@ export class OtpTwoFactorMethod implements TwoFactorMethod<never, OtpConfirmRegi
         throw new UnauthorizedError('The provided two factor code is invalid.');
     }
 
-    private extractTokenFromRequest(request: HttpRequest | WebsocketRequest): string {
-        const code: string | undefined = request.headers[this.otpHeader];
+    private extractTokenFromRequestContext(context: HttpRequestContext | WebsocketRequestContext): string {
+        const code: string | undefined = context.request.headers[this.otpHeader];
         if (!code) {
             throw new UnauthorizedError(`"${this.otpHeader}" header not found`);
         }

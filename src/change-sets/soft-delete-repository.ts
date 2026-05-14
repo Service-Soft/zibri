@@ -16,6 +16,9 @@ import { SoftDeleteFindOneOptions } from './models/soft-delete-find-one-options.
 import { SoftDeleteUpdateAllOptions } from './models/soft-delete-update-all-options.model';
 import { SoftDeleteUpdateByIdOptions } from './models/soft-delete-update-by-id-options.model';
 import { SoftDeleteWhere } from './models/soft-delete-where.model';
+import { DataSourceInterface } from '../data-source/data-sources/data-source.interface';
+import { BeforeReturnHook } from '../data-source/hooks/before-return';
+import { BeforeSaveHook } from '../data-source/hooks/before-save';
 import { Where } from '../data-source/models/where/where-filter.model';
 import { NotFoundError } from '../error-handling/errors/not-found.error';
 import { LoggerInterface } from '../logging/logger.interface';
@@ -51,10 +54,18 @@ export class SoftDeleteRepository<
 >
     extends ChangeSetRepository<T, CreateData, UpdateData> {
 
-    protected override readonly keysToExcludeFromChangeSets: (keyof T)[] = ['changeSets', 'deleted'];
+    protected override readonly keysToExcludeFromChangeSets: Set<keyof T> = new Set();
 
-    constructor(entityClass: Newable<T>, repo: TORepository<T> | Repository<T>, logger: LoggerInterface) {
-        super(entityClass, repo, logger);
+    constructor(
+        entityClass: Newable<T>,
+        repo: TORepository<T> | Repository<T>,
+        logger: LoggerInterface,
+        dataSource: DataSourceInterface,
+        beforeSave: BeforeSaveHook<T, CreateData, UpdateData>,
+        beforeReturn: BeforeReturnHook<T>
+    ) {
+        super(entityClass, repo, logger, dataSource, beforeSave, beforeReturn);
+        this.keysToExcludeFromChangeSets.add('deleted');
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -129,17 +140,17 @@ export class SoftDeleteRepository<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async deleteById(id: T['id'], options?: SoftDeleteByIdOptions): Promise<void> {
+    async deleteById(id: T['id'], options?: SoftDeleteByIdOptions): Promise<T> {
         if (options?.hardDelete === true) {
-            await super.deleteById(id, options);
-            return;
+            return await super.deleteById(id, options);
         }
         const entity: T = await this.findById(id, options);
         if (entity.deleted) {
             throw new NotFoundError(`Could not find ${this.entityClass.name} with id "${id}".`);
         }
-        await this.updateById(id, { deleted: true } as UpdateData, options);
+        const res: T = await this.updateById(id, { deleted: true } as UpdateData, options);
         await this.createChangeSet(entity, { deleted: true } as UpdateData, ChangeSetType.DELETE, options, true);
+        return res;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

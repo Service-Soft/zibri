@@ -2,6 +2,7 @@ import { ZibriApplicationOptions } from '../application-options.model';
 import { AppState } from './app-state.enum';
 import { UserRepositories } from '../auth/models/user-repositories.model';
 import { BackupResourceInterface } from '../backup/backup-resource.interface';
+import { AnyCache } from '../caching/cache/cache.interface';
 import { DiProvider } from '../di/models/di-provider.model';
 import { BaseEntity } from '../entity/base-entity.model';
 import { BodyParserInterface } from '../parsing/body-parser.interface';
@@ -57,6 +58,10 @@ export abstract class GlobalRegistry {
      * All entities registered with \@Entity.
      */
     static readonly entityClasses: Newable<BaseEntity>[] = [];
+    /**
+     * All entities registered with \@Cache.
+     */
+    static readonly cacheClasses: Newable<AnyCache>[] = [];
     /**
      * All backup resources registered with \@Backup.
      */

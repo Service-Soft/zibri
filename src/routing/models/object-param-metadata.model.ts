@@ -5,7 +5,10 @@ import { OmitStrict } from '../../types/omit-strict.type';
 /**
  * Metadata for object parameters.
  */
-export type ObjectParamMetadata = BaseParamMetadata & OmitStrict<ObjectPropertyMetadata, 'excludeFromChangeSets'>;
+export type ObjectParamMetadata = BaseParamMetadata & OmitStrict<
+    ObjectPropertyMetadata,
+    'exclude' | 'excludeFromChangeSets'
+>;
 
 /**
  * Metadata Input for object parameters.

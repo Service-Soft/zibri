@@ -5,6 +5,7 @@ import { parseObject } from './parse-object.function';
 import { parseString } from './parse-string.function';
 import { ArrayPropertyItemMetadata } from '../../entity/models/array-property-metadata.model';
 import { ArrayParamItemMetadata } from '../../routing/models/array-param-metadata.model';
+import { JsonUtilities } from '../../utilities/json.utilities';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 export function parseArray(
@@ -18,7 +19,7 @@ export function parseArray(
     let simpleParsedValue: unknown = rawValue;
     try {
         if (typeof rawValue === 'string') {
-            simpleParsedValue = JSON.parse(rawValue);
+            simpleParsedValue = JsonUtilities.parse(rawValue);
         }
     }
     catch {

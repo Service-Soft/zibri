@@ -1,5 +1,12 @@
+import assert from 'node:assert';
+
+import { HttpRequestContext } from '../../context/request/http-request.context';
+import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
+import { inject } from '../../di/inject.function';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
-import { NumberPropertyMetadata } from '../../entity/models/number-property-metadata.model';
+import { NumberFormat, NumberPropertyMetadata } from '../../entity/models/number-property-metadata.model';
+import { INTEGER_REGEX } from '../../parsing/functions/parse-number.function';
 import { QueryParamMetadata, HeaderParamMetadata, PathParamMetadata } from '../../routing/decorators/param.decorator';
 import { NumberParamMetadata } from '../../routing/models/number-param-metadata.model';
 import { ObjectUtilities } from '../../utilities/object.utilities';
@@ -14,33 +21,37 @@ import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationP
  * @param entity - The entity that this value belongs to.
  * @returns All validation problems found.
  */
-export function validateNumber(
+// eslint-disable-next-line sonar/cognitive-complexity
+export async function validateNumber(
     key: string,
     property: unknown,
     metadata: PropertyMetadata | QueryParamMetadata | HeaderParamMetadata | PathParamMetadata,
     parentKey: string | undefined,
     entity: unknown | undefined
-): ValidationProblem[] {
+): Promise<ValidationProblem[]> {
     const meta: NumberPropertyMetadata | NumberParamMetadata = metadata as NumberPropertyMetadata | NumberParamMetadata;
     const fullKey: string = parentKey ? `${parentKey}.${key}` : key;
-    if (
-        property == undefined
-        && (meta as NumberPropertyMetadata).default == undefined
-        && (typeof metadata.required === 'boolean' ? metadata.required : metadata.required(entity))
-    ) {
-        return [new IsRequiredValidationProblem(fullKey)];
+    if (property == undefined) {
+        const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
+        const isRequired: boolean = typeof metadata.required === 'boolean' ? metadata.required : await metadata.required(entity, context);
+        if ((meta as NumberPropertyMetadata).default == undefined && isRequired) {
+            return [new IsRequiredValidationProblem(fullKey)];
+        }
+        if (!isRequired || (meta as NumberPropertyMetadata).default != undefined) {
+            return [];
+        }
     }
-    if (
-        property == undefined
-        && (
-            !(typeof metadata.required === 'boolean' ? metadata.required : metadata.required(entity))
-            || (meta as NumberPropertyMetadata).default != undefined
-        )
-    ) {
-        return [];
-    }
-    if (typeof property !== 'number') {
+    if (typeof property !== 'number' && meta.format !== 'bigint') {
         return [new TypeMismatchValidationProblem(fullKey, 'number')];
+    }
+    if (typeof property !== 'bigint' && meta.format === 'bigint') {
+        return [new TypeMismatchValidationProblem(fullKey, 'BigIntString')];
+    }
+
+    assert(typeof property === 'bigint' || typeof property === 'number');
+
+    if (meta.format && !isFormatValid(meta.format, property)) {
+        return [{ key: fullKey, message: `needs to be in format "${meta.format}"` }];
     }
     if (meta.enum && !ObjectUtilities.values(meta.enum).includes(property)) {
         return [{ key: fullKey, message: `needs to match one of "${ObjectUtilities.values(meta.enum)}"` }];
@@ -52,4 +63,16 @@ export function validateNumber(
         return [{ key: fullKey, message: `needs to be at most ${meta.max}` }];
     }
     return [];
+}
+
+// eslint-disable-next-line jsdoc/require-jsdoc
+function isFormatValid(format: NumberFormat, value: number | bigint): boolean {
+    switch (format) {
+        case 'bigint': {
+            return INTEGER_REGEX.test(value.toString());
+        }
+        case 'integer': {
+            return Number.isInteger(value);
+        }
+    }
 }

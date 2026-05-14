@@ -8,22 +8,22 @@ export interface ValidationServiceInterface {
     /**
      * Validate a request/response body.
      */
-    validateBody: (body: unknown, meta: BodyMetadata) => void,
+    validateBody: (body: unknown, meta: BodyMetadata) => void | Promise<void>,
     /**
      * Validate a header param.
      */
-    validateHeaderParam: (param: unknown, meta: HeaderParamMetadata) => void,
+    validateHeaderParam: (param: unknown, meta: HeaderParamMetadata) => void | Promise<void>,
     /**
      * Validate a path parameter.
      */
-    validatePathParam: (param: unknown, meta: PathParamMetadata) => void,
+    validatePathParam: (param: unknown, meta: PathParamMetadata) => void | Promise<void>,
     /**
      * Validate a query parameter.
      */
-    validateQueryParam: (param: unknown, meta: QueryParamMetadata) => void,
+    validateQueryParam: (param: unknown, meta: QueryParamMetadata) => void | Promise<void>,
     /**
      * Checks if the given value is a valid websocket request.
      * This does NOT check its content like the body or params, but only the base structure.
      */
-    validateWebsocketRequest: (req: unknown) => void
+    validateWebsocketRequest: (req: unknown) => void | Promise<void>
 }

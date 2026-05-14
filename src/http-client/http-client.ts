@@ -12,11 +12,12 @@ import { KnownHeader } from '../http/known-header.enum';
 import { MimeType } from '../http/mime-type.enum';
 import { type ParserInterface } from '../parsing/parser.interface';
 import { BodyMetadata, resolveMaxBodySize } from '../routing/decorators/body.decorator';
-import { HeaderParamMetadataInput, HeaderParamMetadata } from '../routing/decorators/param.decorator';
+import { HeaderParamMetadata, HeaderParamMetadataInput } from '../routing/decorators/param.decorator';
 import { createHeaderParamMetadata } from '../routing/param-metdata.helpers';
 import { HeaderMetaObjectToParamsObject, HeaderMetaInputObjectToMetaObject } from '../routing/route-configuration.model';
 import { Newable } from '../types/newable.type';
 import { Ms } from '../utilities/ms';
+import { ObjectUtilities } from '../utilities/object.utilities';
 import { type ValidationServiceInterface } from '../validation/validation-service.interface';
 
 const responseTypeForMimeType: Record<BodyMetadata['type'], ResponseType> = {
@@ -201,7 +202,7 @@ export class HttpClient implements HttpClientInterface {
         let axiosResponse: AxiosResponse<unknown> | undefined = undefined;
         let error: unknown = undefined;
 
-        for (let i: number = 0; i < (options?.retries ?? 1); i++) {
+        for (let i: number = 0; i < (options?.attempts ?? 1); i++) {
             if (axiosResponse != undefined) {
                 continue;
             }
@@ -234,8 +235,8 @@ export class HttpClient implements HttpClientInterface {
                     }
                 }
             }
-            catch (error_) {
-                error = error_;
+            catch (_error) {
+                error = _error;
             }
         }
 
@@ -308,31 +309,34 @@ export class HttpClient implements HttpClientInterface {
         }
 
         try {
-            this.validationService.validateBody(responseBody, metadata);
+            await this.validationService.validateBody(responseBody, metadata);
         }
         catch (error) {
             throw new Error('Could not validate response body', { cause: error });
         }
 
-        for (const key in options.responseHeaders) {
-            const headerMetadata: HeaderParamMetadata = createHeaderParamMetadata(key, options.responseHeaders[key]);
-            try {
-                (res.headers[key] as unknown) = this.parser.parseHeaderParam(
-                    res as unknown as HttpClientResponse,
-                    headerMetadata
-                );
-            }
-            catch (error) {
-                throw new Error(`Could not parse response header "${headerMetadata.name}"`, { cause: error });
-            }
+        await Promise.all(
+            ObjectUtilities.keys(options.responseHeaders ?? {}).map(async (key) => {
+                // eslint-disable-next-line typescript/no-non-null-assertion
+                const headerMetadata: HeaderParamMetadata = createHeaderParamMetadata(key, options.responseHeaders![key]);
+                try {
+                    (res.headers[key] as unknown) = this.parser.parseHeaderParam(
+                        res as unknown as HttpClientResponse,
+                        headerMetadata
+                    );
+                }
+                catch (error) {
+                    throw new Error(`Could not parse response header "${headerMetadata.name}"`, { cause: error });
+                }
 
-            try {
-                this.validationService.validateHeaderParam(res.headers[key], headerMetadata);
-            }
-            catch (error) {
-                throw new Error(`Could not validate response header "${headerMetadata.name}"`, { cause: error });
-            }
-        }
+                try {
+                    await this.validationService.validateHeaderParam(res.headers[key], headerMetadata);
+                }
+                catch (error) {
+                    throw new Error(`Could not validate response header "${headerMetadata.name}"`, { cause: error });
+                }
+            })
+        );
 
         return { ...res, body: responseBody };
     }

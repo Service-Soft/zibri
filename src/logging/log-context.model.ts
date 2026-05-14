@@ -1,7 +1,16 @@
+import { LoggedError } from './logged-error.model';
+import { CacheOperation } from '../caching/cache/cache-operation.enum';
 import { Property } from '../entity/decorators/property.decorator';
 import { HttpMethod } from '../http/http-method.enum';
 import { HttpStatus } from '../http/http-status.enum';
 import { OmitStrict } from '../types/omit-strict.type';
+
+/**
+ * Any custom additional metadata for the log context.
+ */
+export class LogContextMetadata implements Record<string, unknown> {
+    [key: string]: unknown
+}
 
 /**
  * Context information about a request that triggered a log.
@@ -40,6 +49,37 @@ export class LogRequestContext {
 }
 
 /**
+ * Context information about a cache that triggered a log.
+ */
+export class LogCacheContext {
+    /**
+     * The name of the cache.
+     */
+    @Property.string()
+    cache!: string;
+    /**
+     * The cache operation currently running.
+     */
+    @Property.string({ enum: CacheOperation })
+    operation!: CacheOperation;
+    /**
+     * The key of the value in the cache.
+     */
+    @Property.unknown({ required: false })
+    key?: unknown;
+    /**
+     * Whether or not the cache has been hit.
+     */
+    @Property.boolean({ required: false })
+    hit?: boolean;
+    /**
+     * The duration that the original function took.
+     */
+    @Property.number({ required: false })
+    durationInMs?: number;
+}
+
+/**
  * Context for the log, like the request, the id of the user if applicable and the stack trace.
  */
 export class LogContext {
@@ -49,13 +89,33 @@ export class LogContext {
     @Property.string()
     origin!: string;
     /**
+     * Any custom additional metadata for the log context.
+     */
+    @Property.object({ cls: () => LogContextMetadata, required: false, allowAdditionalProperties: true })
+    metadata?: LogContextMetadata;
+    /**
      * Context information about the request that triggered the log.
      */
     @Property.object({ cls: () => LogRequestContext, required: false })
     request?: LogRequestContext;
+    /**
+     * Context information about the cache that triggered the log.
+     */
+    @Property.array({ items: { type: 'object', cls: () => LogCacheContext }, required: false })
+    cache?: LogCacheContext[];
+    /**
+     * An error associated to this log.
+     */
+    @Property.object({ cls: () => LoggedError, required: false })
+    error?: LoggedError;
 }
 
 /**
  * The input for creating a new log context.
  */
-export type LogContextInput = OmitStrict<LogContext, 'origin'>;
+export type LogContextInput = OmitStrict<LogContext, 'origin' | 'request' | 'cache' | 'error'> & {
+    /**
+     * An error associated to this log.
+     */
+    error?: unknown
+};

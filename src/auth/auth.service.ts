@@ -12,18 +12,19 @@ import { Require2faMetadata, SkipRequire2faMetadata } from './models/require-2fa
 import { SkipAuthMetadata } from './models/skip-auth-metadata.model';
 import { AuthStrategies } from './strategies/auth-strategies.model';
 import { AuthStrategyInterface } from './strategies/auth-strategy.interface';
+import { HttpRequestContext } from '../context/request/http-request.context';
+import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../context/request/request-context-token.model';
+import { WebsocketRequestContext } from '../context/request/websocket-request.context';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { UnauthorizedError } from '../error-handling/errors/unauthorized.error';
 import { OnAppInit } from '../global/on-app-init.interface';
-import { HttpRequest } from '../http/http-request.model';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { Newable } from '../types/newable.type';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { PromiseUtilities } from '../utilities/promise.utilities';
-import { WebsocketRequest } from '../websocket/models/websocket-request.model';
 
 /**
  * Default auth service implementation of Zibri.
@@ -41,8 +42,8 @@ export class AuthService implements AuthServiceInterface, OnAppInit {
     ) {}
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async onAppInit({ options }: ZibriApplication): Promise<void> {
-        const { authStrategies } = options;
+    async onAppInit(app: ZibriApplication): Promise<void> {
+        const { authStrategies } = app.options;
         for (const strategy of authStrategies) {
             register({ token: strategy, useClass: strategy });
             this.strategies.push(strategy);
@@ -53,6 +54,7 @@ export class AuthService implements AuthServiceInterface, OnAppInit {
             );
             for (const strategy of authStrategies) {
                 await this.logger.info(`  - ${strategy.name}`);
+                await inject(strategy).init?.(app);
             }
         }
     }
@@ -119,15 +121,18 @@ export class AuthService implements AuthServiceInterface, OnAppInit {
         UserType extends BaseUser<Role>,
         B extends boolean = true
     >(
-        request: HttpRequest | WebsocketRequest,
+        context: HttpRequestContext | WebsocketRequestContext,
         allowedStrategies: AuthStrategies,
         required: B
     ): Promise<B extends false ? UserType | undefined : UserType> {
+        if (context.has(ZIBRI_REQUEST_CONTEXT_TOKENS.CURRENT_USER)) {
+            return await context.get(ZIBRI_REQUEST_CONTEXT_TOKENS.CURRENT_USER) as B extends false ? UserType | undefined : UserType;
+        }
         // eslint-disable-next-line stylistic/max-len
         const strategies: AuthStrategyInterface<Role, UserType, unknown, unknown, unknown, unknown, unknown, unknown>[] = allowedStrategies.map(
             s => inject(s)
         ) as unknown as AuthStrategyInterface<Role, UserType, unknown, unknown, unknown, unknown, unknown, unknown>[];
-        const res: PromiseSettledResult<UserType | undefined>[] = await Promise.allSettled(strategies.map(s => s.resolveUser(request)));
+        const res: PromiseSettledResult<UserType | undefined>[] = await Promise.allSettled(strategies.map(s => s.resolveUser(context)));
         const currentUser: UserType | undefined = (
             res.find(r => r.status === 'fulfilled' && r.value !== undefined) as PromiseFulfilledResult<UserType> | undefined
         )?.value;
@@ -197,7 +202,7 @@ export class AuthService implements AuthServiceInterface, OnAppInit {
     async checkAccess(
         controllerClass: Newable<unknown>,
         controllerMethod: string,
-        request: HttpRequest | WebsocketRequest
+        context: HttpRequestContext | WebsocketRequestContext
     ): Promise<void> {
         const isLoggedInMetadata: IsLoggedInMetadata | undefined = await this.resolveIsLoggedInMetadata(controllerClass, controllerMethod);
         const isNotLoggedInMetadata: IsNotLoggedInMetadata | undefined = await this.resolveIsNotLoggedInMetadata(
@@ -226,14 +231,14 @@ export class AuthService implements AuthServiceInterface, OnAppInit {
         // isLoggedIn
         if (
             (isLoggedInMetadata || hasRoleMetadata || belongsToMetadata || require2faMetadata)
-            && !await this.isLoggedIn(request, isLoggedInMetadata?.allowedStrategies ?? this.strategies)
+            && !await this.isLoggedIn(context, isLoggedInMetadata?.allowedStrategies ?? this.strategies)
         ) {
             throw new UnauthorizedError('You need to be logged in to access this route.');
         }
         // isNotLoggedIn
         if (
             isNotLoggedInMetadata
-            && await this.isLoggedIn(request, isLoggedInMetadata?.allowedStrategies ?? this.strategies)
+            && await this.isLoggedIn(context, isNotLoggedInMetadata.allowedStrategies ?? this.strategies)
         ) {
             throw new UnauthorizedError('You cannot be logged in when accessing this route.');
         }
@@ -241,15 +246,15 @@ export class AuthService implements AuthServiceInterface, OnAppInit {
         // hasRole
         if (
             hasRoleMetadata
-            && !await this.hasRole(request, hasRoleMetadata.allowedStrategies ?? this.strategies, hasRoleMetadata.allowedRoles)
+            && !await this.hasRole(context, hasRoleMetadata.allowedStrategies ?? this.strategies, hasRoleMetadata.allowedRoles)
         ) {
             throw new UnauthorizedError(`You need to have one role of ${hasRoleMetadata.allowedRoles} to access this route.`);
         }
 
         // require2fa
         if (require2faMetadata) {
-            const user: BaseUser<string> = await this.getCurrentUser(request, this.strategies, true);
-            if (!await this.twoFactorService.has2fa(user, request, require2faMetadata.allowedMethods)) {
+            const user: BaseUser<string> = await this.getCurrentUser(context, this.strategies, true);
+            if (!await this.twoFactorService.has2fa(user, context, require2faMetadata.allowedMethods)) {
                 throw new UnauthorizedError('You need to provide a second factor to access this route.');
             }
         }
@@ -258,14 +263,14 @@ export class AuthService implements AuthServiceInterface, OnAppInit {
         if (
             belongsToMetadata
             && !await this.belongsTo(
-                request,
+                context,
                 belongsToMetadata.allowedStrategies ?? this.strategies,
                 belongsToMetadata.targetEntity,
                 belongsToMetadata.targetUserIdKey,
                 belongsToMetadata.targetIdParamKey
             )
         ) {
-            const targetId: string | undefined = request.params?.[belongsToMetadata.targetIdParamKey];
+            const targetId: string | undefined = context.request.params?.[belongsToMetadata.targetIdParamKey];
             throw new UnauthorizedError(
                 // eslint-disable-next-line stylistic/max-len
                 `You need to to have access to the ${belongsToMetadata.targetEntity.name} entity with the id ${String(targetId)} to access this route.`
@@ -275,13 +280,16 @@ export class AuthService implements AuthServiceInterface, OnAppInit {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async isLoggedIn(
-        request: HttpRequest | WebsocketRequest,
+        context: HttpRequestContext | WebsocketRequestContext,
         allowedStrategies: AuthStrategies
     ): Promise<boolean> {
+        if (context.has(ZIBRI_REQUEST_CONTEXT_TOKENS.IS_LOGGED_IN)) {
+            return context.get(ZIBRI_REQUEST_CONTEXT_TOKENS.IS_LOGGED_IN);
+        }
         // eslint-disable-next-line stylistic/max-len
         const strategies: AuthStrategyInterface<string, BaseUser<string>, unknown, unknown, unknown, unknown, unknown, unknown>[] = allowedStrategies.map(s => inject(s));
         try {
-            return await PromiseUtilities.anyValueTrue(strategies, s => s.isLoggedIn(request));
+            return await PromiseUtilities.anyValueTrue(strategies, s => s.isLoggedIn(context));
         }
         catch {
             return false;
@@ -290,14 +298,14 @@ export class AuthService implements AuthServiceInterface, OnAppInit {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async hasRole(
-        request: HttpRequest | WebsocketRequest,
+        context: HttpRequestContext | WebsocketRequestContext,
         allowedStrategies: AuthStrategies,
         allowedRoles: string[]
     ): Promise<boolean> {
         // eslint-disable-next-line stylistic/max-len
         const strategies: AuthStrategyInterface<string, BaseUser<string>, unknown, unknown, unknown, unknown, unknown, unknown>[] = allowedStrategies.map(s => inject(s));
         try {
-            return await PromiseUtilities.anyValueTrue(strategies, s => s.hasRole(request, allowedRoles));
+            return await PromiseUtilities.anyValueTrue(strategies, s => s.hasRole(context, allowedRoles));
         }
         catch {
             return false;
@@ -306,7 +314,7 @@ export class AuthService implements AuthServiceInterface, OnAppInit {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async belongsTo<TargetEntity extends Newable<BaseEntity>>(
-        request: HttpRequest | WebsocketRequest,
+        context: HttpRequestContext | WebsocketRequestContext,
         allowedStrategies: AuthStrategies,
         targetEntity: TargetEntity,
         targetUserIdKey: keyof InstanceType<TargetEntity>,
@@ -317,7 +325,7 @@ export class AuthService implements AuthServiceInterface, OnAppInit {
         try {
             return await PromiseUtilities.anyValueTrue(
                 strategies,
-                s => s.belongsTo(request, targetEntity, targetUserIdKey, targetIdParamKey)
+                s => s.belongsTo(context, targetEntity, targetUserIdKey, targetIdParamKey)
             );
         }
         catch {

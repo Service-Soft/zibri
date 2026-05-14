@@ -1,13 +1,14 @@
 import { ZibriApplication } from '../../application';
+import { HttpRequestContext } from '../../context/request/http-request.context';
+import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../../context/request/request-context-token.model';
+import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
 import { Inject } from '../../di/decorators/inject.decorator';
 import { Injectable } from '../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { register } from '../../di/register.function';
 import { OnAppInit } from '../../global/on-app-init.interface';
-import { HttpRequest } from '../../http/http-request.model';
 import { type LoggerInterface } from '../../logging/logger.interface';
-import { WebsocketRequest } from '../../websocket/models/websocket-request.model';
 import { BaseUser } from '../models/base-user.model';
 import { TwoFactorMethod } from './methods/two-factor-method.interface';
 import { TwoFactorMethods } from './two-factor-methods.model';
@@ -87,12 +88,15 @@ export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
     // eslint-disable-next-line jsdoc/require-jsdoc
     async has2fa(
         user: BaseUser<string>,
-        request: HttpRequest | WebsocketRequest,
+        context: HttpRequestContext | WebsocketRequestContext,
         allowedMethods: TwoFactorMethods = this.twoFactorMethods
     ): Promise<boolean> {
+        if (context.has(ZIBRI_REQUEST_CONTEXT_TOKENS.HAS_2FA)) {
+            return context.get(ZIBRI_REQUEST_CONTEXT_TOKENS.HAS_2FA);
+        }
         try {
             await Promise.any(
-                allowedMethods.map(m => inject(m).validate(user, request))
+                allowedMethods.map(m => inject(m).validate(user, context))
             );
             return true;
         }

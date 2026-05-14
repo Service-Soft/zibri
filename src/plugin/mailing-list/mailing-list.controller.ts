@@ -67,7 +67,11 @@ export class MailingListController implements OnAppInit {
         const subscriber: MailingListSubscriber = await this.mailingListService.confirmSubscribeToList(token);
         const managePreferencesLink: string = this.mailingListService.getManagePreferencesLink(subscriber.id);
 
-        return PreactUtilities.renderResponse(this.SubscribeSuccessPage, { subscriber, mailingList, managePreferencesLink });
+        const html: string = await PreactUtilities.renderPage(
+            this.SubscribeSuccessPage,
+            { subscriber, mailingList, managePreferencesLink }
+        );
+        return HtmlResponse.fromString(html);
     }
 
     @Response.html()
@@ -84,7 +88,11 @@ export class MailingListController implements OnAppInit {
         await this.mailingListService.unsubscribeFromList(id, subscriberId);
         const managePreferencesLink: string = this.mailingListService.getManagePreferencesLink(subscriberId);
 
-        return PreactUtilities.renderResponse(this.UnsubscribeConfirmationPage, { subscriber, mailingList, managePreferencesLink });
+        const html: string = await PreactUtilities.renderPage(
+            this.UnsubscribeConfirmationPage,
+            { subscriber, mailingList, managePreferencesLink }
+        );
+        return HtmlResponse.fromString(html);
     }
 
     @Response.html()
@@ -97,7 +105,8 @@ export class MailingListController implements OnAppInit {
         const mailingLists: MailingList[] = await this.mailingListRepository.findAll();
         const managePreferencesApiUrl: string = this.mailingListService.getManagePreferencesLink(subscriberId);
 
-        return PreactUtilities.renderResponse(this.PreferencesPage, { subscriber, mailingLists, managePreferencesApiUrl });
+        const html: string = await PreactUtilities.renderPage(this.PreferencesPage, { subscriber, mailingLists, managePreferencesApiUrl });
+        return HtmlResponse.fromString(html);
     }
 
     @Response.empty()
