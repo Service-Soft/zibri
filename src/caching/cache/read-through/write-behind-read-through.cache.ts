@@ -1,5 +1,5 @@
 import { AlsUtilities } from '../../../context/als.utilities';
-import { LogCacheContext } from '../../../logging/log-context.model';
+import { CacheContext } from '../../../context/cache/cache.context';
 import { CacheOperation } from '../cache-operation.enum';
 import { ResultCacheKeyProvider, CacheWrapWriteOptionsWithResult, CacheSetDirectOptions } from '../cache-options.model';
 import { CacheInterface } from '../cache.interface';
@@ -26,7 +26,7 @@ export abstract class WriteBehindReadThroughCache<K, V, N extends string, CacheT
         options?: CacheWrapWriteOptionsWithResult<V, TArgs, CacheTag>
     ): (...args: TArgs) => Promise<V> {
         return async (...args) => {
-            const cacheCtx: LogCacheContext = { cache: this.name, operation: CacheOperation.WRITE };
+            const cacheCtx: CacheContext = { cache: this.name, operation: CacheOperation.WRITE };
 
             return AlsUtilities.runWithCacheContext(cacheCtx, async () => {
                 const sourceStart: number = performance.now();

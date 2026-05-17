@@ -256,8 +256,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         }
 
         const messages: WebsocketMessage[] = await this.messageRepository.findAll({
-            where: whereFilters,
-            order: { seq: 'ASC' }
+            where: whereFilters
         });
 
         for (const m of messages) {

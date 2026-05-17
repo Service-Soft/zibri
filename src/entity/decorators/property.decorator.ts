@@ -5,16 +5,16 @@ import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { AnyObject } from '../any-object.model';
 import type { BaseEntity } from '../base-entity.model';
 import { ArrayPropertyMetadata, ArrayPropertyMetadataInput, ArrayPropertyItemMetadataInput, ArrayPropertyItemMetadata } from '../models/array-property-metadata.model';
-import type { WithDefaultMetadata } from '../models/base-property-metadata.model';
+import { BelongsToOnePropertyMetadata, BelongsToOnePropertyMetadataInput } from '../models/belongs-to-one-property-metadata.model';
 import { BooleanPropertyMetadata, BooleanPropertyMetadataInput } from '../models/boolean-property-metadata.model';
 import { DatePropertyMetadata, DatePropertyMetadataInput } from '../models/date-property-metadata.model';
 import type { FilePropertyMetadata, FilePropertyMetadataInput } from '../models/file-property-metadata.model';
+import { HasOnePropertyMetadata, HasOnePropertyMetadataInput } from '../models/has-one-property-metadata.model';
 import { ManyToManyPropertyMetadata, ManyToManyPropertyMetadataInput } from '../models/many-to-many-property-metadata.model';
 import { ManyToOnePropertyMetadata, ManyToOnePropertyMetadataInput } from '../models/many-to-one-property-metadata.model';
 import { NumberPropertyMetadata, NumberPropertyMetadataInput } from '../models/number-property-metadata.model';
 import { ObjectPropertyMetadata, ObjectPropertyMetadataInput } from '../models/object-property-metadata.model';
 import { OneToManyPropertyMetadata, OneToManyPropertyMetadataInput } from '../models/one-to-many-property-metadata.model';
-import { OneToOnePropertyMetadata, OneToOnePropertyMetadataInput, HasOnePropertyMetadataInput, BelongsToOnePropertyMetadataInput } from '../models/one-to-one-property-metadata.model';
 import { Relation } from '../models/relation.enum';
 import { StringPropertyMetadata, StringPropertyMetadataInput } from '../models/string-property-metadata.model';
 import { UnknownPropertyMetadata, UnknownPropertyMetadataInput } from '../models/unknown-property-metadata.model';
@@ -38,7 +38,8 @@ export type PropertyMetadata = StringPropertyMetadata<any, any, any, any, any>
  */
 export type RelationMetadata<T extends BaseEntity> = ManyToOnePropertyMetadata<T>
     | OneToManyPropertyMetadata<T>
-    | OneToOnePropertyMetadata<T>
+    | HasOnePropertyMetadata<T>
+    | BelongsToOnePropertyMetadata<T>
     | ManyToManyPropertyMetadata<T>;
 
 /**
@@ -54,15 +55,14 @@ export type PropertyMetadataInput = StringPropertyMetadataInput<any, any, any, a
     | BooleanPropertyMetadataInput
     | UnknownPropertyMetadataInput;
 
-/**
- * The metadata input to define a relation property.
- */
-export type RelationMetadataInput<T extends BaseEntity> = ManyToOnePropertyMetadataInput<T>
-    | OneToManyPropertyMetadataInput<T>
-    | OneToOnePropertyMetadataInput<T>
-    | HasOnePropertyMetadataInput<T>
-    | BelongsToOnePropertyMetadataInput<T>
-    | ManyToManyPropertyMetadataInput<T>;
+// /**
+//  * The metadata input to define a relation property.
+//  */
+// export type RelationMetadataInput<T extends BaseEntity> = ManyToOnePropertyMetadataInput<T>
+//     | OneToManyPropertyMetadataInput<T>
+//     | HasOnePropertyMetadataInput<T>
+//     | BelongsToOnePropertyMetadataInput<T>
+//     | ManyToManyPropertyMetadataInput<T>;
 
 /**
  * Bundles decorators for properties.
@@ -99,7 +99,7 @@ export namespace Property {
             hash: false,
             ...data
         };
-        return applyData(fullMetadata, data);
+        return applyData(fullMetadata);
     }
 
     /**
@@ -122,7 +122,7 @@ export namespace Property {
             format: undefined,
             ...data
         };
-        return applyData(fullMetadata, data);
+        return applyData(fullMetadata);
     }
 
     /**
@@ -139,7 +139,7 @@ export namespace Property {
             exclude: false,
             ...data
         };
-        return applyData(fullMetadata, data);
+        return applyData(fullMetadata);
     }
 
     /**
@@ -158,7 +158,7 @@ export namespace Property {
             excludeFromChangeSets: typeof data?.exclude === 'boolean' ? data.exclude : false,
             ...data
         };
-        return applyData(fullMetadata, data);
+        return applyData(fullMetadata);
     }
 
     /**
@@ -175,7 +175,7 @@ export namespace Property {
             allowAdditionalProperties: false,
             ...data
         };
-        return applyData(fullMetadata, data);
+        return applyData(fullMetadata);
     }
 
     /**
@@ -249,24 +249,35 @@ export namespace Property {
             excludeFromChangeSets: typeof data?.exclude === 'boolean' ? data.exclude : false,
             ...data
         };
-        return applyData(fullMetadata, data);
+        return applyData(fullMetadata);
     }
 
+    // eslint-disable-next-line jsdoc/require-returns
     /**
      * Defines a many to one property.
      * @param metadata - Additional data to specify the property.
      */
-    export function manyToOne<T extends BaseEntity>(metadata: ManyToOnePropertyMetadataInput<T>): PropertyDecorator {
+    export function manyToOne<T extends BaseEntity, TJoinKey extends string>(
+        metadata: ManyToOnePropertyMetadataInput<T, TJoinKey>
+    ) {
         const fullMetadata: ManyToOnePropertyMetadata<T> = {
             required: true,
             type: Relation.MANY_TO_ONE,
             cascade: [],
             description: undefined,
+            joinColumn: undefined,
             exclude: false,
             excludeFromChangeSets: typeof metadata?.exclude === 'boolean' ? metadata.exclude : false,
             ...metadata
         };
-        return applyData(fullMetadata as PropertyMetadata, metadata);
+
+        // eslint-disable-next-line typescript/no-explicit-any
+        return <TCurrentEntity extends Partial<Record<TJoinKey, any>>>(
+            target: TCurrentEntity,
+            propertyKey: string | symbol
+        ): void => {
+            applyData(fullMetadata as PropertyMetadata)(target, propertyKey);
+        };
     }
 
     /**
@@ -283,7 +294,7 @@ export namespace Property {
             excludeFromChangeSets: typeof metadata?.exclude === 'boolean' ? metadata.exclude : false,
             ...metadata
         };
-        return applyData(fullMetadata as PropertyMetadata, metadata);
+        return applyData(fullMetadata as PropertyMetadata);
     }
 
     /**
@@ -291,35 +302,44 @@ export namespace Property {
      * @param metadata - Additional data to specify the property.
      */
     export function hasOne<T extends BaseEntity>(metadata: HasOnePropertyMetadataInput<T>): PropertyDecorator {
-        const fullMetadata: OneToOnePropertyMetadata<T> = {
+        const fullMetadata: HasOnePropertyMetadata<T> = {
             required: true,
-            type: Relation.ONE_TO_ONE,
+            type: Relation.HAS_ONE,
             cascade: ['remove', 'insert', 'update'],
-            joinColumn: false,
             description: undefined,
             exclude: false,
             excludeFromChangeSets: typeof metadata?.exclude === 'boolean' ? metadata.exclude : false,
             ...metadata
         };
-        return applyData(fullMetadata as PropertyMetadata, metadata);
+        return applyData(fullMetadata as PropertyMetadata);
     }
 
+    // eslint-disable-next-line jsdoc/require-returns
     /**
      * Defines a belongs to one property.
      * @param metadata - Additional data to specify the property.
      */
-    export function belongsToOne<T extends BaseEntity>(metadata: BelongsToOnePropertyMetadataInput<T>): PropertyDecorator {
-        const fullMetadata: OneToOnePropertyMetadata<T> = {
+    export function belongsToOne<T extends BaseEntity, TJoinKey extends string>(
+        metadata: BelongsToOnePropertyMetadataInput<T, TJoinKey>
+    ) {
+        const fullMetadata: BelongsToOnePropertyMetadata<T> = {
             required: true,
-            type: Relation.ONE_TO_ONE,
+            type: Relation.BELONGS_TO_ONE,
             cascade: [],
-            joinColumn: true,
+            joinColumn: undefined,
             description: undefined,
             exclude: false,
             excludeFromChangeSets: typeof metadata?.exclude === 'boolean' ? metadata.exclude : false,
             ...metadata
         };
-        return applyData(fullMetadata as PropertyMetadata, metadata);
+
+        // eslint-disable-next-line typescript/no-explicit-any
+        return <TCurrentEntity extends Partial<Record<TJoinKey, any>>>(
+            target: TCurrentEntity,
+            propertyKey: string | symbol
+        ): void => {
+            applyData(fullMetadata as PropertyMetadata)(target, propertyKey);
+        };
     }
 
     /**
@@ -330,23 +350,21 @@ export namespace Property {
         const fullMetadata: ManyToManyPropertyMetadata<T> = {
             required: true,
             type: Relation.MANY_TO_MANY,
-            cascade: [],
+            cascade: metadata.joinTable === true ? ['remove'] : [],
             description: undefined,
+            joinTable: undefined,
             persistence: true,
             exclude: false,
             excludeFromChangeSets: typeof metadata?.exclude === 'boolean' ? metadata.exclude : false,
             ...metadata
         };
-        return applyData(fullMetadata as PropertyMetadata, metadata);
+        return applyData(fullMetadata as PropertyMetadata);
     }
 }
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-function applyData(data: PropertyMetadata, inputData: PropertyMetadataInput | undefined): PropertyDecorator {
+function applyData(data: PropertyMetadata): PropertyDecorator {
     return (target, key) => {
-        if (inputData?.required != undefined && (inputData as WithDefaultMetadata<string>).default != undefined) {
-            warn(`${target.constructor.name}.${key.toString()}: setting "required" won't have any effect, because "default" is also set.`);
-        }
         if ('primary' in data && data.primary && data.exclude !== false) {
             throw new Error(`${target.constructor.name}.${key.toString()}: Cannot mark a primary key with "exclude."`);
         }

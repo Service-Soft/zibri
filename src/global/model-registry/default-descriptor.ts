@@ -42,7 +42,8 @@ export class DefaultDescriptor {
                 case Relation.MANY_TO_MANY:
                 case Relation.ONE_TO_MANY:
                 case Relation.MANY_TO_ONE:
-                case Relation.ONE_TO_ONE: {
+                case Relation.HAS_ONE:
+                case Relation.BELONGS_TO_ONE: {
                     const nested: DefaultDescriptor = ModelRegistry.get(metadata.target()).defaultDescriptor;
                     if (nested.hasAnything()) {
                         this.nestedKeys.set(key, nested);

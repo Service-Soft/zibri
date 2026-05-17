@@ -78,8 +78,7 @@ implements EventServiceInterface<TEvents>, OnAppInit, OnAppStart, AfterAppShutdo
     async onAppStart(): Promise<void> {
         const events: Event<TEvents[keyof TEvents]>[] = await this.eventRepository.findAll({
             where: { status: { not: EventStatus.FINISHED } },
-            relations: ['eventSubscriberRuns'],
-            order: { createdAt: 'ASC' }
+            relations: ['eventSubscriberRuns']
         });
 
         for (const event of events) {
@@ -222,7 +221,11 @@ implements EventServiceInterface<TEvents>, OnAppInit, OnAppStart, AfterAppShutdo
             await this.logger.error(new EventProcessingError(event, options.subscriberId, error));
         }
 
-        await this.eventSubscriberRunRepository.create({ event, subscriberId: options.subscriberId, error });
+        await this.eventSubscriberRunRepository.create({
+            event,
+            subscriberId: options.subscriberId,
+            error
+        });
         if (await this.eventHasUnfinishedSubscriptions(event)) {
             return;
         }

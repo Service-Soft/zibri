@@ -5,9 +5,4 @@ import { OmitStrict } from '../../../types/omit-strict.type';
 /**
  * Options for finding a single entity by its id.
  */
-export type FindByIdOptions<T extends BaseEntity> = OmitStrict<FindOneOptions<T>, 'where' | 'relations'> & {
-    /**
-     * The relations to include in the found entity.
-     */
-    relations?: (keyof T)[]
-};
+export type FindByIdOptions<T extends BaseEntity> = OmitStrict<FindOneOptions<T>, 'where'>;

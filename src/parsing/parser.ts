@@ -100,7 +100,8 @@ export class Parser implements ParserInterface, OnAppInit {
     // eslint-disable-next-line jsdoc/require-jsdoc
     parseQueryParam(req: HttpRequest | WebsocketRequest, metadata: QueryParamMetadata): unknown {
         const rawValue: string | undefined = req.query?.[metadata.name];
-        return this.queryParamParseFunctions[metadata.type](rawValue, metadata);
+        const res: unknown = this.queryParamParseFunctions[metadata.type](rawValue, metadata);
+        return res;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

@@ -1,5 +1,5 @@
 import { AlsUtilities } from '../../../context/als.utilities';
-import { LogCacheContext } from '../../../logging/log-context.model';
+import { CacheContext } from '../../../context/cache/cache.context';
 import { CachedValue } from '../../store/cached-value.model';
 import { BaseCache } from '../base-cache.model';
 import { CacheOperation } from '../cache-operation.enum';
@@ -30,7 +30,7 @@ export abstract class ReadAsideCache<
         options?: CacheWrapOptions<V, TArgs, CacheTag>
     ): (...args: TArgs) => Promise<V> {
         return async (...args) => {
-            const cacheCtx: LogCacheContext = { cache: this.name, operation: CacheOperation.WRAP };
+            const cacheCtx: CacheContext = { cache: this.name, operation: CacheOperation.WRAP };
             const label: Record<string, string> = { cache: this.name };
 
             return AlsUtilities.runWithCacheContext(cacheCtx, async () => {

@@ -19,8 +19,9 @@ import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { GlobalRegistry } from '../../global/global-registry';
 import { Newable } from '../../types/newable.type';
+import { OmitStrict } from '../../types/omit-strict.type';
 import { Version } from '../../types/version.type';
-import { PostgresDataSource, PostgresOptions } from '../data-sources/postgres-data-source.model';
+import { PostgresDataSource, PostgresOptions } from '../data-sources/postgres-typeorm-data-source.model';
 import { DataSource } from '../decorators/data-source.decorator';
 import { Repository } from '../repository';
 import { Transaction } from '../transaction/transaction.model';
@@ -33,7 +34,7 @@ class LegacyItem {
 
 @DataSource()
 class LegacyDbDataSource extends PostgresDataSource {
-    options: PostgresOptions = {
+    options: OmitStrict<PostgresOptions, 'type'> = {
         host: 'localhost',
         username: 'postgres',
         password: 'password',
@@ -54,7 +55,7 @@ class Item {
 
 @DataSource()
 class DbDataSource extends PostgresDataSource {
-    options: PostgresOptions = {
+    options: OmitStrict<PostgresOptions, 'type'> = {
         host: 'localhost',
         username: 'postgres',
         password: 'password',

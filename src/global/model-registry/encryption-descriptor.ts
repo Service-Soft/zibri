@@ -40,7 +40,8 @@ export class EncryptionDescriptor<T> {
 
             switch (metadata.type) {
                 case Relation.MANY_TO_ONE:
-                case Relation.ONE_TO_ONE:
+                case Relation.HAS_ONE:
+                case Relation.BELONGS_TO_ONE:
                 case Relation.MANY_TO_MANY:
                 case Relation.ONE_TO_MANY: {
                     const nested: EncryptionDescriptor<unknown> = ModelRegistry.get(metadata.target()).encryptionDescriptor;

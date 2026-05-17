@@ -8,7 +8,7 @@ import { Backup } from './decorators/backup-resource.decorator';
 import { FsBackupTransport } from './transports/fs.backup-transport';
 import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { PostgresDataSource, PostgresOptions } from '../data-source/data-sources/postgres-data-source.model';
+import { PostgresDataSource, PostgresOptions } from '../data-source/data-sources/postgres-typeorm-data-source.model';
 import { DataSource } from '../data-source/decorators/data-source.decorator';
 import { Repository } from '../data-source/repository';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';

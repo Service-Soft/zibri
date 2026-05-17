@@ -1,3 +1,4 @@
+import { RepositoryTypeForEntity } from '../../data-source/data-sources/data-source.interface';
 import { Repository } from '../../data-source/repository';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Newable } from '../../types/newable.type';
@@ -12,10 +13,10 @@ const allRepositoryTokens: Record<string, DiToken<Repository<BaseEntity>>> = {};
  * @param entity - The entity class to resolve the repository token for.
  * @returns The DI token.
  */
-export function repositoryTokenFor<T extends Newable<BaseEntity>>(entity: T): DiToken<Repository<InstanceType<T>>> {
+export function repositoryTokenFor<T extends Newable<BaseEntity>>(entity: T): DiToken<RepositoryTypeForEntity<InstanceType<T>>> {
     const key: string = `Repository<${entity.name}>`;
     allRepositoryTokens[key] ??= new InjectionToken(key);
-    return allRepositoryTokens[key] as unknown as DiToken<Repository<InstanceType<T>>>;
+    return allRepositoryTokens[key] as DiToken<RepositoryTypeForEntity<InstanceType<T>>>;
 }
 
 /**

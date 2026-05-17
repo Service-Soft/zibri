@@ -4,37 +4,45 @@ import { HttpRequest } from '../../http/http-request.model';
 import { KnownHeader } from '../../http/known-header.enum';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-class QueryObject implements Record<string, string | undefined> {
-    [key: string]: string | undefined
+class QueryObject implements Record<string, unknown> {
+    [key: string]: unknown
 }
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 class ParamsObject extends QueryObject {}
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-class HeadersObject implements Partial<Record<KnownHeader, string | undefined>> {
-    [key: string]: string | undefined
+class HeadersObject implements Partial<Record<KnownHeader, unknown>> {
+    [key: string]: unknown
 }
 
 /**
  * A websocket request sent from a client.
  */
-export class WebsocketRequest implements Partial<Pick<HttpRequest, 'headers' | 'body' | 'query' | 'params'>> {
+export class WebsocketRequest<
+    T = unknown,
+    PathParamsObject extends Record<string, unknown> = Record<string, string | undefined>,
+    QueryParamsObject extends Record<string, unknown> = Record<string, string | undefined>,
+    HeaderParamsObject extends Record<string, unknown> = Partial<Record<KnownHeader, string | undefined>>
+> implements Partial<Pick<
+    HttpRequest<T, PathParamsObject, QueryParamsObject, HeaderParamsObject>,
+    'headers' | 'body' | 'query' | 'params'>
+> {
     // eslint-disable-next-line jsdoc/require-jsdoc
     @Property.object({ cls: () => QueryObject, required: false, allowAdditionalProperties: true })
-    query: QueryObject | undefined;
+    query: QueryParamsObject | undefined;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     @Property.object({ cls: () => HeadersObject, allowAdditionalProperties: true })
-    headers!: Partial<Record<KnownHeader, string | undefined>>;
+    headers!: HeaderParamsObject;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     @Property.object({ cls: () => ParamsObject, required: false, allowAdditionalProperties: true })
-    params: ParamsObject | undefined;
+    params: PathParamsObject | undefined;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     @Property.unknown({ required: false })
-    body: unknown | undefined;
+    body: T | undefined;
 }
 
 /**

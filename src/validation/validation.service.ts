@@ -10,6 +10,7 @@ import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { PropertyMetadata, Property, RelationMetadata } from '../entity/decorators/property.decorator';
+import { Relation } from '../entity/models/relation.enum';
 import { ValidationError } from '../error-handling/errors/validation.error';
 import { MimeType } from '../http/mime-type.enum';
 import { FormData } from '../parsing/form-data/form-data.model';
@@ -224,10 +225,11 @@ export class ValidationService implements ValidationServiceInterface {
         const fullKey: string = parentKey ? `${parentKey}.${key}` : key;
 
         if (
-            metadata.type === 'many-to-one'
-            || metadata.type === 'one-to-many'
-            || metadata.type === 'one-to-one'
-            || metadata.type === 'many-to-many'
+            metadata.type === Relation.MANY_TO_ONE
+            || metadata.type === Relation.ONE_TO_MANY
+            || metadata.type === Relation.HAS_ONE
+            || metadata.type === Relation.BELONGS_TO_ONE
+            || metadata.type === Relation.MANY_TO_MANY
         ) {
             return [new RelationsNotAllowedValidationProblem(fullKey, metadata, key)];
         }
