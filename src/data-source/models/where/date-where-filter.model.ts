@@ -1,21 +1,9 @@
-import { BaseWhereFilter } from './base-where-filter.model';
+import { BaseWhereFilter, BaseWhereFilterObject } from './base-where-filter.model';
 
 /**
- * A filter for a date where property.
+ * The date where filter object.
  */
-export type DateWhereFilter = BaseWhereFilter<Date> | {
-    /**
-     * The property needs to be not this value.
-     */
-    not?: Date,
-    /**
-     * The property needs to be one of the values in the array.
-     */
-    oneOf?: Date[],
-    /**
-     * The property needs to be NOT one of the values in the array.
-     */
-    notOneOf?: Date[],
+type DateFilterWhereObject = BaseWhereFilterObject<Date> & {
     /**
      * The property needs to be after the value.
      */
@@ -25,3 +13,8 @@ export type DateWhereFilter = BaseWhereFilter<Date> | {
      */
     before?: Date
 };
+
+/**
+ * A filter for a date where property.
+ */
+export type DateWhereFilter = BaseWhereFilter<Date, DateFilterWhereObject>;

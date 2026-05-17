@@ -8,7 +8,7 @@ import { JwtRefreshToken } from '../../auth/strategies/jwt/jwt-refresh-token.mod
 import { ChangeSet } from '../../change-sets/models/change-set.model';
 import { Change } from '../../change-sets/models/change.model';
 import { CronJobEntity } from '../../cron/cron-job-entity.model';
-import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres-data-source.model';
+import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres-typeorm-data-source.model';
 import { DataSource } from '../../data-source/decorators/data-source.decorator';
 import { MigrationEntity } from '../../data-source/migration/migration-entity.model';
 import { Email } from '../../email/models/email.model';
@@ -18,6 +18,7 @@ import { Event } from '../../event/event.model';
 import { Log } from '../../logging/log.model';
 import { ThreadJobEntity } from '../../multithreading/models/thread-job-entity.model';
 import { Newable } from '../../types/newable.type';
+import { OmitStrict } from '../../types/omit-strict.type';
 import { WebsocketChannel } from '../../websocket/models/websocket-channel.model';
 import { WebsocketMessage } from '../../websocket/models/websocket-message.model';
 import { JwtUser } from '../mocks/entities/jwt-user.entity';
@@ -59,16 +60,15 @@ export function createTestDataSource({
     username = 'postgres',
     password = 'password',
     database = 'db'
-}: CreateTestDataSourceOptions = {}): Newable<PostgresDataSource> {
+}: CreateTestDataSourceOptions = {}): Newable<PostgresDataSource & { entities: Newable<BaseEntity>[] }> {
 
     @DataSource()
     class DbDataSource extends PostgresDataSource {
-        options: PostgresOptions = {
+        options: OmitStrict<PostgresOptions, 'type' | 'entities'> = {
             host,
             username,
             password,
-            database,
-            synchronize: true
+            database
         };
         entities: Newable<BaseEntity>[] = entities;
     }

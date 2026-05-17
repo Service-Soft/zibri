@@ -28,12 +28,10 @@ export class EventCleanupCronJob extends CronJob {
         await this.logger.info('cleans up past events');
 
         try {
-            // const yesterday: Date = new Date(Date.now() - Ms.DAY);
-            const events: Event<unknown>[] = (await this.repository.findAll({
-                where: { status: EventStatus.FINISHED },
-                relations: ['eventSubscriberRuns']
-            })).filter(e => Date.now() > new Date(e.cleanupAt).getTime());
-            const res: Event<unknown>[] = await this.repository.deleteAll({ id: { oneOf: events.map(e => e.id) } });
+            const res: Event<unknown>[] = await this.repository.deleteAll({
+                status: EventStatus.FINISHED,
+                cleanupAt: { before: new Date() }
+            });
             await this.logger.info(`removed ${res.length} events`);
         }
         catch {

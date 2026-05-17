@@ -1,6 +1,7 @@
 import { UserRepo } from '../../auth/decorators/user-repo.decorator';
 import { JwtCredentials } from '../../auth/strategies/jwt/jwt-credentials.model';
 import { UserRepositoryInterface } from '../../auth/user/user-repository.interface';
+import { getDefaultBeforeReturnHook, getDefaultBeforeSaveHook } from '../../data-source/hooks/hooks.default';
 import { Repository } from '../../data-source/repository';
 import { InjectRepository } from '../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../di/decorators/inject.decorator';
@@ -18,10 +19,10 @@ export class DefaultTestServerUserRepository extends Repository<JwtUser>
         repo: Repository<JwtUser>,
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
         logger: LoggerInterface,
-        @InjectRepository(JwtUser)
+        @InjectRepository(JwtCredentials)
         private readonly credentialsRepository: Repository<JwtCredentials>
     ) {
-        super(JwtUser, repo, logger, repo.dataSource);
+        super(JwtUser, repo, logger, repo.dataSource, getDefaultBeforeSaveHook(), getDefaultBeforeReturnHook());
     }
 
     async findByEmail(email: string): Promise<JwtUser> {
@@ -29,6 +30,6 @@ export class DefaultTestServerUserRepository extends Repository<JwtUser>
     }
 
     async resolveCredentialsFor(user: JwtUser): Promise<JwtCredentials> {
-        return this.credentialsRepository.findOne({ where: { userId: user.id } });
+        return await this.credentialsRepository.findOne({ where: { userId: user.id } });
     }
 }

@@ -1,10 +1,11 @@
 import { BaseEntity } from '../entity/base-entity.model';
 import { RelationMetadata } from '../entity/decorators/property.decorator';
+import { BelongsToOnePropertyMetadata } from '../entity/models/belongs-to-one-property-metadata.model';
 import { FileSize } from '../entity/models/file-property-metadata.model';
+import { HasOnePropertyMetadata } from '../entity/models/has-one-property-metadata.model';
 import { ManyToManyPropertyMetadata } from '../entity/models/many-to-many-property-metadata.model';
 import { ManyToOnePropertyMetadata } from '../entity/models/many-to-one-property-metadata.model';
 import { OneToManyPropertyMetadata } from '../entity/models/one-to-many-property-metadata.model';
-import { OneToOnePropertyMetadata } from '../entity/models/one-to-one-property-metadata.model';
 import { Relation } from '../entity/models/relation.enum';
 import { MimeType } from '../http/mime-type.enum';
 
@@ -82,15 +83,12 @@ export class RelationsNotAllowedValidationProblem implements ValidationProblem {
 
     private getExample(metadata: RelationMetadata<BaseEntity>, relationKey: string): string {
         switch (metadata.type) {
-            case Relation.MANY_TO_ONE: {
+            case Relation.MANY_TO_ONE:
+            case Relation.HAS_ONE:
+            case Relation.BELONGS_TO_ONE: {
                 return this.getObjectExample(metadata, relationKey);
             }
-            case Relation.ONE_TO_MANY: {
-                return this.getArrayExample(metadata, relationKey);
-            }
-            case Relation.ONE_TO_ONE: {
-                return this.getObjectExample(metadata, relationKey);
-            }
+            case Relation.ONE_TO_MANY:
             case Relation.MANY_TO_MANY: {
                 return this.getArrayExample(metadata, relationKey);
             }
@@ -110,7 +108,7 @@ export class RelationsNotAllowedValidationProblem implements ValidationProblem {
     }
 
     private getObjectExample(
-        metadata: OneToOnePropertyMetadata<BaseEntity> | ManyToOnePropertyMetadata<BaseEntity>,
+        metadata: BelongsToOnePropertyMetadata<BaseEntity> | HasOnePropertyMetadata<BaseEntity> | ManyToOnePropertyMetadata<BaseEntity>,
         relationKey: string
     ): string {
         return [

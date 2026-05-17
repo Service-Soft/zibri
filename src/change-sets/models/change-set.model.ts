@@ -10,7 +10,7 @@ import { OmitStrict } from '../../types/omit-strict.type';
  * A single change set.
  * Gets automatically created for configured entities whenever they are changed.
  */
-@Entity()
+@Entity({ defaultOrder: { createdAt: 'ASC' }, defaultRelations: { changes: true } })
 export class ChangeSet extends BaseEntity {
     /**
      * Whether this change set was initialized on creating, updating or deleting the entity.

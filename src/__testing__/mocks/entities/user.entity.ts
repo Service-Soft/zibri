@@ -8,7 +8,7 @@ import { Entity } from '../../../entity/decorators/entity.decorator';
 import { Property } from '../../../entity/decorators/property.decorator';
 import { OmitStrict } from '../../../types/omit-strict.type';
 
-@Entity()
+@Entity({ allowOrphan: true })
 export class User {
     @Property.string({ primary: true })
     id!: string;

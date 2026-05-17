@@ -40,7 +40,8 @@ export class HashDescriptor<T> {
 
             switch (metadata.type) {
                 case Relation.MANY_TO_ONE:
-                case Relation.ONE_TO_ONE:
+                case Relation.HAS_ONE:
+                case Relation.BELONGS_TO_ONE:
                 case Relation.MANY_TO_MANY:
                 case Relation.ONE_TO_MANY: {
                     const nested: HashDescriptor<unknown> = ModelRegistry.get(metadata.target()).hashDescriptor;

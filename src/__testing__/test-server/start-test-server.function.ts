@@ -11,7 +11,7 @@ import { defaultTestServerProviders } from './providers';
 import './user-repository'; // this import is needed so that the DI system can pick up the user repository.
 import { ZibriApplication } from '../../application';
 import { ZibriApplicationOptions } from '../../application-options.model';
-import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres-data-source.model';
+import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres-typeorm-data-source.model';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { DiContainer } from '../../di/di-container';
 import { inject } from '../../di/inject.function';
@@ -20,8 +20,9 @@ import { Newable } from '../../types/newable.type';
 import { noOp, POSTGRES_TEST_IMAGE, testAssetsFolder } from '../constants';
 import { createTestDataSource } from './create-test-data-source.function';
 import { AssetServiceInterface } from '../../assets/asset-service.interface';
+import { OmitStrict } from '../../types/omit-strict.type';
 
-type StartTestServerOptions = Partial<Pick<ZibriApplicationOptions, 'providers' | 'plugins' | 'controllers'>> & {
+type StartTestServerOptions = Partial<Pick<ZibriApplicationOptions, 'providers' | 'plugins' | 'controllers' | 'cronJobs'>> & {
     dataSources?: Newable<PostgresDataSource>[]
 };
 
@@ -56,7 +57,8 @@ export async function startTestServer(
         dataSources = [createTestDataSource()],
         providers = defaultTestServerProviders,
         plugins = defaultTestServerPlugins,
-        controllers = []
+        controllers = [],
+        cronJobs = []
     }: StartTestServerOptions = {}
 ): Promise<StartedTestServer> {
     // Reset singleton — every test file gets a clean container with no stale instances.
@@ -69,8 +71,7 @@ export async function startTestServer(
             .withUsername(dataSource.options.username ?? 'postgres')
             .withPassword(dataSource.options.password?.toString() ?? 'password')
             .start();
-        // eslint-disable-next-line typescript/no-unnecessary-type-assertion
-        (dataSource.options as PostgresOptions) = {
+        (dataSource.options as OmitStrict<PostgresOptions, 'type' | 'entities'>) = {
             ...dataSource.options,
             port: container.getMappedPort(5432)
         };
@@ -93,7 +94,8 @@ export async function startTestServer(
         websocketControllers: [],
         dataSources,
         providers,
-        plugins
+        plugins,
+        cronJobs
     });
 
     await app.init(H);

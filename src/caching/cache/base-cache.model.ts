@@ -1,5 +1,5 @@
 import { AlsUtilities } from '../../context/als.utilities';
-import { LogCacheContext } from '../../logging/log-context.model';
+import { CacheContext } from '../../context/cache/cache.context';
 import { LoggerInterface } from '../../logging/logger.interface';
 import { MetricsServiceInterface } from '../../metrics/metrics-service.interface';
 import { OmitStrict } from '../../types/omit-strict.type';
@@ -54,7 +54,7 @@ implements OmitStrict<CacheInterface<K, V, CacheTag, WriteResultAvailable, N>, '
         options?: CacheWrapDeleteOptions<TArgs, CacheTag>
     ): (...args: TArgs) => Promise<TReturn> {
         return async (...args) => {
-            const cacheCtx: LogCacheContext = { cache: this.name, operation: CacheOperation.DELETE };
+            const cacheCtx: CacheContext = { cache: this.name, operation: CacheOperation.DELETE };
 
             return AlsUtilities.runWithCacheContext(cacheCtx, async () => {
                 const sourceStart: number = performance.now();
@@ -95,7 +95,7 @@ implements OmitStrict<CacheInterface<K, V, CacheTag, WriteResultAvailable, N>, '
         options: CacheWrapInvalidateOptions<TArgs, CacheTag>
     ): (...args: TArgs) => Promise<TReturn> {
         return async (...args) => {
-            const cacheCtx: LogCacheContext = { cache: this.name, operation: CacheOperation.INVALIDATE };
+            const cacheCtx: CacheContext = { cache: this.name, operation: CacheOperation.INVALIDATE };
 
             return AlsUtilities.runWithCacheContext(cacheCtx, async () => {
                 const sourceStart: number = performance.now();

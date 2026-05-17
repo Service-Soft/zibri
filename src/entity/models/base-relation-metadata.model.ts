@@ -16,7 +16,7 @@ export type BaseRelationMetadata<T extends BaseEntity> = BasePropertyMetadata
         target: () => Newable<T>,
         /**
          * The name of the inverse property on the target,
-         * e.g. 'user' if Posts has `@ManyToOne(() => User, 'post')`.
+         * e.g. 'user' if Posts has `@Property.manyToOne(() => User, 'post')`.
          */
         inverseSide: keyof T
     };

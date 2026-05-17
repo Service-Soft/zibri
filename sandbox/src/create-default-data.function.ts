@@ -1,4 +1,4 @@
-import { DataSourceInterface, HashServiceInterface, inject, JwtCredentials, JwtCredentialsCreateData, Newable, Repository, repositoryTokenFor, Transaction, ZIBRI_DI_TOKENS } from 'zibri';
+import { DataSourceInterface, inject, JwtCredentials, JwtCredentialsCreateData, Newable, Repository, repositoryTokenFor, Transaction } from 'zibri';
 
 import { logger } from '.';
 import { Roles, User } from './models';
@@ -15,7 +15,6 @@ export async function createDefaultData(dataSourceClass: Newable<DataSourceInter
 async function createDefaultAdmin(dataSource: DataSourceInterface): Promise<void> {
     const userRepository: UserRepository = inject(UserRepository);
     const credentialsRepository: Repository<JwtCredentials, JwtCredentialsCreateData> = inject(repositoryTokenFor(JwtCredentials));
-    const hashService: HashServiceInterface = inject(ZIBRI_DI_TOKENS.HASH_SERVICE);
 
     const defaultUser: User | undefined = await userRepository.findOne({ where: { email: 'admin@test.com' } }, false);
     if (defaultUser) {
@@ -27,7 +26,7 @@ async function createDefaultAdmin(dataSource: DataSourceInterface): Promise<void
     try {
         const user: User = await userRepository.create({ name: 'root', email: 'admin@test.com', roles: [Roles.ADMIN] }, { transaction });
         await credentialsRepository.create(
-            { email: user.email, password: await hashService.hash('password'), userId: user.id },
+            { email: user.email, password: 'password', userId: user.id },
             { transaction }
         );
         await transaction.commit();

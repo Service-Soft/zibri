@@ -240,7 +240,10 @@ export class ZibriApplication {
                 for (const [signal, handler] of this.signalHandlers) {
                     process.off(signal, handler);
                 }
-                process.exit(0);
+                if (signal != undefined) {
+                    process.exit(0);
+                }
+                return;
             }
             case AppState.INITIALIZED:
             case AppState.STARTED: {
@@ -256,7 +259,10 @@ export class ZibriApplication {
                 await this.onAppShutdown(injectables, signal);
                 await this.afterAppShutdown(injectables, signal);
 
-                process.exit(0);
+                if (signal != undefined) {
+                    process.exit(0);
+                }
+                return;
             }
         }
     }

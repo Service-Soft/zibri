@@ -1,21 +1,9 @@
-import { BaseWhereFilter } from './base-where-filter.model';
+import { BaseWhereFilter, BaseWhereFilterObject } from './base-where-filter.model';
 
 /**
- * A filter for a string where property.
+ * The string where filter object.
  */
-export type StringWhereFilter = BaseWhereFilter<string> | {
-    /**
-     * The property needs to be not this value.
-     */
-    not?: string,
-    /**
-     * The property needs to be one of the values in the array.
-     */
-    oneOf?: string[],
-    /**
-     * The property needs to be NOT one of the values in the array.
-     */
-    notOneOf?: string[],
+type StringWhereFilterObject = BaseWhereFilterObject<string> & {
     /**
      * The property needs to be like the provided string.
      * @example '%.com'
@@ -27,3 +15,8 @@ export type StringWhereFilter = BaseWhereFilter<string> | {
      */
     iLike?: string
 };
+
+/**
+ * A filter for a string where property.
+ */
+export type StringWhereFilter = BaseWhereFilter<string, StringWhereFilterObject>;

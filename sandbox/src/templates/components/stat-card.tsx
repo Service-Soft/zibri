@@ -1,4 +1,3 @@
-// stat-card.tsx
 import { ComponentChildren } from 'preact';
 import { PreactComponent } from 'zibri';
 

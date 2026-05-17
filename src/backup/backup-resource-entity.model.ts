@@ -32,11 +32,16 @@ export class BackupResourceEntity extends BaseEntity {
     /**
      * The backup that this resource belongs to.
      */
-    @Property.belongsToOne({ target: () => BackupEntity, inverseSide: 'resources' })
+    @Property.belongsToOne({ target: () => BackupEntity, joinColumn: 'backupId', inverseSide: 'resources' })
     backup!: BackupEntity;
+    /**
+     * The id of the backup that this resource belongs to.
+     */
+    @Property.string({ format: 'uuid' })
+    backupId!: string;
 }
 
 /**
  * The data required to create a new backup resource.
  */
-export type BackupResourceEntityCreateData = OmitStrict<BackupResourceEntity, 'id' | 'completed' | 'backup' | 'size'>;
+export type BackupResourceEntityCreateData = OmitStrict<BackupResourceEntity, 'id' | 'completed' | 'backup' | 'backupId' | 'size'>;

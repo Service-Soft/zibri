@@ -1,4 +1,5 @@
 import { ChangeSetEntity, isChangeSetEntityNewable } from './change-set-entity.model';
+import { Property } from '../../entity/decorators/property.decorator';
 import { Newable } from '../../types/newable.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 
@@ -6,12 +7,13 @@ import { MetadataUtilities } from '../../utilities/metadata.utilities';
  * An entity that can be handled by the SoftDeleteRepository.
  * Has an uuid id, a relation to all its changeSets and a flag that determines whether it is "soft deleted" or not.
  */
-export type SoftDeleteEntity = ChangeSetEntity & {
+export class SoftDeleteEntity extends ChangeSetEntity {
     /**
      * Whether or not the entity is soft deleted.
      */
-    deleted: boolean
-};
+    @Property.boolean({ default: false })
+    deleted!: boolean;
+}
 
 /**
  * Checks whether the given class is a SoftDeleteEntity class.

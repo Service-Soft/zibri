@@ -8,7 +8,7 @@ import { Property } from '../../entity/decorators/property.decorator';
 /**
  * Definition of a Email.
  */
-@Entity()
+@Entity({ defaultOrder: { createdAt: 'ASC' } })
 export class Email extends BaseEntity {
     /**
      * The createdAt date. Is set to now by default.

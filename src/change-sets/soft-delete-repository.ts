@@ -16,12 +16,14 @@ import { SoftDeleteFindOneOptions } from './models/soft-delete-find-one-options.
 import { SoftDeleteUpdateAllOptions } from './models/soft-delete-update-all-options.model';
 import { SoftDeleteUpdateByIdOptions } from './models/soft-delete-update-by-id-options.model';
 import { SoftDeleteWhere } from './models/soft-delete-where.model';
-import { DataSourceInterface } from '../data-source/data-sources/data-source.interface';
 import { BeforeReturnHook } from '../data-source/hooks/before-return';
 import { BeforeSaveHook } from '../data-source/hooks/before-save';
 import { Where } from '../data-source/models/where/where-filter.model';
 import { NotFoundError } from '../error-handling/errors/not-found.error';
 import { LoggerInterface } from '../logging/logger.interface';
+import { ChangeSet, CreateChangeSetData } from './models/change-set.model';
+import { AuthServiceInterface } from '../auth/auth-service.interface';
+import { DataSourceInterface } from '../data-source/data-sources/data-source.interface';
 
 /**
  * Options for deleting a soft delete entity by its id.
@@ -36,7 +38,7 @@ export type SoftDeleteByIdOptions = DeleteByIdOptions & {
 /**
  * Options for deleting multiple soft delete entities.
  */
-export type SoftDeleteAllOptions<T extends SoftDeleteEntity> = DeleteAllOptions<T> & {
+export type SoftDeleteAllOptions = DeleteAllOptions & {
     /**
      * Whether or not to "actual" delete entities, rather than marking them as deleted.
      */
@@ -54,17 +56,17 @@ export class SoftDeleteRepository<
 >
     extends ChangeSetRepository<T, CreateData, UpdateData> {
 
-    protected override readonly keysToExcludeFromChangeSets: Set<keyof T> = new Set();
-
     constructor(
         entityClass: Newable<T>,
         repo: TORepository<T> | Repository<T>,
         logger: LoggerInterface,
         dataSource: DataSourceInterface,
         beforeSave: BeforeSaveHook<T, CreateData, UpdateData>,
-        beforeReturn: BeforeReturnHook<T>
+        beforeReturn: BeforeReturnHook<T>,
+        authService: AuthServiceInterface,
+        changeSetRepository: Repository<ChangeSet, CreateChangeSetData>
     ) {
-        super(entityClass, repo, logger, dataSource, beforeSave, beforeReturn);
+        super(entityClass, repo, logger, dataSource, beforeSave, beforeReturn, authService, changeSetRepository);
         this.keysToExcludeFromChangeSets.add('deleted');
     }
 
@@ -130,7 +132,19 @@ export class SoftDeleteRepository<
     // eslint-disable-next-line jsdoc/require-jsdoc
     async updateById(id: T['id'], data: UpdateData, options?: SoftDeleteUpdateByIdOptions): Promise<T> {
         await this.findById(id, options);
-        return await super.updateById(id, data, options);
+        try {
+            // The base updateById saves and then calls this.findById again.
+            // If the update set deleted = true, that final findById will throw NotFoundError
+            // because the soft‑delete guard now sees the entity as deleted.
+            return await super.updateById(id, data, options);
+        }
+        catch (error) {
+            // Only catch the case where the update itself caused the soft‑delete
+            if (error instanceof NotFoundError && data.deleted === true) {
+                return this.findById(id, { ...options, withDeleted: true });
+            }
+            throw error;
+        }
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -154,9 +168,14 @@ export class SoftDeleteRepository<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async deleteAll(where: SoftDeleteWhere<T>, options?: SoftDeleteAllOptions<T> | undefined): Promise<T[]> {
+    async deleteAll(where: SoftDeleteWhere<T>, options?: SoftDeleteAllOptions | undefined): Promise<T[]> {
         if (options?.hardDelete === true) {
-            return await super.deleteAll(this.softDeleteWhereToWhere(true, where), options);
+            // eslint-disable-next-line jsdoc/require-jsdoc
+            const finalOptions: DeleteAllOptions & { withDeleted?: boolean } = {
+                ...options,
+                withDeleted: true
+            };
+            return await super.deleteAll(this.softDeleteWhereToWhere(true, where), finalOptions);
         }
         const res: T[] = await this.updateAllWithoutChangeSet(
             this.softDeleteWhereToWhere(false, where),
@@ -169,7 +188,7 @@ export class SoftDeleteRepository<
 
     private softDeleteWhereToWhere(withDeleted: boolean = false, where?: SoftDeleteWhere<T>): Where<T> {
         if (where == undefined) {
-            return { deleted: false } as Where<T>;
+            return { deleted: withDeleted ? undefined : false } as Where<T>;
         }
         if (Array.isArray(where)) {
             return where.map(f => ({ ...f, deleted: withDeleted ? undefined : false }));

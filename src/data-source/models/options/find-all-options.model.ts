@@ -1,4 +1,4 @@
-import { FindManyOptions } from 'typeorm';
+import { FindManyOptions, FindOptionsRelations } from 'typeorm';
 
 import { BaseRepositoryOptions } from './base-repository-options.model';
 import { BaseEntity } from '../../../entity/base-entity.model';
@@ -17,5 +17,5 @@ export type FindAllOptions<T extends BaseEntity> = BaseRepositoryOptions
         /**
          * The relations to include in the found entities.
          */
-        relations?: (keyof T)[]
+        relations?: FindOptionsRelations<T> | (keyof T)[]
     };

@@ -7,7 +7,7 @@ import { BackupResourceEntity, BackupResourceEntityCreateData } from './backup-r
 import { BackupResourceInterface } from './backup-resource.interface';
 import { BackupCreateData, BackupServiceInterface } from './backup-service.interface';
 import { ZibriApplication } from '../application';
-import { PostgresDataSource } from '../data-source/data-sources/postgres-data-source.model';
+import { PostgresDataSource } from '../data-source/data-sources/postgres-typeorm-data-source.model';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';

@@ -21,7 +21,7 @@ export enum WebsocketRecipientType {
 /**
  * Definition of a message sent via websocket connection.
  */
-@Entity()
+@Entity({ defaultOrder: { seq: 'ASC' } })
 export class WebsocketMessage extends BaseEntity {
     /**
      * The date at which the message was created.

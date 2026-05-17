@@ -135,7 +135,8 @@ function resolveMaxSize(bytes: BigNumber, properties: Record<string, PropertyMet
                 bytes = bytes.plus(resolveMaxSize(bytes, objectProperties));
                 break;
             }
-            case Relation.ONE_TO_ONE:
+            case Relation.HAS_ONE:
+            case Relation.BELONGS_TO_ONE:
             case Relation.ONE_TO_MANY:
             case Relation.MANY_TO_ONE:
             case Relation.MANY_TO_MANY:

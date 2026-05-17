@@ -9,6 +9,7 @@ import { CookieAuthSession, CookieAuthSessionCreateData } from './cookie-auth-se
 import { ZibriApplication } from '../../../application';
 import { HttpRequestContext } from '../../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../../context/request/websocket-request.context';
+import { RepositoryTypeForEntity } from '../../../data-source/data-sources/data-source.interface';
 import { Repository } from '../../../data-source/repository';
 import { Transaction } from '../../../data-source/transaction/transaction.model';
 import { InjectRepository, repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
@@ -326,12 +327,12 @@ export class CookieAuthStrategy<
         }
 
         try {
-            const repo: Repository<InstanceType<TargetEntity>> = inject(repositoryTokenFor(targetEntity));
+            const repo: RepositoryTypeForEntity<InstanceType<TargetEntity>> = inject(repositoryTokenFor(targetEntity));
             const targetId: string | undefined = context.request.params?.[targetIdParamKey];
             if (targetId == undefined) {
                 throw new Error(`Could not find the target id specified as path param "${targetId}"`);
             }
-            const foundTarget: InstanceType<TargetEntity> = await repo.findById(targetId);
+            const foundTarget: InstanceType<TargetEntity> = await repo.findById(targetId) as InstanceType<TargetEntity>;
             const userIdProperty: unknown = foundTarget[targetUserIdKey];
             if (Array.isArray(userIdProperty)) {
                 return userIdProperty.includes(session.userId);

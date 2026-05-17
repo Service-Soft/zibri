@@ -10,6 +10,9 @@ export class Child {
     @Property.string()
     name!: string;
 
-    @Property.manyToOne({ target: () => Parent, inverseSide: 'children' })
+    @Property.manyToOne({ target: () => Parent, joinColumn: 'parentId', inverseSide: 'children' })
     parent!: Parent;
+
+    @Property.string({ format: 'uuid' })
+    parentId!: string;
 }

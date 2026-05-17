@@ -3,7 +3,7 @@ import { CacheOperation } from './cache-operation.enum';
 import { CacheWrapOptions, CacheWrapWriteOptionsWithResult, CacheWrapWriteOptionsArgsOnly, CacheWrapDeleteOptions, CacheWrapInvalidateOptions, CacheKeyProvider, ResultCacheKeyProvider, OnInvalidationFailure, CacheTagsProvider, CacheSetDirectOptions } from './cache-options.model';
 import { CacheInterface } from './cache.interface';
 import { AlsUtilities } from '../../context/als.utilities';
-import { LogCacheContext } from '../../logging/log-context.model';
+import { CacheContext } from '../../context/cache/cache.context';
 import { LoggerInterface } from '../../logging/logger.interface';
 import { MetricsServiceInterface } from '../../metrics/metrics-service.interface';
 import { CacheMetrics } from '../cache-metrics.model';
@@ -243,7 +243,7 @@ export abstract class MultiTierCache<
         options?: CacheWrapDeleteOptions<TArgs, CacheTag>
     ): (...args: TArgs) => Promise<TReturn> {
         return async (...args) => {
-            const cacheCtx: LogCacheContext = { cache: this.name, operation: CacheOperation.DELETE };
+            const cacheCtx: CacheContext = { cache: this.name, operation: CacheOperation.DELETE };
             return AlsUtilities.runWithCacheContext(cacheCtx, async () => {
                 const res: TReturn = await fn(...args);
                 const key: K = await keyFn(...args);
@@ -267,7 +267,7 @@ export abstract class MultiTierCache<
         options: CacheWrapInvalidateOptions<TArgs, CacheTag>
     ): (...args: TArgs) => Promise<TReturn> {
         return async (...args) => {
-            const cacheCtx: LogCacheContext = { cache: this.name, operation: CacheOperation.INVALIDATE };
+            const cacheCtx: CacheContext = { cache: this.name, operation: CacheOperation.INVALIDATE };
             return AlsUtilities.runWithCacheContext(cacheCtx, async () => {
                 const result: TReturn = await fn(...args);
                 const tags: CacheTag[] = typeof options.invalidatesTags === 'function'

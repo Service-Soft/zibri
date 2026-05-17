@@ -26,8 +26,11 @@ class Order {
     @Property.string({ exclude: true })
     internalNote!: string;
 
-    @Property.manyToOne({ target: () => User, inverseSide: 'orders' })
+    @Property.manyToOne({ target: () => User, joinColumn: 'userId', inverseSide: 'orders' })
     user!: unknown;
+
+    @Property.string({ format: 'uuid' })
+    userId!: string;
 }
 
 class User extends BaseEntity {

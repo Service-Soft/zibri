@@ -1,8 +1,6 @@
-import { FindAllOptions } from './find-all-options.model';
-import { BaseEntity } from '../../../entity/base-entity.model';
-import { OmitStrict } from '../../../types/omit-strict.type';
+import { BaseRepositoryOptions } from './base-repository-options.model';
 
 /**
  * Options for deleting multiple entities.
  */
-export type DeleteAllOptions<T extends BaseEntity> = OmitStrict<FindAllOptions<T>, 'where'>;
+export type DeleteAllOptions = BaseRepositoryOptions;

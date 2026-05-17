@@ -43,4 +43,10 @@ export class JwtCredentialsDto extends OmitClass(JwtCredentials, ['id', 'userId'
 /**
  * The data for creating new jwt credentials.
  */
-export class JwtCredentialsCreateData extends OmitClass(JwtCredentials, ['id']) {}
+export class JwtCredentialsCreateData extends OmitClass(JwtCredentials, ['id', 'password']) {
+    /**
+     * The password.
+     */
+    @Property.string({ hash: true })
+    password!: string;
+}
