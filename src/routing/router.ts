@@ -228,11 +228,26 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
         QueryMetaObject extends Record<string, QueryParamMetadata>,
         HeaderMetaObject extends Record<string, HeaderParamMetadata>
     >(route: RouteConfiguration<BodyMetaObject, PathMetaObject, QueryMetaObject, HeaderMetaObject>): RequestHandler {
-        const handler: RequestHandler = (async (
-            request: HttpRequest,
-            res: HttpResponse,
-            next: NextFunction
-        ) => {
+        const handler: RequestHandler = (async (request: HttpRequest, res, next) => {
+            Object.defineProperty(request, 'params', {
+                value: { ...request.params },
+                writable: true,
+                configurable: true,
+                enumerable: true
+            });
+            Object.defineProperty(request, 'query', {
+                value: { ...request.query },
+                writable: true,
+                configurable: true,
+                enumerable: true
+            });
+            Object.defineProperty(request, 'headers', {
+                value: { ...request.headers },
+                writable: true,
+                configurable: true,
+                enumerable: true
+            });
+
             const context: HttpRequestContext = new HttpRequestContext(request, res, undefined, undefined);
             await AlsUtilities.runWithHttpRequestContext(context, async () => {
                 try {
@@ -289,9 +304,28 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
         if (!responses.length) {
             await this.logger.warn(`No responses defined on route ${controllerClass.name}.${route.controllerMethod}`);
         }
-        const handler: RequestHandler = (async (req: HttpRequest, res: HttpResponse, next: NextFunction) => {
+        const handler: RequestHandler = (async (request: HttpRequest, res, next) => {
+            Object.defineProperty(request, 'params', {
+                value: { ...request.params },
+                writable: true,
+                configurable: true,
+                enumerable: true
+            });
+            Object.defineProperty(request, 'query', {
+                value: { ...request.query },
+                writable: true,
+                configurable: true,
+                enumerable: true
+            });
+            Object.defineProperty(request, 'headers', {
+                value: { ...request.headers },
+                writable: true,
+                configurable: true,
+                enumerable: true
+            });
+
             const context: HttpRequestContext = new HttpRequestContext(
-                req,
+                request,
                 res,
                 controllerClass,
                 route.controllerMethod

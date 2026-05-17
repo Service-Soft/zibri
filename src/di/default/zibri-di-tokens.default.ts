@@ -11,6 +11,7 @@ import { PasswordResetEmailTemplate } from '../../auth/strategies/jwt/jwt-auth.c
 import { UserServiceInterface } from '../../auth/user/user-service.interface';
 import { BackupServiceInterface } from '../../backup/backup-service.interface';
 import { CacheServiceInterface } from '../../caching/cache-service.interface';
+import { CacheContext } from '../../context/cache/cache.context';
 import { HttpRequestContext } from '../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
 import { CronServiceInterface } from '../../cron/cron-service.interface';
@@ -24,7 +25,6 @@ import { FormatDateFn } from '../../localization/formatting/format-date-fn.model
 import { FormatPercentFn } from '../../localization/formatting/format-percent-fn.model';
 import { FormatPriceFn } from '../../localization/formatting/format-price-fn.model';
 import { LocalizeOptionsInput, LocalizeOptions } from '../../localization/models/localize-options.model';
-import { LogCacheContext } from '../../logging/log-context.model';
 import { LogLevel } from '../../logging/log-level.enum';
 import { LoggerInterface } from '../../logging/logger.interface';
 import { LoggerTransport, BaseLoggerTransportConfig } from '../../logging/transport/logger-transport.model';
@@ -118,5 +118,5 @@ export const ZIBRI_DI_TOKENS = {
     // dynamic/context based tokens
     CURRENT_REQUEST_CONTEXT: ziToken<HttpRequestContext | WebsocketRequestContext | undefined>('zi.current_request_context'),
     DEFAULT_CSP_OPTIONS: ziToken<CspOptions>('zi.default_csp_options'),
-    CURRENT_CACHE_CONTEXT: ziToken<LogCacheContext[] | undefined>('zi.current_cache_context')
+    CURRENT_CACHE_CONTEXT: ziToken<CacheContext[] | undefined>('zi.current_cache_context')
 } as const satisfies TokenRecord;

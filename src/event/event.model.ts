@@ -15,7 +15,7 @@ export enum EventStatus {
 /**
  * Definition for an event.
  */
-@Entity({ allowOrphan: true })
+@Entity({ allowOrphan: true, defaultOrder: { createdAt: 'ASC' } })
 export class Event<T> extends BaseEntity {
     /**
      * The timestamp at which the event has been created.

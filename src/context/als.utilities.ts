@@ -1,8 +1,8 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 
+import { CacheContext } from './cache/cache.context';
 import { HttpRequestContext } from './request/http-request.context';
 import { WebsocketRequestContext } from './request/websocket-request.context';
-import { LogCacheContext } from '../logging/log-context.model';
 
 /**
  * Encapsulates functionality around async local storage.
@@ -10,7 +10,7 @@ import { LogCacheContext } from '../logging/log-context.model';
 export abstract class AlsUtilities {
     private static readonly httpRequest: AsyncLocalStorage<HttpRequestContext> = new AsyncLocalStorage<HttpRequestContext>();
     private static readonly websocketRequest: AsyncLocalStorage<WebsocketRequestContext> = new AsyncLocalStorage<WebsocketRequestContext>();
-    private static readonly cacheContext: AsyncLocalStorage<LogCacheContext[]> = new AsyncLocalStorage<LogCacheContext[]>();
+    private static readonly cacheContext: AsyncLocalStorage<CacheContext[]> = new AsyncLocalStorage<CacheContext[]>();
 
     /**
      * Resolves the currently active request context from the async local storage.
@@ -67,8 +67,8 @@ export abstract class AlsUtilities {
      * @param fn - The function to run.
      * @returns The result of the function.
      */
-    static runWithCacheContext<T>(context: LogCacheContext, fn: () => T): T {
-        const existing: LogCacheContext[] = this.getCurrentCacheContext() ?? [];
+    static runWithCacheContext<T>(context: CacheContext, fn: () => T): T {
+        const existing: CacheContext[] = this.getCurrentCacheContext() ?? [];
         // New array — doesn't mutate the parent scope's array
         return this.cacheContext.run([...existing, context], fn);
     }
@@ -78,7 +78,7 @@ export abstract class AlsUtilities {
      * @returns The currently active cache context.
      * @throws When the async local storage store has not been initialized yet.
      */
-    static getCurrentCacheContext(): LogCacheContext[] | undefined {
+    static getCurrentCacheContext(): CacheContext[] | undefined {
         return this.cacheContext.getStore();
     }
 }

@@ -11,7 +11,6 @@ import { InjectRepository } from '../di/decorators/inject-repository.decorator';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { RateLimiter } from '../rate-limiting/rate-limiter';
 import { FsUtilities } from '../utilities/fs.utilities';
@@ -44,9 +43,10 @@ export class EmailService implements EmailServiceInterface, OnAppInit, OnAppShut
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
         private readonly logger: LoggerInterface,
         @InjectRepository(Email)
-        private readonly emailRepository: Repository<Email, CreateEmailData>
+        private readonly emailRepository: Repository<Email, CreateEmailData>,
+        @Inject(ZIBRI_DI_TOKENS.EMAIL_CONFIG)
+        config: EmailConfigInput | undefined
     ) {
-        const config: EmailConfigInput | undefined = inject(ZIBRI_DI_TOKENS.EMAIL_CONFIG);
         if (!config) {
             throw new Error('no email config was provided for the token "ZIBRI_DI_TOKENS.MAIL_CONFIG"');
         }
@@ -158,8 +158,7 @@ export class EmailService implements EmailServiceInterface, OnAppInit, OnAppShut
                 status: EmailStatus.QUEUED,
                 priority
             },
-            take: amount,
-            order: { createdAt: 'ASC' }
+            take: amount
         });
     }
 }

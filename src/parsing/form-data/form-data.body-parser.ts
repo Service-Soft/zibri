@@ -172,7 +172,8 @@ export class FormDataBodyParser implements BodyParserInterface, OnAppInit {
                     res[key] = parseDate(value);
                     break;
                 }
-                case Relation.ONE_TO_ONE:
+                case Relation.HAS_ONE:
+                case Relation.BELONGS_TO_ONE:
                 case Relation.ONE_TO_MANY:
                 case Relation.MANY_TO_ONE:
                 case Relation.MANY_TO_MANY:

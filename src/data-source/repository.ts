@@ -1,4 +1,4 @@
-import { Repository as TORepository, FindOptionsWhere, EntityManager, QueryFailedError as TOQueryFailedError, DeepPartial as ToDeepPartial } from 'typeorm';
+import { Repository as TORepository, FindOptionsWhere, EntityManager, QueryFailedError as TOQueryFailedError, DeepPartial as ToDeepPartial, FindOptionsOrder, FindOptionsRelations } from 'typeorm';
 
 import { BaseEntity } from '../entity/base-entity.model';
 import { LoggerInterface } from '../logging/logger.interface';
@@ -18,12 +18,16 @@ import { FindByIdOptions } from './models/options/find-by-id-options.model';
 import { FindOneOptions } from './models/options/find-one-options.model';
 import { UpdateAllOptions } from './models/options/update-all-options.model';
 import { UpdateByIdOptions } from './models/options/update-by-id-options.model';
-import { whereFilterToFindOptionsWhere } from './models/where/where-filter-to-find-options-where.function';
 import { Where } from './models/where/where-filter.model';
 import { QueryFailedError } from './query-failed.error';
 import { Transaction } from './transaction/transaction.model';
+import { EntityMetadata } from '../entity/decorators/entity.decorator';
 import { NotFoundError } from '../error-handling/errors/not-found.error';
 import { ModelRegistry } from '../global/model-registry/model.registry';
+import { MetadataUtilities } from '../utilities/metadata.utilities';
+import { type TypeOrmBaseDataSource } from './data-sources/typeorm-base-data-source.model';
+import { DataSourceOptions } from './models/data-source-options.model';
+import { EntityMetadataMissingError } from '../entity/entity-metadata-missing.error';
 
 /**
  * A repository that handles data source related things for its entity.
@@ -34,6 +38,13 @@ export class Repository<
     UpdateData extends DeepPartial<T> = DeepPartial<T>
 > {
     private readonly typeOrmRepository: TORepository<T>;
+
+    private readonly _dataSource: TypeOrmBaseDataSource<DataSourceOptions>;
+
+    /**
+     * The metadata of entity that this repository manages.
+     */
+    protected readonly entityMetadata: EntityMetadata;
 
     // eslint-disable-next-line jsdoc/require-returns
     /**
@@ -47,12 +58,21 @@ export class Repository<
         protected readonly entityClass: Newable<T>,
         repo: TORepository<T> | Repository<T>,
         protected readonly logger: LoggerInterface,
-        private readonly _dataSource: DataSourceInterface,
+        dataSource: DataSourceInterface,
         private readonly beforeSave: BeforeSaveHook<T, CreateData, UpdateData>,
         private readonly beforeReturn: BeforeReturnHook<T>
     ) {
         this.typeOrmRepository = repo instanceof Repository ? repo.typeOrmRepository : repo;
         ModelRegistry.get(this.entityClass);
+        const metadata: EntityMetadata | undefined = MetadataUtilities.getEntityMetadata(this.entityClass);
+        if (!metadata) {
+            throw new EntityMetadataMissingError(this.entityClass);
+        }
+        if (!('whereFilterToFindOptionsWhere' in dataSource)) {
+            throw new Error('Zibri\'s default repositories only work with TypeOrmBaseDataSource');
+        }
+        this._dataSource = dataSource as TypeOrmBaseDataSource<DataSourceOptions>;
+        this.entityMetadata = metadata;
     }
 
     private getManager(transaction: Transaction | undefined): EntityManager {
@@ -63,7 +83,7 @@ export class Repository<
         if (!where) {
             return undefined;
         }
-        return whereFilterToFindOptionsWhere(where, this.entityClass);
+        return this._dataSource.whereFilterToFindOptionsWhere(where, this.entityClass);
     }
 
     /**
@@ -156,13 +176,21 @@ export class Repository<
         required: B = true as B
     ): Promise<B extends false ? T | undefined : T> {
         const where: FindOptionsWhere<T> | FindOptionsWhere<T>[] | undefined = this.resolveFindOptionsWhere(options.where);
+        // eslint-disable-next-line typescript/no-explicit-any
+        const relations: (keyof T)[] | FindOptionsRelations<any> | undefined = options.relations ?? this.entityMetadata.defaultRelations;
 
         const manager: EntityManager = this.getManager(options?.transaction);
         let res: T | null;
         try {
             res = await manager.findOne(
                 this.entityClass,
-                { ...options, relations: options.relations as string[], where, transaction: undefined }
+                {
+                    order: this.entityMetadata.defaultOrder as FindOptionsOrder<T> | undefined,
+                    ...options,
+                    relations: relations as FindOptionsRelations<T> | string[] | undefined,
+                    where,
+                    transaction: undefined
+                }
             );
         }
         catch (error) {
@@ -189,10 +217,19 @@ export class Repository<
     async findAll(options?: FindAllOptions<T>): Promise<T[]> {
         const manager: EntityManager = this.getManager(options?.transaction);
         const where: FindOptionsWhere<T> | FindOptionsWhere<T>[] | undefined = this.resolveFindOptionsWhere(options?.where);
+        // eslint-disable-next-line typescript/no-explicit-any
+        const relations: (keyof T)[] | FindOptionsRelations<any> | undefined = options?.relations ?? this.entityMetadata.defaultRelations;
+
         try {
             const res: T[] = await manager.find(
                 this.entityClass,
-                { ...options, where, relations: options?.relations as string[], transaction: undefined }
+                {
+                    order: this.entityMetadata.defaultOrder as FindOptionsOrder<T> | undefined,
+                    ...options,
+                    where,
+                    relations: relations as FindOptionsRelations<T> | string[] | undefined,
+                    transaction: undefined
+                }
             );
             await Promise.all(res.map(r => this.beforeReturn(r, this.entityClass)));
             return res;
@@ -244,18 +281,16 @@ export class Repository<
      * @returns The updated entity.
      */
     async updateById(id: T['id'], data: UpdateData, options?: UpdateByIdOptions): Promise<T> {
-        if (data.id != undefined && options?.allowId != true) {
+        if (data.id != undefined) {
             await this.logger.warn('Found an id on the update data, it will be ignored.');
-            delete data.id;
         }
         const manager: EntityManager = this.getManager(options?.transaction);
         data.id = id;
         await this.beforeSave(data, false, this.entityClass);
 
         try {
-            const res: T = await manager.save(this.entityClass, data as ToDeepPartial<T>);
-            await this.beforeReturn(res, this.entityClass);
-            return res;
+            await manager.save(this.entityClass, data as ToDeepPartial<T>, { reload: false });
+            return await this.findById(id, options);
         }
         catch (error) {
             if (error instanceof TOQueryFailedError) {
@@ -277,7 +312,7 @@ export class Repository<
         data: UpdateData,
         options?: UpdateAllOptions
     ): Promise<T[]> {
-        if (data.id != undefined && options?.allowId != true) {
+        if (data.id != undefined) {
             await this.logger.warn('Found an id on the update data, it will be ignored.');
             delete data.id;
         }
@@ -287,9 +322,8 @@ export class Repository<
         const manager: EntityManager = this.getManager(options?.transaction);
 
         try {
-            const res: T[] = await manager.save(this.entityClass, toUpdate as ToDeepPartial<T>[]);
-            await Promise.all(res.map(r => this.beforeReturn(r, this.entityClass)));
-            return res;
+            await manager.save(this.entityClass, toUpdate as ToDeepPartial<T>[]);
+            return await this.findAll({ where, ...options });
         }
         catch (error) {
             if (error instanceof TOQueryFailedError) {
@@ -330,7 +364,7 @@ export class Repository<
      */
     async deleteAll(
         where: Where<T>,
-        options?: DeleteAllOptions<T>
+        options?: DeleteAllOptions
     ): Promise<T[]> {
         const toDelete: T[] = await this.findAll({ where, ...options });
         await Promise.all(toDelete.map(r => this.beforeSave(r, false, this.entityClass)));

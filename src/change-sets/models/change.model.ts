@@ -27,8 +27,13 @@ export class Change<T = unknown> extends BaseEntity {
     /**
      * The change set that this change belongs to.
      */
-    @Property.manyToOne({ target: () => ChangeSet, inverseSide: 'changes' })
+    @Property.manyToOne({ target: () => ChangeSet, inverseSide: 'changes', joinColumn: 'changeSetId' })
     changeSet!: ChangeSet;
+    /**
+     * The id of the change set that this change belongs to.
+     */
+    @Property.string({ format: 'uuid' })
+    changeSetId!: string;
 }
 
 /**
@@ -39,4 +44,4 @@ export type CreateChangeData = OmitStrict<Change, 'id'>;
 /**
  * A new change.
  */
-export type NewChange = OmitStrict<Change, 'id' | 'changeSet'>;
+export type NewChange = OmitStrict<Change, 'id' | 'changeSetId' | 'changeSet'>;

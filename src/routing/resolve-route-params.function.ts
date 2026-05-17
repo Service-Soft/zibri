@@ -88,7 +88,7 @@ async function parseRouteParams(
     for (const [indexStr, metadata] of ObjectUtilities.entries(headerParams)) {
         const idx: number = Number(indexStr);
         context.request.headers[metadata.name as KnownHeader] = parser.parseHeaderParam(context.request, metadata) as string | undefined;
-        params[idx] = parser.parseHeaderParam(context.request, metadata);
+        params[idx] = context.request.headers[metadata.name as KnownHeader];
     }
     resolvedParamCount += ObjectUtilities.keys(headerParams).length;
 

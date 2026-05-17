@@ -1,4 +1,4 @@
-import { ArrayWhereFilter } from './array-where-filter.model';
+import { ArrayWhereFilter, ObjectArrayWhereFilter } from './array-where-filter.model';
 import { BooleanWhereFilter } from './boolean-where-filter.model';
 import { DateWhereFilter } from './date-where-filter.model';
 import { NumberWhereFilter } from './number-where-filter.model';
@@ -28,9 +28,12 @@ export type WhereFilterProperty<T> = T extends bigint
             ? NumberWhereFilter<number>
             : T extends boolean
                 ? BooleanWhereFilter
-            // eslint-disable-next-line typescript/no-explicit-any
-                : T extends any[]
-                    ? ArrayWhereFilter<T[number]>
+                : T extends (infer ItemType)[]
+                    ? ItemType extends Date
+                        ? ArrayWhereFilter<ItemType>
+                        : ItemType extends object
+                            ? ObjectArrayWhereFilter<ItemType>
+                            : ArrayWhereFilter<ItemType>
                     : T extends Date
                         ? DateWhereFilter
                         : T extends object

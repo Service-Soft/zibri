@@ -2,7 +2,7 @@ import { Event } from './event.model';
 import { BaseEntity } from '../entity/base-entity.model';
 import { Entity } from '../entity/decorators/entity.decorator';
 import { Property } from '../entity/decorators/property.decorator';
-import { OmitClass } from '../entity/omit-class.model';
+import { OmitStrict } from '../types/omit-strict.type';
 
 /**
  * Data of a event subscriber run.
@@ -17,8 +17,13 @@ export class EventSubscriberRun<T> extends BaseEntity {
     /**
      * The event that triggered this run.
      */
-    @Property.manyToOne({ target: () => Event, inverseSide: 'eventSubscriberRuns' })
+    @Property.manyToOne({ target: () => Event, joinColumn: 'eventId', inverseSide: 'eventSubscriberRuns' })
     event!: Event<T>;
+    /**
+     * The id of the event that this run belongs to.
+     */
+    @Property.string({ format: 'uuid' })
+    eventId!: string;
     /**
      * The id of the subscriber.
      */
@@ -34,10 +39,4 @@ export class EventSubscriberRun<T> extends BaseEntity {
 /**
  * The data needed to create a new event subscriber run.
  */
-export class EventSubscriberRunCreateData<T> extends OmitClass(EventSubscriberRun<unknown>, ['id', 'event', 'createdAt']) {
-    /**
-     * The event that triggered this run.
-     */
-    @Property.manyToOne({ target: () => Event, inverseSide: 'eventSubscriberRuns' })
-    event!: Event<T>;
-}
+export type EventSubscriberRunCreateData<T> = OmitStrict<EventSubscriberRun<T>, 'id' | 'eventId' | 'createdAt'>;

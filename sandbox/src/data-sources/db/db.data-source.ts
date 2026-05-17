@@ -1,4 +1,4 @@
-import { PostgresDataSource, PostgresOptions, BaseEntity, DataSource, Newable, MigrationEntity, JwtRefreshToken, JwtCredentials, PasswordResetToken, MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken, Log, Change, ChangeSet, Entity, OmitClass, OtpCredentials, BackupResourceEntity, BackupEntity, Invoice, NumberInvoices, Email, CronJobEntity, ThreadJobEntity, WebsocketChannel, WebsocketMessage, Event, EventSubscriberRun, HashStrategyEntity, EncryptionStrategyEntity, EncryptionKey } from 'zibri';
+import { PostgresDataSource, PostgresOptions, BaseEntity, DataSource, Newable, MigrationEntity, JwtRefreshToken, JwtCredentials, PasswordResetToken, MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken, Log, Change, ChangeSet, Entity, OmitClass, OtpCredentials, BackupResourceEntity, BackupEntity, Invoice, NumberInvoices, Email, CronJobEntity, ThreadJobEntity, WebsocketChannel, WebsocketMessage, Event, EventSubscriberRun, HashStrategyEntity, EncryptionStrategyEntity, EncryptionKey, OmitStrict } from 'zibri';
 
 import { Company, Test, User } from '../../models';
 
@@ -10,7 +10,7 @@ export class DbDataSource extends PostgresDataSource {
     rootPw: string = 'password';
     rootUsername: string = 'postgres';
 
-    options: PostgresOptions = {
+    options: OmitStrict<PostgresOptions, 'type' | 'entities'> = {
         host: 'localhost',
         port: 5432,
         username: 'postgres',

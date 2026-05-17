@@ -134,9 +134,12 @@ export * from './routing/models/crud-controller.model';
 // context
 export * from './context/als.utilities';
 export * from './context/base-context';
+
 export * from './context/request/http-request.context';
 export * from './context/request/websocket-request.context';
 export * from './context/request/request-context-token.model';
+
+export * from './context/cache/cache.context';
 
 // error handling
 export * from './error-handling/error-handler';
@@ -201,6 +204,7 @@ export * from './entity/partial-class.model';
 export * from './entity/pick-class.model';
 export * from './entity/any-object.model';
 export * from './entity/base-entity.model';
+export * from './entity/entity-metadata-missing.error';
 
 export * from './entity/decorators/entity.decorator';
 export * from './entity/decorators/property.decorator';
@@ -213,7 +217,8 @@ export * from './entity/models/date-property-metadata.model';
 export * from './entity/models/boolean-property-metadata.model';
 export * from './entity/models/many-to-one-property-metadata.model';
 export * from './entity/models/one-to-many-property-metadata.model';
-export * from './entity/models/one-to-one-property-metadata.model';
+export * from './entity/models/belongs-to-one-property-metadata.model';
+export * from './entity/models/has-one-property-metadata.model';
 export * from './entity/models/many-to-many-property-metadata.model';
 export * from './entity/models/relation.enum';
 export * from './entity/models/unknown-property-metadata.model';
@@ -264,7 +269,13 @@ export * from './data-source/query-failed.error';
 export * from './data-source/decorators/data-source.decorator';
 
 export * from './data-source/data-sources/data-source.interface';
-export * from './data-source/data-sources/postgres-data-source.model';
+export * from './data-source/data-sources/postgres-typeorm-data-source.model';
+export * from './data-source/data-sources/typeorm-base-data-source.model';
+export * from './data-source/data-sources/data-source-initialization.error';
+export * from './data-source/data-sources/sql-data-source.interface';
+
+export * from './data-source/data-sources/where-converter/typeorm-where-filter.converter';
+export * from './data-source/data-sources/where-converter/postgres-typeorm-where-filter.converter';
 
 export * from './data-source/transaction/transaction.model';
 
@@ -284,13 +295,14 @@ export * from './data-source/models/options/update-all-options.model';
 export * from './data-source/models/options/update-by-id-options.model';
 export * from './data-source/models/options/count-options.model';
 
-export * from './data-source/models/where/where-filter.model';
 export * from './data-source/models/where/array-where-filter.model';
 export * from './data-source/models/where/boolean-where-filter.model';
 export * from './data-source/models/where/date-where-filter.model';
 export * from './data-source/models/where/number-where-filter.model';
 export * from './data-source/models/where/object-where-filter.model';
 export * from './data-source/models/where/string-where-filter.model';
+export * from './data-source/models/where/where-filter-keys.model';
+export * from './data-source/models/where/where-filter.model';
 
 export * from './data-source/migration/migration.model';
 export * from './data-source/migration/migration-entity.model';

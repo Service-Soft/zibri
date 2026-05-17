@@ -1,4 +1,8 @@
 import { BackupResourceInterface } from '../../backup/backup-resource.interface';
+import { ChangeSetRepository } from '../../change-sets/change-set-repository';
+import { ChangeSetEntity } from '../../change-sets/models/change-set-entity.model';
+import { SoftDeleteEntity } from '../../change-sets/models/soft-delete-entity.model';
+import { SoftDeleteRepository } from '../../change-sets/soft-delete-repository';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { PropertyMetadataInput, PropertyMetadata, RelationMetadata } from '../../entity/decorators/property.decorator';
 import { FilePropertyMetadata } from '../../entity/models/file-property-metadata.model';
@@ -17,6 +21,15 @@ export enum IsolationLevel {
     REPEATABLE_READ = 'REPEATABLE READ',
     SERIALIZABLE = 'SERIALIZABLE'
 }
+
+/**
+ * The inferred repository type for the given entity.
+ */
+export type RepositoryTypeForEntity<T extends BaseEntity> = T extends SoftDeleteEntity
+    ? SoftDeleteRepository<T>
+    : T extends ChangeSetEntity
+        ? ChangeSetRepository<T>
+        : Repository<T>;
 
 /**
  * Definition for a data source.
@@ -49,7 +62,7 @@ export interface DataSourceInterface extends BackupResourceInterface {
      * @returns A repository for the provided entity class.
      * @throws When the data source has not been initialized yet or the provided entity does not belong to this data source.
      */
-    getRepository: <T extends BaseEntity>(cls: Newable<T>) => Repository<T>,
+    getRepository: <T extends BaseEntity>(cls: Newable<T>) => RepositoryTypeForEntity<T>,
 
     /**
      * Starts a new transaction.

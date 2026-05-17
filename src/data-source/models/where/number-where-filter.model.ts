@@ -1,21 +1,9 @@
-import { BaseWhereFilter } from './base-where-filter.model';
+import { BaseWhereFilter, BaseWhereFilterObject } from './base-where-filter.model';
 
 /**
- * A filter for a number where property.
+ * The number where filter object.
  */
-export type NumberWhereFilter<T extends number | bigint> = BaseWhereFilter<T> | {
-    /**
-     * The property needs to be not this value.
-     */
-    not?: T,
-    /**
-     * The property needs to be one of the values in the array.
-     */
-    oneOf?: T[],
-    /**
-     * The property needs to be NOT one of the values in the array.
-     */
-    notOneOf?: T[],
+type NumberWhereFilterObject<T extends number | bigint> = BaseWhereFilterObject<T> & {
     /**
      * The property needs to be greater than the provided value.
      */
@@ -33,3 +21,8 @@ export type NumberWhereFilter<T extends number | bigint> = BaseWhereFilter<T> | 
      */
     lesserThanEquals?: T
 };
+
+/**
+ * A filter for a number where property.
+ */
+export type NumberWhereFilter<T extends number | bigint> = BaseWhereFilter<T, NumberWhereFilterObject<T>>;

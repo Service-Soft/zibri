@@ -16,3 +16,6 @@ SEPA
 hsts
 nosniff
 csrf
+jwtid
+ILIKE
+alice

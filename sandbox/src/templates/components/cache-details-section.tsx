@@ -1,4 +1,3 @@
-// cache-detail-section.tsx
 import type { Chart as ChartJsChart } from 'chart.js';
 import { MetricsSnapshot, PreactComponent } from 'zibri';
 

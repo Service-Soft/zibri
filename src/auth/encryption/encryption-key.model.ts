@@ -29,8 +29,13 @@ export class EncryptionKey extends BaseEntity {
     /**
      * The encryption strategy that this key belongs to.
      */
-    @Property.manyToOne({ target: () => EncryptionStrategyEntity, inverseSide: 'keys' })
+    @Property.manyToOne({ target: () => EncryptionStrategyEntity, joinColumn: 'strategyId', inverseSide: 'keys' })
     strategy!: EncryptionStrategyEntity;
+    /**
+     * The id of the strategy that this key belongs to.
+     */
+    @Property.string({ format: 'uuid' })
+    strategyId!: string;
     /**
      * The status of the key.
      */
@@ -41,7 +46,7 @@ export class EncryptionKey extends BaseEntity {
 /**
  * The data for creating a new key.
  */
-export type EncryptionKeyCreateData = OmitStrict<EncryptionKey, 'id' | 'strategy' | 'status'>
+export type EncryptionKeyCreateData = OmitStrict<EncryptionKey, 'id' | 'strategy' | 'strategyId' | 'status'>
     & DeepPartial<Pick<EncryptionKey, 'strategy'>>
     & {
         /**

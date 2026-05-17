@@ -1,12 +1,35 @@
 /* eslint-disable unicorn/no-null */
-import { describe, expect, it } from '@jest/globals';
-import { EqualOperator, FindOptionsWhere, FindOperator, Equal, Raw } from 'typeorm';
+import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { EqualOperator, FindOptionsWhere, FindOperator, Equal, FindOptionsWhere as ToFindOptionsWhere } from 'typeorm';
 
-import { whereFilterToFindOptionsWhere } from './where-filter-to-find-options-where.function';
-import { Where } from './where-filter.model';
+import { Where, WhereFilter } from './where-filter.model';
 import { Address } from '../../../__testing__/mocks/entities/address.model';
 import { User } from '../../../__testing__/mocks/entities/user.entity';
-import { JsonUtilities } from '../../../utilities/json.utilities';
+import { createTestDataSource } from '../../../__testing__/test-server/create-test-data-source.function';
+import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
+import { inject } from '../../../di/inject.function';
+import { Newable } from '../../../types/newable.type';
+import { DataSource } from '../../decorators/data-source.decorator';
+
+@DataSource()
+class DbDataSource extends createTestDataSource() {}
+
+function whereFilterToFindOptionsWhere<T extends object>(
+    filter: Where<T>,
+    entityClass: Newable<T>
+): Where<T> extends WhereFilter<T>[] ? ToFindOptionsWhere<T>[] : ToFindOptionsWhere<T> {
+    return inject(DbDataSource).whereFilterToFindOptionsWhere(filter, entityClass);
+}
+
+let server: StartedTestServer;
+
+beforeAll(async () => {
+    server = await startTestServer({ dataSources: [DbDataSource] });
+}, 15000);
+
+afterAll(async () => {
+    await server.shutdown();
+});
 
 describe('whereFilterToFindOptionsWhere - primitive filters', () => {
     it('string equality', () => {
@@ -80,16 +103,15 @@ describe('whereFilterToFindOptionsWhere - date filters', () => {
 });
 
 describe('whereFilterToFindOptionsWhere - object filters', () => {
-    it('nested where on json fields yields Raw operator', () => {
+    it('nested where on json fields yields Raw operator with inline SQL', () => {
         const filter: Where<User> = { address: { where: { street: 'Main St' } } };
         const result: FindOptionsWhere<User> = whereFilterToFindOptionsWhere(filter, User);
-        const expectedResult: FindOptionsWhere<User> = {
-            address: Raw<Address>(
-                alias => `${alias} @> :json`,
-                { json: { street: Equal('Main St') } }
-            )
-        };
-        expect(JsonUtilities.stringify(result)).toEqual(JsonUtilities.stringify(expectedResult));
+
+        expect(result.address).toBeInstanceOf(FindOperator);
+        const raw: FindOperator<Address> = result.address as FindOperator<Address>;
+
+        const sql: string | undefined = raw.getSql?.('"TestAlias"."address"');
+        expect(sql).toEqual('("TestAlias"."address"->>\'street\') = \'Main St\'');
     });
     it('nested where on relation fields yields nested filter', () => {
         const filter: Where<User> = { company: { where: { id: '42' } } };

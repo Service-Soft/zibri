@@ -8,6 +8,7 @@ import { ChangeSetType } from './models/change-set-type.enum';
 import { ChangeSet, CreateChangeSetData } from './models/change-set.model';
 import { NewChange } from './models/change.model';
 import { BaseUser } from '../auth/models/base-user.model';
+import { AlsUtilities } from '../context/als.utilities';
 import { HttpRequestContext } from '../context/request/http-request.context';
 import { WebsocketRequestContext } from '../context/request/websocket-request.context';
 import { DataSourceInterface } from '../data-source/data-sources/data-source.interface';
@@ -20,9 +21,6 @@ import { UpdateAllOptions } from '../data-source/models/options/update-all-optio
 import { UpdateByIdOptions } from '../data-source/models/options/update-by-id-options.model';
 import { Where } from '../data-source/models/where/where-filter.model';
 import { Repository } from '../data-source/repository';
-import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
 import { PropertyMetadata } from '../entity/decorators/property.decorator';
 import { BadRequestError } from '../error-handling/errors/bad-request.error';
 import { removeExcludeProperties } from '../global/model-registry/remove-exclude-properties.function';
@@ -64,21 +62,18 @@ export class ChangeSetRepository<
      */
     protected readonly keysToExcludeFromChangeSets: Set<keyof T> = new Set();
 
-    private readonly changeSetRepository: Repository<ChangeSet, CreateChangeSetData>;
-    private readonly authService: AuthServiceInterface;
-
     constructor(
         entityClass: Newable<T>,
         repo: TORepository<T> | Repository<T>,
         logger: LoggerInterface,
         dataSource: DataSourceInterface,
         beforeSave: BeforeSaveHook<T, CreateData, UpdateData>,
-        beforeReturn: BeforeReturnHook<T>
+        beforeReturn: BeforeReturnHook<T>,
+        private readonly authService: AuthServiceInterface,
+        private readonly changeSetRepository: Repository<ChangeSet, CreateChangeSetData>
+
     ) {
         super(entityClass, repo, logger, dataSource, beforeSave, beforeReturn);
-
-        this.authService = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
-        this.changeSetRepository = inject(repositoryTokenFor(ChangeSet));
 
         this.keysToExcludeFromChangeSets.add('changeSets');
         const props: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(entityClass);
@@ -102,14 +97,16 @@ export class ChangeSetRepository<
     }
 
     override async updateById(id: T['id'], data: UpdateData, options?: UpdateByIdOptions): Promise<T> {
+        const original: T = await this.findById(id, options);
         const res: T = await super.updateById(id, data, options);
-        await this.createChangeSet(res, data, ChangeSetType.UPDATE, options);
+        await this.createChangeSet(original, data, ChangeSetType.UPDATE, options);
         return res;
     }
 
     override async updateAll(where: Where<T>, data: UpdateData, options?: UpdateAllOptions): Promise<T[]> {
+        const original: T[] = await this.findAll({ where, ...options });
         const res: T[] = await super.updateAll(where, data, options);
-        await this.createAllChangeSets(res, res.map(() => data), ChangeSetType.UPDATE, options);
+        await this.createAllChangeSets(original, original.map(() => data), ChangeSetType.UPDATE, options);
         return res;
     }
 
@@ -275,8 +272,7 @@ export class ChangeSetRepository<
     ): Promise<T> {
         const changeSets: ChangeSet[] = await this.changeSetRepository.findAll({
             where: { changeSetEntityId: entity.id, createdAt: { greaterThan: timestampInNs } },
-            relations: ['changes'],
-            order: { createdAt: 'ASC' }
+            relations: ['changes']
         });
         let data: DeepPartial<T> = {} as DeepPartial<T>;
         for (const changeSet of changeSets) {
@@ -455,9 +451,9 @@ export class ChangeSetRepository<
      * @returns The id of the currently logged in user or undefined if that didn't work.
      */
     protected async getCreatedBy(): Promise<string | undefined> {
-        const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
+        const context: HttpRequestContext | WebsocketRequestContext | undefined = AlsUtilities.getCurrentRequestContext();
         if (!context) {
-            throw new Error('No request in context');
+            return undefined;
         }
         const user: BaseUser<string> | undefined = await this.authService.getCurrentUser(
             context,
@@ -477,7 +473,11 @@ export class ChangeSetRepository<
     ): (keyof (CreateData | UpdateData | DeepPartial<T>))[] {
         const keys: (keyof (CreateData | UpdateData | DeepPartial<T>))[] = [];
         for (const key in data) {
-            if (!this.keysToExcludeFromChangeSets.has(key as keyof T)) {
+            if (
+                !this.keysToExcludeFromChangeSets.has(key as keyof T)
+                // we need to use triple equals here, setting a value to null is valid and should be tracked
+                && data[key as keyof (CreateData | UpdateData | DeepPartial<T>)] !== undefined
+            ) {
                 keys.push(key as keyof (CreateData | UpdateData | DeepPartial<T>));
             }
         }
