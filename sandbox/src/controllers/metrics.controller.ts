@@ -3,7 +3,7 @@ import { Controller, Inject, ZIBRI_DI_TOKENS, Metric, Get, Response, MetricsSnap
 import { StaticPagesCache } from './page.controller';
 import { MetricsPage } from '../templates/pages/metrics';
 
-@Controller('/metrics')
+@Controller('/metrics', { versions: 'all' })
 export class MetricsController {
     constructor(
         @Inject(ZIBRI_DI_TOKENS.METRICS_SERVICE)

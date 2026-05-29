@@ -1,4 +1,5 @@
 import { HttpMethod } from '../http/http-method.enum';
+import { SupportedVersionsOptions } from '../versioning/supported-versions-options.model';
 
 /**
  * Definition for a route used eg. By controllers.
@@ -21,5 +22,9 @@ export type ControllerRouteConfiguration = {
     /**
      * The name of the method on the controller that is responsible for handling requests to the endpoint.
      */
-    controllerMethod: string
+    controllerMethod: string,
+    /**
+     * Configuration on what versions are supported. Defaults to '^latest'.
+     */
+    versions: SupportedVersionsOptions | undefined
 };

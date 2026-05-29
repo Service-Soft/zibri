@@ -176,7 +176,7 @@ function mapSchemaToDecoratorLines(
                 }
                 return ['    @Property.date({ required: false })'];
             }
-            // TODO
+            // TODO handle enums in entity generation
             // if (schema.enum) {
             //     return { type: schema.enum.map(v => JsonUtilities.stringify(v)).join(' | '), isRef: false };
             // }

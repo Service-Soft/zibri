@@ -15,6 +15,8 @@ import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sour
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { DiContainer } from '../../di/di-container';
 import { inject } from '../../di/inject.function';
+import { AppState } from '../../global/app-state.enum';
+import { GlobalRegistry } from '../../global/global-registry';
 import { LoggerInterface } from '../../logging/logger.interface';
 import { Newable } from '../../types/newable.type';
 import { noOp, POSTGRES_TEST_IMAGE, testAssetsFolder } from '../constants';
@@ -22,13 +24,23 @@ import { createTestDataSource } from './create-test-data-source.function';
 import { AssetServiceInterface } from '../../assets/asset-service.interface';
 import { OmitStrict } from '../../types/omit-strict.type';
 
-type StartTestServerOptions = Partial<Pick<ZibriApplicationOptions, 'providers' | 'plugins' | 'controllers' | 'cronJobs'>> & {
+type StartTestServerOptions = Partial<
+    Pick<
+        ZibriApplicationOptions,
+        'providers'
+        | 'plugins'
+        | 'controllers'
+        | 'cronJobs'
+        | 'version'
+        | 'websocketControllers'
+    >
+> & {
     dataSources?: Newable<PostgresDataSource>[]
 };
 
 export class StartedTestServer {
     constructor(
-        private readonly app: ZibriApplication,
+        private app: ZibriApplication,
         private readonly containers: AbstractStartedContainer[],
         private readonly exitSpy = jest.spyOn(process, 'exit').mockImplementation(() => undefined as never)
     ) {}
@@ -50,6 +62,46 @@ export class StartedTestServer {
         this.exitSpy.mockRestore();
         await Promise.all(this.containers.map(c => c.stop()));
     }
+
+    async reInit(
+        {
+            dataSources = this.app.options.dataSources as Newable<PostgresDataSource>[],
+            providers = this.app.options.providers,
+            plugins = defaultTestServerPlugins,
+            controllers = this.app.options.controllers,
+            websocketControllers = this.app.options.websocketControllers,
+            cronJobs = this.app.options.cronJobs,
+            version = this.app.options.version
+        }: StartTestServerOptions = {}
+    ): Promise<void> {
+        await this.app.shutdown();
+
+        // Reset singleton — every test file gets a clean container with no stale instances.
+        DiContainer['singleton'] = undefined;
+        GlobalRegistry['appData'].state = AppState.OFFLINE;
+
+        const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
+        await logger.info('re initializes test server...');
+        const info: typeof logger.info = logger.info;
+        logger.info = noOp;
+
+        this.app = new ZibriApplication({
+            name: 'test',
+            version,
+            baseUrl: 'http://localhost:3000',
+            controllers,
+            websocketControllers,
+            dataSources,
+            providers,
+            plugins,
+            cronJobs
+        });
+
+        await this.app.init(H);
+
+        logger.info = info;
+        await logger.info('test server re initialized');
+    }
 }
 
 export async function startTestServer(
@@ -58,7 +110,9 @@ export async function startTestServer(
         providers = defaultTestServerProviders,
         plugins = defaultTestServerPlugins,
         controllers = [],
-        cronJobs = []
+        websocketControllers = [],
+        cronJobs = [],
+        version = '1.0.0'
     }: StartTestServerOptions = {}
 ): Promise<StartedTestServer> {
     // Reset singleton — every test file gets a clean container with no stale instances.
@@ -79,7 +133,7 @@ export async function startTestServer(
     }));
 
     const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
-    await logger.info('starts up test server...');
+    await logger.info('initializes test server...');
     const info: typeof logger.info = logger.info;
     logger.info = noOp;
 
@@ -88,10 +142,10 @@ export async function startTestServer(
 
     const app: ZibriApplication = new ZibriApplication({
         name: 'test',
-        version: '0.0.1',
+        version,
         baseUrl: 'http://localhost:3000',
         controllers,
-        websocketControllers: [],
+        websocketControllers,
         dataSources,
         providers,
         plugins,
@@ -101,7 +155,7 @@ export async function startTestServer(
     await app.init(H);
 
     logger.info = info;
-    await logger.info('test server started');
+    await logger.info('test server initialized');
 
     return new StartedTestServer(app, containers);
 }

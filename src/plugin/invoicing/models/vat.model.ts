@@ -33,5 +33,5 @@ export class Vat {
      * Is required when categoryCode is set to 'E'.
      */
     @Property.string({ required: false })
-    exemptionReason?: string;
+    exemptionReason?: string | null;
 }

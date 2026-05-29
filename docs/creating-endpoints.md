@@ -45,7 +45,7 @@ class User {
     id!: string;
 
     @Property.string({ required: false })
-    name?: string;
+    name?: string | null;
 
     @Property.string({ format: 'email' })
     email!: string;
@@ -107,7 +107,7 @@ class User {
     id!: string;
 
     @Property.string({ required: false })
-    name?: string;
+    name?: string | null;
 
     @Property.string({ format: 'email' })
     email!: string;

@@ -16,6 +16,7 @@ import { DateParamMetadataInput, DateParamMetadata } from './models/date-param-m
 import { NumberParamMetadataInput, NumberParamMetadata } from './models/number-param-metadata.model';
 import { ObjectParamMetadataInput, ObjectParamMetadata } from './models/object-param-metadata.model';
 import { StringParamMetadataInput, StringParamMetadata } from './models/string-param-metadata.model';
+import { SupportedVersionsOptions } from '../versioning/supported-versions-options.model';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 type PathMetaObjectToParamsObject<PathMetaObject extends Record<string, PathParamMetadata>> = {
@@ -207,7 +208,11 @@ export type RouteConfiguration<
     /**
      * Configuration on how to handle open api.
      */
-    openApi: OpenApiRouteConfiguration
+    openApi: OpenApiRouteConfiguration,
+    /**
+     * Configuration on what versions are supported.
+     */
+    versions: SupportedVersionsOptions
 };
 
 /**
@@ -226,7 +231,7 @@ export type RouteConfigurationInput<
         QueryMetaInputObjectToMetaObject<QueryMetaInputObject>,
         HeaderMetaInputObjectToMetaObject<HeaderMetaInputObject>
     >,
-    'bodyMetadata' | 'pathParams' | 'queryParams' | 'headerParams' | 'openApi'
+    'bodyMetadata' | 'pathParams' | 'queryParams' | 'headerParams' | 'openApi' | 'versions'
 > & {
     /**
      * The input metadata for the request body.
@@ -247,5 +252,10 @@ export type RouteConfigurationInput<
     /**
      * Configuration on how to handle open api.
      */
-    openApi?: Partial<OpenApiRouteConfiguration> & Pick<OpenApiRouteConfiguration, 'useInOpenApi'>
+    openApi?: Partial<OpenApiRouteConfiguration> & Pick<OpenApiRouteConfiguration, 'useInOpenApi'>,
+    /**
+     * Configuration on what versions are supported.
+     * Defaults to '^latest'.
+     */
+    versions?: SupportedVersionsOptions
 };

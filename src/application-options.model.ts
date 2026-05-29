@@ -8,7 +8,7 @@ import { BodyParserInterface } from './parsing/body-parser.interface';
 import { ZibriPlugin } from './plugin/plugin.model';
 import { DeepPartial } from './types/deep-partial.type';
 import { Newable } from './types/newable.type';
-import { Version } from './types/version.type';
+import { SemVerVersion } from './utilities/sem-ver.utilities';
 
 /**
  * Configuration options for strict transport security / hsts.
@@ -61,7 +61,7 @@ export type ZibriApplicationOptions = {
      *
      * Is also used by migrations by default.
      */
-    version: Version,
+    version: SemVerVersion,
     /**
      * The controllers to register in the app.
      */

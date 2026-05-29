@@ -1,6 +1,7 @@
 import { Socket } from 'socket.io';
 
 import { BaseWebsocketConnection } from './base-websocket-connection.model';
+import { Version } from '../../../versioning/version.model';
 import { LooseWebsocketEvent, WebsocketEvent } from '../websocket-event.enum';
 import { WebsocketMessage } from '../websocket-message.model';
 
@@ -15,6 +16,7 @@ export class SocketIOWebsocketConnection implements BaseWebsocketConnection {
      * In that case, any missed packets will be transmitted to the client, the data attribute and the rooms will be restored.
      */
     readonly recovered: boolean;
+
     // eslint-disable-next-line jsdoc/require-jsdoc
     get offset(): number {
         if (typeof this.socket.handshake.auth.offset !== 'number') {
@@ -26,7 +28,12 @@ export class SocketIOWebsocketConnection implements BaseWebsocketConnection {
         this.socket.handshake.auth.offset = value;
     }
 
-    constructor(private readonly socket: Socket, public userId: string | undefined) {
+    constructor(
+        private readonly socket: Socket,
+        public userId: string | undefined,
+        readonly resolvedVersion: Version
+
+    ) {
         this.id = this.socket.id;
         this.recovered = this.socket.recovered;
     }

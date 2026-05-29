@@ -87,6 +87,7 @@ async function parseRouteParams(
     const headerParams: Record<string, HeaderParamMetadata> = MetadataUtilities.getRouteHeaderParams(controllerClass, controllerMethod);
     for (const [indexStr, metadata] of ObjectUtilities.entries(headerParams)) {
         const idx: number = Number(indexStr);
+        context.request.headers ??= {};
         context.request.headers[metadata.name as KnownHeader] = parser.parseHeaderParam(context.request, metadata) as string | undefined;
         params[idx] = context.request.headers[metadata.name as KnownHeader];
     }

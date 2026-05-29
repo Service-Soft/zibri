@@ -17,6 +17,7 @@ import { BaseEntity } from '../entity/base-entity.model';
 import { Entity } from '../entity/decorators/entity.decorator';
 import { Property } from '../entity/decorators/property.decorator';
 import { Newable } from '../types/newable.type';
+import { OmitStrict } from '../types/omit-strict.type';
 import { FsUtilities, FsPath } from '../utilities/fs.utilities';
 
 const backupFsFolder: FsPath = FsUtilities.getPath(testFileFolder, 'backups');
@@ -42,7 +43,7 @@ class Item {
 class DbDataSource extends PostgresDataSource {
     rootPw: string = 'password';
     rootUsername: string = 'postgres';
-    options: PostgresOptions = {
+    options: OmitStrict<PostgresOptions, 'type'> = {
         host: 'localhost',
         username: 'postgres',
         password: 'password',

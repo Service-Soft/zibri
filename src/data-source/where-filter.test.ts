@@ -406,13 +406,6 @@ describe('Where filters', () => {
             const res: Product[] = await productRepo.findAll({ where: { category: { is: catFood } } });
             expect(res.map(p => p.id)).toEqual([prodFood.id]);
         });
-
-        // TODO
-        // it('null (no category)', async () => {
-        //     await productRepo.updateById(prodFood.id, { category: null });
-        //     const res: Product[] = await productRepo.findAll({ where: { category: null } });
-        //     expect(res.map(p => p.id)).toEqual([prodFood.id]);
-        // });
     });
 
     // =================== ARRAY OF OBJECTS (Review[]) ===================

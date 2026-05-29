@@ -1,6 +1,6 @@
 import { Controller, Post, Response, Inject, ZIBRI_DI_TOKENS, CronService, CronJobEntity, Get, InjectRepository, Repository } from 'zibri';
 
-@Controller('/cron')
+@Controller('/cron', { versions: 'all' })
 export class CronController {
     constructor(
         @Inject(ZIBRI_DI_TOKENS.CRON_SERVICE)

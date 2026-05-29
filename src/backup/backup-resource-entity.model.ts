@@ -18,7 +18,7 @@ export class BackupResourceEntity extends BaseEntity {
      * The size of the resource in bytes.
      */
     @Property.number({ required: false })
-    size: number | undefined;
+    size: number | undefined | null;
     /**
      * Whether or not the backup of this resource has been completed.
      */

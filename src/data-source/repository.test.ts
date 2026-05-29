@@ -87,7 +87,7 @@ class User extends BaseEntity {
     company!: Company;
 
     @Property.string({ format: 'uuid', required: false })
-    companyId!: string;
+    companyId?: string | null;
 
     @Property.oneToMany({ target: () => Post, inverseSide: 'author' })
     posts!: Post[];
@@ -96,7 +96,7 @@ class User extends BaseEntity {
     profile!: Profile;
 
     @Property.string({ format: 'uuid', required: false })
-    profileId!: string;
+    profileId?: string | null;
 
     @Property.manyToMany({ target: () => Group, inverseSide: 'members', joinTable: true })
     groups!: Group[];

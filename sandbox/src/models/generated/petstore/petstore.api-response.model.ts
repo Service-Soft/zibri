@@ -3,11 +3,11 @@ import { Property } from 'zibri';
 export class PetstoreApiResponse {
 
     @Property.number({ required: false })
-    code?: number;
+    'code'?: number;
 
     @Property.string({ required: false })
-    type?: string;
+    'type'?: string;
 
     @Property.string({ required: false })
-    message?: string;
+    'message'?: string;
 }

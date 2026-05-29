@@ -40,7 +40,7 @@ async function getSandboxToken(clientId: string, clientSecret: string): Promise<
     return access_token;
 }
 
-// TODO: this currently doesn't work.
+// TODO: this currently doesn't work
 async function simulateBuyerApproval(merchantToken: string, orderId: string, returnUrl: string, cancelUrl: string): Promise<void> {
     const res: Response = await fetch(
         `https://api-m.sandbox.paypal.com/v2/checkout/orders/${orderId}/confirm-payment-source`,

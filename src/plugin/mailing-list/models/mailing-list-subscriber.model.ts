@@ -12,7 +12,7 @@ export class MailingListSubscriber extends BaseEntity {
      * The optional name of the subscriber.
      */
     @Property.string({ required: false })
-    name?: string;
+    name?: string | null;
 
     /**
      * The email of the subscriber.

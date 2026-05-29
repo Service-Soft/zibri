@@ -26,7 +26,7 @@ export class ChangeSet extends BaseEntity {
      * The id of the user that changed something.
      */
     @Property.string({ format: 'uuid', required: false })
-    createdBy?: string;
+    createdBy?: string | null;
     /**
      * The things that have been changed.
      */

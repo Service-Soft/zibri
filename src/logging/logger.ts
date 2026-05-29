@@ -82,7 +82,7 @@ export class Logger implements LoggerInterface, OnAppInit {
         if (requestContext?.type === 'http-request') {
             request = {
                 status: requestContext.request.res?.statusCode,
-                // TODO
+                // TODO: track duration on requests
                 // durationInMs: currentRequest.res?.app,
                 method: requestContext.request.method,
                 url: requestContext.request.originalUrl,

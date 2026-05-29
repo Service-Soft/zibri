@@ -101,15 +101,15 @@ export class EmailService implements EmailServiceInterface, OnAppInit, OnAppShut
      * @param email - The email to send out.
      */
     protected async send(email: Email): Promise<void> {
-        await this.validateAttachments(email.attachments);
+        await this.validateAttachments(email.attachments ?? undefined);
         const res: SMTPTransport.SentMessageInfo = await this.transporter.sendMail({
             html: email.html,
             subject: email.subject,
             from: email.sender,
             to: email.recipients,
-            bcc: email.bcc,
-            cc: email.cc,
-            attachments: email.attachments
+            bcc: email.bcc ?? undefined,
+            cc: email.cc ?? undefined,
+            attachments: email.attachments ?? undefined
         });
 
         const status: EmailStatus = res.rejected.length ? EmailStatus.FAILED : EmailStatus.SENT;
@@ -132,7 +132,7 @@ export class EmailService implements EmailServiceInterface, OnAppInit, OnAppShut
      * @param attachments - The attachments to resolve.
      * @returns The resolved attachments.
      */
-    protected async validateAttachments(attachments: EmailAttachment[] | undefined): Promise<void> {
+    protected async validateAttachments(attachments: EmailAttachment[] | undefined | null): Promise<void> {
         if (!attachments?.length) {
             return;
         }

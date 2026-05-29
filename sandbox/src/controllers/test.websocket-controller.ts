@@ -5,7 +5,7 @@ export class CreateWebsocketChatMessageDTO {
     message!: string;
 }
 
-@WebsocketController()
+@WebsocketController({ versions: 'all' })
 export class TestWebsocketController {
     constructor(
         @Inject(ZIBRI_DI_TOKENS.WEBSOCKET_SERVICE)

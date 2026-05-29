@@ -43,7 +43,7 @@ class CookieAuthRefreshLoginDto extends OmitClass(CookieAuthRefreshLoginData, ['
 
 class CookieAuthLogoutDto extends OmitClass(CookieAuthLogoutData, ['transaction']) {}
 
-@Controller('/auth', { allowOrphan: true })
+@Controller('/auth', { allowOrphan: true, versions: 'all' })
 export class CookieAuthController implements AuthControllerInterface<
     CookieAuthCredentialsDto,
     CookieAuthData<string>,
