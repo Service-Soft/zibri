@@ -18,7 +18,7 @@ export class RateLimiter {
             warn('initialTokens are bigger than max, replacing initialTokens with the value of max');
             initialTokens = max;
         }
-        this.tokens = max;
+        this.tokens = initialTokens;
         this.lastRefill = Date.now();
     }
 
