@@ -74,16 +74,15 @@ export class StartedTestServer {
             version = this.app.options.version
         }: StartTestServerOptions = {}
     ): Promise<void> {
+        const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
+        await logger.info('re initializes test server...');
+        const info: typeof logger.info = logger.info;
+        logger.info = noOp;
         await this.app.shutdown();
 
         // Reset singleton — every test file gets a clean container with no stale instances.
         DiContainer['singleton'] = undefined;
         GlobalRegistry['appData'].state = AppState.OFFLINE;
-
-        const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
-        await logger.info('re initializes test server...');
-        const info: typeof logger.info = logger.info;
-        logger.info = noOp;
 
         this.app = new ZibriApplication({
             name: 'test',

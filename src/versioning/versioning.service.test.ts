@@ -111,8 +111,14 @@ async function readVersionFile(version: string): Promise<VersionFile> {
 // Since version files are read only during afterAppInit, which runs once at startup,
 // we need to restart the server for each test scenario. We'll use a helper.
 async function restartServer(options: { version?: SemVerVersion, controllers?: Newable<unknown>[] } = {}): Promise<void> {
-    await server.reInit(options);
-    baseUrl = await server.start();
+    try {
+        await server.reInit(options);
+        baseUrl = await server.start();
+    }
+    catch (error) {
+        console.error(error);
+        throw error;
+    }
 }
 
 beforeAll(async () => {

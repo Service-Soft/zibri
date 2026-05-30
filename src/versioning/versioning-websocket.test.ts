@@ -93,8 +93,14 @@ async function writeVersionFile(file: VersionFile): Promise<void> {
 }
 
 async function restartServer(options: { version?: SemVerVersion, websocketControllers?: Newable<unknown>[] } = {}): Promise<void> {
-    await server.reInit(options);
-    baseUrl = await server.start();
+    try {
+        await server.reInit(options);
+        baseUrl = await server.start();
+    }
+    catch (error) {
+        console.error(error);
+        throw error;
+    }
 }
 
 async function sendWsEvent(
