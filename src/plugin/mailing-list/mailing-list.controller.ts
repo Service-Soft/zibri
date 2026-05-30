@@ -22,7 +22,7 @@ import { Get } from '../../routing/decorators/get.decorator';
 import { Param } from '../../routing/decorators/param.decorator';
 import { Patch } from '../../routing/decorators/patch.decorator';
 
-@Controller('/mailing-lists', { allowOrphan: true })
+@Controller('/mailing-lists', { allowOrphan: true, versions: 'all' })
 export class MailingListController implements OnAppInit {
 
     constructor(

@@ -18,12 +18,12 @@ export class Change<T = unknown> extends BaseEntity {
      * The value before it was changed.
      */
     @Property.unknown({ required: false })
-    previousValue?: T;
+    previousValue?: T | null;
     /**
      * The value after it was changed.
      */
     @Property.unknown({ required: false })
-    newValue?: T;
+    newValue?: T | null;
     /**
      * The change set that this change belongs to.
      */

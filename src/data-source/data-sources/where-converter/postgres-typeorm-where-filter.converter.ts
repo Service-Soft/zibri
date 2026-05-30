@@ -1,7 +1,7 @@
 import { Raw, FindOperator, DataSource as ToDataSource } from 'typeorm';
 import { RelationMetadata as ToRelationMetadata } from 'typeorm/metadata/RelationMetadata.js';
 
-import { TypeOrmWhereFilterConverter } from './typeorm-where-filter.converter';
+import { TypeOrmWhereFilterConverter, WhereFilterHandler } from './typeorm-where-filter.converter';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { EntityMetadata } from '../../../entity/decorators/entity.decorator';
 import { PropertyMetadata, RelationMetadata } from '../../../entity/decorators/property.decorator';
@@ -9,6 +9,7 @@ import { EntityMetadataMissingError } from '../../../entity/entity-metadata-miss
 import { Relation } from '../../../entity/models/relation.enum';
 import { Newable } from '../../../types/newable.type';
 import { MetadataUtilities } from '../../../utilities/metadata.utilities';
+import { NumberUtilities } from '../../../utilities/number.utilities';
 import { WhereFilterKeys } from '../../models/where/where-filter-keys.model';
 import { Where } from '../../models/where/where-filter.model';
 
@@ -32,7 +33,7 @@ type JsonbOperatorHandler = (
  */
 export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConverter {
 
-    private readonly jsonbOperatorHandlers: Record<string, JsonbOperatorHandler> = {
+    private readonly jsonbOperatorHandlers: Record<WhereFilterKeys, JsonbOperatorHandler> = {
         is: (jp, _tp, _cp, val) => val === null
             ? `${jp} = 'null'::jsonb`
             : `${jp} @> ${this.toJsonbLiteral(val as object)}`,
@@ -59,12 +60,27 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
         },
         like: (_jp, tp, _cp, val) => `${tp} LIKE ${this.toSqlLiteral(val)}`,
         iLike: (_jp, tp, _cp, val) => `${tp} ILIKE ${this.toSqlLiteral(val)}`,
+        fuzzyLike: (_jp, tp, _cp, val) => {
+            if (typeof val !== 'object' || !('value' in (val as object))) {
+                throw new Error('fuzzyLike expects an object with a "value" property');
+            }
+            const { value: searchString, minSimilarity = 0.3 } = val as {
+                // eslint-disable-next-line jsdoc/require-jsdoc
+                value: string,
+                // eslint-disable-next-line jsdoc/require-jsdoc
+                minSimilarity?: number
+            };
+            const safeSearch: string = this.toSqlLiteral(searchString);
+            return `similarity(${tp}, ${safeSearch}) >= ${NumberUtilities.divide(minSimilarity, 100)}`;
+        },
         greaterThan: (_jp, _tp, cp, val) => `${cp} > ${this.toSqlLiteral(val)}`,
         after: (_jp, _tp, cp, val) => `${cp} > ${this.toSqlLiteral(val)}`,
         greaterThanEquals: (_jp, _tp, cp, val) => `${cp} >= ${this.toSqlLiteral(val)}`,
+        afterOrOn: (_jp, _tp, cp, val) => `${cp} >= ${this.toSqlLiteral(val)}`,
         lesserThan: (_jp, _tp, cp, val) => `${cp} < ${this.toSqlLiteral(val)}`,
         before: (_jp, _tp, cp, val) => `${cp} < ${this.toSqlLiteral(val)}`,
         lesserThanEquals: (_jp, _tp, cp, val) => `${cp} <= ${this.toSqlLiteral(val)}`,
+        beforeOrOn: (_jp, _tp, cp, val) => `${cp} <= ${this.toSqlLiteral(val)}`,
         length: (jp, _tp, _cp, val) => `jsonb_array_length(${jp}) = ${this.toSqlLiteral(val)}`,
         lengthGreaterThan: (jp, _tp, _cp, val) => `jsonb_array_length(${jp}) > ${this.toSqlLiteral(val)}`,
         lengthGreaterThanEquals: (jp, _tp, _cp, val) => `jsonb_array_length(${jp}) >= ${this.toSqlLiteral(val)}`,
@@ -88,6 +104,23 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
     constructor(dataSource: ToDataSource) {
         super(dataSource);
     }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    protected fuzzyLikeWhereFilterHandler: WhereFilterHandler = (value) => {
+        if (typeof value !== 'object' || value === null || !('value' in value)) {
+            throw new Error('fuzzyLike expects an object with a "value" property');
+        }
+        const { value: searchString, minSimilarity = 30 } = value as {
+            // eslint-disable-next-line jsdoc/require-jsdoc
+            value: string,
+            // eslint-disable-next-line jsdoc/require-jsdoc
+            minSimilarity?: number
+        };
+        const safeSearch: string = this.toSqlLiteral(searchString); // produces e.g. 'hello'
+        return Raw(
+            alias => `similarity(${alias}, ${safeSearch}) >= ${NumberUtilities.divide(minSimilarity, 100)}`
+        );
+    };
 
     // ── JSONB-aware "where" handler ─────────────────────────────
 

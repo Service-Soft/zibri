@@ -1,3 +1,4 @@
+import assert from 'node:assert';
 import { Readable } from 'stream';
 
 import { NextFunction, RequestHandler, Router as ExpressRouter } from 'express';
@@ -16,6 +17,7 @@ import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
+import { NotFoundError } from '../error-handling/errors/not-found.error';
 import { GlobalRegistry } from '../global/global-registry';
 import { OnAppInit } from '../global/on-app-init.interface';
 import { OnAppStart } from '../global/on-app-start.interface';
@@ -33,12 +35,22 @@ import type { ParserInterface } from '../parsing/parser.interface';
 import { Newable } from '../types/newable.type';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { Ms } from '../utilities/ms';
+import { SemVerVersion } from '../utilities/sem-ver.utilities';
 import type { ValidationServiceInterface } from '../validation/validation-service.interface';
 import { ControllerData } from './decorators/controller.decorator';
 import { AlsUtilities } from '../context/als.utilities';
 import { HttpRequestContext } from '../context/request/http-request.context';
 import { JsonUtilities } from '../utilities/json.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
+import { RouteWithVersionData } from '../versioning/route-with-version-data.model';
+import { SupportedVersionsOptions } from '../versioning/supported-versions-options.model';
+import { Version } from '../versioning/version.model';
+import { type VersioningServiceInterface } from '../versioning/versioning-service.interface';
+
+/**
+ * Handler for a specific route and version.
+ */
+type ControllerInnerHandler = (context: HttpRequestContext, next: NextFunction) => Promise<void>;
 
 /**
  * Default router implementation of Zibri.
@@ -46,8 +58,9 @@ import { ObjectUtilities } from '../utilities/object.utilities';
 @Injectable({ register: 'onUse' })
 export class Router implements RouterInterface, OnAppInit, OnAppStart {
     private readonly expressRouter: ExpressRouter = ExpressRouter();
-    private readonly allBaseRoutes: string[] = [];
-    private readonly allFinalRoutes: string[] = [];
+    private readonly allBaseRoutes: RouteWithVersionData[] = [];
+    private readonly allFinalRoutes: RouteWithVersionData[] = [];
+    private initComplete: boolean = false;
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly manuallyRegisteredRoutes: RouteConfiguration<
         BodyMetadata,
@@ -55,6 +68,18 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
         Record<string, QueryParamMetadata>,
         Record<string, HeaderParamMetadata>
     >[] = [];
+    private readonly pendingRouteGroups: Map<string, {
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        httpMethod: HttpMethod,
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        finalRoute: string,
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        entries: { versions: SupportedVersionsOptions, innerHandler: ControllerInnerHandler }[]
+    }> = new Map();
+
+    private get versioningService(): VersioningServiceInterface {
+        return inject(ZIBRI_DI_TOKENS.VERSIONING_SERVICE);
+    }
 
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
@@ -76,6 +101,13 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
             await this.registerController(controller);
         }
         this.checkForOrphanedControllers(app.options.controllers);
+
+        for (const group of this.pendingRouteGroups.values()) {
+            const dispatchHandler: RequestHandler = this.createDispatchHandler(group.entries);
+            await this.logger.debug(`- mounting ${group.httpMethod.toUpperCase()} ${group.finalRoute}`);
+            this.expressRouter[group.httpMethod](group.finalRoute, dispatchHandler);
+        }
+        this.initComplete = true;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -107,10 +139,37 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
     >(
         input: RouteConfigurationInput<BodyMetaInputObject, PathMetaInputObject, QueryMetaInputObject, HeaderMetaInputObject>
     ): Promise<void> {
-        if (this.allFinalRoutes.includes(`${input.httpMethod.toUpperCase()} ${input.route}`)) {
-            throw new Error(`The route "${input.httpMethod.toUpperCase()} ${input.route}" has been defined more than once.`);
+        const key: string = `${input.httpMethod.toUpperCase()} ${input.route}`;
+        const versions: SupportedVersionsOptions = input.versions ?? ['^latest'];
+        const currentLatest: SemVerVersion | undefined = GlobalRegistry.getAppData('version');
+        assert(currentLatest);
+
+        const overlappingRoute: RouteWithVersionData | undefined = this.allFinalRoutes.find(
+            r => r.key === key && this.versioningService.hasOverlappingVersions(r.versions, versions, currentLatest)
+        );
+        if (overlappingRoute) {
+            const overlappingVersions: SupportedVersionsOptions = this.versioningService.findOverlappingVersions(
+                overlappingRoute.versions,
+                versions,
+                currentLatest
+            );
+            if (overlappingVersions === 'all') {
+                throw new Error([
+                    `The route "${key}"`,
+                    // eslint-disable-next-line sonar/no-duplicate-string
+                    'has been defined more than once.',
+                    // eslint-disable-next-line sonar/no-duplicate-string
+                    '(versions: \'all\' has been used)'
+                ].join(' '));
+            }
+
+            throw new Error([
+                `The route "${key}"`,
+                `for the ${overlappingVersions.length > 1 ? 'versions' : 'version'} "${overlappingVersions.join(', ')}"`,
+                'has been defined more than once.'
+            ].join(' '));
         }
-        this.allFinalRoutes.push(`${input.httpMethod.toUpperCase()} ${input.route}`);
+        this.allFinalRoutes.push({ key, versions });
 
         const pathParams: Record<string, PathParamMetadata> = {};
         for (const key in input.pathParams) {
@@ -127,6 +186,7 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
 
         // eslint-disable-next-line typescript/no-explicit-any
         const route: RouteConfiguration<any, any, any, any> = {
+            versions: ['^latest'],
             ...input,
             openApi: this.createOpenApiRouteConfiguration(input.openApi, input.httpMethod),
             bodyMetadata: input.bodyMetadata
@@ -146,8 +206,8 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
             queryParams,
             headerParams
         };
-        const handler: RequestHandler = this.routeToRequestHandler(route);
-        await this.logger.debug(`- mounting ${route.httpMethod.toUpperCase()} ${route.route}`);
+
+        await this.logger.debug(`- mounting ${key}`);
         this.manuallyRegisteredRoutes.push(
             route as RouteConfiguration<
                 BodyMetadata,
@@ -156,7 +216,69 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
                 Record<string, HeaderParamMetadata>
             >
         );
-        this.expressRouter[route.httpMethod](route.route, handler);
+
+        const innerHandler: ControllerInnerHandler = this.createManualRouteInnerHandler(route);
+        // eslint-disable-next-line typescript/typedef
+        const existing = this.pendingRouteGroups.get(key);
+        if (existing) {
+            existing.entries.push({ versions, innerHandler });
+        }
+        else {
+            this.pendingRouteGroups.set(key, {
+                httpMethod: input.httpMethod,
+                finalRoute: input.route,
+                entries: [{ versions, innerHandler }]
+            });
+        }
+
+        // If init has already completed, mount immediately since the deferred loop has already run
+        if (this.initComplete) {
+            // eslint-disable-next-line typescript/typedef, typescript/no-non-null-assertion
+            const group = this.pendingRouteGroups.get(key)!;
+            this.expressRouter[input.httpMethod](input.route, this.createDispatchHandler(group.entries));
+        }
+    }
+
+    private createManualRouteInnerHandler<
+        BodyMetaObject extends BodyMetadata,
+        PathMetaObject extends Record<string, PathParamMetadata>,
+        QueryMetaObject extends Record<string, QueryParamMetadata>,
+        HeaderMetaObject extends Record<string, HeaderParamMetadata>
+    >(route: RouteConfiguration<BodyMetaObject, PathMetaObject, QueryMetaObject, HeaderMetaObject>): ControllerInnerHandler {
+        return async (context: HttpRequestContext, next: NextFunction) => {
+            try {
+                for (const key of ObjectUtilities.keys(route.pathParams)) {
+                    (context.request.params[key] as unknown) = this.parser.parsePathParam(context.request, route.pathParams[key]);
+                }
+                for (const key of ObjectUtilities.keys(route.queryParams)) {
+                    (context.request.query[key] as unknown) = this.parser.parseQueryParam(context.request, route.queryParams[key]);
+                }
+                for (const key of ObjectUtilities.keys(route.headerParams)) {
+                    (context.request.headers[key] as unknown) = this.parser.parseHeaderParam(context.request, route.headerParams[key]);
+                }
+                if (route.bodyMetadata) {
+                    context.request.body = await this.parser.parseBody(context.request, route.bodyMetadata);
+                }
+                await Promise.all([
+                    ...ObjectUtilities.keys(route.pathParams).map(async key => {
+                        await this.validationService.validatePathParam(context.request.params[key], route.pathParams[key]);
+                    }),
+                    ...ObjectUtilities.keys(route.queryParams).map(async key => {
+                        await this.validationService.validateQueryParam(context.request.query[key], route.queryParams[key]);
+                    }),
+                    ...ObjectUtilities.keys(route.headerParams).map(async key => {
+                        await this.validationService.validateHeaderParam(context.request.headers[key], route.headerParams[key]);
+                    }),
+                    ...route.bodyMetadata ? [this.validationService.validateBody(context.request.body, route.bodyMetadata)] : []
+                ]);
+                // eslint-disable-next-line typescript/no-explicit-any
+                const result: unknown = await route.handler(context.request as HttpRequest<any, any, any, any>, context.response, next);
+                await this.returnResult(context.response, result, next, []);
+            }
+            catch (error) {
+                next(error);
+            }
+        };
     }
 
     private createOpenApiRouteConfiguration(
@@ -178,14 +300,14 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
         switch (httpMethod) {
             case HttpMethod.HEAD:
             case HttpMethod.OPTIONS:
-            case HttpMethod.TRACE:
-            case HttpMethod.GET: {
+            case HttpMethod.TRACE: {
                 return { useInOpenApi: false };
             }
             case HttpMethod.POST:
             case HttpMethod.PUT:
             case HttpMethod.PATCH:
-            case HttpMethod.DELETE: {
+            case HttpMethod.DELETE:
+            case HttpMethod.GET: {
                 return {
                     responses: [],
                     tags: [],
@@ -195,163 +317,172 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc/require-jsdoc, sonar/cognitive-complexity
     async registerController(controllerClass: Newable<unknown>): Promise<void> {
         const controllerData: ControllerData | undefined = MetadataUtilities.getControllerData(controllerClass);
         if (controllerData == undefined) {
             throw new MissingBaseRouteError(controllerClass);
         }
-        if (this.allBaseRoutes.includes(controllerData.baseRoute)) {
-            throw new Error(`The base route "${controllerData.baseRoute}" has been defined on more than one controller.`);
+        const currentLatest: SemVerVersion | undefined = GlobalRegistry.getAppData('version');
+        assert(currentLatest);
+
+        const overlappingBaseRoute: RouteWithVersionData | undefined = this.allBaseRoutes.find(
+            r => r.key === controllerData.baseRoute && this.versioningService.hasOverlappingVersions(
+                r.versions,
+                controllerData.versions,
+                currentLatest
+            )
+        );
+        if (overlappingBaseRoute) {
+            const overlappingVersions: SupportedVersionsOptions = this.versioningService.findOverlappingVersions(
+                overlappingBaseRoute.versions,
+                controllerData.versions,
+                currentLatest
+            );
+            if (overlappingVersions === 'all') {
+                throw new Error([
+                    `The base route "${controllerData.baseRoute}"`,
+                    'has been defined on more than one controller.',
+                    '(versions: \'all\' has been used)'
+                ].join(' '));
+            }
+            throw new Error([
+                `The base route "${controllerData.baseRoute}"`,
+                `for the ${overlappingVersions.length > 1 ? 'versions' : 'version'} "${overlappingVersions.join(', ')}"`,
+                'has been defined on more than one controller.'
+            ].join(' '));
         }
-        this.allBaseRoutes.push(controllerData.baseRoute);
+        this.allBaseRoutes.push({ key: controllerData.baseRoute, versions: controllerData.versions });
         const routes: ControllerRouteConfiguration[] = MetadataUtilities.getControllerRoutes(controllerClass);
 
         for (const route of routes) {
-            const handler: RequestHandler = await this.controllerRouteToRequestHandler(controllerClass, route);
             const finalRoute: string = controllerData.baseRoute === '/' ? route.route : `${controllerData.baseRoute}${route.route}`;
-            if (this.allFinalRoutes.includes(`${route.httpMethod.toUpperCase()} ${finalRoute}`)) {
-                throw new Error(
-                    `The route "${route.httpMethod.toUpperCase()} ${finalRoute}" has been defined more than once.`,
-                    { cause: controllerClass }
+            const key: string = `${route.httpMethod.toUpperCase()} ${finalRoute}`;
+            const versions: SupportedVersionsOptions = route.versions ?? controllerData.versions;
+
+            const overlappingRoute: RouteWithVersionData | undefined = this.allFinalRoutes.find(
+                r => r.key === key && this.versioningService.hasOverlappingVersions(r.versions, versions, currentLatest)
+            );
+            if (overlappingRoute) {
+                const overlappingVersions: SupportedVersionsOptions = this.versioningService.findOverlappingVersions(
+                    overlappingRoute.versions,
+                    versions,
+                    currentLatest
                 );
+                if (overlappingVersions === 'all') {
+                    throw new Error([
+                        `The route "${key}"`,
+                        'has been defined more than once.',
+                        '(versions: \'all\' has been used)'
+                    ].join(' '));
+                }
+
+                throw new Error([
+                    `The route "${key}"`,
+                    `for the ${overlappingVersions.length > 1 ? 'versions' : 'version'} "${overlappingVersions.join(', ')}"`,
+                    'has been defined more than once.'
+                ].join(' '));
             }
-            this.allFinalRoutes.push(`${route.httpMethod.toUpperCase()} ${finalRoute}`);
-            await this.logger.debug(`- mounting ${route.httpMethod.toUpperCase()} ${finalRoute}`);
-            this.expressRouter[route.httpMethod](finalRoute, handler);
+
+            this.allFinalRoutes.push({ key, versions });
+
+            const innerHandler: ControllerInnerHandler = await this.createControllerInnerHandler(controllerClass, route);
+            // eslint-disable-next-line typescript/typedef
+            const existing = this.pendingRouteGroups.get(key);
+            if (existing) {
+                existing.entries.push({ versions, innerHandler });
+                continue;
+            }
+
+            this.pendingRouteGroups.set(key, {
+                httpMethod: route.httpMethod,
+                finalRoute,
+                entries: [{ versions, innerHandler }]
+            });
         }
     }
 
-    private routeToRequestHandler<
-        BodyMetaObject extends BodyMetadata,
-        PathMetaObject extends Record<string, PathParamMetadata>,
-        QueryMetaObject extends Record<string, QueryParamMetadata>,
-        HeaderMetaObject extends Record<string, HeaderParamMetadata>
-    >(route: RouteConfiguration<BodyMetaObject, PathMetaObject, QueryMetaObject, HeaderMetaObject>): RequestHandler {
-        const handler: RequestHandler = (async (request: HttpRequest, res, next) => {
-            Object.defineProperty(request, 'params', {
-                value: { ...request.params },
-                writable: true,
-                configurable: true,
-                enumerable: true
-            });
-            Object.defineProperty(request, 'query', {
-                value: { ...request.query },
-                writable: true,
-                configurable: true,
-                enumerable: true
-            });
-            Object.defineProperty(request, 'headers', {
-                value: { ...request.headers },
-                writable: true,
-                configurable: true,
-                enumerable: true
-            });
+    private createDispatchHandler(
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        entries: { versions: SupportedVersionsOptions, innerHandler: ControllerInnerHandler }[]
+    ): RequestHandler {
+        return (async (request: HttpRequest, res, next) => {
+            Object.defineProperty(
+                request,
+                'params',
+                {
+                    value: { ...request.params },
+                    writable: true,
+                    configurable: true,
+                    enumerable: true
+                }
+            );
+            Object.defineProperty(
+                request,
+                'query',
+                {
+                    value: { ...request.query },
+                    writable: true,
+                    configurable: true,
+                    enumerable: true
+                }
+            );
+            Object.defineProperty(
+                request,
+                'headers',
+                {
+                    value: { ...request.headers },
+                    writable: true,
+                    configurable: true,
+                    enumerable: true
+                }
+            );
 
             const context: HttpRequestContext = new HttpRequestContext(request, res, undefined, undefined);
             await AlsUtilities.runWithHttpRequestContext(context, async () => {
                 try {
-                    // parse
-                    for (const key of ObjectUtilities.keys(route.pathParams)) {
-                        (context.request.params[key] as unknown) = this.parser.parsePathParam(context.request, route.pathParams[key]);
+                    const version: Version = await this.versioningService.resolveVersion(context);
+                    // eslint-disable-next-line typescript/typedef
+                    const match = entries.find(e => this.versioningService.matchesVersion(e.versions, version));
+                    if (!match) {
+                        throw new NotFoundError(`Could not find route "${request.url}" for version "${version.value}"`);
                     }
-                    for (const key of ObjectUtilities.keys(route.queryParams)) {
-                        (context.request.query[key] as unknown) = this.parser.parseQueryParam(
-                            context.request,
-                            route.queryParams[key]
-                        );
-                    }
-                    for (const key of ObjectUtilities.keys(route.headerParams)) {
-                        (context.request.headers[key] as unknown) = this.parser.parseHeaderParam(
-                            context.request,
-                            route.headerParams[key]
-                        );
-                    }
-                    if (route.bodyMetadata) {
-                        context.request.body = await this.parser.parseBody(context.request, route.bodyMetadata);
-                    }
-                    // validate
-                    await Promise.all([
-                        ...ObjectUtilities.keys(route.pathParams).map(async key => {
-                            await this.validationService.validatePathParam(context.request.params[key], route.pathParams[key]);
-                        }),
-                        ...ObjectUtilities.keys(route.queryParams).map(async key => {
-                            await this.validationService.validateQueryParam(context.request.query[key], route.queryParams[key]);
-                        }),
-                        ...ObjectUtilities.keys(route.headerParams).map(async key => {
-                            await this.validationService.validateHeaderParam(context.request.headers[key], route.headerParams[key]);
-                        }),
-                        ...route.bodyMetadata ? [this.validationService.validateBody(context.request.body, route.bodyMetadata)] : []
-                    ]);
-
-                    // eslint-disable-next-line typescript/no-explicit-any
-                    const result: unknown = await route.handler(context.request as HttpRequest<any, any, any, any>, context.response, next);
-                    await this.returnResult(context.response, result, next, []);
+                    await match.innerHandler(context, next);
                 }
                 catch (error) {
                     next(error);
                 }
             });
         }) as RequestHandler;
-        return handler;
     }
 
-    private async controllerRouteToRequestHandler(
+    private async createControllerInnerHandler(
         controllerClass: Newable<unknown>,
         route: ControllerRouteConfiguration
-    ): Promise<RequestHandler> {
+    ): Promise<ControllerInnerHandler> {
         const responses: OpenApiResponse[] = MetadataUtilities.getRouteResponses(controllerClass, route.controllerMethod);
         if (!responses.length) {
             await this.logger.warn(`No responses defined on route ${controllerClass.name}.${route.controllerMethod}`);
         }
-        const handler: RequestHandler = (async (request: HttpRequest, res, next) => {
-            Object.defineProperty(request, 'params', {
-                value: { ...request.params },
-                writable: true,
-                configurable: true,
-                enumerable: true
-            });
-            Object.defineProperty(request, 'query', {
-                value: { ...request.query },
-                writable: true,
-                configurable: true,
-                enumerable: true
-            });
-            Object.defineProperty(request, 'headers', {
-                value: { ...request.headers },
-                writable: true,
-                configurable: true,
-                enumerable: true
-            });
-
-            const context: HttpRequestContext = new HttpRequestContext(
-                request,
-                res,
-                controllerClass,
-                route.controllerMethod
-            );
-            await AlsUtilities.runWithHttpRequestContext(context, async () => {
-                try {
-                    await this.authService.checkAccess(controllerClass, route.controllerMethod, context);
-                    const controller: unknown = inject(controllerClass);
-                    const params: unknown[] = await resolveRouteParams(
-                        controllerClass,
-                        route.controllerMethod,
-                        // eslint-disable-next-line typescript/no-unsafe-member-access, typescript/no-explicit-any
-                        ((controller as any)[route.controllerMethod] as Function).length,
-                        context
-                    );
-
-                    // eslint-disable-next-line typescript/no-unsafe-call, typescript/no-explicit-any, typescript/no-unsafe-member-access
-                    const result: unknown = await ((controller as any)[route.controllerMethod] as Function)(...params);
-                    await this.returnResult(context.response, result, next, responses);
-                }
-                catch (error) {
-                    next(error);
-                }
-            });
-        }) as RequestHandler;
-        return handler;
+        return async (context: HttpRequestContext, next: NextFunction) => {
+            try {
+                await this.authService.checkAccess(controllerClass, route.controllerMethod, context);
+                const controller: unknown = inject(controllerClass);
+                const params: unknown[] = await resolveRouteParams(
+                    controllerClass,
+                    route.controllerMethod,
+                    // eslint-disable-next-line typescript/no-unsafe-member-access, typescript/no-explicit-any
+                    ((controller as any)[route.controllerMethod] as Function).length,
+                    context
+                );
+                // eslint-disable-next-line typescript/no-unsafe-call, typescript/no-explicit-any, typescript/no-unsafe-member-access
+                const result: unknown = await ((controller as any)[route.controllerMethod] as Function)(...params);
+                await this.returnResult(context.response, result, next, responses);
+            }
+            catch (error) {
+                next(error);
+            }
+        };
     }
 
     private async returnResult(res: HttpResponse, result: unknown, next: NextFunction, responses: OpenApiResponse[]): Promise<void> {

@@ -40,12 +40,12 @@ export class LogRequestContext {
      * The http status of the response, if the request already finished.
      */
     @Property.number({ enum: HttpStatus, required: false })
-    status?: HttpStatus;
+    status?: HttpStatus | null;
     /**
      * The duration that the request took in ms, if it already finished.
      */
     @Property.number({ required: false })
-    durationInMs?: number;
+    durationInMs?: number | null;
 }
 
 /**
@@ -61,22 +61,22 @@ export class LogContext {
      * Any custom additional metadata for the log context.
      */
     @Property.object({ cls: () => LogContextMetadata, required: false, allowAdditionalProperties: true })
-    metadata?: LogContextMetadata;
+    metadata?: LogContextMetadata | null;
     /**
      * Context information about the request that triggered the log.
      */
     @Property.object({ cls: () => LogRequestContext, required: false })
-    request?: LogRequestContext;
+    request?: LogRequestContext | null;
     /**
      * Context information about the cache that triggered the log.
      */
     @Property.array({ items: { type: 'object', cls: () => CacheContext }, required: false })
-    cache?: CacheContext[];
+    cache?: CacheContext[] | null;
     /**
      * An error associated to this log.
      */
     @Property.object({ cls: () => LoggedError, required: false })
-    error?: LoggedError;
+    error?: LoggedError | null;
 }
 
 /**

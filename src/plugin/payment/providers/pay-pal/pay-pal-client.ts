@@ -77,7 +77,7 @@ class PayPalLink {
      * The method of the link.
      */
     @Property.string({ required: false })
-    method?: string;
+    method?: string | null;
 }
 
 /**
@@ -93,12 +93,12 @@ class CreateOrderResp {
      * The status of the order.
      */
     @Property.string({ required: false })
-    status?: string;
+    status?: string | null;
     /**
      * The links of the order.
      */
     @Property.array({ required: false, items: { type: 'object', cls: () => PayPalLink } })
-    links?: PayPalLink[];
+    links?: PayPalLink[] | null;
 }
 
 /**
@@ -147,7 +147,7 @@ export class PayPalCapture {
      * The status of the capture.
      */
     @Property.string({ required: false })
-    status?: string;
+    status?: string | null;
 }
 
 /**
@@ -158,7 +158,7 @@ class PayPalPayments {
      * The payment captures.
      */
     @Property.array({ required: false, items: { type: 'object', cls: () => PayPalCapture } })
-    captures?: PayPalCapture[];
+    captures?: PayPalCapture[] | null;
 }
 
 /**
@@ -169,7 +169,7 @@ class PayPalPurchaseUnit {
      * Any payments that belong to this purchase unit.
      */
     @Property.object({ required: false, cls: () => PayPalPayments })
-    payments?: PayPalPayments;
+    payments?: PayPalPayments | null;
 }
 
 /**
@@ -186,13 +186,13 @@ export class CaptureOrderResp {
      * The status of the capture.
      */
     @Property.string({ required: false })
-    status?: string;
+    status?: string | null;
 
     /**
      * The purchase units of the capture.
      */
     @Property.array({ required: false, items: { type: 'object', cls: () => PayPalPurchaseUnit } })
-    purchase_units?: PayPalPurchaseUnit[];
+    purchase_units?: PayPalPurchaseUnit[] | null;
 }
 
 /**
@@ -209,13 +209,13 @@ class PayPalAuthorization {
      * The status of the authorization.
      */
     @Property.string({ required: false })
-    status?: string;
+    status?: string | null;
 
     /**
      * The amount that has been authorized.
      */
     @Property.object({ required: false, cls: () => PaymentAmount })
-    amount?: PaymentAmount;
+    amount?: PaymentAmount | null;
 }
 
 /**
@@ -226,7 +226,7 @@ class PayPalPaymentsWithAuth {
      * The authorizations for the payments.
      */
     @Property.array({ required: false, items: { type: 'object', cls: () => PayPalAuthorization } })
-    authorizations?: PayPalAuthorization[];
+    authorizations?: PayPalAuthorization[] | null;
 }
 
 /**
@@ -237,7 +237,7 @@ class PayPalPurchaseUnitWithAuth {
      * The payments including the authorizations.
      */
     @Property.object({ required: false, cls: () => PayPalPaymentsWithAuth })
-    payments?: PayPalPaymentsWithAuth;
+    payments?: PayPalPaymentsWithAuth | null;
 }
 
 /**
@@ -260,7 +260,7 @@ export class GetOrderResp {
      * The purchase units of this order.
      */
     @Property.array({ required: false, items: { type: 'object', cls: () => PayPalPurchaseUnitWithAuth } })
-    purchase_units?: PayPalPurchaseUnitWithAuth[];
+    purchase_units?: PayPalPurchaseUnitWithAuth[] | null;
 }
 
 /**
@@ -277,13 +277,13 @@ export class AuthorizationCaptureResp {
      * The status of the authorization.
      */
     @Property.string({ required: false })
-    status?: string;
+    status?: string | null;
 
     /**
      * Any links that belong to this authorization.
      */
     @Property.array({ required: false, items: { type: 'object', cls: () => PayPalLink } })
-    links?: PayPalLink[];
+    links?: PayPalLink[] | null;
 }
 
 /**
@@ -300,13 +300,13 @@ export class RefundCaptureResp {
      * The status of the refund.
      */
     @Property.string({ required: false })
-    status?: string;
+    status?: string | null;
 
     /**
      * Any links that belong to this refund.
      */
     @Property.array({ required: false, items: { type: 'object', cls: () => PayPalLink } })
-    links?: PayPalLink[];
+    links?: PayPalLink[] | null;
 }
 
 /**

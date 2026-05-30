@@ -43,13 +43,13 @@ export class CronJobEntity extends BaseEntity {
      * The timestamp at which this cron job has been last run.
      */
     @Property.date({ required: false })
-    lastRun!: Date | undefined;
+    lastRun?: Date | null;
 
     /**
      * The error message that this cron job failed with.
      */
     @Property.string({ required: false })
-    errorMessage!: string | undefined;
+    errorMessage?: string | null;
 }
 
 /**

@@ -2,7 +2,7 @@ import { MigrationEntity } from './migration-entity.model';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { inject } from '../../di/inject.function';
 import { Newable } from '../../types/newable.type';
-import { Version } from '../../types/version.type';
+import { SemVerVersion } from '../../utilities/sem-ver.utilities';
 import { DataSourceInterface } from '../data-sources/data-source.interface';
 import { Repository } from '../repository';
 import { Transaction } from '../transaction/transaction.model';
@@ -11,7 +11,7 @@ import { Transaction } from '../transaction/transaction.model';
  * Base class for a data source migration.
  */
 export abstract class Migration {
-    abstract readonly version: Version;
+    abstract readonly version: SemVerVersion;
     /**
      * The data source that the migration is for.
      */

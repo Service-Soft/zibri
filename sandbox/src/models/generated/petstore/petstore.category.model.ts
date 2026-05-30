@@ -3,8 +3,8 @@ import { Property } from 'zibri';
 export class PetstoreCategory {
 
     @Property.number({ required: false })
-    id?: number;
+    'id'?: number;
 
     @Property.string({ required: false })
-    name?: string;
+    'name'?: string;
 }

@@ -74,6 +74,16 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
+    async init(): Promise<void> {
+        await super.init();
+        if (!this.ds) {
+            throw new DataSourceInitializationError();
+        }
+        // eslint-disable-next-line cspell/spellchecker
+        await this.ds.query('CREATE EXTENSION IF NOT EXISTS pg_trgm');
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
     query<T extends BaseEntity>(entityClass: Newable<T>, options?: QueryOptions): QueryBuilder<T> {
         if (!this.ds) {
             throw new DataSourceInitializationError();

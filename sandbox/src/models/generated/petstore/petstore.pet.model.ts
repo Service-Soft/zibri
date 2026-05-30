@@ -1,25 +1,24 @@
-import { Property } from 'zibri';
-
-import { PetstoreCategory } from './petstore.category.model';
 import { PetstoreTag } from './petstore.tag.model';
+import { PetstoreCategory } from './petstore.category.model';
+import { Property } from 'zibri';
 
 export class PetstorePet {
 
     @Property.number({ required: false })
-    id?: number;
+    'id'?: number;
 
     @Property.object({ required: false, cls: () => PetstoreCategory })
-    category?: PetstoreCategory;
+    'category'?: PetstoreCategory;
 
     @Property.string()
-    name!: string;
+    'name'!: string;
 
     @Property.array({ items: { type: 'string' } })
-    photoUrls!: string[];
+    'photoUrls'!: string[];
 
     @Property.array({ required: false, items: { type: 'object', cls: () => PetstoreTag } })
-    tags?: PetstoreTag[];
+    'tags'?: PetstoreTag[];
 
     @Property.string({ required: false })
-    status?: 'available' | 'pending' | 'sold';
+    'status'?: 'available' | 'pending' | 'sold';
 }

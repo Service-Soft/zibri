@@ -33,7 +33,7 @@ class HookTestEntity extends BaseEntity implements ChangeSetEntity, SoftDeleteEn
     isActive!: boolean; // default value set on create
 
     @Property.string({ required: false, excludeFromChangeSets: true })
-    internalNote?: string; // excluded from change sets
+    internalNote?: string | null; // excluded from change sets
 
     @Property.boolean({ default: false })
     deleted!: boolean; // required by SoftDeleteEntity

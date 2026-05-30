@@ -356,7 +356,7 @@ export class PayPalPaymentProvider implements PaymentProviderInterface<
             const resp: CaptureOrderResp = await this.client.captureOrder(payment.data.orderId);
             // TODO: handle payments with multiple parts
             const capture: PayPalCapture | undefined = resp.purchase_units?.[0]?.payments?.captures?.[0];
-            const captureStatus: string | undefined = capture?.status ?? resp.status;
+            const captureStatus: string | undefined = capture?.status ?? resp.status ?? undefined;
 
             if (capture?.id && captureStatus === 'COMPLETED') {
                 payment.status = PaymentStatus.PAID;

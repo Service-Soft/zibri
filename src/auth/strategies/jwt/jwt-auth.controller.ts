@@ -56,7 +56,7 @@ class JwtConfirmPasswordResetDto extends OmitClass(JwtConfirmPasswordResetData, 
 
 class JwtRefreshLoginDto extends OmitClass(JwtRefreshLoginData, ['transaction']) {}
 
-@Controller('/auth', { allowOrphan: true })
+@Controller('/auth', { allowOrphan: true, versions: 'all' })
 export class JwtAuthController implements AuthControllerInterface<
     JwtCredentialsDto,
     JwtAuthData<string>,

@@ -5,13 +5,21 @@ import { BaseWhereFilter, BaseWhereFilterObject } from './base-where-filter.mode
  */
 type DateFilterWhereObject = BaseWhereFilterObject<Date> & {
     /**
-     * The property needs to be after the value.
+     * The property needs to be after the date.
      */
     after?: Date,
     /**
-     * The property needs to be before the value.
+     * The property needs to be before the date.
      */
-    before?: Date
+    before?: Date,
+    /**
+     * The property needs to be after or on the date.
+     */
+    afterOrOn?: Date,
+    /**
+     * The property needs to be before or on the date.
+     */
+    beforeOrOn?: Date
 };
 
 /**

@@ -20,7 +20,7 @@ export class Email extends BaseEntity {
      * Optional id of a userId to which this email belongs.
      */
     @Property.string({ format: 'uuid', required: false })
-    userId?: string;
+    userId?: string | null;
 
     /**
      * Whether or not the email should be stored in the db, even after it has been sent.
@@ -56,19 +56,19 @@ export class Email extends BaseEntity {
      * The recipients that should receive the email as cc.
      */
     @Property.array({ items: { type: 'string', format: 'email' }, required: false })
-    cc?: string[];
+    cc?: string[] | null;
 
     /**
      * The recipients that should receive the email as bcc.
      */
     @Property.array({ items: { type: 'string', format: 'email' }, required: false })
-    bcc?: string[];
+    bcc?: string[] | null;
 
     /**
      * The attachments of the email.
      */
     @Property.array({ items: { type: 'object', cls: () => EmailAttachment }, required: false })
-    attachments?: EmailAttachment[];
+    attachments?: EmailAttachment[] | null;
 
     /**
      * The emails status, like QUEUED, SENT or FAILED etc.

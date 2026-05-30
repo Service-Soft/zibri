@@ -84,7 +84,7 @@ export class OtpTwoFactorMethod implements TwoFactorMethod<never, OtpConfirmRegi
     }
 
     private extractTokenFromRequestContext(context: HttpRequestContext | WebsocketRequestContext): string {
-        const code: string | undefined = context.request.headers[this.otpHeader];
+        const code: string | undefined = context.request.headers?.[this.otpHeader];
         if (!code) {
             throw new UnauthorizedError(`"${this.otpHeader}" header not found`);
         }

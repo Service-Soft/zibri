@@ -21,11 +21,11 @@ export class ThreadJob<WorkerData extends BaseThreadJobWorkerData, ResultType> i
     /**
      * Timestamp of when the job was started in milliseconds.
      */
-    startedAtMs?: number;
+    startedAtMs?: number | null;
     /**
      * Timestamp of when the job was stopped in milliseconds.
      */
-    stoppedAtMs?: number;
+    stoppedAtMs?: number | null;
     /**
      * A unique identifier of the job.
      * **This differs from the threadId, which is created by the os and set when the thread actually starts.**.
@@ -39,7 +39,7 @@ export class ThreadJob<WorkerData extends BaseThreadJobWorkerData, ResultType> i
      * The id of the thread that the job is running in.
      * Set by the os.
      */
-    threadId?: number;
+    threadId?: number | null;
     /**
      * The progress of the job in a percentage.
      */
@@ -47,7 +47,7 @@ export class ThreadJob<WorkerData extends BaseThreadJobWorkerData, ResultType> i
     /**
      * The error that the job failed with.
      */
-    error?: Error;
+    error?: Error | null;
     /**
      * The result that the job finished with.
      */

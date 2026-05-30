@@ -178,13 +178,15 @@ module.exports = {
             patterns: [
                 {
                     from: path.resolve(__dirname, 'assets'),
-                    to: path.resolve(__dirname, 'dist', 'assets'),
-                    noErrorOnMissing: true
+                    to: path.resolve(__dirname, 'dist', 'assets')
                 },
                 {
                     from: path.resolve(__dirname, 'src', 'templates'),
-                    to: path.resolve(__dirname, 'dist', 'assets', 'templates'),
-                    noErrorOnMissing: true
+                    to: path.resolve(__dirname, 'dist', 'assets', 'templates')
+                },
+                {
+                    from: path.resolve(__dirname, 'versions'),
+                    to: path.resolve(__dirname, 'dist', 'versions')
                 }
             ]
         })

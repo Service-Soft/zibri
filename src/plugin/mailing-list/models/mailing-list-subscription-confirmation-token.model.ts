@@ -30,7 +30,7 @@ export class MailingListSubscriptionConfirmationToken extends BaseEntity {
      * The optional name of the new subscriber that this token belongs to.
      */
     @Property.string({ required: false })
-    name?: string;
+    name?: string | null;
 
     /**
      * The id of the mailing list that this token belongs to.

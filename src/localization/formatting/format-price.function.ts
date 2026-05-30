@@ -4,7 +4,6 @@ import { inject } from '../../di/inject.function';
 import { BigNumber } from '../../utilities/number.utilities';
 import { CurrencyCode } from '../models/currency-code.model';
 import { LanguageCode } from '../models/language-code.model';
-import { LocalizeOptions } from '../models/localize-options.model';
 
 /**
  * Default implementation for formatting prices.
@@ -14,8 +13,8 @@ import { LocalizeOptions } from '../models/localize-options.model';
  */
 export const formatPrice: FormatPriceFn = (
     price: number | BigNumber,
-    currency: CurrencyCode = inject<LocalizeOptions>(ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS).currency,
-    language: LanguageCode = inject<LocalizeOptions>(ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS).language
+    currency: CurrencyCode = inject(ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS).currency,
+    language: LanguageCode = inject(ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS).language
 ) => {
     const v: number = typeof price === 'number' ? price : price.toNumber();
     return v.toLocaleString(language, { style: 'currency', currency });

@@ -38,6 +38,7 @@ import { RouterInterface } from '../../routing/router.interface';
 import { Newable } from '../../types/newable.type';
 import { FsPath } from '../../utilities/fs.utilities';
 import { ValidationServiceInterface } from '../../validation/validation-service.interface';
+import { VersioningServiceInterface } from '../../versioning/versioning-service.interface';
 import { WebsocketOptions } from '../../websocket/models/websocket-options.model';
 import { WebsocketServiceInterface } from '../../websocket/services/websocket-service.interface';
 import { TokenRecord } from '../models/di-token.model';
@@ -115,6 +116,8 @@ export const ZIBRI_DI_TOKENS = {
         'zi.encryption_master_options'
     ),
     CACHE_SERVICE: ziToken<CacheServiceInterface>('zi.cache_service'),
+    VERSIONING_SERVICE: ziToken<VersioningServiceInterface>('zi.versioning_service'),
+    VERSION_HEADER: ziToken<string>('zi.version_header'),
     // dynamic/context based tokens
     CURRENT_REQUEST_CONTEXT: ziToken<HttpRequestContext | WebsocketRequestContext | undefined>('zi.current_request_context'),
     DEFAULT_CSP_OPTIONS: ziToken<CspOptions>('zi.default_csp_options'),

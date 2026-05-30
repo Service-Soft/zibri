@@ -236,7 +236,7 @@ export abstract class PreactUtilities {
                 .replaceAll('</script>', '\\u003c/script>');
 
             const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
-            const nonce: string | undefined = await context?.get(ZIBRI_REQUEST_CONTEXT_TOKENS.NONCE);
+            const nonce: string | undefined = context?.get(ZIBRI_REQUEST_CONTEXT_TOKENS.NONCE);
             const nonceAttr: string = nonce ? ` nonce="${nonce}"` : '';
             if (html.includes('</body>')) {
                 html = html.replace(

@@ -1,4 +1,4 @@
-import { v4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 
 /**
  * Utilities for dealing with uuid.
@@ -9,6 +9,6 @@ export abstract class UUIDUtilities {
      * @returns A v4 uuid string.
      */
     static generate(): string {
-        return v4();
+        return randomUUID();
     }
 }

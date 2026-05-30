@@ -28,10 +28,9 @@ import { type LoggerInterface } from '../../logging/logger.interface';
 import { ExcludeStrict } from '../../types/exclude-strict.type';
 import { Newable } from '../../types/newable.type';
 import { OmitStrict } from '../../types/omit-strict.type';
-import { Version } from '../../types/version.type';
-import { compareVersion } from '../../utilities/compare-versions.function';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
+import { SemVerUtilities, SemVerVersion } from '../../utilities/sem-ver.utilities';
 import { TypeOrmUtilities } from '../../utilities/typeorm.utilities';
 import { getDefaultBeforeReturnHook, getDefaultBeforeSaveHook } from '../hooks/hooks.default';
 import { MigrationEntity } from '../migration/migration-entity.model';
@@ -217,19 +216,19 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
         const finishedMigrationVersions: string[] = (await migrationsRepository.findAll()).map(m => m.version);
         const allMigrations: MigrationWithName[] = this.migrations.map(m => ({ migration: inject(m), name: m.name }));
 
-        const appVersion: Version | undefined = GlobalRegistry.getAppData('version');
+        const appVersion: SemVerVersion | undefined = GlobalRegistry.getAppData('version');
         if (!appVersion) {
             throw new Error('Couldn\'t run migrations: No app version could be resolved');
         }
 
         const migrationsToRunUp: MigrationWithName[] = allMigrations.filter(m => {
             return !finishedMigrationVersions.includes(m.migration.version)
-                && compareVersion(m.migration.version, appVersion) !== 'bigger';
+                && SemVerUtilities.compare(m.migration.version, appVersion) !== 'bigger';
         });
 
         const migrationsToRunDown: MigrationWithName[] = allMigrations.filter(m => {
             return finishedMigrationVersions.includes(m.migration.version)
-                && compareVersion(m.migration.version, appVersion) === 'bigger';
+                && SemVerUtilities.compare(m.migration.version, appVersion) === 'bigger';
         });
 
         for (const migration of migrationsToRunUp) {

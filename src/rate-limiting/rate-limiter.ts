@@ -1,3 +1,4 @@
+import { warn } from '../logging/logger.helpers';
 import { Ms } from '../utilities/ms';
 
 /**
@@ -10,56 +11,66 @@ export class RateLimiter {
 
     private constructor(
         private readonly max: number,
-        private readonly intervalInMs: number
+        private readonly intervalInMs: number,
+        initialTokens: number
     ) {
-        this.tokens = max;
+        if (initialTokens > max) {
+            warn('initialTokens are bigger than max, replacing initialTokens with the value of max');
+            initialTokens = max;
+        }
+        this.tokens = initialTokens;
         this.lastRefill = Date.now();
     }
 
     /**
      * Creates a rate limiter with the provided maximum available per day.
      * @param max - The maximum available per day.
+     * @param initialTokens - The amount of initial tokens to fill. Defaults to the value of max.
      * @returns The RateLimiter.
      */
-    static perDay(max: number): RateLimiter {
-        return new this(max, Ms.DAY);
+    static perDay(max: number, initialTokens: number = max): RateLimiter {
+        return new this(max, Ms.DAY, initialTokens);
     }
 
     /**
      * Creates a rate limiter with the provided maximum available per hour.
      * @param max - The maximum available per hour.
+     * @param initialTokens - The amount of initial tokens to fill. Defaults to the value of max.
      * @returns The RateLimiter.
      */
-    static perHour(max: number): RateLimiter {
-        return new this(max, Ms.HOUR);
+    static perHour(max: number, initialTokens: number = max): RateLimiter {
+        return new this(max, Ms.HOUR, initialTokens);
     }
 
     /**
      * Creates a rate limiter with the provided maximum available per minute.
      * @param max - The maximum available per minute.
+     * @param initialTokens - The amount of initial tokens to fill. Defaults to the value of max.
      * @returns The RateLimiter.
      */
-    static perMinute(max: number): RateLimiter {
-        return new this(max, Ms.MINUTE);
+    static perMinute(max: number, initialTokens: number = max): RateLimiter {
+        return new this(max, Ms.MINUTE, initialTokens);
     }
 
     /**
      * Creates a rate limiter with the provided maximum available per second.
      * @param max - The maximum available per seconds.
+     * @param initialTokens - The amount of initial tokens to fill. Defaults to the value of max.
      * @returns The RateLimiter.
      */
-    static perSecond(max: number): RateLimiter {
-        return new this(max, Ms.SECOND);
+    static perSecond(max: number, initialTokens: number = max): RateLimiter {
+        return new this(max, Ms.SECOND, initialTokens);
     }
 
     /**
      * Creates a rate limiter with a custom interval.
      * @param max - The maximum available per the given interval.
      * @param intervalInMs - The interval in ms.
+     * @param initialTokens - The amount of initial tokens to fill. Defaults to the value of max.
      * @returns The RateLimiter.
      */
-    static custom(max: number, intervalInMs: number): RateLimiter {
-        return new this(max, intervalInMs);
+    static custom(max: number, intervalInMs: number, initialTokens: number = max): RateLimiter {
+        return new this(max, intervalInMs, initialTokens);
     }
 
     private refill(): void {

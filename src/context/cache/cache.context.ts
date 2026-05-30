@@ -24,10 +24,10 @@ export class CacheContext {
      * Whether or not the cache has been hit.
      */
     @Property.boolean({ required: false })
-    hit?: boolean;
+    hit?: boolean | null;
     /**
      * The duration that the original function took.
      */
     @Property.number({ required: false })
-    durationInMs?: number;
+    durationInMs?: number | null;
 }

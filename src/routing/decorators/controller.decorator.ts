@@ -2,6 +2,7 @@ import { GlobalRegistry } from '../../global/global-registry';
 import { Newable } from '../../types/newable.type';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { SupportedVersionsOptions } from '../../versioning/supported-versions-options.model';
 import { Route } from '../controller-route-configuration.model';
 
 /**
@@ -12,6 +13,10 @@ export type ControllerData = {
      * The base route of the controller. Any endpoints inside this class will be prefixed with this.
      */
     baseRoute: Route,
+    /**
+     * The versions that should be supported by this controller's routes. Can be overridden per route.
+     */
+    versions: SupportedVersionsOptions,
     /**
      * Whether or not this controller is allowed to exist without being registered in the application.
      */
@@ -24,14 +29,15 @@ export type ControllerData = {
  * @param options - Additional options for the controller.
  */
 export function Controller(baseRoute: Route, options: Partial<OmitStrict<ControllerData, 'baseRoute'>> = {}): ClassDecorator {
-    const { allowOrphan = false } = options;
+    const { allowOrphan = false, versions = ['^latest'] } = options;
     return target => {
         // eslint-disable-next-line unicorn/error-message
         const stack: string = new Error().stack ?? '';
         MetadataUtilities.setFilePath(target, stack);
         MetadataUtilities.setControllerData(target, {
             baseRoute,
-            allowOrphan
+            allowOrphan,
+            versions
         });
         GlobalRegistry.injectables.push({
             token: target as unknown as Newable<unknown>,

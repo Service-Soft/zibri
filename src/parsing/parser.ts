@@ -93,7 +93,7 @@ export class Parser implements ParserInterface, OnAppInit {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     parseHeaderParam(req: HttpRequest | WebsocketRequest | HttpClientResponse, metadata: HeaderParamMetadata): unknown {
-        const rawValue: string | undefined = req.headers[metadata.name as KnownHeader];
+        const rawValue: string | undefined = req.headers?.[metadata.name as KnownHeader];
         return this.headerParamParseFunctions[metadata.type](rawValue, metadata);
     }
 
@@ -112,8 +112,8 @@ export class Parser implements ParserInterface, OnAppInit {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async parseBody(req: HttpRequest | WebsocketRequest | HttpClientResponse, metadata: BodyMetadata): Promise<unknown> {
-        const contentTypeHeader: string | undefined = req.headers[KnownHeader.CONTENT_TYPE]
-            ?? req.headers[KnownHeader.CONTENT_TYPE.toLowerCase() as KnownHeader];
+        const contentTypeHeader: string | undefined = req.headers?.[KnownHeader.CONTENT_TYPE]
+            ?? req.headers?.[KnownHeader.CONTENT_TYPE.toLowerCase() as KnownHeader];
         let contentType: string = contentTypeHeader?.split(';')[0]?.trim().toLowerCase() ?? '';
         if (!contentType.length) {
             if (isHttpClientResponse(req)) {

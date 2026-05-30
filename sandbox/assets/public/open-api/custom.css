@@ -1,3 +1,8 @@
+body {
+    margin: 0;
+    padding-bottom: 20px;
+}
+
 #zibri-openapi-logo {
     display: flex;
     gap: 20px;
@@ -44,8 +49,17 @@ svg {
     filter: brightness(0) saturate(100%) invert(96%) sepia(0%) saturate(0%) hue-rotate(0deg) contrast(1);
 }
 
+.swagger-ui .topbar svg {
+    /* filter: brightness(0) saturate(100%) invert(96%) sepia(0%) saturate(0%) hue-rotate(0deg) contrast(1); */
+    display: none;
+}
+
 .swagger-ui .info .title {
     text-align: center;
+}
+
+.swagger-ui .info .link {
+    display: none;
 }
 
 .swagger-ui .json-schema-2020-12-property .json-schema-2020-12__title,
@@ -87,6 +101,7 @@ svg {
 }
 
 .swagger-ui .opblock .opblock-section-header,
+.swagger-ui .topbar,
 .swagger-ui .scheme-container {
     background-color: #1a1a26;
 }
@@ -96,8 +111,8 @@ svg {
     padding-right: 2em;
 }
 
-.swagger-ui .topbar {
-    display: none;
+.swagger-ui .topbar .download-url-wrapper {
+    display: flex;
 }
 
 .swagger-ui .json-schema-2020-12-body {
@@ -106,4 +121,11 @@ svg {
 
 .swagger-ui .json-schema-2020-12__attribute--primary {
     color: #019fbe;
+}
+
+.swagger-ui .dialog-ux .auth-btn-wrapper {
+    justify-content: start;
+}
+.swagger-ui .dialog-ux .auth-btn-wrapper .btn-done {
+    display: none;
 }

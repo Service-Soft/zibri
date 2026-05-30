@@ -7,7 +7,7 @@ import { DiProvider } from '../di/models/di-provider.model';
 import { BaseEntity } from '../entity/base-entity.model';
 import { BodyParserInterface } from '../parsing/body-parser.interface';
 import { Newable } from '../types/newable.type';
-import { Version } from '../types/version.type';
+import { SemVerVersion } from '../utilities/sem-ver.utilities';
 
 /**
  * The data of the app.
@@ -28,7 +28,7 @@ export type AppData = {
     /**
      * The current version of the app.
      */
-    version?: Version
+    version?: SemVerVersion
 };
 
 /**
