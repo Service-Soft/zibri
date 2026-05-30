@@ -33,7 +33,7 @@ export class EventSubscriberRun<T> extends BaseEntity {
      * The error property if the run failed.
      */
     @Property.unknown({ required: false })
-    error?: Error;
+    error?: Error | null;
 }
 
 /**

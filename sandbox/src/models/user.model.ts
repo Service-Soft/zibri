@@ -9,10 +9,10 @@ export class User extends BaseUserEntity(Roles) {
     name!: string;
 
     @Property.manyToOne({ target: () => Company, inverseSide: 'workers', joinColumn: 'companyId', required: false })
-    company?: Company;
+    company?: Company | null;
 
     @Property.string({ format: 'uuid', required: false })
-    companyId?: string;
+    companyId?: string | null;
 }
 
 export class UserCreateDto extends IntersectionClass(

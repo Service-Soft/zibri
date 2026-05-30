@@ -428,7 +428,6 @@ export class ZibriApplication {
             }
         };
         for (const plugin of this.providedOptions.plugins ?? []) {
-            // TODO: handle order of plugin initialization so that everything is available for DI inside the plugin constructor.
             res.authStrategies = [...plugin.authStrategies, ...res.authStrategies];
             res.bodyParsers = [...plugin.bodyParsers, ...res.bodyParsers];
             res.controllers = [...plugin.controllers, ...res.controllers];

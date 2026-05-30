@@ -25,7 +25,7 @@ export class InvoiceAddress {
      * It is required for factur-x or x-rechnung compliant invoices.
      */
     @Property.string({ required: false })
-    email?: string;
+    email?: string | null;
     /**
      * The street of the address.
      */
@@ -61,5 +61,5 @@ export class InvoiceAddress {
      * The name of the company.
      */
     @Property.string({ required: false })
-    companyName?: string;
+    companyName?: string | null;
 }

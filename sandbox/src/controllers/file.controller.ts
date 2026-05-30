@@ -5,7 +5,7 @@ export class FileCreateDTO {
     file!: File;
 }
 
-@Controller('/files')
+@Controller('/files', { versions: 'all' })
 export class FileController {
     constructor(
         @Inject(ZIBRI_DI_TOKENS.ASSET_SERVICE)

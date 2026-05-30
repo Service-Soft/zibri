@@ -1,3 +1,5 @@
+import assert from 'node:assert';
+
 import { Server, Socket } from 'socket.io';
 
 import { WebsocketSendData, WebsocketSendDataMessage, WebsocketSendToAllData, WebsocketSendToChannelData, WebsocketServiceInterface } from './websocket-service.interface';
@@ -17,6 +19,7 @@ import { toHttpError } from '../../error-handling/error-handler';
 import { BadRequestError } from '../../error-handling/errors/bad-request.error';
 import { HttpError, isHttpError } from '../../error-handling/errors/http.error';
 import { NotFoundError } from '../../error-handling/errors/not-found.error';
+import { UnauthorizedError } from '../../error-handling/errors/unauthorized.error';
 import { isError } from '../../error-handling/is-error.function';
 import { BeforeAppShutdown } from '../../global/before-app-shutdown.interface';
 import { GlobalRegistry } from '../../global/global-registry';
@@ -24,13 +27,17 @@ import { OnAppInit } from '../../global/on-app-init.interface';
 import { HttpStatus } from '../../http/http-status.enum';
 import { KnownHeader } from '../../http/known-header.enum';
 import { type LoggerInterface } from '../../logging/logger.interface';
-import { type ParserInterface } from '../../parsing/parser.interface';
 import { resolveRouteParams } from '../../routing/resolve-route-params.function';
 import { Newable } from '../../types/newable.type';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { SemVerVersion } from '../../utilities/sem-ver.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { type ValidationServiceInterface } from '../../validation/validation-service.interface';
+import { RouteWithVersionData } from '../../versioning/route-with-version-data.model';
+import { SupportedVersionsOptions } from '../../versioning/supported-versions-options.model';
+import { Version } from '../../versioning/version.model';
+import { type VersioningServiceInterface } from '../../versioning/versioning-service.interface';
 import { WebsocketControllerData } from '../decorators/websocket-controller.decorator';
 import { SocketIOWebsocketConnection } from '../models/connection/socket-io-websocket-connection.model';
 import { WebsocketChannel } from '../models/websocket-channel.model';
@@ -57,17 +64,25 @@ type SocketIOWebsocketHandler = (
 @Injectable({ register: 'onUse' })
 export class WebsocketService implements WebsocketServiceInterface<SocketIOWebsocketConnection>, OnAppInit, BeforeAppShutdown {
     private socketServer!: Server;
+    private readonly allEventRoutes: RouteWithVersionData[] = [];
     private readonly websocketHandlers: Record<string, SocketIOWebsocketHandler | undefined> = {};
     private readonly websocketChannels: Record<string, SocketIOWebsocketConnection[] | undefined> = {};
     private readonly connections: SocketIOWebsocketConnection[] = [];
+
+    private readonly pendingRouteGroups: Map<string, {
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        entries: { versions: SupportedVersionsOptions, innerHandler: SocketIOWebsocketHandler }[]
+    }> = new Map();
+
+    private get versioningService(): VersioningServiceInterface {
+        return inject(ZIBRI_DI_TOKENS.VERSIONING_SERVICE);
+    }
 
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
         private readonly logger: LoggerInterface,
         @Inject(ZIBRI_DI_TOKENS.AUTH_SERVICE)
         private readonly authService: AuthServiceInterface,
-        @Inject(ZIBRI_DI_TOKENS.PARSER)
-        private readonly parser: ParserInterface,
         @Inject(ZIBRI_DI_TOKENS.VALIDATION_SERVICE)
         private readonly validationService: ValidationServiceInterface,
         @InjectRepository(WebsocketChannel)
@@ -92,7 +107,44 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         }
         this.checkForOrphanedControllers(app.options.websocketControllers);
 
-        this.socketServer.on('connection', socket => this.onConnect(socket));
+        for (const [event, group] of this.pendingRouteGroups.entries()) {
+            this.websocketHandlers[event] = this.createDispatchHandler(group.entries);
+            await this.logger.debug(`- mounting websocket event "${event}"`);
+        }
+
+        // eslint-disable-next-line typescript/no-misused-promises
+        this.socketServer.use(async (socket, next) => {
+            const request: WebsocketRequest = {
+                headers: socket.handshake.headers as Partial<Record<KnownHeader, string | undefined>>,
+                body: undefined,
+                query: socket.handshake.query as Partial<Record<string, string | undefined>>,
+                params: {}
+            };
+            const context: WebsocketRequestContext = new WebsocketRequestContext(request, undefined, undefined, undefined);
+
+            const currentUser: BaseUser<string> | undefined = await this.authService.getCurrentUser(
+                context,
+                this.authService.strategies,
+                false
+            );
+            if (!await this.options.isAllowedToConnect(currentUser)) {
+                next(new UnauthorizedError('Not allowed to connect'));
+                return;
+            }
+
+            try {
+                const version: Version = await this.versioningService.resolveVersion(context);
+                // eslint-disable-next-line typescript/no-unsafe-member-access
+                socket.data.resolvedVersion = version;
+                // eslint-disable-next-line typescript/no-unsafe-member-access
+                socket.data.currentUser = currentUser;
+                next();
+            }
+            catch (error) {
+                next(error instanceof Error ? error : new Error('Could not resolve version', { cause: error }));
+            }
+        });
+        this.socketServer.on('connection', async socket => await this.onConnect(socket));
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -101,26 +153,12 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
     }
 
     private async onConnect(socket: Socket): Promise<void> {
-        const request: WebsocketRequest = {
-            headers: socket.handshake.headers as Partial<Record<KnownHeader, string | undefined>>,
-            body: undefined,
-            query: socket.handshake.query as Partial<Record<string, string | undefined>>,
-            params: {}
-        };
+        // eslint-disable-next-line typescript/no-unsafe-member-access
+        const currentUser: BaseUser<string> | undefined = socket.data.currentUser as BaseUser<string> | undefined;
+        // eslint-disable-next-line typescript/no-unsafe-member-access
+        const resolvedVersion: Version = socket.data.resolvedVersion as Version;
+
         let connection: SocketIOWebsocketConnection | undefined = this.connections.find(c => c.id === socket.id);
-
-        const context: WebsocketRequestContext = new WebsocketRequestContext(request, connection, undefined, undefined);
-        const currentUser: BaseUser<string> | undefined = await this.authService.getCurrentUser(
-            context,
-            this.authService.strategies,
-            false
-        );
-
-        const isAllowedToConnect: boolean = await this.options.isAllowedToConnect(currentUser);
-        if (!isAllowedToConnect) {
-            socket.disconnect(true);
-            return;
-        }
 
         if (connection) {
             connection.offset = socket.handshake.auth.offset as number;
@@ -128,7 +166,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
             return;
         }
 
-        connection = new SocketIOWebsocketConnection(socket, currentUser?.id);
+        connection = new SocketIOWebsocketConnection(socket, currentUser?.id, resolvedVersion);
         this.connections.push(connection);
         await this.logger.debug('a user connected');
 
@@ -284,6 +322,8 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
     // eslint-disable-next-line jsdoc/require-jsdoc
     async registerController(controllerClass: Newable<unknown>): Promise<void> {
         const controllerData: WebsocketControllerData | undefined = MetadataUtilities.getWebsocketControllerData(controllerClass);
+        const currentLatest: SemVerVersion | undefined = GlobalRegistry.getAppData('version');
+        assert(currentLatest);
         if (controllerData == undefined) {
             // eslint-disable-next-line stylistic/max-len
             throw new Error(`Could not find websocket controller data on class ${controllerClass.name}. Did you forget to decorate it with @WebsocketController?`);
@@ -291,19 +331,44 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         const routes: WebsocketControllerRouteConfiguration[] = MetadataUtilities.getWebsocketControllerRoutes(controllerClass);
 
         for (const route of routes) {
-            const handler: SocketIOWebsocketHandler = this.controllerRouteToWebsocketHandler(
-                controllerClass,
-                route
-            );
-            if (this.websocketHandlers[route.event]) {
-                throw new Error(
-                    `The websocket event "${route.event}" has been defined more than once.`,
-                    { cause: controllerClass }
-                );
-            }
-            await this.logger.debug(`- mounting websocket event "${route.event}"`);
+            const fullEvent: string = `${controllerData.eventPrefix}${route.event}`;
+            const versions: SupportedVersionsOptions = route.versions ?? controllerData.versions;
 
-            this.websocketHandlers[route.event] = handler;
+            const overlappingRoute: RouteWithVersionData | undefined = this.allEventRoutes.find(
+                r => r.key === fullEvent && this.versioningService.hasOverlappingVersions(r.versions, versions, currentLatest)
+            );
+            if (overlappingRoute) {
+                const overlappingVersions: SupportedVersionsOptions = this.versioningService.findOverlappingVersions(
+                    overlappingRoute.versions,
+                    versions,
+                    currentLatest
+                );
+                if (overlappingVersions === 'all') {
+                    throw new Error([
+                        `The websocket event "${fullEvent}"`,
+                        'has been defined more than once.',
+                        '(versions: \'all\' has been used)'
+                    ].join(' '), { cause: controllerClass });
+                }
+                throw new Error([
+                    `The websocket event "${fullEvent}"`,
+                    `for the ${overlappingVersions.length > 1 ? 'versions' : 'version'} "${overlappingVersions.join(', ')}"`,
+                    'has been defined more than once.'
+                ].join(' '), { cause: controllerClass });
+            }
+
+            this.allEventRoutes.push({ key: fullEvent, versions });
+
+            const innerHandler: SocketIOWebsocketHandler = this.controllerRouteToWebsocketHandler(controllerClass, route);
+            // eslint-disable-next-line typescript/typedef
+            const existing = this.pendingRouteGroups.get(fullEvent);
+            if (existing) {
+                existing.entries.push({ versions, innerHandler });
+            }
+            else {
+                this.pendingRouteGroups.set(fullEvent, { entries: [{ versions, innerHandler }] });
+            }
+            await this.logger.debug(`- registering websocket event "${fullEvent}"`);
         }
     }
 
@@ -358,7 +423,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
     async sendToChannel<B extends boolean>(
         data: WebsocketSendToChannelData<B>
     ): Promise<B extends false ? void : WebsocketRequestWithConnection<SocketIOWebsocketConnection>[]> {
-        data.expectResponse ??= true as B;
+        data.expectResponse ??= false as B;
         const channel: WebsocketChannel = await this.channelRepository.findById(data.channelId);
 
         const message: WebsocketMessage = await this.createWebsocketMessage(
@@ -422,9 +487,9 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async sendToAll<B extends boolean>(
-        data: WebsocketSendToAllData<B>,
-        expectResponse: B = true as B
+        data: WebsocketSendToAllData<B>
     ): Promise<B extends false ? void : WebsocketRequestWithConnection<SocketIOWebsocketConnection>[]> {
+        data.expectResponse ??= false as B;
         const message: WebsocketMessage = await this.createWebsocketMessage(
             data.persist ?? true,
             data.message.ok
@@ -450,7 +515,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
             return undefined as B extends false ? void : WebsocketRequestWithConnection<SocketIOWebsocketConnection>[];
         }
 
-        if (!expectResponse) {
+        if (!data.expectResponse) {
             this.socketServer.emit(data.event, JsonUtilities.parse(JsonUtilities.stringify(message)));
             return undefined as B extends false ? void : WebsocketRequestWithConnection<SocketIOWebsocketConnection>[];
         }
@@ -514,7 +579,9 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         }
         await connection.leave(channel.name);
 
-        const foundChannel: SocketIOWebsocketConnection | undefined = this.websocketChannels[channel.name]?.find(c => c.id === channel.id);
+        const foundChannel: SocketIOWebsocketConnection | undefined = this.websocketChannels[channel.name]?.find(
+            c => c.id === connection.id
+        );
         if (foundChannel) {
             // eslint-disable-next-line typescript/no-non-null-assertion
             this.websocketChannels[channel.name]!.splice(this.websocketChannels[channel.name]!.indexOf(foundChannel), 1);
@@ -542,6 +609,44 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
             throw new NotFoundError(`Could not find connection with userId "${userId}".`);
         }
         return foundConnection;
+    }
+
+    private createDispatchHandler(
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        entries: { versions: SupportedVersionsOptions, innerHandler: SocketIOWebsocketHandler }[]
+    ): SocketIOWebsocketHandler {
+        return async (connection, req, responseHandler) => {
+            try {
+                // eslint-disable-next-line typescript/typedef
+                const match = entries.find(e => this.versioningService.matchesVersion(e.versions, connection.resolvedVersion));
+                if (!match) {
+                    const error: NotFoundError = new NotFoundError(
+                        `Could not find handler for websocket event for version "${connection.resolvedVersion.value}"`
+                    );
+                    await this.send({
+                        connection,
+                        event: WebsocketEvent.RESPONSE,
+                        message: { ok: false, error, status: error.status, senderUserId: undefined, senderConnectionId: undefined },
+                        responseHandler,
+                        expectResponse: true,
+                        persist: false
+                    });
+                    return;
+                }
+                await match.innerHandler(connection, req, responseHandler);
+            }
+            catch (error) {
+                const err: HttpError = toHttpError(error);
+                await this.send({
+                    connection,
+                    event: WebsocketEvent.RESPONSE,
+                    message: { ok: false, error: err, status: err.status, senderUserId: undefined, senderConnectionId: undefined },
+                    responseHandler,
+                    expectResponse: true,
+                    persist: false
+                });
+            }
+        };
     }
 
     private async createWebsocketMessage(

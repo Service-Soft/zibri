@@ -23,7 +23,7 @@ import { Test } from '../../models';
 
 @DataSource()
 export class DbDataSource extends PostgresDataSource {
-    options: PostgresOptions = {
+    options: OmitStrict<PostgresOptions, 'type' | 'entities'> = {
         host: 'localhost',
         port: 5432,
         username: 'postgres',

@@ -1,5 +1,5 @@
 import H from 'handlebars/runtime';
-import { inject, isVersion, JwtAuthController, LoggerInterface, MailingListController, ZIBRI_DI_TOKENS, ZibriApplication, ZibriInvoicingPlugin, ZibriMailingListPlugin } from 'zibri';
+import { inject, JwtAuthController, LoggerInterface, MailingListController, SemVerUtilities, ZIBRI_DI_TOKENS, ZibriApplication, ZibriInvoicingPlugin, ZibriMailingListPlugin } from 'zibri';
 
 import { CronController, FileController, MetricsController, PageController, TemplateController, TestController, TestCrudController, TestWebsocketController } from './controllers';
 import { createDefaultData } from './create-default-data.function';
@@ -11,7 +11,7 @@ import { providers } from './providers';
 export let logger: LoggerInterface;
 
 async function start(): Promise<void> {
-    if (!isVersion(version)) {
+    if (!SemVerUtilities.isSemVerVersion(version)) {
         throw new Error('The version of the package.json is not valid.');
     }
 

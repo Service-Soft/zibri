@@ -33,11 +33,11 @@ export class ThreadJobEntity<WorkerData extends BaseThreadJobWorkerData, ResultT
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     @Property.number({ required: false })
-    startedAtMs?: number;
+    startedAtMs?: number | null;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     @Property.number({ required: false })
-    stoppedAtMs?: number;
+    stoppedAtMs?: number | null;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     @Property.string({ enum: ThreadJobStatus })
@@ -45,7 +45,7 @@ export class ThreadJobEntity<WorkerData extends BaseThreadJobWorkerData, ResultT
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     @Property.number({ required: false })
-    threadId?: number;
+    threadId?: number | null;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     @Property.number()
@@ -61,7 +61,7 @@ export class ThreadJobEntity<WorkerData extends BaseThreadJobWorkerData, ResultT
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     @Property.unknown({ required: false })
-    error?: Error;
+    error?: Error | null;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     @Property.unknown()
@@ -69,5 +69,5 @@ export class ThreadJobEntity<WorkerData extends BaseThreadJobWorkerData, ResultT
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     @Property.unknown({ required: false })
-    result?: ResultType;
+    result?: ResultType | null;
 }

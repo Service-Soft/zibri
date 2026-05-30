@@ -58,7 +58,9 @@ export class AssetService implements AssetServiceInterface, OnAppInit {
         await inject(ZIBRI_DI_TOKENS.ROUTER).registerRoute({
             httpMethod: HttpMethod.GET,
             route: '/favicon.ico',
-            handler: () => FileResponse.fromPath(FsUtilities.getPath(this.publicAssetsPath, 'favicon.png'))
+            handler: () => FileResponse.fromPath(FsUtilities.getPath(this.publicAssetsPath, 'favicon.png')),
+            versions: 'all',
+            openApi: { useInOpenApi: false }
         });
 
     }

@@ -26,6 +26,7 @@ export enum KnownHeader {
     X_FORWARDED_HOST = 'x-forwarded-host',
     X_FORWARDED_PROTO = 'x-forwarded-proto',
     X_REAL_IP = 'x-real-ip',
+    X_VERSION = 'x-version',
     IF_NONE_MATCH = 'if-none-match',
     IIF_MODIFIED_SINCE = 'if-modified-since',
     CONNECTION = 'connection',

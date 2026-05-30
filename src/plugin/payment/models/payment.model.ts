@@ -45,10 +45,10 @@ export class Payment<M extends PaymentMethod, Data extends AnyObject> extends Ba
      * Additional data stored by the provider.
      */
     @Property.unknown({ required: false })
-    data?: Data;
+    data?: Data | null;
     /**
      * An error that the payment failed with.
      */
     @Property.unknown({ required: false })
-    error?: Error;
+    error?: Error | null;
 }

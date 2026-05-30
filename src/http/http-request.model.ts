@@ -1,7 +1,7 @@
 import { Request } from 'express';
 
+import { Header } from './header.type';
 import { HttpMethod } from './http-method.enum';
-import { KnownHeader } from './known-header.enum';
 import { OmitStrict } from '../types/omit-strict.type';
 
 /**
@@ -11,7 +11,7 @@ export type HttpRequest<
     T = unknown,
     PathParamsObject extends Record<string, unknown> = Record<string, string | undefined>,
     QueryParamsObject extends Record<string, unknown> = Record<string, string | undefined>,
-    HeaderParamsObject extends Record<string, unknown> = Partial<Record<KnownHeader, string | undefined>>
+    HeaderParamsObject extends Record<string, unknown> = Partial<Record<Header, string | undefined>>
 // eslint-disable-next-line typescript/no-explicit-any
 > = OmitStrict<Request<Record<string, string>, any, T>, 'query' | 'headers' | 'params' | 'method'> & {
     /**

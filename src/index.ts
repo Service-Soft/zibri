@@ -120,6 +120,7 @@ export * from './routing/decorators/get.decorator';
 export * from './routing/decorators/post.decorator';
 export * from './routing/decorators/delete.decorator';
 export * from './routing/decorators/patch.decorator';
+export * from './routing/decorators/http-decorator-option-input.model';
 export * from './routing/decorators/param.decorator';
 export * from './routing/decorators/body.decorator';
 
@@ -541,6 +542,13 @@ export * from './caching/store/cache-store.interface';
 export * from './caching/store/cached-value.model';
 export * from './caching/store/in-memory.cache-store';
 
+// versioning
+export * from './versioning/route-with-version-data.model';
+export * from './versioning/supported-versions-options.model';
+export * from './versioning/version.model';
+export * from './versioning/versioning-service.interface';
+export * from './versioning/versioning.service';
+
 // types
 export * from './types/any-enum.type';
 export * from './types/deep-partial.type';
@@ -548,13 +556,11 @@ export * from './types/exclude-strict.type';
 export * from './types/newable.type';
 export * from './types/omit-strict.type';
 export * from './types/percentage.type';
-export * from './types/version.type';
 
 // utilities
 export * from './utilities/bytes';
 export * from './utilities/doubly-linked-list';
-export * from './utilities/compare-versions.function';
-export * from './utilities/is-version.function';
+export * from './utilities/sem-ver.utilities';
 export * from './utilities/now-in-ns.function';
 export * from './utilities/promise.utilities';
 export * from './utilities/ms';

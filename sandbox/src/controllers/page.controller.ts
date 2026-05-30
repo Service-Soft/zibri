@@ -17,7 +17,7 @@ export class StaticPagesCache extends WriteThroughReadThroughCache<string, HtmlR
     }
 }
 
-@Controller('/')
+@Controller('/', { versions: 'all' })
 export class PageController {
 
     @Cached(StaticPagesCache, () => 'index')

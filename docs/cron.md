@@ -6,18 +6,18 @@ To define a job it needs to extend the `CronJob` class. Below is a simple exampl
 
 ```ts
 // src/cron/status.cron-job.ts
-import { CronJob, inject, Injectable, LoggerInterface, ZIBRI_DI_TOKENS, InitialCronConfig } from 'zibri';
+import { CronExpression, CronJob, inject, Injectable, ZIBRI_DI_TOKENS, InitialCronConfig } from 'zibri';
 
 @Injectable()
 export class StatusCronJob extends CronJob {
     readonly initialConfig: InitialCronConfig = {
         name: 'Status',
-        cron: '* * * * * *',
+        cron: CronExpression.every(1, 'seconds').build(),
         active: false
     };
 
     async onTick(): Promise<void> {
-        await inject<LoggerInterface>(ZIBRI_DI_TOKENS.LOGGER).info(`is running ${this.name}`);
+        await inject(ZIBRI_DI_TOKENS.LOGGER).info(`is running ${this.name}`);
     }
 }
 ```

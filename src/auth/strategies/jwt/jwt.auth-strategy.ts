@@ -383,7 +383,7 @@ implements AuthStrategyInterface<
     private extractAccessTokenFromRequestContext(
         context: HttpRequestContext | WebsocketRequestContext
     ): string | undefined {
-        const authHeader: string | string[] | undefined = context.request.headers.authorization;
+        const authHeader: string | string[] | undefined = context.request.headers?.authorization;
         if (authHeader == undefined || typeof authHeader !== 'string') {
             return undefined;
         }

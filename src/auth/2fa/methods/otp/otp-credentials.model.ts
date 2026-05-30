@@ -27,7 +27,7 @@ export class OtpCredentials extends BaseEntity {
      * The two factor url that is needed to display a qr code.
      */
     @Property.string({ required: false })
-    qrCodeUrl: string | undefined;
+    qrCodeUrl: string | undefined | null;
 }
 
 /**

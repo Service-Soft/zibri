@@ -20,7 +20,7 @@ import { Property } from '../../entity/decorators/property.decorator';
 import { GlobalRegistry } from '../../global/global-registry';
 import { Newable } from '../../types/newable.type';
 import { OmitStrict } from '../../types/omit-strict.type';
-import { Version } from '../../types/version.type';
+import { SemVerVersion } from '../../types/version.type';
 import { PostgresDataSource, PostgresOptions } from '../data-sources/postgres-typeorm-data-source.model';
 import { DataSource } from '../decorators/data-source.decorator';
 import { Repository } from '../repository';
@@ -68,7 +68,7 @@ class DbDataSource extends PostgresDataSource {
 
 @Injectable()
 class AddTestValueMigration extends Migration {
-    version: Version = '0.0.1';
+    version: SemVerVersion = '0.0.1';
 
     constructor(
         @InjectRepository(Item)

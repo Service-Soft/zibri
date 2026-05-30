@@ -20,7 +20,7 @@ class Address {
     city!: string;
 
     @Property.string({ required: false })
-    type?: string; // 'home', 'work', etc.
+    type?: string | null; // 'home', 'work', etc.
 }
 
 class PersonalData {
@@ -182,7 +182,6 @@ describe('Where filters – deeply nested (object → array → object)', () => 
 
     // ===== Array of objects: includes (contains) – requires feature, skip for now =====
     it('array includes (contains all specified objects)', async () => {
-        // TODO: implement partial object match in includes for object arrays
         const res: Customer[] = await customerRepo.findAll({
             where: {
                 personalData: {
@@ -197,7 +196,6 @@ describe('Where filters – deeply nested (object → array → object)', () => 
 
     // ===== Array of objects: nested where on items (if supported) =====
     it('array item where filter', async () => {
-        // TODO: implement 'where' on array items to filter by item properties
         const res: Customer[] = await customerRepo.findAll({
             where: {
                 personalData: {
@@ -339,6 +337,13 @@ describe('Where filters – deeply nested (object → array → object)', () => 
                 }
             });
             expect(res.map(c => c.id)).toEqual([container2.id]);
+        });
+
+        it('fuzzyLike on title', async () => {
+            const res: Container[] = await containerRepo.findAll({
+                where: { title: { fuzzyLike: { value: 'Cont', minSimilarity: 30 } } }
+            });
+            expect(res.map(c => c.id)).toEqual(expect.arrayContaining([container.id, container2.id]));
         });
     });
 });

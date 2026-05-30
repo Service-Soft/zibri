@@ -3,26 +3,26 @@ import { Property } from 'zibri';
 export class PetstoreUser {
 
     @Property.number({ required: false })
-    id?: number;
+    'id'?: number;
 
     @Property.string({ required: false })
-    username?: string;
+    'username'?: string;
 
     @Property.string({ required: false })
-    firstName?: string;
+    'firstName'?: string;
 
     @Property.string({ required: false })
-    lastName?: string;
+    'lastName'?: string;
 
     @Property.string({ required: false })
-    email?: string;
+    'email'?: string;
 
     @Property.string({ required: false })
-    password?: string;
+    'password'?: string;
 
     @Property.string({ required: false })
-    phone?: string;
+    'phone'?: string;
 
     @Property.number({ required: false })
-    userStatus?: number;
+    'userStatus'?: number;
 }

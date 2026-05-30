@@ -173,7 +173,7 @@ export abstract class FsUtilities {
      * Creates a file at the given path.
      * @param p - The path of the new file to create.
      * @param data - The data to write into the file. Can be a raw data string or an array of lines, which are joined by \n.
-     * @param recursive - Whether or not to recursively create the file.
+     * @param recursive - Whether or not to recursively create the file. Defaults to true.
      */
     static async createFile(p: FsPath, data: string | string[], recursive: boolean = true): Promise<void> {
         if (await this.exists(p)) {

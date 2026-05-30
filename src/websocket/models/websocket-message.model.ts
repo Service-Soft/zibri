@@ -56,12 +56,12 @@ export class WebsocketMessage extends BaseEntity {
      * The id of the user that has sent the message.
      */
     @Property.string({ required: false, format: 'uuid' })
-    senderUserId: string | undefined;
+    senderUserId: string | undefined | null;
     /**
      * The of the connection that has sent the message.
      */
     @Property.string({ required: false })
-    senderConnectionId: string | undefined;
+    senderConnectionId: string | undefined | null;
     /**
      * The actual data of the message.
      */

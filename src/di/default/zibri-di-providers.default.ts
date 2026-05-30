@@ -25,6 +25,7 @@ import { DataSourceService } from '../../data-source/data-source.service';
 import { EmailService } from '../../email/email.service';
 import { errorHandler } from '../../error-handling/error-handler';
 import { EventService } from '../../event/event.service';
+import { KnownHeader } from '../../http/known-header.enum';
 import { HttpClient } from '../../http-client/http-client';
 import { LocalizeOptionsInput } from '../../localization/models/localize-options.model';
 import { LogLevel } from '../../logging/log-level.enum';
@@ -39,6 +40,7 @@ import { Router } from '../../routing/router';
 import { FsUtilities } from '../../utilities/fs.utilities';
 import { Ms } from '../../utilities/ms';
 import { ValidationService } from '../../validation/validation.service';
+import { VersioningService } from '../../versioning/versioning.service';
 import { WebsocketService } from '../../websocket/services/websocket.service';
 import { DiTokenProviderRecord } from '../models/di-token.model';
 
@@ -147,6 +149,8 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
     ENCRYPTION_STRATEGIES: { useValue: [AesGcmEncryptionStrategy] },
     ENCRYPTION_MASTER_OPTIONS: { useValue: undefined },
     CACHE_SERVICE: { useClass: CacheService },
+    VERSIONING_SERVICE: { useClass: VersioningService },
+    VERSION_HEADER: { useValue: KnownHeader.X_VERSION },
     // dynamic
     CURRENT_REQUEST_CONTEXT: {
         useFactory: () => AlsUtilities.getCurrentRequestContext(),

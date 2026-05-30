@@ -51,7 +51,7 @@ export const ZIBRI_REQUEST_CONTEXT_TOKENS = {
         'correlation_id',
         ctx => {
             const correlationIdHeader: string = inject(ZIBRI_DI_TOKENS.CORRELATION_ID_HEADER);
-            return ctx.request.headers[correlationIdHeader as KnownHeader] ?? UUIDUtilities.generate();
+            return ctx.request.headers?.[correlationIdHeader as KnownHeader] ?? UUIDUtilities.generate();
         }
     ),
     CURRENT_USER: new RequestContextToken(

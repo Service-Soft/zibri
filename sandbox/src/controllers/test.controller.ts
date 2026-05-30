@@ -4,7 +4,7 @@ import { Roles, Test, TestCreateDTO, User } from '../models';
 import { UserRepository } from '../repositories';
 
 @Auth.isLoggedIn()
-@Controller('/tests')
+@Controller('/tests', { versions: 'all' })
 export class TestController {
     constructor(
         @InjectRepository(Test)

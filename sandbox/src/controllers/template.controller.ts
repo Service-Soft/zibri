@@ -4,7 +4,7 @@ import { LogEmail } from '../templates/emails/log';
 import { PasswordResetEmail } from '../templates/emails/password-reset';
 import { SocketIoTestPage } from '../templates/pages/socket-io-test';
 
-@Controller('/templates')
+@Controller('/templates', { versions: 'all' })
 export class TemplateController {
 
     @Response.html()

@@ -51,7 +51,11 @@ export class PageController {
     @Response.html()
     @Get()
     async index(): Promise<HtmlResponse> {
-        return await PreactUtilities.renderResponse(HomePage, { appName: GlobalRegistry.getAppData('name') ?? '' });
+        const html: string = await PreactUtilities.renderPage(
+            HomePage,
+            { appName: GlobalRegistry.getAppData('name') ?? '' }
+        );
+        return HtmlResponse.fromString(html);
     }
 }
 ```

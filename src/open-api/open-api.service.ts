@@ -1,4 +1,4 @@
-import swaggerUi from 'swagger-ui-express';
+import { Readable } from 'node:stream';
 
 import { ZibriApplication } from '../application';
 import { OpenApiServiceInterface } from './open-api-service.interface';
@@ -21,26 +21,31 @@ import { ManyToOnePropertyMetadata } from '../entity/models/many-to-one-property
 import { OneToManyPropertyMetadata } from '../entity/models/one-to-many-property-metadata.model';
 import { Relation } from '../entity/models/relation.enum';
 import { OmitClass } from '../entity/omit-class.model';
+import { NotFoundError } from '../error-handling/errors/not-found.error';
 import { GlobalRegistry } from '../global/global-registry';
 import { OnAppInit } from '../global/on-app-init.interface';
 import { HttpMethod } from '../http/http-method.enum';
 import { HttpStatus } from '../http/http-status.enum';
 import { KnownHeader } from '../http/known-header.enum';
 import { MimeType } from '../http/mime-type.enum';
+import { FormatDateFn } from '../localization/formatting/format-date-fn.model';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { FileResponse } from '../parsing/form-data/file-response.model';
+import { HtmlResponse } from '../parsing/html/html-response.model';
 import { Route, ControllerRouteConfiguration } from '../routing/controller-route-configuration.model';
 import { BodyMetadata } from '../routing/decorators/body.decorator';
 import { ControllerData } from '../routing/decorators/controller.decorator';
 import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from '../routing/decorators/param.decorator';
 import { MissingBaseRouteError } from '../routing/missing-base-route.error';
-import { RouteHandler } from '../routing/route-configuration.model';
 import { type RouterInterface } from '../routing/router.interface';
 import { Newable } from '../types/newable.type';
 import { FsUtilities, FsPath } from '../utilities/fs.utilities';
-import { JsonUtilities } from '../utilities/json.utilities';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
+import { SemVerUtilities } from '../utilities/sem-ver.utilities';
+import { SupportedVersionsOptions } from '../versioning/supported-versions-options.model';
+import { Version, VersionFile } from '../versioning/version.model';
+import { type VersioningServiceInterface } from '../versioning/versioning-service.interface';
 
 const defaultDescriptionForHttpStatus: Record<HttpStatus | 'default', string> = {
     default: 'Response',
@@ -99,17 +104,37 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
         @Inject(ZIBRI_DI_TOKENS.AUTH_SERVICE)
         private readonly authService: AuthServiceInterface,
         @Inject(ZIBRI_DI_TOKENS.ROUTER)
-        private readonly router: RouterInterface
+        private readonly router: RouterInterface,
+        @Inject(ZIBRI_DI_TOKENS.VERSIONING_SERVICE)
+        private readonly versioningService: VersioningServiceInterface
     ) { }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async onAppInit(app: ZibriApplication): Promise<void> {
-        const definition: OpenApiDefinition = await this.createOpenApiDefinition(app);
+        await this.router.registerRoute({
+            httpMethod: HttpMethod.GET,
+            route: `${this.openApiRoute}/spec/:version`,
+            versions: 'all',
+            openApi: { useInOpenApi: false },
+            pathParams: { version: { type: 'string' } },
+            handler: async (req) => {
+                const versionValue: string = req.params['version'];
+                const versions: VersionFile[] = this.versioningService.getVersions();
+                const version: VersionFile | undefined = versions.find(v => v.value === versionValue);
+                if (!version) {
+                    throw new NotFoundError(`Version "${versionValue}" not found`);
+                }
+                return await this.createOpenApiDefinition(app, version);
+            }
+        });
+
         await this.logger.info(`registers the OpenAPI Explorer at ${this.openApiRoute}`);
 
         await this.router.registerRoute({
             httpMethod: HttpMethod.GET,
             route: `${this.openApiRoute}/swagger-ui.css`,
+            versions: 'all',
+            openApi: { useInOpenApi: false },
             handler: () => {
                 const filePath: FsPath = FsUtilities.getPath(this.assetService.publicAssetsPath, 'open-api', 'swagger-ui.css');
                 return FileResponse.fromPath(filePath);
@@ -118,6 +143,8 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
         await this.router.registerRoute({
             httpMethod: HttpMethod.GET,
             route: `${this.openApiRoute}/swagger-ui-bundle.js`,
+            versions: 'all',
+            openApi: { useInOpenApi: false },
             handler: () => {
                 const filePath: FsPath = FsUtilities.getPath(this.assetService.publicAssetsPath, 'open-api', 'swagger-ui-bundle.js');
                 return FileResponse.fromPath(filePath);
@@ -126,6 +153,8 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
         await this.router.registerRoute({
             httpMethod: HttpMethod.GET,
             route: `${this.openApiRoute}/swagger-ui-standalone-preset.js`,
+            versions: 'all',
+            openApi: { useInOpenApi: false },
             handler: () => {
                 const filePath: FsPath = FsUtilities.getPath(
                     this.assetService.publicAssetsPath,
@@ -138,166 +167,250 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
         await this.router.registerRoute({
             httpMethod: HttpMethod.GET,
             route: `${this.openApiRoute}/swagger-ui-init.js`,
-            handler: (_, res) => {
-                res.type('.js').send([
-                    'window.onload = function() {',
-                    '    SwaggerUIBundle({',
-                    `        spec: ${JsonUtilities.stringify(definition)},`,
-                    '        dom_id: \'#swagger-ui\',',
-                    '        presets: [',
-                    '            SwaggerUIBundle.presets.apis,',
-                    '            SwaggerUIStandalonePreset',
-                    '        ],',
-                    '        layout: "StandaloneLayout",',
-                    '        requestInterceptor: (req) => {',
-                    '            req.headers.Accept = \'application/json\'',
-                    `            req.headers['${KnownHeader.CONTENT_TYPE}'] = \'application/json\'`,
-                    '            return req;',
-                    '        },',
-                    '        defaultModelRendering: \'model\'',
-                    '    });',
-                    '};'
-
-                ].join('\n'));
+            versions: 'all',
+            openApi: { useInOpenApi: false },
+            handler: () => {
+                const formatDate: FormatDateFn = inject(ZIBRI_DI_TOKENS.FORMAT_DATE);
+                const versions: VersionFile[] = this.versioningService
+                    .getVersions()
+                    .sort((a, b) => SemVerUtilities.compare(a.value, b.value) === 'bigger' ? -1 : 1);
+                // eslint-disable-next-line jsdoc/require-jsdoc
+                const urls: { url: string, name: string }[] = versions.map(v => ({
+                    url: `${this.openApiRoute}/spec/${v.value}`,
+                    name: v.endsAt == undefined
+                        ? `${v.value} (latest)`
+                        : `${v.value} (${formatDate(v.startsAt)} - ${formatDate(v.endsAt)})`
+                }));
+                const latestVersion: VersionFile | undefined = versions.find(v => v.endsAt == undefined);
+                return FileResponse.fromStream({
+                    filename: 'swagger-ui-init.js',
+                    mimeType: MimeType.JAVASCRIPT,
+                    stream: Readable.from([
+                        [
+                            'window.onload = function() {',
+                            '    window.ui = SwaggerUIBundle({',
+                            `        urls: ${JSON.stringify(urls)},`,
+                            `        "urls.primaryName": "${latestVersion?.value ?? ''}",`,
+                            '        dom_id: \'#swagger-ui\',',
+                            '        presets: [',
+                            '            SwaggerUIBundle.presets.apis,',
+                            '            SwaggerUIStandalonePreset',
+                            '        ],',
+                            '        layout: "StandaloneLayout",',
+                            '        requestInterceptor: (req) => {',
+                            '            req.headers.Accept = \'application/json\'',
+                            `            req.headers['${KnownHeader.CONTENT_TYPE}'] = \'application/json\'`,
+                            '            return req;',
+                            '        },',
+                            '        defaultModelRendering: \'model\'',
+                            '    });',
+                            '};'
+                        ].join('\n')
+                    ])
+                });
             }
         });
 
         await this.router.registerRoute({
             httpMethod: HttpMethod.GET,
             route: `${this.openApiRoute}/custom.js`,
-            handler: (_, res) => {
-                res.type('.js').send([
-                    '(function waitForTopbar() {',
-                    '    const topbar = document.querySelector(\'.information-container\');',
-                    '    if (!topbar) {',
-                    '        return setTimeout(waitForTopbar, 50);',
-                    '    }',
-                    '    if (document.getElementById(\'zibri-openapi-logo\')) {',
-                    '        return;',
-                    '    }',
-                    '',
-                    '    const a = document.createElement(\'a\');',
-                    '    a.id = \'zibri-openapi-logo\';',
-                    '    a.href = \'/\';',
-                    '',
-                    '    const img = document.createElement(\'img\');',
-                    `    img.src = '${this.assetService.assetsRoute}/logo.jpg';`,
-                    '    img.height = 100;',
-                    '    img.width = 100;',
-                    '',
-                    '    a.appendChild(img);',
-                    `    a.append('${GlobalRegistry.getAppData('name')}')`,
-                    '    topbar.insertBefore(a, topbar.firstChild);',
-                    '})();',
-                    '',
-                    '(function waitForSwagger() {',
-                    '    if (!window.ui || typeof window.ui.specSelectors !== \'object\') {',
-                    '        return setTimeout(waitForSwagger, 50);',
-                    '    }',
-                    // eslint-disable-next-line stylistic/max-len
-                    '    const spec = window.ui.specSelectors.specJson().toJS ? window.ui.specSelectors.specJson().toJS() : window.ui.specSelectors.specJson();',
-                    '    if (!spec || !spec.paths) {',
-                    '        return setTimeout(waitForSwagger, 50);',
-                    '    }',
-                    '',
-                    '    function normalizeMethod(m) {',
-                    '        return String(m).toLowerCase();',
-                    '    }',
-                    '',
-                    // eslint-disable-next-line cspell/spellchecker
-                    '    const opblocks = Array.from(document.querySelectorAll(\'.opblock\'));',
-                    // eslint-disable-next-line cspell/spellchecker
-                    '    opblocks.forEach((op) => {',
-                    '        try {',
-                    // eslint-disable-next-line cspell/spellchecker
-                    '            const methodEl = op.querySelector(\'.opblock-summary-method\');',
-                    // eslint-disable-next-line cspell/spellchecker
-                    '            const pathEl = op.querySelector(\'.opblock-summary-path\');',
-                    '            if (!methodEl || !pathEl) {',
-                    '                return;',
-                    '            }',
-                    '            const method = normalizeMethod(methodEl.textContent?.trim() ?? \'\');',
-                    '            const path = (pathEl.textContent?.trim() ?? \'\');',
-                    '',
-                    '            const pathObj = spec.paths && spec.paths[path];',
-                    '            if (!pathObj) {',
-                    '                return;',
-                    '            }',
-                    '            const operationObj = pathObj[method];',
-                    '            if (!operationObj) {',
-                    '                return;',
-                    '            }',
-                    '            const roles = operationObj[\'x-roles\'];',
-                    '            if (!roles || !Array.isArray(roles) || roles.length === 0) {',
-                    '                return;',
-                    '            }',
-                    '',
-                    '            if (op.querySelector(\'.zibri-roles-container\')) {',
-                    '                return;',
-                    '            }',
-                    '            const container = document.createElement(\'div\');',
-                    '            container.className = \'zibri-roles-container\';',
-                    '            container.setAttribute(\'aria-hidden\', \'true\');',
-                    '',
-                    '            roles.forEach((r) => {',
-                    '                const badge = document.createElement(\'span\');',
-                    '                badge.className = \'zibri-role-badge\';',
-                    '                badge.textContent = String(r);',
-                    '                container.appendChild(badge);',
-                    '            });',
-                    '',
-                    // eslint-disable-next-line cspell/spellchecker
-                    '            const summary = op.querySelector(\'.opblock-summary-path-description-wrapper\');',
-                    '            summary.appendChild(container);',
-                    // '            if (summary) {',
-                    // '                const lock = summary.querySelector(\'.authorization__btn\');',
-                    // '                if (lock) {',
-                    // '                    summary.insertBefore(container, lock);',
-                    // '                } else {',
-                    // '                    summary.appendChild(container);',
-                    // '                }',
-                    // '            }',
-                    '        } catch (e) {',
-                    '            console.warn(\'zibri openapi role injection failed\', e);',
-                    '        }',
-                    '    });',
-                    '})();'
-
-                ].join('\n'));
+            versions: 'all',
+            openApi: { useInOpenApi: false },
+            handler: () => {
+                return FileResponse.fromStream({
+                    filename: 'custom.js',
+                    mimeType: MimeType.JAVASCRIPT,
+                    stream: Readable.from([
+                        [
+                            '(function() {',
+                            '    function injectLogo(topbar) {',
+                            '        if (topbar.querySelector(\'#zibri-openapi-logo\')) {',
+                            '            return;',
+                            '        }',
+                            '        const a = document.createElement(\'a\');',
+                            '        a.id = \'zibri-openapi-logo\';',
+                            '        a.href = \'/\';',
+                            '',
+                            '        const img = document.createElement(\'img\');',
+                            `        img.src = '${this.assetService.assetsRoute}/logo.jpg';`,
+                            '        img.height = 100;',
+                            '        img.width = 100;',
+                            '',
+                            '        a.appendChild(img);',
+                            `        a.append('${GlobalRegistry.getAppData('name')}');`,
+                            '        topbar.insertBefore(a, topbar.firstChild);',
+                            '    }',
+                            '',
+                            '    function observe() {',
+                            '        const topbar = document.querySelector(\'.information-container\');',
+                            '        if (!topbar) {',
+                            '            setTimeout(observe, 50);',
+                            '            return;',
+                            '        }',
+                            '        injectLogo(topbar);',
+                            '        new MutationObserver(() => {',
+                            '            const t = document.querySelector(\'.information-container\');',
+                            '            if (t) {',
+                            '                injectLogo(t);',
+                            '            }',
+                            '        }).observe(document.body, { childList: true, subtree: true });',
+                            '    }',
+                            '',
+                            '    observe();',
+                            '})();',
+                            '',
+                            '(function() {',
+                            '    let isInjecting = false;',
+                            '',
+                            '    function injectRoles() {',
+                            '        if (isInjecting) return;',
+                            '        if (!window.ui || typeof window.ui.specSelectors !== \'object\') return;',
+                            '',
+                            '        const spec = window.ui.specSelectors.specJson().toJS',
+                            '            ? window.ui.specSelectors.specJson().toJS()',
+                            '            : window.ui.specSelectors.specJson();',
+                            '',
+                            '        if (!spec || !spec.paths) return;',
+                            '',
+                            '        isInjecting = true;',
+                            '        try {',
+                            '            const normalizeMethod = (m) => String(m).toLowerCase();',
+                            '',
+                            // eslint-disable-next-line cspell/spellchecker
+                            '            const opBlocks = document.querySelectorAll(\'.opblock\');',
+                            '            opBlocks.forEach((op) => {',
+                            '                try {',
+                            // eslint-disable-next-line cspell/spellchecker
+                            '                    const methodEl = op.querySelector(\'.opblock-summary-method\');',
+                            // eslint-disable-next-line cspell/spellchecker
+                            '                    const pathEl = op.querySelector(\'.opblock-summary-path\');',
+                            '                    if (!methodEl || !pathEl) return;',
+                            '',
+                            '                    const method = normalizeMethod(methodEl.textContent.trim());',
+                            '                    const path = pathEl.textContent.trim();',
+                            '',
+                            '                    const pathObj = spec.paths[path];',
+                            '                    if (!pathObj) return;',
+                            '',
+                            '                    const operationObj = pathObj[method];',
+                            '                    if (!operationObj) return;',
+                            '',
+                            '                    const roles = operationObj[\'x-roles\'];',
+                            '                    if (!roles || !Array.isArray(roles) || roles.length === 0) return;',
+                            '',
+                            '                    if (op.querySelector(\'.zibri-roles-container\')) return;',
+                            '',
+                            '                    const container = document.createElement(\'div\');',
+                            '                    container.className = \'zibri-roles-container\';',
+                            '                    container.setAttribute(\'aria-hidden\', \'true\');',
+                            '',
+                            '                    roles.forEach((r) => {',
+                            '                        const badge = document.createElement(\'span\');',
+                            '                        badge.className = \'zibri-role-badge\';',
+                            '                        badge.textContent = String(r);',
+                            '                        container.appendChild(badge);',
+                            '                    });',
+                            '',
+                            // eslint-disable-next-line cspell/spellchecker
+                            '                    const summary = op.querySelector(\'.opblock-summary-path-description-wrapper\');',
+                            '                    if (summary) summary.appendChild(container);',
+                            '                } catch (e) {',
+                            '                    console.warn(\'zibri openapi role injection failed\', e);',
+                            '                }',
+                            '            });',
+                            '        } finally {',
+                            '            isInjecting = false;',
+                            '        }',
+                            '    }',
+                            '',
+                            '    function waitForSwaggerAndObserve() {',
+                            '        if (!window.ui || typeof window.ui.specSelectors !== \'object\') {',
+                            '            return setTimeout(waitForSwaggerAndObserve, 50);',
+                            '        }',
+                            '',
+                            '        const spec = window.ui.specSelectors.specJson().toJS',
+                            '            ? window.ui.specSelectors.specJson().toJS()',
+                            '            : window.ui.specSelectors.specJson();',
+                            '',
+                            '        if (!spec || !spec.paths) {',
+                            '            return setTimeout(waitForSwaggerAndObserve, 50);',
+                            '        }',
+                            '',
+                            '        // Initial injection',
+                            '        injectRoles();',
+                            '',
+                            '        // Watch for version switches / re-renders',
+                            '        const swaggerContainer = document.getElementById(\'swagger-ui\');',
+                            '        if (!swaggerContainer) return;',
+                            '',
+                            '        let debounceTimer;',
+                            '        const observer = new MutationObserver(() => {',
+                            '            clearTimeout(debounceTimer);',
+                            '            debounceTimer = setTimeout(() => {',
+                            '                injectRoles();',
+                            '            }, 200);',
+                            '        });',
+                            '',
+                            '        observer.observe(swaggerContainer, { childList: true, subtree: true });',
+                            '    }',
+                            '',
+                            '    waitForSwaggerAndObserve();',
+                            '})();'
+                        ].join('\n')
+                    ])
+                });
             }
         });
 
-        app.use(this.openApiRoute, swaggerUi.serve);
         await this.router.registerRoute({
             httpMethod: HttpMethod.GET,
             route: this.openApiRoute,
-            handler: swaggerUi.setup(
-                definition,
-                {
-                    // eslint-disable-next-line cspell/spellchecker
-                    customfavIcon: `${this.assetService.assetsRoute}/favicon.png`,
-                    customSiteTitle: definition.info.title,
-                    customCssUrl: `${this.assetService.assetsRoute}/open-api/custom.css`,
-                    customJs: `${this.openApiRoute}/custom.js`
-                }
-            ) as RouteHandler<BodyMetadata, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>
+            versions: 'all',
+            openApi: { useInOpenApi: false },
+            handler: () => {
+                return HtmlResponse.fromString(
+                    `<!DOCTYPE html>
+                    <html lang="en">
+                    <head>
+                        <meta charset="UTF-8">
+                        <title>${GlobalRegistry.getAppData('name')} | Explorer</title>
+                        <link rel="stylesheet" href="${this.openApiRoute}/swagger-ui.css">
+                        <link rel="icon" href="${this.assetService.assetsRoute}/favicon.png">
+                        <link rel="stylesheet" href="${this.assetService.assetsRoute}/open-api/custom.css">
+                    </head>
+                    <body>
+                        <div id="swagger-ui"></div>
+                        <script src="${this.openApiRoute}/swagger-ui-bundle.js"></script>
+                        <script src="${this.openApiRoute}/swagger-ui-standalone-preset.js"></script>
+                        <script src="${this.openApiRoute}/swagger-ui-init.js"></script>
+                        <script src="${this.openApiRoute}/custom.js"></script>
+                    </body>
+                    </html>`,
+                    {
+                        csp: {
+                            styleSrc: ['\'self\'', '\'unsafe-hashes\'', '\'sha256-RL3ie0nH+Lzz2YNqQN83mnU0J1ot4QL7b99vMdIX99w=\''],
+                            imgSrc: ['\'self\'', 'data:']
+                        }
+                    }
+                );
+            }
         });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async createOpenApiDefinition(app: ZibriApplication): Promise<OpenApiDefinition> {
+    async createOpenApiDefinition(app: ZibriApplication, version: Version): Promise<OpenApiDefinition> {
         const tags: OpenApiTagObject[] = app.options.controllers.map(cls => ({ name: cls.name }));
         const res: OpenApiDefinition = {
             openapi: '3.1.0',
             info: {
                 title: `${GlobalRegistry.getAppData('name')} | Explorer`,
-                version: GlobalRegistry.getAppData('version') ?? '0.0.0'
+                version: version.value
             },
             tags,
             components: {
                 securitySchemes: this.resolveSecuritySchemes()
             },
-            paths: await this.resolveOpenApiPaths(app)
+            paths: await this.resolveOpenApiPaths(app, version)
         };
         return res;
     }
@@ -310,10 +423,11 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
         return res;
     }
 
-    private async resolveOpenApiPaths(app: ZibriApplication): Promise<OpenApiPaths> {
+    // eslint-disable-next-line sonar/cognitive-complexity
+    private async resolveOpenApiPaths(app: ZibriApplication, version: Version): Promise<OpenApiPaths> {
         const res: OpenApiPaths = {};
 
-        for (const controllerClass of app.options.controllers) {
+        for (const controllerClass of app.options.controllers.sort((a, b) => a.name.localeCompare(b.name))) {
             const controllerData: ControllerData | undefined = MetadataUtilities.getControllerData(controllerClass);
             if (!controllerData) {
                 throw new MissingBaseRouteError(controllerClass);
@@ -321,6 +435,11 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
 
             const routes: ControllerRouteConfiguration[] = MetadataUtilities.getControllerRoutes(controllerClass);
             for (const route of routes) {
+                const routeVersions: SupportedVersionsOptions = route.versions ?? controllerData.versions;
+                if (!this.versioningService.matchesVersion(routeVersions, version)) {
+                    continue;
+                }
+
                 const pathParams: Record<number, PathParamMetadata> = MetadataUtilities.getRoutePathParams(
                     controllerClass,
                     route.controllerMethod
@@ -366,6 +485,9 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
         }
 
         for (const route of this.router.manuallyRegisteredRoutes.filter(r => r.openApi.useInOpenApi)) {
+            if (!this.versioningService.matchesVersion(route.versions, version)) {
+                continue;
+            }
             // Ensure an entry exists
             const fullPath: string = `${route.route}`.replaceAll(/:([^/]+)/g, '{$1}');
             res[fullPath] ??= {};

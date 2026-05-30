@@ -9,9 +9,12 @@ import { toKebabCase } from '../../utilities/to-kebab-case.function';
  */
 export type CspSource = '\'self\''
     | '\'none\''
+    | '\'unsafe-hashes\''
+    | `\'sha256-${string}\'`
     | '\'unsafe-inline\''
     | '\'unsafe-eval\''
     | `\'nonce-${string}\'`
+    | 'data:'
     | `https://${string}`
     | `http://${string}`;
 
