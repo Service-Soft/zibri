@@ -3,10 +3,30 @@ import { randomBytes } from 'node:crypto';
 import { AesGcmEncryptionStrategy } from '../../auth/encryption/strategies/aes-gcm.encryption-strategy';
 import { PasswordResetEmailTemplate } from '../../auth/strategies/jwt/jwt-auth.controller';
 import { CronServiceInterface } from '../../cron/cron-service.interface';
+import { Inject } from '../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { defineProvider, DiProvider } from '../../di/models/di-provider.model';
+import { type Header } from '../../http/header.type';
 import { MultithreadingServiceInterface } from '../../multithreading/services/multithreading-service.interface';
-import { noOp, noOpAsync } from '../constants';
+import { type RouterInterface } from '../../routing/router.interface';
+import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
+import { VersioningService } from '../../versioning/versioning.service';
+import { noOp, noOpAsync, testFileFolder } from '../constants';
+
+const testVersionsDir: FsPath = FsUtilities.getPath(testFileFolder, 'versions-default');
+
+class TestVersioningService extends VersioningService {
+    constructor(
+        @Inject(ZIBRI_DI_TOKENS.VERSION_HEADER)
+        versionHeader: Header,
+        @Inject(ZIBRI_DI_TOKENS.ROUTER)
+        router: RouterInterface
+    ) {
+        super(versionHeader, router);
+        // eslint-disable-next-line typescript/no-unsafe-member-access, typescript/no-explicit-any
+        (this as any).versionsPath = testVersionsDir;
+    }
+}
 
 export const defaultTestServerProviders: DiProvider<unknown>[] = [
     defineProvider({
@@ -83,5 +103,9 @@ export const defaultTestServerProviders: DiProvider<unknown>[] = [
             };
             return res;
         }
+    }),
+    defineProvider({
+        token: ZIBRI_DI_TOKENS.VERSIONING_SERVICE,
+        useClass: TestVersioningService
     })
 ];
