@@ -39,11 +39,24 @@ type StartTestServerOptions = Partial<
 };
 
 export class StartedTestServer {
+    private readonly containerPorts: Map<Newable<PostgresDataSource>, number>;
+
     constructor(
         private app: ZibriApplication,
         private readonly containers: AbstractStartedContainer[],
         private readonly exitSpy = jest.spyOn(process, 'exit').mockImplementation(() => undefined as never)
-    ) {}
+    ) {
+        this.containerPorts = new Map(
+            app.options.dataSources.map((ds, i) => [ds as Newable<PostgresDataSource>, containers[i].getMappedPort(5432)])
+        );
+    }
+
+    private reApplyContainerPorts(): void {
+        for (const [ds, port] of this.containerPorts) {
+            const dataSource: PostgresDataSource = inject(ds);
+            (dataSource.options as OmitStrict<PostgresOptions, 'type'>) = { ...dataSource.options, port };
+        }
+    }
 
     async start(): Promise<string> {
         await this.app.start(0);
@@ -83,6 +96,8 @@ export class StartedTestServer {
         // Reset singleton — every test file gets a clean container with no stale instances.
         DiContainer['singleton'] = undefined;
         GlobalRegistry['appData'].state = AppState.OFFLINE;
+
+        this.reApplyContainerPorts();
 
         this.app = new ZibriApplication({
             name: 'test',
