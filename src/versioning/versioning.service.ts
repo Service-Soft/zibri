@@ -137,7 +137,7 @@ export class VersioningService implements VersioningServiceInterface, AfterAppIn
         if (!currentLatest) {
             throw new Error(
                 'Inconsistent version state: multiple active versions exist, but they all represent the global version.'
-                + 'Check for duplicate version files.'
+                + ' Check for duplicate version files.'
             );
         }
         return currentLatest;
