@@ -81,10 +81,9 @@ Let's say that you want for example to replace the default error handler with th
 
 ```ts
 // src/my-error-handler.ts
-import { NextFunction } from 'express';
-import { GlobalErrorHandler, HttpRequest, HttpResponse } from 'zibri';
+import { GlobalErrorHandler } from 'zibri';
 
-export const myErrorHandler: GlobalErrorHandler = async (error: unknown, req: HttpRequest, res: HttpResponse, next: NextFunction) => {
+export const myErrorHandler: GlobalErrorHandler = async (error, req, res, next) => {
     // ...your custom logic
 }
 ```

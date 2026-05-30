@@ -34,6 +34,12 @@ export type WhereFilterHandler = (
  * Abstract base converter that transforms a Zibri WhereFilter into a TypeORM FindOptionsWhere.
  */
 export abstract class TypeOrmWhereFilterConverter {
+
+    /**
+     * Handler for a fuzzyLike filter.
+     */
+    protected abstract fuzzyLikeWhereFilterHandler: WhereFilterHandler;
+
     /**
      * A map that defines how Zibri's where filter properties are mapped to their typeorm counterpart.
      */
@@ -61,6 +67,12 @@ export abstract class TypeOrmWhereFilterConverter {
         lesserThan: (value) => LessThan(value),
         lesserThanEquals: (value) => LessThanOrEqual(value),
         iLike: (value) => ILike(value),
+        fuzzyLike: (value, metadata, nestedProperties, entityClass) => this.fuzzyLikeWhereFilterHandler(
+            value,
+            metadata,
+            nestedProperties,
+            entityClass
+        ),
         is: (value, metadata) => {
             if (value === null) {
                 return IsNull();

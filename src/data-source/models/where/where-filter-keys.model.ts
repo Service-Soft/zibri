@@ -68,6 +68,7 @@ const whereFilterKeysRecord: Record<WhereFilterKeys, WhereFilterKeys> = {
     lesserThan: 'lesserThan',
     lesserThanEquals: 'lesserThanEquals',
     iLike: 'iLike',
+    fuzzyLike: 'fuzzyLike',
     is: 'is',
     where: 'where',
     includes: 'includes',

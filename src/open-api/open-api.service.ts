@@ -28,6 +28,7 @@ import { HttpMethod } from '../http/http-method.enum';
 import { HttpStatus } from '../http/http-status.enum';
 import { KnownHeader } from '../http/known-header.enum';
 import { MimeType } from '../http/mime-type.enum';
+import { FormatDateFn } from '../localization/formatting/format-date-fn.model';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { FileResponse } from '../parsing/form-data/file-response.model';
 import { HtmlResponse } from '../parsing/html/html-response.model';
@@ -41,6 +42,7 @@ import { Newable } from '../types/newable.type';
 import { FsUtilities, FsPath } from '../utilities/fs.utilities';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
+import { SemVerUtilities } from '../utilities/sem-ver.utilities';
 import { SupportedVersionsOptions } from '../versioning/supported-versions-options.model';
 import { Version, VersionFile } from '../versioning/version.model';
 import { type VersioningServiceInterface } from '../versioning/versioning-service.interface';
@@ -168,11 +170,16 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
             versions: 'all',
             openApi: { useInOpenApi: false },
             handler: () => {
-                const versions: VersionFile[] = this.versioningService.getVersions();
+                const formatDate: FormatDateFn = inject(ZIBRI_DI_TOKENS.FORMAT_DATE);
+                const versions: VersionFile[] = this.versioningService
+                    .getVersions()
+                    .sort((a, b) => SemVerUtilities.compare(a.value, b.value) === 'bigger' ? -1 : 1);
                 // eslint-disable-next-line jsdoc/require-jsdoc
                 const urls: { url: string, name: string }[] = versions.map(v => ({
                     url: `${this.openApiRoute}/spec/${v.value}`,
-                    name: v.endsAt == undefined ? `${v.value} (latest)` : v.value
+                    name: v.endsAt == undefined
+                        ? `${v.value} (latest)`
+                        : `${v.value} (${formatDate(v.startsAt)} - ${formatDate(v.endsAt)})`
                 }));
                 const latestVersion: VersionFile | undefined = versions.find(v => v.endsAt == undefined);
                 return FileResponse.fromStream({
@@ -420,7 +427,7 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
     private async resolveOpenApiPaths(app: ZibriApplication, version: Version): Promise<OpenApiPaths> {
         const res: OpenApiPaths = {};
 
-        for (const controllerClass of app.options.controllers) {
+        for (const controllerClass of app.options.controllers.sort((a, b) => a.name.localeCompare(b.name))) {
             const controllerData: ControllerData | undefined = MetadataUtilities.getControllerData(controllerClass);
             if (!controllerData) {
                 throw new MissingBaseRouteError(controllerClass);

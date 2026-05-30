@@ -338,5 +338,12 @@ describe('Where filters – deeply nested (object → array → object)', () => 
             });
             expect(res.map(c => c.id)).toEqual([container2.id]);
         });
+
+        it('fuzzyLike on title', async () => {
+            const res: Container[] = await containerRepo.findAll({
+                where: { title: { fuzzyLike: { value: 'Cont', minSimilarity: 30 } } }
+            });
+            expect(res.map(c => c.id)).toEqual([container.id, container2.id]);
+        });
     });
 });

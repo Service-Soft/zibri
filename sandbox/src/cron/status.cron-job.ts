@@ -1,4 +1,4 @@
-import { CronJob, inject, LoggerInterface, ZIBRI_DI_TOKENS, InitialCronConfig, CronExpression } from 'zibri';
+import { CronJob, inject, ZIBRI_DI_TOKENS, InitialCronConfig, CronExpression } from 'zibri';
 
 export class StatusCronJob extends CronJob {
     readonly initialConfig: InitialCronConfig = {
@@ -8,6 +8,6 @@ export class StatusCronJob extends CronJob {
     };
 
     async onTick(): Promise<void> {
-        await inject<LoggerInterface>(ZIBRI_DI_TOKENS.LOGGER).info(`is running ${this.name}`);
+        await inject(ZIBRI_DI_TOKENS.LOGGER).info(`is running ${this.name}`);
     }
 }

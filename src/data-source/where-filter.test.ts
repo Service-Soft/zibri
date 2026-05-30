@@ -152,6 +152,23 @@ describe('Where filters', () => {
             expect(res.map(p => p.id)).toEqual([prodA.id]);
         });
 
+        it('fuzzyLike', async () => {
+            // eslint-disable-next-line cspell/spellchecker
+            // "Alpha" and "Beta" are seeded. A fuzzy search for "Alpah" (typo) should still match.
+            const res: Product[] = await productRepo.findAll({
+                // eslint-disable-next-line cspell/spellchecker
+                where: { name: { fuzzyLike: { value: 'Alpah', minSimilarity: 30 } } }
+            });
+            expect(res.map(p => p.id)).toEqual([prodA.id]);
+        });
+
+        it('fuzzyLike with low similarity returns nothing', async () => {
+            const res: Product[] = await productRepo.findAll({
+                where: { name: { fuzzyLike: { value: 'Zzzz', minSimilarity: 90 } } }
+            });
+            expect(res).toHaveLength(0);
+        });
+
         it('null', async () => {
             await productRepo.updateById(prodA.id, { name: null }); // set to null
             const res: Product[] = await productRepo.findAll({ where: { name: null } });
