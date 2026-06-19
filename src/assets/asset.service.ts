@@ -26,7 +26,7 @@ type DirectoryNode = { type: 'directory', name: string, children: TreeNode[] };
 export type TreeNode = FileNode | DirectoryNode;
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-type NodeMap = Record<string, { directory?: NodeMap, fileRoute?: string } | undefined>;
+type NodeMap = Record<string, { directory?: NodeMap, fileRoute?: string }>;
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 type WalkedPath = { relPath: string, isFile: boolean };
@@ -102,17 +102,14 @@ export class AssetService implements AssetServiceInterface, OnAppInit {
 
     private mapToTree(nodes: NodeMap): TreeNode[] {
         return ObjectUtilities.entries(nodes).map(([name, info]) => {
-            if (!info) {
-                throw new Error('Error building the assets tree');
-            }
             return info.directory
                 ? {
-                    type: 'directory' as const,
+                    type: 'directory',
                     name,
                     children: this.mapToTree(info.directory)
                 }
                 : {
-                    type: 'file' as const,
+                    type: 'file',
                     name,
                     route: info.fileRoute ?? ''
                 };

@@ -12,6 +12,7 @@ import { AesGcmEncryptionStrategy } from '../../auth/encryption/strategies/aes-g
 import { InjectRepository } from '../../di/decorators/inject-repository.decorator';
 import { Injectable } from '../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
+import { initDiContainer } from '../../di/init-di-container.function';
 import { inject } from '../../di/inject.function';
 import { register } from '../../di/register.function';
 import { BaseEntity } from '../../entity/base-entity.model';
@@ -20,7 +21,7 @@ import { Property } from '../../entity/decorators/property.decorator';
 import { GlobalRegistry } from '../../global/global-registry';
 import { Newable } from '../../types/newable.type';
 import { OmitStrict } from '../../types/omit-strict.type';
-import { SemVerVersion } from '../../types/version.type';
+import { SemVerVersion } from '../../utilities/sem-ver.utilities';
 import { PostgresDataSource, PostgresOptions } from '../data-sources/postgres-typeorm-data-source.model';
 import { DataSource } from '../decorators/data-source.decorator';
 import { Repository } from '../repository';
@@ -94,6 +95,7 @@ describe('AddTestValueMigration', () => {
     let createdId: string;
 
     beforeAll(async () => {
+        initDiContainer();
         container = await new PostgreSqlContainer(POSTGRES_TEST_IMAGE)
             .withDatabase('db')
             .withUsername('postgres')

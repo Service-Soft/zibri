@@ -12,7 +12,9 @@ import { inject } from '../di/inject.function';
 import { PropertyMetadata, Property, RelationMetadata } from '../entity/decorators/property.decorator';
 import { Relation } from '../entity/models/relation.enum';
 import { ValidationError } from '../error-handling/errors/validation.error';
+import { InternalError } from '../error-handling/internal-error.model';
 import { MimeType } from '../http/mime-type.enum';
+import { $ts } from '../localization/translate.function';
 import { FormData } from '../parsing/form-data/form-data.model';
 import { BodyMetadata } from '../routing/decorators/body.decorator';
 import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from '../routing/decorators/param.decorator';
@@ -112,7 +114,7 @@ export class ValidationService implements ValidationServiceInterface {
     async validateHeaderParam(param: unknown, meta: HeaderParamMetadata): Promise<void> {
         const validate: HeaderParamValidationFunction | undefined = this.headerParamValidationFunctions[meta.type];
         if (validate == undefined) {
-            throw new Error(`Unknown type for header parameter "${meta.name}": ${meta.type}`);
+            throw new InternalError(`Unknown type for header parameter "${meta.name}": ${meta.type}`);
         }
         const res: ValidationProblem[] = await validate(param, meta, undefined, param);
         if (res.length) {
@@ -124,7 +126,7 @@ export class ValidationService implements ValidationServiceInterface {
     async validatePathParam(param: unknown, meta: PathParamMetadata): Promise<void> {
         const validate: PathParamValidationFunction | undefined = this.pathParamValidationFunctions[meta.type];
         if (validate == undefined) {
-            throw new Error(`Unknown type for path parameter "${meta.name}": ${meta.type}`);
+            throw new InternalError(`Unknown type for path parameter "${meta.name}": ${meta.type}`);
         }
         const res: ValidationProblem[] = await validate(param, meta, undefined, param);
         if (res.length) {
@@ -136,7 +138,7 @@ export class ValidationService implements ValidationServiceInterface {
     async validateQueryParam(param: unknown, meta: QueryParamMetadata): Promise<void> {
         const validate: QueryParamValidationFunction | undefined = this.queryParamValidationFunctions[meta.type];
         if (validate == undefined) {
-            throw new Error(`Unknown type for query parameter "${meta.name}": ${meta.type}`);
+            throw new InternalError(`Unknown type for query parameter "${meta.name}": ${meta.type}`);
         }
         const res: ValidationProblem[] = await validate(param, meta, undefined, param);
         if (res.length) {
@@ -202,7 +204,7 @@ export class ValidationService implements ValidationServiceInterface {
         if (!allowAdditionalProperties) {
             for (const key of unknownKeys) {
                 const fullKey: string = parentKey ? `${parentKey}.${key}` : key;
-                res.push({ key: fullKey, message: 'this key is unknown' });
+                res.push({ key: fullKey, message: $ts`this key is unknown` });
             }
         }
         await Promise.all(
@@ -236,7 +238,7 @@ export class ValidationService implements ValidationServiceInterface {
 
         const validate: PropertyValidationFunction | undefined = this.propertyValidationFunctions[metadata.type];
         if (validate == undefined) {
-            throw new Error(`Unknown type for property "${fullKey}": ${metadata.type}`);
+            throw new InternalError(`Unknown type for property "${fullKey}": ${metadata.type}`);
         }
         const res: ValidationProblem[] = await validate(key, property, metadata, parentKey, entity);
         return res;
@@ -250,7 +252,7 @@ export class ValidationService implements ValidationServiceInterface {
         entity: unknown | undefined
     ): Promise<ValidationProblem[]> {
         if (metadata.type !== 'array') {
-            throw new Error('Tried to do array based validation on a non array value.');
+            throw new InternalError('Tried to do array based validation on a non array value.');
         }
         const fullKey: string = parentKey ? `${parentKey}.${key}` : key;
 
@@ -290,7 +292,7 @@ export class ValidationService implements ValidationServiceInterface {
         entity: unknown | undefined
     ): Promise<ValidationProblem[]> {
         if (metadata.type !== 'object') {
-            throw new Error('Tried to do object based validation on a non object value.');
+            throw new InternalError('Tried to do object based validation on a non object value.');
         }
         const fullKey: string = parentKey ? `${parentKey}.${key}` : key;
 
@@ -317,7 +319,7 @@ export class ValidationService implements ValidationServiceInterface {
             const unknownKeys: string[] = keysOfBody.filter(k => !keysOfModel.includes(k));
 
             for (const k of unknownKeys) {
-                res.push({ key: k, message: 'this key is unknown' });
+                res.push({ key: k, message: $ts`this key is unknown` });
             }
             if (res.length) {
                 throw new ValidationError('body', undefined, res);

@@ -1,4 +1,4 @@
-import { inject, MailingList, MailingListServiceInterface, MailingListSubscriber, PreactEmailComponent, ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from 'zibri';
+import { $ts, inject, MailingList, MailingListServiceInterface, MailingListSubscriber, PreactEmailComponent, ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from 'zibri';
 
 import { EmailColumn } from './email-column';
 import { EmailLink } from './email-link';
@@ -26,7 +26,7 @@ export const BaseMailingListFooter: PreactEmailComponent<Props> = ({
                     fontSize="11px"
                     color="#999999"
                 >
-                    You are receiving this email because you are subscribed to the mailing list "{list.name}"
+                    {$ts`You are receiving this email because you are subscribed to the mailing list "${list.name}"`}
                 </EmailText>
             </EmailColumn>
         </EmailSection>
@@ -38,7 +38,7 @@ export const BaseMailingListFooter: PreactEmailComponent<Props> = ({
                     color="#999999"
                     href={managePreferencesLink}
                 >
-                    manage preferences
+                    {$ts`manage preferences`}
                 </EmailLink>
             </EmailColumn>
             <EmailColumn width='2%'>{''}</EmailColumn>
@@ -49,7 +49,7 @@ export const BaseMailingListFooter: PreactEmailComponent<Props> = ({
                     color="#999999"
                     href={unsubscribeLink}
                 >
-                    unsubscribe
+                    {$ts`unsubscribe`}
                 </EmailLink>
             </EmailColumn>
         </EmailSection>

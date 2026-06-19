@@ -11,6 +11,7 @@ import { testFileFolder } from '../__testing__/constants';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { startTestServer, StartedTestServer } from '../__testing__/test-server/start-test-server.function';
 import { HttpRequestContext } from '../context/request/http-request.context';
+import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../context/request/request-context-token.model';
 import { WebsocketRequestContext } from '../context/request/websocket-request.context';
 import { Inject } from '../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
@@ -33,10 +34,12 @@ class TestVersioningService extends VersioningService {
     constructor(
         @Inject(ZIBRI_DI_TOKENS.VERSION_HEADER)
         versionHeader: Header,
+        @Inject(ZIBRI_DI_TOKENS.VERSION_QUERY_PARAM)
+        versionQueryParam: Header,
         @Inject(ZIBRI_DI_TOKENS.ROUTER)
         router: RouterInterface
     ) {
-        super(versionHeader, router);
+        super(versionHeader, versionQueryParam, router);
         // eslint-disable-next-line typescript/no-unsafe-member-access, typescript/no-explicit-any
         (this as any).versionsPath = testVersionsDir;
     }
@@ -58,7 +61,7 @@ class VersionTestController {
         if (!context) {
             throw new Error('context missing');
         }
-        return await this.versioningService.resolveVersion(context);
+        return await context.get(ZIBRI_REQUEST_CONTEXT_TOKENS.CURRENT_VERSION);
     }
 }
 
@@ -577,6 +580,252 @@ describe('VersioningService integration', () => {
             await expect(
                 restartServer({ version: '2.0.0', controllers: [OverlapController] })
             ).rejects.toThrow(/defined more than once/);
+        });
+    });
+
+    describe('Semver range matchers in routing', () => {
+    // Versions we need: 1.0.0, 1.1.0, 1.2.0, 1.3.0, 2.0.0, 2.1.0, 3.0.0
+        const versionsToCreate: SemVerVersion[] = ['1.0.0', '1.1.0', '1.2.0', '1.3.0', '2.0.0', '2.1.0', '3.0.0'];
+        beforeEach(async () => {
+        // Create all version files (deprecated except 2.1.0 as active)
+            for (const v of versionsToCreate) {
+                const isActive: boolean = v === '2.1.0';
+                await writeVersionFile({
+                    value: v,
+                    startsAt: new Date(`2024-${v.slice(2, 4)}-01`), // dummy, not used
+                    endsAt: isActive ? undefined : new Date('2024-12-31'),
+                    routes: []
+                });
+            }
+            await restartServer({
+                version: '2.1.0',
+                controllers: [RangeTestController]
+            });
+        });
+
+        @Controller('/range-test', { allowOrphan: true })
+        class RangeTestController {
+            @Get('/caret', { versions: ['^1.0.0'] })
+            handlerCaret(): { handler: string } {
+                return { handler: '^1.0.0' };
+            }
+
+            @Get('/tilde', { versions: ['~1.2.0'] })
+            handlerTilde(): { handler: string } {
+                return { handler: '~1.2.0' };
+            }
+
+            @Get('/gte', { versions: ['>=2.0.0'] })
+            handlerGte(): { handler: string } {
+                return { handler: '>=2.0.0' };
+            }
+
+            @Get('/lte', { versions: ['<=1.2.0'] })
+            handlerLte(): { handler: string } {
+                return { handler: '<=1.2.0' };
+            }
+
+            @Get('/range-combo', { versions: ['>=1.1.0 <=1.2.0'] })
+            handlerRangeCombo(): { handler: string } {
+                return { handler: '>=1.1.0 <=1.2.0' };
+            }
+
+            // Separate exact and caret endpoints, no overlap
+            @Get('/exact-2', { versions: ['2.0.0'] })
+            handlerExact2(): { handler: string } {
+                return { handler: 'exact-2.0.0' };
+            }
+
+            @Get('/caret-2', { versions: ['^2.0.0'] })
+            handlerCaret2(): { handler: string } {
+                return { handler: 'caret-2' };
+            }
+
+            @Get('/all-fallback', { versions: 'all' })
+            handlerAll(): { handler: string } {
+                return { handler: 'all' };
+            }
+
+            @Get('/latest-only', { versions: ['latest'] })
+            handlerLatest(): { handler: string } {
+                return { handler: 'latest' };
+            }
+        }
+
+        // Caret ^1.0.0: matches >=1.0.0 <2.0.0
+        it('^1.0.0 matches 1.0.0', async () => {
+            const res: Response = await fetch(`${baseUrl}/range-test/caret`, { headers: { 'x-version': '1.0.0' } });
+            expect(res.status).toBe(200);
+            // eslint-disable-next-line typescript/no-unsafe-assignment
+            const body: { handler: string } = await res.json();
+            expect(body.handler).toBe('^1.0.0');
+        });
+        it('^1.0.0 matches 1.3.0', async () => {
+            const res: Response = await fetch(`${baseUrl}/range-test/caret`, { headers: { 'x-version': '1.3.0' } });
+            expect(res.status).toBe(200);
+            // eslint-disable-next-line typescript/no-unsafe-assignment
+            const body: { handler: string } = await res.json();
+            expect(body.handler).toBe('^1.0.0');
+        });
+        it('^1.0.0 does NOT match 2.0.0 (returns 404)', async () => {
+            const res: Response = await fetch(`${baseUrl}/range-test/caret`, { headers: { 'x-version': '2.0.0' } });
+            expect(res.status).toBe(404);
+        });
+
+        // Tilde ~1.2.0: matches >=1.2.0 <1.3.0
+        it('~1.2.0 matches 1.2.0', async () => {
+            const res: Response = await fetch(`${baseUrl}/range-test/tilde`, { headers: { 'x-version': '1.2.0' } });
+            expect(res.status).toBe(200);
+            // eslint-disable-next-line typescript/no-unsafe-assignment
+            const body: { handler: string } = await res.json();
+            expect(body.handler).toBe('~1.2.0');
+        });
+        it('~1.2.0 matches 1.2.5 (if we had it)', async () => {
+        // No 1.2.5 file so will get 400 (unknown version). We'll skip, since versions must exist.
+        });
+        it('~1.2.0 does NOT match 1.3.0', async () => {
+            const res: Response = await fetch(`${baseUrl}/range-test/tilde`, { headers: { 'x-version': '1.3.0' } });
+            expect(res.status).toBe(404);
+        });
+
+        // Gte >=2.0.0
+        it('>=2.0.0 matches 2.0.0', async () => {
+            const res: Response = await fetch(`${baseUrl}/range-test/gte`, { headers: { 'x-version': '2.0.0' } });
+            expect(res.status).toBe(200);
+            // eslint-disable-next-line typescript/no-unsafe-assignment
+            const body: { handler: string } = await res.json();
+            expect(body.handler).toBe('>=2.0.0');
+        });
+        it('>=2.0.0 matches 3.0.0', async () => {
+            const res: Response = await fetch(`${baseUrl}/range-test/gte`, { headers: { 'x-version': '3.0.0' } });
+            expect(res.status).toBe(200);
+            // eslint-disable-next-line typescript/no-unsafe-assignment
+            const body: { handler: string } = await res.json();
+            expect(body.handler).toBe('>=2.0.0');
+        });
+        it('>=2.0.0 does NOT match 1.3.0', async () => {
+            const res: Response = await fetch(`${baseUrl}/range-test/gte`, { headers: { 'x-version': '1.3.0' } });
+            expect(res.status).toBe(404);
+        });
+
+        // Lte <=1.2.0
+        it('<=1.2.0 matches 1.0.0', async () => {
+            const res: Response = await fetch(`${baseUrl}/range-test/lte`, { headers: { 'x-version': '1.0.0' } });
+            expect(res.status).toBe(200);
+            // eslint-disable-next-line typescript/no-unsafe-assignment
+            const body: { handler: string } = await res.json();
+            expect(body.handler).toBe('<=1.2.0');
+        });
+        it('<=1.2.0 matches 1.2.0', async () => {
+            const res: Response = await fetch(`${baseUrl}/range-test/lte`, { headers: { 'x-version': '1.2.0' } });
+            expect(res.status).toBe(200);
+            // eslint-disable-next-line typescript/no-unsafe-assignment
+            const body: { handler: string } = await res.json();
+            expect(body.handler).toBe('<=1.2.0');
+        });
+        it('<=1.2.0 does NOT match 1.3.0', async () => {
+            const res: Response = await fetch(`${baseUrl}/range-test/lte`, { headers: { 'x-version': '1.3.0' } });
+            expect(res.status).toBe(404);
+        });
+
+        // Range combination >=1.1.0 <=1.2.0
+        it('>=1.1.0 <=1.2.0 matches 1.1.0', async () => {
+            const res: Response = await fetch(`${baseUrl}/range-test/range-combo`, { headers: { 'x-version': '1.1.0' } });
+            expect(res.status).toBe(200);
+            // eslint-disable-next-line typescript/no-unsafe-assignment
+            const body: { handler: string } = await res.json();
+            expect(body.handler).toBe('>=1.1.0 <=1.2.0');
+        });
+        it('>=1.1.0 <=1.2.0 matches 1.2.0', async () => {
+            const res: Response = await fetch(`${baseUrl}/range-test/range-combo`, { headers: { 'x-version': '1.2.0' } });
+            expect(res.status).toBe(200);
+            // eslint-disable-next-line typescript/no-unsafe-assignment
+            const body: { handler: string } = await res.json();
+            expect(body.handler).toBe('>=1.1.0 <=1.2.0');
+        });
+        it('>=1.1.0 <=1.2.0 does NOT match 1.0.0', async () => {
+            const res: Response = await fetch(`${baseUrl}/range-test/range-combo`, { headers: { 'x-version': '1.0.0' } });
+            expect(res.status).toBe(404);
+        });
+
+        // Exact vs range priority: /exact-vs-caret
+        it('exact 2.0.0 handler matches 2.0.0', async () => {
+            const res: Response = await fetch(`${baseUrl}/range-test/exact-2`, { headers: { 'x-version': '2.0.0' } });
+            expect(res.status).toBe(200);
+            // eslint-disable-next-line typescript/no-unsafe-assignment
+            const body: { handler: string } = await res.json();
+            expect(body.handler).toBe('exact-2.0.0');
+        });
+        it('^2.0.0 handler matches 2.1.0', async () => {
+            const res: Response = await fetch(`${baseUrl}/range-test/caret-2`, { headers: { 'x-version': '2.1.0' } });
+            expect(res.status).toBe(200);
+            // eslint-disable-next-line typescript/no-unsafe-assignment
+            const body: { handler: string } = await res.json();
+            expect(body.handler).toBe('caret-2');
+        });
+
+        it('^2.0.0 also matches 2.0.0 (range endpoint)', async () => {
+            const res: Response = await fetch(`${baseUrl}/range-test/caret-2`, { headers: { 'x-version': '2.0.0' } });
+            expect(res.status).toBe(200);
+            // eslint-disable-next-line typescript/no-unsafe-assignment
+            const body: { handler: string } = await res.json();
+            expect(body.handler).toBe('caret-2');
+        });
+
+        // all fallback
+        it('all fallback for any version with no specific handler', async () => {
+        // There is no other handler for /all-fallback; use a version without a specific route, e.g. 1.0.0
+            const res: Response = await fetch(`${baseUrl}/range-test/all-fallback`, { headers: { 'x-version': '1.0.0' } });
+            expect(res.status).toBe(200);
+            // eslint-disable-next-line typescript/no-unsafe-assignment
+            const body: { handler: string } = await res.json();
+            expect(body.handler).toBe('all');
+        });
+
+        // latest
+        it('latest handler matches active version (2.1.0) when no header', async () => {
+            const res: Response = await fetch(`${baseUrl}/range-test/latest-only`);
+            expect(res.status).toBe(200);
+            // eslint-disable-next-line typescript/no-unsafe-assignment
+            const body: { handler: string } = await res.json();
+            expect(body.handler).toBe('latest');
+        });
+        it('latest handler does NOT match old version 1.0.0', async () => {
+            const res: Response = await fetch(`${baseUrl}/range-test/latest-only`, { headers: { 'x-version': '1.0.0' } });
+            expect(res.status).toBe(404);
+        });
+
+        describe('Validation: overlapping version matchers', () => {
+            it('throws when two handlers cover the same version on the same route', async () => {
+                @Controller('/overlap-test', { allowOrphan: true })
+                class OverlapController {
+                    @Get('/endpoint', { versions: ['2.0.0'] })
+                    exact(): {} {
+                        return {};
+                    }
+
+                    @Get('/endpoint', { versions: ['^2.0.0'] })
+                    range(): {} {
+                        return {};
+                    }
+                }
+
+                // Need a version file so the app can start to the point where controller registration occurs
+                await writeVersionFile({
+                    value: '1.0.0',
+                    startsAt: new Date(),
+                    routes: []
+                });
+
+                const promise: Promise<void> = restartServer({
+                    version: '1.0.0',
+                    controllers: [OverlapController]
+                });
+
+                await expect(promise).rejects.toThrow(
+                    /The route "GET \/overlap-test\/endpoint" for the version "2.0.0" has been defined more than once/
+                );
+            });
         });
     });
 });

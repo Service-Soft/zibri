@@ -96,10 +96,12 @@ export * from './di/models/injection-token.model';
 export * from './di/default/zibri-di-tokens.default';
 
 export * from './di/inject.function';
+export * from './di/init-di-container.function';
 export * from './di/get-all-registered-tokens.function';
 
 export * from './di/errors/get-dependency-stack-trace.function';
 export * from './di/errors/no-provider.error';
+export * from './di/errors/invalid-class-marked-with-injectable.error';
 
 // event
 export * from './event/event-service.interface';
@@ -145,7 +147,9 @@ export * from './context/cache/cache.context';
 // error handling
 export * from './error-handling/error-handler';
 export * from './error-handling/error-handler.model';
-export * from './error-handling/is-error.function';
+export * from './error-handling/error.utilities';
+export * from './error-handling/external-error.model';
+export * from './error-handling/internal-error.model';
 
 export * from './error-handling/errors/http.error';
 export * from './error-handling/errors/internal-server.error';
@@ -159,6 +163,9 @@ export * from './error-handling/errors/conflict.error';
 export * from './error-handling/errors/missing-entities.error';
 export * from './error-handling/errors/missing-tokens.error';
 export * from './error-handling/errors/content-too-large.error';
+export * from './error-handling/errors/global.error';
+export * from './error-handling/errors/invalid-decorator-combination.error';
+export * from './error-handling/errors/unsupported-media-type.error';
 
 // assets
 export * from './assets/asset-service.interface';
@@ -444,13 +451,22 @@ export * from './plugin/payment/providers/payment-provider.interface';
 export * from './plugin/payment/providers/pay-pal/pay-pal.payment-provider';
 
 // localization
-export * from './localization/formatting/format-date-fn.model';
-export * from './localization/formatting/format-percent-fn.model';
-export * from './localization/formatting/format-price-fn.model';
+export * from './localization/xlf/generate-source-xlf.function';
+
+export * from './localization/localize-service.interface';
+export * from './localization/localize.service';
+export * from './localization/format.function';
+export * from './localization/translate.function';
+export * from './localization/define-date-format.function';
+export * from './localization/translation.registry';
 
 export * from './localization/models/currency-code.model';
-export * from './localization/models/language-code.model';
+export * from './localization/models/date-format.model';
+export * from './localization/models/locale-code.model';
 export * from './localization/models/localize-options.model';
+export * from './localization/models/month.enum';
+export * from './localization/models/weekday.enum';
+export * from './localization/models/translated-string.model';
 
 // multithreading
 export * from './multithreading/models/multithreading-options.model';

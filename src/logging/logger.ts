@@ -12,7 +12,7 @@ import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
-import { isError } from '../error-handling/is-error.function';
+import { ErrorUtilities } from '../error-handling/error.utilities';
 import { GlobalRegistry } from '../global/global-registry';
 import { OnAppInit } from '../global/on-app-init.interface';
 import { KnownHeader } from '../http/known-header.enum';
@@ -75,7 +75,7 @@ export class Logger implements LoggerInterface, OnAppInit {
         const origin: string = matches?.[0].split('(')[1].split(')')[0] ?? 'unknown';
         let error: Error | undefined;
         if (context && 'error' in context) {
-            error = isError(context.error) ? context.error : new Error('Error');
+            error = ErrorUtilities.isError(context.error) ? context.error : new Error('Error');
         }
         let request: LogRequestContext | undefined;
         const requestContext: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);

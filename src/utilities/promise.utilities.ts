@@ -1,5 +1,10 @@
 import { setTimeout } from 'node:timers/promises';
 
+import { ExternalError } from '../error-handling/external-error.model';
+import { InternalError } from '../error-handling/internal-error.model';
+import { TranslatedString } from '../localization/models/translated-string.model';
+import { $ts } from '../localization/translate.function';
+
 /**
  * Options for chunking.
  */
@@ -9,6 +14,16 @@ export type ChunkingOptions = {
      */
     chunkSize: number
 };
+
+/**
+ * An error to throw when an operation runs into a timeout.
+ */
+export class TimeoutError extends ExternalError {
+    constructor(message: TranslatedString = $ts`Timed out`, title = message, options?: ErrorOptions) {
+        super(message, title, options);
+        this.name = 'TimeoutError';
+    }
+}
 
 /**
  * Encapsulates functionality for handling promises.
@@ -58,7 +73,7 @@ export abstract class PromiseUtilities {
                 items.slice(i, i + chunkSize).map(async item => {
                     const r: boolean = await fn(item);
                     if (!r) {
-                        throw new Error('not true');
+                        throw new InternalError('not true');
                     }
                     return r;
                 })
@@ -84,7 +99,7 @@ export abstract class PromiseUtilities {
         const ac: AbortController = new AbortController();
         const timeoutFn: () => Promise<never> = async () => {
             await setTimeout(timeoutInMs, undefined, { signal: ac.signal });
-            throw new Error('Timed out');
+            throw new TimeoutError();
         };
 
         try {

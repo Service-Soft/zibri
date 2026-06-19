@@ -1,3 +1,4 @@
+import { InternalError } from '../../error-handling/internal-error.model';
 
 /**
  * A string with encrypted data stored inside of it.
@@ -52,7 +53,7 @@ export abstract class EncryptionUtilities {
         const encryptedValue: string = encryptedValueParts.join('.');
 
         if (!strategyName || !version || !keyId || !encryptedValue) {
-            throw new Error('Invalid encryption string');
+            throw new InternalError('Invalid encryption string');
         }
 
         return {

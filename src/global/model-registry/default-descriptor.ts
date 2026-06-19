@@ -5,6 +5,7 @@ import { DefaultPropertyValue } from '../../entity/models/base-property-metadata
 import { Relation } from '../../entity/models/relation.enum';
 import { Newable } from '../../types/newable.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { ObjectUtilities } from '../../utilities/object.utilities';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 type DefaultValue = DefaultPropertyValue<string | number | boolean | Date>;
@@ -32,7 +33,7 @@ export class DefaultDescriptor {
 
         const properties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(entityClass);
 
-        for (const [key, metadata] of Object.entries(properties)) {
+        for (const [key, metadata] of ObjectUtilities.entries(properties)) {
             if ('default' in metadata && metadata.default != undefined) {
                 this.keys.set(key, metadata.default);
                 continue;

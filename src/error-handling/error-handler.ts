@@ -1,17 +1,17 @@
 import { NextFunction } from 'express';
 
 import { ErrorPageTemplate, GlobalErrorHandler } from './error-handler.model';
-import { isError } from './is-error.function';
+import { ErrorUtilities } from './error.utilities';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { HttpRequest } from '../http/http-request.model';
 import { HttpResponse } from '../http/http-response.model';
-import { HttpError, isHttpError } from './errors/http.error';
+import { HttpError } from './errors/http.error';
 import { KnownHeader } from '../http/known-header.enum';
 import { MimeType } from '../http/mime-type.enum';
 import { LoggerInterface } from '../logging/logger.interface';
 import { PreactUtilities } from '../preact/preact.utilities';
-import { InternalServerError } from './errors/internal-server.error';
+import { GlobalError } from './errors/global.error';
 
 /**
  * The default error handler implementation of Zibri.
@@ -21,7 +21,7 @@ import { InternalServerError } from './errors/internal-server.error';
  * @param next - The express next function.
  */
 export const errorHandler: GlobalErrorHandler = async (error: unknown, req: HttpRequest, res: HttpResponse, next: NextFunction) => {
-    const globalError: Error = new Error('Global Error', { cause: error });
+    const globalError: GlobalError = new GlobalError(error);
     globalError.stack = undefined;
     await handleLogging(error, globalError);
     if (res.headersSent) {
@@ -29,7 +29,7 @@ export const errorHandler: GlobalErrorHandler = async (error: unknown, req: Http
         return;
     }
 
-    const httpError: HttpError = toHttpError(error);
+    const httpError: HttpError = ErrorUtilities.toHttpError(error);
 
     const preferred: string | false = req.accepts(MimeType.JSON, MimeType.HTML);
 
@@ -77,25 +77,11 @@ export const errorHandler: GlobalErrorHandler = async (error: unknown, req: Http
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 async function handleLogging(error: unknown, globalError: Error): Promise<void> {
-    const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
-
-    if (!isError(error)) {
-        await logger.critical(globalError);
+    if (!ErrorUtilities.isError(error)) {
+        await inject(ZIBRI_DI_TOKENS.LOGGER).critical(globalError);
         return;
     }
-    if (!isHttpError(error) || error.status >= 500) {
-        await logger.error(globalError);
+    if (!ErrorUtilities.isExternalError(error)) {
+        await inject(ZIBRI_DI_TOKENS.LOGGER).error(globalError);
     }
-}
-
-/**
- * Converts the given value to an http error.
- * @param value - The value to transform.
- * @returns Value if it was a http error, a new internal server error otherwise.
- */
-export function toHttpError(value: unknown): HttpError {
-    if (isHttpError(value)) {
-        return value;
-    }
-    return new InternalServerError('Internal Server Error');
 }

@@ -2,6 +2,7 @@ import { CipherGCM, CipherGCMTypes, createCipheriv, createDecipheriv, DecipherGC
 
 import { EncryptionContent, EncryptionString, EncryptionUtilities } from '../encryption.utilities';
 import { BaseDecryptOptions, BaseEncryptOptions, EncryptionStrategyInterface } from './encryption-strategy.interface';
+import { InternalError } from '../../../error-handling/internal-error.model';
 
 /**
  * Options for encrypting with the default aes-256-gcm encryption strategy implementation of Zibri.
@@ -75,7 +76,7 @@ export class AesGcmEncryptionStrategy implements EncryptionStrategyInterface<
 
         const contentB64: string = contentB64Parts.join('.');
         if (!ivB64 || !tagB64 || !contentB64) {
-            throw new Error('Invalid encrypted value');
+            throw new InternalError('Invalid encrypted value');
         }
 
         const decipher: DecipherGCM = createDecipheriv(

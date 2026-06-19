@@ -1,5 +1,6 @@
 import { AstBlockStatement, AstExpression, AstProgram, AstStatement } from './ast.model';
 import { resolveKeyForPathExpression } from './resolve-key-for-path-expression.function';
+import { InternalError } from '../error-handling/internal-error.model';
 import { JsonUtilities } from '../utilities/json.utilities';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
@@ -26,7 +27,7 @@ export function resolveAllArrayKeys(ast: AstProgram, parentKey: string | undefin
                 break;
             }
             default: {
-                throw new Error(`Unknown AST Element ${(element as AstStatement).type}`);
+                throw new InternalError(`Unknown AST Element ${(element as AstStatement).type}`);
             }
         }
     }
@@ -53,7 +54,7 @@ function resolveArrayKeysForBlockStatement(element: AstBlockStatement, parentKey
             break;
         }
         default: {
-            throw new Error(`Unknown AST path.original "${element.path.original}"`);
+            throw new InternalError(`Unknown AST path.original "${element.path.original}"`);
         }
     }
     return res;
@@ -62,7 +63,7 @@ function resolveArrayKeysForBlockStatement(element: AstBlockStatement, parentKey
 // eslint-disable-next-line jsdoc/require-jsdoc
 function getArrayKeyFromArrayParams(params: AstExpression[], parentKey: string | undefined): string {
     if (params.length !== 1) {
-        throw new Error(`Got more than 1 param ${JsonUtilities.stringify(params)}`);
+        throw new InternalError(`Got more than 1 param ${JsonUtilities.stringify(params)}`);
     }
 
     switch (params[0].type) {
@@ -71,7 +72,7 @@ function getArrayKeyFromArrayParams(params: AstExpression[], parentKey: string |
         }
         case 'SubExpression': {
             if (params[0].params.length < 1) {
-                throw new Error('SubExpression has no params');
+                throw new InternalError('SubExpression has no params');
             }
             // recursively pick the first param of the sub‐expression
             return getArrayKeyFromArrayParams([params[0].params[0]], parentKey);
@@ -82,7 +83,7 @@ function getArrayKeyFromArrayParams(params: AstExpression[], parentKey: string |
         case 'UndefinedLiteral':
         case 'NullLiteral':
         default: {
-            throw new Error(`Unknown AST param for each block "${params[0].type}"`);
+            throw new InternalError(`Unknown AST param for each block "${params[0].type}"`);
         }
 
     }

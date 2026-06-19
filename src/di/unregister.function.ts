@@ -1,4 +1,5 @@
 import { DiContainer } from './di-container';
+import { InternalError } from '../error-handling/internal-error.model';
 import { GlobalRegistry } from '../global/global-registry';
 import { DiToken } from './models/di-token.model';
 
@@ -9,7 +10,7 @@ import { DiToken } from './models/di-token.model';
  */
 export function unregister<T>(token: DiToken<T>): void {
     if (GlobalRegistry.isAppInitialized() || GlobalRegistry.isAppStarted()) {
-        throw new Error('You can only unregister providers before the app has been initialized');
+        throw new InternalError('You can only unregister providers before the app has been initialized');
     }
     const di: DiContainer = DiContainer.getInstance();
     di.unregister(token);

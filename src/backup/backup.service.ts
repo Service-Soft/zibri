@@ -8,11 +8,13 @@ import { BackupResourceInterface } from './backup-resource.interface';
 import { BackupCreateData, BackupServiceInterface } from './backup-service.interface';
 import { ZibriApplication } from '../application';
 import { PostgresDataSource } from '../data-source/data-sources/postgres-typeorm-data-source.model';
+import { Repository } from '../data-source/repository';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
+import { InternalError } from '../error-handling/internal-error.model';
 import { GlobalRegistry } from '../global/global-registry';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { Newable } from '../types/newable.type';
@@ -21,11 +23,31 @@ import { PromiseUtilities } from '../utilities/promise.utilities';
 import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function';
 import { BackupResourceMetadata } from './decorators/backup-resource-metadata.model';
 import { BackupTransportInterface } from './transports/backup-transport.interface';
-import { Repository } from '../data-source/repository';
 import { OnAppInit } from '../global/on-app-init.interface';
 import { OnAppShutdown } from '../global/on-app-shutdown.interface';
 import { JsonUtilities } from '../utilities/json.utilities';
 import { Ms } from '../utilities/ms';
+
+/**
+ * An error to throw during backup service initialization.
+ */
+class InitBackupServiceError extends InternalError {
+    constructor(message: string | string[]) {
+        const messageArray: string[] = typeof message === 'string' ? [message] : message;
+        super(['Error initializing backup service.', ...messageArray]);
+        this.name = 'InitBackupServiceError';
+    }
+}
+
+/**
+ * An error to throw when no transports could be resolved for the given backup resource.
+ */
+class BackupTransportNotFoundError extends InternalError {
+    constructor(backupResource: Newable<BackupResourceInterface>) {
+        super(`Could not find a transport for the backup resource "${backupResource.name}"`);
+        this.name = 'BackupTransportNotFoundError';
+    }
+}
 
 /**
  * Default implementation of the backup service.
@@ -64,13 +86,17 @@ export class BackupService implements BackupServiceInterface, OnAppInit, OnAppSh
             this.backupResources.push(resourceClass);
             const resource: BackupResourceInterface = inject(resourceClass);
             if (resource.createBackupData == undefined || resource.restoreBackup == undefined) {
-                throw new Error(`Invalid resource marked with @Backup: ${resourceClass.name} needs to implement BackupResourceInterface`);
+                throw new InitBackupServiceError(
+                    `Invalid resource marked with @Backup: ${resourceClass.name} needs to implement BackupResourceInterface`
+                );
             }
             if (resource instanceof PostgresDataSource && (!resource.rootPw || !resource.rootUsername)) {
-                throw new Error(`Invalid data source marked with @Backup: ${resourceClass.name} needs to provide rootPw and rootUsername`);
+                throw new InitBackupServiceError(
+                    `Invalid data source marked with @Backup: ${resourceClass.name} needs to provide rootPw and rootUsername`
+                );
             }
             if (!MetadataUtilities.getBackupResourceMetadata(resourceClass)?.transports.length) {
-                throw new Error('Needs to have at least one transport defined');
+                throw new InitBackupServiceError('Needs to have at least one transport defined');
             }
             await this.logger.info(`  - ${resourceClass.name}`);
         }
@@ -148,7 +174,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, OnAppSh
                 const metadata: BackupResourceMetadata | undefined = MetadataUtilities.getBackupResourceMetadata(backupResource);
                 const transports: BackupTransportInterface[] | undefined = metadata?.transports;
                 if (!transports?.length) {
-                    throw new Error(`Could not find a transport for the backup resource "${backupResource.name}"`);
+                    throw new BackupTransportNotFoundError(backupResource);
                 }
                 resourceEntities.push({ name: metadata?.name ?? backupResource.name, transportNames: transports.map(t => t.name) });
             }
@@ -171,7 +197,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, OnAppSh
                 const metadata: BackupResourceMetadata | undefined = MetadataUtilities.getBackupResourceMetadata(resource);
                 const transports: BackupTransportInterface[] | undefined = metadata?.transports;
                 if (!transports?.length) {
-                    throw new Error(`Could not find a transport for the backup resource "${resource.name}"`);
+                    throw new BackupTransportNotFoundError(resource);
                 }
                 const data: Readable = await inject(resource).createBackupData(backup);
                 await Promise.all(transports.map(t => t.storeData(data, backup, r)));
@@ -273,6 +299,6 @@ export class BackupService implements BackupServiceInterface, OnAppInit, OnAppSh
             }
         }
 
-        throw new Error(`Could not resolve backup data for resource "${resource.name}".`);
+        throw new InternalError(`Could not resolve backup data for resource "${resource.name}".`);
     }
 }

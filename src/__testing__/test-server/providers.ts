@@ -7,6 +7,7 @@ import { Inject } from '../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { defineProvider, DiProvider } from '../../di/models/di-provider.model';
 import { type Header } from '../../http/header.type';
+import { LocalizeService } from '../../localization/localize.service';
 import { MultithreadingServiceInterface } from '../../multithreading/services/multithreading-service.interface';
 import { type RouterInterface } from '../../routing/router.interface';
 import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
@@ -19,12 +20,20 @@ class TestVersioningService extends VersioningService {
     constructor(
         @Inject(ZIBRI_DI_TOKENS.VERSION_HEADER)
         versionHeader: Header,
+        @Inject(ZIBRI_DI_TOKENS.VERSION_QUERY_PARAM)
+        versionQueryParam: string,
         @Inject(ZIBRI_DI_TOKENS.ROUTER)
         router: RouterInterface
     ) {
-        super(versionHeader, router);
+        super(versionHeader, versionQueryParam, router);
         // eslint-disable-next-line typescript/no-unsafe-member-access, typescript/no-explicit-any
         (this as any).versionsPath = testVersionsDir;
+    }
+}
+
+class TestLocalizeService extends LocalizeService {
+    override async onAppInit(): Promise<void> {
+        // do nothing
     }
 }
 
@@ -107,5 +116,9 @@ export const defaultTestServerProviders: DiProvider<unknown>[] = [
     defineProvider({
         token: ZIBRI_DI_TOKENS.VERSIONING_SERVICE,
         useClass: TestVersioningService
+    }),
+    defineProvider({
+        token: ZIBRI_DI_TOKENS.LOCALIZE_SERVICE,
+        useClass: TestLocalizeService
     })
 ];

@@ -3,6 +3,8 @@ import { AuthorizationCaptureResp, CaptureOrderResp, GetOrderResp, PayPalCapture
 import { Repository } from '../../../../data-source/repository';
 import { repositoryTokenFor } from '../../../../di/decorators/inject-repository.decorator';
 import { inject } from '../../../../di/inject.function';
+import { InternalError } from '../../../../error-handling/internal-error.model';
+import { CurrencyCode } from '../../../../localization/models/currency-code.model';
 import { KnownPaymentMethod } from '../../models/payment-method.model';
 import { PaymentStatus } from '../../models/payment-status.enum';
 import { Payment } from '../../models/payment.model';
@@ -28,7 +30,7 @@ export type PayPalPaymentData = {
     /**
      * The currency of the payment.
      */
-    currencyCode: string,
+    currencyCode: CurrencyCode,
     /**
      * The url to return to to confirm the payment.
      */
@@ -229,15 +231,15 @@ export class PayPalPaymentProvider implements PaymentProviderInterface<
         switch (method) {
             case KnownPaymentMethod.PAY_PAL: {
                 if (data.amount <= 0) {
-                    throw new Error('amount must be > 0');
+                    throw new InternalError('amount must be > 0');
                 }
                 if (!data.currencyCode) {
-                    throw new Error('currencyCode required');
+                    throw new InternalError('currencyCode required');
                 }
                 return data;
             }
             default: {
-                throw new Error(`unsupported payment method ${method}`);
+                throw new InternalError(`unsupported payment method ${method}`);
             }
         }
     }
@@ -310,7 +312,7 @@ export class PayPalPaymentProvider implements PaymentProviderInterface<
         }[SupportedMethods[number]]
     >(payment: Payment<M, ProviderReservationPaymentDataMap[M]>): Promise<void> {
         if (!payment.data?.orderId) {
-            throw new Error('missing payment data orderId; cannot confirm reservation');
+            throw new InternalError('missing payment data orderId; cannot confirm reservation');
         }
 
         try {
@@ -326,7 +328,7 @@ export class PayPalPaymentProvider implements PaymentProviderInterface<
             }
 
             if (!foundAuthId) {
-                throw new Error('no authorization found on order; reservation not confirmed yet');
+                throw new InternalError('no authorization found on order; reservation not confirmed yet');
             }
 
             payment.data = {
@@ -349,7 +351,7 @@ export class PayPalPaymentProvider implements PaymentProviderInterface<
         payment: Payment<M, ProviderPaymentDataMap[M]>
     ): Promise<void> {
         if (!payment.data?.orderId) {
-            throw new Error('missing payment data orderId; cannot confirm payment');
+            throw new InternalError('missing payment data orderId; cannot confirm payment');
         }
 
         try {
@@ -397,7 +399,7 @@ export class PayPalPaymentProvider implements PaymentProviderInterface<
         }
 
         if (!authId) {
-            throw new Error('missing authorizationId; cannot collect from reservation');
+            throw new InternalError('missing authorizationId; cannot collect from reservation');
         }
 
         try {
@@ -461,7 +463,7 @@ export class PayPalPaymentProvider implements PaymentProviderInterface<
 
         // If payment is already captured, cancellation isn't possible — refund must be used
         if (payment.data?.captureId || payment.status === PaymentStatus.PAID) {
-            throw new Error('payment already captured; use refundPayment to refund the capture');
+            throw new InternalError('payment already captured; use refundPayment to refund the capture');
         }
 
         // Fallback: mark cancelled
@@ -477,7 +479,7 @@ export class PayPalPaymentProvider implements PaymentProviderInterface<
         }[SupportedMethods[number]]
     >(payment: Payment<M, ProviderPaymentDataMap[M]>): Promise<void> {
         if (!payment.data?.captureId) {
-            throw new Error('missing captureId on payment.data; cannot refund payment');
+            throw new InternalError('missing captureId on payment.data; cannot refund payment');
         }
 
         try {

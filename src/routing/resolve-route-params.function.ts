@@ -7,6 +7,7 @@ import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../context/request/request-context
 import { WebsocketRequestContext } from '../context/request/websocket-request.context';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
+import { InternalError } from '../error-handling/internal-error.model';
 import { KnownHeader } from '../http/known-header.enum';
 import { ParserInterface } from '../parsing/parser.interface';
 import { Newable } from '../types/newable.type';
@@ -115,7 +116,7 @@ async function parseRouteParams(
     if (currentWebsocketConnectionMetadata) {
         switch (context.type) {
             case 'http-request': {
-                throw new Error('Tried to inject a websocket connection on a http request.');
+                throw new InternalError('Tried to inject a websocket connection on a http request.');
             }
             case 'websocket-request': {
                 params[currentWebsocketConnectionMetadata.index] = context.connection;
@@ -126,7 +127,7 @@ async function parseRouteParams(
     }
 
     if (resolvedParamCount < totalParamCount) {
-        throw new Error(
+        throw new InternalError(
             // eslint-disable-next-line stylistic/max-len
             `Error when calling ${controllerClass.name}.${controllerMethod}: Could only resolve ${resolvedParamCount} out of ${totalParamCount} parameters. Did you forget to decorate one of the parameters?`
         );

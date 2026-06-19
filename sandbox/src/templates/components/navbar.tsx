@@ -1,4 +1,4 @@
-import { PreactComponent } from 'zibri';
+import { $ts, PreactComponent } from 'zibri';
 
 import { Link } from './link';
 
@@ -14,13 +14,13 @@ export const Navbar: PreactComponent<Props> = ({ activeRoute }) => {
                     <img src="/assets/logo.jpg" className="w-28 h-28"></img>
                 </a>
                 <Link href="/" activeRoute={activeRoute}>
-                    Home
+                    {$ts`Home`}
                 </Link>
                 <Link href="/explorer" activeRoute={activeRoute}>
-                    OpenAPI Explorer
+                    {$ts`OpenAPI Explorer`}
                 </Link>
                 <Link href="/assets" activeRoute={activeRoute}>
-                    Assets
+                    {$ts`Assets`}
                 </Link>
                 {/* <Link href="/metrics/dashboard" activeRoute={activeRoute}>
                     Metrics

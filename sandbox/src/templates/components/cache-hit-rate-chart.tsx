@@ -1,5 +1,5 @@
 import type { Chart as ChartJsChart } from 'chart.js';
-import { MetricsSnapshot, PreactComponent } from 'zibri';
+import { $f, $ts, MetricsSnapshot, PreactComponent } from 'zibri';
 
 import { Chart } from './chart';
 
@@ -54,7 +54,7 @@ export const CacheHitRateChart: PreactComponent<Props> = ({ className = '', prim
 
     return <Chart
         canvasId="cacheHitRateChart"
-        title="Cache hit rate"
+        title={$ts`Cache hit rate`}
         className={className}
         chartConfig={{
             type: 'line',
@@ -62,7 +62,7 @@ export const CacheHitRateChart: PreactComponent<Props> = ({ className = '', prim
             options: {
                 scales: {
                     x: { type: 'time', time: { unit: 'second' } },
-                    y: { min: 0, max: 100, ticks: { callback: v => `${v}%` } }
+                    y: { min: 0, max: 100, ticks: { callback: v => $f.percent(Number(v)) } }
                 }
             }
         }}

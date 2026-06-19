@@ -1,5 +1,5 @@
 import { Chart } from 'chart.js?client';
-import { MetricsSnapshot, onClient, PreactComponent } from 'zibri';
+import { $ts, MetricsSnapshot, onClient, PreactComponent } from 'zibri';
 
 import { BasePage } from '../components/base-page';
 import { CacheDetailSection } from '../components/cache-details-section';
@@ -81,25 +81,25 @@ export const MetricsPage: PreactComponent<Props> = ({ version, primary, secondar
         }
         catch (error) {
             // eslint-disable-next-line no-console
-            console.error('failed to load metrics', error);
+            console.error($ts`failed to load metrics`, error);
         }
     }
 
     return (
         <>
-            <BasePage title='Metrics'
+            <BasePage title={$ts`Metrics`}
                 activeRoute='/metrics/dashboard'
                 scripts={['/assets/lib/chartjs-adapter-date-fns.js']}
                 className="flex flex-col gap-4 py-8"
             >
-                <Heading className="text-center">Metrics</Heading>
+                <Heading className="text-center">{$ts`Metrics`}</Heading>
                 <Checkbox
                     className='text-white'
-                    label="Automatic reload"
+                    label={$ts`Automatic reload`}
                     onChange={() => automaticReload = !automaticReload} checked={automaticReload}
                 />
                 <div className="w-full px-10 flex">
-                    <TabBar className='w-full' tabs={[{ id: 'overview', label: 'Overview' }, { id: 'caches', label: 'Caches' }]}>
+                    <TabBar className='w-full' tabs={[{ id: 'overview', label: $ts`Overview` }, { id: 'caches', label: $ts`Caches` }]}>
                         <TabItem id='overview'>
                             <div className="grid grid-cols-5 gap-5 mb-5">
                                 <div className="col-span-2 flex flex-col gap-5">
@@ -119,7 +119,9 @@ export const MetricsPage: PreactComponent<Props> = ({ version, primary, secondar
                                 <div className="col-span-2 flex flex-col gap-5">
                                     <MetricsStatus id='caches' version={version} className="flex-1" />
                                     <div className='grid grid-cols-2 gap-5'>
-                                        <StatCard id='cacheCountStat' title='Total caches' unit='registered'>{cacheNames.length}</StatCard>
+                                        <StatCard id='cacheCountStat' title={$ts`Total caches`} unit={$ts`registered`}>
+                                            {cacheNames.length}
+                                        </StatCard>
                                         <CacheSizeStatCard />
                                         <CacheHitRateStatCard />
                                         <CacheInFlightStatCard />

@@ -1,5 +1,6 @@
 import { convertObj, ConvertOutputOptions } from 'swagger2openapi';
 
+import { InternalError } from '../../../error-handling/internal-error.model';
 import { OpenApiDefinition } from '../../../open-api/open-api.model';
 
 /**
@@ -9,7 +10,7 @@ import { OpenApiDefinition } from '../../../open-api/open-api.model';
  */
 export async function openApiToV3(spec: unknown): Promise<OpenApiDefinition> {
     if (spec == undefined || typeof spec !== 'object' || Array.isArray(spec)) {
-        throw new Error('Invalid OpenAPI document');
+        throw new InternalError('Invalid OpenAPI document');
     }
 
     if ('swagger' in spec && spec.swagger === '2.0') {
@@ -33,5 +34,5 @@ export async function openApiToV3(spec: unknown): Promise<OpenApiDefinition> {
         }
     }
 
-    throw new Error('Unsupported OpenAPI version');
+    throw new InternalError('Unsupported OpenAPI version');
 }

@@ -13,20 +13,23 @@ import { JwtAuthStrategy } from './auth/strategies/jwt/jwt.auth-strategy';
 import { CronJob } from './cron/cron-job.model';
 import { isDataSource } from './data-source/data-sources/data-source.interface';
 import { ZIBRI_DI_TOKENS } from './di/default/zibri-di-tokens.default';
+import { InvalidClassMarkedWithInjectableError } from './di/errors/invalid-class-marked-with-injectable.error';
 import { getAllRegisteredTokens } from './di/get-all-registered-tokens.function';
+import { initDiContainer } from './di/init-di-container.function';
 import { inject } from './di/inject.function';
 import { DiToken } from './di/models/di-token.model';
 import { register } from './di/register.function';
 import { GlobalErrorHandler } from './error-handling/error-handler.model';
 import { UnmatchedRouteError } from './error-handling/errors/unmatched-route.error';
+import { InternalError } from './error-handling/internal-error.model';
 import { implementsAfterAppInit } from './global/after-app-init.interface';
-import { AfterAppShutdown, implementsAfterAppShutdown } from './global/after-app-shutdown.interface';
+import { AfterAppShutdown, AfterAppShutdownError, implementsAfterAppShutdown } from './global/after-app-shutdown.interface';
 import { AppState } from './global/app-state.enum';
 import { implementsBeforeAppInit } from './global/before-app-init.interface';
-import { BeforeAppShutdown, implementsBeforeAppShutdown } from './global/before-app-shutdown.interface';
+import { BeforeAppShutdown, BeforeAppShutdownError, implementsBeforeAppShutdown } from './global/before-app-shutdown.interface';
 import { GlobalRegistry } from './global/global-registry';
 import { implementsOnAppInit } from './global/on-app-init.interface';
-import { implementsOnAppShutdown, OnAppShutdown } from './global/on-app-shutdown.interface';
+import { implementsOnAppShutdown, OnAppShutdown, OnAppShutdownError } from './global/on-app-shutdown.interface';
 import { implementsOnAppStart } from './global/on-app-start.interface';
 import { HandlebarUtilities } from './handlebars/handlebar.utilities';
 import { KnownHeader } from './http/known-header.enum';
@@ -150,8 +153,11 @@ export class ZibriApplication {
      */
     async init(
         H: typeof Handlebars,
-        handlebarComponentsDir: string = FsUtilities.getPath(inject(ZIBRI_DI_TOKENS.ASSET_SERVICE).assetsPath, 'templates', 'components')
+        handlebarComponentsDir?: string
     ): Promise<void> {
+        initDiContainer();
+        handlebarComponentsDir ??= FsUtilities.getPath(inject(ZIBRI_DI_TOKENS.ASSET_SERVICE).assetsPath, 'templates', 'components');
+
         await HandlebarUtilities.init(H, handlebarComponentsDir);
         GlobalRegistry.setAppData(this.options);
 
@@ -201,7 +207,7 @@ export class ZibriApplication {
             // We need this check in addition to the one in the registry.
             // Because we would otherwise have a wrong state when we call markAppAsStarted
             // and then this.app.listen fails.
-            throw new Error('The application has already been started');
+            throw new InternalError('The application has already been started');
         }
 
         const injectables: unknown[] = getAllRegisteredTokens().map(t => inject(t));
@@ -310,7 +316,7 @@ export class ZibriApplication {
                 await this.logger.error(
                     error instanceof Error
                         ? error
-                        : new Error(`Error running afterAppShutdown for "${e.constructor.name}":`, { cause: error })
+                        : new AfterAppShutdownError(e.constructor.name, { cause: error })
                 );
             }
         }));
@@ -328,7 +334,7 @@ export class ZibriApplication {
                 await this.logger.error(
                     error instanceof Error
                         ? error
-                        : new Error(`Error running onAppShutdown for "${e.constructor.name}":`, { cause: error })
+                        : new OnAppShutdownError(e.constructor.name, { cause: error })
                 );
             }
         }));
@@ -346,7 +352,7 @@ export class ZibriApplication {
                 await this.logger.error(
                     error instanceof Error
                         ? error
-                        : new Error(`Error running beforeAppShutdown for "${e.constructor.name}":`, { cause: error })
+                        : new BeforeAppShutdownError(e.constructor.name, { cause: error })
                 );
             }
         }));
@@ -372,34 +378,22 @@ export class ZibriApplication {
     private validateInjectables(injectables: unknown[]): void {
         for (const element of injectables) {
             if (element instanceof ZibriPlugin) {
-                throw new Error([
-                    `Invalid class marked with @Injectable: ${element.constructor.name}`,
-                    'Plugins interfere with the injection system, making them injectable is forbidden.'
-                ].join('\n'));
+                throw new InvalidClassMarkedWithInjectableError(element.constructor.name, 'plugin');
             }
             if (element instanceof CronJob) {
-                throw new Error([
-                    `Invalid class marked with @Injectable: ${element.constructor.name}`,
-                    'Cron jobs should be registered by the cron service.'
-                ].join('\n'));
+                throw new InvalidClassMarkedWithInjectableError(element.constructor.name, 'cronJob');
             }
             if (isTwoFactorMethod(element)) {
-                throw new Error([
-                    `Invalid class marked with @Injectable: ${element.constructor.name}`,
-                    'Two factor methods should be registered by the two factor service.'
-                ].join('\n'));
+                throw new InvalidClassMarkedWithInjectableError(element.constructor.name, 'twoFactorMethod');
             }
             if (isAuthStrategy(element)) {
-                throw new Error([
-                    `Invalid class marked with @Injectable: ${element.constructor.name}`,
-                    'Auth strategies should be registered by the auth service.'
-                ].join('\n'));
+                throw new InvalidClassMarkedWithInjectableError(element.constructor.name, 'authStrategy');
             }
             if (isDataSource(element) && !this.options.dataSources.find(ds => ds.name === element.constructor.name)) {
-                throw new Error([
+                throw new InternalError([
                     `Invalid class marked with @DataSource: ${element.constructor.name}`,
                     'The data source has not been included in the application options.'
-                ].join('\n'));
+                ]);
             }
         }
     }

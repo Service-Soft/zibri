@@ -27,7 +27,9 @@ import { EmailPriority } from '../../../email/models/email-priority.enum';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { TooManyRequestsError } from '../../../error-handling/errors/too-many-requests.error';
 import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.error';
+import { InternalError } from '../../../error-handling/internal-error.model';
 import { GlobalRegistry } from '../../../global/global-registry';
+import { $ts } from '../../../localization/translate.function';
 import { OpenApiSecuritySchemeObject } from '../../../open-api/open-api.model';
 import { Newable } from '../../../types/newable.type';
 import { OmitStrict } from '../../../types/omit-strict.type';
@@ -133,7 +135,7 @@ implements AuthStrategyInterface<
             const credentialsFound: JwtCredentials = await this.userService.resolveCredentialsFor(foundUser);
             const passwordMatched: boolean = await this.hashService.equal(credentials.password, credentialsFound.password);
             if (!passwordMatched) {
-                throw new UnauthorizedError('Invalid email or password.');
+                throw new UnauthorizedError($ts`Invalid email or password.`);
             }
             const accessTokenValue: string = await this.generateAccessToken(foundUser);
             const refreshTokenValue: string = await this.generateRefreshToken(foundUser);
@@ -153,7 +155,7 @@ implements AuthStrategyInterface<
             };
         }
         catch {
-            throw new UnauthorizedError('Invalid email or password.');
+            throw new UnauthorizedError($ts`Invalid email or password.`);
         }
     }
 
@@ -213,7 +215,7 @@ implements AuthStrategyInterface<
     private async verifyAndResolveRefreshToken(tokenValue: string, transaction: Transaction): Promise<JwtRefreshToken> {
         const encoded: EncodedJwtAccessToken<string> | undefined = await JwtUtilities.verify(tokenValue, this.refreshTokenSecret);
         if (!encoded) {
-            throw new UnauthorizedError('Error verifying token: Invalid Token');
+            throw new UnauthorizedError($ts`Error verifying token: Invalid Token`);
         }
         const refreshToken: JwtRefreshToken | undefined = await this.refreshTokenRepository.findOne(
             { where: { value: tokenValue }, transaction },
@@ -221,15 +223,15 @@ implements AuthStrategyInterface<
         );
 
         if (!refreshToken) {
-            throw new UnauthorizedError('Error verifying token: Invalid Token');
+            throw new UnauthorizedError($ts`Error verifying token: Invalid Token`);
         }
         if (refreshToken.blacklisted) {
             await this.refreshTokenRepository.deleteAll({ familyId: refreshToken.familyId }, { transaction });
-            throw new UnauthorizedError('The given refresh token has already been used.');
+            throw new UnauthorizedError($ts`The given refresh token has already been used.`);
         }
         if (new Date(refreshToken.expirationDate).getTime() <= Date.now()) {
             await this.refreshTokenRepository.deleteAll({ familyId: refreshToken.familyId }, { transaction });
-            throw new UnauthorizedError('The given refresh token is expired.');
+            throw new UnauthorizedError($ts`The given refresh token is expired.`);
         }
 
         const user: UserType = await this.userService.findById(refreshToken.userId);
@@ -243,7 +245,7 @@ implements AuthStrategyInterface<
     // eslint-disable-next-line jsdoc/require-jsdoc
     async requestPasswordReset(data: JwtRequestPasswordResetData<RoleType, UserType>): Promise<void> {
         if (await this.activePasswordResetTokenAlreadyExists(data.user, data.transaction)) {
-            throw new TooManyRequestsError('A password reset has already been requested for this account.');
+            throw new TooManyRequestsError($ts`A password reset has already been requested for this account.`);
         }
 
         const resetTokenData: PasswordResetTokenCreateData = {
@@ -280,11 +282,11 @@ implements AuthStrategyInterface<
             false
         );
         if (!resetToken) {
-            throw new UnauthorizedError('Link invalid');
+            throw new UnauthorizedError($ts`Link invalid`);
         }
         if (new Date(resetToken.expirationDate).getTime() <= Date.now()) {
             await this.passwordResetTokenRepository.deleteById(resetToken.id, { transaction: data.transaction });
-            throw new UnauthorizedError('Link expired');
+            throw new UnauthorizedError($ts`Link expired`);
         }
 
         const user: UserType = await this.userService.findById(resetToken.userId);
@@ -366,7 +368,7 @@ implements AuthStrategyInterface<
             const repo: RepositoryTypeForEntity<InstanceType<TargetEntity>> = inject(repositoryTokenFor(targetEntity));
             const targetId: string | undefined = context.request.params?.[targetIdParamKey];
             if (targetId == undefined) {
-                throw new Error(`Could not find the target id specified as path param "${targetId}"`);
+                throw new InternalError(`Could not find the target id specified as path param "${targetIdParamKey}"`);
             }
             const foundTarget: InstanceType<TargetEntity> = await repo.findById(targetId) as InstanceType<TargetEntity>;
             const userIdProperty: unknown = foundTarget[targetUserIdKey];
@@ -409,7 +411,7 @@ implements AuthStrategyInterface<
             );
         }
         catch (error) {
-            throw new UnauthorizedError('Error generating token', { cause: error });
+            throw new UnauthorizedError($ts`Error generating token`, { cause: error });
         }
     }
 

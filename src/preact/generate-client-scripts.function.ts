@@ -1,7 +1,9 @@
 import { createRequire } from 'node:module';
 
+import { InternalError } from '../error-handling/internal-error.model';
 import { FsUtilities, FsPath } from '../utilities/fs.utilities';
 import { JsonUtilities } from '../utilities/json.utilities';
+import { ObjectUtilities } from '../utilities/object.utilities';
 import { toKebabCase } from '../utilities/to-kebab-case.function';
 
 const defaultGlobs: string[] = ['src/templates/pages/**/*.tsx', 'src/templates/components/**/*.tsx'];
@@ -52,7 +54,7 @@ export async function generateClientScripts(glob: string | string[] = defaultGlo
 
     const manifestFile: FsPath = FsUtilities.getPath(vendorPath, 'manifest.json');
     const sorted: Record<string, string[]> = Object.fromEntries(
-        Object.entries(packagesByComponent).sort(([a], [b]) => a.localeCompare(b))
+        ObjectUtilities.entries(packagesByComponent).sort(([a], [b]) => a.localeCompare(b))
     );
     const newManifestContent: string = JsonUtilities.stringify(sorted, undefined, 4);
     if (await FsUtilities.exists(manifestFile)) {
@@ -97,8 +99,8 @@ async function resolveBrowserDist(pkg: string): Promise<string> {
 
     const browserEntry: string | undefined = resolveBrowserEntry(pkgJson);
     if (!browserEntry) {
-        throw new Error(
-            `[zibri] Package '${pkg}' has no browser distribution. `
+        throw new InternalError(
+            `Package '${pkg}' has no browser distribution. `
             + 'It must expose a browser build via \'browser\', \'unpkg\', \'cdn\', or exports[\'browser\'] in package.json.'
         );
     }
@@ -136,7 +138,7 @@ async function findPackageDir(pkg: string, userRequire: NodeJS.Require): Promise
         }
         const parent: string = FsUtilities.dirName(FsUtilities.getPath(dir));
         if (parent === dir) {
-            throw new Error(`[zibri] Could not find package root for '${pkg}'`);
+            throw new InternalError(`Could not find package root for '${pkg}'`);
         }
         dir = parent;
     }
@@ -160,7 +162,7 @@ function resolveBrowserEntry(pkgJson: Record<string, unknown>): string | undefin
 
         // Scan for directly exported flat bundle files: "./dist/socket.io.js": "./dist/socket.io.js"
         const distExports: string[] = [];
-        for (const [key, val] of Object.entries(exportsMap)) {
+        for (const [key, val] of ObjectUtilities.entries(exportsMap)) {
             if (key === '.' || key === './package.json') {
                 continue;
             }

@@ -1,4 +1,4 @@
-import { MetricsSnapshot, onClient, PreactComponent } from 'zibri';
+import { $ts, MetricsSnapshot, onClient, PreactComponent } from 'zibri';
 
 import { StatCard } from './stat-card';
 import { MetricsEvent } from '../pages/metrics';
@@ -9,7 +9,7 @@ export const CacheHitRateStatCard: PreactComponent<Props> = ({ className = '' })
     onClient(() => {
         document.addEventListener('metrics:update', (ev) => {
             if (!(ev instanceof CustomEvent) || !('snaps' in ev.detail)) {
-                throw new Error('received invalid metrics event');
+                throw new Error($ts`received invalid metrics event`);
             }
             update((ev as MetricsEvent).detail.snaps);
         });
@@ -38,5 +38,5 @@ export const CacheHitRateStatCard: PreactComponent<Props> = ({ className = '' })
         }
     }
 
-    return <StatCard id="cacheHitRateStat" title="Hit rate" unit="%" className={className} />;
+    return <StatCard id="cacheHitRateStat" title={$ts`Hit rate`} unit="%" className={className} />;
 };

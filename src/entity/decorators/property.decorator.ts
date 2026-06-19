@@ -1,4 +1,5 @@
 import { BaseDecryptOptions, BaseEncryptOptions } from '../../auth/encryption/strategies/encryption-strategy.interface';
+import { InternalError } from '../../error-handling/internal-error.model';
 import { warn } from '../../logging/logger.helpers';
 import { Newable } from '../../types/newable.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
@@ -366,14 +367,16 @@ export namespace Property {
 function applyData(data: PropertyMetadata): PropertyDecorator {
     return (target, key) => {
         if ('primary' in data && data.primary && data.exclude !== false) {
-            throw new Error(`${target.constructor.name}.${key.toString()}: Cannot mark a primary key with "exclude."`);
+            throw new InternalError(`${target.constructor.name}.${key.toString()}: Cannot mark a primary key with "exclude."`);
         }
         if (
             'encryption' in data && 'hash' in data
             && data.encryption !== undefined && data.encryption !== false
             && data.hash !== undefined && data.hash !== false
         ) {
-            throw new Error(`${target.constructor.name}.${key.toString()}: Cannot set the flags "encryption" and "hash" at the same time.`);
+            throw new InternalError(
+                `${target.constructor.name}.${key.toString()}: Cannot set the flags "encryption" and "hash" at the same time.`
+            );
         }
         const ctor: Newable<unknown> = target.constructor as Newable<unknown>;
         // eslint-disable-next-line unicorn/error-message

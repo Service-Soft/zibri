@@ -16,6 +16,7 @@ import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { PropertyMetadata, RelationMetadata } from '../../entity/decorators/property.decorator';
 import { Relation } from '../../entity/models/relation.enum';
+import { InternalError } from '../../error-handling/internal-error.model';
 import { type LoggerInterface } from '../../logging/logger.interface';
 import { ExcludeStrict } from '../../types/exclude-strict.type';
 import { Newable } from '../../types/newable.type';
@@ -99,7 +100,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
     // eslint-disable-next-line jsdoc/require-jsdoc
     protected beforeMigrations(): void {
         if (!this.ds) {
-            throw new Error('The data source needs to be initialized before it can be used.');
+            throw new DataSourceInitializationError();
         }
         this.whereFilterConverter = new PostgresTypeOrmWhereFilterConverter(this.ds);
     }
@@ -109,7 +110,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
         const dumpCommand: string = 'pg_dumpall';
         const { host, port } = this.options;
         if (!this.rootUsername || !host || !port) {
-            throw new Error('Could not create a backup, missing this.rootUsername, this.options.host or this.options.port');
+            throw new InternalError('Could not create a backup, missing this.rootUsername, this.options.host or this.options.port');
         }
         const args: string[] = ['-U', this.rootUsername, '-h', host, '-p', port.toString()];
 
@@ -125,7 +126,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
         });
         child.on('exit', code => {
             if (code !== 0) {
-                out.destroy(new Error(`${dumpCommand} exited with code ${code}`));
+                out.destroy(new InternalError(`${dumpCommand} exited with code ${code}`));
             }
             else {
                 out.end();
@@ -139,7 +140,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
     async restoreBackup(backupData: Readable): Promise<void> {
         const { host, port, database } = this.options;
         if (!this.rootUsername || !host || !port || !database) {
-            throw new Error('Missing rootUsername, host, port, or database for restore');
+            throw new InternalError('Missing rootUsername, host, port, or database for restore');
         }
 
         const args: string[] = ['-U', this.rootUsername, '-h', host, '-p', port.toString(), '-d', database];
@@ -154,7 +155,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
             child.on('error', reject);
             child.on('close', code => {
                 if (code !== 0) {
-                    reject(new Error(`psql exited with code ${code}`));
+                    reject(new InternalError(`psql exited with code ${code}`));
                 }
                 else {
                     resolve();
@@ -220,7 +221,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
             }
             case Relation.MANY_TO_MANY: {
                 if (metadata.joinTable == undefined) {
-                    throw new Error(
+                    throw new InternalError(
                         `The property ${cls.name}.${key} needs to have "joinTable" set inside of the @Property.manyToMany() decorator.`
                     );
                 }
@@ -231,7 +232,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
             }
             case Relation.BELONGS_TO_ONE: {
                 if (metadata.joinColumn == undefined) {
-                    throw new Error(
+                    throw new InternalError(
                         `The property ${cls.name}.${key} needs to have "joinColumn" set inside of the @Property.belongsToOne() decorator.`
                     );
                 }
@@ -244,7 +245,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
             }
             case Relation.MANY_TO_ONE: {
                 if (metadata.joinColumn == undefined) {
-                    throw new Error(
+                    throw new InternalError(
                         `The property ${cls.name}.${key} needs to have "joinColumn" set inside of the @Property.manyToOne() decorator.`
                     );
                 }

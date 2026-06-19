@@ -6,6 +6,7 @@ import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { NumberFormat, NumberPropertyMetadata } from '../../entity/models/number-property-metadata.model';
+import { $ts } from '../../localization/translate.function';
 import { INTEGER_REGEX } from '../../parsing/functions/parse-number.function';
 import { QueryParamMetadata, HeaderParamMetadata, PathParamMetadata } from '../../routing/decorators/param.decorator';
 import { NumberParamMetadata } from '../../routing/models/number-param-metadata.model';
@@ -51,16 +52,16 @@ export async function validateNumber(
     assert(typeof property === 'bigint' || typeof property === 'number');
 
     if (meta.format && !isFormatValid(meta.format, property)) {
-        return [{ key: fullKey, message: `needs to be in format "${meta.format}"` }];
+        return [{ key: fullKey, message: $ts`needs to be in format "${meta.format}"` }];
     }
     if (meta.enum && !ObjectUtilities.values(meta.enum).includes(property)) {
-        return [{ key: fullKey, message: `needs to match one of "${ObjectUtilities.values(meta.enum)}"` }];
+        return [{ key: fullKey, message: $ts`needs to match one of "${ObjectUtilities.values(meta.enum)}"` }];
     }
     if (meta.min != undefined && property < meta.min) {
-        return [{ key: fullKey, message: `needs to be at least ${meta.min}` }];
+        return [{ key: fullKey, message: $ts`needs to be at least ${meta.min}` }];
     }
     if (meta.max != undefined && property > meta.max) {
-        return [{ key: fullKey, message: `needs to be at most ${meta.max}` }];
+        return [{ key: fullKey, message: $ts`needs to be at most ${meta.max}` }];
     }
     return [];
 }

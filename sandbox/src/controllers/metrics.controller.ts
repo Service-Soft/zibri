@@ -18,7 +18,7 @@ export class MetricsController {
         return this.metricsService.getMetricSnapshots();
     }
 
-    @Cached(StaticPagesCache, () => 'dashboard')
+    @Cached(StaticPagesCache, () => StaticPagesCache.getPageKey('dashboard'))
     @Response.html()
     @Get('/dashboard')
     async dashboard(): Promise<HtmlResponse> {

@@ -21,9 +21,7 @@ import { EmailConfigInput } from '../../email/models/email-config.model';
 import { GlobalErrorHandler, ErrorPageTemplate } from '../../error-handling/error-handler.model';
 import { EventServiceInterface } from '../../event/event-service.interface';
 import { HttpClientInterface } from '../../http-client/http-client.interface';
-import { FormatDateFn } from '../../localization/formatting/format-date-fn.model';
-import { FormatPercentFn } from '../../localization/formatting/format-percent-fn.model';
-import { FormatPriceFn } from '../../localization/formatting/format-price-fn.model';
+import { LocalizeServiceInterface } from '../../localization/localize-service.interface';
 import { LocalizeOptionsInput, LocalizeOptions } from '../../localization/models/localize-options.model';
 import { LogLevel } from '../../logging/log-level.enum';
 import { LoggerInterface } from '../../logging/logger.interface';
@@ -87,11 +85,6 @@ export const ZIBRI_DI_TOKENS = {
     USER_SERVICE: ziToken<UserServiceInterface>('zi.user_service'),
     CRON_SERVICE: ziToken<CronServiceInterface>('zi.cron_service'),
     FILE_UPLOAD_TEMP_FOLDER: ziToken<FsPath>('zi.file_upload_temp_folder'),
-    LOCALIZE_OPTIONS_INPUT: ziToken<LocalizeOptionsInput>('zi.localize_options_input'),
-    LOCALIZE_OPTIONS: ziToken<LocalizeOptions>('zi.localize_options'),
-    FORMAT_DATE: ziToken<FormatDateFn>('zi.format_date'),
-    FORMAT_PRICE: ziToken<FormatPriceFn>('zi.format_price'),
-    FORMAT_PERCENT: ziToken<FormatPercentFn>('zi.format_percent'),
     EMAIL_SERVICE: ziToken<EmailServiceInterface>('zi.email_service'),
     EMAIL_CONFIG: ziToken<EmailConfigInput | undefined>('zi.email_config'),
     MULTITHREADING_SERVICE: ziToken<MultithreadingServiceInterface>('zi.multithreading_service'),
@@ -118,6 +111,10 @@ export const ZIBRI_DI_TOKENS = {
     CACHE_SERVICE: ziToken<CacheServiceInterface>('zi.cache_service'),
     VERSIONING_SERVICE: ziToken<VersioningServiceInterface>('zi.versioning_service'),
     VERSION_HEADER: ziToken<string>('zi.version_header'),
+    VERSION_QUERY_PARAM: ziToken<string>('zi.version_query_param'),
+    LOCALIZE_SERVICE: ziToken<LocalizeServiceInterface>('zi.localize_service'),
+    LOCALIZE_OPTIONS_INPUT: ziToken<LocalizeOptionsInput>('zi.localize_options_input'),
+    LOCALIZE_OPTIONS: ziToken<LocalizeOptions>('zi.localize_options'),
     // dynamic/context based tokens
     CURRENT_REQUEST_CONTEXT: ziToken<HttpRequestContext | WebsocketRequestContext | undefined>('zi.current_request_context'),
     DEFAULT_CSP_OPTIONS: ziToken<CspOptions>('zi.default_csp_options'),

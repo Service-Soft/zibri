@@ -1,4 +1,4 @@
-import { MetricsSnapshot, onClient, PreactComponent } from 'zibri';
+import { $ts, MetricsSnapshot, onClient, PreactComponent } from 'zibri';
 
 import { StatCard } from './stat-card';
 import { MetricsEvent } from '../pages/metrics';
@@ -11,7 +11,7 @@ export const CacheInFlightStatCard: PreactComponent<Props> = ({ className = '' }
     onClient(() => {
         document.addEventListener('metrics:update', (ev) => {
             if (!(ev instanceof CustomEvent) || !('snaps' in ev.detail)) {
-                throw new Error('received invalid metrics event');
+                throw new Error($ts`received invalid metrics event`);
             }
             const { snaps } = (ev as MetricsEvent).detail;
             update(snaps);
@@ -34,5 +34,5 @@ export const CacheInFlightStatCard: PreactComponent<Props> = ({ className = '' }
         }
     }
 
-    return <StatCard id="cacheInFlightStat" title="Ongoing cache operations" className={className} />;
+    return <StatCard id="cacheInFlightStat" title={$ts`Ongoing cache operations`} className={className} />;
 };

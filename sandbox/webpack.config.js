@@ -2,7 +2,7 @@
 const path = require('path');
 const { spawn } = require('child_process');
 const CopyPlugin = require('copy-webpack-plugin');
-const { generateHandlebarTypeFiles, generateEntityFiles, generateClientScripts } = require('zibri');
+const { generateHandlebarTypeFiles, generateEntityFiles, generateClientScripts, generateSourceXlf } = require('zibri');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const { NormalModuleReplacementPlugin } = require('webpack');
 
@@ -28,7 +28,6 @@ class OnBuildSuccessPlugin {
 class HandlebarsTypegenPlugin {
     /** @type {import('webpack').WebpackPluginFunction } */
     apply(compiler) {
-        // on every rebuild (and initial build), run our stub generator first
         compiler.hooks.beforeCompile.tapPromise(
             'HandlebarsTypegenPlugin',
             () => generateHandlebarTypeFiles()
@@ -39,7 +38,6 @@ class HandlebarsTypegenPlugin {
 class EntityGenerationPlugin {
     /** @type {import('webpack').WebpackPluginFunction } */
     apply(compiler) {
-        // on every rebuild (and initial build), run our stub generator first
         compiler.hooks.beforeCompile.tapPromise(
             'EntityGenerationPlugin',
             () => generateEntityFiles()
@@ -54,6 +52,28 @@ class ClientScriptsGenerationPlugin {
             'ClientScriptsGenerationPlugin',
             () => generateClientScripts()
         );
+    }
+}
+
+class LocalizationPlugin {
+    /** @type {import('webpack').WebpackPluginFunction } */
+    apply(compiler) {
+        compiler.hooks.beforeCompile.tapPromise('LocalizationPlugin', async () => {
+            const frameworkSrc = path.resolve(compiler.context, 'node_modules/zibri/src');
+            const projectSrc = path.resolve(compiler.context, 'src');
+            await generateSourceXlf([
+                {
+                    origin: 'zibri',
+                    originLocale: 'en-US',
+                    patterns: { include: `${frameworkSrc}/**/*.{ts,tsx}`, exclude: '**/*.test.{ts,tsx}' }
+                },
+                {
+                    origin: 'project',
+                    originLocale: 'en-US',
+                    patterns: { include: `${projectSrc}/**/*.{ts,tsx}`, exclude: '**/*.test.{ts,tsx}' }
+                }
+            ]);
+        });
     }
 }
 
@@ -168,6 +188,7 @@ module.exports = {
         new HandlebarsTypegenPlugin(),
         new ClientScriptsGenerationPlugin(),
         new EntityGenerationPlugin(),
+        new LocalizationPlugin(),
         new OnBuildSuccessPlugin(),
         new MiniCssExtractPlugin({ filename: 'assets/public/style.css' }),
         new NormalModuleReplacementPlugin(
@@ -187,6 +208,10 @@ module.exports = {
                 {
                     from: path.resolve(__dirname, 'versions'),
                     to: path.resolve(__dirname, 'dist', 'versions')
+                },
+                {
+                    from: path.resolve(__dirname, 'translations'),
+                    to: path.resolve(__dirname, 'dist', 'translations')
                 }
             ]
         })

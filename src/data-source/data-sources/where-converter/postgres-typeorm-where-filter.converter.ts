@@ -7,9 +7,11 @@ import { EntityMetadata } from '../../../entity/decorators/entity.decorator';
 import { PropertyMetadata, RelationMetadata } from '../../../entity/decorators/property.decorator';
 import { EntityMetadataMissingError } from '../../../entity/entity-metadata-missing.error';
 import { Relation } from '../../../entity/models/relation.enum';
+import { InternalError } from '../../../error-handling/internal-error.model';
 import { Newable } from '../../../types/newable.type';
 import { MetadataUtilities } from '../../../utilities/metadata.utilities';
 import { NumberUtilities } from '../../../utilities/number.utilities';
+import { ObjectUtilities } from '../../../utilities/object.utilities';
 import { WhereFilterKeys } from '../../models/where/where-filter-keys.model';
 import { Where } from '../../models/where/where-filter.model';
 
@@ -48,13 +50,13 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
         },
         oneOf: (_jp, _tp, cp, val, fieldKey) => {
             if (!Array.isArray(val)) {
-                throw new Error(`"oneOf" must be an array for JSONB field "${fieldKey}"`);
+                throw new InternalError(`"oneOf" must be an array for JSONB field "${fieldKey}"`);
             }
             return `${cp} IN (${(val as unknown[]).map(v => this.toSqlLiteral(v)).join(', ')})`;
         },
         notOneOf: (_jp, _tp, cp, val, fieldKey) => {
             if (!Array.isArray(val)) {
-                throw new Error(`"notOneOf" must be an array for JSONB field "${fieldKey}"`);
+                throw new InternalError(`"notOneOf" must be an array for JSONB field "${fieldKey}"`);
             }
             return `${cp} NOT IN (${(val as unknown[]).map(v => this.toSqlLiteral(v)).join(', ')})`;
         },
@@ -62,7 +64,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
         iLike: (_jp, tp, _cp, val) => `${tp} ILIKE ${this.toSqlLiteral(val)}`,
         fuzzyLike: (_jp, tp, _cp, val) => {
             if (typeof val !== 'object' || !('value' in (val as object))) {
-                throw new Error('fuzzyLike expects an object with a "value" property');
+                throw new InternalError('fuzzyLike expects an object with a "value" property');
             }
             const { value: searchString, minSimilarity = 0.3 } = val as {
                 // eslint-disable-next-line jsdoc/require-jsdoc
@@ -88,13 +90,13 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
         lengthLesserThanEquals: (jp, _tp, _cp, val) => `jsonb_array_length(${jp}) <= ${this.toSqlLiteral(val)}`,
         includes: (jp, _tp, _cp, val, fieldKey) => {
             if (!Array.isArray(val)) {
-                throw new Error(`"includes" must be an array for JSONB field "${fieldKey}"`);
+                throw new InternalError(`"includes" must be an array for JSONB field "${fieldKey}"`);
             }
             return `${jp} @> ${this.toJsonbLiteral(val)}`;
         },
         isIncludedIn: (jp, _tp, _cp, val, fieldKey) => {
             if (!Array.isArray(val)) {
-                throw new Error(`"isIncludedIn" must be an array for JSONB field "${fieldKey}"`);
+                throw new InternalError(`"isIncludedIn" must be an array for JSONB field "${fieldKey}"`);
             }
             return `${jp} <@ ${this.toJsonbLiteral(val)}`;
         },
@@ -108,7 +110,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
     // eslint-disable-next-line jsdoc/require-jsdoc
     protected fuzzyLikeWhereFilterHandler: WhereFilterHandler = (value) => {
         if (typeof value !== 'object' || value === null || !('value' in value)) {
-            throw new Error('fuzzyLike expects an object with a "value" property');
+            throw new InternalError('fuzzyLike expects an object with a "value" property');
         }
         const { value: searchString, minSimilarity = 30 } = value as {
             // eslint-disable-next-line jsdoc/require-jsdoc
@@ -137,7 +139,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
 
         if (metadata.type === 'array') {
             if (metadata.items.type !== 'object') {
-                throw new Error('The "where" operator on an array field requires an array of objects.');
+                throw new InternalError('The "where" operator on an array field requires an array of objects.');
             }
             const itemMeta: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(metadata.items.cls());
             const innerSql: string = this.buildJsonbCondition(elemAlias, value as Where<Record<string, unknown>>, itemMeta);
@@ -178,7 +180,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
             const targetProps: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(targetEntity);
             const inverseProp: PropertyMetadata | undefined = targetProps[metadata.inverseSide];
             if (inverseProp?.type !== Relation.MANY_TO_ONE) {
-                throw new Error(`Could not find inverse many-to-one relation "${metadata.inverseSide}" on ${targetEntity.name}`);
+                throw new InternalError(`Could not find inverse many-to-one relation "${metadata.inverseSide}" on ${targetEntity.name}`);
             }
             const fkColumn: string | undefined = inverseProp.joinColumn;
             const rawSql: string = `(SELECT COUNT(*) FROM "${targetMeta.tableName}" `
@@ -191,7 +193,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
             .getMetadata(entityClass)
             .findRelationWithPropertyPath(propertyName);
         if (ormRelation?.isManyToMany !== true || !ormRelation.junctionEntityMetadata) {
-            throw new Error(`Could not resolve many-to-many relation metadata for ${entityClass.name}.${propertyName}`);
+            throw new InternalError(`Could not resolve many-to-many relation metadata for ${entityClass.name}.${propertyName}`);
         }
         const junctionTable: string = ormRelation.junctionEntityMetadata.tableName;
         const ownFkColumn: string = ormRelation.junctionEntityMetadata.columns[0].databaseName;
@@ -220,7 +222,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
             const targetProps: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(targetEntity);
             const inverseProp: PropertyMetadata | undefined = targetProps[metadata.inverseSide];
             if (inverseProp?.type !== Relation.MANY_TO_ONE) {
-                throw new Error(`Could not find inverse many-to-one relation "${metadata.inverseSide}" on ${targetEntity.name}`);
+                throw new InternalError(`Could not find inverse many-to-one relation "${metadata.inverseSide}" on ${targetEntity.name}`);
             }
             const fkColumn: string | undefined = inverseProp.joinColumn;
             const ids: string = entities.map(e => `'${e.id}'`).join(', ');
@@ -235,7 +237,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
             .getMetadata(entityClass)
             .findRelationWithPropertyPath(propertyName);
         if (ormRelation?.isManyToMany !== true || !ormRelation.junctionEntityMetadata) {
-            throw new Error(`Could not resolve many-to-many relation metadata for ${entityClass.name}.${propertyName}`);
+            throw new InternalError(`Could not resolve many-to-many relation metadata for ${entityClass.name}.${propertyName}`);
         }
         const junctionTable: string = ormRelation.junctionEntityMetadata.tableName;
         const ownFkColumn: string = ormRelation.junctionEntityMetadata.columns[0].databaseName;
@@ -267,7 +269,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
             const targetProps: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(targetEntity);
             const inverseProp: PropertyMetadata | undefined = targetProps[metadata.inverseSide];
             if (inverseProp?.type !== Relation.MANY_TO_ONE || !inverseProp.joinColumn) {
-                throw new Error(`Could not find inverse many-to-one relation "${metadata.inverseSide}" on ${targetEntity.name}`);
+                throw new InternalError(`Could not find inverse many-to-one relation "${metadata.inverseSide}" on ${targetEntity.name}`);
             }
             const fkColumn: string = inverseProp.joinColumn;
             const ids: string = entities.map(e => `'${e.id}'`).join(', ');
@@ -282,7 +284,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
             .getMetadata(entityClass)
             .findRelationWithPropertyPath(propertyName);
         if (ormRelation?.isManyToMany !== true || !ormRelation.junctionEntityMetadata) {
-            throw new Error(`Could not resolve many-to-many relation metadata for ${entityClass.name}.${propertyName}`);
+            throw new InternalError(`Could not resolve many-to-many relation metadata for ${entityClass.name}.${propertyName}`);
         }
         const junctionTable: string = ormRelation.junctionEntityMetadata.tableName;
         const ownFkColumn: string = ormRelation.junctionEntityMetadata.columns[0].databaseName;
@@ -308,7 +310,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
         }
 
         const andParts: string[] = [];
-        for (const [key, filterValue] of Object.entries(whereFilter as Record<string, unknown>)) {
+        for (const [key, filterValue] of ObjectUtilities.entries(whereFilter as Record<string, unknown>)) {
             const propMeta: PropertyMetadata = propertyMetadataMap[key];
             andParts.push(this.buildJsonbFieldCondition(jsonbAlias, key, filterValue, propMeta));
         }
@@ -330,14 +332,14 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
         }
         if (propMeta?.type === 'array') {
             if (propMeta.items.type !== 'object') {
-                throw new Error(`"where" on array field "${fieldKey}" requires object items`);
+                throw new InternalError(`"where" on array field "${fieldKey}" requires object items`);
             }
             const itemMeta: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(propMeta.items.cls());
             const elemAlias: string = `elem_${fieldKey}`;
             return `EXISTS (SELECT 1 FROM jsonb_array_elements(${jsonPath}) AS ${elemAlias} WHERE `
                 + this.buildJsonbCondition(elemAlias, val as Where<Record<string, unknown>>, itemMeta) + ')';
         }
-        throw new Error(`"where" operator used on a non-object, non-array JSONB field "${fieldKey}"`);
+        throw new InternalError(`"where" operator used on a non-object, non-array JSONB field "${fieldKey}"`);
     }
 
     private buildJsonbFieldCondition(
@@ -354,7 +356,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
             || propMeta.type === Relation.ONE_TO_MANY
             || propMeta.type === Relation.MANY_TO_MANY
         )) {
-            throw new Error(`Cannot filter on relation "${fieldKey}" inside a JSONB column. `
+            throw new InternalError(`Cannot filter on relation "${fieldKey}" inside a JSONB column. `
                 + 'Relations are not supported as part of embedded JSON objects/arrays.');
         }
 
@@ -379,7 +381,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
         }
 
         if (typeof filterValue !== 'object') {
-            throw new Error(`Unexpected JSONB filter value for field "${fieldKey}": ${JSON.stringify(filterValue)}`);
+            throw new InternalError(`Unexpected JSONB filter value for field "${fieldKey}": ${JSON.stringify(filterValue)}`);
         }
 
         return this.buildJsonbOperatorCondition(filterValue, jsonPath, castPath, fieldKey, textPath, propMeta);
@@ -396,10 +398,10 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
         const filterObj: Record<string, unknown> = filterValue as Record<string, unknown>;
         const conditions: string[] = [];
 
-        for (const [op, val] of Object.entries(filterObj)) {
+        for (const [op, val] of ObjectUtilities.entries(filterObj)) {
             const handler: JsonbOperatorHandler | undefined = this.jsonbOperatorHandlers[op as WhereFilterKeys];
             if (handler == undefined) {
-                throw new Error(`Unknown JSONB filter operator "${op}" on field "${fieldKey}"`);
+                throw new InternalError(`Unknown JSONB filter operator "${op}" on field "${fieldKey}"`);
             }
             conditions.push(handler(jsonPath, textPath, castPath, val, fieldKey, propMeta));
         }
@@ -423,7 +425,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
         if (typeof val === 'string') {
             return `'${val.replaceAll('\'', '\'\'')}'`;
         }
-        throw new Error(`Cannot convert value of type "${typeof val}" to a SQL literal`);
+        throw new InternalError(`Cannot convert value of type "${typeof val}" to a SQL literal`);
     }
 
     private toJsonbLiteral(val: object): string {
@@ -477,7 +479,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
                 return '<=';
             }
             default: {
-                throw new Error(`Unknown length filter key: ${lengthKey}`);
+                throw new InternalError(`Unknown length filter key: ${lengthKey}`);
             }
         }
     }

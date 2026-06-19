@@ -1,10 +1,10 @@
 /* eslint-disable unicorn/no-null */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 
+import { Repository } from './repository';
 import { createTestDataSource, defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
 import { startTestServer, StartedTestServer } from '../__testing__/test-server/start-test-server.function';
 import { WhereFilter } from '../data-source/models/where/where-filter.model';
-import { Repository } from '../data-source/repository';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { inject } from '../di/inject.function';
 import { BaseEntity } from '../entity/base-entity.model';

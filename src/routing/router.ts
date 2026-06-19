@@ -13,11 +13,13 @@ import { ZibriApplication } from '../application';
 import { resolveRouteParams } from './resolve-route-params.function';
 import { OpenApiRouteConfiguration, RouteConfiguration, RouteConfigurationInput } from './route-configuration.model';
 import type { AuthServiceInterface } from '../auth/auth-service.interface';
+import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../context/request/request-context-token.model';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { NotFoundError } from '../error-handling/errors/not-found.error';
+import { InternalError } from '../error-handling/internal-error.model';
 import { GlobalRegistry } from '../global/global-registry';
 import { OnAppInit } from '../global/on-app-init.interface';
 import { OnAppStart } from '../global/on-app-start.interface';
@@ -26,6 +28,7 @@ import { HttpRequest } from '../http/http-request.model';
 import { HttpResponse } from '../http/http-response.model';
 import { KnownHeader } from '../http/known-header.enum';
 import { MimeType } from '../http/mime-type.enum';
+import { $ts } from '../localization/translate.function';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { OpenApiResponse } from '../open-api/open-api.model';
 import { FileResponse } from '../parsing/form-data/file-response.model';
@@ -51,6 +54,17 @@ import { type VersioningServiceInterface } from '../versioning/versioning-servic
  * Handler for a specific route and version.
  */
 type ControllerInnerHandler = (context: HttpRequestContext, next: NextFunction) => Promise<void>;
+
+/**
+ * An error to throw during router initialization.
+ */
+class InitRouterError extends InternalError {
+    constructor(message: string | string[]) {
+        const messageArray: string[] = typeof message === 'string' ? [message] : message;
+        super(['Error initializing router.', ...messageArray]);
+        this.name = 'InitRouterError';
+    }
+}
 
 /**
  * Default router implementation of Zibri.
@@ -120,12 +134,11 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
             return !controllers.includes(c) && !(MetadataUtilities.getControllerData(c)?.allowOrphan ?? false);
         });
         if (orphanedControllers.length) {
-            const message: string[] = ['Error initializing router.', 'Found orphaned controllers:'];
-            for (const controller of orphanedControllers) {
-                message.push(`  - ${controller.name}`);
-            }
-            message.push('Did you forget to add them to your controllers array?');
-            throw new Error(message.join('\n'));
+            throw new InitRouterError([
+                'Found orphaned controllers:',
+                ...orphanedControllers.map(c => `  - ${c.name}`),
+                'Did you forget to add them to your controllers array?'
+            ]);
         }
     }
 
@@ -154,7 +167,7 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
                 currentLatest
             );
             if (overlappingVersions === 'all') {
-                throw new Error([
+                throw new InitRouterError([
                     `The route "${key}"`,
                     // eslint-disable-next-line sonar/no-duplicate-string
                     'has been defined more than once.',
@@ -163,7 +176,7 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
                 ].join(' '));
             }
 
-            throw new Error([
+            throw new InitRouterError([
                 `The route "${key}"`,
                 `for the ${overlappingVersions.length > 1 ? 'versions' : 'version'} "${overlappingVersions.join(', ')}"`,
                 'has been defined more than once.'
@@ -340,13 +353,13 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
                 currentLatest
             );
             if (overlappingVersions === 'all') {
-                throw new Error([
+                throw new InitRouterError([
                     `The base route "${controllerData.baseRoute}"`,
                     'has been defined on more than one controller.',
                     '(versions: \'all\' has been used)'
                 ].join(' '));
             }
-            throw new Error([
+            throw new InitRouterError([
                 `The base route "${controllerData.baseRoute}"`,
                 `for the ${overlappingVersions.length > 1 ? 'versions' : 'version'} "${overlappingVersions.join(', ')}"`,
                 'has been defined on more than one controller.'
@@ -370,14 +383,14 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
                     currentLatest
                 );
                 if (overlappingVersions === 'all') {
-                    throw new Error([
+                    throw new InitRouterError([
                         `The route "${key}"`,
                         'has been defined more than once.',
                         '(versions: \'all\' has been used)'
                     ].join(' '));
                 }
 
-                throw new Error([
+                throw new InitRouterError([
                     `The route "${key}"`,
                     `for the ${overlappingVersions.length > 1 ? 'versions' : 'version'} "${overlappingVersions.join(', ')}"`,
                     'has been defined more than once.'
@@ -441,11 +454,11 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
             const context: HttpRequestContext = new HttpRequestContext(request, res, undefined, undefined);
             await AlsUtilities.runWithHttpRequestContext(context, async () => {
                 try {
-                    const version: Version = await this.versioningService.resolveVersion(context);
+                    const version: Version = await context.get(ZIBRI_REQUEST_CONTEXT_TOKENS.CURRENT_VERSION);
                     // eslint-disable-next-line typescript/typedef
                     const match = entries.find(e => this.versioningService.matchesVersion(e.versions, version));
                     if (!match) {
-                        throw new NotFoundError(`Could not find route "${request.url}" for version "${version.value}"`);
+                        throw new NotFoundError($ts`Could not find route "${request.url}" for version "${version.value}"`);
                     }
                     await match.innerHandler(context, next);
                 }
@@ -584,19 +597,19 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
         if (responses.some(r => r.type === 'json') // all non error responses are json responses
             && responses.filter(r => r.type !== 'error').length === responses.filter(r => r.type === 'json').length
             && ((result instanceof FileResponse) || (result instanceof HtmlResponse))) {
-            throw new Error('Invalid return value, json cannot be FileResponse or HtmlResponse');
+            throw new InitRouterError('Invalid return value, json cannot be FileResponse or HtmlResponse');
         }
 
         if (responses.some(r => r.type === 'file') // all non error responses are file responses
             && responses.filter(r => r.type !== 'error').length === responses.filter(r => r.type === 'file').length
             && !(result instanceof FileResponse)) {
-            throw new Error('Invalid return value, needs to be a FileResponse');
+            throw new InitRouterError('Invalid return value, needs to be a FileResponse');
         }
 
         if (responses.some(r => r.type === 'html') // all non error responses are html responses
             && responses.filter(r => r.type !== 'error').length === responses.filter(r => r.type === 'html').length
             && !(result instanceof HtmlResponse)) {
-            throw new Error('Invalid return value, needs to be a HtmlResponse');
+            throw new InitRouterError('Invalid return value, needs to be a HtmlResponse');
         }
     }
 }

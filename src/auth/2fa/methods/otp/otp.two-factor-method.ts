@@ -12,6 +12,7 @@ import { Inject } from '../../../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default';
 import { UnauthorizedError } from '../../../../error-handling/errors/unauthorized.error';
 import { KnownHeader } from '../../../../http/known-header.enum';
+import { $ts } from '../../../../localization/translate.function';
 import { BaseUser } from '../../../models/base-user.model';
 
 /**
@@ -60,7 +61,7 @@ export class OtpTwoFactorMethod implements TwoFactorMethod<never, OtpConfirmRegi
             }
         }
 
-        throw new UnauthorizedError('The provided two factor code is invalid.');
+        throw new UnauthorizedError($ts`The provided two factor code is invalid.`);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -80,16 +81,16 @@ export class OtpTwoFactorMethod implements TwoFactorMethod<never, OtpConfirmRegi
                 return;
             }
         }
-        throw new UnauthorizedError('The provided two factor code is invalid.');
+        throw new UnauthorizedError($ts`The provided two factor code is invalid.`);
     }
 
     private extractTokenFromRequestContext(context: HttpRequestContext | WebsocketRequestContext): string {
         const code: string | undefined = context.request.headers?.[this.otpHeader];
         if (!code) {
-            throw new UnauthorizedError(`"${this.otpHeader}" header not found`);
+            throw new UnauthorizedError($ts`"${this.otpHeader}" header not found`);
         }
         if (code.length !== this.otpLength) {
-            throw new UnauthorizedError(`The provided two factor code is not ${this.otpLength} digits long.`);
+            throw new UnauthorizedError($ts`The provided two factor code is not ${this.otpLength} digits long.`);
         }
         return code;
     }

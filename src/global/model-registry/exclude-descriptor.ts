@@ -6,6 +6,7 @@ import { Relation } from '../../entity/models/relation.enum';
 import { ExcludeStrict } from '../../types/exclude-strict.type';
 import { Newable } from '../../types/newable.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { ObjectUtilities } from '../../utilities/object.utilities';
 
 /**
  * A descriptor that keeps track of the exclude properties of an entity.
@@ -30,7 +31,7 @@ export class ExcludeDescriptor<T> {
 
         const properties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(entityClass);
 
-        for (const [key, metadata] of Object.entries(properties)) {
+        for (const [key, metadata] of ObjectUtilities.entries(properties)) {
             if (metadata.exclude !== undefined && metadata.exclude !== false) {
                 this.keys.set(key, metadata.exclude);
                 continue;

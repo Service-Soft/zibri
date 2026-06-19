@@ -36,7 +36,7 @@ Zibri aims to provide really strong guard rails when it comes to versioning. You
 Let's say you start with version `'1.0.0'` (the default) and later on change it to `'2.0.0'`. Now Zibri can complain about any endpoint that previously used `'latest'`, `'^latest'` or `'~latest'`, because latest now means something else, so it should have something like `['^1.0.0', '^latest']` as the supported versions defined. Otherwise, any user of version `'1.0.0'` would get an error that the endpoints they spoke to just fine now no longer exist.
 
 # Version resolution
-Versions are resolved by reading from a custom header (`'x-version'` by default). The provided value can either be:
+Versions are resolved by reading from a custom query parameter (`'version'` by default), then a custom header (`'x-version'` by default). The provided value can either be:
 - a concrete version, like `'1.0.0'`
 - a json date, like `'2026-05-29T07:44:06.186Z'`
 

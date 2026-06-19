@@ -1,3 +1,4 @@
+import { InternalError } from '../../error-handling/internal-error.model';
 
 /**
  * A string with hashed data stored inside of it.
@@ -48,7 +49,7 @@ export abstract class HashUtilities {
         const hashedValue: string = hashedValueParts.join('.');
 
         if (!strategyName || !version || !hashedValue) {
-            throw new Error('Invalid hash string');
+            throw new InternalError('Invalid hash string');
         }
 
         return {

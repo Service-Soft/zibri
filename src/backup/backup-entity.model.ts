@@ -4,7 +4,8 @@ import { inject } from '../di/inject.function';
 import { BaseEntity } from '../entity/base-entity.model';
 import { Entity } from '../entity/decorators/entity.decorator';
 import { Property } from '../entity/decorators/property.decorator';
-import { FormatDateFn } from '../localization/formatting/format-date-fn.model';
+import { LocalizeServiceInterface } from '../localization/localize-service.interface';
+import { LocaleCode } from '../localization/models/locale-code.model';
 import { OmitStrict } from '../types/omit-strict.type';
 
 /**
@@ -43,6 +44,7 @@ export type BackupEntityCreateData = OmitStrict<BackupEntity, 'createdAt' | 'id'
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 function defaultName(): string {
-    const format: FormatDateFn = inject(ZIBRI_DI_TOKENS.FORMAT_DATE);
-    return format(new Date(), true);
+    const localizeService: LocalizeServiceInterface = inject(ZIBRI_DI_TOKENS.LOCALIZE_SERVICE);
+    const locale: LocaleCode = inject(ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS).defaultLocale;
+    return localizeService.formatDate(new Date(), 'YYYY-MM-DD HH:mm', { locale });
 }

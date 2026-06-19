@@ -139,7 +139,7 @@ describe('createInvoicePdf', () => {
             textAfterItems: ['Unless otherwise stated, the date of delivery/service corresponds to the date of invoice.']
         });
 
-        const pdf: PdfDocument = await invoicePdfService.generateInvoicePdf(invoice, 'x-rechnung');
+        const pdf: PdfDocument = await invoicePdfService.generateInvoicePdf(invoice, 'en-US', 'x-rechnung');
 
         const out1: WriteStream = FsUtilities.createWriteStream(FsUtilities.getPath(testFileFolder, `${invoice.number}-stream-1.pdf`));
         const out2: WriteStream = FsUtilities.createWriteStream(FsUtilities.getPath(testFileFolder, `${invoice.number}-stream-2.pdf`));

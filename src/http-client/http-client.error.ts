@@ -56,8 +56,12 @@ export class HttpClientError extends Error {
      */
     readonly requestData?: HttpClientErrorRequestData;
 
-    constructor(message: string, data: HttpClientErrorOptions, options?: ErrorOptions | undefined) {
-        super(getErrorMessage(message, data), options);
+    constructor(
+        message: string,
+        data: HttpClientErrorOptions,
+        options?: ErrorOptions
+    ) {
+        super(message, options);
         this.name = 'HttpClientError';
         this.responseData = data.responseData;
         this.requestData = data.requestData;
@@ -73,22 +77,4 @@ export class HttpClientError extends Error {
  */
 export function isHttpClientError(value: unknown): value is HttpClientError {
     return typeof value === 'object' && value != undefined && 'name' in value && value.name === 'HttpClientError';
-}
-
-// eslint-disable-next-line jsdoc/require-jsdoc
-function getErrorMessage(message: string, data: HttpClientErrorOptions): string {
-    if (!data.responseData) {
-        if (data.requestData) {
-            return `No response received for ${data.requestData.method.toUpperCase()} ${data.requestData.url}:\n${message}`;
-        }
-        return `Could not send the request:\n${message}`;
-    }
-
-    if (!data.requestData) {
-        return `Could not send the request:\n${message}`;
-    }
-
-    const fullUrl: string = `${data.requestData.method.toUpperCase()} ${data.requestData.url}`;
-
-    return `Request ${fullUrl} failed with ${data.responseData.status} ${data.responseData.statusText}`;
 }

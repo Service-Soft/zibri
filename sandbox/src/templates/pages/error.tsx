@@ -1,4 +1,4 @@
-import { ErrorPageTemplate, GlobalRegistry, onServer } from 'zibri';
+import { $ts, ErrorPageTemplate, GlobalRegistry, onServer } from 'zibri';
 
 import { Card } from '../components/card';
 import { EmptyPage } from '../components/empty-page';
@@ -33,7 +33,7 @@ export const ErrorPage: ErrorPageTemplate = ({ error }) => {
                 </Card>
                 <Card>
                     <Link icon='/assets/open-api/swagger.png' href="/explorer">
-                        OpenAPI Explorer
+                        {$ts`OpenAPI Explorer`}
                     </Link>
                 </Card>
             </div>

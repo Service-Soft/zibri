@@ -1,6 +1,7 @@
 import { Socket } from 'socket.io';
 
 import { BaseWebsocketConnection } from './base-websocket-connection.model';
+import { InternalError } from '../../../error-handling/internal-error.model';
 import { Version } from '../../../versioning/version.model';
 import { LooseWebsocketEvent, WebsocketEvent } from '../websocket-event.enum';
 import { WebsocketMessage } from '../websocket-message.model';
@@ -20,7 +21,7 @@ export class SocketIOWebsocketConnection implements BaseWebsocketConnection {
     // eslint-disable-next-line jsdoc/require-jsdoc
     get offset(): number {
         if (typeof this.socket.handshake.auth.offset !== 'number') {
-            throw new Error('socket.io: auth.offset is not a number');
+            throw new InternalError('socket.io: auth.offset is not a number');
         }
         return this.socket.handshake.auth.offset;
     }

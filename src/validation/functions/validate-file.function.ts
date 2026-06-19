@@ -4,6 +4,7 @@ import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { fileSizeToBytes } from '../../entity/models/file-property-metadata.model';
+import { InternalError } from '../../error-handling/internal-error.model';
 import { MimeType } from '../../http/mime-type.enum';
 import { File } from '../../parsing/form-data/file.model';
 import { NumberUtilities } from '../../utilities/number.utilities';
@@ -27,7 +28,7 @@ export async function validateFile(
     entity: unknown | undefined
 ): Promise<ValidationProblem[]> {
     if (metadata.type !== 'file') {
-        throw new Error(`Tried to validate a file but received metadata of type "${metadata.type}"`);
+        throw new InternalError(`Tried to validate a file but received metadata of type "${metadata.type}"`);
     }
     const fullKey: string = parentKey ? `${parentKey}.${key}` : key;
     if (property == undefined && 'required' in metadata) {

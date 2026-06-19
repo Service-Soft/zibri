@@ -8,6 +8,8 @@ import { ManyToOnePropertyMetadata } from '../entity/models/many-to-one-property
 import { OneToManyPropertyMetadata } from '../entity/models/one-to-many-property-metadata.model';
 import { Relation } from '../entity/models/relation.enum';
 import { MimeType } from '../http/mime-type.enum';
+import { TranslatedString } from '../localization/models/translated-string.model';
+import { $ts } from '../localization/translate.function';
 
 /**
  * A validation problem, consisting of the key where the problem is located and a description of the problem.
@@ -20,7 +22,7 @@ export type ValidationProblem = {
     /**
      * The validation problem message.
      */
-    message: string
+    message: TranslatedString
 };
 
 /**
@@ -28,7 +30,7 @@ export type ValidationProblem = {
  */
 export class IsRequiredValidationProblem implements ValidationProblem {
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly message: string = 'is required';
+    readonly message: TranslatedString = $ts`is required`;
     constructor(readonly key: string) {}
 }
 
@@ -37,9 +39,9 @@ export class IsRequiredValidationProblem implements ValidationProblem {
  */
 export class TypeMismatchValidationProblem implements ValidationProblem {
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly message: string;
+    readonly message: TranslatedString;
     constructor(readonly key: string, type: string) {
-        this.message = `should be of type ${type}`;
+        this.message = $ts`should be of type ${type}`;
     }
 }
 
@@ -48,9 +50,9 @@ export class TypeMismatchValidationProblem implements ValidationProblem {
  */
 export class MaxFileSizeValidationProblem implements ValidationProblem {
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly message: string;
+    readonly message: TranslatedString;
     constructor(readonly key: string, maxSize: FileSize) {
-        this.message = `needs to be smaller than ${maxSize}`;
+        this.message = $ts`needs to be smaller than ${maxSize}`;
     }
 }
 
@@ -59,11 +61,11 @@ export class MaxFileSizeValidationProblem implements ValidationProblem {
  */
 export class MimeTypeMismatchValidationProblem implements ValidationProblem {
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly message: string;
+    readonly message: TranslatedString;
     constructor(readonly key: string, allowedMimeTypes: MimeType[]) {
         this.message = allowedMimeTypes.length > 1
-            ? `the file type needs to be one of: ${allowedMimeTypes.join(', ')}`
-            : `the file type needs to be ${allowedMimeTypes[0]}`;
+            ? $ts`the file type needs to be one of: ${allowedMimeTypes.join(', ')}`
+            : $ts`the file type needs to be ${allowedMimeTypes[0]}`;
     }
 }
 
@@ -72,13 +74,13 @@ export class MimeTypeMismatchValidationProblem implements ValidationProblem {
  */
 export class RelationsNotAllowedValidationProblem implements ValidationProblem {
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly message: string;
+    readonly message: TranslatedString;
     constructor(readonly key: string, metadata: RelationMetadata<BaseEntity>, relationKey: string) {
         this.message = [
-            'relations are not allowed as part of create or update data.',
-            'If you don\'t want to omit the relation, you probably want to do something like:',
+            $ts`relations are not allowed as part of create or update data.`,
+            $ts`If you don\'t want to omit the relation, you probably want to do something like:`,
             this.getExample(metadata, relationKey)
-        ].join('\n');
+        ].join('\n') as TranslatedString;
     }
 
     private getExample(metadata: RelationMetadata<BaseEntity>, relationKey: string): string {

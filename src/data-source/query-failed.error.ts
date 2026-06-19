@@ -1,11 +1,13 @@
 import { QueryFailedError as TOQueryFailedError } from 'typeorm';
 
+import { InternalError } from '../error-handling/internal-error.model';
+
 /**
  * An error for a failed sql query.
  */
-export class QueryFailedError extends Error {
-    constructor(error: TOQueryFailedError<Error>) {
-        super(buildErrorMessage(error));
+export class QueryFailedError extends InternalError {
+    constructor(error: TOQueryFailedError<Error>, options?: ErrorOptions) {
+        super(buildErrorMessage(error), options);
         // this.stack = error.stack;
         this.name = 'QueryFailedError';
     }

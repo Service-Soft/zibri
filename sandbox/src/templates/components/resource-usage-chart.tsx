@@ -1,5 +1,5 @@
 import type { Chart as ChartJsChart } from 'chart.js';
-import { Metric, MetricsSnapshot, PreactComponent } from 'zibri';
+import { $f, $ts, Metric, MetricsSnapshot, PreactComponent } from 'zibri';
 
 import { Chart } from './chart';
 
@@ -47,21 +47,21 @@ export const ResourceUsageChart: PreactComponent<Props> = ({ primary, secondary,
     return (
         <Chart
             canvasId="resourceUsageChart"
-            title="Resource Usage"
+            title={$ts`Resource Usage`}
             className={className}
             chartConfig={{
                 type: 'line',
                 data: {
                     datasets: [
                         {
-                            label: 'RAM (MB)',
+                            label: $ts`RAM (MB)`,
                             data: [],
                             yAxisID: 'y',
                             borderColor: secondary,
                             backgroundColor: secondary
                         },
                         {
-                            label: 'CPU (%)',
+                            label: $ts`CPU (%)`,
                             data: [],
                             yAxisID: 'yCPU',
                             borderColor: primary,
@@ -93,7 +93,7 @@ export const ResourceUsageChart: PreactComponent<Props> = ({ primary, secondary,
                             min: 0,
                             max: 100,
                             ticks: {
-                                callback: v => `${v}%`
+                                callback: v => $f.percent(Number(v))
                             }
                         }
                     }

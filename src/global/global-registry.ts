@@ -5,6 +5,7 @@ import { BackupResourceInterface } from '../backup/backup-resource.interface';
 import { AnyCache } from '../caching/cache/cache.interface';
 import { DiProvider } from '../di/models/di-provider.model';
 import { BaseEntity } from '../entity/base-entity.model';
+import { InternalError } from '../error-handling/internal-error.model';
 import { BodyParserInterface } from '../parsing/body-parser.interface';
 import { Newable } from '../types/newable.type';
 import { SemVerVersion } from '../utilities/sem-ver.utilities';
@@ -30,6 +31,22 @@ export type AppData = {
      */
     version?: SemVerVersion
 };
+
+// eslint-disable-next-line jsdoc/require-jsdoc
+class AppAlreadyMarkedAsError extends InternalError {
+    constructor(state: AppState) {
+        super(`The app has already been marked as "${state}".`);
+        this.name = 'AppAlreadyMarkedAsError';
+    }
+}
+
+// eslint-disable-next-line jsdoc/require-jsdoc
+class AppNotYetMarkedAsError extends InternalError {
+    constructor(state: AppState) {
+        super(`The app has not been marked as "${state}" yet.`);
+        this.name = 'AppNotYetMarkedAsError';
+    }
+}
 
 /**
  * A registry for handling global state.
@@ -77,7 +94,7 @@ export abstract class GlobalRegistry {
 
     private static readonly validateAppStateChange: Record<AppState, () => void> = {
         [AppState.OFFLINE]: () => {
-            throw new Error(`Cannot manually mark an an app as "${AppState.OFFLINE}".`);
+            throw new InternalError(`Cannot manually mark an an app as "${AppState.OFFLINE}".`);
         },
         [AppState.CREATED]: () => {
             switch (this.appData.state) {
@@ -85,35 +102,35 @@ export abstract class GlobalRegistry {
                     return;
                 }
                 case AppState.CREATED: {
-                    throw new Error(`The app has already been marked as "${AppState.CREATED}".`);
+                    throw new AppAlreadyMarkedAsError(AppState.CREATED);
                 }
                 case AppState.INITIALIZED: {
-                    throw new Error(`The app has already been marked as "${AppState.INITIALIZED}".`);
+                    throw new AppAlreadyMarkedAsError(AppState.INITIALIZED);
                 }
                 case AppState.STARTED: {
-                    throw new Error(`The app has already been marked as "${AppState.STARTED}".`);
+                    throw new AppAlreadyMarkedAsError(AppState.STARTED);
                 }
                 case AppState.SHUTTING_DOWN: {
-                    throw new Error(`The app has already been marked as "${AppState.SHUTTING_DOWN}".`);
+                    throw new AppAlreadyMarkedAsError(AppState.SHUTTING_DOWN);
                 }
             }
         },
         [AppState.INITIALIZED]: () => {
             switch (this.appData.state) {
                 case AppState.OFFLINE: {
-                    throw new Error(`The app has not been marked as "${AppState.CREATED}" yet.`);
+                    throw new AppNotYetMarkedAsError(AppState.CREATED);
                 }
                 case AppState.CREATED: {
                     return;
                 }
                 case AppState.INITIALIZED: {
-                    throw new Error(`The app has already been marked as "${AppState.INITIALIZED}".`);
+                    throw new AppAlreadyMarkedAsError(AppState.SHUTTING_DOWN);
                 }
                 case AppState.STARTED: {
-                    throw new Error(`The app has already been marked as "${AppState.STARTED}".`);
+                    throw new AppAlreadyMarkedAsError(AppState.STARTED);
                 }
                 case AppState.SHUTTING_DOWN: {
-                    throw new Error(`The app has already been marked as "${AppState.SHUTTING_DOWN}".`);
+                    throw new AppAlreadyMarkedAsError(AppState.SHUTTING_DOWN);
                 }
             }
         },
@@ -121,16 +138,16 @@ export abstract class GlobalRegistry {
             switch (this.appData.state) {
                 case AppState.CREATED:
                 case AppState.OFFLINE: {
-                    throw new Error(`The app has not been marked as "${AppState.INITIALIZED}" yet.`);
+                    throw new AppNotYetMarkedAsError(AppState.INITIALIZED);
                 }
                 case AppState.INITIALIZED: {
                     return;
                 }
                 case AppState.STARTED: {
-                    throw new Error(`The app has already been marked as "${AppState.STARTED}".`);
+                    throw new AppAlreadyMarkedAsError(AppState.STARTED);
                 }
                 case AppState.SHUTTING_DOWN: {
-                    throw new Error(`The app has already been marked as "${AppState.SHUTTING_DOWN}".`);
+                    throw new AppAlreadyMarkedAsError(AppState.SHUTTING_DOWN);
                 }
             }
         },
@@ -142,10 +159,10 @@ export abstract class GlobalRegistry {
                     return;
                 }
                 case AppState.OFFLINE: {
-                    throw new Error(`The app has not been marked as "${AppState.CREATED}" yet.`);
+                    throw new AppNotYetMarkedAsError(AppState.CREATED);
                 }
                 case AppState.SHUTTING_DOWN: {
-                    throw new Error(`The app has already been marked as "${AppState.SHUTTING_DOWN}".`);
+                    throw new AppAlreadyMarkedAsError(AppState.SHUTTING_DOWN);
                 }
             }
         }
@@ -220,6 +237,14 @@ export abstract class GlobalRegistry {
      */
     static isAppCreated(): boolean {
         return this.appData.state === AppState.CREATED;
+    }
+
+    /**
+     * Checks if the app is offline.
+     * @returns True when the app has the state of AppState.OFFLINE, false otherwise.
+     */
+    static isAppOffline(): boolean {
+        return this.appData.state === AppState.OFFLINE;
     }
 
     /**

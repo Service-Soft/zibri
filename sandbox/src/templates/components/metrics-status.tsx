@@ -1,4 +1,4 @@
-import { Metric, MetricsSnapshot, onClient, PreactComponent } from 'zibri';
+import { $f, $ts, Metric, MetricsSnapshot, onClient, PreactComponent } from 'zibri';
 
 import { Card } from './card';
 import { Heading } from './heading';
@@ -21,7 +21,7 @@ export const MetricsStatus: PreactComponent<Props> = ({
     onClient(() => {
         document.addEventListener('metrics:update', (ev) => {
             if (!(ev instanceof CustomEvent) || !('snaps' in ev.detail)) {
-                throw new Error('received invalid metrics event');
+                throw new Error($ts`received invalid metrics event`);
             }
             const { snaps } = (ev as MetricsEvent).detail;
             renderUptime(snaps);
@@ -48,11 +48,8 @@ export const MetricsStatus: PreactComponent<Props> = ({
             seconds: Math.floor((diffMs % 60000) / 1000)
         };
 
-        const text: string = `${days}d ${hours}h ${minutes}m ${seconds}s`;
-        const sinceText: string = new Date(start).toLocaleDateString(
-            'de',
-            { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }
-        );
+        const text: string = $ts`${days}d ${hours}h ${minutes}m ${seconds}s`;
+        const sinceText: string = $f.dateTime(new Date(start));
 
         const uptimeInfo: HTMLElement | null = document.getElementById(uptimeInfoId);
         if (uptimeInfo) {
@@ -67,19 +64,19 @@ export const MetricsStatus: PreactComponent<Props> = ({
     return (
         <>
             <Card className={className}>
-                <Heading className='!text-xl' tag="h2">Status</Heading>
+                <Heading className='!text-xl' tag="h2">{$ts`Status`}</Heading>
 
                 <div className="w-fit mx-auto">
                     <div className="flex justify-between gap-10">
-                        <div>Version:</div>
+                        <div>{$ts`Version`}:</div>
                         <div>{version}</div>
                     </div>
                     <div className="flex justify-between gap-10">
-                        <div>Uptime:</div>
+                        <div>{$ts`Uptime`}:</div>
                         <div id={uptimeInfoId}>...</div>
                     </div>
                     <div className="flex justify-between gap-10">
-                        <div>Since:</div>
+                        <div>{$ts`Since`}:</div>
                         <div id={uptimeInfoSinceId}>...</div>
                     </div>
                 </div>

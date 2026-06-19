@@ -1,12 +1,21 @@
+import { InternalError } from '../error-handling/internal-error.model';
 import { GlobalRegistry } from '../global/global-registry';
 import { Newable } from '../types/newable.type';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
-import { ZIBRI_DI_PROVIDERS } from './default/zibri-di-providers.default';
-import { ZIBRI_DI_TOKENS } from './default/zibri-di-tokens.default';
 import { NoProviderError } from './errors/no-provider.error';
 import { DiProvider } from './models/di-provider.model';
-import { DiToken, providersFromTokenRecord } from './models/di-token.model';
+import { DiToken } from './models/di-token.model';
+
+/**
+ * An error to throw when the given providerToken is invalid.
+ */
+class InvalidProviderError extends InternalError {
+    constructor(providerToken: string) {
+        super(`Provider for ${providerToken} is invalid`);
+        this.name = 'InvalidProviderError';
+    }
+}
 
 /**
  * The dependency injection container.
@@ -16,15 +25,7 @@ export class DiContainer {
     private readonly instances: Map<DiToken<unknown>, unknown> = new Map<DiToken<unknown>, unknown>();
     private static singleton?: DiContainer;
 
-    private constructor() {
-        for (const injectable of GlobalRegistry.injectables) {
-            this.register(injectable);
-        }
-        const defaultProviders: DiProvider<unknown>[] = providersFromTokenRecord(ZIBRI_DI_TOKENS, ZIBRI_DI_PROVIDERS);
-        for (const provider of defaultProviders) {
-            this.register(provider);
-        }
-    }
+    private constructor() {}
 
     /**
      * Gets all registered tokens of the DI Container.
@@ -115,7 +116,7 @@ export class DiContainer {
             this.instances.set(provider.token, instance);
         }
 
-        if (provider.useClass) {
+        if (provider.useClass && provider.cache !== false) {
             this.instances.set(provider.useClass as unknown as DiToken<unknown>, instance);
         }
 
@@ -131,7 +132,7 @@ export class DiContainer {
             ?? provider.useFactory;
 
         if (provide == undefined) {
-            throw new Error(`Provider for ${provider.token.toString()} is invalid`);
+            throw new InvalidProviderError(provider.token.toString());
         }
 
         const explicitTokens: Record<number, DiToken<unknown>> = MetadataUtilities.getInjectParamTokens(provide);
@@ -148,7 +149,7 @@ export class DiContainer {
         for (let idx: number = 0; idx < paramCount; idx++) {
             const token: DiToken<unknown> | undefined = explicitTokens[idx] ?? paramTypes[idx];
             if (token === undefined) {
-                throw new Error('Could not find token');
+                throw new InternalError('Could not find token');
             }
             else {
                 deps.push(this.inject(token, resolvingStack));
@@ -162,6 +163,6 @@ export class DiContainer {
             return provider.useFactory(...deps);
         }
 
-        throw new Error(`Provider for ${(provider as DiProvider<T>).token.toString()} is invalid`);
+        throw new InvalidProviderError((provider as DiProvider<T>).token.toString());
     }
 }

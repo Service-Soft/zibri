@@ -1,9 +1,11 @@
 import { DataSource, EntityTarget, EntityMetadata as TOEntityMetadata } from 'typeorm';
 import { ColumnMetadata } from 'typeorm/metadata/ColumnMetadata.js';
 
+import { DataSourceInitializationError } from '../data-source/data-sources/data-source-initialization.error';
 import { ColumnType } from '../data-source/models/column-type.model';
 import { Transaction } from '../data-source/transaction/transaction.model';
 import { BaseEntity } from '../entity/base-entity.model';
+import { InternalError } from '../error-handling/internal-error.model';
 
 /**
  * Utilities for dealing with typeorm.
@@ -28,7 +30,7 @@ export abstract class TypeOrmUtilities {
         );
 
         if (!column) {
-            throw new Error(
+            throw new InternalError(
                 `Column ${propertyName.toString()} not found in model`
             );
         }
@@ -68,7 +70,7 @@ export abstract class TypeOrmUtilities {
         }
     ): string {
         if (!dataSource) {
-            throw new Error('The data source needs to be initialized before it can be used.');
+            throw new DataSourceInitializationError();
         }
         return dataSource.driver.normalizeType(column);
     }

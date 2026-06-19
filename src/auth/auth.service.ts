@@ -19,12 +19,21 @@ import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
+import { InvalidDecoratorCombinationError } from '../error-handling/errors/invalid-decorator-combination.error';
 import { UnauthorizedError } from '../error-handling/errors/unauthorized.error';
 import { OnAppInit } from '../global/on-app-init.interface';
+import { $ts } from '../localization/translate.function';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { Newable } from '../types/newable.type';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { PromiseUtilities } from '../utilities/promise.utilities';
+
+const AUTH_SKIP_LABEL: string = '@Auth.skip';
+const AUTH_IS_LOGGED_IN_LABEL: string = '@Auth.isLoggedIn';
+const AUTH_IS_NOT_LOGGED_IN_LABEL: string = '@Auth.isNotLoggedIn';
+const AUTH_HAS_ROLE_LABEL: string = '@Auth.hasRole';
+const AUTH_BELONGS_TO_LABEL: string = '@Auth.belongsTo';
+const AUTH_REQUIRE_2FA_LABEL: string = '@Auth.require2fa';
 
 /**
  * Default auth service implementation of Zibri.
@@ -137,7 +146,7 @@ export class AuthService implements AuthServiceInterface, OnAppInit {
             res.find(r => r.status === 'fulfilled' && r.value !== undefined) as PromiseFulfilledResult<UserType> | undefined
         )?.value;
         if (currentUser === undefined && required) {
-            throw new UnauthorizedError('Could not resolve the currently logged in user.');
+            throw new UnauthorizedError($ts`Could not resolve the currently logged in user.`);
         }
         return currentUser as B extends false ? UserType | undefined : UserType;
     }
@@ -233,14 +242,14 @@ export class AuthService implements AuthServiceInterface, OnAppInit {
             (isLoggedInMetadata || hasRoleMetadata || belongsToMetadata || require2faMetadata)
             && !await this.isLoggedIn(context, isLoggedInMetadata?.allowedStrategies ?? this.strategies)
         ) {
-            throw new UnauthorizedError('You need to be logged in to access this route.');
+            throw new UnauthorizedError($ts`You need to be logged in to access this route.`);
         }
         // isNotLoggedIn
         if (
             isNotLoggedInMetadata
             && await this.isLoggedIn(context, isNotLoggedInMetadata.allowedStrategies ?? this.strategies)
         ) {
-            throw new UnauthorizedError('You cannot be logged in when accessing this route.');
+            throw new UnauthorizedError($ts`You cannot be logged in when accessing this route.`);
         }
 
         // hasRole
@@ -248,14 +257,14 @@ export class AuthService implements AuthServiceInterface, OnAppInit {
             hasRoleMetadata
             && !await this.hasRole(context, hasRoleMetadata.allowedStrategies ?? this.strategies, hasRoleMetadata.allowedRoles)
         ) {
-            throw new UnauthorizedError(`You need to have one role of ${hasRoleMetadata.allowedRoles} to access this route.`);
+            throw new UnauthorizedError($ts`You need to have one role of ${hasRoleMetadata.allowedRoles} to access this route.`);
         }
 
         // require2fa
         if (require2faMetadata) {
             const user: BaseUser<string> = await this.getCurrentUser(context, this.strategies, true);
             if (!await this.twoFactorService.has2fa(user, context, require2faMetadata.allowedMethods)) {
-                throw new UnauthorizedError('You need to provide a second factor to access this route.');
+                throw new UnauthorizedError($ts`You need to provide a second factor to access this route.`);
             }
         }
 
@@ -273,7 +282,7 @@ export class AuthService implements AuthServiceInterface, OnAppInit {
             const targetId: string | undefined = context.request.params?.[belongsToMetadata.targetIdParamKey];
             throw new UnauthorizedError(
                 // eslint-disable-next-line stylistic/max-len
-                `You need to to have access to the ${belongsToMetadata.targetEntity.name} entity with the id ${String(targetId)} to access this route.`
+                $ts`You need to to have access to the ${belongsToMetadata.targetEntity.name} entity with the id ${String(targetId)} to access this route.`
             );
         }
     }
@@ -351,19 +360,19 @@ export class AuthService implements AuthServiceInterface, OnAppInit {
         );
 
         if (routeIsLoggedIn && routeSkip) {
-            throw new Error(
-                `The route ${controllerClass.name}.${controllerMethod} was decorated with both @Auth.isLoggedIn and @Auth.skip`
+            throw new InvalidDecoratorCombinationError(
+                `${controllerClass.name}.${controllerMethod}`,
+                [AUTH_IS_LOGGED_IN_LABEL, AUTH_SKIP_LABEL]
             );
         }
         if (routeIsLoggedIn && routeSkipIsLoggedIn) {
-            throw new Error(
-                `The route ${controllerClass.name}.${controllerMethod} was decorated with both @Auth.isLoggedIn and @Auth.isLoggedIn.skip`
+            throw new InvalidDecoratorCombinationError(
+                `${controllerClass.name}.${controllerMethod}`,
+                [AUTH_IS_LOGGED_IN_LABEL, '@Auth.isLoggedIn.skip']
             );
         }
         if (controllerIsLoggedIn && controllerSkipIsLoggedIn) {
-            throw new Error(
-                `The controller ${controllerClass.name} was decorated with both @Auth.isLoggedIn and @Auth.isLoggedIn.skip`
-            );
+            throw new InvalidDecoratorCombinationError(controllerClass.name, [AUTH_IS_LOGGED_IN_LABEL, '@Auth.isLoggedIn.skip']);
         }
 
         if (!routeIsLoggedIn && !controllerIsLoggedIn && routeSkipIsLoggedIn) {
@@ -407,20 +416,19 @@ export class AuthService implements AuthServiceInterface, OnAppInit {
         );
 
         if (routeIsNotLoggedIn && routeSkip) {
-            throw new Error(
-                `The route ${controllerClass.name}.${controllerMethod} was decorated with both @Auth.isNotLoggedIn and @Auth.skip`
+            throw new InvalidDecoratorCombinationError(
+                `${controllerClass.name}.${controllerMethod}`,
+                [AUTH_IS_NOT_LOGGED_IN_LABEL, AUTH_SKIP_LABEL]
             );
         }
         if (routeIsNotLoggedIn && routeSkipIsNotLoggedIn) {
-            throw new Error(
-                // eslint-disable-next-line stylistic/max-len
-                `The route ${controllerClass.name}.${controllerMethod} was decorated with both @Auth.isNotLoggedIn and @Auth.isNotLoggedIn.skip`
+            throw new InvalidDecoratorCombinationError(
+                `${controllerClass.name}.${controllerMethod}`,
+                [AUTH_IS_NOT_LOGGED_IN_LABEL, '@Auth.isNotLoggedIn.skip']
             );
         }
         if (controllerIsNotLoggedIn && controllerSkipIsNotLoggedIn) {
-            throw new Error(
-                `The controller ${controllerClass.name} was decorated with both @Auth.isNotLoggedIn and @Auth.isNotLoggedIn.skip`
-            );
+            throw new InvalidDecoratorCombinationError(controllerClass.name, [AUTH_IS_NOT_LOGGED_IN_LABEL, '@Auth.isNotLoggedIn.skip']);
         }
 
         if (!routeIsNotLoggedIn && !controllerIsNotLoggedIn && routeSkipIsNotLoggedIn) {
@@ -460,20 +468,20 @@ export class AuthService implements AuthServiceInterface, OnAppInit {
         );
 
         if (routeHasRole && routeSkip) {
-            throw new Error(
-                `The route ${controllerClass.name}.${controllerMethod} was decorated with both @Auth.hasRole and @Auth.skip`
+            throw new InvalidDecoratorCombinationError(
+                `${controllerClass.name}.${controllerMethod}`,
+                [AUTH_HAS_ROLE_LABEL, AUTH_SKIP_LABEL]
             );
         }
 
         if (routeHasRole && routeSkipHasRole) {
-            throw new Error(
-                `The route ${controllerClass.name}.${controllerMethod} was decorated with both @Auth.hasRole and @Auth.hasRole.skip`
+            throw new InvalidDecoratorCombinationError(
+                `${controllerClass.name}.${controllerMethod}`,
+                [AUTH_HAS_ROLE_LABEL, '@Auth.hasRole.skip']
             );
         }
         if (controllerHasRole && controllerSkipHasRole) {
-            throw new Error(
-                `The controller ${controllerClass.name} was decorated with both @Auth.hasRole and @Auth.hasRole.skip`
-            );
+            throw new InvalidDecoratorCombinationError(controllerClass.name, [AUTH_HAS_ROLE_LABEL, '@Auth.hasRole.skip']);
         }
 
         if (!routeHasRole && !controllerHasRole && routeSkipHasRole) {
@@ -518,19 +526,19 @@ export class AuthService implements AuthServiceInterface, OnAppInit {
         );
 
         if (routeBelongsTo && routeSkip) {
-            throw new Error(
-                `The route ${controllerClass.name}.${controllerMethod} was decorated with both @Auth.belongsTo and @Auth.skip`
+            throw new InvalidDecoratorCombinationError(
+                `${controllerClass.name}.${controllerMethod}`,
+                [AUTH_BELONGS_TO_LABEL, AUTH_SKIP_LABEL]
             );
         }
         if (routeBelongsTo && routeSkipBelongsTo) {
-            throw new Error(
-                `The route ${controllerClass.name}.${controllerMethod} was decorated with both @Auth.belongsTo and @Auth.belongsTo.skip`
+            throw new InvalidDecoratorCombinationError(
+                `${controllerClass.name}.${controllerMethod}`,
+                [AUTH_BELONGS_TO_LABEL, '@Auth.belongsTo.skip']
             );
         }
         if (controllerBelongsTo && controllerSkipBelongsTo) {
-            throw new Error(
-                `The controller ${controllerClass.name} was decorated with both @Auth.belongsTo and @Auth.belongsTo.skip`
-            );
+            throw new InvalidDecoratorCombinationError(controllerClass.name, [AUTH_BELONGS_TO_LABEL, '@Auth.belongsTo.skip']);
         }
 
         if (!routeBelongsTo && !controllerBelongsTo && routeSkipBelongsTo) {
@@ -575,19 +583,18 @@ export class AuthService implements AuthServiceInterface, OnAppInit {
         );
 
         if (routeRequire2fa && routeSkip) {
-            throw new Error(
-                `The route ${controllerClass.name}.${controllerMethod} was decorated with both @Auth.require2fa and @Auth.skip`
+            throw new InvalidDecoratorCombinationError(
+                `${controllerClass.name}.${controllerMethod}`, [AUTH_REQUIRE_2FA_LABEL, AUTH_SKIP_LABEL]
             );
         }
         if (routeRequire2fa && routeSkipRequire2fa) {
-            throw new Error(
-                `The route ${controllerClass.name}.${controllerMethod} was decorated with both @Auth.require2fa and @Auth.require2fa.skip`
+            throw new InvalidDecoratorCombinationError(
+                `${controllerClass.name}.${controllerMethod}`,
+                [AUTH_REQUIRE_2FA_LABEL, '@Auth.require2fa.skip']
             );
         }
         if (controllerRequire2fa && controllerSkipRequire2fa) {
-            throw new Error(
-                `The controller ${controllerClass.name} was decorated with both @Auth.require2fa and @Auth.require2fa.skip`
-            );
+            throw new InvalidDecoratorCombinationError(controllerClass.name, [AUTH_REQUIRE_2FA_LABEL, '@Auth.require2fa.skip']);
         }
 
         if (!routeRequire2fa && !controllerRequire2fa && routeSkipRequire2fa) {

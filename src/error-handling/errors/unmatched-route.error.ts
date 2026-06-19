@@ -1,4 +1,5 @@
 import { NotFoundError } from './not-found.error';
+import { $ts } from '../../localization/translate.function';
 
 /**
  * An error to throw when a route requested by a user does not exist at all.
@@ -10,8 +11,8 @@ export class UnmatchedRouteError extends NotFoundError {
     constructor(originalUrl: string, options?: ErrorOptions) {
         super(
             [
-                `The route at "${originalUrl}" does not exist.`,
-                'You can take a look at the available Routes via the OpenAPI Explorer linked below.'
+                $ts`The route at "${originalUrl}" does not exist.`,
+                $ts`You can take a look at the available Routes via the OpenAPI Explorer linked below.`
             ],
             options
         );

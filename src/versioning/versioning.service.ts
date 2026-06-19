@@ -6,13 +6,17 @@ import { ZibriApplication } from '../application';
 import { RouteWithVersionData } from './route-with-version-data.model';
 import { SemVerMatcher, SupportedVersionsOptions, VersionMatcher } from './supported-versions-options.model';
 import { HttpRequestContext } from '../context/request/http-request.context';
+import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../context/request/request-context-token.model';
 import { WebsocketRequestContext } from '../context/request/websocket-request.context';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { BadRequestError } from '../error-handling/errors/bad-request.error';
+import { InternalError } from '../error-handling/internal-error.model';
 import { AfterAppInit } from '../global/after-app-init.interface';
 import { type Header } from '../http/header.type';
+import { $f } from '../localization/format.function';
+import { $ts } from '../localization/translate.function';
 import { ControllerRouteConfiguration } from '../routing/controller-route-configuration.model';
 import { ControllerData } from '../routing/decorators/controller.decorator';
 import { type RouterInterface } from '../routing/router.interface';
@@ -25,7 +29,29 @@ import { SemVerUtilities, SemVerVersion } from '../utilities/sem-ver.utilities';
 import { WebsocketControllerData } from '../websocket/decorators/websocket-controller.decorator';
 import { WebsocketControllerRouteConfiguration } from '../websocket/models/websocket-controller-route-configuration.model';
 
-const ROUTE_VERSION_MISMATCH_ERROR_MESSAGE: string = 'Route version mismatch detected:';
+/**
+ * An error to throw when there were routes with mismatching versions.
+ */
+class RouteVersionMismatchError extends InternalError {
+    constructor(errors: string[]) {
+        super([
+            'Route version mismatch detected:',
+            ...errors.map(error => `- ${error}`)
+        ]);
+        this.name = 'RouteVersionMismatchError';
+    }
+}
+
+/**
+ * An error to throw during versioning service initialization.
+ */
+class InitVersioningServiceError extends InternalError {
+    constructor(message: string | string[]) {
+        const messageArray: string[] = typeof message === 'string' ? [message] : message;
+        super(['Error initializing versioning service.', ...messageArray]);
+        this.name = 'InitVersioningServiceError';
+    }
+}
 
 /**
  * Default implementation of the versioning service.
@@ -39,6 +65,8 @@ export class VersioningService implements VersioningServiceInterface, AfterAppIn
     constructor(
         @Inject(ZIBRI_DI_TOKENS.VERSION_HEADER)
         private readonly versionHeader: Header,
+        @Inject(ZIBRI_DI_TOKENS.VERSION_QUERY_PARAM)
+        private readonly versionQueryParam: string,
         @Inject(ZIBRI_DI_TOKENS.ROUTER)
         private readonly router: RouterInterface
     ) {}
@@ -114,13 +142,13 @@ export class VersioningService implements VersioningServiceInterface, AfterAppIn
             (max, v) => SemVerUtilities.compare(v.value, max.value) === 'bigger' ? v : max
         );
         if (SemVerUtilities.compare(latestVersion.value, app.options.version) === 'bigger') {
-            throw new Error(
+            throw new InitVersioningServiceError(
                 [
                     `Version "${app.options.version}" was previously active but has been superseded by "${latestVersion.value}".`,
                     'Downgrading is not supported automatically. To resolve this, either:',
                     '- Revert your code and version files together via git',
                     `- Manually delete and update version files so that "${app.options.version}" is treated as a fresh version`
-                ].join('\n')
+                ]
             );
         }
     }
@@ -135,10 +163,10 @@ export class VersioningService implements VersioningServiceInterface, AfterAppIn
 
         const currentLatest: VersionFile | undefined = currentLatestVersions.find(v => v.value !== app.options.version);
         if (!currentLatest) {
-            throw new Error(
-                'Inconsistent version state: multiple active versions exist, but they all represent the global version.'
-                + ' Check for duplicate version files.'
-            );
+            throw new InitVersioningServiceError([
+                'Inconsistent version state: multiple active versions exist, but they all represent the global version.',
+                'Check for duplicate version files.'
+            ]);
         }
         return currentLatest;
     }
@@ -213,7 +241,7 @@ export class VersioningService implements VersioningServiceInterface, AfterAppIn
         }
 
         if (errors.length) {
-            throw new Error([ROUTE_VERSION_MISMATCH_ERROR_MESSAGE, ...errors.map(error => `- ${error}`)].join('\n'));
+            throw new RouteVersionMismatchError(errors);
         }
     }
 
@@ -279,7 +307,7 @@ export class VersioningService implements VersioningServiceInterface, AfterAppIn
         }
 
         if (errors.length) {
-            throw new Error([ROUTE_VERSION_MISMATCH_ERROR_MESSAGE, ...errors.map(error => `- ${error}`)].join('\n'));
+            throw new RouteVersionMismatchError(errors);
         }
 
         for (const route of inCodeRoutes) {
@@ -287,7 +315,7 @@ export class VersioningService implements VersioningServiceInterface, AfterAppIn
         }
 
         if (errors.length) {
-            throw new Error([ROUTE_VERSION_MISMATCH_ERROR_MESSAGE, ...errors.map(error => `- ${error}`)].join('\n'));
+            throw new RouteVersionMismatchError(errors);
         }
     }
 
@@ -330,7 +358,7 @@ export class VersioningService implements VersioningServiceInterface, AfterAppIn
         });
 
         if (routesThatNeedUpdate.length) {
-            throw new Error(
+            throw new InitVersioningServiceError(
                 [
                     `There are routes that have been used under the previous version "${previousLatest.value}"`,
                     'To continue, you either need to:',
@@ -340,22 +368,26 @@ export class VersioningService implements VersioningServiceInterface, AfterAppIn
                     '',
                     'Affected routes/websocket events:',
                     ...routesThatNeedUpdate.map(r => `- ${r.key}`)
-                ].join('\n')
+                ]
             );
         }
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    resolveVersion(context: HttpRequestContext | WebsocketRequestContext): Version {
+    async resolveVersion(context: HttpRequestContext | WebsocketRequestContext): Promise<Version> {
+        if (context.has(ZIBRI_REQUEST_CONTEXT_TOKENS.CURRENT_VERSION)) {
+            return await context.get(ZIBRI_REQUEST_CONTEXT_TOKENS.CURRENT_VERSION);
+        }
+
         const versionValue: string | undefined = context instanceof WebsocketRequestContext
             ? context.connection?.resolvedVersion.value ?? context.request.headers?.[this.versionHeader]
-            : context.request.headers?.[this.versionHeader];
+            : context.request.query[this.versionQueryParam] ?? context.request.headers?.[this.versionHeader];
 
         try {
             if (versionValue == undefined) {
                 const latest: VersionFile | undefined = this.versionFiles.find(v => v.endsAt == undefined);
                 if (!latest) {
-                    throw new BadRequestError('No active version found');
+                    throw new BadRequestError($ts`No active version found`);
                 }
                 return latest;
             }
@@ -364,7 +396,7 @@ export class VersioningService implements VersioningServiceInterface, AfterAppIn
             }
             const res: VersionFile | undefined = this.versionFiles.find(v => v.value === versionValue);
             if (!res) {
-                throw new BadRequestError(`Version "${versionValue}" not found`);
+                throw new BadRequestError($ts`Version "${versionValue}" not found`);
             }
             return res;
         }
@@ -372,7 +404,7 @@ export class VersioningService implements VersioningServiceInterface, AfterAppIn
             if (error instanceof BadRequestError) {
                 throw error;
             }
-            throw new BadRequestError('Could not resolve version');
+            throw new BadRequestError($ts`Could not resolve version`);
         }
     }
 
@@ -424,7 +456,7 @@ export class VersioningService implements VersioningServiceInterface, AfterAppIn
 
         const latest: VersionFile | undefined = this.versionFiles.find(v => v.endsAt == undefined);
         if (!latest) {
-            throw new BadRequestError('No active version found');
+            throw new BadRequestError($ts`No active version found`);
         }
         const resolvedMatchers: SemVerMatcher[] = versions.map(
             v => this.versionMatcherToSemVerMatcher(v, latest.value)
@@ -444,7 +476,7 @@ export class VersioningService implements VersioningServiceInterface, AfterAppIn
                 && (v.endsAt == undefined || new Date(v.endsAt).getTime() > date.getTime());
         });
         if (!res) {
-            throw new BadRequestError('No version active at that date');
+            throw new BadRequestError($ts`No version active at date, ${$f.date(date)}`);
         }
         return res;
     }
@@ -469,7 +501,7 @@ export class VersioningService implements VersioningServiceInterface, AfterAppIn
             ...app.options.controllers.flatMap(c => {
                 const controllerData: ControllerData | undefined = MetadataUtilities.getControllerData(c);
                 if (!controllerData) {
-                    throw new Error('Could not resolve controller data');
+                    throw new InitVersioningServiceError(`Could not resolve controller data for ${c.name}`);
                 }
                 const routes: ControllerRouteConfiguration[] = MetadataUtilities.getControllerRoutes(c);
                 return routes.map(r => ({
@@ -482,7 +514,7 @@ export class VersioningService implements VersioningServiceInterface, AfterAppIn
             ...app.options.websocketControllers.flatMap(c => {
                 const controllerData: WebsocketControllerData | undefined = MetadataUtilities.getWebsocketControllerData(c);
                 if (!controllerData) {
-                    throw new Error('Could not resolve controller data');
+                    throw new InitVersioningServiceError(`Could not resolve controller data for ${c.name}`);
                 }
                 const routes: WebsocketControllerRouteConfiguration[] = MetadataUtilities.getWebsocketControllerRoutes(c);
                 return routes.map(r => ({

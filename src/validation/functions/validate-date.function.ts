@@ -4,7 +4,8 @@ import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { DatePropertyMetadata } from '../../entity/models/date-property-metadata.model';
-import { FormatDateFn } from '../../localization/formatting/format-date-fn.model';
+import { $f } from '../../localization/format.function';
+import { $ts } from '../../localization/translate.function';
 import { QueryParamMetadata, HeaderParamMetadata, PathParamMetadata } from '../../routing/decorators/param.decorator';
 import { DateParamMetadata } from '../../routing/models/date-param-metadata.model';
 import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from '../validation-problem.model';
@@ -41,12 +42,10 @@ export async function validateDate(
         return [new TypeMismatchValidationProblem(fullKey, 'date')];
     }
     if (meta.before != undefined && new Date(property).getTime() >= meta.before.getTime()) {
-        const formatDate: FormatDateFn = inject(ZIBRI_DI_TOKENS.FORMAT_DATE);
-        return [{ key: fullKey, message: `should be before "${formatDate(meta.before, true)}"` }];
+        return [{ key: fullKey, message: $ts`should be before "${$f.dateTime(meta.before)}"` }];
     }
     if (meta.after != undefined && new Date(property).getTime() <= meta.after.getTime()) {
-        const formatDate: FormatDateFn = inject(ZIBRI_DI_TOKENS.FORMAT_DATE);
-        return [{ key: fullKey, message: `should be after "${formatDate(meta.after, true)}"` }];
+        return [{ key: fullKey, message: $ts`should be after "${$f.dateTime(meta.after)}"` }];
     }
     return [];
 }

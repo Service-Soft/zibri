@@ -3,6 +3,7 @@ import { PathTree } from './generate-handlebar-type-files.function';
 import { resolveKeyForMustacheStatement } from './resolve-key-for-mustache-statement.function';
 import { resolveKeysForBlockStatement } from './resolve-keys-for-block-statement.function';
 import { resolveKeysForExpression, resolveKeysForPartialStatement } from './resolve-keys-for-partial-statement.function';
+import { InternalError } from '../error-handling/internal-error.model';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 export function resolveTree(ast: AstProgram, arrayKeys: string[]): PathTree {
@@ -95,7 +96,7 @@ export function resolveAllKeys(ast: AstProgram, parentKey: string | undefined): 
                 break;
             }
             default: {
-                throw new Error(`Unknown AST Element ${(element as AstStatement).type}`);
+                throw new InternalError(`Unknown AST Element ${(element as AstStatement).type}`);
             }
         }
     }

@@ -306,17 +306,17 @@ describe('CronService', () => {
     });
 
     it('enable throws when job is not found', async () => {
-        await expect(cronService.enable('nonexistent')).rejects.toThrow('Could not find cron job with name nonexistent');
+        await expect(cronService.enable('nonexistent')).rejects.toThrow('Could not find cron job with name "nonexistent"');
     });
 
     it('disable throws when job is not found', async () => {
-        await expect(cronService.disable('nonexistent')).rejects.toThrow('Could not find cron job with name nonexistent');
+        await expect(cronService.disable('nonexistent')).rejects.toThrow('Could not find cron job with name "nonexistent"');
     });
 
     it('changeCron throws when job is not found', async () => {
         await expect(
             cronService.changeCron('nonexistent', CronExpression.every(5, 'minutes').build())
-        ).rejects.toThrow('Could not find cron job with name nonexistent');
+        ).rejects.toThrow('Could not find cron job with name "nonexistent"');
     });
 
     it('changeCron updates the cron expression', async () => {
@@ -331,7 +331,7 @@ describe('CronService', () => {
     });
 
     it('update throws when job is not found', async () => {
-        await expect(cronService.update('nonexistent', { name: 'other' })).rejects.toThrow('Could not find cron job with name nonexistent');
+        await expect(cronService.update('nonexistent', { name: 'other' })).rejects.toThrow('Could not find cron job with name "nonexistent"');
     });
 
     it('update applies data to the job', async () => {

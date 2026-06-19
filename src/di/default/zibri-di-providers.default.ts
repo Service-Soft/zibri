@@ -1,9 +1,6 @@
 /* eslint-disable jsdoc/require-jsdoc */
 import os from 'node:os';
 
-import { formatDate } from '../../localization/formatting/format-date.function';
-import { formatPercent } from '../../localization/formatting/format-percent.function';
-import { formatPrice } from '../../localization/formatting/format-price.function';
 import { inject } from '../inject.function';
 import { ZIBRI_DI_TOKENS } from './zibri-di-tokens.default';
 import { AssetService } from '../../assets/asset.service';
@@ -27,6 +24,8 @@ import { errorHandler } from '../../error-handling/error-handler';
 import { EventService } from '../../event/event.service';
 import { KnownHeader } from '../../http/known-header.enum';
 import { HttpClient } from '../../http-client/http-client';
+import { defineDateFormat } from '../../localization/define-date-format.function';
+import { LocalizeService } from '../../localization/localize.service';
 import { LocalizeOptionsInput } from '../../localization/models/localize-options.model';
 import { LogLevel } from '../../logging/log-level.enum';
 import { Logger } from '../../logging/logger';
@@ -94,20 +93,6 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
     CRON_SERVICE: { useClass: CronService },
     EMAIL_SERVICE: { useClass: EmailService },
     FILE_UPLOAD_TEMP_FOLDER: { useFactory: () => FsUtilities.getPath(__dirname, 'temp') },
-    LOCALIZE_OPTIONS_INPUT: { useFactory: () => ({}) },
-    LOCALIZE_OPTIONS: {
-        useFactory: () => {
-            const input: LocalizeOptionsInput = inject(ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS_INPUT);
-            return {
-                currency: 'EUR',
-                language: 'de',
-                ...input
-            };
-        }
-    },
-    FORMAT_DATE: { useFactory: () => formatDate },
-    FORMAT_PRICE: { useFactory: () => formatPrice },
-    FORMAT_PERCENT: { useFactory: () => formatPercent },
     EMAIL_CONFIG: { useFactory: () => undefined },
     PASSWORD_RESET_TOKEN_EXPIRES_IN_MS: { useFactory: () => 300000 },
     CONFIRM_PASSWORD_RESET_URL: { useFactory: () => undefined },
@@ -151,6 +136,27 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
     CACHE_SERVICE: { useClass: CacheService },
     VERSIONING_SERVICE: { useClass: VersioningService },
     VERSION_HEADER: { useValue: KnownHeader.X_VERSION },
+    VERSION_QUERY_PARAM: { useValue: 'version' },
+    LOCALIZE_SERVICE: { useClass: LocalizeService },
+    LOCALIZE_OPTIONS_INPUT: { useFactory: () => ({}) },
+    LOCALIZE_OPTIONS: {
+        useFactory: () => {
+            const input: LocalizeOptionsInput = inject(ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS_INPUT);
+            return {
+                defaultLocale: 'en-US',
+                supportedLocales: {
+                    'en-US': {
+                        currencyCode: 'USD',
+                        defaultDateFormat: defineDateFormat('MM/DD/YYYY'),
+                        defaultDateTimeFormat: defineDateFormat('MM/DD/YYYY h:mm A'),
+                        defaultTimeFormat: defineDateFormat('h:mm A')
+                    }
+                },
+                localeQueryParam: 'locale',
+                ...input
+            };
+        }
+    },
     // dynamic
     CURRENT_REQUEST_CONTEXT: {
         useFactory: () => AlsUtilities.getCurrentRequestContext(),

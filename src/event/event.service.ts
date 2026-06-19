@@ -11,11 +11,11 @@ import { InjectRepository } from '../di/decorators/inject-repository.decorator';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { InternalError } from '../error-handling/internal-error.model';
 import { AfterAppShutdown } from '../global/after-app-shutdown.interface';
 import { OnAppInit } from '../global/on-app-init.interface';
 import { OnAppStart } from '../global/on-app-start.interface';
 import { type LoggerInterface } from '../logging/logger.interface';
-import { JsonUtilities } from '../utilities/json.utilities';
 import { Ms } from '../utilities/ms';
 import { ObjectUtilities } from '../utilities/object.utilities';
 import { PromiseUtilities } from '../utilities/promise.utilities';
@@ -122,7 +122,9 @@ implements EventServiceInterface<TEvents>, OnAppInit, OnAppStart, AfterAppShutdo
     ): Promise<EventSubscription> {
         const existingAllEventSubscription: EventSubscription | undefined = this.findSubscriptionById(options.subscriberId);
         if (existingAllEventSubscription) {
-            throw new Error(`Can't subscribe to event: The subscriberId ${options.subscriberId} is already subscribed to all events`);
+            throw new InternalError(
+                `Can't subscribe to event: The subscriberId ${options.subscriberId} is already subscribed to all events`
+            );
         }
         const existingEventSubscription: EventSubscription | undefined = this.findSubscriptionForEventById(type, options.subscriberId);
         if (existingEventSubscription) {
@@ -163,11 +165,11 @@ implements EventServiceInterface<TEvents>, OnAppInit, OnAppStart, AfterAppShutdo
             }
         }
         if (existingEventSubscriptionTypes.length) {
-            throw new Error(
+            throw new InternalError(
                 [
                     `Can't subscribe to all events: The subscriberId ${options.subscriberId} is already subscribed to the events:`,
                     ...existingEventSubscriptionTypes.map(t => `    - ${t}`)
-                ].join('\n')
+                ]
             );
         }
 
@@ -205,7 +207,7 @@ implements EventServiceInterface<TEvents>, OnAppInit, OnAppStart, AfterAppShutdo
         event: Event<TEvents[K]>,
         options: EventSubscribeOptions
     ): Promise<void> {
-        let error: Error | undefined = undefined;
+        let error: InternalError | undefined = undefined;
         for (let i: number = 0; i < (options.attempts ?? 1); i++) {
             try {
                 await PromiseUtilities.withTimeout((signal) => hook(event, signal), options.timeout ?? Ms.SECOND * 30);
@@ -213,7 +215,7 @@ implements EventServiceInterface<TEvents>, OnAppInit, OnAppStart, AfterAppShutdo
                 break;
             }
             catch (_error) {
-                error = _error instanceof Error ? _error : new Error(JsonUtilities.stringify(_error));
+                error = new InternalError(`Running hook for event ${event.id} failed`, { cause: _error });
             }
         }
 

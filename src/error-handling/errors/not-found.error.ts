@@ -1,5 +1,7 @@
 import { HttpError } from './http.error';
 import { HttpStatus } from '../../http/http-status.enum';
+import { TranslatedString } from '../../localization/models/translated-string.model';
+import { $ts } from '../../localization/translate.function';
 
 /**
  * An error to throw when the requested resource could not be found.
@@ -8,8 +10,8 @@ import { HttpStatus } from '../../http/http-status.enum';
  * Eg. Because the id of the item is incorrect.
  */
 export class NotFoundError extends HttpError {
-    constructor(message: string | string[], options?: ErrorOptions) {
-        super(message, HttpStatus.NOT_FOUND, 'Not Found', options);
+    constructor(message: TranslatedString | TranslatedString[], options?: ErrorOptions) {
+        super(message, HttpStatus.NOT_FOUND, $ts`Not Found`, options);
         this.name = 'NotFoundError';
     }
 }

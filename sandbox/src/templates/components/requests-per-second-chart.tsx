@@ -1,5 +1,5 @@
 import type { Chart as ChartJsChart } from 'chart.js';
-import { Metric, MetricsSnapshot, PreactComponent } from 'zibri';
+import { $ts, Metric, MetricsSnapshot, PreactComponent } from 'zibri';
 
 import { Chart } from './chart';
 
@@ -84,14 +84,14 @@ export const RequestsPerSecondChart: PreactComponent<Props> = ({ secondary, clas
     return (
         <Chart
             canvasId="rpsChart"
-            title="Requests per second"
+            title={$ts`Requests per second`}
             className={className}
             chartConfig={{
                 type: 'line',
                 data: {
                     datasets: [
                         {
-                            label: 'Event Loop Lag',
+                            label: $ts`Event Loop Lag`,
                             data: [],
                             fill: false,
                             yAxisID: 'y1',
@@ -99,21 +99,21 @@ export const RequestsPerSecondChart: PreactComponent<Props> = ({ secondary, clas
                             borderColor: 'purple'
                         },
                         {
-                            label: 'Server Error',
+                            label: $ts`Server Error`,
                             data: [],
                             fill: true,
                             backgroundColor: 'red',
                             borderColor: 'red'
                         },
                         {
-                            label: 'Client Error',
+                            label: $ts`Client Error`,
                             data: [],
                             fill: true,
                             backgroundColor: secondary,
                             borderColor: secondary
                         },
                         {
-                            label: 'Success',
+                            label: $ts`Success`,
                             data: [],
                             fill: true,
                             backgroundColor: 'green',
@@ -137,12 +137,12 @@ export const RequestsPerSecondChart: PreactComponent<Props> = ({ secondary, clas
                         y: {
                             stacked: true,
                             beginAtZero: true,
-                            title: { display: true, text: 'Requests/sec' },
+                            title: { display: true, text: $ts`Requests/sec` },
                             grid: { display: true }
                         },
                         y1: {
                             position: 'right',
-                            title: { display: true, text: 'Lag (ms)' },
+                            title: { display: true, text: $ts`Lag (ms)` },
                             ticks: { callback: (v): string => typeof v === 'number' ? `${v.toFixed(1)} ms` : v }
                         }
                     }

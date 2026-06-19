@@ -23,6 +23,7 @@ import { PropertyMetadata, PropertyMetadataInput, RelationMetadata } from '../..
 import { EntityMetadataMissingError } from '../../entity/entity-metadata-missing.error';
 import { FilePropertyMetadata } from '../../entity/models/file-property-metadata.model';
 import { Relation } from '../../entity/models/relation.enum';
+import { InternalError } from '../../error-handling/internal-error.model';
 import { GlobalRegistry } from '../../global/global-registry';
 import { type LoggerInterface } from '../../logging/logger.interface';
 import { ExcludeStrict } from '../../types/exclude-strict.type';
@@ -139,7 +140,7 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
         entityClass: Newable<T>
     ): Where<T> extends WhereFilter<T>[] ? ToFindOptionsWhere<T>[] : ToFindOptionsWhere<T> {
         if (!this.whereFilterConverter) {
-            throw new Error('The data source needs to be initialized before it can be used.');
+            throw new DataSourceInitializationError();
         }
         return this.whereFilterConverter.convert(filter, entityClass) as Where<T> extends WhereFilter<T>[]
             ? ToFindOptionsWhere<T>[]
@@ -149,7 +150,7 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async init(): Promise<void> {
         if (this.ds) {
-            throw new Error('The data source has already been initialized.');
+            throw new InternalError('The data source has already been initialized.');
         }
 
         await this.validateOptions(this.fullOptions);
@@ -218,7 +219,7 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
 
         const appVersion: SemVerVersion | undefined = GlobalRegistry.getAppData('version');
         if (!appVersion) {
-            throw new Error('Couldn\'t run migrations: No app version could be resolved');
+            throw new InternalError('Couldn\'t run migrations: No app version could be resolved');
         }
 
         const migrationsToRunUp: MigrationWithName[] = allMigrations.filter(m => {
@@ -265,7 +266,10 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
             throw new DataSourceInitializationError();
         }
         if (!this.entities.find(e => e === cls)) {
-            throw new Error(`The entity "${cls.name}" is not in this database. Did you forget to include it in the entities array?`);
+            throw new InternalError([
+                `The entity "${cls.name}" is not in this database.`,
+                'Did you forget to include it in the entities array?'
+            ]);
         }
 
         // eslint-disable-next-line stylistic/max-len
@@ -397,7 +401,7 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
         const col: ColumnMetadata | undefined = metadata.columns.find(c => c.propertyName === property);
 
         if (!col) {
-            throw new Error(`Could not determine column metadata for ${entity.name}.${String(property)}`);
+            throw new InternalError(`Could not determine column metadata for ${entity.name}.${String(property)}`);
         }
 
         return {
@@ -437,10 +441,10 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
             .filter(d => 'primary' in d && d.primary)
             .length;
         if (numberOfPrimaryKeys === 0) {
-            throw new Error(`no primary key specified for entity "${cls.name}".`);
+            throw new InternalError(`no primary key specified for entity "${cls.name}".`);
         }
         if (numberOfPrimaryKeys > 1) {
-            throw new Error(`more than 1 primary key specified for entity "${cls.name}".`);
+            throw new InternalError(`more than 1 primary key specified for entity "${cls.name}".`);
         }
 
         const columns: Record<string, EntitySchemaColumnOptions> = {};

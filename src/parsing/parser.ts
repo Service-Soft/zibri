@@ -5,6 +5,8 @@ import { ParserInterface } from './parser.interface';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
+import { UnsupportedMediaTypeError } from '../error-handling/errors/unsupported-media-type.error';
+import { InternalError } from '../error-handling/internal-error.model';
 import { GlobalRegistry } from '../global/global-registry';
 import { OnAppInit } from '../global/on-app-init.interface';
 import { HttpRequest, isHttpRequest } from '../http/http-request.model';
@@ -125,18 +127,20 @@ export class Parser implements ParserInterface, OnAppInit {
         }
 
         if (!isMimeType(contentType)) {
-            throw new Error(`Unsupported ${KnownHeader.CONTENT_TYPE}: "${contentType}"`);
+            throw new UnsupportedMediaTypeError(contentType);
         }
         if (metadata.type !== contentType) {
-            throw new Error(`Unsupported ${KnownHeader.CONTENT_TYPE}: "${contentType}"`);
+            throw new UnsupportedMediaTypeError(contentType);
         }
 
         const fittingParsers: BodyParserInterface[] = this.bodyParsers.filter(p => p.contentType === contentType);
         if (!fittingParsers.length) {
-            throw new Error(`Unsupported ${KnownHeader.CONTENT_TYPE}: "${contentType}"`);
+            throw new InternalError(`No body parser found for ${KnownHeader.CONTENT_TYPE}: "${contentType}"`);
         }
         if (fittingParsers.length > 1) {
-            throw new Error(`There has been more than one body parser provided for the ${KnownHeader.CONTENT_TYPE} "${contentType}"`);
+            throw new InternalError(
+                `There has been more than one body parser provided for ${KnownHeader.CONTENT_TYPE}: "${contentType}"`
+            );
         }
         if (isHttpClientResponse(req)) {
             return await fittingParsers[0].parseFromHttpClientResponse(req, metadata);

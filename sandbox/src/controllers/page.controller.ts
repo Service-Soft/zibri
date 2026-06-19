@@ -1,4 +1,4 @@
-import { AssetServiceInterface, Cache, Cached, CacheServiceInterface, Controller, Get, GlobalRegistry, HtmlResponse, Inject, inject, InMemoryCacheStore, LoggerInterface, MetricsServiceInterface, PreactUtilities, Response, TreeNode, WriteThroughReadThroughCache, ZIBRI_DI_TOKENS } from 'zibri';
+import { AssetServiceInterface, Cache, Cached, CacheServiceInterface, Controller, Get, GlobalRegistry, HtmlResponse, HttpRequestContext, Inject, inject, InMemoryCacheStore, LocaleCode, LoggerInterface, MetricsServiceInterface, PreactUtilities, Response, TreeNode, WebsocketRequestContext, WriteThroughReadThroughCache, ZIBRI_DI_TOKENS } from 'zibri';
 
 import { AssetsPage } from '../templates/pages/assets';
 import { HomePage } from '../templates/pages/home';
@@ -15,12 +15,18 @@ export class StaticPagesCache extends WriteThroughReadThroughCache<string, HtmlR
     ) {
         super('StaticPagesCache', new InMemoryCacheStore(), []);
     }
+
+    static getPageKey(page: string): string {
+        const ctx: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
+        const locale: LocaleCode = inject(ZIBRI_DI_TOKENS.LOCALIZE_SERVICE).resolveSupportedLocale(ctx);
+        return locale + page;
+    }
 }
 
 @Controller('/', { versions: 'all' })
 export class PageController {
 
-    @Cached(StaticPagesCache, () => 'index')
+    @Cached(StaticPagesCache, () => StaticPagesCache.getPageKey('index'))
     @Response.html()
     @Get()
     async index(): Promise<HtmlResponse> {
@@ -28,7 +34,7 @@ export class PageController {
         return HtmlResponse.fromString(html);
     }
 
-    @Cached(StaticPagesCache, () => 'assets')
+    @Cached(StaticPagesCache, () => StaticPagesCache.getPageKey('assets'))
     @Response.html()
     @Get('/assets')
     async assets(): Promise<HtmlResponse> {

@@ -7,6 +7,7 @@ import { ZibriApplication } from '../../application';
 import { type AuthServiceInterface } from '../../auth/auth-service.interface';
 import { BaseUser } from '../../auth/models/base-user.model';
 import { AlsUtilities } from '../../context/als.utilities';
+import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../../context/request/request-context-token.model';
 import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
 import { WhereFilter } from '../../data-source/models/where/where-filter.model';
 import { Repository } from '../../data-source/repository';
@@ -15,17 +16,17 @@ import { Inject } from '../../di/decorators/inject.decorator';
 import { Injectable } from '../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
-import { toHttpError } from '../../error-handling/error-handler';
+import { ErrorUtilities } from '../../error-handling/error.utilities';
 import { BadRequestError } from '../../error-handling/errors/bad-request.error';
-import { HttpError, isHttpError } from '../../error-handling/errors/http.error';
+import { HttpError } from '../../error-handling/errors/http.error';
 import { NotFoundError } from '../../error-handling/errors/not-found.error';
 import { UnauthorizedError } from '../../error-handling/errors/unauthorized.error';
-import { isError } from '../../error-handling/is-error.function';
 import { BeforeAppShutdown } from '../../global/before-app-shutdown.interface';
 import { GlobalRegistry } from '../../global/global-registry';
 import { OnAppInit } from '../../global/on-app-init.interface';
 import { HttpStatus } from '../../http/http-status.enum';
 import { KnownHeader } from '../../http/known-header.enum';
+import { $ts } from '../../localization/translate.function';
 import { type LoggerInterface } from '../../logging/logger.interface';
 import { resolveRouteParams } from '../../routing/resolve-route-params.function';
 import { Newable } from '../../types/newable.type';
@@ -128,12 +129,12 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
                 false
             );
             if (!await this.options.isAllowedToConnect(currentUser)) {
-                next(new UnauthorizedError('Not allowed to connect'));
+                next(new UnauthorizedError($ts`Not allowed to connect`));
                 return;
             }
 
             try {
-                const version: Version = await this.versioningService.resolveVersion(context);
+                const version: Version = await context.get(ZIBRI_REQUEST_CONTEXT_TOKENS.CURRENT_VERSION);
                 // eslint-disable-next-line typescript/no-unsafe-member-access
                 socket.data.resolvedVersion = version;
                 // eslint-disable-next-line typescript/no-unsafe-member-access
@@ -186,7 +187,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
             }
             const handler: SocketIOWebsocketHandler | undefined = this.websocketHandlers[ev];
             if (!handler) {
-                const error: HttpError = new NotFoundError(`Could not find websocket event "${ev}"`);
+                const error: HttpError = new NotFoundError($ts`Could not find websocket event "${ev}"`);
                 await this.send({
                     connection,
                     event: WebsocketEvent.RESPONSE,
@@ -204,7 +205,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
                 return;
             }
             if (args.length > 1) {
-                const error: HttpError = new BadRequestError('There should only be one message sent.');
+                const error: HttpError = new BadRequestError($ts`There should only be one message sent.`);
                 await this.send({
                     connection,
                     event: WebsocketEvent.RESPONSE,
@@ -231,8 +232,8 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
                 const globalError: Error = new Error('Global Error', { cause: error });
                 globalError.stack = undefined;
                 let persist: boolean = false;
-                if (isError(error)) {
-                    if (!isHttpError(error) || error.status >= 500) {
+                if (ErrorUtilities.isError(error)) {
+                    if (!ErrorUtilities.isHttpError(error) || error.status >= 500) {
                         await this.logger.error(globalError);
                         persist = true;
                     }
@@ -249,8 +250,8 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
                     event: WebsocketEvent.RESPONSE,
                     message: {
                         ok: false,
-                        error: toHttpError(error),
-                        status: toHttpError(error).status,
+                        error: ErrorUtilities.toHttpError(error),
+                        status: ErrorUtilities.toHttpError(error).status,
                         senderUserId: undefined,
                         senderConnectionId: undefined
                     },
@@ -597,7 +598,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
     findConnectionById(id: string): SocketIOWebsocketConnection {
         const foundConnection: SocketIOWebsocketConnection | undefined = this.connections.find(c => c.id === id);
         if (!foundConnection) {
-            throw new NotFoundError(`Could not find connection with id "${id}".`);
+            throw new NotFoundError($ts`Could not find connection with id "${id}".`);
         }
         return foundConnection;
     }
@@ -606,7 +607,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
     findConnectionByUserId(userId: string): SocketIOWebsocketConnection {
         const foundConnection: SocketIOWebsocketConnection | undefined = this.connections.find(c => c.userId === userId);
         if (!foundConnection) {
-            throw new NotFoundError(`Could not find connection with userId "${userId}".`);
+            throw new NotFoundError($ts`Could not find connection with userId "${userId}".`);
         }
         return foundConnection;
     }
@@ -621,7 +622,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
                 const match = entries.find(e => this.versioningService.matchesVersion(e.versions, connection.resolvedVersion));
                 if (!match) {
                     const error: NotFoundError = new NotFoundError(
-                        `Could not find handler for websocket event for version "${connection.resolvedVersion.value}"`
+                        $ts`Could not find handler for websocket event for version "${connection.resolvedVersion.value}"`
                     );
                     await this.send({
                         connection,
@@ -636,7 +637,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
                 await match.innerHandler(connection, req, responseHandler);
             }
             catch (error) {
-                const err: HttpError = toHttpError(error);
+                const err: HttpError = ErrorUtilities.toHttpError(error);
                 await this.send({
                     connection,
                     event: WebsocketEvent.RESPONSE,
@@ -706,7 +707,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
                     });
                 }
                 catch (error) {
-                    const err: HttpError = toHttpError(error);
+                    const err: HttpError = ErrorUtilities.toHttpError(error);
                     await this.send({
                         connection,
                         event: WebsocketEvent.RESPONSE,
@@ -719,7 +720,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
                         },
                         responseHandler: ack,
                         expectResponse: true,
-                        persist: !isHttpError(error) || error.status >= 500
+                        persist: !ErrorUtilities.isHttpError(error) || error.status >= 500
                     });
                     if (err.status === HttpStatus.UNAUTHORIZED) {
                         this.disconnect(connection, true);

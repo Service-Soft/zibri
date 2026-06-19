@@ -5,7 +5,8 @@ import { type CronExpressionString } from './cron-expression.utilities';
 import { CreateCronJobEntityData, CronJobEntity } from './cron-job-entity.model';
 import { CronUpdateData } from './cron.service';
 import { Repository } from '../data-source/repository';
-import { unknownToErrorString } from '../error-handling/unknown-to-error-string.function';
+import { ErrorUtilities } from '../error-handling/error.utilities';
+import { InternalError } from '../error-handling/internal-error.model';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { OmitStrict } from '../types/omit-strict.type';
 import { Ms } from '../utilities/ms';
@@ -27,7 +28,25 @@ export type CronConfig = OmitStrict<CronJobEntity, 'id' | 'lastRun' | 'errorMess
  */
 export type InitialCronConfig = Partial<CronConfig> & Pick<CronConfig, 'name' | 'cron'>;
 
-const NOT_INITIALIZED_MESSAGE: string = 'the cron job needs to be initialized before it can be used.';
+/**
+ * An error to throw when the cron expression is invalid.
+ */
+class InvalidCronExpressionError extends InternalError {
+    constructor(expression: CronExpressionString) {
+        super(`the provided cron expression "${expression}" is not valid.`);
+        this.name = 'InvalidCronExpressionError';
+    }
+}
+
+/**
+ * An error to throw when the cron job has not been initialized yet.
+ */
+class CronJobNotInitializedError extends InternalError {
+    constructor() {
+        super('the cron job needs to be initialized before it can be used.');
+        this.name = 'CronJobNotInitializedError';
+    }
+}
 
 /**
  * A cron job that run periodically based on the provided cron expression.
@@ -79,7 +98,7 @@ export abstract class CronJob {
      */
     get name(): string {
         if (!this.entity) {
-            throw new Error(NOT_INITIALIZED_MESSAGE);
+            throw new CronJobNotInitializedError();
         }
         return this.entity.name;
     }
@@ -90,7 +109,7 @@ export abstract class CronJob {
      */
     get active(): boolean {
         if (!this.entity) {
-            throw new Error(NOT_INITIALIZED_MESSAGE);
+            throw new CronJobNotInitializedError();
         }
         return this.entity.active;
     }
@@ -106,10 +125,10 @@ export abstract class CronJob {
         this.logger = logger;
         this.cronJobRepository = repo;
         if (this.entity) {
-            throw new Error('the cron job has already been initialized.');
+            throw new InternalError('the cron job has already been initialized.');
         }
         if (!cron.validate(this.fullInitialConfig.cron)) {
-            throw new Error(`the provided cron expression "${this.fullInitialConfig.cron}" is not valid.`);
+            throw new InvalidCronExpressionError(this.fullInitialConfig.cron);
         }
 
         this.entity = await this.resolveEntity();
@@ -129,7 +148,7 @@ export abstract class CronJob {
      */
     protected async initTask(): Promise<void> {
         if (!this.entity) {
-            throw new Error(NOT_INITIALIZED_MESSAGE);
+            throw new CronJobNotInitializedError();
         }
         this.task = cron.createTask(this.entity.cron, this.runOnTick.bind(this), { maxRandomDelay: Ms.SECOND });
         if (!this.entity.active) {
@@ -164,7 +183,7 @@ export abstract class CronJob {
      */
     async runOnTick(): Promise<void> {
         if (!this.entity) {
-            throw new Error(NOT_INITIALIZED_MESSAGE);
+            throw new CronJobNotInitializedError();
         }
 
         let err: unknown;
@@ -193,12 +212,12 @@ export abstract class CronJob {
      */
     async runOnError(error: unknown): Promise<void> {
         if (!this.entity) {
-            throw new Error(NOT_INITIALIZED_MESSAGE);
+            throw new CronJobNotInitializedError();
         }
 
-        await this.logger.error(new Error(`Error running cron job "${this.name}":`, { cause: error }));
+        await this.logger.error(new InternalError(`Error running cron job "${this.name}":`, { cause: error }));
 
-        this.entity.errorMessage = unknownToErrorString(error);
+        this.entity.errorMessage = ErrorUtilities.unknownToErrorString(error);
         if (this.entity.stopOnError) {
             await this.logger.info(`Stopping cron job "${this.name}"`);
             await this.disable();
@@ -215,7 +234,7 @@ export abstract class CronJob {
      */
     async enable(): Promise<void> {
         if (!this.entity || !this.task) {
-            throw new Error(NOT_INITIALIZED_MESSAGE);
+            throw new CronJobNotInitializedError();
         }
 
         this.entity.active = true;
@@ -230,7 +249,7 @@ export abstract class CronJob {
      */
     async disable(): Promise<void> {
         if (!this.entity || !this.task) {
-            throw new Error(NOT_INITIALIZED_MESSAGE);
+            throw new CronJobNotInitializedError();
         }
 
         await this.task.stop();
@@ -246,10 +265,10 @@ export abstract class CronJob {
      */
     async changeCron(cronExpression: CronExpressionString): Promise<void> {
         if (!this.entity || !this.task) {
-            throw new Error(NOT_INITIALIZED_MESSAGE);
+            throw new CronJobNotInitializedError();
         }
         if (!cron.validate(cronExpression)) {
-            throw new Error(`the provided cron expression "${cronExpression}" is not valid.`);
+            throw new InvalidCronExpressionError(cronExpression);
         }
 
         this.entity.cron = cronExpression;
@@ -267,7 +286,7 @@ export abstract class CronJob {
      */
     async update(data: CronUpdateData): Promise<void> {
         if (!this.entity || !this.task) {
-            throw new Error(NOT_INITIALIZED_MESSAGE);
+            throw new CronJobNotInitializedError();
         }
         this.entity = {
             ...this.entity,

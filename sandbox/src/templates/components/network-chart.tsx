@@ -1,5 +1,5 @@
 import type { Chart as ChartJsChart } from 'chart.js';
-import { MetricsSnapshot, PreactComponent } from 'zibri';
+import { $ts, MetricsSnapshot, PreactComponent } from 'zibri';
 
 import { Chart } from './chart';
 
@@ -48,7 +48,7 @@ export const NetworkChart: PreactComponent<Props> = ({ primary, secondary, class
     return (
         <Chart
             canvasId="networkChart"
-            title="Network"
+            title={$ts`Network`}
             className={className}
             chartConfig={{
                 type: 'line',

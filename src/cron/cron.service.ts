@@ -9,8 +9,12 @@ import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { register } from '../di/register.function';
+import { BadRequestError } from '../error-handling/errors/bad-request.error';
+import { NotFoundError } from '../error-handling/errors/not-found.error';
+import { InternalError } from '../error-handling/internal-error.model';
 import { AfterAppInit } from '../global/after-app-init.interface';
 import { BeforeAppShutdown } from '../global/before-app-shutdown.interface';
+import { $ts } from '../localization/translate.function';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { OmitStrict } from '../types/omit-strict.type';
 
@@ -18,6 +22,16 @@ import { OmitStrict } from '../types/omit-strict.type';
  * Data that can be used to update a cron job.
  */
 export type CronUpdateData = Partial<OmitStrict<CronJobEntity, 'id' | 'cron' | 'active' | 'errorMessage' | 'lastRun'>>;
+
+/**
+ * An error to throw when a cron job with the given name could not be found.
+ */
+class CronJobWithNameNotFoundError extends NotFoundError {
+    constructor(name: string) {
+        super($ts`Could not find cron job with name "${name}"`);
+        this.name = 'CronJobWithNameNotFoundError';
+    }
+}
 
 /**
  * Default cron service implementation of Zibri.
@@ -36,7 +50,7 @@ export class CronService implements CronServiceInterface, AfterAppInit, BeforeAp
     async afterAppInit({ options }: ZibriApplication): Promise<void> {
         const { cronJobs } = options;
         if (this.cronJobs.length) {
-            throw new Error('has already been initialized');
+            throw new InternalError('has already been initialized');
         }
         if (cronJobs.length) {
             await this.logger.info(`registers ${cronJobs.length} ${cronJobs.length > 1 ? 'cron jobs' : 'cron job'}`);
@@ -65,7 +79,7 @@ export class CronService implements CronServiceInterface, AfterAppInit, BeforeAp
     async enable(name: string): Promise<void> {
         const foundJob: CronJob | undefined = this.cronJobs.find(c => c.name === name);
         if (!foundJob) {
-            throw new Error(`Could not find cron job with name ${name}`);
+            throw new CronJobWithNameNotFoundError(name);
         }
         await foundJob.enable();
     }
@@ -74,7 +88,7 @@ export class CronService implements CronServiceInterface, AfterAppInit, BeforeAp
     async disable(name: string): Promise<void> {
         const foundJob: CronJob | undefined = this.cronJobs.find(c => c.name === name);
         if (!foundJob) {
-            throw new Error(`Could not find cron job with name ${name}`);
+            throw new CronJobWithNameNotFoundError(name);
         }
         await foundJob.disable();
     }
@@ -83,7 +97,7 @@ export class CronService implements CronServiceInterface, AfterAppInit, BeforeAp
     async changeCron(name: string, cron: CronExpressionString): Promise<void> {
         const foundJob: CronJob | undefined = this.cronJobs.find(c => c.name === name);
         if (!foundJob) {
-            throw new Error(`Could not find cron job with name ${name}`);
+            throw new CronJobWithNameNotFoundError(name);
         }
         await foundJob.changeCron(cron);
     }
@@ -95,10 +109,13 @@ export class CronService implements CronServiceInterface, AfterAppInit, BeforeAp
     ): Promise<void> {
         const foundJob: CronJob | undefined = this.cronJobs.find(c => c.name === name);
         if (!foundJob) {
-            throw new Error(`Could not find cron job with name ${name}`);
+            throw new CronJobWithNameNotFoundError(name);
         }
         if (data.name !== foundJob.name && this.cronJobs.filter(j => j.name === data.name).length) {
-            throw new Error(`cannot not change the cron jobs name from "${foundJob.name}" to "${data.name}"`);
+            throw new BadRequestError([
+                $ts`cannot not change the cron jobs name from "${foundJob.name}" to "${data.name}":`,
+                $ts`name is already taken`
+            ]);
         }
         await foundJob.update(data);
     }

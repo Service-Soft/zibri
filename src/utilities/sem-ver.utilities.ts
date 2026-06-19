@@ -1,4 +1,5 @@
 import { isNumeric } from './is-numeric.function';
+import { InternalError } from '../error-handling/internal-error.model';
 import { SemVerMatcher } from '../versioning/supported-versions-options.model';
 
 /**
@@ -153,7 +154,7 @@ export abstract class SemVerUtilities {
         const parts: string[] = raw.split('.');
 
         if (parts.length < 1 || parts.length > 3) {
-            throw new Error(`Invalid semver matcher: ~${raw}`);
+            throw new InternalError(`Invalid semver matcher: ~${raw}`);
         }
 
         const [major, minor, patch] = this.parseLoose(raw);
@@ -174,7 +175,7 @@ export abstract class SemVerUtilities {
 
     private static parseStrict(version: string): SemVerTuple {
         if (!this.isSemVerVersion(version)) {
-            throw new Error(`Invalid semver version: ${version}`);
+            throw new InternalError(`Invalid semver version: ${version}`);
         }
 
         const [major, minor, patch] = version.split('.').map(Number);
@@ -185,7 +186,7 @@ export abstract class SemVerUtilities {
         const parts: string[] = version.split('.');
 
         if (parts.length < 1 || parts.length > 3) {
-            throw new Error(`Invalid semver matcher: ${version}`);
+            throw new InternalError(`Invalid semver matcher: ${version}`);
         }
 
         const [majorRaw, minorRaw, patchRaw] = parts;
@@ -195,7 +196,7 @@ export abstract class SemVerUtilities {
             || (minorRaw !== undefined && !isNumeric(minorRaw))
             || (patchRaw !== undefined && !isNumeric(patchRaw))
         ) {
-            throw new Error(`Invalid semver matcher: ${version}`);
+            throw new InternalError(`Invalid semver matcher: ${version}`);
         }
 
         return [

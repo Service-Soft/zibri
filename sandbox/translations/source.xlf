@@ -1,0 +1,983 @@
+<?xml version="1.0" encoding="utf8"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+  <file source-language="en-US" datatype="plaintext" original="project">
+    <body>
+      <trans-unit id="{days}d {hours}h {minutes}m {seconds}s" xml:space="preserve">
+        <source>
+          <x id="days" equiv-text="{days}"/>
+          d 
+          <x id="hours" equiv-text="{hours}"/>
+          h 
+          <x id="minutes" equiv-text="{minutes}"/>
+          m 
+          <x id="seconds" equiv-text="{seconds}"/>
+          s
+        </source>
+        <note>src/templates/components/metrics-status.tsx:51</note>
+      </trans-unit>
+      <trans-unit id="A password reset was requested for your account." xml:space="preserve">
+        <source>A password reset was requested for your account.</source>
+        <note>src/templates/emails/password-reset.tsx:25</note>
+      </trans-unit>
+      <trans-unit id="Assets" xml:space="preserve">
+        <source>Assets</source>
+        <note>src/templates/pages/assets.tsx:14, src/templates/pages/home.tsx:19, src/templates/components/navbar.tsx:23</note>
+      </trans-unit>
+      <trans-unit id="Automatic reload" xml:space="preserve">
+        <source>Automatic reload</source>
+        <note>src/templates/pages/metrics.tsx:98</note>
+      </trans-unit>
+      <trans-unit id="Button with id &quot;button-{tab.id}&quot; could not be found" xml:space="preserve">
+        <source>
+          Button with id "button-
+          <x id="tab.id" equiv-text="{tab.id}"/>
+          " could not be found
+        </source>
+        <note>src/templates/components/tab-bar.tsx:38</note>
+      </trans-unit>
+      <trans-unit id="Button with id &quot;button-{tabId}&quot; could not be found" xml:space="preserve">
+        <source>
+          Button with id "button-
+          <x id="tabId" equiv-text="{tabId}"/>
+          " could not be found
+        </source>
+        <note>src/templates/components/tab-bar.tsx:28</note>
+      </trans-unit>
+      <trans-unit id="Cache Errors" xml:space="preserve">
+        <source>Cache Errors</source>
+        <note>src/templates/components/cache-overview-chart.tsx:82</note>
+      </trans-unit>
+      <trans-unit id="Cache hit rate" xml:space="preserve">
+        <source>Cache hit rate</source>
+        <note>src/templates/components/cache-hit-rate-chart.tsx:57</note>
+      </trans-unit>
+      <trans-unit id="Caches" xml:space="preserve">
+        <source>Caches</source>
+        <note>src/templates/pages/metrics.tsx:102</note>
+      </trans-unit>
+      <trans-unit id="Click the link down below to proceed." xml:space="preserve">
+        <source>Click the link down below to proceed.</source>
+        <note>src/templates/emails/password-reset.tsx:26</note>
+      </trans-unit>
+      <trans-unit id="Client Error" xml:space="preserve">
+        <source>Client Error</source>
+        <note>src/templates/components/requests-per-second-chart.tsx:109</note>
+      </trans-unit>
+      <trans-unit id="Client IP" xml:space="preserve">
+        <source>Client IP</source>
+        <note>src/templates/emails/log.tsx:62</note>
+      </trans-unit>
+      <trans-unit id="Confirm" xml:space="preserve">
+        <source>Confirm</source>
+        <note>src/templates/emails/mailing-list-subscribe-confirmation.tsx:32</note>
+      </trans-unit>
+      <trans-unit id="Confirm Email" xml:space="preserve">
+        <source>Confirm Email</source>
+        <note>src/templates/emails/mailing-list-subscribe-confirmation.tsx:23</note>
+      </trans-unit>
+      <trans-unit id="Confirm Email for mailing list {mailingList.name}" xml:space="preserve">
+        <source>
+          Confirm Email for mailing list 
+          <x id="mailingList.name" equiv-text="{mailingList.name}"/>
+        </source>
+        <note>src/templates/emails/mailing-list-subscribe-confirmation.tsx:21</note>
+      </trans-unit>
+      <trans-unit id="Count (delta)" xml:space="preserve">
+        <source>Count (delta)</source>
+        <note>src/templates/components/cache-details-section.tsx:50</note>
+      </trans-unit>
+      <trans-unit id="CPU (%)" xml:space="preserve">
+        <source>CPU (%)</source>
+        <note>src/templates/components/resource-usage-chart.tsx:64</note>
+      </trans-unit>
+      <trans-unit id="Critical Error" xml:space="preserve">
+        <source>Critical Error</source>
+        <note>src/templates/emails/log.tsx:18</note>
+      </trans-unit>
+      <trans-unit id="Debug Log" xml:space="preserve">
+        <source>Debug Log</source>
+        <note>src/templates/emails/log.tsx:14</note>
+      </trans-unit>
+      <trans-unit id="Details" xml:space="preserve">
+        <source>Details</source>
+        <note>src/templates/emails/log.tsx:52</note>
+      </trans-unit>
+      <trans-unit id="Entries" xml:space="preserve">
+        <source>Entries</source>
+        <note>src/templates/components/cache-details-section.tsx:167</note>
+      </trans-unit>
+      <trans-unit id="Error" xml:space="preserve">
+        <source>Error</source>
+        <note>src/templates/emails/log.tsx:17, src/templates/emails/log.tsx:68</note>
+      </trans-unit>
+      <trans-unit id="Errors" xml:space="preserve">
+        <source>Errors</source>
+        <note>src/templates/components/cache-overview-chart.tsx:115</note>
+      </trans-unit>
+      <trans-unit id="Event Loop Lag" xml:space="preserve">
+        <source>Event Loop Lag</source>
+        <note>src/templates/components/requests-per-second-chart.tsx:94</note>
+      </trans-unit>
+      <trans-unit id="failed to load metrics" xml:space="preserve">
+        <source>failed to load metrics</source>
+        <note>src/templates/pages/metrics.tsx:84</note>
+      </trans-unit>
+      <trans-unit id="failed updating preferences" xml:space="preserve">
+        <source>failed updating preferences</source>
+        <note>src/templates/pages/mailing-list-preferences.tsx:111</note>
+      </trans-unit>
+      <trans-unit id="Hello" xml:space="preserve">
+        <source>Hello</source>
+        <note>src/templates/emails/mailing-list-subscribe-confirmation.tsx:18</note>
+      </trans-unit>
+      <trans-unit id="Hello {subscriber.name}" xml:space="preserve">
+        <source>
+          Hello 
+          <x id="subscriber.name" equiv-text="{subscriber.name}"/>
+        </source>
+        <note>src/templates/emails/mailing-list-subscribe-confirmation.tsx:18</note>
+      </trans-unit>
+      <trans-unit id="Hello {user.name}," xml:space="preserve">
+        <source>
+          Hello 
+          <x id="user.name" equiv-text="{user.name}"/>
+          ,
+        </source>
+        <note>src/templates/emails/password-reset.tsx:24</note>
+      </trans-unit>
+      <trans-unit id="here" xml:space="preserve">
+        <source>here</source>
+        <note>src/templates/pages/subscribe-success.tsx:31</note>
+      </trans-unit>
+      <trans-unit id="Hit / Miss" xml:space="preserve">
+        <source>Hit / Miss</source>
+        <note>src/templates/components/cache-details-section.tsx:20</note>
+      </trans-unit>
+      <trans-unit id="Hit rate" xml:space="preserve">
+        <source>Hit rate</source>
+        <note>src/templates/components/cache-hit-rate-stat-card.tsx:41, src/templates/components/cache-overview-chart.tsx:76</note>
+      </trans-unit>
+      <trans-unit id="Hit rate (%)" xml:space="preserve">
+        <source>Hit rate (%)</source>
+        <note>src/templates/components/cache-overview-chart.tsx:108</note>
+      </trans-unit>
+      <trans-unit id="Hits" xml:space="preserve">
+        <source>Hits</source>
+        <note>src/templates/components/cache-details-section.tsx:27</note>
+      </trans-unit>
+      <trans-unit id="Home" xml:space="preserve">
+        <source>Home</source>
+        <note>src/templates/components/navbar.tsx:17</note>
+      </trans-unit>
+      <trans-unit id="ID" xml:space="preserve">
+        <source>ID</source>
+        <note>src/templates/emails/log.tsx:53</note>
+      </trans-unit>
+      <trans-unit id="If you did not request to reset your password, you can ignore this mail." xml:space="preserve">
+        <source>If you did not request to reset your password, you can ignore this mail.</source>
+        <note>src/templates/emails/password-reset.tsx:31</note>
+      </trans-unit>
+      <trans-unit id="If you did not try to subscribe to this mailing list, you can ignore this mail." xml:space="preserve">
+        <source>If you did not try to subscribe to this mailing list, you can ignore this mail.</source>
+        <note>src/templates/emails/mailing-list-subscribe-confirmation.tsx:35</note>
+      </trans-unit>
+      <trans-unit id="In-flight" xml:space="preserve">
+        <source>In-flight</source>
+        <note>src/templates/components/cache-details-section.tsx:150, src/templates/components/cache-details-section.tsx:172</note>
+      </trans-unit>
+      <trans-unit id="Info Log" xml:space="preserve">
+        <source>Info Log</source>
+        <note>src/templates/emails/log.tsx:15</note>
+      </trans-unit>
+      <trans-unit id="Kind regards," xml:space="preserve">
+        <source>Kind regards,</source>
+        <note>src/templates/email-components/base-email-footer.tsx:20</note>
+      </trans-unit>
+      <trans-unit id="Lag (ms)" xml:space="preserve">
+        <source>Lag (ms)</source>
+        <note>src/templates/components/requests-per-second-chart.tsx:145</note>
+      </trans-unit>
+      <trans-unit id="Lists all publicly registered assets." xml:space="preserve">
+        <source>Lists all publicly registered assets.</source>
+        <note>src/templates/pages/home.tsx:22</note>
+      </trans-unit>
+      <trans-unit id="loading..." xml:space="preserve">
+        <source>loading...</source>
+        <note>src/templates/pages/mailing-list-preferences.tsx:99</note>
+      </trans-unit>
+      <trans-unit id="Mailing list preferences" xml:space="preserve">
+        <source>Mailing list preferences</source>
+        <note>src/templates/pages/mailing-list-preferences.tsx:123</note>
+      </trans-unit>
+      <trans-unit id="Mailing List Preferences" xml:space="preserve">
+        <source>Mailing List Preferences</source>
+        <note>src/templates/pages/mailing-list-preferences.tsx:118</note>
+      </trans-unit>
+      <trans-unit id="manage preferences" xml:space="preserve">
+        <source>manage preferences</source>
+        <note>src/templates/email-components/base-mailing-list-footer.tsx:41</note>
+      </trans-unit>
+      <trans-unit id="Manage your preferences" xml:space="preserve">
+        <source>Manage your preferences</source>
+        <note>src/templates/pages/mailing-list-unsubscribe-confirmation.tsx:31</note>
+      </trans-unit>
+      <trans-unit id="Message" xml:space="preserve">
+        <source>Message</source>
+        <note>src/templates/emails/log.tsx:46, src/templates/emails/log.tsx:70</note>
+      </trans-unit>
+      <trans-unit id="Method" xml:space="preserve">
+        <source>Method</source>
+        <note>src/templates/emails/log.tsx:60</note>
+      </trans-unit>
+      <trans-unit id="Metrics" xml:space="preserve">
+        <source>Metrics</source>
+        <note>src/templates/pages/metrics.tsx:90, src/templates/pages/metrics.tsx:95</note>
+      </trans-unit>
+      <trans-unit id="Misses" xml:space="preserve">
+        <source>Misses</source>
+        <note>src/templates/components/cache-details-section.tsx:34</note>
+      </trans-unit>
+      <trans-unit id="Name" xml:space="preserve">
+        <source>Name</source>
+        <note>src/templates/emails/log.tsx:69</note>
+      </trans-unit>
+      <trans-unit id="Network" xml:space="preserve">
+        <source>Network</source>
+        <note>src/templates/components/network-chart.tsx:51</note>
+      </trans-unit>
+      <trans-unit id="Ongoing cache operations" xml:space="preserve">
+        <source>Ongoing cache operations</source>
+        <note>src/templates/components/cache-inflight-stat-card.tsx:37</note>
+      </trans-unit>
+      <trans-unit id="OpenAPI Explorer" xml:space="preserve">
+        <source>OpenAPI Explorer</source>
+        <note>src/templates/pages/error.tsx:36, src/templates/pages/home.tsx:27, src/templates/components/navbar.tsx:20</note>
+      </trans-unit>
+      <trans-unit id="Operation" xml:space="preserve">
+        <source>Operation</source>
+        <note>src/templates/components/cache-details-section.tsx:97</note>
+      </trans-unit>
+      <trans-unit id="Origin" xml:space="preserve">
+        <source>Origin</source>
+        <note>src/templates/emails/log.tsx:55</note>
+      </trans-unit>
+      <trans-unit id="Overview" xml:space="preserve">
+        <source>Overview</source>
+        <note>src/templates/pages/metrics.tsx:102, src/templates/components/cache-overview-chart.tsx:69</note>
+      </trans-unit>
+      <trans-unit id="Password Reset" xml:space="preserve">
+        <source>Password Reset</source>
+        <note>src/templates/emails/password-reset.tsx:18, src/templates/emails/password-reset.tsx:20</note>
+      </trans-unit>
+      <trans-unit id="Please confirm the registration of this email for the mailing list &quot;{mailingList.name}&quot;" xml:space="preserve">
+        <source>
+          Please confirm the registration of this email for the mailing list "
+          <x id="mailingList.name" equiv-text="{mailingList.name}"/>
+          "
+        </source>
+        <note>src/templates/emails/mailing-list-subscribe-confirmation.tsx:29</note>
+      </trans-unit>
+      <trans-unit id="preferences updated" xml:space="preserve">
+        <source>preferences updated</source>
+        <note>src/templates/pages/mailing-list-preferences.tsx:104</note>
+      </trans-unit>
+      <trans-unit id="RAM (MB)" xml:space="preserve">
+        <source>RAM (MB)</source>
+        <note>src/templates/components/resource-usage-chart.tsx:57</note>
+      </trans-unit>
+      <trans-unit id="received invalid metrics event" xml:space="preserve">
+        <source>received invalid metrics event</source>
+        <note>src/templates/components/cache-hit-rate-stat-card.tsx:12, src/templates/components/cache-inflight-stat-card.tsx:14, src/templates/components/cache-size-stat-card.tsx:12, src/templates/components/chart.tsx:48, src/templates/components/metrics-status.tsx:24</note>
+      </trans-unit>
+      <trans-unit id="registered" xml:space="preserve">
+        <source>registered</source>
+        <note>src/templates/pages/metrics.tsx:122</note>
+      </trans-unit>
+      <trans-unit id="Request" xml:space="preserve">
+        <source>Request</source>
+        <note>src/templates/emails/log.tsx:59</note>
+      </trans-unit>
+      <trans-unit id="Request duration" xml:space="preserve">
+        <source>Request duration</source>
+        <note>src/templates/components/request-duration-chart.tsx:56</note>
+      </trans-unit>
+      <trans-unit id="Requests per second" xml:space="preserve">
+        <source>Requests per second</source>
+        <note>src/templates/components/requests-per-second-chart.tsx:87</note>
+      </trans-unit>
+      <trans-unit id="Requests/sec" xml:space="preserve">
+        <source>Requests/sec</source>
+        <note>src/templates/components/requests-per-second-chart.tsx:140</note>
+      </trans-unit>
+      <trans-unit id="Reset Password" xml:space="preserve">
+        <source>Reset Password</source>
+        <note>src/templates/emails/password-reset.tsx:28</note>
+      </trans-unit>
+      <trans-unit id="Resource Usage" xml:space="preserve">
+        <source>Resource Usage</source>
+        <note>src/templates/components/resource-usage-chart.tsx:50</note>
+      </trans-unit>
+      <trans-unit id="Server Error" xml:space="preserve">
+        <source>Server Error</source>
+        <note>src/templates/components/requests-per-second-chart.tsx:102</note>
+      </trans-unit>
+      <trans-unit id="Since" xml:space="preserve">
+        <source>Since</source>
+        <note>src/templates/components/metrics-status.tsx:79</note>
+      </trans-unit>
+      <trans-unit id="Size" xml:space="preserve">
+        <source>Size</source>
+        <note>src/templates/components/cache-details-section.tsx:142</note>
+      </trans-unit>
+      <trans-unit id="Size &amp; In-flight" xml:space="preserve">
+        <source>Size &amp; In-flight</source>
+        <note>src/templates/components/cache-details-section.tsx:135</note>
+      </trans-unit>
+      <trans-unit id="Source (mean)" xml:space="preserve">
+        <source>Source (mean)</source>
+        <note>src/templates/components/cache-details-section.tsx:90</note>
+      </trans-unit>
+      <trans-unit id="Source &amp; Store duration" xml:space="preserve">
+        <source>Source &amp; Store duration</source>
+        <note>src/templates/components/cache-details-section.tsx:83</note>
+      </trans-unit>
+      <trans-unit id="Stack Trace" xml:space="preserve">
+        <source>Stack Trace</source>
+        <note>src/templates/emails/log.tsx:72</note>
+      </trans-unit>
+      <trans-unit id="Status" xml:space="preserve">
+        <source>Status</source>
+        <note>src/templates/components/metrics-status.tsx:67</note>
+      </trans-unit>
+      <trans-unit id="Store (mean)" xml:space="preserve">
+        <source>Store (mean)</source>
+        <note>src/templates/components/cache-details-section.tsx:91</note>
+      </trans-unit>
+      <trans-unit id="Subscribed successfully" xml:space="preserve">
+        <source>Subscribed successfully</source>
+        <note>src/templates/pages/subscribe-success.tsx:15</note>
+      </trans-unit>
+      <trans-unit id="Success" xml:space="preserve">
+        <source>Success</source>
+        <note>src/templates/components/requests-per-second-chart.tsx:116</note>
+      </trans-unit>
+      <trans-unit id="TabPanel with id &quot;{tab.id}&quot; could not be found" xml:space="preserve">
+        <source>
+          TabPanel with id "
+          <x id="tab.id" equiv-text="{tab.id}"/>
+          " could not be found
+        </source>
+        <note>src/templates/components/tab-bar.tsx:34</note>
+      </trans-unit>
+      <trans-unit id="TabPanel with id &quot;{tabId}&quot; could not be found" xml:space="preserve">
+        <source>
+          TabPanel with id "
+          <x id="tabId" equiv-text="{tabId}"/>
+          " could not be found
+        </source>
+        <note>src/templates/components/tab-bar.tsx:24</note>
+      </trans-unit>
+      <trans-unit id="The official OpenAPI/Swagger documentation." xml:space="preserve">
+        <source>The official OpenAPI/Swagger documentation.</source>
+        <note>src/templates/pages/home.tsx:30</note>
+      </trans-unit>
+      <trans-unit id="There has been a new log" xml:space="preserve">
+        <source>There has been a new log</source>
+        <note>src/templates/emails/log.tsx:40</note>
+      </trans-unit>
+      <trans-unit id="Time" xml:space="preserve">
+        <source>Time</source>
+        <note>src/templates/emails/log.tsx:54</note>
+      </trans-unit>
+      <trans-unit id="Total cached entries" xml:space="preserve">
+        <source>Total cached entries</source>
+        <note>src/templates/components/cache-size-stat-card.tsx:32</note>
+      </trans-unit>
+      <trans-unit id="Total caches" xml:space="preserve">
+        <source>Total caches</source>
+        <note>src/templates/pages/metrics.tsx:122</note>
+      </trans-unit>
+      <trans-unit id="unsubscribe" xml:space="preserve">
+        <source>unsubscribe</source>
+        <note>src/templates/email-components/base-mailing-list-footer.tsx:52</note>
+      </trans-unit>
+      <trans-unit id="Unsubscribed by accident?" xml:space="preserve">
+        <source>Unsubscribed by accident?</source>
+        <note>src/templates/pages/mailing-list-unsubscribe-confirmation.tsx:29</note>
+      </trans-unit>
+      <trans-unit id="Unsubscribed successfully" xml:space="preserve">
+        <source>Unsubscribed successfully</source>
+        <note>src/templates/pages/mailing-list-unsubscribe-confirmation.tsx:15</note>
+      </trans-unit>
+      <trans-unit id="Update" xml:space="preserve">
+        <source>Update</source>
+        <note>src/templates/pages/mailing-list-preferences.tsx:131</note>
+      </trans-unit>
+      <trans-unit id="Uptime" xml:space="preserve">
+        <source>Uptime</source>
+        <note>src/templates/components/metrics-status.tsx:75</note>
+      </trans-unit>
+      <trans-unit id="URL" xml:space="preserve">
+        <source>URL</source>
+        <note>src/templates/emails/log.tsx:61</note>
+      </trans-unit>
+      <trans-unit id="User Agent" xml:space="preserve">
+        <source>User Agent</source>
+        <note>src/templates/emails/log.tsx:63</note>
+      </trans-unit>
+      <trans-unit id="Version" xml:space="preserve">
+        <source>Version</source>
+        <note>src/templates/components/metrics-status.tsx:71</note>
+      </trans-unit>
+      <trans-unit id="Warning" xml:space="preserve">
+        <source>Warning</source>
+        <note>src/templates/emails/log.tsx:16</note>
+      </trans-unit>
+      <trans-unit id="We are happy to have you with us 🙂" xml:space="preserve">
+        <source>We are happy to have you with us 🙂</source>
+        <note>src/templates/pages/subscribe-success.tsx:25</note>
+      </trans-unit>
+      <trans-unit id="We are sad to see you go 😕" xml:space="preserve">
+        <source>We are sad to see you go 😕</source>
+        <note>src/templates/pages/mailing-list-unsubscribe-confirmation.tsx:23</note>
+      </trans-unit>
+      <trans-unit id="You are receiving this email because you are subscribed to the mailing list &quot;{list.name}&quot;" xml:space="preserve">
+        <source>
+          You are receiving this email because you are subscribed to the mailing list "
+          <x id="list.name" equiv-text="{list.name}"/>
+          "
+        </source>
+        <note>src/templates/email-components/base-mailing-list-footer.tsx:29</note>
+      </trans-unit>
+      <trans-unit id="You can manage your preferences" xml:space="preserve">
+        <source>You can manage your preferences</source>
+        <note>src/templates/pages/subscribe-success.tsx:31</note>
+      </trans-unit>
+      <trans-unit id="You've successfully subscribed to" xml:space="preserve">
+        <source>You've successfully subscribed to</source>
+        <note>src/templates/pages/subscribe-success.tsx:20</note>
+      </trans-unit>
+      <trans-unit id="You've unsubscribed from {mailingList.name}" xml:space="preserve">
+        <source>
+          You've unsubscribed from 
+          <x id="mailingList.name" equiv-text="{mailingList.name}"/>
+        </source>
+        <note>src/templates/pages/mailing-list-unsubscribe-confirmation.tsx:20</note>
+      </trans-unit>
+      <trans-unit id="Your Team at {appName}" xml:space="preserve">
+        <source>
+          Your Team at 
+          <x id="appName" equiv-text="{appName}"/>
+        </source>
+        <note>src/templates/email-components/base-email-footer.tsx:21</note>
+      </trans-unit>
+    </body>
+  </file>
+  <file source-language="en-US" datatype="plaintext" original="zibri">
+    <body>
+      <trans-unit id="&quot;{this.otpHeader}&quot; header not found" xml:space="preserve">
+        <source>
+          "
+          <x id="this.otpHeader" equiv-text="{this.otpHeader}"/>
+          " header not found
+        </source>
+        <note>node_modules/zibri/src/auth/2fa/methods/otp/otp.two-factor-method.ts:90</note>
+      </trans-unit>
+      <trans-unit id="A password reset has already been requested for this account." xml:space="preserve">
+        <source>A password reset has already been requested for this account.</source>
+        <note>node_modules/zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:247, node_modules/zibri/src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:351</note>
+      </trans-unit>
+      <trans-unit id="April" xml:space="preserve">
+        <source>April</source>
+        <note>node_modules/zibri/src/localization/models/month.enum.ts:28</note>
+      </trans-unit>
+      <trans-unit id="August" xml:space="preserve">
+        <source>August</source>
+        <note>node_modules/zibri/src/localization/models/month.enum.ts:32</note>
+      </trans-unit>
+      <trans-unit id="Bad Request" xml:space="preserve">
+        <source>Bad Request</source>
+        <note>node_modules/zibri/src/error-handling/errors/bad-request.error.ts:11</note>
+      </trans-unit>
+      <trans-unit id="Conflict" xml:space="preserve">
+        <source>Conflict</source>
+        <note>node_modules/zibri/src/error-handling/errors/conflict.error.ts:11</note>
+      </trans-unit>
+      <trans-unit id="Content Too Large" xml:space="preserve">
+        <source>Content Too Large</source>
+        <note>node_modules/zibri/src/error-handling/errors/content-too-large.error.ts:11</note>
+      </trans-unit>
+      <trans-unit id="Could not find {EncryptionStrategyEntity.name}." xml:space="preserve">
+        <source>
+          Could not find 
+          <x id="EncryptionStrategyEntity.name" equiv-text="{EncryptionStrategyEntity.name}"/>
+          .
+        </source>
+        <note>node_modules/zibri/src/auth/encryption/encryption.service.ts:238, node_modules/zibri/src/auth/encryption/encryption.service.ts:302, node_modules/zibri/src/auth/encryption/encryption.service.ts:347</note>
+      </trans-unit>
+      <trans-unit id="Could not find {this.entityClass.name} with id &quot;{id}&quot;." xml:space="preserve">
+        <source>
+          Could not find 
+          <x id="this.entityClass.name" equiv-text="{this.entityClass.name}"/>
+           with id "
+          <x id="id" equiv-text="{id}"/>
+          ".
+        </source>
+        <note>node_modules/zibri/src/data-source/repository.ts:164, node_modules/zibri/src/change-sets/soft-delete-repository.ts:103, node_modules/zibri/src/change-sets/soft-delete-repository.ts:164</note>
+      </trans-unit>
+      <trans-unit id="Could not find {this.entityClass.name}." xml:space="preserve">
+        <source>
+          Could not find 
+          <x id="this.entityClass.name" equiv-text="{this.entityClass.name}"/>
+          .
+        </source>
+        <note>node_modules/zibri/src/data-source/repository.ts:204</note>
+      </trans-unit>
+      <trans-unit id="Could not find connection with id &quot;{id}&quot;." xml:space="preserve">
+        <source>
+          Could not find connection with id "
+          <x id="id" equiv-text="{id}"/>
+          ".
+        </source>
+        <note>node_modules/zibri/src/websocket/services/websocket.service.ts:601</note>
+      </trans-unit>
+      <trans-unit id="Could not find connection with userId &quot;{userId}&quot;." xml:space="preserve">
+        <source>
+          Could not find connection with userId "
+          <x id="userId" equiv-text="{userId}"/>
+          ".
+        </source>
+        <note>node_modules/zibri/src/websocket/services/websocket.service.ts:610</note>
+      </trans-unit>
+      <trans-unit id="Could not find handler for websocket event for version &quot;{connection.resolvedVersion.value}&quot;" xml:space="preserve">
+        <source>
+          Could not find handler for websocket event for version "
+          <x id="connection.resolvedVersion.value" equiv-text="{connection.resolvedVersion.value}"/>
+          "
+        </source>
+        <note>node_modules/zibri/src/websocket/services/websocket.service.ts:625</note>
+      </trans-unit>
+      <trans-unit id="Could not find route &quot;{request.url}&quot; for version &quot;{version.value}&quot;" xml:space="preserve">
+        <source>
+          Could not find route "
+          <x id="request.url" equiv-text="{request.url}"/>
+          " for version "
+          <x id="version.value" equiv-text="{version.value}"/>
+          "
+        </source>
+        <note>node_modules/zibri/src/routing/router.ts:450</note>
+      </trans-unit>
+      <trans-unit id="Could not find strategy for key with id {id}" xml:space="preserve">
+        <source>
+          Could not find strategy for key with id 
+          <x id="id" equiv-text="{id}"/>
+        </source>
+        <note>node_modules/zibri/src/auth/encryption/encryption.service.ts:437</note>
+      </trans-unit>
+      <trans-unit id="Could not find user with email &quot;{mail}&quot;." xml:space="preserve">
+        <source>
+          Could not find user with email "
+          <x id="mail" equiv-text="{mail}"/>
+          ".
+        </source>
+        <note>node_modules/zibri/src/auth/user/user.service.ts:40</note>
+      </trans-unit>
+      <trans-unit id="Could not find user with id &quot;{id}&quot;." xml:space="preserve">
+        <source>
+          Could not find user with id "
+          <x id="id" equiv-text="{id}"/>
+          ".
+        </source>
+        <note>node_modules/zibri/src/auth/user/user.service.ts:27</note>
+      </trans-unit>
+      <trans-unit id="Could not find websocket event &quot;{ev}&quot;" xml:space="preserve">
+        <source>
+          Could not find websocket event "
+          <x id="ev" equiv-text="{ev}"/>
+          "
+        </source>
+        <note>node_modules/zibri/src/websocket/services/websocket.service.ts:190</note>
+      </trans-unit>
+      <trans-unit id="Could not reset the changes from the change set: The changeSet doesn't belong to the entity with the given id." xml:space="preserve">
+        <source>Could not reset the changes from the change set: The changeSet doesn't belong to the entity with the given id.</source>
+        <note>node_modules/zibri/src/change-sets/change-set-repository.ts:159</note>
+      </trans-unit>
+      <trans-unit id="Could not resolve credentials for user with email &quot;{user.email}&quot;." xml:space="preserve">
+        <source>
+          Could not resolve credentials for user with email "
+          <x id="user.email" equiv-text="{user.email}"/>
+          ".
+        </source>
+        <note>node_modules/zibri/src/auth/user/user.service.ts:54</note>
+      </trans-unit>
+      <trans-unit id="Could not resolve the currently logged in user." xml:space="preserve">
+        <source>Could not resolve the currently logged in user.</source>
+        <note>node_modules/zibri/src/auth/auth.service.ts:141</note>
+      </trans-unit>
+      <trans-unit id="Could not resolve version" xml:space="preserve">
+        <source>Could not resolve version</source>
+        <note>node_modules/zibri/src/versioning/versioning.service.ts:383</note>
+      </trans-unit>
+      <trans-unit id="Could not rollback to the given change set: The changeSet doesn't belong to the entity with the given id." xml:space="preserve">
+        <source>Could not rollback to the given change set: The changeSet doesn't belong to the entity with the given id.</source>
+        <note>node_modules/zibri/src/change-sets/change-set-repository.ts:249</note>
+      </trans-unit>
+      <trans-unit id="December" xml:space="preserve">
+        <source>December</source>
+        <note>node_modules/zibri/src/localization/models/month.enum.ts:36</note>
+      </trans-unit>
+      <trans-unit id="Error generating token" xml:space="preserve">
+        <source>Error generating token</source>
+        <note>node_modules/zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:413</note>
+      </trans-unit>
+      <trans-unit id="Error verifying token: Invalid Token" xml:space="preserve">
+        <source>Error verifying token: Invalid Token</source>
+        <note>node_modules/zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:217, node_modules/zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:225</note>
+      </trans-unit>
+      <trans-unit id="February" xml:space="preserve">
+        <source>February</source>
+        <note>node_modules/zibri/src/localization/models/month.enum.ts:26</note>
+      </trans-unit>
+      <trans-unit id="Friday" xml:space="preserve">
+        <source>Friday</source>
+        <note>node_modules/zibri/src/localization/models/weekday.enum.ts:24</note>
+      </trans-unit>
+      <trans-unit id="If you don't want to omit the relation, you probably want to do something like:" xml:space="preserve">
+        <source>If you don't want to omit the relation, you probably want to do something like:</source>
+        <note>node_modules/zibri/src/validation/validation-problem.model.ts:81</note>
+      </trans-unit>
+      <trans-unit id="Internal Server Error" xml:space="preserve">
+        <source>Internal Server Error</source>
+        <note>node_modules/zibri/src/error-handling/error.utilities.ts:20, node_modules/zibri/src/error-handling/errors/internal-server.error.ts:11</note>
+      </trans-unit>
+      <trans-unit id="Invalid email or password." xml:space="preserve">
+        <source>Invalid email or password.</source>
+        <note>node_modules/zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:137, node_modules/zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:157, node_modules/zibri/src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:175, node_modules/zibri/src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:197</note>
+      </trans-unit>
+      <trans-unit id="invalid JSON in request body" xml:space="preserve">
+        <source>invalid JSON in request body</source>
+        <note>node_modules/zibri/src/parsing/json/json.body-parser.ts:135</note>
+      </trans-unit>
+      <trans-unit id="is required" xml:space="preserve">
+        <source>is required</source>
+        <note>node_modules/zibri/src/validation/validation-problem.model.ts:33</note>
+      </trans-unit>
+      <trans-unit id="January" xml:space="preserve">
+        <source>January</source>
+        <note>node_modules/zibri/src/localization/models/month.enum.ts:25</note>
+      </trans-unit>
+      <trans-unit id="July" xml:space="preserve">
+        <source>July</source>
+        <note>node_modules/zibri/src/localization/models/month.enum.ts:31</note>
+      </trans-unit>
+      <trans-unit id="June" xml:space="preserve">
+        <source>June</source>
+        <note>node_modules/zibri/src/localization/models/month.enum.ts:30</note>
+      </trans-unit>
+      <trans-unit id="Link expired" xml:space="preserve">
+        <source>Link expired</source>
+        <note>node_modules/zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:288, node_modules/zibri/src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:395</note>
+      </trans-unit>
+      <trans-unit id="Link invalid" xml:space="preserve">
+        <source>Link invalid</source>
+        <note>node_modules/zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:284, node_modules/zibri/src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:391</note>
+      </trans-unit>
+      <trans-unit id="March" xml:space="preserve">
+        <source>March</source>
+        <note>node_modules/zibri/src/localization/models/month.enum.ts:27</note>
+      </trans-unit>
+      <trans-unit id="May" xml:space="preserve">
+        <source>May</source>
+        <note>node_modules/zibri/src/localization/models/month.enum.ts:29</note>
+      </trans-unit>
+      <trans-unit id="Monday" xml:space="preserve">
+        <source>Monday</source>
+        <note>node_modules/zibri/src/localization/models/weekday.enum.ts:20</note>
+      </trans-unit>
+      <trans-unit id="needs to be at least {meta.min}" xml:space="preserve">
+        <source>
+          needs to be at least 
+          <x id="meta.min" equiv-text="{meta.min}"/>
+        </source>
+        <note>node_modules/zibri/src/validation/functions/validate-number.function.ts:61</note>
+      </trans-unit>
+      <trans-unit id="needs to be at least {meta.minLength} characters long" xml:space="preserve">
+        <source>
+          needs to be at least 
+          <x id="meta.minLength" equiv-text="{meta.minLength}"/>
+           characters long
+        </source>
+        <note>node_modules/zibri/src/validation/functions/validate-string.function.ts:73</note>
+      </trans-unit>
+      <trans-unit id="needs to be at most {meta.max}" xml:space="preserve">
+        <source>
+          needs to be at most 
+          <x id="meta.max" equiv-text="{meta.max}"/>
+        </source>
+        <note>node_modules/zibri/src/validation/functions/validate-number.function.ts:64</note>
+      </trans-unit>
+      <trans-unit id="needs to be at most {meta.maxLength} characters long" xml:space="preserve">
+        <source>
+          needs to be at most 
+          <x id="meta.maxLength" equiv-text="{meta.maxLength}"/>
+           characters long
+        </source>
+        <note>node_modules/zibri/src/validation/functions/validate-string.function.ts:76</note>
+      </trans-unit>
+      <trans-unit id="needs to be in format &quot;{meta.format}&quot;" xml:space="preserve">
+        <source>
+          needs to be in format "
+          <x id="meta.format" equiv-text="{meta.format}"/>
+          "
+        </source>
+        <note>node_modules/zibri/src/validation/functions/validate-number.function.ts:55, node_modules/zibri/src/validation/functions/validate-string.function.ts:64</note>
+      </trans-unit>
+      <trans-unit id="needs to be smaller than {maxSize}" xml:space="preserve">
+        <source>
+          needs to be smaller than 
+          <x id="maxSize" equiv-text="{maxSize}"/>
+        </source>
+        <note>node_modules/zibri/src/validation/validation-problem.model.ts:55</note>
+      </trans-unit>
+      <trans-unit id="needs to match one of &quot;{ObjectUtilities.values(meta.enum)}&quot;" xml:space="preserve">
+        <source>
+          needs to match one of "
+          <x id="ObjectUtilities.values(meta.enum)" equiv-text="{ObjectUtilities.values(meta.enum)}"/>
+          "
+        </source>
+        <note>node_modules/zibri/src/validation/functions/validate-number.function.ts:58, node_modules/zibri/src/validation/functions/validate-string.function.ts:70</note>
+      </trans-unit>
+      <trans-unit id="needs to match regex &quot;{meta.regex}&quot;" xml:space="preserve">
+        <source>
+          needs to match regex "
+          <x id="meta.regex" equiv-text="{meta.regex}"/>
+          "
+        </source>
+        <note>node_modules/zibri/src/validation/functions/validate-string.function.ts:67</note>
+      </trans-unit>
+      <trans-unit id="No active version found" xml:space="preserve">
+        <source>No active version found</source>
+        <note>node_modules/zibri/src/versioning/versioning.service.ts:366, node_modules/zibri/src/versioning/versioning.service.ts:435</note>
+      </trans-unit>
+      <trans-unit id="No valid context" xml:space="preserve">
+        <source>No valid context</source>
+        <note>node_modules/zibri/src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:227</note>
+      </trans-unit>
+      <trans-unit id="No valid csrf token" xml:space="preserve">
+        <source>No valid csrf token</source>
+        <note>node_modules/zibri/src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:240</note>
+      </trans-unit>
+      <trans-unit id="No valid refresh session" xml:space="preserve">
+        <source>No valid refresh session</source>
+        <note>node_modules/zibri/src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:233, node_modules/zibri/src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:237</note>
+      </trans-unit>
+      <trans-unit id="No version active at that date" xml:space="preserve">
+        <source>No version active at that date</source>
+        <note>node_modules/zibri/src/versioning/versioning.service.ts:455</note>
+      </trans-unit>
+      <trans-unit id="Not allowed to connect" xml:space="preserve">
+        <source>Not allowed to connect</source>
+        <note>node_modules/zibri/src/websocket/services/websocket.service.ts:132</note>
+      </trans-unit>
+      <trans-unit id="Not Found" xml:space="preserve">
+        <source>Not Found</source>
+        <note>node_modules/zibri/src/error-handling/errors/not-found.error.ts:14</note>
+      </trans-unit>
+      <trans-unit id="November" xml:space="preserve">
+        <source>November</source>
+        <note>node_modules/zibri/src/localization/models/month.enum.ts:35</note>
+      </trans-unit>
+      <trans-unit id="October" xml:space="preserve">
+        <source>October</source>
+        <note>node_modules/zibri/src/localization/models/month.enum.ts:34</note>
+      </trans-unit>
+      <trans-unit id="relations are not allowed as part of create or update data." xml:space="preserve">
+        <source>relations are not allowed as part of create or update data.</source>
+        <note>node_modules/zibri/src/validation/validation-problem.model.ts:80</note>
+      </trans-unit>
+      <trans-unit id="request too large" xml:space="preserve">
+        <source>request too large</source>
+        <note>node_modules/zibri/src/error-handling/errors/content-too-large.error.ts:10</note>
+      </trans-unit>
+      <trans-unit id="Saturday" xml:space="preserve">
+        <source>Saturday</source>
+        <note>node_modules/zibri/src/localization/models/weekday.enum.ts:25</note>
+      </trans-unit>
+      <trans-unit id="September" xml:space="preserve">
+        <source>September</source>
+        <note>node_modules/zibri/src/localization/models/month.enum.ts:33</note>
+      </trans-unit>
+      <trans-unit id="should be after &quot;{localizeService.formatDate(meta.after, 'date-time')}&quot;" xml:space="preserve">
+        <source>
+          should be after "
+          <x id="localizeService.formatDate(meta.after, 'date-time')" equiv-text="{localizeService.formatDate(meta.after, 'date-time')}"/>
+          "
+        </source>
+        <note>node_modules/zibri/src/validation/functions/validate-date.function.ts:50</note>
+      </trans-unit>
+      <trans-unit id="should be before &quot;{localizeService.formatDate(meta.before, 'date-time')}&quot;" xml:space="preserve">
+        <source>
+          should be before "
+          <x id="localizeService.formatDate(meta.before, 'date-time')" equiv-text="{localizeService.formatDate(meta.before, 'date-time')}"/>
+          "
+        </source>
+        <note>node_modules/zibri/src/validation/functions/validate-date.function.ts:46</note>
+      </trans-unit>
+      <trans-unit id="should be of type {type}" xml:space="preserve">
+        <source>
+          should be of type 
+          <x id="type" equiv-text="{type}"/>
+        </source>
+        <note>node_modules/zibri/src/validation/validation-problem.model.ts:44</note>
+      </trans-unit>
+      <trans-unit id="Sunday" xml:space="preserve">
+        <source>Sunday</source>
+        <note>node_modules/zibri/src/localization/models/weekday.enum.ts:26</note>
+      </trans-unit>
+      <trans-unit id="the file type needs to be {allowedMimeTypes[0]}" xml:space="preserve">
+        <source>
+          the file type needs to be 
+          <x id="allowedMimeTypes[0]" equiv-text="{allowedMimeTypes[0]}"/>
+        </source>
+        <note>node_modules/zibri/src/validation/validation-problem.model.ts:68</note>
+      </trans-unit>
+      <trans-unit id="the file type needs to be one of: {allowedMimeTypes.join(', ')}" xml:space="preserve">
+        <source>
+          the file type needs to be one of: 
+          <x id="allowedMimeTypes.join(', ')" equiv-text="{allowedMimeTypes.join(', ')}"/>
+        </source>
+        <note>node_modules/zibri/src/validation/validation-problem.model.ts:67</note>
+      </trans-unit>
+      <trans-unit id="The generated invoice-number {invoiceNumber} already exists!" xml:space="preserve">
+        <source>
+          The generated invoice-number 
+          <x id="invoiceNumber" equiv-text="{invoiceNumber}"/>
+           already exists!
+        </source>
+        <note>node_modules/zibri/src/plugin/invoicing/services/invoice-number.service.ts:171</note>
+      </trans-unit>
+      <trans-unit id="The given refresh token has already been used." xml:space="preserve">
+        <source>The given refresh token has already been used.</source>
+        <note>node_modules/zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:229</note>
+      </trans-unit>
+      <trans-unit id="The given refresh token is expired." xml:space="preserve">
+        <source>The given refresh token is expired.</source>
+        <note>node_modules/zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:233</note>
+      </trans-unit>
+      <trans-unit id="The provided two factor code is invalid." xml:space="preserve">
+        <source>The provided two factor code is invalid.</source>
+        <note>node_modules/zibri/src/auth/2fa/methods/otp/otp.two-factor-method.ts:64, node_modules/zibri/src/auth/2fa/methods/otp/otp.two-factor-method.ts:84</note>
+      </trans-unit>
+      <trans-unit id="The provided two factor code is not {this.otpLength} digits long." xml:space="preserve">
+        <source>
+          The provided two factor code is not 
+          <x id="this.otpLength" equiv-text="{this.otpLength}"/>
+           digits long.
+        </source>
+        <note>node_modules/zibri/src/auth/2fa/methods/otp/otp.two-factor-method.ts:93</note>
+      </trans-unit>
+      <trans-unit id="The route at &quot;{originalUrl}&quot; does not exist." xml:space="preserve">
+        <source>
+          The route at "
+          <x id="originalUrl" equiv-text="{originalUrl}"/>
+          " does not exist.
+        </source>
+        <note>node_modules/zibri/src/error-handling/errors/unmatched-route.error.ts:14</note>
+      </trans-unit>
+      <trans-unit id="There should only be one message sent." xml:space="preserve">
+        <source>There should only be one message sent.</source>
+        <note>node_modules/zibri/src/websocket/services/websocket.service.ts:208</note>
+      </trans-unit>
+      <trans-unit id="this key is unknown" xml:space="preserve">
+        <source>this key is unknown</source>
+        <note>node_modules/zibri/src/validation/validation.service.ts:206, node_modules/zibri/src/validation/validation.service.ts:321</note>
+      </trans-unit>
+      <trans-unit id="Thursday" xml:space="preserve">
+        <source>Thursday</source>
+        <note>node_modules/zibri/src/localization/models/weekday.enum.ts:23</note>
+      </trans-unit>
+      <trans-unit id="Too Many Requests" xml:space="preserve">
+        <source>Too Many Requests</source>
+        <note>node_modules/zibri/src/error-handling/errors/too-many-requests.error.ts:11</note>
+      </trans-unit>
+      <trans-unit id="Tuesday" xml:space="preserve">
+        <source>Tuesday</source>
+        <note>node_modules/zibri/src/localization/models/weekday.enum.ts:21</note>
+      </trans-unit>
+      <trans-unit id="Unauthorized" xml:space="preserve">
+        <source>Unauthorized</source>
+        <note>node_modules/zibri/src/error-handling/errors/unauthorized.error.ts:11</note>
+      </trans-unit>
+      <trans-unit id="Validation Error" xml:space="preserve">
+        <source>Validation Error</source>
+        <note>node_modules/zibri/src/error-handling/errors/validation.error.ts:36</note>
+      </trans-unit>
+      <trans-unit id="Validation failed for header parameter" xml:space="preserve">
+        <source>Validation failed for header parameter</source>
+        <note>node_modules/zibri/src/error-handling/errors/validation.error.ts:18</note>
+      </trans-unit>
+      <trans-unit id="Validation failed for path parameter" xml:space="preserve">
+        <source>Validation failed for path parameter</source>
+        <note>node_modules/zibri/src/error-handling/errors/validation.error.ts:16</note>
+      </trans-unit>
+      <trans-unit id="Validation failed for query parameter" xml:space="preserve">
+        <source>Validation failed for query parameter</source>
+        <note>node_modules/zibri/src/error-handling/errors/validation.error.ts:17</note>
+      </trans-unit>
+      <trans-unit id="Validation failed for request body" xml:space="preserve">
+        <source>Validation failed for request body</source>
+        <note>node_modules/zibri/src/error-handling/errors/validation.error.ts:15</note>
+      </trans-unit>
+      <trans-unit id="Validation failed for websocket request" xml:space="preserve">
+        <source>Validation failed for websocket request</source>
+        <note>node_modules/zibri/src/error-handling/errors/validation.error.ts:19</note>
+      </trans-unit>
+      <trans-unit id="Version &quot;{versionValue}&quot; not found" xml:space="preserve">
+        <source>
+          Version "
+          <x id="versionValue" equiv-text="{versionValue}"/>
+          " not found
+        </source>
+        <note>node_modules/zibri/src/versioning/versioning.service.ts:375, node_modules/zibri/src/open-api/open-api.service.ts:128</note>
+      </trans-unit>
+      <trans-unit id="Wednesday" xml:space="preserve">
+        <source>Wednesday</source>
+        <note>node_modules/zibri/src/localization/models/weekday.enum.ts:22</note>
+      </trans-unit>
+      <trans-unit id="You can take a look at the available Routes via the OpenAPI Explorer linked below." xml:space="preserve">
+        <source>You can take a look at the available Routes via the OpenAPI Explorer linked below.</source>
+        <note>node_modules/zibri/src/error-handling/errors/unmatched-route.error.ts:15</note>
+      </trans-unit>
+      <trans-unit id="You cannot be logged in when accessing this route." xml:space="preserve">
+        <source>You cannot be logged in when accessing this route.</source>
+        <note>node_modules/zibri/src/auth/auth.service.ts:244</note>
+      </trans-unit>
+      <trans-unit id="You need to be logged in to access this route." xml:space="preserve">
+        <source>You need to be logged in to access this route.</source>
+        <note>node_modules/zibri/src/auth/auth.service.ts:237</note>
+      </trans-unit>
+      <trans-unit id="You need to have one role of {hasRoleMetadata.allowedRoles} to access this route." xml:space="preserve">
+        <source>
+          You need to have one role of 
+          <x id="hasRoleMetadata.allowedRoles" equiv-text="{hasRoleMetadata.allowedRoles}"/>
+           to access this route.
+        </source>
+        <note>node_modules/zibri/src/auth/auth.service.ts:252</note>
+      </trans-unit>
+      <trans-unit id="You need to provide a second factor to access this route." xml:space="preserve">
+        <source>You need to provide a second factor to access this route.</source>
+        <note>node_modules/zibri/src/auth/auth.service.ts:259</note>
+      </trans-unit>
+      <trans-unit id="You need to to have access to the {belongsToMetadata.targetEntity.name} entity with the id {String(targetId)} to access this route." xml:space="preserve">
+        <source>
+          You need to to have access to the 
+          <x id="belongsToMetadata.targetEntity.name" equiv-text="{belongsToMetadata.targetEntity.name}"/>
+           entity with the id 
+          <x id="String(targetId)" equiv-text="{String(targetId)}"/>
+           to access this route.
+        </source>
+        <note>node_modules/zibri/src/auth/auth.service.ts:277</note>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>

@@ -1,8 +1,8 @@
 import { createReadStream, createWriteStream, Dirent, ReadStream, Stats, WriteStream } from 'node:fs';
-import { access, writeFile, mkdir, readFile, readdir, rm, rename, stat } from 'node:fs/promises';
+import { access, writeFile, mkdir, readFile, readdir, rm, rename, stat, glob } from 'node:fs/promises';
 import path from 'node:path';
 
-import { glob } from 'glob';
+import { InternalError } from '../error-handling/internal-error.model';
 
 /**
  * The type for a file path.
@@ -25,6 +25,20 @@ export type FileLine = {
      * The content of the line.
      */
     content: string
+};
+
+/**
+ * Definition of a glob pattern. Can either be a string/string array or an object that also defines "excludes".
+ */
+export type GlobPattern = string | string[] | {
+    /**
+     * The patterns to search for.
+     */
+    include: string | string [],
+    /**
+     * The patterns to exclude.
+     */
+    exclude?: string | string[]
 };
 
 /**
@@ -113,8 +127,19 @@ export abstract class FsUtilities {
      * @param pattern - The pattern to search for.
      * @returns The matching paths.
      */
-    static async glob(pattern: string | string[]): Promise<FsPath[]> {
-        return await glob(pattern) as FsPath[];
+    static async glob(pattern: GlobPattern): Promise<FsPath[]> {
+        const res: FsPath[] = [];
+        const include: string | string[] = typeof pattern === 'string' || Array.isArray(pattern)
+            ? pattern
+            : pattern.include;
+        const exclude: string | string[] = typeof pattern === 'string' || Array.isArray(pattern)
+            ? []
+            : pattern.exclude ?? [];
+
+        for await (const path of glob(include, { exclude: Array.isArray(exclude) ? exclude : [exclude] })) {
+            res.push(path as FsPath);
+        }
+        return res;
     }
 
     /**
@@ -132,7 +157,7 @@ export abstract class FsUtilities {
             return path.join('', basePath) as FsPath;
         }
         catch (error) {
-            throw new Error(`Error trying to get the path ${paths.join()}`, { cause: error });
+            throw new InternalError(`Error trying to get the path ${paths.join()}`, { cause: error });
         }
     }
 
@@ -177,7 +202,7 @@ export abstract class FsUtilities {
      */
     static async createFile(p: FsPath, data: string | string[], recursive: boolean = true): Promise<void> {
         if (await this.exists(p)) {
-            throw new Error(`File at ${p} already exists. Did you mean to call "updateFile"?`);
+            throw new InternalError(`File at ${p} already exists. Did you mean to call "updateFile"?`);
         }
         data = this.normalizeData(data);
         const parentDir: FsPath = path.dirname(p) as FsPath;
@@ -207,7 +232,7 @@ export abstract class FsUtilities {
         action: 'replace' | 'prepend' | 'append'
     ): Promise<void> {
         if (!await this.exists(path)) {
-            throw new Error(`File at ${path} does not exist. Did you mean to call "createFile"?`);
+            throw new InternalError(`File at ${path} does not exist. Did you mean to call "createFile"?`);
         }
 
         data = this.normalizeData(data);

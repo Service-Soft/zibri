@@ -1,5 +1,5 @@
 import type { Chart as ChartJsChart } from 'chart.js';
-import { MetricsSnapshot, PreactComponent } from 'zibri';
+import { $ts, MetricsSnapshot, PreactComponent } from 'zibri';
 
 import { Chart } from './chart';
 
@@ -17,21 +17,21 @@ export const CacheDetailSection: PreactComponent<Props> = ({ cacheNames, primary
                 <h3 className="text-white text-2xl tracking-wider">{name}</h3>
                 <div className="grid grid-cols-3 gap-5">
                     <Chart
-                        title="Hit / Miss"
+                        title={$ts`Hit / Miss`}
                         canvasId={`hitMiss-${name}`}
                         chartConfig={{
                             type: 'line',
                             data: {
                                 datasets: [
                                     {
-                                        label: 'Hits',
+                                        label: $ts`Hits`,
                                         data: [],
                                         borderColor: 'green',
                                         backgroundColor: 'green',
                                         fill: false
                                     },
                                     {
-                                        label: 'Misses',
+                                        label: $ts`Misses`,
                                         data: [],
                                         borderColor: secondary,
                                         backgroundColor: secondary,
@@ -47,7 +47,7 @@ export const CacheDetailSection: PreactComponent<Props> = ({ cacheNames, primary
                                         time: { unit: 'second', displayFormats: { second: 'HH:mm:ss' } },
                                         grid: { display: false }
                                     },
-                                    y: { beginAtZero: true, title: { display: true, text: 'Count (delta)' } }
+                                    y: { beginAtZero: true, title: { display: true, text: $ts`Count (delta)` } }
                                 }
                             }
                         }}
@@ -80,21 +80,21 @@ export const CacheDetailSection: PreactComponent<Props> = ({ cacheNames, primary
                         }}
                     />
                     <Chart
-                        title="Source & Store duration"
+                        title={$ts`Source & Store duration`}
                         canvasId={`duration-${name}`}
                         chartConfig={{
                             type: 'bar',
                             data: {
                                 labels: [],
                                 datasets: [
-                                    { label: 'Source (mean)', data: [], backgroundColor: secondary },
-                                    { label: 'Store (mean)', data: [], backgroundColor: primary }
+                                    { label: $ts`Source (mean)`, data: [], backgroundColor: secondary },
+                                    { label: $ts`Store (mean)`, data: [], backgroundColor: primary }
                                 ]
                             },
                             options: {
                                 animation: false,
                                 scales: {
-                                    x: { title: { display: true, text: 'Operation' } },
+                                    x: { title: { display: true, text: $ts`Operation` } },
                                     y: { beginAtZero: true, title: { display: true, text: 'ms' } }
                                 }
                             }
@@ -132,14 +132,14 @@ export const CacheDetailSection: PreactComponent<Props> = ({ cacheNames, primary
                         }}
                     />
                     <Chart
-                        title="Size & In-flight"
+                        title={$ts`Size & In-flight`}
                         canvasId={`sizeInflight-${name}`}
                         chartConfig={{
                             type: 'line',
                             data: {
                                 datasets: [
                                     {
-                                        label: 'Size',
+                                        label: $ts`Size`,
                                         data: [],
                                         borderColor: secondary,
                                         backgroundColor: secondary,
@@ -147,7 +147,7 @@ export const CacheDetailSection: PreactComponent<Props> = ({ cacheNames, primary
                                         yAxisID: 'y'
                                     },
                                     {
-                                        label: 'In-flight',
+                                        label: $ts`In-flight`,
                                         data: [],
                                         borderColor: primary,
                                         backgroundColor: primary,
@@ -164,12 +164,12 @@ export const CacheDetailSection: PreactComponent<Props> = ({ cacheNames, primary
                                         time: { unit: 'second', displayFormats: { second: 'HH:mm:ss' } },
                                         grid: { display: false }
                                     },
-                                    y: { beginAtZero: true, title: { display: true, text: 'Entries' } },
+                                    y: { beginAtZero: true, title: { display: true, text: $ts`Entries` } },
                                     y1: {
                                         position: 'right',
                                         beginAtZero: true,
                                         grid: { drawOnChartArea: false },
-                                        title: { display: true, text: 'In-flight' }
+                                        title: { display: true, text: $ts`In-flight` }
                                     }
                                 }
                             }

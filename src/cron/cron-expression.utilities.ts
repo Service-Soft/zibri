@@ -1,3 +1,5 @@
+import { InternalError } from '../error-handling/internal-error.model';
+import { Weekday } from '../localization/models/weekday.enum';
 import { IntRange } from '../types/percentage.type';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
@@ -49,7 +51,7 @@ const UNIT_FIELD_INDEX: Record<CronUnit, number> = {
     months: 4
 };
 
-const DAY_VALUES: Record<DayOfWeek, number> = {
+const DAY_VALUES: Record<DayOfWeek, Weekday> = {
     Sunday: 0,
     Monday: 1,
     Tuesday: 2,
@@ -59,6 +61,8 @@ const DAY_VALUES: Record<DayOfWeek, number> = {
     Saturday: 6
 };
 
+// We can't use the Month enum here,
+// as that is zero based and the cron expressions are 1 based.
 const MONTH_VALUES: Record<MonthName, number> = {
     January: 1,
     February: 2,
@@ -159,7 +163,7 @@ export class CronExpression {
     static fromString(expression: string): CronExpressionString {
         const parts: string[] = expression.trim().split(/\s+/);
         if (parts.length !== 6) {
-            throw new Error(
+            throw new InternalError(
                 `Expected 6 fields for node-cron expression, got ${parts.length}: "${expression}"`
             );
         }

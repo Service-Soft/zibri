@@ -8,6 +8,7 @@ import NodeFormData from 'form-data';
 import { HttpClientResponse } from './http-client-response.model';
 import { HttpClientInterface } from './http-client.interface';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { initDiContainer } from '../di/init-di-container.function';
 import { inject } from '../di/inject.function';
 import { Property } from '../entity/decorators/property.decorator';
 import { KnownHeader } from '../http/known-header.enum';
@@ -40,6 +41,7 @@ describe('post', () => {
     let http: HttpClientInterface;
 
     beforeAll(async () => {
+        initDiContainer();
         // create mock api
         const app: express.Express = express();
         app.post('/valid', (_req, res) => {

@@ -1,11 +1,12 @@
 import axios, { AxiosInstance, AxiosResponse, isAxiosError, RawAxiosRequestConfig, ResponseType } from 'axios';
 
 import { HttpClientResponse, HttpClientResponseForBodyType } from './http-client-response.model';
-import { HttpClientError } from './http-client.error';
+import { HttpClientError, HttpClientErrorOptions } from './http-client.error';
 import { HttpClientHeaderValue, HttpClientInterface, HttpOptionsInput } from './http-client.interface';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { InternalError } from '../error-handling/internal-error.model';
 import { HttpMethod } from '../http/http-method.enum';
 import { KnownHeader } from '../http/known-header.enum';
 import { MimeType } from '../http/mime-type.enum';
@@ -230,7 +231,7 @@ export class HttpClient implements HttpClientInterface {
                     case HttpMethod.HEAD:
                     case HttpMethod.OPTIONS:
                     case HttpMethod.TRACE: {
-                        throw new Error('Not implemented yet.');
+                        throw new InternalError('Not implemented yet.');
                     }
                 }
             }
@@ -241,29 +242,39 @@ export class HttpClient implements HttpClientInterface {
 
         if (!axiosResponse) {
             if (isAxiosError(error)) {
-                throw new HttpClientError(
-                    error.message,
-                    {
-                        responseData: error.response
-                            ? {
-                                body: error.response.data,
-                                headers: error.response.headers as Record<string, unknown>,
-                                status: error.response.status,
-                                statusText: error.response.statusText
-                            }
-                            : undefined,
-                        requestData: error.config
-                            ? {
-                                method,
-                                url,
-                                body: requestBody,
-                                headers: error.config.headers
-                            }
-                            : undefined
-                    }
-                );
+                const options: HttpClientErrorOptions = {
+                    responseData: error.response
+                        ? {
+                            body: error.response.data,
+                            headers: error.response.headers as Record<string, unknown>,
+                            status: error.response.status,
+                            statusText: error.response.statusText
+                        }
+                        : undefined,
+                    requestData: error.config
+                        ? {
+                            method,
+                            url,
+                            body: requestBody,
+                            headers: error.config.headers
+                        }
+                        : undefined
+                };
+                throw new HttpClientError(this.getErrorMessage(error.message, options), options);
             }
-            throw error instanceof Error ? error : new Error('Could not get a response');
+            throw new HttpClientError(
+                'Could not get a response',
+                {
+                    responseData: undefined,
+                    requestData: {
+                        method,
+                        url,
+                        body: requestBody,
+                        headers: {}
+                    }
+                },
+                { cause: error }
+            );
         }
 
         const res: HttpClientResponseForBodyType<
@@ -304,14 +315,48 @@ export class HttpClient implements HttpClientInterface {
             responseBody = await this.parser.parseBody(res as unknown as HttpClientResponse, metadata);
         }
         catch (error) {
-            throw new Error('Could not parse response body', { cause: error });
+            throw new HttpClientError(
+                'Could not parse response body',
+                {
+                    responseData: {
+                        body: axiosResponse.data,
+                        status: axiosResponse.status,
+                        statusText: axiosResponse.statusText,
+                        headers: axiosResponse.headers
+                    },
+                    requestData: {
+                        method,
+                        url,
+                        body: requestBody,
+                        headers: axiosResponse.config.headers
+                    }
+                },
+                { cause: error }
+            );
         }
 
         try {
             await this.validationService.validateBody(responseBody, metadata);
         }
         catch (error) {
-            throw new Error('Could not validate response body', { cause: error });
+            throw new HttpClientError(
+                'Could not validate response body',
+                {
+                    responseData: {
+                        body: axiosResponse.data,
+                        status: axiosResponse.status,
+                        statusText: axiosResponse.statusText,
+                        headers: axiosResponse.headers
+                    },
+                    requestData: {
+                        method,
+                        url,
+                        body: requestBody,
+                        headers: axiosResponse.config.headers
+                    }
+                },
+                { cause: error }
+            );
         }
 
         await Promise.all(
@@ -325,18 +370,69 @@ export class HttpClient implements HttpClientInterface {
                     );
                 }
                 catch (error) {
-                    throw new Error(`Could not parse response header "${headerMetadata.name}"`, { cause: error });
+                    throw new HttpClientError(
+                        `Could not parse response header "${headerMetadata.name}"`,
+                        {
+                            responseData: {
+                                body: axiosResponse.data,
+                                status: axiosResponse.status,
+                                statusText: axiosResponse.statusText,
+                                headers: axiosResponse.headers
+                            },
+                            requestData: {
+                                method,
+                                url,
+                                body: requestBody,
+                                headers: axiosResponse.config.headers
+                            }
+                        },
+                        { cause: error }
+                    );
                 }
 
                 try {
                     await this.validationService.validateHeaderParam(res.headers[key], headerMetadata);
                 }
                 catch (error) {
-                    throw new Error(`Could not validate response header "${headerMetadata.name}"`, { cause: error });
+                    throw new HttpClientError(
+                        `Could not validate response header "${headerMetadata.name}"`,
+                        {
+                            responseData: {
+                                body: axiosResponse.data,
+                                status: axiosResponse.status,
+                                statusText: axiosResponse.statusText,
+                                headers: axiosResponse.headers
+                            },
+                            requestData: {
+                                method,
+                                url,
+                                body: requestBody,
+                                headers: axiosResponse.config.headers
+                            }
+                        },
+                        { cause: error }
+                    );
                 }
             })
         );
 
         return { ...res, body: responseBody };
+    }
+
+    private getErrorMessage(message: string, data: HttpClientErrorOptions): string {
+        if (!data.responseData) {
+            if (data.requestData) {
+                return `No response received for ${data.requestData.method.toUpperCase()} ${data.requestData.url}:\n${message}`;
+            }
+            return `Could not send the request:\n${message}`;
+        }
+
+        if (!data.requestData) {
+            return `Could not send the request:\n${message}`;
+        }
+
+        const fullUrl: string = `${data.requestData.method.toUpperCase()} ${data.requestData.url}`;
+
+        return `Request ${fullUrl} failed with ${data.responseData.status} ${data.responseData.statusText}`;
     }
 }

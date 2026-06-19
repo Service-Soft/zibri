@@ -4,13 +4,14 @@ import SMTPTransport from 'nodemailer/lib/smtp-transport';
 import { EmailServiceInterface } from './email-service.interface';
 import { ZibriApplication } from '../application';
 import { CreateEmailData, QueueEmailData } from './models/create-email-data.model';
+import { Email } from './models/email.model';
 import { SendQueuedEmailsCronJob } from './send-queued-emails.cron-job';
 import { Repository } from '../data-source/repository';
-import { Email } from './models/email.model';
 import { InjectRepository } from '../di/decorators/inject-repository.decorator';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { OnAppInit } from '../global/on-app-init.interface';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { RateLimiter } from '../rate-limiting/rate-limiter';
 import { FsUtilities } from '../utilities/fs.utilities';
@@ -18,7 +19,7 @@ import { EmailAttachment } from './models/email-attachment.model';
 import { EmailConfig, EmailConfigInput } from './models/email-config.model';
 import { EmailPriority } from './models/email-priority.enum';
 import { EmailStatus } from './models/email-status.enum';
-import { OnAppInit } from '../global/on-app-init.interface';
+import { InternalError } from '../error-handling/internal-error.model';
 import { OnAppShutdown } from '../global/on-app-shutdown.interface';
 
 /**
@@ -48,7 +49,7 @@ export class EmailService implements EmailServiceInterface, OnAppInit, OnAppShut
         config: EmailConfigInput | undefined
     ) {
         if (!config) {
-            throw new Error('no email config was provided for the token "ZIBRI_DI_TOKENS.MAIL_CONFIG"');
+            throw new InternalError('no email config was provided for the token "ZIBRI_DI_TOKENS.MAIL_CONFIG"');
         }
         this.config = {
             pool: true,
@@ -140,7 +141,7 @@ export class EmailService implements EmailServiceInterface, OnAppInit, OnAppShut
         await Promise.all(
             attachments.map(async a => {
                 if (!await FsUtilities.exists(a.path)) {
-                    throw new Error(`mail attachment at path ${a.path} does not exist`);
+                    throw new InternalError(`mail attachment at path ${a.path} does not exist`);
                 }
             })
         );

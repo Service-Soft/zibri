@@ -1,5 +1,5 @@
 /* eslint-disable typescript/no-non-null-assertion */
-import { MailingList, MailingListPreferencesPageTemplate, MaskUtilities, onClient } from 'zibri';
+import { $ts, MailingList, MailingListPreferencesPageTemplate, MaskUtilities, onClient } from 'zibri';
 
 import { Button } from '../components/button';
 import { Card } from '../components/card';
@@ -96,31 +96,31 @@ export const MailingListPreferencesPage: MailingListPreferencesPageTemplate = ({
     function setIsLoading(): void {
         updateButton.disabled = true;
         statusBar.style.backgroundColor = 'gray';
-        statusBar.textContent = 'loading...';
+        statusBar.textContent = $ts`loading...`;
     }
     function setIsSuccess(): void {
         removeStatus();
         statusBar.style.backgroundColor = 'green';
-        statusBar.textContent = 'preferences updated';
+        statusBar.textContent = $ts`preferences updated`;
         reset();
         setTimeout(removeStatus, 3000);
     }
     function setIsFailed(): void {
         removeStatus();
         statusBar.style.backgroundColor = 'red';
-        statusBar.textContent = 'failed updating preferences';
+        statusBar.textContent = $ts`failed updating preferences`;
         reset();
         setTimeout(removeStatus, 3000);
     }
 
     return (
         <>
-            <EmptyPage title='Mailing List Preferences'>
+            <EmptyPage title={$ts`Mailing List Preferences`}>
                 <Card className='text-center flex flex-col gap-6'>
                     <img className="block mx-auto" src="/assets/logo.jpg" width="200px" height="200px"/>
                     <p className="text-center">{email}</p>
                     <Heading className='my-2'>
-                        Mailing list preferences
+                        {$ts`Mailing list preferences`}
                     </Heading>
                     <ul>
                         {lists.map(l => <li className="mb-2">
@@ -128,7 +128,7 @@ export const MailingListPreferencesPage: MailingListPreferencesPageTemplate = ({
                             </Checkbox>
                         </li>)}
                     </ul>
-                    <Button onClick={() => void update()} className='mx-auto' disabled id='update-button'>Update</Button>
+                    <Button onClick={() => void update()} className='mx-auto' disabled id='update-button'>{$ts`Update`}</Button>
                     <div
                         className="flex items-center justify-center h-6 -mt-[9px] -m-[15px] transition duration-300 ease-in"
                         id="status-bar"

@@ -1,5 +1,5 @@
 import type { Chart as ChartJsChart } from 'chart.js';
-import { MetricsSnapshot, PreactComponent } from 'zibri';
+import { $f, $ts, MetricsSnapshot, PreactComponent } from 'zibri';
 
 import { Chart } from './chart';
 
@@ -66,20 +66,20 @@ export const CacheOverviewChart: PreactComponent<Props> = ({ secondary, classNam
     return <>
         <Chart
             className={className}
-            title='Overview'
+            title={$ts`Overview`}
             canvasId='cacheOverviewChart'
             chartConfig={{
                 type: 'line',
                 data: {
                     datasets: [
                         {
-                            label: 'Hit rate',
+                            label: $ts`Hit rate`,
                             data: [],
                             backgroundColor: secondary,
                             borderColor: secondary
                         },
                         {
-                            label: 'Cache Errors',
+                            label: $ts`Cache Errors`,
                             data: [],
                             fill: true,
                             yAxisID: 'y1',
@@ -104,15 +104,15 @@ export const CacheOverviewChart: PreactComponent<Props> = ({ secondary, classNam
                         y: {
                             min: 0,
                             max: 100,
-                            ticks: { callback: v => `${v}%` },
-                            title: { display: true, text: 'Hit rate (%)' },
+                            ticks: { callback: v => $f.percent(Number(v)) },
+                            title: { display: true, text: $ts`Hit rate (%)` },
                             grid: { display: true }
                         },
                         y1: {
                             min: 0,
                             position: 'right',
                             grid: { drawOnChartArea: false },
-                            title: { display: true, text: 'Errors' },
+                            title: { display: true, text: $ts`Errors` },
                             ticks: { stepSize: 1 }
                         }
                     }

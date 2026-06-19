@@ -8,6 +8,7 @@ import { FormDataBodyParserCleanupCronJob } from './form-data-body-parser-cleanu
 import { FormData, FormDataValue } from './form-data.model';
 import { ZibriApplication } from '../../application';
 import { inject } from '../../di/inject.function';
+import { InternalError } from '../../error-handling/internal-error.model';
 import { OnAppInit } from '../../global/on-app-init.interface';
 import { HttpRequest } from '../../http/http-request.model';
 import { MimeType } from '../../http/mime-type.enum';
@@ -18,6 +19,7 @@ import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { Relation } from '../../entity/models/relation.enum';
 import { ContentTooLargeError } from '../../error-handling/errors/content-too-large.error';
+import { UnsupportedMediaTypeError } from '../../error-handling/errors/unsupported-media-type.error';
 import { KnownHeader } from '../../http/known-header.enum';
 import { FileExtension, resolveFileExtension } from '../../http/mime-type.helpers';
 import { HttpClientResponse } from '../../http-client/http-client-response.model';
@@ -42,7 +44,7 @@ type ParsedForm = {
 };
 
 /**
- * Body parser for form data.
+ * Body parser for form data. Only works with http requests.
  */
 @BodyParser()
 export class FormDataBodyParser implements BodyParserInterface, OnAppInit {
@@ -58,7 +60,7 @@ export class FormDataBodyParser implements BodyParserInterface, OnAppInit {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     parseFromWebsocketRequest(): unknown {
-        throw new Error('A form data body cannot be used with websocket requests');
+        throw new InternalError('A form data body cannot be used with websocket requests');
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -84,7 +86,7 @@ export class FormDataBodyParser implements BodyParserInterface, OnAppInit {
             return body as FormData<typeof metadata.modelClass>;
         }
         if (metadata.type !== MimeType.FORM_DATA) {
-            throw new Error(`${metadata.type} is not supported`);
+            throw new UnsupportedMediaTypeError(metadata.type);
         }
         const contentLength: string | undefined = headers[KnownHeader.CONTENT_LENGTH];
         if (contentLength && NumberUtilities.new(Number(contentLength)).isGreaterThan(metadata.maxSize)) {
@@ -215,7 +217,7 @@ export class FormDataBodyParser implements BodyParserInterface, OnAppInit {
     ): void {
         const existingValue: FormDataValue | undefined = values.get(rawFile.fieldname as keyof T);
         if (typeof existingValue === 'string') {
-            throw new Error('Your form-data contains files and strings for the same key.');
+            throw new InternalError('Your form-data contains files and strings for the same key.');
         }
         const file: File = new File(rawFile);
         if (existingValue == undefined) {

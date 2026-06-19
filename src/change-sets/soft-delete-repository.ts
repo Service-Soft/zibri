@@ -4,7 +4,6 @@ import { ChangeSetRepository } from './change-set-repository';
 import { SoftDeleteEntity } from './models/soft-delete-entity.model';
 import { DeleteAllOptions } from '../data-source/models/options/delete-all-options.model';
 import { DeleteByIdOptions } from '../data-source/models/options/delete-by-id-options.model';
-import { Repository } from '../data-source/repository';
 import { PaginationResult } from '../open-api/pagination-result.model';
 import { DeepPartial } from '../types/deep-partial.type';
 import { Newable } from '../types/newable.type';
@@ -19,11 +18,13 @@ import { SoftDeleteWhere } from './models/soft-delete-where.model';
 import { BeforeReturnHook } from '../data-source/hooks/before-return';
 import { BeforeSaveHook } from '../data-source/hooks/before-save';
 import { Where } from '../data-source/models/where/where-filter.model';
+import { Repository } from '../data-source/repository';
 import { NotFoundError } from '../error-handling/errors/not-found.error';
 import { LoggerInterface } from '../logging/logger.interface';
 import { ChangeSet, CreateChangeSetData } from './models/change-set.model';
 import { AuthServiceInterface } from '../auth/auth-service.interface';
 import { DataSourceInterface } from '../data-source/data-sources/data-source.interface';
+import { $ts } from '../localization/translate.function';
 
 /**
  * Options for deleting a soft delete entity by its id.
@@ -99,7 +100,7 @@ export class SoftDeleteRepository<
             return res;
         }
         if (res.deleted) {
-            throw new NotFoundError(`Could not find ${this.entityClass.name} with id "${id}".`);
+            throw new NotFoundError($ts`Could not find ${this.entityClass.name} with id "${id}".`);
         }
         return res;
     }
@@ -160,7 +161,7 @@ export class SoftDeleteRepository<
         }
         const entity: T = await this.findById(id, options);
         if (entity.deleted) {
-            throw new NotFoundError(`Could not find ${this.entityClass.name} with id "${id}".`);
+            throw new NotFoundError($ts`Could not find ${this.entityClass.name} with id "${id}".`);
         }
         const res: T = await this.updateById(id, { deleted: true } as UpdateData, options);
         await this.createChangeSet(entity, { deleted: true } as UpdateData, ChangeSetType.DELETE, options, true);

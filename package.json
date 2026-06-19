@@ -1,6 +1,6 @@
 {
     "name": "zibri",
-    "version": "2.5.0",
+    "version": "3.0.0",
     "main": "./dist/cjs/index.js",
     "types": "./dist/cjs/index.d.ts",
     "module": "./dist/esm/index.mjs",
@@ -22,7 +22,7 @@
         "./LICENSE"
     ],
     "engines": {
-        "node": ">=20"
+        "node": ">=22"
     },
     "scripts": {
         "test": "jest",
@@ -69,7 +69,6 @@
         "@fastify/busboy": "^3.2.0",
         "cors": "^2.8.6",
         "express": "^5.2.1",
-        "glob": "^13.0.6",
         "node-cron": "^4.2.1",
         "nodemailer": "^8.0.8",
         "pg": "^8.21.0",

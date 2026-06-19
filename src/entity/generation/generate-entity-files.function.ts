@@ -2,12 +2,16 @@ import { register as tsNodeRegister } from 'ts-node';
 
 import { FileToGenerate, generateEntityFilesForProvider, GenerateEntityFilesForProviderResult } from './generate-entity-files-for-provider.function';
 import { EntityGenerationProvider } from './providers/entity-generation-provider.interface';
+import { initDiContainer } from '../../di/init-di-container.function';
+import { InternalError } from '../../error-handling/internal-error.model';
 import { FsUtilities, FsPath } from '../../utilities/fs.utilities';
 
 /**
  * Resolves providers from the src/models/generated/providers.ts file and generates entities from them.
  */
 export async function generateEntityFiles(): Promise<void> {
+    initDiContainer();
+
     const cwd: string = process.cwd();
     const providersPath: FsPath = await resolveProvidersPath(cwd);
     const ext: string = FsUtilities.extensionName(providersPath).toLowerCase();
@@ -22,7 +26,7 @@ export async function generateEntityFiles(): Promise<void> {
     const providersRaw: unknown = (imported.providers ?? imported.default) as unknown;
 
     if (!Array.isArray(providersRaw)) {
-        throw new Error(`Expected 'providers' (or default export) to be an array in ${providersPath}`);
+        throw new InternalError(`Expected 'providers' (or default export) to be an array in ${providersPath}`);
     }
 
     const indexLines: string[] = [];
@@ -56,7 +60,7 @@ async function resolveProvidersPath(cwd: string): Promise<FsPath> {
         if (await FsUtilities.exists(p)) {
             return p;
         }
-        throw new Error(`Could not locate ${p}`);
+        throw new InternalError(`Could not locate ${p}`);
     }));
     return providersPath;
 }

@@ -1,6 +1,7 @@
 import { Inject } from '../../../../../di/decorators/inject.decorator';
 import { PdfDocumentDefinition, PdfAttachmentDefinition, PdfDocument } from '../../../../../document/pdf.utilities';
 import { XML, XmlUtilities } from '../../../../../document/xml.utilities';
+import { InternalError } from '../../../../../error-handling/internal-error.model';
 import { MimeType } from '../../../../../http/mime-type.enum';
 import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../../../invoicing.tokens';
 import { InvoiceItem } from '../../../models/invoice-item.model';
@@ -67,7 +68,7 @@ export abstract class EN16931ConformanceService implements InvoiceConformanceSer
         // urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0
     ): Promise<XML> {
         if (!tradeContact) {
-            throw new Error('No trade contact has been provided. (This defaults to companyInfo.CEO)');
+            throw new InternalError('No trade contact has been provided. (This defaults to companyInfo.CEO)');
         }
         const root: XML = XmlUtilities.create({
             version: '1.0',
@@ -121,7 +122,7 @@ export abstract class EN16931ConformanceService implements InvoiceConformanceSer
         const paymentMeans: XML = tradeSettlement.ele('ram:SpecifiedTradeSettlementPaymentMeans');
         paymentMeans.ele('ram:TypeCode').txt('58');
         if (!this.options.companyInfo.iban || !this.options.companyInfo.bic) {
-            throw new Error('At least the iban and bic need to be provided for payment information.');
+            throw new InternalError('At least the iban and bic need to be provided for payment information.');
         }
         paymentMeans.ele('ram:PayeePartyCreditorFinancialAccount').ele('ram:IBANID')
             .txt(this.options.companyInfo.iban);
@@ -139,7 +140,7 @@ export abstract class EN16931ConformanceService implements InvoiceConformanceSer
             tax.ele('ram:TypeCode').txt('VAT');
             if (taxGroup.categoryCode === 'E') {
                 if (!taxGroup.exemptionReason) {
-                    throw new Error('No exemption reason has been provided.');
+                    throw new InternalError('No exemption reason has been provided.');
                 }
                 tax.ele('ram:ExemptionReason').txt(taxGroup.exemptionReason);
             }
@@ -173,7 +174,7 @@ export abstract class EN16931ConformanceService implements InvoiceConformanceSer
         const buyerParty: XML = tradeAgreement.ele('ram:BuyerTradeParty');
         buyerParty.ele('ram:Name').txt(this.getCustomerName(invoice));
         if (!invoice.customerAddressData.email) {
-            throw new Error('No customer email has been provided (invoice.customerAddressData.email).');
+            throw new InternalError('No customer email has been provided (invoice.customerAddressData.email).');
         }
         const buyerPostalTradeAddress: XML = buyerParty.ele('ram:PostalTradeAddress');
         buyerPostalTradeAddress.ele('ram:PostcodeCode').txt(invoice.customerAddressData.postcode);
@@ -190,7 +191,7 @@ export abstract class EN16931ConformanceService implements InvoiceConformanceSer
         const sellerParty: XML = tradeAgreement.ele('ram:SellerTradeParty');
         sellerParty.ele('ram:Name').txt(this.options.companyInfo.fullName);
         if (!this.options.companyInfo.taxNumber) {
-            throw new Error('No tax number has been provided.');
+            throw new InternalError('No tax number has been provided.');
         }
         sellerParty.ele('ram:SpecifiedLegalOrganization')
             .ele('ram:ID')

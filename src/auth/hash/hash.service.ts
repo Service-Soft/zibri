@@ -9,8 +9,20 @@ import { Injectable } from '../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { register } from '../../di/register.function';
+import { InternalError } from '../../error-handling/internal-error.model';
 import { OnAppInit } from '../../global/on-app-init.interface';
 import type { Newable } from '../../types/newable.type';
+
+/**
+ * An error to throw during hash service initialization.
+ */
+class InitHashServiceError extends InternalError {
+    constructor(message: string | string[]) {
+        const messageArray: string[] = typeof message === 'string' ? [message] : message;
+        super(['Error initializing hash service.', ...messageArray]);
+        this.name = 'InitHashServiceError';
+    }
+}
 
 /**
  * Default hash service implementation of Zibri.
@@ -31,7 +43,7 @@ export class HashService implements HashServiceInterface, OnAppInit {
     // eslint-disable-next-line jsdoc/require-jsdoc
     async onAppInit(): Promise<void> {
         if (!this.hashStrategies.length) {
-            throw new Error('Needs to provide at least one hash strategy.');
+            throw new InitHashServiceError('Needs to provide at least one hash strategy.');
         }
         for (const strategy of this.hashStrategies) {
             register({ token: strategy, useClass: strategy });
@@ -71,7 +83,9 @@ export class HashService implements HashServiceInterface, OnAppInit {
             s => s instanceof options.strategy
         );
         if (!strategy) {
-            throw new Error(`The given strategy ${options.strategy.name} was not provided as part of ZIBRI_DI_TOKENS.HASH_STRATEGIES`);
+            throw new InternalError(
+                `The given strategy ${options.strategy.name} was not provided as part of ZIBRI_DI_TOKENS.HASH_STRATEGIES`
+            );
         }
         return await strategy.hash(value, options.strategyOptions);
     }
@@ -95,7 +109,7 @@ export class HashService implements HashServiceInterface, OnAppInit {
             s => s.name === name && s.version === version
         );
         if (!res) {
-            throw new Error(`No strategy found for ${name} (${version})`);
+            throw new InternalError(`No strategy found for ${name} (${version})`);
         }
         return res;
     }
@@ -121,11 +135,11 @@ export class HashService implements HashServiceInterface, OnAppInit {
             s => this.strategies.filter(hs => hs.name === s.name && hs.version === s.version).length > 1
         );
         if (duplicateStrategies.length) {
-            throw new Error(
+            throw new InitHashServiceError(
                 [
                     'There are duplicate hash strategies:',
-                    [...new Set(duplicateStrategies)].map(s => `- ${s.name} (${s.version})`)
-                ].join('\n')
+                    ...[...new Set(duplicateStrategies)].map(s => `- ${s.name} (${s.version})`)
+                ]
             );
         }
     }
@@ -136,12 +150,11 @@ export class HashService implements HashServiceInterface, OnAppInit {
             s => !this.strategies.some(hs => hs.name === s.name && hs.version === s.version)
         );
         if (missingStrategies.length) {
-            const message: string[] = ['Error initializing hash service.', 'There are missing strategies:'];
-            for (const strategy of missingStrategies) {
-                message.push(`  - ${strategy.name} (${strategy.version})`);
-            }
-            message.push('Did you remove them?');
-            throw new Error(message.join('\n'));
+            throw new InitHashServiceError([
+                'There are missing strategies:',
+                ...missingStrategies.map(s => `  - ${s.name} (${s.version})`),
+                'Did you remove them?'
+            ]);
         }
     }
 
@@ -152,13 +165,10 @@ export class HashService implements HashServiceInterface, OnAppInit {
         if (!strategiesWithDotsInNameOrVersion.length) {
             return;
         }
-        const message: string[] = [
-            'Error initializing hash service.',
-            'There are strategies that use dots in either the version or the name:'
-        ];
-        for (const strategy of strategiesWithDotsInNameOrVersion) {
-            message.push(`  - ${strategy.name} (${strategy.version})`);
-        }
-        throw new Error(message.join('\n'));
+
+        throw new InitHashServiceError([
+            'There are strategies that use dots in either the version or the name:',
+            ...strategiesWithDotsInNameOrVersion.map(s => `  - ${s.name} (${s.version})`)
+        ]);
     }
 }

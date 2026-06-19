@@ -1,12 +1,12 @@
 import { ComponentChildren } from 'preact';
-import { LanguageCode, PreactEmailComponent } from 'zibri';
+import { LocaleCode, PreactEmailComponent } from 'zibri';
 
 import { EmailBody } from './email-body';
 import { EmailHead } from './email-head';
 import { EmailHtml } from './email-html';
 
 type Props = {
-    lang?: LanguageCode,
+    lang?: LocaleCode,
     dir?: 'auto' | 'rtl' | 'ltr',
     backgroundColor?: string,
     width?: string,

@@ -6,6 +6,7 @@ import { ObjectUtilities } from '../utilities/object.utilities';
 export enum KnownHeader {
     ACCEPT = 'accept',
     ACCEPT_ENCODING = 'accept-encoding',
+    ACCEPT_LANGUAGE = 'accept-language',
     AUTHORIZATION = 'authorization',
     CACHE_CONTROL = 'cache-control',
     CONTENT_LENGTH = 'content-length',

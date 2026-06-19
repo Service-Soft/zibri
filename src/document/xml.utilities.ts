@@ -18,4 +18,13 @@ export abstract class XmlUtilities {
     static create(options: XMLBuilderCreateOptions = { version: '1.0', encoding: 'utf8' }): XML {
         return createXml(options);
     }
+
+    /**
+     * Parses the given xml.
+     * @param xml - The xml content to parse.
+     * @returns The parsed result.
+     */
+    static parse<T>(xml: string): T {
+        return createXml(xml).end({ format: 'object' }) as T;
+    }
 }

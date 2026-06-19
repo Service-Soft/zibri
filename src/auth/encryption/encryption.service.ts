@@ -24,7 +24,9 @@ import { inject } from '../../di/inject.function';
 import { register } from '../../di/register.function';
 import { AnyObject } from '../../entity/any-object.model';
 import { NotFoundError } from '../../error-handling/errors/not-found.error';
+import { InternalError } from '../../error-handling/internal-error.model';
 import { OnAppInit } from '../../global/on-app-init.interface';
+import { $ts } from '../../localization/translate.function';
 import { type LoggerInterface } from '../../logging/logger.interface';
 import { type MetricsServiceInterface } from '../../metrics/metrics-service.interface';
 import { type DeepPartial } from '../../types/deep-partial.type';
@@ -40,7 +42,56 @@ type StrategyAndEntity<TKey> = {
     entity: EncryptionStrategyEntity | undefined
 };
 
-const INIT_ERROR_MESSAGE: string = 'Error initializing encryption service.';
+/**
+ * An error to throw during encryption service initialization.
+ */
+class InitEncryptionServiceError extends InternalError {
+    constructor(message: string | string[]) {
+        const messageArray: string[] = typeof message === 'string' ? [message] : message;
+        super(['Error initializing encryption service.', ...messageArray]);
+        this.name = 'InitEncryptionServiceError';
+    }
+}
+
+/**
+ * An error to throw when someone tries to delete the default encryption key without passing in { allowDefault: true }.
+ */
+class DefaultEncryptionKeyCannotBeDeletedError extends InternalError {
+    constructor(options?: ErrorOptions) {
+        super('Cannot delete the default key. Pass allowDefault: true to override.', options);
+        this.name = 'DefaultEncryptionKeyCannotBeDeletedError';
+    }
+}
+
+/**
+ * An error to throw when an encryption strategy with the given name and version could not be found.
+ */
+class EncryptionStrategyNotFoundError extends InternalError {
+    constructor(name: string, version: string, options?: ErrorOptions) {
+        super(`No strategy found for ${name} (${version})`, options);
+        this.name = 'EncryptionStrategyNotFoundError';
+    }
+}
+
+/**
+ * An error to throw when a master encryption strategy with the given name and version could not be found.
+ */
+class MasterEncryptionStrategyNotFoundError extends InternalError {
+    constructor(name: string, version: string, options?: ErrorOptions) {
+        super(`No master strategy found for ${name} (${version})`, options);
+        this.name = 'MasterEncryptionStrategyNotFoundError';
+    }
+}
+
+/**
+ * An error to throw when a master key with the given id could not be found.
+ */
+class MasterKeyNotFoundError extends InternalError {
+    constructor(keyId: string, options?: ErrorOptions) {
+        super(`No master key found with id "${keyId}"`, options);
+        this.name = 'MasterKeyNotFoundError';
+    }
+}
 
 @Cache()
 // eslint-disable-next-line jsdoc/require-jsdoc
@@ -95,7 +146,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async onAppInit(): Promise<void> {
         if (!this.strategyClasses.length) {
-            throw new Error('Needs to provide at least one encryption strategy.');
+            throw new InitEncryptionServiceError('Needs to provide at least one encryption strategy.');
         }
         for (const strategy of this.strategyClasses) {
             register({ token: strategy, useClass: strategy });
@@ -175,7 +226,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
             s => s instanceof options.strategy
         ) as EncryptionStrategyInterface<TKey> | undefined;
         if (!strategy) {
-            throw new Error(
+            throw new InternalError(
                 `The given strategy ${options.strategy.name} was not provided as part of ZIBRI_DI_TOKENS.ENCRYPTION_STRATEGIES`
             );
         }
@@ -234,7 +285,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
             s => s.name === strategy.name && s.version === strategy.version
         );
         if (!entity) {
-            throw new NotFoundError(`Could not find ${EncryptionStrategyEntity.name}.`);
+            throw new NotFoundError($ts`Could not find ${EncryptionStrategyEntity.name}.`);
         }
         const currentDefaultKey: EncryptionKey | undefined = entity.keys.find(k => k.status === EncryptionKeyStatus.DEFAULT);
         if (data.status === EncryptionKeyStatus.DEFAULT && currentDefaultKey) {
@@ -250,7 +301,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
     ): Promise<void> {
         const key: EncryptionKey = await this.findKeyEntityById(keyId, options);
         if (key.status === EncryptionKeyStatus.DEFAULT && !(options?.allowDefault ?? false)) {
-            throw new Error('Cannot delete the default key. Pass allowDefault: true to override.');
+            throw new DefaultEncryptionKeyCannotBeDeletedError();
         }
 
         await this.deleteKeyEntityById(keyId, options);
@@ -261,7 +312,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         const keys: EncryptionKey[] = await this.keyRepository.findAll({ where });
 
         if (!(options.allowDefault ?? false) && keys.some(k => k.status === EncryptionKeyStatus.DEFAULT)) {
-            throw new Error('Cannot delete a default key. Pass allowDefault: true to override.');
+            throw new DefaultEncryptionKeyCannotBeDeletedError();
         }
 
         const transaction: Transaction = options.transaction ?? await this.keyRepository.dataSource.startTransaction();
@@ -298,11 +349,11 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
                 s => s.name === strategy.name && s.version === strategy.version
             );
             if (!entity) {
-                throw new NotFoundError(`Could not find ${EncryptionStrategyEntity.name}.`);
+                throw new NotFoundError($ts`Could not find ${EncryptionStrategyEntity.name}.`);
             }
             const key: EncryptionKey = await this.findKeyEntityById(keyId, options);
             if (key.strategy.name !== strategy.name || key.strategy.version !== strategy.version) {
-                throw new Error('The key for the given id has a different strategy than the provided one');
+                throw new InternalError('The key for the given id has a different strategy than the provided one');
             }
 
             const currentDefaultKey: EncryptionKey | undefined = entity.keys.find(k => k.status === EncryptionKeyStatus.DEFAULT);
@@ -343,7 +394,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
             s => s.name === strategy.name && s.version === strategy.version
         );
         if (!strategyEntity) {
-            throw new NotFoundError(`Could not find ${EncryptionStrategyEntity.name}.`);
+            throw new NotFoundError($ts`Could not find ${EncryptionStrategyEntity.name}.`);
         }
         const key: EncryptionKey = await this.findKeyEntityById(content.keyId, undefined);
         return strategyEntity.status === EncryptionStrategyStatus.DEPRECATED || key.status === EncryptionKeyStatus.DEPRECATED;
@@ -357,7 +408,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         ];
         const key: EncryptionMasterKey<unknown> | undefined = allKeys.find(k => k.id === content.keyId);
         if (!key) {
-            throw new Error(`No master key found with id "${content.keyId}"`);
+            throw new MasterKeyNotFoundError(content.keyId);
         }
         const allStrategies: EncryptionStrategyInterface<unknown>[] = [
             this.options.currentMasterStrategy,
@@ -367,7 +418,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
             k => k.name === content.strategyName && k.version === content.version
         );
         if (!strategy) {
-            throw new Error(`No master strategy found for ${content.strategyName} (${content.version})`);
+            throw new MasterEncryptionStrategyNotFoundError(content.strategyName, content.version);
         }
         return strategy.name !== this.options.currentMasterStrategy.name
             || strategy.version !== this.options.currentMasterStrategy.version
@@ -433,7 +484,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
     private async deleteKeyEntityById(id: string, options: BaseRepositoryOptions | undefined): Promise<void> {
         const strategy: EncryptionStrategyEntity | undefined = this.strategyEntities.find(s => s.keys.some(k => k.id === id));
         if (!strategy) {
-            throw new NotFoundError(`Could not find strategy for key with id ${id}`);
+            throw new NotFoundError($ts`Could not find strategy for key with id ${id}`);
         }
         strategy.keys = strategy.keys.filter(k => k.id !== id);
         await this.keyRepository.deleteById(id, options);
@@ -469,7 +520,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
             s => s.name === name && s.version === version
         ) as EncryptionStrategyInterface<TKey, TEncryptOptions, TDecryptOptions> | undefined;
         if (!res) {
-            throw new Error(`No strategy found for ${name} (${version})`);
+            throw new EncryptionStrategyNotFoundError(name, version);
         }
         return res;
     }
@@ -483,7 +534,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
             s => inject(s).name === name && inject(s).version === version
         ) as Newable<EncryptionStrategyInterface<TKey, TEncryptOptions, TDecryptOptions>> | undefined;
         if (!res) {
-            throw new Error(`No strategy found for ${name} (${version})`);
+            throw new EncryptionStrategyNotFoundError(name, version);
         }
         return res;
     }
@@ -499,9 +550,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
 
         const content: EncryptionContent = EncryptionUtilities.encryptionStringToContent(encrypted);
         if (content.keyId !== this.options.currentMasterKey.id) {
-            throw new Error(
-                `Master key id mismatch: expected ${this.options.currentMasterKey.id}, got ${content.keyId}`
-            );
+            throw new InternalError(`Master key id mismatch: expected ${this.options.currentMasterKey.id}, got ${content.keyId}`);
         }
         return encrypted;
     }
@@ -513,14 +562,14 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
             ...this.options.oldMasterKeys ?? []
         ].find(k => k.id === content.keyId);
         if (!masterKey) {
-            throw new Error(`Could not find master encryption key with id "${content.keyId}"`);
+            throw new MasterKeyNotFoundError(content.keyId);
         }
         const masterStrategy: EncryptionStrategyInterface<unknown> | undefined = [
             this.options.currentMasterStrategy,
             ...this.options.oldMasterStrategies ?? []
         ].find(s => s.name === content.strategyName && s.version === content.version);
         if (!masterStrategy) {
-            throw new Error(`Could not find master encryption strategy ${content.strategyName} (${content.version})`);
+            throw new MasterEncryptionStrategyNotFoundError(content.strategyName, content.version);
         }
         return await masterStrategy.decrypt(encrypted, { key: masterKey.value, keyId: masterKey.id });
     }
@@ -537,12 +586,10 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
             s => this.strategies.filter(hs => hs.name === s.name && hs.version === s.version).length > 1
         );
         if (duplicateStrategies.length) {
-            throw new Error(
-                [
-                    'There are duplicate encryption strategies:',
-                    [...new Set(duplicateStrategies)].map(s => `- ${s.name} (${s.version})`)
-                ].join('\n')
-            );
+            throw new InitEncryptionServiceError([
+                'There are duplicate encryption strategies:',
+                ...[...new Set(duplicateStrategies)].map(s => `- ${s.name} (${s.version})`)
+            ]);
         }
     }
 
@@ -555,12 +602,10 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
             s => allMasterStrategies.filter(hs => hs.name === s.name && hs.version === s.version).length > 1
         );
         if (duplicateStrategies.length) {
-            throw new Error(
-                [
-                    'There are duplicate master encryption strategies:',
-                    [...new Set(duplicateStrategies)].map(s => `- ${s.name} (${s.version})`)
-                ].join('\n')
-            );
+            throw new InitEncryptionServiceError([
+                'There are duplicate master encryption strategies:',
+                ...[...new Set(duplicateStrategies)].map(s => `- ${s.name} (${s.version})`)
+            ]);
         }
     }
 
@@ -569,12 +614,11 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
             s => !this.strategies.some(hs => hs.name === s.name && hs.version === s.version)
         );
         if (missingStrategies.length) {
-            const message: string[] = [INIT_ERROR_MESSAGE, 'There are missing strategies:'];
-            for (const strategy of missingStrategies) {
-                message.push(`  - ${strategy.name} (${strategy.version})`);
-            }
-            message.push('Did you remove them?');
-            throw new Error(message.join('\n'));
+            throw new InitEncryptionServiceError([
+                'There are missing strategies:',
+                ...missingStrategies.map(s => `  - ${s.name} (${s.version})`),
+                'Did you remove them?'
+            ]);
         }
     }
 
@@ -590,11 +634,11 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         if (!keysWithDotsInId.length) {
             return;
         }
-        const message: string[] = [INIT_ERROR_MESSAGE, 'There are master keys that use dots in their id:'];
-        for (const key of keysWithDotsInId) {
-            message.push(`  - ${key.id}`);
-        }
-        throw new Error(message.join('\n'));
+
+        throw new InitEncryptionServiceError([
+            'There are master keys that use dots in their id:',
+            ...keysWithDotsInId.map(k => `  - ${k.id}`)
+        ]);
     }
 
     private validateNoMissingMasterKeyIds(keys: EncryptionKey[]): void {
@@ -611,13 +655,10 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
             return;
         }
 
-        throw new Error(
-            [
-                INIT_ERROR_MESSAGE,
-                'There are missing master key ids:',
-                ...missingKeyIds.map(id => `  - ${id}`)
-            ].join('\n')
-        );
+        throw new InitEncryptionServiceError([
+            'There are missing master key ids:',
+            ...missingKeyIds.map(id => `  - ${id}`)
+        ]);
     }
 
     private validateNoMissingMasterEncryptionStrategy(keys: EncryptionKey[]): void {
@@ -631,12 +672,11 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
                 s => !allMasterStrategies.some(hs => hs.name === s.strategyName && hs.version === s.version)
             );
         if (missingStrategies.length) {
-            const message: string[] = [INIT_ERROR_MESSAGE, 'There are missing master strategies:'];
-            for (const strategy of missingStrategies) {
-                message.push(`  - ${strategy.strategyName} (${strategy.version})`);
-            }
-            message.push('Did you remove them?');
-            throw new Error(message.join('\n'));
+            throw new InitEncryptionServiceError([
+                'There are missing master strategies:',
+                ...missingStrategies.map(s => `  - ${s.strategyName} (${s.version})`),
+                'Did you remove them?'
+            ]);
         }
     }
 
@@ -647,14 +687,11 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         if (!strategiesWithDotsInNameOrVersion.length) {
             return;
         }
-        const message: string[] = [
-            INIT_ERROR_MESSAGE,
-            'There are strategies that use dots in either the version or the name:'
-        ];
-        for (const strategy of strategiesWithDotsInNameOrVersion) {
-            message.push(`  - ${strategy.name} (${strategy.version})`);
-        }
-        throw new Error(message.join('\n'));
+
+        throw new InitEncryptionServiceError([
+            'There are strategies that use dots in either the version or the name:',
+            ...strategiesWithDotsInNameOrVersion.map(s => `  - ${s.name} (${s.version})`)
+        ]);
     }
 
     private validateMasterStrategyNamesAndVersions(): void {
@@ -668,14 +705,11 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         if (!strategiesWithDotsInNameOrVersion.length) {
             return;
         }
-        const message: string[] = [
-            INIT_ERROR_MESSAGE,
-            'There are master strategies that use dots in either the version or the name:'
-        ];
-        for (const strategy of strategiesWithDotsInNameOrVersion) {
-            message.push(`  - ${strategy.name} (${strategy.version})`);
-        }
-        throw new Error(message.join('\n'));
+
+        throw new InitEncryptionServiceError([
+            'There are master strategies that use dots in either the version or the name:',
+            ...strategiesWithDotsInNameOrVersion.map(s => `  - ${s.name} (${s.version})`)
+        ]);
     }
 
     private async reEncryptKeys(keys: EncryptionKey[]): Promise<void> {

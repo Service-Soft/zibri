@@ -1,4 +1,4 @@
-import { PreactComponent } from 'zibri';
+import { $ts, PreactComponent } from 'zibri';
 
 import { BasePage } from '../components/base-page';
 import { Card } from '../components/card';
@@ -16,26 +16,26 @@ export const HomePage: PreactComponent<Props> = ({ appName }) => {
             <div className="max-w-fit mx-auto grid grid-cols-2 gap-4">
                 <Card className="flex flex-col gap-2 max-w-80">
                     <Link href="/assets" icon="/assets/assets.svg">
-                        Assets
+                        {$ts`Assets`}
                     </Link>
                     <p>
-                        Lists all publicly registered assets.
+                        {$ts`Lists all publicly registered assets.`}
                     </p>
                 </Card>
                 <Card className="flex flex-col gap-2 max-w-80">
                     <Link href="/explorer" icon="/assets/open-api/swagger.png">
-                        OpenAPI Explorer
+                        {$ts`OpenAPI Explorer`}
                     </Link>
                     <p>
-                        The official OpenAPI/Swagger documentation.
+                        {$ts`The official OpenAPI/Swagger documentation.`}
                     </p>
                 </Card>
                 {/* <Card className="flex flex-col gap-2 max-w-80">
                     <Link href="/metrics/dashboard" icon="/assets/metrics.svg">
-                        Metrics
+                        {$ts`Metrics`}
                     </Link>
                     <p>
-                        A basic metrics dashboard.
+                        {$ts`A basic metrics dashboard.`}
                     </p>
                 </Card> */}
             </div>

@@ -8,6 +8,7 @@ import { testFileFolder } from '../__testing__/constants';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { startTestServer, StartedTestServer } from '../__testing__/test-server/start-test-server.function';
 import { HttpRequestContext } from '../context/request/http-request.context';
+import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../context/request/request-context-token.model';
 import { WebsocketRequestContext } from '../context/request/websocket-request.context';
 import { Inject } from '../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
@@ -29,10 +30,12 @@ class TestVersioningService extends VersioningService {
     constructor(
         @Inject(ZIBRI_DI_TOKENS.VERSION_HEADER)
         versionHeader: Header,
+        @Inject(ZIBRI_DI_TOKENS.VERSION_QUERY_PARAM)
+        versionQueryParam: string,
         @Inject(ZIBRI_DI_TOKENS.ROUTER)
         router: RouterInterface
     ) {
-        super(versionHeader, router);
+        super(versionHeader, versionQueryParam, router);
         // eslint-disable-next-line typescript/no-unsafe-member-access, typescript/no-explicit-any
         (this as any).versionsPath = testVersionsDir;
     }
@@ -51,7 +54,7 @@ class VersionResolveController {
         if (!context) {
             throw new Error('context missing');
         }
-        return this.versioningService.resolveVersion(context);
+        return context.get(ZIBRI_REQUEST_CONTEXT_TOKENS.CURRENT_VERSION);
     }
 }
 

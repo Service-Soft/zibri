@@ -5,6 +5,7 @@ import { InjectRepository } from '../../../di/decorators/inject-repository.decor
 import { Inject } from '../../../di/decorators/inject.decorator';
 import { Injectable } from '../../../di/decorators/injectable.decorator';
 import { ConflictError } from '../../../error-handling/errors/conflict.error';
+import { $ts } from '../../../localization/translate.function';
 import { OmitStrict } from '../../../types/omit-strict.type';
 import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../invoicing.tokens';
 import { InvoiceAddress } from '../models/invoice-address.model';
@@ -167,7 +168,7 @@ export class InvoiceNumberService implements InvoiceNumberServiceInterface<Invoi
      */
     protected async validateInvoiceNumber(invoiceNumber: string): Promise<void> {
         if (await this.invoiceRepository.findOne({ where: { number: invoiceNumber } }, false)) {
-            throw new ConflictError(`The generated invoice-number ${invoiceNumber} already exists!`);
+            throw new ConflictError($ts`The generated invoice-number ${invoiceNumber} already exists!`);
         }
     }
 }

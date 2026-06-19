@@ -2,6 +2,7 @@ import { Readable } from 'stream';
 
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
+import { InternalError } from '../../error-handling/internal-error.model';
 import { LooseFileMimeType, MimeType } from '../../http/mime-type.enum';
 import { resolveMimeType } from '../../http/mime-type.helpers';
 import { LoggerInterface } from '../../logging/logger.interface';
@@ -84,7 +85,7 @@ export class FileResponse {
         const mimeType: string = options?.mimeType ?? resolveMimeType(fileName);
 
         if (!await FsUtilities.exists(p)) {
-            throw new Error(`the file at path "${p}" does not exist.`);
+            throw new InternalError(`the file at path "${p}" does not exist.`);
         }
         if (!fileName.includes('.') && options?.mimeType == undefined) {
             const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);

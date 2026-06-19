@@ -25,6 +25,7 @@ import { PropertyMetadata } from '../entity/decorators/property.decorator';
 import { BadRequestError } from '../error-handling/errors/bad-request.error';
 import { removeExcludeProperties } from '../global/model-registry/remove-exclude-properties.function';
 import { restoreExcludeProperties } from '../global/model-registry/restore-exclude-properties.function';
+import { $ts } from '../localization/translate.function';
 import { LoggerInterface } from '../logging/logger.interface';
 import { DeepPartial } from '../types/deep-partial.type';
 import { Newable } from '../types/newable.type';
@@ -155,7 +156,7 @@ export class ChangeSetRepository<
         const changeSet: ChangeSet = await this.changeSetRepository.findById(changeSetId, { relations: ['changes'], ...options });
         if (changeSet.changeSetEntityId !== entity.id) {
             throw new BadRequestError(
-                'Could not reset the changes from the change set: The changeSet doesn\'t belong to the entity with the given id.'
+                $ts`Could not reset the changes from the change set: The changeSet doesn\'t belong to the entity with the given id.`
             );
         }
         const data: DeepPartial<T> = {} as DeepPartial<T>;
@@ -245,7 +246,7 @@ export class ChangeSetRepository<
         const changeSet: ChangeSet = await this.changeSetRepository.findById(changeSetId);
         if (changeSet.changeSetEntityId !== id) {
             throw new BadRequestError(
-                'Could not rollback to the given change set: The changeSet doesn\'t belong to the entity with the given id.'
+                $ts`Could not rollback to the given change set: The changeSet doesn\'t belong to the entity with the given id.`
             );
         }
         return this.rollbackToTimestampById(id, changeSet.createdAt, createChangeSet, preserveCreateChangeSet, options);

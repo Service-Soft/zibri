@@ -1,4 +1,5 @@
 import { ShutdownSignal, ZibriApplication } from '../application';
+import { InternalError } from '../error-handling/internal-error.model';
 
 /**
  * Runs when the app shuts down.
@@ -13,6 +14,16 @@ export interface OnAppShutdown {
      * @default 30 seconds
      */
     readonly shutdownTimeoutInMs?: number
+}
+
+/**
+ * An error to throw when something crashed during shutdown.
+ */
+export class OnAppShutdownError extends InternalError {
+    constructor(context: string, options: ErrorOptions) {
+        super(`Error running onAppShutdown for "${context}":`, options);
+        this.name = 'OnAppShutdownError';
+    }
 }
 
 // eslint-disable-next-line jsdoc/require-returns

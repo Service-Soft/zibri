@@ -3,7 +3,7 @@ import renderToString from 'preact-render-to-string';
 
 import { NestedComponentEntry, PreactCollector } from './collector';
 import { pkgToFilename } from './generate-client-scripts.function';
-import { preactHooks } from './hooks/hooks';
+import { preactAdditionalHookNames, preactHooks } from './hooks/hooks';
 import { PreactComponent } from './preact-component.model';
 import { PreactEmailComponent } from './preact-email-component.model';
 import { findStringEnd, stringAwareReplace } from './string-aware-replace.function';
@@ -12,9 +12,14 @@ import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../context/request/request-context
 import { WebsocketRequestContext } from '../context/request/websocket-request.context';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
+import { LocalizeServiceInterface } from '../localization/localize-service.interface';
+import { LocaleCode } from '../localization/models/locale-code.model';
+import { TranslationRegistry } from '../localization/translation.registry';
 import { FsUtilities, FsPath } from '../utilities/fs.utilities';
 import { JsonUtilities } from '../utilities/json.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
+import { $fHookCode } from './hooks/f.hook';
+import { InternalError } from '../error-handling/internal-error.model';
 
 /**
  * Definition for a parameter of a preact tsx file.
@@ -87,6 +92,7 @@ export abstract class PreactUtilities {
      * @param args.props - The properties to pass into the component.
      * @returns The fully rendered html string, with the body and any handlers attached in a script tag.
      */
+    // eslint-disable-next-line sonar/cognitive-complexity
     static async renderPage<T = {}>(
         ...args: keyof T extends never
             ? [component: PreactComponent<T>]
@@ -108,8 +114,8 @@ export abstract class PreactUtilities {
         const rootVNode: VNode = component(props ?? ({} as T));
 
         if (rootVNode instanceof Promise) {
-            throw new Error(
-                `[ssr] The root component '${component.name}' is async. `
+            throw new InternalError(
+                `The root component '${component.name}' is async. `
                 + 'Async components are not supported — remove the async keyword and any top-level await. '
                 + 'If you need async data, fetch it before calling render() and pass the result as props.'
             );
@@ -218,8 +224,10 @@ export abstract class PreactUtilities {
         const rootBlock: string = this.wrapInLabeledBlock(rootInner, 'root_');
 
         if (rootBlock.trim() || propsSection.trim()) {
-            const hooksSection: string = preactHooks
-                .map(fn => fn.toString())
+            const hooksSection: string = [
+                ...preactHooks.map(fn => fn.toString()),
+                $fHookCode
+            ]
                 .filter(s => s.trim())
                 .join('\n')
                 .split('\n')
@@ -249,7 +257,36 @@ export abstract class PreactUtilities {
             }
         }
 
-        return '<!DOCTYPE html>\n' + html;
+        const occurrencesOfT: number = html.split('$t').length - 1;
+        if (occurrencesOfT > 3) {
+            const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
+            const locale: LocaleCode = inject(ZIBRI_DI_TOKENS.LOCALIZE_SERVICE).resolveSupportedLocale(context);
+            html = html.replace('LOCALE_CODE_PLACEHOLDER', locale);
+
+            const occurrencesOfTs: number = html.split('$ts').length - 1;
+            const occurrencesOfOnlyT: number = occurrencesOfT - occurrencesOfTs;
+            const translations: Partial<Record<LocaleCode, Partial<Record<string, string>>>> = occurrencesOfOnlyT > 2
+                ? TranslationRegistry.translations
+                : { locale: TranslationRegistry.translations[locale] };
+
+            html = html.replace('\'TRANSLATIONS_PLACEHOLDER\'', JsonUtilities.stringify(translations));
+        }
+        if (html.includes('\'LOCALE_FORMAT_OPTIONS_PLACEHOLDER\'')) {
+            const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
+            const localizeService: LocalizeServiceInterface = inject(ZIBRI_DI_TOKENS.LOCALIZE_SERVICE);
+            const locale: LocaleCode = localizeService.resolveSupportedLocale(context);
+            // eslint-disable-next-line typescript/typedef
+            const localeFormatOptions = {
+                locale,
+                dateFormat: localizeService.resolveDateFormatForLocale(locale, 'date'),
+                timeFormat: localizeService.resolveDateFormatForLocale(locale, 'time'),
+                dateTimeFormat: localizeService.resolveDateFormatForLocale(locale, 'date-time'),
+                currencyCode: localizeService.resolveCurrencyCodeForLocale(locale)
+            } as const;
+            html = html.replace('\'LOCALE_FORMAT_OPTIONS_PLACEHOLDER\'', JsonUtilities.stringify(localeFormatOptions));
+        }
+
+        return '<!DOCTYPE html>\n' + this.rewriteFrameworkHooks(html);
     }
 
     private static unescapeConditionalComments(html: string): string {
@@ -368,8 +405,19 @@ export abstract class PreactUtilities {
 
     private static rewriteFrameworkHooks(body: string): string {
         let result: string = body;
-        for (const hook of preactHooks) {
-            result = stringAwareReplace(result, new RegExp(`(?:\\(0,\\s*)?\\w*zibri\\w*_\\d+\\.${hook.name}\\)?(?=\\()`, 'g'), hook.name);
+        const allNames: string[] = [...preactHooks.map(h => h.name), ...preactAdditionalHookNames];
+
+        for (const name of allNames) {
+            // 1. Escape $ and other regex metacharacters in the hook name
+            const escapedName: string = name.replaceAll(/[$()*+.?[\\\]^{|}]/g, '\\$&');
+            result = stringAwareReplace(
+                result,
+                new RegExp(
+                    `(?:\\(0,\\s*)?\\w*zibri\\w*_\\d+\\.${escapedName}(?!\\w)\\)?\\s*`,
+                    'g'
+                ),
+                name
+            );
         }
         return result;
     }
@@ -735,7 +783,7 @@ export abstract class PreactUtilities {
         const fnProps: Record<string, string> = {};
         const serializableProps: Record<string, unknown> = {};
 
-        for (const [key, val] of Object.entries(propsObj)) {
+        for (const [key, val] of ObjectUtilities.entries(propsObj)) {
             if (typeof val === 'function') {
                 fnProps[key] = val.toString();
             }
@@ -753,7 +801,7 @@ export abstract class PreactUtilities {
         const lines: string[] = [`    const __PROPS = ${safe};`];
 
         // Emit function props as standalone consts — they can't be JSON-serialized
-        for (const [key, src] of Object.entries(fnProps)) {
+        for (const [key, src] of ObjectUtilities.entries(fnProps)) {
             lines.push(`    const ${key} = ${src};`);
         }
 

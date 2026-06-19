@@ -3,6 +3,7 @@ import { And, ArrayContainedBy, ArrayContains, Equal, FindOperator, ILike, In, I
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { PropertyMetadata, RelationMetadata } from '../../../entity/decorators/property.decorator';
 import { Relation } from '../../../entity/models/relation.enum';
+import { InternalError } from '../../../error-handling/internal-error.model';
 import { ExcludeStrict } from '../../../types/exclude-strict.type';
 import { Newable } from '../../../types/newable.type';
 import { MetadataUtilities } from '../../../utilities/metadata.utilities';
@@ -48,13 +49,13 @@ export abstract class TypeOrmWhereFilterConverter {
         like: (value) => Like(value),
         oneOf: (value) => {
             if (!Array.isArray(value)) {
-                throw new Error('The "oneOf" property of the where filter needs to be an array.');
+                throw new InternalError('The "oneOf" property of the where filter needs to be an array.');
             }
             return In(value);
         },
         notOneOf: (value) => {
             if (!Array.isArray(value)) {
-                throw new Error('The "notOneOf" property of the where filter needs to be an array.');
+                throw new InternalError('The "notOneOf" property of the where filter needs to be an array.');
             }
             return Not(In(value));
         },
@@ -92,13 +93,13 @@ export abstract class TypeOrmWhereFilterConverter {
         where: (value, metadata, nestedProperties, entityClass) => this.whereHandler(value, metadata, nestedProperties, entityClass),
         includes: (value) => {
             if (!Array.isArray(value)) {
-                throw new Error('The "includes" property of the where filter needs to be an array.');
+                throw new InternalError('The "includes" property of the where filter needs to be an array.');
             }
             return ArrayContains(value);
         },
         isIncludedIn: (value) => {
             if (!Array.isArray(value)) {
-                throw new Error('The "isIncludedIn" property of the where filter needs to be an array.');
+                throw new InternalError('The "isIncludedIn" property of the where filter needs to be an array.');
             }
             return ArrayContainedBy(value);
         },
@@ -145,7 +146,7 @@ export abstract class TypeOrmWhereFilterConverter {
         entityClass: Newable<unknown>
     ): FindOperator<unknown> {
         if (nestedProperties == undefined) {
-            throw new Error('The "where" operator is not supported on this property without nested metadata.');
+            throw new InternalError('The "where" operator is not supported on this property without nested metadata.');
         }
         let targetClass: Newable<unknown> = entityClass;
         if (metadata.type === 'object') {
@@ -267,7 +268,7 @@ export abstract class TypeOrmWhereFilterConverter {
         }
 
         // 3) Remaining element filters (e.g. where)
-        if (Object.keys(filterObj).length > 0) {
+        if (ObjectUtilities.keys(filterObj).length) {
             const targetEntity: Newable<BaseEntity> = propertyMetadata.target();
             const nestedProps: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(targetEntity);
             (res as Record<string, unknown>)[key] = this.propertyToFindOperator(
@@ -343,12 +344,12 @@ export abstract class TypeOrmWhereFilterConverter {
         const operators: FindOperator<T>[] = [];
         const filterKeys: unknown[] = ObjectUtilities.keys(property);
         if (!filterKeys.length) {
-            throw new Error('Empty where filter');
+            throw new InternalError('Empty where filter');
         }
 
         for (const key of filterKeys) {
             if (!isWhereFilterKey(key)) {
-                throw new Error(`Unknown key "${key}" on where filter ${property}`);
+                throw new InternalError(`Unknown key "${key}" on where filter ${property}`);
             }
             const handler: WhereFilterHandler = this.handleFilterKeyMap[key];
             const value: unknown = (property as Record<string, unknown>)[key];

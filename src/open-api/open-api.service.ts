@@ -22,13 +22,16 @@ import { OneToManyPropertyMetadata } from '../entity/models/one-to-many-property
 import { Relation } from '../entity/models/relation.enum';
 import { OmitClass } from '../entity/omit-class.model';
 import { NotFoundError } from '../error-handling/errors/not-found.error';
+import { InternalError } from '../error-handling/internal-error.model';
 import { GlobalRegistry } from '../global/global-registry';
 import { OnAppInit } from '../global/on-app-init.interface';
 import { HttpMethod } from '../http/http-method.enum';
 import { HttpStatus } from '../http/http-status.enum';
 import { KnownHeader } from '../http/known-header.enum';
 import { MimeType } from '../http/mime-type.enum';
-import { FormatDateFn } from '../localization/formatting/format-date-fn.model';
+import { $f } from '../localization/format.function';
+import { type LocalizeServiceInterface } from '../localization/localize-service.interface';
+import { $ts } from '../localization/translate.function';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { FileResponse } from '../parsing/form-data/file-response.model';
 import { HtmlResponse } from '../parsing/html/html-response.model';
@@ -106,7 +109,9 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
         @Inject(ZIBRI_DI_TOKENS.ROUTER)
         private readonly router: RouterInterface,
         @Inject(ZIBRI_DI_TOKENS.VERSIONING_SERVICE)
-        private readonly versioningService: VersioningServiceInterface
+        private readonly versioningService: VersioningServiceInterface,
+        @Inject(ZIBRI_DI_TOKENS.LOCALIZE_SERVICE)
+        private readonly localizeService: LocalizeServiceInterface
     ) { }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -122,7 +127,7 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
                 const versions: VersionFile[] = this.versioningService.getVersions();
                 const version: VersionFile | undefined = versions.find(v => v.value === versionValue);
                 if (!version) {
-                    throw new NotFoundError(`Version "${versionValue}" not found`);
+                    throw new NotFoundError($ts`Version "${versionValue}" not found`);
                 }
                 return await this.createOpenApiDefinition(app, version);
             }
@@ -170,17 +175,18 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
             versions: 'all',
             openApi: { useInOpenApi: false },
             handler: () => {
-                const formatDate: FormatDateFn = inject(ZIBRI_DI_TOKENS.FORMAT_DATE);
                 const versions: VersionFile[] = this.versioningService
                     .getVersions()
                     .sort((a, b) => SemVerUtilities.compare(a.value, b.value) === 'bigger' ? -1 : 1);
                 // eslint-disable-next-line jsdoc/require-jsdoc
-                const urls: { url: string, name: string }[] = versions.map(v => ({
-                    url: `${this.openApiRoute}/spec/${v.value}`,
-                    name: v.endsAt == undefined
-                        ? `${v.value} (latest)`
-                        : `${v.value} (${formatDate(v.startsAt)} - ${formatDate(v.endsAt)})`
-                }));
+                const urls: { url: string, name: string }[] = versions.map(v => {
+                    return {
+                        url: `${this.openApiRoute}/spec/${v.value}`,
+                        name: v.endsAt == undefined
+                            ? `${v.value} (latest)`
+                            : `${v.value} (${$f.date(v.startsAt)} - ${$f.date(v.endsAt)})`
+                    };
+                });
                 const latestVersion: VersionFile | undefined = versions.find(v => v.endsAt == undefined);
                 return FileResponse.fromStream({
                     filename: 'swagger-ui-init.js',
@@ -493,7 +499,7 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
             res[fullPath] ??= {};
 
             if (!route.openApi.useInOpenApi) {
-                throw new Error(`Invalid open api configuration on route ${route.route}`);
+                throw new InternalError(`Invalid open api configuration on route ${route.route}`);
             }
 
             const operation: OpenApiOperation = {
@@ -591,7 +597,7 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
                 return undefined;
             }
             default: {
-                throw new Error(`Unknown response type ${(response as OpenApiResponse).type}`);
+                throw new InternalError(`Unknown response type ${(response as OpenApiResponse).type}`);
             }
         }
 
@@ -625,7 +631,7 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
                     continue;
                 }
                 default: {
-                    throw new Error(`Unknown response type ${(response as OpenApiResponse).type}`);
+                    throw new InternalError(`Unknown response type ${(response as OpenApiResponse).type}`);
                 }
             }
 
@@ -814,7 +820,7 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
                     continue;
                 }
                 default: {
-                    throw new Error(`Unknown property type "${(meta as PropertyMetadata).type}"`);
+                    throw new InternalError(`Unknown property type "${(meta as PropertyMetadata).type}"`);
                 }
             }
         }

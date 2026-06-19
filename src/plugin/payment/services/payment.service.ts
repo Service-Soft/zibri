@@ -6,6 +6,7 @@ import { Inject } from '../../../di/decorators/inject.decorator';
 import { Injectable } from '../../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { AnyObject } from '../../../entity/any-object.model';
+import { InternalError } from '../../../error-handling/internal-error.model';
 import { type LoggerInterface } from '../../../logging/logger.interface';
 import { PaymentMethod } from '../models/payment-method.model';
 import { type PaymentPluginOptions } from '../models/payment-plugin-options.model';
@@ -36,7 +37,7 @@ export class PaymentService<
         const name: string = this.options.providerNameForMethod[method];
         const provider: P[number] | undefined = this.options.paymentProviders.find(p => p.name === name);
         if (!provider) {
-            throw new Error(`No provider found for payment method "${method}"`);
+            throw new InternalError(`No provider found for payment method "${method}"`);
         }
         return provider;
     }
@@ -55,7 +56,7 @@ export class PaymentService<
         // eslint-disable-next-line jsdoc/require-jsdoc
         const { transactionId } = data as unknown as { transactionId: string };
         if ((await this.paymentRepository.findAll({ where: { transactionId } })).length) {
-            throw new Error(`a payment for the transactionId "${transactionId}" already exists`);
+            throw new InternalError(`a payment for the transactionId "${transactionId}" already exists`);
         }
         return res;
     }
@@ -90,7 +91,7 @@ export class PaymentService<
             return undefined;
         }
         if (payment.status !== PaymentStatus.CREATED) {
-            throw new Error(`Cannot confirm payment in status ${payment.status}`);
+            throw new InternalError(`Cannot confirm payment in status ${payment.status}`);
         }
         const provider: P[number] = this.findPaymentProviderForMethod(payment.paymentMethod);
         await provider.confirmPaymentReservation(payment);
@@ -104,7 +105,7 @@ export class PaymentService<
             return undefined;
         }
         if (payment.status !== PaymentStatus.CREATED) {
-            throw new Error(`Cannot confirm payment in status ${payment.status}`);
+            throw new InternalError(`Cannot confirm payment in status ${payment.status}`);
         }
         const provider: P[number] = this.findPaymentProviderForMethod(payment.paymentMethod);
         await provider.confirmPayment(payment);
@@ -120,7 +121,7 @@ export class PaymentService<
             return undefined;
         }
         if (payment.status !== PaymentStatus.RESERVED) {
-            throw new Error('Can only collect payments from reserved payments');
+            throw new InternalError('Can only collect payments from reserved payments');
         }
         const provider: P[number] = this.findPaymentProviderForMethod(payment.paymentMethod);
         await provider.collectPaymentFromReservation(payment);
@@ -136,7 +137,7 @@ export class PaymentService<
             return undefined;
         }
         if (payment.status !== PaymentStatus.CREATED && payment.status !== PaymentStatus.RESERVED) {
-            throw new Error(`Cannot cancel payment in status ${payment.status}`);
+            throw new InternalError(`Cannot cancel payment in status ${payment.status}`);
         }
         const provider: P[number] = this.findPaymentProviderForMethod(payment.paymentMethod);
         await provider.cancelPayment(payment);
@@ -150,7 +151,7 @@ export class PaymentService<
             return undefined;
         }
         if (payment.status !== PaymentStatus.PAID) {
-            throw new Error(`Cannot refund payment in status ${payment.status}`);
+            throw new InternalError(`Cannot refund payment in status ${payment.status}`);
         }
         const provider: P[number] = this.findPaymentProviderForMethod(payment.paymentMethod);
         await provider.refundPayment(payment);

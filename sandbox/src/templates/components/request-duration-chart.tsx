@@ -1,5 +1,5 @@
 import type { Chart as ChartJsChart } from 'chart.js';
-import { Metric, MetricsSnapshot, PreactComponent } from 'zibri';
+import { $ts, Metric, MetricsSnapshot, PreactComponent } from 'zibri';
 
 import { Chart } from './chart';
 
@@ -53,7 +53,7 @@ export const RequestDurationChart: PreactComponent<Props> = ({ className = '', s
     return (
         <Chart
             canvasId="requestDurationChart"
-            title="Request duration"
+            title={$ts`Request duration`}
             className={className}
             chartConfig={{
                 type: 'bar',

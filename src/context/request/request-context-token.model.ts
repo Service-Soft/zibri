@@ -9,6 +9,7 @@ import { BaseUser } from '../../auth/models/base-user.model';
 import { IsLoggedInMetadata } from '../../auth/models/is-logged-in-metadata.model';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
+import { InternalError } from '../../error-handling/internal-error.model';
 import { KnownHeader } from '../../http/known-header.enum';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
@@ -27,7 +28,7 @@ export class RequestContextToken<T> {
         readonly fn: (ctx: HttpRequestContext | WebsocketRequestContext) => T
     ) {
         if (allRequestContextTokenKeys.has(key)) {
-            throw new Error([`A RequestContextToken with the key "${key}" already exists.`].join('\n'));
+            throw new InternalError(`A RequestContextToken with the key "${key}" already exists.`);
         }
         allRequestContextTokenKeys.add(key);
     }
@@ -106,5 +107,13 @@ export const ZIBRI_REQUEST_CONTEXT_TOKENS = {
             }
             return await twoFactorService.has2fa(user, ctx);
         }
+    ),
+    CURRENT_VERSION: new RequestContextToken(
+        'current_version',
+        async ctx => await inject(ZIBRI_DI_TOKENS.VERSIONING_SERVICE).resolveVersion(ctx)
+    ),
+    CURRENT_LOCALE: new RequestContextToken(
+        'current_locale',
+        ctx => inject(ZIBRI_DI_TOKENS.LOCALIZE_SERVICE).resolveSupportedLocale(ctx)
     )
 } as const satisfies Record<string, RequestContextToken<unknown>>;

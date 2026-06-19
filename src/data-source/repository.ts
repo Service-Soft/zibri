@@ -8,6 +8,7 @@ import { Newable } from '../types/newable.type';
 import { DataSourceInterface } from './data-sources/data-source.interface';
 import { BeforeReturnHook } from './hooks/before-return';
 import { BeforeSaveHook } from './hooks/before-save';
+import { InternalError } from '../error-handling/internal-error.model';
 import { CreateAllOptions } from './models/options/create-all-options.model';
 import { CreateOptions } from './models/options/create-options.model';
 import { DeleteAllOptions } from './models/options/delete-all-options.model';
@@ -28,6 +29,7 @@ import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { type TypeOrmBaseDataSource } from './data-sources/typeorm-base-data-source.model';
 import { DataSourceOptions } from './models/data-source-options.model';
 import { EntityMetadataMissingError } from '../entity/entity-metadata-missing.error';
+import { $ts } from '../localization/translate.function';
 
 /**
  * A repository that handles data source related things for its entity.
@@ -69,7 +71,7 @@ export class Repository<
             throw new EntityMetadataMissingError(this.entityClass);
         }
         if (!('whereFilterToFindOptionsWhere' in dataSource)) {
-            throw new Error('Zibri\'s default repositories only work with TypeOrmBaseDataSource');
+            throw new InternalError('Zibri\'s default repositories only work with TypeOrmBaseDataSource');
         }
         this._dataSource = dataSource as TypeOrmBaseDataSource<DataSourceOptions>;
         this.entityMetadata = metadata;
@@ -160,7 +162,7 @@ export class Repository<
     async findById(id: T['id'], options?: FindByIdOptions<T>): Promise<T> {
         const res: T | undefined = await this.findOne({ where: { id } as Where<T>, ...options }, false);
         if (!res) {
-            throw new NotFoundError(`Could not find ${this.entityClass.name} with id "${id}".`);
+            throw new NotFoundError($ts`Could not find ${this.entityClass.name} with id "${id}".`);
         }
         return res;
     }
@@ -200,7 +202,7 @@ export class Repository<
             throw error;
         }
         if (!res && required) {
-            throw new NotFoundError(`Could not find ${this.entityClass.name}.`);
+            throw new NotFoundError($ts`Could not find ${this.entityClass.name}.`);
         }
         if (!res) {
             return undefined as B extends false ? T | undefined : T;

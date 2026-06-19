@@ -14,6 +14,7 @@ import { ZibriApplicationOptions } from '../../application-options.model';
 import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres-typeorm-data-source.model';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { DiContainer } from '../../di/di-container';
+import { initDiContainer } from '../../di/init-di-container.function';
 import { inject } from '../../di/inject.function';
 import { AppState } from '../../global/app-state.enum';
 import { GlobalRegistry } from '../../global/global-registry';
@@ -95,6 +96,7 @@ export class StartedTestServer {
 
         // Reset singleton — every test file gets a clean container with no stale instances.
         DiContainer['singleton'] = undefined;
+        initDiContainer();
         GlobalRegistry['appData'].state = AppState.OFFLINE;
 
         this.reApplyContainerPorts();
@@ -131,6 +133,7 @@ export async function startTestServer(
 ): Promise<StartedTestServer> {
     // Reset singleton — every test file gets a clean container with no stale instances.
     DiContainer['singleton'] = undefined;
+    initDiContainer();
 
     const containers: StartedPostgreSqlContainer[] = await Promise.all(dataSources.map(async ds => {
         const dataSource: PostgresDataSource = inject(ds);

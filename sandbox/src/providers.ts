@@ -1,4 +1,4 @@
-import { AesGcmEncryptionStrategy, defineProvider, DiProvider, LoggerTransport, LogLevel, ZIBRI_DI_TOKENS, ZIBRI_INVOICING_PLUGIN_DI_TOKENS, ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from 'zibri';
+import { AesGcmEncryptionStrategy, defineDateFormat, defineProvider, DiProvider, LoggerTransport, LogLevel, ZIBRI_DI_TOKENS, ZIBRI_INVOICING_PLUGIN_DI_TOKENS, ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from 'zibri';
 
 import { MailingListBaseEmail } from './templates/email-components/mailing-list-base-email';
 import { MailingListSubscribeConfirmationEmail } from './templates/emails/mailing-list-subscribe-confirmation';
@@ -96,6 +96,26 @@ export const providers: DiProvider<unknown>[] = [
                     phone: ''
                 }
             };
+        }
+    }),
+    defineProvider({
+        token: ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS_INPUT,
+        useValue: {
+            defaultLocale: 'de',
+            supportedLocales: {
+                'en-US': {
+                    currencyCode: 'USD',
+                    defaultDateFormat: defineDateFormat('MM/DD/YYYY'),
+                    defaultDateTimeFormat: defineDateFormat('MM/DD/YYYY h:mm A'),
+                    defaultTimeFormat: defineDateFormat('h:mm A')
+                },
+                de: {
+                    currencyCode: 'EUR',
+                    defaultDateFormat: defineDateFormat('DD.MM.YYYY'),
+                    defaultDateTimeFormat: defineDateFormat('DD.MM.YYYY HH:mm'),
+                    defaultTimeFormat: defineDateFormat('HH:mm')
+                }
+            }
         }
     })
 ];

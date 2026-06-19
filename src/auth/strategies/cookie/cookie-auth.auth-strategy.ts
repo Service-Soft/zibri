@@ -22,8 +22,10 @@ import { EmailPriority } from '../../../email/models/email-priority.enum';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { TooManyRequestsError } from '../../../error-handling/errors/too-many-requests.error';
 import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.error';
+import { InternalError } from '../../../error-handling/internal-error.model';
 import { HttpMethod } from '../../../http/http-method.enum';
 import { KnownHeader } from '../../../http/known-header.enum';
+import { $ts } from '../../../localization/translate.function';
 import { OpenApiSecuritySchemeObject } from '../../../open-api/open-api.model';
 import { PreactUtilities } from '../../../preact/preact.utilities';
 import { Newable } from '../../../types/newable.type';
@@ -171,7 +173,7 @@ export class CookieAuthStrategy<
             const credentialsFound: CookieAuthCredentials = await this.userService.resolveCredentialsFor(foundUser);
             const passwordMatched: boolean = await this.hashService.equal(credentials.password, credentialsFound.password);
             if (!passwordMatched) {
-                throw new UnauthorizedError('Invalid email or password.');
+                throw new UnauthorizedError($ts`Invalid email or password.`);
             }
 
             const refreshSession: CookieAuthRefreshSession = await this.createRefreshSession(
@@ -193,7 +195,7 @@ export class CookieAuthStrategy<
             };
         }
         catch {
-            throw new UnauthorizedError('Invalid email or password.');
+            throw new UnauthorizedError($ts`Invalid email or password.`);
         }
     }
 
@@ -223,20 +225,20 @@ export class CookieAuthStrategy<
     async refreshLogin(data: CookieAuthRefreshLoginData): Promise<CookieAuthData<RoleType>> {
         const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
         if (!(context instanceof HttpRequestContext)) {
-            throw new UnauthorizedError('No valid context');
+            throw new UnauthorizedError($ts`No valid context`);
         }
 
         const currentRefreshSession: CookieAuthRefreshSession | undefined = await this.resolveRefreshSession(context, data.transaction);
         if (!currentRefreshSession) {
             this.clearCookies();
-            throw new UnauthorizedError('No valid refresh session');
+            throw new UnauthorizedError($ts`No valid refresh session`);
         }
         if (new Date(currentRefreshSession.expirationDate).getTime() <= Date.now() || currentRefreshSession.blacklisted) {
             await this.logout({ clearCookies: true, refreshSessionId: currentRefreshSession.id, transaction: data.transaction });
-            throw new UnauthorizedError('No valid refresh session');
+            throw new UnauthorizedError($ts`No valid refresh session`);
         }
         if (!this.isCsrfTokenValid(currentRefreshSession, context)) {
-            throw new UnauthorizedError('No valid csrf token');
+            throw new UnauthorizedError($ts`No valid csrf token`);
         }
 
         const currentSession: CookieAuthSession | undefined = await this.resolveSession(context, data.transaction);
@@ -330,7 +332,7 @@ export class CookieAuthStrategy<
             const repo: RepositoryTypeForEntity<InstanceType<TargetEntity>> = inject(repositoryTokenFor(targetEntity));
             const targetId: string | undefined = context.request.params?.[targetIdParamKey];
             if (targetId == undefined) {
-                throw new Error(`Could not find the target id specified as path param "${targetId}"`);
+                throw new InternalError(`Could not find the target id specified as path param "${targetIdParamKey}"`);
             }
             const foundTarget: InstanceType<TargetEntity> = await repo.findById(targetId) as InstanceType<TargetEntity>;
             const userIdProperty: unknown = foundTarget[targetUserIdKey];
@@ -347,7 +349,7 @@ export class CookieAuthStrategy<
     // eslint-disable-next-line jsdoc/require-jsdoc
     async requestPasswordReset(data: CookieAuthRequestPasswordResetData<RoleType, UserType>): Promise<void> {
         if (await this.activePasswordResetTokenAlreadyExists(data.user, data.transaction)) {
-            throw new TooManyRequestsError('A password reset has already been requested for this account.');
+            throw new TooManyRequestsError($ts`A password reset has already been requested for this account.`);
         }
 
         const resetTokenData: PasswordResetTokenCreateData = {
@@ -387,11 +389,11 @@ export class CookieAuthStrategy<
             false
         );
         if (!resetToken) {
-            throw new UnauthorizedError('Link invalid');
+            throw new UnauthorizedError($ts`Link invalid`);
         }
         if (new Date(resetToken.expirationDate).getTime() <= Date.now()) {
             await this.passwordResetTokenRepository.deleteById(resetToken.id, { transaction: data.transaction });
-            throw new UnauthorizedError('Link expired');
+            throw new UnauthorizedError($ts`Link expired`);
         }
 
         const user: UserType = await this.userService.findById(resetToken.userId);

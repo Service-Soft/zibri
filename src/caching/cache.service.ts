@@ -9,6 +9,18 @@ import { GlobalRegistry } from '../global/global-registry';
 import { OnAppInit } from '../global/on-app-init.interface';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { MultiTierCache } from './cache/multi-tier.cache';
+import { InternalError } from '../error-handling/internal-error.model';
+
+/**
+ * An error to throw during cache service initialization.
+ */
+class InitCacheServiceError extends InternalError {
+    constructor(message: string | string[]) {
+        const messageArray: string[] = typeof message === 'string' ? [message] : message;
+        super(['Error initializing cache service.', ...messageArray]);
+        this.name = 'InitCacheServiceError';
+    }
+}
 
 /**
  * Default implementation of the cache service.
@@ -34,14 +46,16 @@ export class CacheService implements CacheServiceInterface, OnAppInit {
             const cache: AnyCache = inject(cacheClass);
             this.caches.push(cache);
             if (!isCache(cache)) {
-                throw new Error(`Invalid class marked with @Cache: ${cacheClass.name} needs to implement CacheInterface`);
+                throw new InitCacheServiceError(`Invalid class marked with @Cache: ${cacheClass.name} needs to implement CacheInterface`);
             }
             await this.logger.info(`  - ${cache.name}`);
         }
 
         for (const cacheInjectable of GlobalRegistry.injectables.map(i => inject(i.token)).filter(i => isCache(i))) {
             if (!this.caches.find(c => c.name === cacheInjectable.name)) {
-                throw new Error(`The class "${cacheInjectable.constructor}" seems to be a cache but has not been decorated with @Cache()`);
+                throw new InitCacheServiceError(
+                    `The class "${cacheInjectable.constructor}" seems to be a cache but has not been decorated with @Cache()`
+                );
             }
         }
 
@@ -49,11 +63,11 @@ export class CacheService implements CacheServiceInterface, OnAppInit {
             c => this.caches.filter(internalC => internalC.name === c.name).length > 1
         );
         if (duplicateCacheNames.length) {
-            throw new Error(
+            throw new InitCacheServiceError(
                 [
                     'There are duplicate cache names:',
-                    [...new Set(duplicateCacheNames)].map(s => `- ${s.name}`)
-                ].join('\n')
+                    ...[...new Set(duplicateCacheNames)].map(s => `- ${s.name}`)
+                ]
             );
         }
     }

@@ -12,12 +12,14 @@ import { InjectRepository } from '../../di/decorators/inject-repository.decorato
 import { Inject } from '../../di/decorators/inject.decorator';
 import { Injectable } from '../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
+import { InternalError } from '../../error-handling/internal-error.model';
 import { OnAppInit } from '../../global/on-app-init.interface';
 import { OnAppShutdown } from '../../global/on-app-shutdown.interface';
 import { type LoggerInterface } from '../../logging/logger.interface';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { FsUtilities, FsPath } from '../../utilities/fs.utilities';
 import { JsonUtilities } from '../../utilities/json.utilities';
+import { TimeoutError } from '../../utilities/promise.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from '../models/base-thread-job-worker-data.model';
 import { type MultithreadingOptions } from '../models/multithreading-options.model';
@@ -26,6 +28,17 @@ import { ThreadJobEntity } from '../models/thread-job-entity.model';
 import { ThreadJobFunction } from '../models/thread-job-function.model';
 import { ThreadJobMessage } from '../models/thread-job-message.model';
 import { ThreadJobStatus } from '../models/thread-job-status.enum';
+
+/**
+ * An error to throw during multithreading service initialization.
+ */
+class InitMultithreadingServiceError extends InternalError {
+    constructor(message: string | string[]) {
+        const messageArray: string[] = typeof message === 'string' ? [message] : message;
+        super(['Error initializing multithreading service.', ...messageArray]);
+        this.name = 'InitMultithreadingServiceError';
+    }
+}
 
 /**
  * A service that handles multithreading.
@@ -97,14 +110,14 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
     private async validateInputs(): Promise<void> {
         const workerFileExists: boolean = await FsUtilities.exists(this.threadJobWorkerFilePath);
         if (!workerFileExists) {
-            throw new Error(`Could not start MultithreadingService: The worker file at ${this.threadJobWorkerFilePath} does not exist.`);
+            throw new InitMultithreadingServiceError(`The worker file at ${this.threadJobWorkerFilePath} does not exist.`);
         }
 
         const availableThreads: number = os.availableParallelism();
         const maxThreads: number = this.options.maxThreads + this.options.maxPriorityThreads;
 
         if (maxThreads > availableThreads) {
-            throw new Error(
+            throw new InitMultithreadingServiceError(
                 [
                     `The MultithreadingService was configured to start up to ${maxThreads}`,
                     `(${this.options.maxThreads} + ${this.options.maxPriorityThreads}) workers,`,
@@ -114,7 +127,7 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         }
 
         if (this.options.maxThreads < 1) {
-            throw new Error(
+            throw new InitMultithreadingServiceError(
                 'The MultithreadingService was configured to have less than 1 thread available. It will not be able to execute anything.'
             );
         }
@@ -182,7 +195,7 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         if (finishedJob.error) {
             throw finishedJob.error;
         }
-        throw new Error(`Running the function "${func.name}" on a worker was not successful`);
+        throw new InternalError(`Running the function "${func.name}" on a worker was not successful`);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -217,7 +230,7 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
     ): Promise<ThreadJobEntity<WorkerData, ResultType>> {
         const foundJob: ThreadJob<BaseThreadJobWorkerData, unknown> | undefined = this.queue.find(j => j.id === jobId);
         if (!foundJob) {
-            throw new Error(`No thread job with the id ${jobId} could be found in the queue.`);
+            throw new InternalError(`No thread job with the id ${jobId} could be found in the queue.`);
         }
         await firstValueFrom(foundJob.completedSubject.pipe(filter(i => i)));
 
@@ -311,7 +324,7 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         worker.worker.postMessage(job.workerData);
         // eslint-disable-next-line typescript/no-misused-promises
         worker.timeout = setTimeout(async () => {
-            await this.updateThreadJobById(job.id, { error: new Error('Timeout') });
+            await this.updateThreadJobById(job.id, { error: new TimeoutError() });
             await worker.worker.terminate();
         }, job.timeout);
 

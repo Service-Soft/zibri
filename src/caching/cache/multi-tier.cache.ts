@@ -4,6 +4,7 @@ import { CacheWrapOptions, CacheWrapWriteOptionsWithResult, CacheWrapWriteOption
 import { CacheInterface } from './cache.interface';
 import { AlsUtilities } from '../../context/als.utilities';
 import { CacheContext } from '../../context/cache/cache.context';
+import { InternalError } from '../../error-handling/internal-error.model';
 import { LoggerInterface } from '../../logging/logger.interface';
 import { MetricsServiceInterface } from '../../metrics/metrics-service.interface';
 import { CacheMetrics } from '../cache-metrics.model';
@@ -105,7 +106,7 @@ export abstract class MultiTierCache<
         readonly onInvalidationFailure?: OnInvalidationFailure
     ) {
         if (tiers.length === 0) {
-            throw new Error('MultiTierCache requires at least one tier');
+            throw new InternalError('MultiTierCache requires at least one tier');
         }
         this._writeResultAvailable = tiers.some(t => t._writeResultAvailable === true);
     }

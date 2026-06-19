@@ -4,6 +4,7 @@ import { HttpRequest } from '../../http/http-request.model';
 import { KnownHeader } from '../../http/known-header.enum';
 import { MimeType } from '../../http/mime-type.enum';
 import { HttpClientResponse } from '../../http-client/http-client-response.model';
+import { $ts } from '../../localization/translate.function';
 import { BodyMetadata } from '../../routing/decorators/body.decorator';
 import { BigNumber, NumberUtilities } from '../../utilities/number.utilities';
 import { WebsocketRequest } from '../../websocket/models/websocket-request.model';
@@ -131,7 +132,7 @@ export class JsonBodyParser implements BodyParserInterface {
             );
         }
         catch {
-            throw new BadRequestError('invalid JSON in request body');
+            throw new BadRequestError($ts`invalid JSON in request body`);
         }
     }
 }

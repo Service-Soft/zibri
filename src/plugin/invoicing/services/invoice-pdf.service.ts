@@ -5,9 +5,9 @@ import { Inject } from '../../../di/decorators/inject.decorator';
 import { Injectable } from '../../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { PdfContentDefinition, PdfColumnDefinition, PdfDocument, PdfDocumentDefinition, PdfUtilities, PdfTableCellDefinition, PdfContentSize } from '../../../document/pdf.utilities';
-import { type FormatDateFn } from '../../../localization/formatting/format-date-fn.model';
-import { type FormatPercentFn } from '../../../localization/formatting/format-percent-fn.model';
-import { type FormatPriceFn } from '../../../localization/formatting/format-price-fn.model';
+import { InternalError } from '../../../error-handling/internal-error.model';
+import { type LocalizeServiceInterface } from '../../../localization/localize-service.interface';
+import { LocaleCode } from '../../../localization/models/locale-code.model';
 import { BigNumber } from '../../../utilities/number.utilities';
 import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../invoicing.tokens';
 import { Invoice } from '../models/invoice.model';
@@ -39,12 +39,8 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
         private readonly invoiceCalcService: InvoiceCalcServiceInterface<Invoice>,
         @Inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.INVOICE_CONFORMANCE_SERVICES)
         private readonly invoiceConformanceServices: InvoiceConformanceServiceInterface<Invoice>[],
-        @Inject(ZIBRI_DI_TOKENS.FORMAT_DATE)
-        private readonly formatDate: FormatDateFn,
-        @Inject(ZIBRI_DI_TOKENS.FORMAT_PRICE)
-        private readonly formatPrice: FormatPriceFn,
-        @Inject(ZIBRI_DI_TOKENS.FORMAT_PERCENT)
-        private readonly formatPercent: FormatPercentFn
+        @Inject(ZIBRI_DI_TOKENS.LOCALIZE_SERVICE)
+        private readonly localizeService: LocalizeServiceInterface
     ) {
         this.header = this.getHeader();
         this.footer = this.getFooter();
@@ -52,8 +48,8 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async generateInvoicePdf(invoice: Invoice, conformance?: InvoiceConformance): Promise<PdfDocument> {
-        const documentDefinition: PdfDocumentDefinition = await this.generateInvoiceDocumentDefinition(invoice, conformance);
+    async generateInvoicePdf(invoice: Invoice, locale: LocaleCode, conformance?: InvoiceConformance): Promise<PdfDocument> {
+        const documentDefinition: PdfDocumentDefinition = await this.generateInvoiceDocumentDefinition(invoice, conformance, locale);
         const doc: PdfDocument = PdfUtilities.create(documentDefinition, undefined);
         return doc;
     }
@@ -62,11 +58,13 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
      * Generates a pdf document definition for the given invoice.
      * @param invoice - The invoice to generate the document definition for.
      * @param conformance - The legal conformance that the invoice should conform to.
+     * @param locale - The locale that the invoice should be in.
      * @returns The invoice document definition.
      */
     protected async generateInvoiceDocumentDefinition(
         invoice: Invoice,
-        conformance: InvoiceConformance | undefined
+        conformance: InvoiceConformance | undefined,
+        locale: LocaleCode
     ): Promise<PdfDocumentDefinition> {
         const taxGroups: Vat[] = this.getTaxGroups(invoice);
         const res: PdfDocumentDefinition = {
@@ -88,10 +86,10 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
                     margin: [0, 10, 0, 10],
                     bold: true
                 },
-                this.getNumberAndDates(invoice),
+                await this.getNumberAndDates(invoice, locale),
                 ...this.getContentFromParagraphs(invoice.textBeforeItems),
-                await this.getInvoiceItemsTable(invoice, taxGroups),
-                await this.getTotalTable(invoice, taxGroups),
+                await this.getInvoiceItemsTable(invoice, taxGroups, locale),
+                await this.getTotalTable(invoice, taxGroups, locale),
                 ...this.getContentFromParagraphs(invoice.textAfterItems)
             ],
             footer: this.footer
@@ -112,11 +110,11 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
         const res: InvoiceConformanceServiceInterface<Invoice> | undefined = this.invoiceConformanceServices
             .find(s => s.name === conformance);
         if (!res) {
-            throw new Error(
+            throw new InternalError(
                 [
                     `Could not find InvoiceConformanceService for "${conformance}".`,
                     'Did you forget to add the conformance service to your ZIBRI_INVOICING_DI_TOKENS.INVOICE_CONFORMANCE_SERVICES provider?'
-                ].join('\n')
+                ]
             );
         }
         return res;
@@ -126,14 +124,15 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
      * Gets the table that displays the total price of all items.
      * @param invoice - The invoice to get the table from.
      * @param taxGroups - The different tax groups that need to be taken into consideration.
+     * @param locale - The locale that the invoice should be in.
      * @returns The total price of all items and the tax groups.
      */
-    protected async getTotalTable(invoice: Invoice, taxGroups: Vat[]): Promise<PdfContentDefinition> {
+    protected async getTotalTable(invoice: Invoice, taxGroups: Vat[], locale: LocaleCode): Promise<PdfContentDefinition> {
         return {
             table: {
                 headerRows: 0,
                 widths: ['*', 159],
-                body: await this.getTotalBody(invoice, taxGroups)
+                body: await this.getTotalBody(invoice, taxGroups, locale)
             },
             fontSize: this.options.tableFontSize,
             bold: true,
@@ -145,32 +144,50 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
      * Gets the body of the total table.
      * @param invoice - The invoice to build the body from.
      * @param taxGroups - The different tax groups that need to be taken into consideration.
+     * @param locale - The locale that the invoice should be in.
      * @returns The body of the total table.
      */
-    protected async getTotalBody(invoice: Invoice, taxGroups: Vat[]): Promise<PdfTableCellDefinition[][]> {
+    protected async getTotalBody(invoice: Invoice, taxGroups: Vat[], locale: LocaleCode): Promise<PdfTableCellDefinition[][]> {
         if (!taxGroups.length) {
             const totalBeforeTax: BigNumber = await this.invoiceCalcService.getTotalBeforeTax(invoice);
-            return [[this.options.totalLabel, this.formatPrice(totalBeforeTax, invoice.currency, invoice.customerAddressData.countryId)]];
+            return [
+                [
+                    this.options.totalLabel,
+                    this.localizeService.formatPrice(
+                        totalBeforeTax,
+                        { currency: invoice.currency, locale }
+                    )
+                ]
+            ];
         }
         const totalBeforeTax: BigNumber = await this.invoiceCalcService.getTotalBeforeTax(invoice);
         const res: PdfTableCellDefinition[][] = [
             [
                 this.options.totalBeforeTaxLabel,
-                this.formatPrice(totalBeforeTax, invoice.currency, invoice.customerAddressData.countryId)
+                this.localizeService.formatPrice(
+                    totalBeforeTax,
+                    { currency: invoice.currency, locale }
+                )
             ]
         ];
         for (const group of taxGroups) {
             const totalTaxOfGroup: BigNumber = await this.invoiceCalcService.getTotalTaxForTaxGroup(invoice, group, true);
             res.push([
-                `${this.formatPercent(group.rate)} ${this.options.taxLabel}`,
-                this.formatPrice(totalTaxOfGroup, invoice.currency, invoice.customerAddressData.countryId)
+                `${this.localizeService.formatPercent(group.rate, { locale })} ${this.options.taxLabel}`,
+                this.localizeService.formatPrice(
+                    totalTaxOfGroup,
+                    { currency: invoice.currency, locale }
+                )
             ]);
         }
 
         const totalAfterTax: BigNumber = await this.invoiceCalcService.getTotalAfterTax(invoice);
         res.push([
             this.options.totalAfterTaxLabel,
-            this.formatPrice(totalAfterTax, invoice.currency, invoice.customerAddressData.countryId)
+            this.localizeService.formatPrice(
+                totalAfterTax,
+                { currency: invoice.currency, locale }
+            )
         ]);
         return res;
     }
@@ -179,15 +196,16 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
      * Gets the table that displays all invoice items.
      * @param invoice - The invoice to build the table from.
      * @param taxGroups - The different tax groups that need to be taken into consideration.
+     * @param locale - The locale that the invoice should be in.
      * @returns The table with all invoice items.
      */
-    protected async getInvoiceItemsTable(invoice: Invoice, taxGroups: Vat[]): Promise<PdfContentDefinition> {
+    protected async getInvoiceItemsTable(invoice: Invoice, taxGroups: Vat[], locale: LocaleCode): Promise<PdfContentDefinition> {
         const widths: PdfContentSize[] = taxGroups.length ? ['*', 75, 75, 75, 75] : ['*', 100, 100, 100];
         return {
             table: {
                 headerRows: 1,
                 widths: widths,
-                body: await this.getInvoiceItemsBody(invoice, taxGroups)
+                body: await this.getInvoiceItemsBody(invoice, taxGroups, locale)
             },
             fontSize: this.options.tableFontSize,
             margin: [0, 25, 0, 0]
@@ -198,10 +216,12 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
      * Gets the body of the invoice items table.
      * @param invoice - The invoice to build the body from.
      * @param taxGroups - The different tax groups that need to be taken into consideration.
+     * @param locale - The locale that the invoice should be in.
      * @returns The body of the invoice items table.
      */
-    protected async getInvoiceItemsBody(invoice: Invoice, taxGroups: Vat[]): Promise<PdfTableCellDefinition[][]> {
+    protected async getInvoiceItemsBody(invoice: Invoice, taxGroups: Vat[], locale: LocaleCode): Promise<PdfTableCellDefinition[][]> {
         const res: PdfTableCellDefinition[][] = [this.getInvoiceItemsHeaders(taxGroups)];
+
         for (const item of invoice.items) {
             const totalPricePreTax: BigNumber = await this.invoiceCalcService.getItemTotalPriceBeforeTax(item);
             const amount: string = `${item.amount} ${item.amountUnit.displayName}`;
@@ -209,17 +229,28 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
                 res.push([
                     item.name,
                     amount,
-                    this.formatPrice(item.price, invoice.currency, invoice.customerAddressData.countryId),
-                    item.vat.rate ? this.formatPercent(item.vat.rate) : '-',
-                    this.formatPrice(totalPricePreTax.toNumber(), invoice.currency, invoice.customerAddressData.countryId)
+                    this.localizeService.formatPrice(
+                        item.price,
+                        { currency: invoice.currency, locale }
+                    ),
+                    item.vat.rate ? this.localizeService.formatPercent(item.vat.rate, { locale }) : '-',
+                    this.localizeService.formatPrice(
+                        totalPricePreTax.toNumber(),
+                        { currency: invoice.currency, locale }
+                    )
                 ]);
             }
             else {
                 res.push([
                     item.name,
                     amount,
-                    this.formatPrice(item.price, invoice.currency, invoice.customerAddressData.countryId),
-                    this.formatPrice(totalPricePreTax.toNumber(), invoice.currency, invoice.customerAddressData.countryId)
+                    this.localizeService.formatPrice(
+                        item.price, { currency: invoice.currency, locale }
+                    ),
+                    this.localizeService.formatPrice(
+                        totalPricePreTax.toNumber(),
+                        { currency: invoice.currency, locale }
+                    )
                 ]);
             }
         }
@@ -276,9 +307,10 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
     /**
      * Gets the invoice number and the dates.
      * @param invoice - The invoice to build the content from.
+     * @param locale - The locale that the invoice should be in.
      * @returns The content containing the invoice number and the date, performance date and due date.
      */
-    protected getNumberAndDates(invoice: Invoice): PdfContentDefinition {
+    protected getNumberAndDates(invoice: Invoice, locale: LocaleCode): PdfContentDefinition {
         const invoiceNumberColumn: PdfColumnDefinition = [
             {
                 text: `${this.options.invoiceNumberLabel}: ${invoice.number}`,
@@ -290,22 +322,36 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
                 italics: true
             }
         ];
+        const invoiceDate: string = this.localizeService.formatDate(
+            invoice.date,
+            'date',
+            { locale }
+        );
         const dateColumn: PdfColumnDefinition = [
             {
-                text: `${this.options.dateLabel}: ${this.formatDate(invoice.date, false, invoice.customerAddressData.countryId)}`,
+                text: `${this.options.dateLabel}: ${invoiceDate}`,
                 alignment: 'right'
             }
         ];
         if (this.options.showPerformanceDate) {
-            const perfDate: string = this.formatDate(invoice.performanceDate, false, invoice.customerAddressData.countryId);
+            const performanceDate: string = this.localizeService.formatDate(
+                invoice.performanceDate,
+                'date',
+                { locale }
+            );
             dateColumn.push({
-                text: `${this.options.performanceDateLabel}: ${perfDate}`,
+                text: `${this.options.performanceDateLabel}: ${performanceDate}`,
                 alignment: 'right'
             });
         }
         if (this.options.showDueDate) {
+            const dueDate: string = this.localizeService.formatDate(
+                invoice.dueDate,
+                'date',
+                { locale }
+            );
             dateColumn.push({
-                text: `${this.options.dueDateLabel}: ${this.formatDate(invoice.dueDate, false, invoice.customerAddressData.countryId)}`,
+                text: `${this.options.dueDateLabel}: ${dueDate}`,
                 alignment: 'right'
             });
         }

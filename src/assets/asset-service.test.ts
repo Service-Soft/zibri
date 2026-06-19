@@ -1,14 +1,19 @@
 
-import { beforeEach, describe, expect, it } from '@jest/globals';
+import { beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 
 import { AssetServiceInterface } from './asset-service.interface';
 import { TreeNode } from './asset.service';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { initDiContainer } from '../di/init-di-container.function';
 import { inject } from '../di/inject.function';
 import { FsUtilities, FsPath } from '../utilities/fs.utilities';
 
 describe('AssetService', () => {
     let assetService: AssetServiceInterface;
+
+    beforeAll(() => {
+        initDiContainer();
+    });
 
     beforeEach(() => {
         assetService = inject(ZIBRI_DI_TOKENS.ASSET_SERVICE);

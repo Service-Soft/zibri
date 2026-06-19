@@ -5,6 +5,7 @@ import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
+import { InternalError } from '../error-handling/internal-error.model';
 import { GlobalRegistry } from '../global/global-registry';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
@@ -32,7 +33,7 @@ export class DataSourceService implements DataSourceServiceInterface {
         for (const dataSourceClass of dataSources) {
             const dataSource: DataSourceInterface = inject(dataSourceClass);
             if (!MetadataUtilities.getFilePath(dataSourceClass)) {
-                throw new Error(`The data source ${dataSourceClass.name} is not decorated with @DataSource.`);
+                throw new InternalError(`The data source ${dataSourceClass.name} is not decorated with @DataSource.`);
             }
             this.dataSources.push(dataSource);
             await this.logger.info(`  - ${dataSourceClass.name} (${dataSource.entities.length} entities)`);

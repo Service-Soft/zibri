@@ -10,6 +10,7 @@ import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../di/inject.function';
 import { type EmailServiceInterface } from '../../../email/email-service.interface';
 import { EmailPriority } from '../../../email/models/email-priority.enum';
+import { InternalError } from '../../../error-handling/internal-error.model';
 import { GlobalRegistry } from '../../../global/global-registry';
 import { OnAppInit } from '../../../global/on-app-init.interface';
 import { PreactUtilities } from '../../../preact/preact.utilities';
@@ -56,13 +57,13 @@ export class MailingListService implements MailingListServiceInterface, OnAppIni
     // eslint-disable-next-line jsdoc/require-jsdoc
     onAppInit(): void {
         if (inject(ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS.SUBSCRIBE_CONFIRMATION_EMAIL_TEMPLATE) == undefined) {
-            throw new Error([
+            throw new InternalError([
                 'The builtin MailingListService requires that a value for',
                 'ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS.SUBSCRIBE_CONFIRMATION_EMAIL_TEMPLATE is provided.'
             ].join(' '));
         }
         if (inject(ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS.BASE_EMAIL_TEMPLATE) == undefined) {
-            throw new Error([
+            throw new InternalError([
                 'The builtin MailingListService requires that a value for',
                 'ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS.BASE_EMAIL_TEMPLATE is provided.'
             ].join(' '));

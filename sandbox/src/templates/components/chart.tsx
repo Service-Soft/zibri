@@ -1,5 +1,5 @@
 import { ChartConfiguration, Chart as ChartJsChart } from 'chart.js?client';
-import { MetricsSnapshot, onClient, PreactComponent } from 'zibri';
+import { $ts, MetricsSnapshot, onClient, PreactComponent } from 'zibri';
 
 import { Card } from './card';
 import { Heading } from './heading';
@@ -45,7 +45,7 @@ export const Chart: PreactComponent<Props> = ({ className = '', title, canvasId,
 
         document.addEventListener('metrics:update', (ev) => {
             if (!(ev instanceof CustomEvent) || !('snaps' in ev.detail)) {
-                throw new Error('received invalid metrics event');
+                throw new Error($ts`received invalid metrics event`);
             }
             if (!chart) {
                 return;

@@ -1,10 +1,11 @@
 import assert from 'assert';
 
-import { describe, expect, it } from '@jest/globals';
+import { beforeAll, describe, expect, it } from '@jest/globals';
 
 import { FileToGenerate, generateEntityFilesForProvider } from './generate-entity-files-for-provider.function';
 import { EntityGenerationProvider } from './providers/entity-generation-provider.interface';
 import { OpenApiUrlProvider } from './providers/open-api-url.provider';
+import { initDiContainer } from '../../di/init-di-container.function';
 import { OpenApiDefinition } from '../../open-api/open-api.model';
 import { toKebabCase } from '../../utilities/to-kebab-case.function';
 import { toPascalCase } from '../../utilities/to-pascal-case.function';
@@ -38,6 +39,10 @@ function expectDecoratorAboveProperty(
 }
 
 describe('generateEntityFiles', () => {
+    beforeAll(() => {
+        initDiContainer();
+    });
+
     it('PetStore', async () => {
         const provider: OpenApiUrlProvider = new OpenApiUrlProvider('PetStore', 'https://petstore.swagger.io/v2/swagger.json');
         const { filesToGenerate } = await generateEntityFilesForProvider(provider, 'test');

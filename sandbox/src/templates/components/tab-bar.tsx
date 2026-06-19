@@ -1,5 +1,5 @@
 import { ComponentChildren } from 'preact';
-import { onClient, PreactComponent } from 'zibri';
+import { $ts, onClient, PreactComponent } from 'zibri';
 
 type Tab = {
     id: string,
@@ -21,21 +21,21 @@ export const TabBar: PreactComponent<Props> = ({ tabs, children, currentTabId: i
     function changeTab(tabId: string): void {
         const element: HTMLElement | null = document.getElementById(tabId);
         if (!element) {
-            throw new Error(`TabPanel with id "${tabId}" could not be found`);
+            throw new Error($ts`TabPanel with id "${tabId}" could not be found`);
         }
         const buttonElement: HTMLElement | null = document.getElementById(`button-${tabId}`);
         if (!buttonElement) {
-            throw new Error(`Button with id "button-${tabId}" could not be found`);
+            throw new Error($ts`Button with id "button-${tabId}" could not be found`);
         }
 
         for (const tab of tabs) {
             const element: HTMLElement | null = document.getElementById(tab.id);
             if (!element) {
-                throw new Error(`TabPanel with id "${tab.id}" could not be found`);
+                throw new Error($ts`TabPanel with id "${tab.id}" could not be found`);
             }
             const buttonElement: HTMLElement | null = document.getElementById(`button-${tab.id}`);
             if (!buttonElement) {
-                throw new Error(`Button with id "button-${tab.id}" could not be found`);
+                throw new Error($ts`Button with id "button-${tab.id}" could not be found`);
             }
             buttonElement.classList.remove('bg-secondary', 'border-secondary');
             element.style.display = 'none';

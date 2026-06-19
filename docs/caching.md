@@ -28,11 +28,15 @@ As you can see, the above uses a really simple in memory cache store. But you co
 To use your cache, you can use the provided decorators on whichever method that should be cached:
 
 ```ts
-import { Cached, Get, GlobalRegistry, HtmlResponse, PreactUtilities, Response } from 'zibri';
+import { Cached, Get, GlobalRegistry, HtmlResponse, HttpRequestContext, PreactUtilities, Response, WebsocketRequestContext, ZIBRI_DI_TOKENS, ZIBRI_REQUEST_CONTEXT_TOKENS } from 'zibri';
 
 import { HomePage } '../home';
 
-@Cached(StaticPagesCache, () => 'index')
+@Cached(StaticPagesCache, () => {
+    // if you only have a single locale configured you could also just use 'index' here.
+    const ctx: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
+    return ctx?.get(ZIBRI_REQUEST_CONTEXT_TOKENS.CURRENT_LANGUAGE) + 'index';
+})
 @Response.html()
 @Get()
 async index(): Promise<HtmlResponse> {

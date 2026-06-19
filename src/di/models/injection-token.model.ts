@@ -1,3 +1,5 @@
+import { InternalError } from '../../error-handling/internal-error.model';
+
 const allInjectionTokenKeys: string[] = [];
 
 /**
@@ -9,10 +11,10 @@ export class InjectionToken<T> {
 
     constructor(readonly key: string) {
         if (allInjectionTokenKeys.includes(key)) {
-            throw new Error([
+            throw new InternalError([
                 `An InjectionToken with the key "${key}" already exists.`,
                 'If you wanted to override it, you need to use the existing InjectionToken instance.'
-            ].join('\n'));
+            ]);
         }
         allInjectionTokenKeys.push(key);
     }

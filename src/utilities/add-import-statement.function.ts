@@ -1,3 +1,5 @@
+import { InternalError } from '../error-handling/internal-error.model';
+
 /**
  * Definition of a typescript import.
  */
@@ -43,7 +45,7 @@ function getNewImportStatement(imp: TsImportDefinition): string {
 // eslint-disable-next-line jsdoc/require-jsdoc
 function getUpdatedImportStatement(existingImport: string, imp: TsImportDefinition): string {
     if (imp.defaultImport && !existingImport.includes('{')) {
-        throw new Error(`There is already a default import from ${imp.path}`);
+        throw new InternalError(`There is already a default import from ${imp.path}`);
     }
     if (imp.defaultImport) {
         return existingImport.replace('{', `${imp.element}, {`);

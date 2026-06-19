@@ -1,6 +1,7 @@
 import { ComponentChild, ComponentChildren, Fragment, VNode } from 'preact';
 
 import { stringAwareReplace } from './string-aware-replace.function';
+import { InternalError } from '../error-handling/internal-error.model';
 import { JsonUtilities } from '../utilities/json.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
 
@@ -200,7 +201,7 @@ export class PreactCollector {
                     Array.prototype.map = originalMap;
                 }
                 if (rendered instanceof Promise) {
-                    throw new Error(
+                    throw new InternalError(
                         `[ssr] Nested component '${node.type.name}' is async. `
                         + 'Async components are not supported — remove the async keyword and any top-level await. '
                         + 'If you need async data, fetch it before calling render() and pass the result as props.'
@@ -208,7 +209,7 @@ export class PreactCollector {
                 }
             }
             catch (error) {
-                throw new Error('collector component render error', { cause: error });
+                throw new InternalError('collector component render error', { cause: error });
             }
 
             if (!this.isVNode(rendered)) {
@@ -345,7 +346,7 @@ export class PreactCollector {
                 d--;
             }
             else if (ch === ',' && d === 0) {
-                throw new Error(
+                throw new InternalError(
                     `[ssr] Component '${fn.name}' has multiple parameters. `
                     + 'SSR components must accept a single props object. '
                     + 'Change the signature to ({ prop1, prop2 }: Props) or (props: Props).'
@@ -748,7 +749,7 @@ export class PreactCollector {
             return `[${value.map(v => this.serializeLoopValue(v)).join(', ')}]`;
         }
         if (value !== null && typeof value === 'object') {
-            const entries: string[] = Object.entries(value).map(
+            const entries: string[] = ObjectUtilities.entries(value).map(
                 ([k, v]) => `${JsonUtilities.stringify(k)}: ${this.serializeLoopValue(v)}`
             );
             return `{ ${entries.join(', ')} }`;
