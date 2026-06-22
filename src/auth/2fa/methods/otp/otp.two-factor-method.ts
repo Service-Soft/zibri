@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 
-import { HiBase32Utilities } from './hi-base32.utilities';
 import { TwoFactorMethod } from '../two-factor-method.interface';
+import { base32Encode } from './base32-encode.function';
 import { OtpCredentials, OtpCredentialsCreateData } from './otp-credentials.model';
 import { OtpUtilities } from './otp.utilities';
 import { HttpRequestContext } from '../../../../context/request/http-request.context';
@@ -97,8 +97,7 @@ export class OtpTwoFactorMethod implements TwoFactorMethod<never, OtpConfirmRegi
 
     private generateSecret(): string {
         const buffer: Buffer = randomBytes(15);
-        const base32: string = HiBase32Utilities
-            .encode(buffer)
+        const base32: string = base32Encode(buffer)
             .replaceAll('=', '')
             .substring(0, 24);
         return base32;

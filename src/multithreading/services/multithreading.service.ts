@@ -447,6 +447,12 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
     private async handleWorkerExit(exitCode: number, threadId: number): Promise<void> {
         const job: ThreadJob<BaseThreadJobWorkerData, unknown> | undefined = this.getJobByThreadId(threadId);
         if (!job) {
+            const worker: ThreadJobWorker | undefined = this.getWorkerByThreadId(threadId);
+            if (worker) {
+                worker.isInitializingSubject.error(
+                    new InternalError(`Worker ${threadId} exited with code ${exitCode} before initialization completed`)
+                );
+            }
             return;
         }
 
@@ -482,6 +488,10 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
     private async handleWorkerError(error: Error, threadId: number): Promise<void> {
         const job: ThreadJob<BaseThreadJobWorkerData, unknown> | undefined = this.getJobByThreadId(threadId);
         if (!job) {
+            const worker: ThreadJobWorker | undefined = this.getWorkerByThreadId(threadId);
+            if (worker) {
+                worker.isInitializingSubject.error(error);
+            }
             return;
         }
 

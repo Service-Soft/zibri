@@ -1,8 +1,6 @@
 import { createServer, Server } from 'node:http';
 import { AddressInfo } from 'node:net';
 
-import cookieParser from 'cookie-parser';
-import cors from 'cors';
 import express, { RequestHandler } from 'express';
 
 import { HstsOptions, ZibriApplicationOptions, ZibriApplicationSecurityOptions } from './application-options.model';
@@ -32,6 +30,8 @@ import { implementsOnAppInit } from './global/on-app-init.interface';
 import { implementsOnAppShutdown, OnAppShutdown, OnAppShutdownError } from './global/on-app-shutdown.interface';
 import { implementsOnAppStart } from './global/on-app-start.interface';
 import { HandlebarUtilities } from './handlebars/handlebar.utilities';
+import { cookieMiddleware } from './http/cookie.middleware';
+import { corsMiddleWare } from './http/cors.middleware';
 import { KnownHeader } from './http/known-header.enum';
 import { LoggerInterface } from './logging/logger.interface';
 import { FormDataBodyParser } from './parsing/form-data/form-data.body-parser';
@@ -77,7 +77,7 @@ export class ZibriApplication {
      */
     private readonly express: express.Express = express()
         .disable('x-powered-by')
-        .use(cors());
+        .use(corsMiddleWare);
 
     private readonly signalHandlers: Map<ShutdownSignal, () => void> = new Map<ShutdownSignal, () => void>();
 
@@ -176,9 +176,7 @@ export class ZibriApplication {
         await this.onAppInit(injectables);
 
         const secret: string | undefined = inject(ZIBRI_DI_TOKENS.COOKIE_SIGN_SECRET);
-        if (secret) {
-            this.use(cookieParser(secret));
-        }
+        this.use(cookieMiddleware(secret));
 
         await this.afterAppInit(injectables);
 

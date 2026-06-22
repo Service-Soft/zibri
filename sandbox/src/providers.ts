@@ -101,20 +101,20 @@ export const providers: DiProvider<unknown>[] = [
     defineProvider({
         token: ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS_INPUT,
         useValue: {
-            defaultLocale: 'de',
+            defaultLocale: 'en-US',
             supportedLocales: {
                 'en-US': {
                     currencyCode: 'USD',
                     defaultDateFormat: defineDateFormat('MM/DD/YYYY'),
                     defaultDateTimeFormat: defineDateFormat('MM/DD/YYYY h:mm A'),
                     defaultTimeFormat: defineDateFormat('h:mm A')
-                },
-                de: {
-                    currencyCode: 'EUR',
-                    defaultDateFormat: defineDateFormat('DD.MM.YYYY'),
-                    defaultDateTimeFormat: defineDateFormat('DD.MM.YYYY HH:mm'),
-                    defaultTimeFormat: defineDateFormat('HH:mm')
                 }
+                // de: {
+                //     currencyCode: 'EUR',
+                //     defaultDateFormat: defineDateFormat('DD.MM.YYYY'),
+                //     defaultDateTimeFormat: defineDateFormat('DD.MM.YYYY HH:mm'),
+                //     defaultTimeFormat: defineDateFormat('HH:mm')
+                // }
             }
         }
     })

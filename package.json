@@ -49,15 +49,14 @@
     "license": "MIT",
     "description": "TS Backend Framework",
     "peerDependencies": {
-        "axios": "^1.16.1",
         "bcryptjs": "^3.0.3",
         "bignumber.js": "^11.1.1",
-        "cookie-parser": "^1.4.7",
         "handlebars": "^4.7.9",
         "hi-base32": "^0.5.1",
         "jsonwebtoken": "^9.0.3",
         "otpauth": "^9.5.1",
         "pdfmake": "^0.2.23",
+        "pg": "^8.21.0",
         "preact": "^10.29.2",
         "preact-render-to-string": "^6.7.0",
         "rxjs": "^7.8.2",
@@ -65,13 +64,16 @@
         "ts-node": "^10.9.2",
         "xmlbuilder2": "^4.0.3"
     },
+    "peerDependenciesMeta": {
+        "bcryptjs": {
+            "optional": true
+        }
+    },
     "dependencies": {
         "@fastify/busboy": "^3.2.0",
-        "cors": "^2.8.6",
         "express": "^5.2.1",
         "node-cron": "^4.2.1",
-        "nodemailer": "^8.0.8",
-        "pg": "^8.21.0",
+        "nodemailer": "^9.0.1",
         "prom-client": "^15.1.3",
         "reflect-metadata": "^0.2.2",
         "swagger2openapi": "^7.0.8",
@@ -83,8 +85,6 @@
         "@jest/globals": "^30.4.1",
         "@swc/core": "^1.15.40",
         "@testcontainers/postgresql": "^12.0.0",
-        "@types/cookie-parser": "^1.4.10",
-        "@types/cors": "^2.8.19",
         "@types/express": "^5.0.6",
         "@types/jsonwebtoken": "^9.0.10",
         "@types/node": "^25.9.1",
@@ -93,6 +93,7 @@
         "@types/swagger2openapi": "^7.0.4",
         "eslint": "^9.36.0",
         "eslint-config-service-soft": "^2.1.6",
+        "form-data": "^4.0.6",
         "jest": "^30.4.2",
         "npm-run-all": "^4.1.5",
         "openapi3-ts": "^4.5.0",

@@ -9,7 +9,7 @@ import { AuthService } from '../../auth/auth.service';
 import { EncryptionService } from '../../auth/encryption/encryption.service';
 import { AesGcmEncryptionStrategy } from '../../auth/encryption/strategies/aes-gcm.encryption-strategy';
 import { HashService } from '../../auth/hash/hash.service';
-import { BcryptHashStrategy } from '../../auth/hash/strategies/bcrypt.hash-strategy';
+import { ScryptHashStrategy } from '../../auth/hash/strategies/scrypt.hash-strategy';
 import { UserService } from '../../auth/user/user.service';
 import { BackupService } from '../../backup/backup.service';
 import { CacheService } from '../../caching/cache.service';
@@ -129,7 +129,7 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
     COOKIE_AUTH_SESSION_EXPIRES_IN_MS: { useValue: Ms.DAY },
     COOKIE_AUTH_REFRESH_SESSION_EXPIRES_IN_MS: { useValue: Ms.DAY * 100 },
     HASH_SERVICE: { useClass: HashService },
-    HASH_STRATEGIES: { useValue: [BcryptHashStrategy] },
+    HASH_STRATEGIES: { useValue: [ScryptHashStrategy] },
     ENCRYPTION_SERVICE: { useClass: EncryptionService },
     ENCRYPTION_STRATEGIES: { useValue: [AesGcmEncryptionStrategy] },
     ENCRYPTION_MASTER_OPTIONS: { useValue: undefined },

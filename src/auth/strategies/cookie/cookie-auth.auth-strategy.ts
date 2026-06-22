@@ -426,7 +426,7 @@ export class CookieAuthStrategy<
         if (!(context instanceof HttpRequestContext)) {
             return undefined;
         }
-        // eslint-disable-next-line typescript/no-unsafe-assignment
+        // eslint-disable-next-line typescript/no-unsafe-assignment, typescript/no-unsafe-member-access
         const currentSessionId: string | undefined = context.request.signedCookies?.[this.sessionOptions.name];
         if (!currentSessionId) {
             return undefined;
@@ -490,7 +490,7 @@ export class CookieAuthStrategy<
         if (!(context instanceof HttpRequestContext)) {
             return undefined;
         }
-        // eslint-disable-next-line typescript/no-unsafe-assignment
+        // eslint-disable-next-line typescript/no-unsafe-assignment, typescript/no-unsafe-member-access
         const currentRefreshSessionId: string | undefined = context.request.signedCookies?.[this.refreshSessionOptions.name];
         if (!currentRefreshSessionId) {
             return undefined;

@@ -81,6 +81,7 @@ export * from './auth/hash/hash.service';
 export * from './auth/hash/hash.utilities';
 
 export * from './auth/hash/strategies/bcrypt.hash-strategy';
+export * from './auth/hash/strategies/scrypt.hash-strategy';
 export * from './auth/hash/strategies/hash-strategy-entity.model';
 export * from './auth/hash/strategies/hash-strategy.interface';
 

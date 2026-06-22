@@ -152,7 +152,7 @@ export async function startTestServer(
     const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
     await logger.info('initializes test server...');
     const info: typeof logger.info = logger.info;
-    logger.info = noOp;
+    // logger.info = noOp;
 
     const assetService: AssetServiceInterface = inject(ZIBRI_DI_TOKENS.ASSET_SERVICE);
     (assetService.assetsPath as string) = testAssetsFolder;

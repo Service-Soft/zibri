@@ -34,7 +34,7 @@ fib(n);
 const tSingle: number = performance.now() - warmStart;
 
 let multithreadingService: MultithreadingServiceInterface;
-let server: StartedTestServer;
+let server: StartedTestServer | undefined;
 
 describe('MultithreadingService - performance vs main event loop', () => {
     beforeAll(async () => {
@@ -63,11 +63,12 @@ describe('MultithreadingService - performance vs main event loop', () => {
         });
         multithreadingService = inject(ZIBRI_DI_TOKENS.MULTITHREADING_SERVICE);
     }, 30000);
+
     afterAll(async () => {
         if (allThreads <= 2) {
             return;
         }
-        await server.shutdown();
+        await server?.shutdown();
     });
 
     it('runs CPU heavy tasks significantly faster via worker threads', async () => {

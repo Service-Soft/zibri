@@ -6,7 +6,7 @@ import { InternalError } from '../internal-error.model';
  * An error to throw when there are tokens that are not injectable.
  */
 export class MissingTokensError extends InternalError {
-    constructor(context: string, tokens: DiToken<unknown>[], options: ErrorOptions) {
+    constructor(context: string, tokens: DiToken<unknown>[], options?: ErrorOptions) {
         const messages: string[] = [
             `Error initializing ${context}`,
             'Could not inject the following tokens:'

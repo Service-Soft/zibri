@@ -18,6 +18,7 @@ import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { ErrorUtilities } from '../../error-handling/error.utilities';
 import { BadRequestError } from '../../error-handling/errors/bad-request.error';
+import { GlobalError } from '../../error-handling/errors/global.error';
 import { HttpError } from '../../error-handling/errors/http.error';
 import { NotFoundError } from '../../error-handling/errors/not-found.error';
 import { UnauthorizedError } from '../../error-handling/errors/unauthorized.error';
@@ -229,7 +230,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
                 return;
             }
             catch (error) {
-                const globalError: Error = new Error('Global Error', { cause: error });
+                const globalError: GlobalError = new GlobalError(error);
                 globalError.stack = undefined;
                 let persist: boolean = false;
                 if (ErrorUtilities.isError(error)) {
@@ -242,8 +243,6 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
                     await this.logger.critical(globalError);
                     persist = true;
                 }
-
-                await this.logger.debug(`got an error ${JsonUtilities.stringify(globalError)}`);
 
                 await this.send({
                     connection,
