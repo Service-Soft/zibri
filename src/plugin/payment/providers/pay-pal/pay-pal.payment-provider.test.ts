@@ -144,7 +144,7 @@ describe('PayPalPaymentProvider (sandbox)', () => {
         });
 
         it('rejects missing currencyCode', () => {
-            expect(() => paymentService.validatePaymentData(METHOD, { amount: AMOUNT, currencyCode: '', transactionId: UUIDUtilities.generate() })).toThrow('currencyCode required');
+            expect(() => paymentService.validatePaymentData(METHOD, { amount: AMOUNT, currencyCode: '' as 'EUR', transactionId: UUIDUtilities.generate() })).toThrow('currencyCode required');
         });
     });
 
