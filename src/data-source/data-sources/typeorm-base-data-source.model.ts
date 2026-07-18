@@ -125,6 +125,7 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
         protected readonly authService: AuthServiceInterface
     ) {}
 
+    abstract validateBackupConfiguration(): void | Promise<void>;
     abstract createBackupData(): Readable;
     abstract restoreBackup(backupData: Readable): void | Promise<void>;
 

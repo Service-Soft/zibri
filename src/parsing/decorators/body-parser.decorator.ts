@@ -1,20 +1,11 @@
-import { GlobalRegistry } from '../../global/global-registry';
-import { Newable } from '../../types/newable.type';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { BodyParserInterface } from '../body-parser.interface';
+import { Injectable, InjectableOptions } from '../../di/decorators/injectable.decorator';
+import { DiVariants } from '../../di/models/di-variant.model';
+import { OmitStrict } from '../../types/omit-strict.type';
 
 /**
  * Marks a request body parser.
+ * @param options - Options for the body parser.
  */
-export function BodyParser(): ClassDecorator {
-    return target => {
-        // eslint-disable-next-line unicorn/error-message
-        const stack: string = new Error().stack ?? '';
-        MetadataUtilities.setFilePath(target, stack);
-        GlobalRegistry.injectables.push({
-            token: target as unknown as Newable<BodyParserInterface>,
-            useClass: target as unknown as Newable<BodyParserInterface>
-        });
-        GlobalRegistry.bodyParsers.push(target as unknown as Newable<BodyParserInterface>);
-    };
+export function BodyParser<T>(options: OmitStrict<InjectableOptions<T>, 'variant'> = {}): ClassDecorator {
+    return target => Injectable({ ...options, variant: DiVariants.BODY_PARSER })(target);
 }

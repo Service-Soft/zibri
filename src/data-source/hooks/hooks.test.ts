@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/glo
 
 import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
+import { type HashString } from '../../auth/hash/hash.utilities';
 import { ChangeSetEntity } from '../../change-sets/models/change-set-entity.model';
 import { ChangeSetType } from '../../change-sets/models/change-set-type.enum';
 import { ChangeSet } from '../../change-sets/models/change-set.model';
@@ -27,7 +28,7 @@ class HookTestEntity extends BaseEntity implements ChangeSetEntity, SoftDeleteEn
     secretValue!: string; // encrypted on save, decrypted on read, excluded from response
 
     @Property.string({ hash: true })
-    password!: string; // hashed on save
+    password!: HashString; // hashed on save
 
     @Property.boolean({ default: true })
     isActive!: boolean; // default value set on create
@@ -89,7 +90,7 @@ describe('before‑save hooks', () => {
 
             // password should be hashed (not the plain text)
             expect(entity.password).not.toBe('my-password');
-            expect(entity.password).toContain('$'); // hash contains algorithm prefix
+            expect(entity.password).toContain('scrypt.v1'); // hash contains algorithm prefix
         });
 
         it('sets default values when not provided', async () => {
@@ -154,7 +155,7 @@ describe('before‑save hooks', () => {
         it('hashes updated hash properties', async () => {
             const updated: HookTestEntity = await repo.updateById(entityId, { password: 'new-password' });
             expect(updated.password).not.toBe('new-password');
-            expect(updated.password).toContain('$');
+            expect(updated.password).toContain('scrypt.v1');
         });
 
         it('does NOT re‑set default values (setDefault = false)', async () => {

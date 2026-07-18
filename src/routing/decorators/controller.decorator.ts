@@ -1,5 +1,5 @@
-import { GlobalRegistry } from '../../global/global-registry';
-import { Newable } from '../../types/newable.type';
+import { Injectable, InjectableOptions } from '../../di/decorators/injectable.decorator';
+import { DiVariants } from '../../di/models/di-variant.model';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { SupportedVersionsOptions } from '../../versioning/supported-versions-options.model';
@@ -24,25 +24,23 @@ export type ControllerData = {
 };
 
 /**
+ * Options input for the controller.
+ */
+export type ControllerInputData<T> = OmitStrict<InjectableOptions<T>, 'variant'> & Partial<OmitStrict<ControllerData, 'baseRoute'>>;
+
+/**
  * Marks a controller class to be registered under the provided base route.
  * @param baseRoute - The base route of the controller. Any endpoints inside this class will be prefixed with this.
  * @param options - Additional options for the controller.
  */
-export function Controller(baseRoute: Route, options: Partial<OmitStrict<ControllerData, 'baseRoute'>> = {}): ClassDecorator {
+export function Controller<T>(baseRoute: Route, options: ControllerInputData<T> = {}): ClassDecorator {
     const { allowOrphan = false, versions = ['^latest'] } = options;
     return target => {
-        // eslint-disable-next-line unicorn/error-message
-        const stack: string = new Error().stack ?? '';
-        MetadataUtilities.setFilePath(target, stack);
+        Injectable({ ...options, variant: DiVariants.CONTROLLER })(target);
         MetadataUtilities.setControllerData(target, {
             baseRoute,
             allowOrphan,
             versions
         });
-        GlobalRegistry.injectables.push({
-            token: target as unknown as Newable<unknown>,
-            useClass: target as unknown as Newable<unknown>
-        });
-        GlobalRegistry.controllerClasses.push(target as unknown as Newable<unknown>);
     };
 }

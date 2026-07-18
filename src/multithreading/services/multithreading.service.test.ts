@@ -10,7 +10,9 @@ import { StartedTestServer, startTestServer } from '../../__testing__/test-serve
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { defineProvider } from '../../di/models/di-provider.model';
+import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
 import { Ms } from '../../utilities/ms';
+import { ThreadJobEntity } from '../models/thread-job-entity.model';
 
 const allThreads: number = os.availableParallelism();
 const reserveThreadsMain: number = 1;
@@ -100,6 +102,18 @@ describe('MultithreadingService - performance vs main event loop', () => {
         console.debug(`main: ${Math.round(mainMs)} ms, workers: ${Math.round(workersMs)} ms`);
         expect(workersMs).toBeLessThan(mainMs * thresholdFactor);
     }, (maxThreads * tSingle) * 2);
+
+    it('can run a ts worker file', async () => {
+        const filePath: FsPath = FsUtilities.getPath(__dirname, 'multithreading.service.test.worker.ts');
+        const res: ThreadJobEntity<{ filePath: FsPath }, unknown> = await multithreadingService.runThreadJob({ workerData: { filePath, amount: 40 } });
+        expect(res.result).toEqual(102334155);
+    });
+
+    it('can run a js worker file', async () => {
+        const filePath: FsPath = FsUtilities.getPath(__dirname, 'multithreading.service.test.worker.js');
+        const res: ThreadJobEntity<{ filePath: FsPath }, unknown> = await multithreadingService.runThreadJob({ workerData: { filePath, amount: 40 } });
+        expect(res.result).toEqual(102334155);
+    });
 });
 
 export function computeAdaptiveThresholdFactor(

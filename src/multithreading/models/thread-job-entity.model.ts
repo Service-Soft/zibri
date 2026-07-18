@@ -1,4 +1,4 @@
-import { BaseThreadJobWorkerData } from './base-thread-job-worker-data.model';
+import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from './base-thread-job-worker-data.model';
 import { ThreadJobStatus } from './thread-job-status.enum';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
@@ -23,7 +23,7 @@ type OmitValues = typeof omitValues[number];
  * Contains information about an invoice.
  */
 @Entity()
-export class ThreadJobEntity<WorkerData extends BaseThreadJobWorkerData, ResultType>
+export class ThreadJobEntity<WorkerData extends BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>, ResultType>
     extends BaseEntity
     implements OmitStrict<ThreadJob<WorkerData, ResultType>, OmitValues> {
 

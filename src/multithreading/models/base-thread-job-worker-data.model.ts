@@ -1,3 +1,5 @@
+import { FsPath } from '../../utilities/fs.utilities';
+
 /**
  * The base data for a thread job worker.
  */
@@ -6,7 +8,7 @@ export type BaseThreadJobWorkerData = {
      * The path to the worker file.
      * **This can either be a ts or a js file**.
      */
-    filePath: string
+    filePath: FsPath
 };
 
 /**
@@ -14,7 +16,7 @@ export type BaseThreadJobWorkerData = {
  *
  * **IMPORTANT**: This uses "eval" in the thread worker, so make sure that the data passed is not malicious.
  */
-export type BaseFunctionThreadJobWorkerData<I> = BaseThreadJobWorkerData & {
+export type BaseFunctionThreadJobWorkerData<I> = {
     /**
      * A stringified function to call in the worker.
      */

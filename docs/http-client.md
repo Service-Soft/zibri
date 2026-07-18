@@ -1,7 +1,18 @@
 # Http Client
 When building an API, you most likely will need to integrate some third party API. For that, Zibri provides a http client. In contrast to other packages in this space, response types are not just assumed but actually validated using the same procedure that is also used for incoming http requests. See the [creating endpoints guide](./creating-endpoints.md#accessing-request-data) for more details.
 
-## Making a request
+## Key exports
+| Export | Kind | Purpose |
+|---|---|---|
+| `HttpClientInterface` | interface | Contract for making outgoing http requests |
+| `ZIBRI_DI_TOKENS.HTTP_CLIENT` | DI token | Injects `HttpClientInterface` |
+| `HttpClientResponse` | type | Shape of a response, including validated body and headers |
+| `MimeType` | enum | Known mime types, used to select a non-default response body format |
+| `KnownHeader` | enum | Known header names, used to define expected response headers |
+| `FormData` | class | Response body wrapper for `multipart/form-data` responses |
+
+## Usage
+### Making a request
 ```ts
 import { HttpClientInterface, inject, ZIBRI_DI_TOKENS } from 'zibri';
 
@@ -35,7 +46,7 @@ const response: HttpClientResponse<undefined> = await http.post(
 // ...
 ```
 
-### Setting retries and timeout
+### Setting attempts and timeout
 By default, the http client:
 - waits for 5 seconds before throwing a timeout error
 - tries the request exactly once
@@ -50,17 +61,17 @@ const http: HttpClientInterface = inject(ZIBRI_DI_TOKENS.HTTP_CLIENT);
 const response: HttpClientResponse<undefined> = await http.get(
     'https://some-api.com/some-endpoint',
     { 
-        retries: 3,
+        attempts: 3,
         timeoutMs: 10000
     }
 );
 // ...
 ```
 
-## Defining response data
+### Defining response data
 Response data only consists of the body and possible headers that have been sent.
 
-### body
+#### body
 The body works by providing a class that has properties with the `@Property` decorator, same as an incoming body. In the following, we validate that the response body has the properties name and value, which are both strings. If that is not the case, a validation error will be thrown.
 
 ```ts
@@ -110,7 +121,7 @@ const response: HttpClientResponse<FormData<FormDataItem>> = await http.get(
 // ...
 ```
 
-### headers
+#### headers
 Response headers can be defined by setting the respective option. In the following case, we validate that the response has a content length header and that it is of type number. If it's not, a validation error will be thrown.
 
 ```ts
@@ -128,3 +139,7 @@ const response: HttpClientResponse<Item> = await http.get(
 );
 // ...
 ```
+
+## See also
+- [Creating endpoints](./creating-endpoints.md#accessing-request-data) — the same validation procedure used for incoming requests
+- [Dependency injection](./di.md) — how `ZIBRI_DI_TOKENS.HTTP_CLIENT` is resolved via `inject`

@@ -99,6 +99,7 @@ export * from './di/default/zibri-di-tokens.default';
 export * from './di/inject.function';
 export * from './di/init-di-container.function';
 export * from './di/get-all-registered-tokens.function';
+export * from './di/get-registered-providers-of-variant.function';
 
 export * from './di/errors/get-dependency-stack-trace.function';
 export * from './di/errors/no-provider.error';
@@ -339,7 +340,36 @@ export * from './email/models/create-email-data.model';
 export * from './email/models/email-config.model';
 
 // rate limiting
-export * from './rate-limiting/rate-limiter';
+export * from './rate-limiting/rate-limit-result.model';
+export * from './rate-limiting/rate-limit-wrap-options.model';
+export * from './rate-limiting/rate-limiter-metrics.model';
+export * from './rate-limiting/rate-limiting-cleanup.cron-job';
+export * from './rate-limiting/rate-limiting-service.interface';
+export * from './rate-limiting/rate-limiting.service';
+
+export * from './rate-limiting/decorators/rate-limited.decorator';
+export * from './rate-limiting/decorators/rate-limiter.decorator';
+
+export * from './rate-limiting/limiter/base-rate-limiter.model';
+export * from './rate-limiting/limiter/fixed-window.rate-limiter';
+export * from './rate-limiting/limiter/gcra.rate-limiter';
+export * from './rate-limiting/limiter/leaky-bucket-meter.rate-limiter';
+export * from './rate-limiting/limiter/leaky-bucket-queue.rate-limiter';
+export * from './rate-limiting/limiter/rate-limiter-config.model';
+export * from './rate-limiting/limiter/rate-limiter.interface';
+export * from './rate-limiting/limiter/semaphore.rate-limiter';
+export * from './rate-limiting/limiter/sliding-window-counter.rate-limiter';
+export * from './rate-limiting/limiter/sliding-window-log.rate-limiter';
+export * from './rate-limiting/limiter/token-bucket.rate-limiter';
+
+export * from './rate-limiting/reservation/rate-limit-reservation-not-found.error';
+export * from './rate-limiting/reservation/rate-limit-reservation-rejection-reason.enum';
+export * from './rate-limiting/reservation/rate-limit-reservation-result.model';
+export * from './rate-limiting/reservation/rate-limit-reservation.error';
+export * from './rate-limiting/reservation/rate-limit-reservation.model';
+
+export * from './rate-limiting/stores/rate-limiter-store.interface';
+export * from './rate-limiting/stores/in-memory.rate-limiter-store';
 
 // handlebars
 export * from './handlebars/generate-handlebar-type-files.function';
@@ -534,6 +564,7 @@ export * from './caching/cache/base-cache.model';
 export * from './caching/cache/cache-operation.enum';
 export * from './caching/cache/cache-options.model';
 export * from './caching/cache/cache.interface';
+export * from './caching/cache/multi-tier.cache';
 
 export * from './caching/cache/read-aside/read-aside.cache';
 export * from './caching/cache/read-aside/write-around-read-aside.cache';

@@ -4,13 +4,9 @@ import { type DeleteEncryptionKeyOptions, EncryptionServiceInterface, EncryptOpt
 import { EncryptionContent, type EncryptionString, EncryptionUtilities } from './encryption.utilities';
 import { EncryptionStrategyEntity, type EncryptionStrategyEntityCreateData, EncryptionStrategyStatus } from './strategies/encryption-strategy-entity.model';
 import { BaseDecryptOptions, BaseEncryptOptions, EncryptionStrategyInterface } from './strategies/encryption-strategy.interface';
-import { WriteThroughReadThroughCache } from '../../caching/cache/read-through/write-through-read-through.cache';
-import { type CacheServiceInterface } from '../../caching/cache-service.interface';
 import { CacheDelete } from '../../caching/decorators/cache-delete.decorator';
 import { CacheWrite } from '../../caching/decorators/cache-write.decorator';
-import { Cache } from '../../caching/decorators/cache.decorator';
 import { Cached } from '../../caching/decorators/cached.decorator';
-import { InMemoryCacheStore } from '../../caching/store/in-memory.cache-store';
 import { type BaseRepositoryOptions } from '../../data-source/models/options/base-repository-options.model';
 import { Where } from '../../data-source/models/where/where-filter.model';
 import { Repository } from '../../data-source/repository';
@@ -27,8 +23,6 @@ import { NotFoundError } from '../../error-handling/errors/not-found.error';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { OnAppInit } from '../../global/on-app-init.interface';
 import { $ts } from '../../localization/translate.function';
-import { type LoggerInterface } from '../../logging/logger.interface';
-import { type MetricsServiceInterface } from '../../metrics/metrics-service.interface';
 import { type DeepPartial } from '../../types/deep-partial.type';
 import { type Newable } from '../../types/newable.type';
 import { type OmitStrict } from '../../types/omit-strict.type';
@@ -90,30 +84,6 @@ class MasterKeyNotFoundError extends InternalError {
     constructor(keyId: string, options?: ErrorOptions) {
         super(`No master key found with id "${keyId}"`, options);
         this.name = 'MasterKeyNotFoundError';
-    }
-}
-
-@Cache()
-// eslint-disable-next-line jsdoc/require-jsdoc
-export class EncryptionKeyCache extends WriteThroughReadThroughCache<string, EncryptionKey, 'EncryptionKeyCache'> {
-
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    protected get logger(): LoggerInterface {
-        return inject(ZIBRI_DI_TOKENS.LOGGER);
-    }
-
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    protected get cacheService(): CacheServiceInterface {
-        return inject(ZIBRI_DI_TOKENS.CACHE_SERVICE);
-    }
-
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    protected get metricsService(): MetricsServiceInterface {
-        return inject(ZIBRI_DI_TOKENS.METRICS_SERVICE);
-    }
-
-    constructor() {
-        super('EncryptionKeyCache', new InMemoryCacheStore(), []);
     }
 }
 
@@ -443,13 +413,13 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
     }
 
     // eslint-disable-next-line unusedImports/no-unused-vars
-    @Cached(EncryptionKeyCache, (id, ..._) => id)
+    @Cached(ZIBRI_DI_TOKENS.ENCRYPTION_KEY_CACHE, (id, ..._) => id)
     private async findKeyEntityById(id: string, options: BaseRepositoryOptions | undefined): Promise<EncryptionKey> {
         return await this.keyRepository.findById(id, { relations: ['strategy'], ...options });
     }
 
     // eslint-disable-next-line unusedImports/no-unused-vars
-    @CacheWrite(EncryptionKeyCache, (key, ..._) => key.id)
+    @CacheWrite(ZIBRI_DI_TOKENS.ENCRYPTION_KEY_CACHE, (key, ..._) => key.id)
     private async createKeyEntity(
         encryptedValue: EncryptionString,
         strategy: EncryptionStrategyEntity,
@@ -467,7 +437,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
     }
 
     // eslint-disable-next-line unusedImports/no-unused-vars
-    @CacheWrite(EncryptionKeyCache, (key, ..._) => key.id)
+    @CacheWrite(ZIBRI_DI_TOKENS.ENCRYPTION_KEY_CACHE, (key, ..._) => key.id)
     private async updateKeyEntityById(
         id: string,
         data: DeepPartial<EncryptionKey>,
@@ -480,7 +450,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
     }
 
     // eslint-disable-next-line unusedImports/no-unused-vars
-    @CacheDelete(EncryptionKeyCache, (keyId, _) => keyId)
+    @CacheDelete(ZIBRI_DI_TOKENS.ENCRYPTION_KEY_CACHE, (keyId, _) => keyId)
     private async deleteKeyEntityById(id: string, options: BaseRepositoryOptions | undefined): Promise<void> {
         const strategy: EncryptionStrategyEntity | undefined = this.strategyEntities.find(s => s.keys.some(k => k.id === id));
         if (!strategy) {

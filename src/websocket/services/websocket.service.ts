@@ -15,7 +15,11 @@ import { InjectRepository } from '../../di/decorators/inject-repository.decorato
 import { Inject } from '../../di/decorators/inject.decorator';
 import { Injectable } from '../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
+import { getDiTokenName } from '../../di/get-di-token-name.function';
+import { getRegisteredProvidersOfVariant } from '../../di/get-registered-providers-of-variant.function';
 import { inject } from '../../di/inject.function';
+import { DiProvider } from '../../di/models/di-provider.model';
+import { DiVariants } from '../../di/models/di-variant.model';
 import { ErrorUtilities } from '../../error-handling/error.utilities';
 import { BadRequestError } from '../../error-handling/errors/bad-request.error';
 import { GlobalError } from '../../error-handling/errors/global.error';
@@ -30,7 +34,7 @@ import { KnownHeader } from '../../http/known-header.enum';
 import { $ts } from '../../localization/translate.function';
 import { type LoggerInterface } from '../../logging/logger.interface';
 import { resolveRouteParams } from '../../routing/resolve-route-params.function';
-import { Newable } from '../../types/newable.type';
+import { isNewable, Newable } from '../../types/newable.type';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { SemVerVersion } from '../../utilities/sem-ver.utilities';
@@ -736,13 +740,14 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
     }
 
     private checkForOrphanedControllers(controllers: Newable<unknown>[]): void {
-        const orphanedControllers: Newable<unknown>[] = GlobalRegistry.websocketControllerClasses.filter(c => {
-            return !controllers.includes(c) && !(MetadataUtilities.getWebsocketControllerData(c)?.allowOrphan ?? false);
+        // TODO!!!
+        const orphanedControllers: DiProvider<unknown>[] = getRegisteredProvidersOfVariant(DiVariants.WEBSOCKET_CONTROLLER).filter(c => {
+            return isNewable(c) && !controllers.includes(c) && !(MetadataUtilities.getWebsocketControllerData(c)?.allowOrphan ?? false);
         });
         if (orphanedControllers.length) {
             const message: string[] = ['Error initializing websocket service.', 'Found orphaned controllers:'];
             for (const controller of orphanedControllers) {
-                message.push(`  - ${controller.name}`);
+                message.push(`  - ${getDiTokenName(controller.token)}`);
             }
             message.push('Did you forget to add them to your websocketControllers array?');
             throw new Error(message.join('\n'));

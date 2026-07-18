@@ -1,7 +1,15 @@
 # Templating
 The templating approach in Zibri currently differs based on whether you want to send an email or a html page.
 
-# Emails
+## Key exports
+| Export | Kind | Purpose |
+|---|---|---|
+| `HtmlResponse` | class | Wraps rendered html to be returned from a controller |
+| `PreactUtilities` | class | Renders a preact page component to html |
+| `PreactComponent` | type | Type of a page component rendered by `PreactUtilities` |
+
+## Usage
+### Emails
 For emails, Zibri uses handlebars:
 
 ```ts
@@ -35,7 +43,7 @@ These are also hot reloaded when you change your templates and eg. introduce or 
 > Caveat:<br>
 > If you don't run `npm run start` then the compiler won't be able to generate the .ts files. So if you have any problems with eg. a property of your template not being recognized, check that first.
 
-# Pages
+### Pages
 For simple html pages Zibri uses [preact](https://preactjs.com/), but with some [heavy modifications](#additional-functionality).
 
 This system is pretty great for a server side framework to render some basic pages. If you have more advanced use cases however you will probably be better of by creating a separate client application that consumes the Zibri API.
@@ -109,7 +117,7 @@ export const HomePage: PreactComponent<Props> = ({ appName }) => {
 };
 ```
 
-## Additional functionality
+#### Additional functionality
 In addition to the features coming from preact out of the box, Zibri provides some more:
 
 It tries to include js script tags inside the server generated code so that functionality can be restored on the frontend part.
@@ -119,7 +127,14 @@ NO imports are resolved automatically.
 
 This means that you can't simply leak server side secrets like api keys to the client just because you used `environment.apiUrl` somewhere and the `index.ts` where its imported from also contains some secrets that tsx compiles into the code. (A reoccuring problem with frameworks that mix the line between front- and backend)
 
-But this also means that the functionality is a lot more restrictive than React, because every hook has to be custom provided. There are currently only two hooks available: `onClient` and `onServer`. Everything else that you might know (useState etc.) simply won't work (yet).
+But this also means that the functionality is a lot more restrictive than React, because every hook has to be custom provided. Currently, the following hooks are available: 
+- `onClient`
+- `onServer`
+- `$t`
+- `$ts`
+- `$f`
+
+Everything else that you might know (useState etc.) simply won't work (yet).
 
 Let's take the metrics page as an example (full content down below), because we have a lot of client functionality that gets restored.
 The first thing you will probably notice is the strange import at the start of the file:
@@ -201,3 +216,6 @@ Finally let's take a look at the template returned:
     </div>
 </BasePage>
 ```
+
+## See also
+- [Metrics](./metrics.md) — the metrics dashboard page shown above as an example of preact templating with client-side hooks

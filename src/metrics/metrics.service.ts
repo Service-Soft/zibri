@@ -155,7 +155,7 @@ export class PrometheusMetricsService implements MetricsServiceInterface, OnAppI
 
         const json: MetricObjectWithValues<MetricValue<string>>[] = await this.registry.getMetricsAsJSON();
         const metrics: Metric[] = json.flatMap(m => m.values.map(s => ({
-            name: m.name,
+            name: 'metricName' in s && typeof s.metricName === 'string' ? s.metricName : m.name,
             type: m.type as unknown as Metric['type'],
             value: s.value,
             labels: s.labels

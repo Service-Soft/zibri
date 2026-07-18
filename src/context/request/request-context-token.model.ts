@@ -21,7 +21,7 @@ const allRequestContextTokenKeys: Set<string> = new Set();
  */
 export class RequestContextToken<T> {
     // eslint-disable-next-line jsdoc/require-jsdoc
-    protected readonly __brand?: T;
+    protected readonly __brand!: T;
 
     constructor(
         readonly key: string,

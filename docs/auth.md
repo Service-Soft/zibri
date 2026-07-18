@@ -1,7 +1,19 @@
 # Authentication & Authorization
 The following guide will explain to you how the auth system in Zibri works and how you can extend it.
 
-## Auth strategies
+## Key exports
+| Export | Kind | Purpose |
+|---|---|---|
+| `BaseUserEntity` | function | Helper base class to extend your own user entity from |
+| `AuthService` | class | Manages the registered auth strategies and exposes generic auth checks |
+| `JwtAuthStrategy` | class | Builtin auth strategy sending a Bearer token, used by default |
+| `UserRepo` | decorator | Registers a class as the user repository |
+| `UserRepositoryInterface` | interface | Contract for finding a user by email and resolving their credentials |
+| `JwtCredentials` | class | Entity storing the credentials for the builtin `JwtAuthStrategy` |
+| `repositoryTokenFor` | function | Resolves the DI token for a given entity's repository |
+
+## Usage
+### Auth strategies
 Zibris auth system is based on so called "auth strategies".
 
 Each strategy comes with all the required functionality built in to
@@ -18,12 +30,12 @@ You can register an auth strategy by defining it on the application options. By 
 
 However, you will probably never use these strategies directly, as Zibri provides an AuthService that automatically manages these strategies in the background for you:
 
-## AuthService
+### AuthService
 The auth service is where the auth strategies are managed. It bundles all their functionality and provides generic methods to eg. check if there is a logged in user, with any of the auth strategies registered.
 
 So you could use the builtin JwtAuthStrategy (registered by default when no auth strategies have been provided) which sends a Bearer token with the currently logged in user data and another custom strategy that might use cookies/anything else to determine the currently logged in user and the AuthService is able to determine if a user is logged in, no matter which strategy he uses.
 
-## Creating and registering user models
+### Creating and registering user models
 Another crucial part of the auth system are users. They need to contain at least an email and an array of roles. A password is actually not required, as some strategies might use third party providers like google etc.
 
 Zibri provides a helper class you can easily extend from:
@@ -72,5 +84,7 @@ export class UserRepository extends Repository<User, UserCreateData>
 }
 ```
 
-## Securing endpoints
-information about how to secure endpoints can be found under the [creating endpoints page](./creating-endpoints.md#securing-endpoints).
+## See also
+- [Creating endpoints](./creating-endpoints.md#securing-endpoints) — securing endpoints with the `@Auth` decorators
+- [Data sources](./data-source.md) — repositories and entities used by the user model
+- [Error handling](./error-handling.md) — errors thrown by the auth system

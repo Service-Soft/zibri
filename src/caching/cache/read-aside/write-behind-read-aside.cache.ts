@@ -53,7 +53,7 @@ export abstract class WriteBehindReadAsideCache<K, V, N extends string, CacheTag
                         const storeStart: number = performance.now();
                         await this.store.set(key, this.createCachedValue(value, tags, ttl));
                         this.metrics.storeDuration.observe(
-                            { cache: this.name, operation: 'set' },
+                            { cache: this.name, operation: 'SET' },
                             performance.now() - storeStart
                         );
                         this.metrics.writes.increase({ cache: this.name });
@@ -61,7 +61,7 @@ export abstract class WriteBehindReadAsideCache<K, V, N extends string, CacheTag
                     })
                     // eslint-disable-next-line promise/prefer-await-to-then, promise/prefer-await-to-callbacks
                     .catch(async (error) => {
-                        this.metrics.errors.increase({ cache: this.name, operation: 'set' });
+                        this.metrics.errors.increase({ cache: this.name, operation: 'SET' });
                         await this.logger.warn(
                             'Background cache write failed',
                             { error }
@@ -82,13 +82,13 @@ export abstract class WriteBehindReadAsideCache<K, V, N extends string, CacheTag
             .then(async () => {
                 const storeStart: number = performance.now();
                 await this.store.set(key, this.createCachedValue(value, tags, ttl));
-                this.metrics.storeDuration.observe({ cache: this.name, operation: 'set' }, performance.now() - storeStart);
+                this.metrics.storeDuration.observe({ cache: this.name, operation: 'SET' }, performance.now() - storeStart);
                 this.metrics.writes.increase({ cache: this.name });
                 await this.updateSizeGauge();
             })
             // eslint-disable-next-line promise/prefer-await-to-then, promise/prefer-await-to-callbacks
             .catch(async (error) => {
-                this.metrics.errors.increase({ cache: this.name, operation: 'set' });
+                this.metrics.errors.increase({ cache: this.name, operation: 'SET' });
                 await this.logger.warn('Background cache write failed in setDirect', { error });
             });
     }

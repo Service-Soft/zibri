@@ -164,7 +164,6 @@ module.exports = {
                     {
                         loader: 'handlebars-loader',
                         options: {
-                            // if you want to precompile
                             runtime: 'handlebars/runtime',
                             knownHelpersOnly: false
                         }

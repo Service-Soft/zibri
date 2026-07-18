@@ -85,6 +85,15 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
+    validateBackupConfiguration(): void {
+        if (!this.rootUsername || !this.rootPw) {
+            throw new InternalError(
+                'Invalid data source marked with @Backup: rootPw and rootUsername need to be provided'
+            );
+        }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
     query<T extends BaseEntity>(entityClass: Newable<T>, options?: QueryOptions): QueryBuilder<T> {
         if (!this.ds) {
             throw new DataSourceInitializationError();

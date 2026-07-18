@@ -214,7 +214,7 @@ export class HttpClient implements HttpClientInterface {
                 continue;
             }
             try {
-                const response: Response = await this.sendRequest(urlWithParams, init, options?.timeoutMs);
+                const response: Response = await this.sendRequest(urlWithParams, init, options?.timeoutMs ?? Ms.SECOND * 5);
                 if (!response.ok) {
                     throw await this.buildResponseError(response, method, url, requestBody, options?.headers);
                 }
@@ -379,16 +379,14 @@ export class HttpClient implements HttpClientInterface {
         return init;
     }
 
-    private async sendRequest(url: string, init: RequestInit, timeoutMs?: number): Promise<Response> {
+    private async sendRequest(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
         const controller: AbortController = new AbortController();
-        const timeout: NodeJS.Timeout | undefined = timeoutMs ? setTimeout(() => controller.abort(), timeoutMs) : undefined;
+        const timeout: NodeJS.Timeout = setTimeout(() => controller.abort(), timeoutMs);
         try {
             return await fetch(url, { ...init, signal: controller.signal });
         }
         finally {
-            if (timeout != undefined) {
-                clearTimeout(timeout);
-            }
+            clearTimeout(timeout);
         }
     }
 

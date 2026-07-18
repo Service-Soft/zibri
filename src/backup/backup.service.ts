@@ -4,20 +4,21 @@ import { BehaviorSubject, first, firstValueFrom } from 'rxjs';
 
 import { BackupEntity, BackupEntityCreateData } from './backup-entity.model';
 import { BackupResourceEntity, BackupResourceEntityCreateData } from './backup-resource-entity.model';
-import { BackupResourceInterface } from './backup-resource.interface';
+import { BackupResourceInterface, isBackupResource } from './backup-resource.interface';
 import { BackupCreateData, BackupServiceInterface } from './backup-service.interface';
 import { ZibriApplication } from '../application';
-import { PostgresDataSource } from '../data-source/data-sources/postgres-typeorm-data-source.model';
 import { Repository } from '../data-source/repository';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { getDiTokenName } from '../di/get-di-token-name.function';
+import { getRegisteredProvidersOfVariant } from '../di/get-registered-providers-of-variant.function';
 import { inject } from '../di/inject.function';
+import { DiProvider } from '../di/models/di-provider.model';
+import { DiVariants } from '../di/models/di-variant.model';
 import { InternalError } from '../error-handling/internal-error.model';
-import { GlobalRegistry } from '../global/global-registry';
 import { type LoggerInterface } from '../logging/logger.interface';
-import { Newable } from '../types/newable.type';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { PromiseUtilities } from '../utilities/promise.utilities';
 import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function';
@@ -43,8 +44,8 @@ class InitBackupServiceError extends InternalError {
  * An error to throw when no transports could be resolved for the given backup resource.
  */
 class BackupTransportNotFoundError extends InternalError {
-    constructor(backupResource: Newable<BackupResourceInterface>) {
-        super(`Could not find a transport for the backup resource "${backupResource.name}"`);
+    constructor(backupResource: BackupResourceInterface) {
+        super(`Could not find a transport for the backup resource "${backupResource.constructor.name}"`);
         this.name = 'BackupTransportNotFoundError';
     }
 }
@@ -54,7 +55,7 @@ class BackupTransportNotFoundError extends InternalError {
  */
 @Injectable({ register: 'onUse' })
 export class BackupService implements BackupServiceInterface, OnAppInit, OnAppShutdown {
-    private readonly backupResources: Newable<BackupResourceInterface>[] = [];
+    private readonly backupResources: BackupResourceInterface[] = [];
 
     private get backupRepository(): Repository<BackupEntity, BackupEntityCreateData> {
         return inject(repositoryTokenFor(BackupEntity));
@@ -76,30 +77,39 @@ export class BackupService implements BackupServiceInterface, OnAppInit, OnAppSh
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async onAppInit(app: ZibriApplication): Promise<void> {
-        if (GlobalRegistry.backupResources.length) {
+        const backupResources: DiProvider<unknown>[] = getRegisteredProvidersOfVariant(DiVariants.BACKUP_RESOURCE);
+        if (backupResources.length) {
             // eslint-disable-next-line stylistic/max-len
-            await this.logger.info(`configures ${GlobalRegistry.backupResources.length} ${GlobalRegistry.backupResources.length > 1 ? 'resources' : 'resource'} to be backed up:`);
+            await this.logger.info(`configures ${backupResources.length} ${backupResources.length > 1 ? 'resources' : 'resource'} to be backed up:`);
             validateEntitiesRegistered(BackupService.name, app, BackupResourceEntity, BackupEntity);
         }
 
-        for (const resourceClass of GlobalRegistry.backupResources) {
-            this.backupResources.push(resourceClass);
-            const resource: BackupResourceInterface = inject(resourceClass);
-            if (resource.createBackupData == undefined || resource.restoreBackup == undefined) {
+        for (const provider of backupResources) {
+            const resource: unknown = inject(provider.token);
+            if (!isBackupResource(resource)) {
                 throw new InitBackupServiceError(
-                    `Invalid resource marked with @Backup: ${resourceClass.name} needs to implement BackupResourceInterface`
+                    `Invalid resource marked with @Backup: ${getDiTokenName(provider.token)} needs to implement BackupResourceInterface`
                 );
             }
-            if (resource instanceof PostgresDataSource && (!resource.rootPw || !resource.rootUsername)) {
-                throw new InitBackupServiceError(
-                    `Invalid data source marked with @Backup: ${resourceClass.name} needs to provide rootPw and rootUsername`
-                );
-            }
-            if (!MetadataUtilities.getBackupResourceMetadata(resourceClass)?.transports.length) {
+            await resource.validateBackupConfiguration();
+            this.backupResources.push(resource);
+            if (!MetadataUtilities.getBackupResourceMetadata(resource)?.transports.length) {
                 throw new InitBackupServiceError('Needs to have at least one transport defined');
             }
-            await this.logger.info(`  - ${resourceClass.name}`);
+            await this.logger.info(`  - ${getDiTokenName(provider.token)}`);
         }
+
+        // We DON'T do this here because things like data sources implement BackupResourceInterface but might not use them.
+        // const resources: BackupResourceInterface[] = getAllRegisteredTokens()
+        //     .map(t => inject(t))
+        //     .filter(i => isBackupResource(i));
+        // for (const resource of resources) {
+        //     if (!this.backupResources.find(c => c.constructor.name === resource.constructor.name)) {
+        //         throw new InitBackupServiceError(
+        //             `The class "${resource.constructor.name}" seems to be a backup resource but has not been decorated with @Backup()`
+        //         );
+        //     }
+        // }
 
         await this.syncBackupEntities();
     }
@@ -118,8 +128,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, OnAppSh
             return;
         }
         const transports: BackupTransportInterface[] = this.backupResources
-            .map(r => MetadataUtilities.getBackupResourceMetadata(r)?.transports ?? [])
-            .flat();
+            .flatMap(r => MetadataUtilities.getBackupResourceMetadata(r)?.transports ?? []);
         if (!transports.length) {
             await this.logger.warn('Could not find any transports to sync backup entities from');
             return;
@@ -176,7 +185,10 @@ export class BackupService implements BackupServiceInterface, OnAppInit, OnAppSh
                 if (!transports?.length) {
                     throw new BackupTransportNotFoundError(backupResource);
                 }
-                resourceEntities.push({ name: metadata?.name ?? backupResource.name, transportNames: transports.map(t => t.name) });
+                resourceEntities.push({
+                    name: metadata?.name ?? backupResource.constructor.name,
+                    transportNames: transports.map(t => t.name)
+                });
             }
             const createData: BackupEntityCreateData = {
                 ...data,
@@ -187,7 +199,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, OnAppSh
             this.isCreatingBackup.next(true);
 
             await Promise.all(backup.resources.map(async r => {
-                const resource: Newable<BackupResourceInterface> | undefined = this.resolveBackupResource(r);
+                const resource: BackupResourceInterface | undefined = this.resolveBackupResource(r);
                 if (!resource) {
                     await this.logger.warn(
                         `Problem while creating backup "${backup.name}". Could not find backup resource "${r.name}"`
@@ -199,7 +211,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, OnAppSh
                 if (!transports?.length) {
                     throw new BackupTransportNotFoundError(resource);
                 }
-                const data: Readable = await inject(resource).createBackupData(backup);
+                const data: Readable = await resource.createBackupData(backup);
                 await Promise.all(transports.map(t => t.storeData(data, backup, r)));
             }));
         }
@@ -220,8 +232,8 @@ export class BackupService implements BackupServiceInterface, OnAppInit, OnAppSh
     }
 
     private async restoreBackupResource(resource: BackupResourceEntity, backup: BackupEntity): Promise<void> {
-        const resourceClass: Newable<BackupResourceInterface> | undefined = this.resolveBackupResource(resource);
-        if (!resourceClass) {
+        const r: BackupResourceInterface | undefined = this.resolveBackupResource(resource);
+        if (!r) {
             await this.logger.warn(
                 `Problem while restoring backup "${backup.name}". Could not find backup resource "${resource.name}"`
             );
@@ -235,14 +247,13 @@ export class BackupService implements BackupServiceInterface, OnAppInit, OnAppSh
             return;
         }
         const data: Readable = await this.resolveData(transports, resource, backup);
-        const r: BackupResourceInterface = inject(resourceClass);
         await r.restoreBackup(data);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async delete(backup: BackupEntity): Promise<void> {
         await Promise.all(backup.resources.map(async resource => {
-            const resourceClass: Newable<BackupResourceInterface> | undefined = this.resolveBackupResource(resource);
+            const resourceClass: BackupResourceInterface | undefined = this.resolveBackupResource(resource);
             if (!resourceClass) {
                 await this.logger.warn(
                     `Problem while restoring backup "${backup.name}". Could not find backup resource "${resource.name}"`
@@ -263,13 +274,13 @@ export class BackupService implements BackupServiceInterface, OnAppInit, OnAppSh
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    resolveBackupResource(resource: BackupResourceEntity): Newable<BackupResourceInterface> | undefined {
-        return this.backupResources.find(r => r.name === resource.name);
+    resolveBackupResource(resource: BackupResourceEntity): BackupResourceInterface | undefined {
+        return this.backupResources.find(r => r.constructor.name === resource.name);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     resolveTransports(resource: BackupResourceEntity): BackupTransportInterface[] | undefined {
-        const resourceClass: Newable<BackupResourceInterface> | undefined = this.resolveBackupResource(resource);
+        const resourceClass: BackupResourceInterface | undefined = this.resolveBackupResource(resource);
         if (!resourceClass) {
             return;
         }

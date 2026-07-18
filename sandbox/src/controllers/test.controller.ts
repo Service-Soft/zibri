@@ -1,7 +1,21 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, Repository, InjectRepository, Auth, Response, KnownHeader } from 'zibri';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Repository, InjectRepository, Auth, Response, KnownHeader, TokenBucketRateLimiter, RateLimiter, InMemoryRateLimiterStore, Ms, RateLimited, TokenBucketState } from 'zibri';
 
 import { Roles, Test, TestCreateDTO, User } from '../models';
 import { UserRepository } from '../repositories';
+
+@RateLimiter()
+export class TestRateLimiter extends TokenBucketRateLimiter {
+    constructor() {
+        super(
+            Ms.MINUTE * 5, {
+                name: 'TestRateLimiter',
+                store: new InMemoryRateLimiterStore<TokenBucketState>(),
+                capacity: 1,
+                maxReservationWaitMs: undefined
+            }
+        );
+    }
+}
 
 @Auth.isLoggedIn()
 @Controller('/tests', { versions: 'all' })
@@ -13,6 +27,7 @@ export class TestController {
         private readonly userRepository: UserRepository
     ) {}
 
+    @RateLimited(TestRateLimiter)
     @Auth.isLoggedIn.skip()
     @Response.array(Test)
     @Get()

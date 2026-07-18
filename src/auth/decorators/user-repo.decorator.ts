@@ -1,10 +1,7 @@
 
-import { DiToken } from '../../di/models/di-token.model';
-import { GlobalRegistry } from '../../global/global-registry';
-import { Newable } from '../../types/newable.type';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { BaseUser } from '../models/base-user.model';
-import { UserRepositories } from '../models/user-repositories.model';
+import { Injectable, InjectableOptions } from '../../di/decorators/injectable.decorator';
+import { DiVariants } from '../../di/models/di-variant.model';
+import { OmitStrict } from '../../types/omit-strict.type';
 
 /**
  * Marks the given class as a user repository.
@@ -26,17 +23,10 @@ import { UserRepositories } from '../models/user-repositories.model';
  *     // ...
  * }
  * ```
+ * @param options - Options for the user repo.
  */
-export function UserRepo<T extends string, EntityType extends Newable<BaseUser<T>>>(): ClassDecorator {
-    return target => {
-        MetadataUtilities.setDiToken(target, target as unknown as DiToken<EntityType>);
-        // eslint-disable-next-line unicorn/error-message
-        const stack: string = new Error().stack ?? '';
-        MetadataUtilities.setFilePath(target, stack);
-        GlobalRegistry.injectables.push({
-            token: target as unknown as DiToken<EntityType>,
-            useClass: target as unknown as UserRepositories[number]
-        });
-        GlobalRegistry.userRepositories.push(target as unknown as UserRepositories[number]);
-    };
+export function UserRepo<T>(
+    options: OmitStrict<InjectableOptions<T>, 'variant'> = {}
+): ClassDecorator {
+    return Injectable({ ...options, variant: DiVariants.USER_REPO });
 }

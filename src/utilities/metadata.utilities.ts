@@ -80,22 +80,22 @@ export abstract class MetadataUtilities {
         return undefined;
     }
 
+    private static toNewable<T>(target: Newable<T> | T): Newable<T> {
+        return typeof target === 'function'
+            ? target as Newable<T>
+            : (target as object).constructor as Newable<T>;
+    }
+
     // ---------- file path ----------
     static setFilePath(target: Object, errorStack: string): void {
         const callerLine: string = errorStack.split('\n')[5];
         const filePath: string = callerLine.match(/\((.*):\d+:\d+\)/)?.[1] ?? 'unknown';
 
-        // Store the file path in metadata
-        if (typeof target === 'function') {
-            ReflectUtilities.setMetadata(MetadataInjectionKeys.FILE_LOCATION, filePath, target);
-        }
-        else {
-            ReflectUtilities.setMetadata(MetadataInjectionKeys.FILE_LOCATION, filePath, target.constructor);
-        }
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.FILE_LOCATION, filePath, this.toNewable(target));
     }
 
     static getFilePath(target: Object): string | undefined {
-        return ReflectUtilities.getMetadata(MetadataInjectionKeys.FILE_LOCATION, target);
+        return ReflectUtilities.getMetadata(MetadataInjectionKeys.FILE_LOCATION, this.toNewable(target));
     }
 
     // ---------- param types / DI ----------
@@ -446,8 +446,10 @@ export abstract class MetadataUtilities {
         ReflectUtilities.setMetadata(MetadataInjectionKeys.BACKUP_RESOURCE_METADATA, metadata, entity);
     }
 
-    static getBackupResourceMetadata(entity: Newable<BackupResourceInterface>): BackupResourceMetadata | undefined {
-        return ReflectUtilities.getMetadata(MetadataInjectionKeys.BACKUP_RESOURCE_METADATA, entity);
+    static getBackupResourceMetadata(
+        entity: Newable<BackupResourceInterface> | BackupResourceInterface
+    ): BackupResourceMetadata | undefined {
+        return ReflectUtilities.getMetadata(MetadataInjectionKeys.BACKUP_RESOURCE_METADATA, this.toNewable(entity));
     }
 
     // ---------- route not-logged-in (method-level, inherit) ----------

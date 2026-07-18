@@ -4,8 +4,10 @@ import os from 'node:os';
 import { inject } from '../inject.function';
 import { ZIBRI_DI_TOKENS } from './zibri-di-tokens.default';
 import { AssetService } from '../../assets/asset.service';
+import { resolveZibriRoot } from '../../assets/resolve-zibri-root.function';
 import { TwoFactorService } from '../../auth/2fa/two-factor.service';
 import { AuthService } from '../../auth/auth.service';
+import { EncryptionKeyCache } from '../../auth/encryption/encryption-key.cache';
 import { EncryptionService } from '../../auth/encryption/encryption.service';
 import { AesGcmEncryptionStrategy } from '../../auth/encryption/strategies/aes-gcm.encryption-strategy';
 import { HashService } from '../../auth/hash/hash.service';
@@ -19,6 +21,7 @@ import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../../context/request/request-cont
 import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
 import { CronService } from '../../cron/cron.service';
 import { DataSourceService } from '../../data-source/data-source.service';
+import { EmailRateLimiter } from '../../email/email.rate-limiter';
 import { EmailService } from '../../email/email.service';
 import { errorHandler } from '../../error-handling/error-handler';
 import { EventService } from '../../event/event.service';
@@ -35,6 +38,7 @@ import { MultithreadingService } from '../../multithreading/services/multithread
 import { OpenApiService } from '../../open-api/open-api.service';
 import { CspSource } from '../../parsing/html/csp-options.model';
 import { Parser } from '../../parsing/parser';
+import { RateLimitingService } from '../../rate-limiting/rate-limiting.service';
 import { Router } from '../../routing/router';
 import { FsUtilities } from '../../utilities/fs.utilities';
 import { Ms } from '../../utilities/ms';
@@ -42,6 +46,7 @@ import { ValidationService } from '../../validation/validation.service';
 import { VersioningService } from '../../versioning/versioning.service';
 import { WebsocketService } from '../../websocket/services/websocket.service';
 import { DiTokenProviderRecord } from '../models/di-token.model';
+import { DiVariants } from '../models/di-variant.model';
 
 const allThreads: number = os.availableParallelism();
 
@@ -54,6 +59,7 @@ const maxThreads: number = Math.max(1, availableThreads - 1);
 const maxPriorityThreads: number = availableThreads <= 1 ? 0 : 1;
 
 export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> = {
+    ZIBRI_PACKAGE_ROOT: { useFactory: resolveZibriRoot },
     ROUTER: { useClass: Router },
     LOGGER: { useClass: Logger },
     LOGGER_TRANSPORTS: {
@@ -92,8 +98,9 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
     JWT_REFRESH_TOKEN_EXPIRES_IN_MS: { useFactory: () => 100 * Ms.DAY },
     CRON_SERVICE: { useClass: CronService },
     EMAIL_SERVICE: { useClass: EmailService },
-    FILE_UPLOAD_TEMP_FOLDER: { useFactory: () => FsUtilities.getPath(__dirname, 'temp') },
+    EMAIL_RATE_LIMITER: { useClass: EmailRateLimiter, variants: [DiVariants.RATE_LIMITER] },
     EMAIL_CONFIG: { useFactory: () => undefined },
+    FILE_UPLOAD_TEMP_FOLDER: { useFactory: () => FsUtilities.getPath(__dirname, 'temp') },
     PASSWORD_RESET_TOKEN_EXPIRES_IN_MS: { useFactory: () => 300000 },
     CONFIRM_PASSWORD_RESET_URL: { useFactory: () => undefined },
     MULTITHREADING_OPTIONS: {
@@ -133,6 +140,7 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
     ENCRYPTION_SERVICE: { useClass: EncryptionService },
     ENCRYPTION_STRATEGIES: { useValue: [AesGcmEncryptionStrategy] },
     ENCRYPTION_MASTER_OPTIONS: { useValue: undefined },
+    ENCRYPTION_KEY_CACHE: { useClass: EncryptionKeyCache, variants: [DiVariants.CACHE] },
     CACHE_SERVICE: { useClass: CacheService },
     VERSIONING_SERVICE: { useClass: VersioningService },
     VERSION_HEADER: { useValue: KnownHeader.X_VERSION },
@@ -157,6 +165,7 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
             };
         }
     },
+    RATE_LIMITING_SERVICE: { useClass: RateLimitingService },
     // dynamic
     CURRENT_REQUEST_CONTEXT: {
         useFactory: () => AlsUtilities.getCurrentRequestContext(),

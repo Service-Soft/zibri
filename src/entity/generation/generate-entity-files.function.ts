@@ -19,7 +19,7 @@ export async function generateEntityFiles(): Promise<void> {
         return;
     }
     // Register ts-node so the dynamically required providers file can be loaded when it is authored in TypeScript.
-    tsNodeRegister();
+    tsNodeRegister({ transpileOnly: true });
     // eslint-disable-next-line typescript/no-explicit-any, typescript/no-unsafe-assignment, typescript/no-require-imports, typescript/no-var-requires
     const imported: any = require(providersPath);
     // eslint-disable-next-line typescript/no-unsafe-member-access

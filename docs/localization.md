@@ -9,7 +9,21 @@ Translation files for other locales (eg. `de.xlf`) should live alongside it in t
 
 Zibri also comes with a localize service that handles things like [formatting](#formatting).
 
-## Marking strings for translation
+## Key exports
+| Export | Kind | Purpose |
+|---|---|---|
+| `$t` | function | Marks a string for translation, returning a `TranslationToken` |
+| `$ts` | function | Marks a string for translation and resolves it immediately using the automatically resolved locale |
+| `TranslationToken` | class | Represents a marked string; use `.getValue(locale)` to translate it |
+| `defineDateFormat` | function | Defines a date/time/date-time format for a supported locale |
+| `defineProvider` | function | Registers a DI provider, eg. for `ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS_INPUT` |
+| `ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS_INPUT` | DI token | Configures supported locales, default locale and locale resolution |
+| `ZIBRI_DI_TOKENS.LOCALIZE_SERVICE` | DI token | Injects `LocalizeServiceInterface` |
+| `LocalizeServiceInterface` | interface | Contract for `formatPrice`, `formatPercent` and `formatDate` |
+| `LocaleCode` | type | Type of a supported locale code (eg. `'en-US'`, `'de'`) |
+
+## Usage
+### Marking strings for translation
 To mark a string for translation you can use `$t`:
 
 ```ts
@@ -28,7 +42,7 @@ import { $ts } from 'zibri';
 const automaticTokenTranslation: string = $ts`Example token`;
 ```
 
-## String parameters
+### String parameters
 
 Template parameters are supported and automatically named from the expression they contain:
 
@@ -56,7 +70,7 @@ In your translation files, placeholders can be freely reordered to suit the targ
 </trans-unit>
 ```
 
-## Configure supported locales
+### Configuring supported locales
 Any locale you want to support must be defined by providing a them to `ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS_INPUT`:
 
 ```ts
@@ -90,7 +104,7 @@ import { defineDateFormat, defineProvider, ZIBRI_DI_TOKENS } from 'zibri';
 
 As you can see, besides the actual locale, you also have to define what currency is used and some default date formats.
 
-## Providing translations
+### Providing translations
 
 Once the `source.xlf` has been generated, copy it and rename it to the target locale (eg. `de.xlf`).
 Add a `target-language` attribute to the `<file>` element and fill in `<target>` for each `<trans-unit>`:
@@ -118,7 +132,7 @@ Translation files are located at `src/translations/locale.xlf`. Zibri will warn 
 The `<source>` element and `<note>` are informational, only the `<target>` is read at runtime.
 Standard XLIFF editors can open these files directly.
 
-## Automatically resolve locales
+### Automatically resolve locales
 In a lot of cases, you want to use a locale based on the requesting user.
 
 Zibri resolves that from:
@@ -129,7 +143,7 @@ Zibri resolves that from:
 
 > Please note that resolved locales don't always need to exact match a supported locale. If you have `'en-US'` as a supported loale for example and the resolved locale is `'en'`, than that will match for translations and date formats. The only exception here is currency, something like `'USD'` will always have to exact match `'en-US'`.
 
-## Formatting
+### Formatting
 Formatting dates, currencies, percentages etc. is also part of the localization system. For that you can use inject the `ZIBRI_DI_TOKENS.LOCALIZE_SERVICE` and use its `formatPrice`, `formatPercent` and `formatDate` methods:
 
 ```ts
@@ -173,4 +187,8 @@ class ExampleService {
     }
 }
 ```
+
+## See also
+- [Request context](./request-context.md) — reading the resolved locale (`CURRENT_LOCALE`) from the current request
+- [Templating](./templating.md) — the `$t`/`$ts`/`$f` hooks available in tsx components
 

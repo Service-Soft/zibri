@@ -12,6 +12,8 @@ import { MimeType } from '../http/mime-type.enum';
 import { LoggerInterface } from '../logging/logger.interface';
 import { PreactUtilities } from '../preact/preact.utilities';
 import { GlobalError } from './errors/global.error';
+import { TooManyRequestsError } from './errors/too-many-requests.error';
+import { NumberUtilities } from '../utilities/number.utilities';
 
 /**
  * The default error handler implementation of Zibri.
@@ -21,15 +23,17 @@ import { GlobalError } from './errors/global.error';
  * @param next - The express next function.
  */
 export const errorHandler: GlobalErrorHandler = async (error: unknown, req: HttpRequest, res: HttpResponse, next: NextFunction) => {
-    const globalError: GlobalError = new GlobalError(error);
-    globalError.stack = undefined;
-    await handleLogging(error, globalError);
     if (res.headersSent) {
         next(error);
         return;
     }
 
+    const globalError: GlobalError = new GlobalError(error);
+    globalError.stack = undefined;
+    await handleLogging(error, globalError);
+
     const httpError: HttpError = ErrorUtilities.toHttpError(error);
+    handleRateLimitHeaders(httpError, res);
 
     const preferred: string | false = req.accepts(MimeType.JSON, MimeType.HTML);
 
@@ -74,6 +78,26 @@ export const errorHandler: GlobalErrorHandler = async (error: unknown, req: Http
         });
     }
 };
+
+// eslint-disable-next-line jsdoc/require-jsdoc
+function handleRateLimitHeaders(error: unknown, res: HttpResponse): void {
+    if (!(error instanceof TooManyRequestsError) || !error.rateLimitResult) {
+        return;
+    }
+
+    const { limit, remaining, resetsAtMs, retryAtMs } = error.rateLimitResult;
+    const now: number = Date.now();
+
+    res.setHeader(KnownHeader.X_RATE_LIMIT_LIMIT, limit.toString());
+    res.setHeader(KnownHeader.X_RATE_LIMIT_REMAINING, remaining.toString());
+    res.setHeader(KnownHeader.X_RATE_LIMIT_RESET, Math.ceil(NumberUtilities.divide(resetsAtMs, 1000).toNumber()).toString());
+    res.setHeader(KnownHeader.RETRY_AFTER,
+        Math.ceil(
+            NumberUtilities.subtract(retryAtMs, now)
+                .dividedBy(1000)
+                .toNumber()
+        ).toString());
+}
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 async function handleLogging(error: unknown, globalError: Error): Promise<void> {

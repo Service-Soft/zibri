@@ -1,4 +1,4 @@
-import { createReadStream, createWriteStream, Dirent, ReadStream, Stats, WriteStream } from 'node:fs';
+import { createReadStream, createWriteStream, Dirent, existsSync, readFileSync, ReadStream, Stats, WriteStream } from 'node:fs';
 import { access, writeFile, mkdir, readFile, readdir, rm, rename, stat, glob } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -93,8 +93,8 @@ export abstract class FsUtilities {
      * @param p - The path to evaluate.
      * @returns The name of the directory as a string.
      */
-    static dirName(p: FsPath): string {
-        return path.dirname(p);
+    static dirName(p: FsPath): FsPath {
+        return path.dirname(p) as FsPath;
     }
 
     /**
@@ -183,6 +183,17 @@ export abstract class FsUtilities {
         catch {
             return false;
         }
+    }
+
+    /**
+     * Checks if a file at the given path exists.
+     *
+     * PLEASE ALWAYS PREFER {@link FsUtilities.exists} DUE TO PERFORMANCE REASONS.
+     * @param path - The path to check.
+     * @returns True if the path exists, false otherwise.
+     */
+    static existsSync(path: FsPath): boolean {
+        return existsSync(path);
     }
 
     /**
@@ -278,6 +289,18 @@ export abstract class FsUtilities {
      */
     static async readFile(path: FsPath): Promise<string> {
         return readFile(path, { encoding: 'utf8' });
+    }
+
+    /**
+     * Reads the file content at the given path.
+     * Expects utf-8.
+     *
+     * PLEASE ALWAYS PREFER {@link FsUtilities.readFile} DUE TO PERFORMANCE REASONS.
+     * @param path - The path of the file to read.
+     * @returns The content as a single string.
+     */
+    static readFileSync(path: FsPath): string {
+        return readFileSync(path, { encoding: 'utf8' });
     }
 
     /**

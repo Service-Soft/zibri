@@ -1,14 +1,27 @@
 # Dependency Injection
 The Dependency Injection system is one of the most fundamental building blocks of Zibri.
 
-## Adding new injectables
+## Key exports
+| Export | Kind | Purpose |
+|---|---|---|
+| `Injectable` | decorator | Registers a class for dependency injection |
+| `inject` | function | Resolves an injectable/token outside of a constructor |
+| `Inject` | decorator | Resolves a token for a constructor parameter |
+| `InjectionToken` | class | Creates a typed token for injecting non-class values |
+| `DiProvider` | type | Entry type for the providers array |
+| `defineProvider` | function | Defines a `DiProvider` entry (eg. `useFactory`) |
+| `ZIBRI_DI_TOKENS` | object | Built-in DI tokens for overriding framework services |
+| `GlobalErrorHandler` | type | Type of the built-in global error handler, overridable via `ZIBRI_DI_TOKENS.GLOBAL_ERROR_HANDLER` |
+
+## Usage
+### Adding new injectables
 To make something injectable there are 2 ways:
 1. decorate a class with `@Injectable()`
 2. add the value to your providers array
 
 In most cases, you will probably just have to decorate a class:
 
-### With @Injectable
+#### With @Injectable
 ```ts
 // src/services/test.service.ts
 import { Injectable } from 'zibri';
@@ -36,7 +49,7 @@ export class TestController {
 }
 ```
 
-### With the providers array
+#### With the providers array
 Alternatively, you can also add them to the providers array:
 
 ```ts
@@ -59,7 +72,7 @@ And then inject them the same way before, with the constructor approach needing 
 
 ```ts
 // src/controllers/test.controller.ts
-import { Controller, inject } from 'zibri';
+import { Controller, Inject, inject } from 'zibri';
 import { someToken } from '../../providers.ts';
 
 @Controller('/tests')
@@ -74,7 +87,7 @@ export class TestController {
 }
 ```
 
-## Overriding existing injectables
+## Configuration
 Bascially every service/functionality of the framework is registered for dependency injection. That makes it really easy for you to replace something with your own implementation if you need more functionality than the builtin solutions.
 
 Let's say that you want for example to replace the default error handler with the following one:
@@ -107,3 +120,7 @@ export const providers: DiProvider<unknown>[] = [
 ```
 
 That's it! From now on, your custom error handler will be used instead of the default one provided by Zibri.
+
+## See also
+- [Error handling](./error-handling.md) — overriding the `GlobalErrorHandler` via `ZIBRI_DI_TOKENS.GLOBAL_ERROR_HANDLER`
+- [Request context](./request-context.md) — resolving request-scoped injectables

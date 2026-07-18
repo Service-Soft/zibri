@@ -1,20 +1,33 @@
 # Backup
-The backup system in Zibri consists of multiple parts:
+The backup system in Zibri consists of multiple parts.
 
-### One or more backup resources
-These define WHAT should be backed up and need to be marked with the `@BackupResource` decorator.
+## Key exports
+| Export | Kind | Purpose |
+|---|---|---|
+| `Backup` | decorator | Marks a class as a backup resource, defining what should be backed up |
+| `BackupResourceInterface` | interface | Contract for extracting and restoring a resource's data |
+| `FsBackupTransport` | class | Backup transport that writes/reads backup data to/from the local file system |
+| `BackupServiceInterface` | interface | Service for creating and restoring backups |
+| `BackupEntity` | class | Entity representing a created backup |
+| `BackupResourceEntity` | class | Entity representing a resource's data within a backup |
+| `ZIBRI_DI_TOKENS.BACKUP_SERVICE` | DI token | Injects `BackupServiceInterface` |
+
+## Usage
+### The parts of the backup system
+#### One or more backup resources
+These define WHAT should be backed up and need to be marked with the `@Backup` decorator.
 
 A decorated resource needs to implement `BackupResourceInterface` to define how data should be extracted from the resource (eg. by running a sql dump) and read back in.
 
-### One or more backup transports defined for each resource
+#### One or more backup transports defined for each resource
 These define how extracted data from the resource is saved and how to retrive it when restoring a backup.
 
 For more detail on those, especially if you are interested in creating your own transport, see [backup transports](./generated/interfaces/backup_transports_backup-transport.interface.BackupTransportInterface.html).
 
-### The backup service
+#### The backup service
 The backup service is responsible for creating and restoring backups based on the configured resources and transports.
 
-## Example
+### Example
 In the following, we have a postgres data source that we want to backup:
 
 ```ts
@@ -52,6 +65,7 @@ Notice that we don't need to implement `BackupResourceInterface` here, as `Postg
 
 The `FsBackupTransport` simply writes the backup data for this resource to the local file system, so it should only be used for illustration/testing purposes.
 
+### Creating and restoring backups
 Now we can use the backup service to create a new backup:
 
 ```ts
@@ -72,3 +86,6 @@ const backup: BackupEntity = await backupRepository.findById('42', { relations: 
 await backupService.restore(backup);
 // ...
 ```
+
+## See also
+- [Data sources](./data-source.md) — `PostgresDataSource` and other data sources that back up automatically

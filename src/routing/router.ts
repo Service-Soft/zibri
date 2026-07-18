@@ -17,7 +17,11 @@ import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../context/request/request-context
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { getDiTokenName } from '../di/get-di-token-name.function';
+import { getRegisteredProvidersOfVariant } from '../di/get-registered-providers-of-variant.function';
 import { inject } from '../di/inject.function';
+import { DiProvider } from '../di/models/di-provider.model';
+import { DiVariants } from '../di/models/di-variant.model';
 import { NotFoundError } from '../error-handling/errors/not-found.error';
 import { InternalError } from '../error-handling/internal-error.model';
 import { GlobalRegistry } from '../global/global-registry';
@@ -35,7 +39,8 @@ import { FileResponse } from '../parsing/form-data/file-response.model';
 import { buildCspHeaders, CspOptions, CspSource } from '../parsing/html/csp-options.model';
 import { HtmlResponse } from '../parsing/html/html-response.model';
 import type { ParserInterface } from '../parsing/parser.interface';
-import { Newable } from '../types/newable.type';
+import { RateLimitReservation } from '../rate-limiting/reservation/rate-limit-reservation.model';
+import { isNewable, Newable } from '../types/newable.type';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { Ms } from '../utilities/ms';
 import { SemVerVersion } from '../utilities/sem-ver.utilities';
@@ -130,13 +135,14 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
     }
 
     private checkForOrphanedControllers(controllers: Newable<unknown>[]): void {
-        const orphanedControllers: Newable<unknown>[] = GlobalRegistry.controllerClasses.filter(c => {
-            return !controllers.includes(c) && !(MetadataUtilities.getControllerData(c)?.allowOrphan ?? false);
+        // TODO!!!
+        const orphanedControllers: DiProvider<unknown>[] = getRegisteredProvidersOfVariant(DiVariants.CONTROLLER).filter(c => {
+            return isNewable(c) && !controllers.includes(c) && !(MetadataUtilities.getControllerData(c)?.allowOrphan ?? false);
         });
         if (orphanedControllers.length) {
             throw new InitRouterError([
                 'Found orphaned controllers:',
-                ...orphanedControllers.map(c => `  - ${c.name}`),
+                ...orphanedControllers.map(c => `  - ${getDiTokenName(c.token)}`),
                 'Did you forget to add them to your controllers array?'
             ]);
         }
@@ -474,7 +480,7 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
         route: ControllerRouteConfiguration
     ): Promise<ControllerInnerHandler> {
         const responses: OpenApiResponse[] = MetadataUtilities.getRouteResponses(controllerClass, route.controllerMethod);
-        if (!responses.length) {
+        if (!responses.filter(r => r.type === 'json' && r.cls === RateLimitReservation).length) {
             await this.logger.warn(`No responses defined on route ${controllerClass.name}.${route.controllerMethod}`);
         }
         return async (context: HttpRequestContext, next: NextFunction) => {

@@ -6,6 +6,7 @@ import { ObjectUtilities } from '../utilities/object.utilities';
 import { NoProviderError } from './errors/no-provider.error';
 import { DiProvider } from './models/di-provider.model';
 import { DiToken } from './models/di-token.model';
+import { DiVariant } from './models/di-variant.model';
 
 /**
  * An error to throw when the given providerToken is invalid.
@@ -40,6 +41,30 @@ export class DiContainer {
             if (!seen.has(identity)) {
                 seen.add(identity);
                 unique.push(token);
+            }
+        }
+
+        return unique;
+    }
+
+    /**
+     * Gets all providers of the given variant.
+     * @param variant - The variant to filter by.
+     * @returns All providers that are of the given variant.
+     */
+    getRegisteredProvidersOfVariant(variant: DiVariant): DiProvider<unknown>[] {
+        return this.getRegisteredProviders().filter(p => (p.variants ?? []).includes(variant));
+    }
+
+    private getRegisteredProviders(): DiProvider<unknown>[] {
+        const seen: Set<unknown> = new Set<unknown>();
+        const unique: DiProvider<unknown>[] = [];
+
+        for (const [token, provider] of this.providers) {
+            const identity: unknown = provider.useClass ?? provider.useFactory ?? provider.useValue ?? token;
+            if (!seen.has(identity)) {
+                seen.add(identity);
+                unique.push(provider);
             }
         }
 

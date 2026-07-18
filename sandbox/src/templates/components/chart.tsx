@@ -3,7 +3,7 @@ import { $ts, MetricsSnapshot, onClient, PreactComponent } from 'zibri';
 
 import { Card } from './card';
 import { Heading } from './heading';
-import { MetricsEvent } from '../pages/metrics';
+import { MetricsEvent } from '../pages/metrics/metrics';
 
 type Props = {
     title: string,

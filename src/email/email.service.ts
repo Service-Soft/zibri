@@ -11,9 +11,9 @@ import { InjectRepository } from '../di/decorators/inject-repository.decorator';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { TooManyRequestsError } from '../error-handling/errors/too-many-requests.error';
 import { OnAppInit } from '../global/on-app-init.interface';
 import { type LoggerInterface } from '../logging/logger.interface';
-import { RateLimiter } from '../rate-limiting/rate-limiter';
 import { FsUtilities } from '../utilities/fs.utilities';
 import { EmailAttachment } from './models/email-attachment.model';
 import { EmailConfig, EmailConfigInput } from './models/email-config.model';
@@ -21,6 +21,7 @@ import { EmailPriority } from './models/email-priority.enum';
 import { EmailStatus } from './models/email-status.enum';
 import { InternalError } from '../error-handling/internal-error.model';
 import { OnAppShutdown } from '../global/on-app-shutdown.interface';
+import { RateLimited } from '../rate-limiting/decorators/rate-limited.decorator';
 
 /**
  * Default email service implementation of Zibri.
@@ -35,10 +36,6 @@ export class EmailService implements EmailServiceInterface, OnAppInit, OnAppShut
      * The email configuration.
      */
     protected readonly config: EmailConfig;
-    /**
-     * A rate limiter to prevent overloading the email provider.
-     */
-    protected readonly rateLimiter: RateLimiter;
 
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
@@ -49,14 +46,13 @@ export class EmailService implements EmailServiceInterface, OnAppInit, OnAppShut
         config: EmailConfigInput | undefined
     ) {
         if (!config) {
-            throw new InternalError('no email config was provided for the token "ZIBRI_DI_TOKENS.MAIL_CONFIG"');
+            throw new InternalError('no email config was provided for the token "ZIBRI_DI_TOKENS.EMAIL_CONFIG"');
         }
         this.config = {
             pool: true,
             ...config
         };
-        this.rateLimiter = RateLimiter.perHour(this.config.maxEmailsPerHour);
-        this.transporter = createTransport({ ...this.config, secure: config?.port === 465 });
+        this.transporter = createTransport({ ...this.config, secure: config.port === 465 });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -89,12 +85,29 @@ export class EmailService implements EmailServiceInterface, OnAppInit, OnAppShut
         const lowMails: Email[] = await this.findMails(EmailPriority.LOW, 10 - highMails.length - normalMails.length);
         const emails: Email[] = [...highMails, ...normalMails, ...lowMails];
 
-        if (!emails.length || !this.rateLimiter.isAvailable(emails.length)) {
+        if (!emails.length) {
             return false;
         }
 
+        try {
+            await this.sendMany(emails);
+            return true;
+        }
+        catch (error) {
+            if (error instanceof TooManyRequestsError) {
+                return false;
+            }
+            throw error;
+        }
+    }
+
+    /**
+     * Sends out the given emails.
+     * @param emails - The emails to send out.
+     */
+    @RateLimited(ZIBRI_DI_TOKENS.EMAIL_RATE_LIMITER, { countFn: emails => emails.length })
+    protected async sendMany(emails: Email[]): Promise<void> {
         await Promise.all(emails.map(m => this.send(m)));
-        return true;
     }
 
     /**

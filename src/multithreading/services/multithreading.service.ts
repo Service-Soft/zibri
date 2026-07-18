@@ -6,7 +6,6 @@ import { filter, firstValueFrom } from 'rxjs';
 import { MultithreadingServiceInterface } from './multithreading-service.interface';
 import { ThreadJob } from './thread-job';
 import { ThreadJobWorker } from './thread-job-worker';
-import { type AssetServiceInterface } from '../../assets/asset-service.interface';
 import { Repository } from '../../data-source/repository';
 import { InjectRepository } from '../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../di/decorators/inject.decorator';
@@ -17,7 +16,7 @@ import { OnAppInit } from '../../global/on-app-init.interface';
 import { OnAppShutdown } from '../../global/on-app-shutdown.interface';
 import { type LoggerInterface } from '../../logging/logger.interface';
 import { OmitStrict } from '../../types/omit-strict.type';
-import { FsUtilities, FsPath } from '../../utilities/fs.utilities';
+import { FsUtilities, type FsPath } from '../../utilities/fs.utilities';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { TimeoutError } from '../../utilities/promise.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
@@ -48,7 +47,7 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
     /**
      * All thread jobs.
      */
-    private queue: ThreadJob<BaseThreadJobWorkerData, unknown>[] = [];
+    private queue: ThreadJob<BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>, unknown>[] = [];
     /**
      * The workers that are currently running.
      */
@@ -62,14 +61,24 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
     constructor(
         @Inject(ZIBRI_DI_TOKENS.MULTITHREADING_OPTIONS)
         private readonly options: MultithreadingOptions,
-        @Inject(ZIBRI_DI_TOKENS.ASSET_SERVICE)
-        private readonly assetService: AssetServiceInterface,
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
         private readonly logger: LoggerInterface,
         @InjectRepository(ThreadJobEntity)
-        private readonly threadJobEntityRepository: Repository<ThreadJobEntity<BaseThreadJobWorkerData, unknown>>
+        private readonly threadJobEntityRepository: Repository<
+            ThreadJobEntity<BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>, unknown>
+        >,
+        @Inject(ZIBRI_DI_TOKENS.ZIBRI_PACKAGE_ROOT)
+        packageRoot: FsPath
     ) {
-        this.threadJobWorkerFilePath = FsUtilities.getPath(this.assetService.assetsPath, 'thread-job.worker.cjs');
+        this.threadJobWorkerFilePath = FsUtilities.getPath(
+            packageRoot,
+            'dist',
+            'cjs',
+            'multithreading',
+            'services',
+            'worker',
+            'thread-job.worker.js'
+        );
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -134,7 +143,7 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async queueThreadJob<WorkerData extends BaseThreadJobWorkerData, ResultType>(
+    async queueThreadJob<WorkerData extends BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>, ResultType>(
         threadJobData: ThreadJobData<WorkerData>
     ): Promise<string> {
         const entityData: OmitStrict<ThreadJobEntity<WorkerData, ResultType>, 'id'> = {
@@ -146,8 +155,15 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
             timeout: threadJobData.timeout ?? this.getDefaultTimeout(threadJobData.priority ?? false)
         };
 
-        const entity: ThreadJobEntity<BaseThreadJobWorkerData, unknown> = await this.threadJobEntityRepository.create(entityData);
-        const threadJob: ThreadJob<BaseThreadJobWorkerData, unknown> = new ThreadJob(entity, 'job', threadJobData);
+        const entity: ThreadJobEntity<
+            BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>,
+            unknown
+        > = await this.threadJobEntityRepository.create(entityData);
+        const threadJob: ThreadJob<BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>, unknown> = new ThreadJob(
+            entity,
+            'job',
+            threadJobData
+        );
         this.queue.push(threadJob);
         await this.startJobs();
 
@@ -155,7 +171,7 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async runThreadJob<WorkerData extends BaseThreadJobWorkerData, ResultType>(
+    async runThreadJob<WorkerData extends BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>, ResultType>(
         threadJobData: ThreadJobData<WorkerData>
     ): Promise<ThreadJobEntity<WorkerData, ResultType>> {
         const jobId: string = await this.queueThreadJob(threadJobData);
@@ -176,14 +192,13 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
             priority,
             progress: 0,
             workerData: {
-                filePath: '',
                 func: func.toString(),
                 input
             },
             timeout: timeout ?? this.getDefaultTimeout(priority)
         };
 
-        const threadJob: ThreadJob<BaseThreadJobWorkerData, ResultType> = new ThreadJob(entityData, 'function');
+        const threadJob: ThreadJob<BaseFunctionThreadJobWorkerData<InputType>, ResultType> = new ThreadJob(entityData, 'function');
         this.queue.push(threadJob);
         await this.startJobs();
         const finishedJob: ThreadJobEntity<BaseFunctionThreadJobWorkerData<InputType>, ResultType>
@@ -209,14 +224,18 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
             stoppedAtMs: undefined
         });
 
-        const entity: ThreadJobEntity<BaseThreadJobWorkerData, unknown> = await this.threadJobEntityRepository.findById(jobId);
-        const threadJob: ThreadJob<BaseThreadJobWorkerData, unknown> = new ThreadJob(entity, 'job', data);
+        const entity: ThreadJobEntity<
+            BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>, unknown
+        > = await this.threadJobEntityRepository.findById(jobId);
+        const threadJob: ThreadJob<
+            BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>, unknown
+        > = new ThreadJob(entity, 'job', data);
         this.queue.push(threadJob);
         await this.startJobs();
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async rerunThreadJob<WorkerData extends BaseThreadJobWorkerData, ResultType>(
+    async rerunThreadJob<WorkerData extends BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>, ResultType>(
         jobId: string,
         data?: ThreadJobDataFunctions
     ): Promise<ThreadJobEntity<WorkerData, ResultType>> {
@@ -225,17 +244,26 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async waitForThreadJob<ResultType, WorkerData extends BaseThreadJobWorkerData = BaseThreadJobWorkerData>(
+    async waitForThreadJob<
+        ResultType,
+        WorkerData extends BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown> = BaseThreadJobWorkerData
+    >(
         jobId: string
     ): Promise<ThreadJobEntity<WorkerData, ResultType>> {
-        const foundJob: ThreadJob<BaseThreadJobWorkerData, unknown> | undefined = this.queue.find(j => j.id === jobId);
+        const foundJob: ThreadJob<
+            BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>,
+            unknown
+        > | undefined = this.queue.find(j => j.id === jobId);
         if (!foundJob) {
             throw new InternalError(`No thread job with the id ${jobId} could be found in the queue.`);
         }
         await firstValueFrom(foundJob.completedSubject.pipe(filter(i => i)));
 
         if (foundJob.type === 'function') {
-            const updatedJob: ThreadJob<BaseThreadJobWorkerData, unknown> | undefined = this.queue.find(j => j.id === jobId);
+            const updatedJob: ThreadJob<
+                BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>,
+                unknown
+            > | undefined = this.queue.find(j => j.id === jobId);
             this.queue = this.queue.filter(j => j.id !== jobId);
             return updatedJob as unknown as ThreadJobEntity<WorkerData, ResultType>;
         }
@@ -268,48 +296,48 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         }
 
         // eslint-disable-next-line stylistic/max-len
-        const waitingJobs: ThreadJob<BaseThreadJobWorkerData, unknown>[] = this.queue.filter(job => job.status === ThreadJobStatus.IN_QUEUE);
+        const waitingJobs: ThreadJob<BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>, unknown>[] = this.queue.filter(job => job.status === ThreadJobStatus.IN_QUEUE);
         if (!waitingJobs.length) {
             return;
         }
 
-        const waitingPriorityJobs: ThreadJob<BaseThreadJobWorkerData, unknown>[] = waitingJobs.filter(j => j.priority);
+        const waitingPriorityJobs: ThreadJob<
+            BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>,
+            unknown
+        >[] = waitingJobs.filter(j => j.priority);
 
         if (waitingPriorityJobs.length) {
 
-            // eslint-disable-next-line stylistic/max-len
-            const waitingJob: ThreadJob<BaseThreadJobWorkerData, unknown> = waitingPriorityJobs.sort((a, b) => b.queuedAtMs - a.queuedAtMs)[0];
+            const waitingJob: ThreadJob<
+                BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>,
+                unknown
+            > = waitingPriorityJobs.sort((a, b) => a.queuedAtMs - b.queuedAtMs)[0];
 
             const idlePriorityWorker: ThreadJobWorker | undefined = this.idleWorkers.find(w => w.priority);
 
             if (idlePriorityWorker) {
-
                 this.idleWorkers = this.idleWorkers.filter(w => w.threadId !== idlePriorityWorker.threadId);
-
                 this.workers.push(idlePriorityWorker);
-
                 await this.startJob(waitingJob, idlePriorityWorker);
-
                 return;
-
             }
 
             // Try to use a normal worker as a fallback when no priority workers are available.
 
             // pop can be used here as there are idle workers and all of them are not priority.
-
             const idleWorker: ThreadJobWorker = this.idleWorkers.pop() as ThreadJobWorker;
 
             this.workers.push(idleWorker);
-
             await this.startJob(waitingJob, idleWorker);
-
             return;
 
         }
 
         // only "normal", not priority jobs remain here
-        const waitingJob: ThreadJob<BaseThreadJobWorkerData, unknown> = waitingJobs.sort((a, b) => b.queuedAtMs - a.queuedAtMs)[0];
+        const waitingJob: ThreadJob<
+            BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>,
+            unknown
+        > = waitingJobs.sort((a, b) => b.queuedAtMs - a.queuedAtMs)[0];
         const idleWorker: ThreadJobWorker | undefined = this.idleWorkers.find(w => !w.priority);
         if (!idleWorker) {
             return;
@@ -320,7 +348,10 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         await this.startJob(waitingJob, idleWorker);
     }
 
-    private async startJob(job: ThreadJob<BaseThreadJobWorkerData, unknown>, worker: ThreadJobWorker): Promise<void> {
+    private async startJob(
+        job: ThreadJob<BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>, unknown>,
+        worker: ThreadJobWorker
+    ): Promise<void> {
         worker.worker.postMessage(job.workerData);
         // eslint-disable-next-line typescript/no-misused-promises
         worker.timeout = setTimeout(async () => {
@@ -337,7 +368,10 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
     private async handleWorkerMessage<MessageType>(message: MessageType, threadId: number): Promise<void> {
         await this.logger.debug(`got message from worker:\n${JsonUtilities.stringify(message, undefined, 2)}`);
 
-        const job: ThreadJob<BaseThreadJobWorkerData, unknown> | undefined = this.getJobByThreadId(threadId);
+        const job: ThreadJob<
+            BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>,
+            unknown
+        > | undefined = this.getJobByThreadId(threadId);
         if (!job) {
             if (this.isThreadJobMessage(message) && message.type === 'initialization') {
                 this.handleInitializationMessage(threadId);
@@ -394,7 +428,7 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         }
     }
 
-    private async handleJobCompletion<WorkerData extends BaseThreadJobWorkerData, ResultType>(
+    private async handleJobCompletion<WorkerData extends BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>, ResultType>(
         job: ThreadJob<WorkerData, ResultType>,
         threadId: number
     ): Promise<void> {
@@ -430,7 +464,9 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         this.idleWorkers.push(foundWorker);
     }
 
-    private getJobByThreadId(threadId: number): ThreadJob<BaseThreadJobWorkerData, unknown> | undefined {
+    private getJobByThreadId(
+        threadId: number
+    ): ThreadJob<BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>, unknown> | undefined {
         return this.queue.find(j => j.threadId === threadId);
     }
 
@@ -445,7 +481,10 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
      * @param threadId - The thread id of the worker.
      */
     private async handleWorkerExit(exitCode: number, threadId: number): Promise<void> {
-        const job: ThreadJob<BaseThreadJobWorkerData, unknown> | undefined = this.getJobByThreadId(threadId);
+        const job: ThreadJob<
+            BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>,
+            unknown
+        > | undefined = this.getJobByThreadId(threadId);
         if (!job) {
             const worker: ThreadJobWorker | undefined = this.getWorkerByThreadId(threadId);
             if (worker) {
@@ -486,7 +525,10 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
      */
 
     private async handleWorkerError(error: Error, threadId: number): Promise<void> {
-        const job: ThreadJob<BaseThreadJobWorkerData, unknown> | undefined = this.getJobByThreadId(threadId);
+        const job: ThreadJob<
+            BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>,
+            unknown
+        > | undefined = this.getJobByThreadId(threadId);
         if (!job) {
             const worker: ThreadJobWorker | undefined = this.getWorkerByThreadId(threadId);
             if (worker) {
@@ -505,8 +547,14 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         await this.handleJobCompletion(job, threadId);
     }
 
-    private async updateThreadJobById(id: string, data: Partial<ThreadJob<BaseThreadJobWorkerData, unknown>>): Promise<void> {
-        const existingJob: ThreadJob<BaseThreadJobWorkerData, unknown> = this.queue[this.queue.findIndex(j => j.id === id)];
+    private async updateThreadJobById(
+        id: string,
+        data: Partial<ThreadJob<BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>, unknown>>
+    ): Promise<void> {
+        const existingJob: ThreadJob<
+            BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>,
+            unknown
+        > = this.queue[this.queue.findIndex(j => j.id === id)];
         this.queue[this.queue.findIndex(j => j.id === id)] = {
             ...existingJob,
             ...data

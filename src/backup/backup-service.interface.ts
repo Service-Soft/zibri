@@ -5,7 +5,6 @@ import { BehaviorSubject } from 'rxjs';
 import { BackupEntity, BackupEntityCreateData } from './backup-entity.model';
 import { BackupResourceEntity } from './backup-resource-entity.model';
 import { BackupResourceInterface } from './backup-resource.interface';
-import { Newable } from '../types/newable.type';
 import { OmitStrict } from '../types/omit-strict.type';
 import { BackupTransportInterface } from './transports/backup-transport.interface';
 
@@ -47,7 +46,7 @@ export interface BackupServiceInterface {
      */
     resolveBackupResource: (
         resource: BackupResourceEntity
-    ) => Newable<BackupResourceInterface> | undefined | Promise<Newable<BackupResourceInterface> | undefined>,
+    ) => BackupResourceInterface | undefined | Promise<BackupResourceInterface | undefined>,
     /**
      * Resolve the transports for the given backup resource.
      */

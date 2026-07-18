@@ -79,7 +79,7 @@ export class ZibriApplication {
         .disable('x-powered-by')
         .use(corsMiddleWare);
 
-    private readonly signalHandlers: Map<ShutdownSignal, () => void> = new Map<ShutdownSignal, () => void>();
+    private readonly signalHandlers: Map<ShutdownSignal, () => void> = new Map();
 
     /**
      * The underlying http server.

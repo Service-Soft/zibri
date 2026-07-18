@@ -7,7 +7,7 @@ const allInjectionTokenKeys: string[] = [];
  */
 export class InjectionToken<T> {
     // eslint-disable-next-line jsdoc/require-jsdoc
-    protected readonly __brand?: T;
+    protected readonly __brand!: T;
 
     constructor(readonly key: string) {
         if (allInjectionTokenKeys.includes(key)) {

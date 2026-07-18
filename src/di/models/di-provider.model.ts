@@ -1,4 +1,5 @@
 import { DiToken } from './di-token.model';
+import { DiVariant } from './di-variant.model';
 import { Newable } from '../../types/newable.type';
 import { OmitStrict } from '../../types/omit-strict.type';
 
@@ -30,7 +31,11 @@ type BaseDiProvider<T> = {
     /**
      * The token under which the value should be registered.
      */
-    token: DiToken<T>
+    token: DiToken<T>,
+    /**
+     * The variants of the injectable.
+     */
+    variants?: DiVariant[]
 };
 
 // eslint-disable-next-line jsdoc/require-jsdoc
@@ -38,7 +43,7 @@ type ClassDiProvider<T> = BaseDiProvider<T> & {
     /**
      * A class to register for the token.
      */
-    useClass: Newable<T>,
+    useClass: Newable<NoInfer<T>>,
     /**
      * Whether or not the newly created class instance should be cached or recreated on every injection.
      *
@@ -56,7 +61,7 @@ type FactoryDiProvider<T> = BaseDiProvider<T> & {
     /**
      * A factory function that resolves the value to register for the token.
      */
-    useFactory: (...deps: unknown[]) => T,
+    useFactory: (...deps: unknown[]) => NoInfer<T>,
     /**
      * Whether or not the result of the function should be cached or recomputed on every injection.
      *
@@ -74,7 +79,7 @@ type ValueDiProvider<T> = BaseDiProvider<T> & {
     /**
      * A value to register for the token.
      */
-    useValue: T,
+    useValue: NoInfer<T>,
     // eslint-disable-next-line jsdoc/require-jsdoc
     useFactory?: never,
     // eslint-disable-next-line jsdoc/require-jsdoc

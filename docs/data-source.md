@@ -8,7 +8,27 @@ They provide a lot of functionality out of the box, including:
 - transactions 
 - using multiple data sources simultaneously
 
-## Defining a data source
+## Key exports
+| Export | Kind | Purpose |
+|---|---|---|
+| `DataSource` | decorator | Registers a class as a data source |
+| `DataSourceInterface` | interface | Contract a data source must implement |
+| `PostgresDataSource` | class | Predefined data source for Postgres, extend from this instead of implementing `DataSourceInterface` directly |
+| `PostgresOptions` | interface | Connection/config options for `PostgresDataSource` |
+| `BaseEntity` | class | Base class entities must extend, defines an id property |
+| `Entity` | decorator | Registers a class as an entity |
+| `Property` | decorator | Maps a class property to a data source column, also used for validation |
+| `Newable` | type | Helper type for referencing a class (constructor) |
+| `InjectRepository` | decorator | Injects a `Repository` for a given entity into a constructor parameter |
+| `Repository` | class | Generic repository exposing `findAll`, `findAllPaginated`, `findOne`, `findById`, `createAll`, `create`, `updateAll`, `updateById`, `deleteAll`, `deleteById` |
+| `ChangeSetRepository` | class | Extended `Repository` that automatically tracks who changed what & when |
+| `SoftDeleteRepository` | class | Extended `ChangeSetRepository` that adds soft delete functionality |
+| `Transaction` | class | Represents a started transaction (`commit`/`rollback`) |
+| `Migration` | class | Base class to extend when defining a migration |
+| `SemVerVersion` | type | Version type used for `Migration.version` |
+
+## Usage
+### Defining a data source
 A data source needs too implement DataSourceInterface. Zibri also provides more specific, predefined classes, like the PostgresDataSource that you can extend from instead.
 
 The data source then needs to be decorated with `@DataSource`.
@@ -36,7 +56,7 @@ export class DbDataSource extends PostgresDataSource {
 }
 ```
 
-## Defining entities
+### Defining entities
 
 As you can see, the configuration of a data source is pretty straightforward. We also added our first entity to the data source, `Test`:
 
@@ -55,7 +75,7 @@ An entity to be included in a data source needs to extend `BaseEntity`, which de
 
 In order for the data source to map the properties, you need to decorate them with the `@Property` decorator. This is also used for validation.
 
-## Accessing the data source
+### Accessing the data source
 To access data from the data source, you use repositories for specific entities. They can simply be injected without needing you to define them:
 
 ```ts
@@ -132,7 +152,7 @@ export class TestService {
 }
 ```
 
-## Handling migrations
+### Handling migrations
 Migrations need to be provided on the data source:
 
 ```ts
@@ -164,14 +184,14 @@ For this we assume that the entity `Test` had a property before that was called 
 
 ```ts
 // src/data-sources/db/migrations/rename-value-property.migration.ts
-import { Injectable, Migration, Transaction, Version } from 'zibri';
+import { Injectable, Migration, Transaction, SemVerVersion } from 'zibri';
 
 import { Test } from '../../../models';
 import { DbDataSource } from '../db.data-source.ts';
 
 @Injectable()
 class RenameValuePropertyMigration extends Migration {
-    version: Version = '0.0.1';
+    version: SemVerVersion = '0.0.1';
 
     constructor() {
         super(DbDataSource);
@@ -188,10 +208,10 @@ class RenameValuePropertyMigration extends Migration {
 }
 ```
 
-### Versioning
+#### Versioning
 As you can see, each migration needs to have a version for which it should run. That version is compared against the global one provided to zibri, which is the package.json version by default.
 
-## ChangeSetRepository
+### ChangeSetRepository
 The `ChangeSetRepository` is an extended version of a Repository, that automatically tracks who changed what & when.
 It is automatically chosen with no further configuration on your end when the entity provided to `@InjectRepository` has a property called changeSets which is an array.
 
@@ -208,5 +228,10 @@ export class Test extends BaseEntity {
 }
 ```
 
-## SoftDeleteRepository
+### SoftDeleteRepository
 The `SoftDeleteRepository` is an extended version of a `ChangeSetRepository`, which adds soft delete functionality.
+
+## See also
+- [Cron](./cron.md) — cron jobs are persisted as entities in a data source
+- [Application lifecycle](./application-lifecycle.md) — data sources are provided to the `ZibriApplication`
+- [Encryption & Hashing](./encryption-and-hashing.md) — encrypting/hashing entity properties defined via `@Property`

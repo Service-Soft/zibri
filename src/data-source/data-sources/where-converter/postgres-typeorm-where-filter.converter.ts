@@ -314,7 +314,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
             const propMeta: PropertyMetadata = propertyMetadataMap[key];
             andParts.push(this.buildJsonbFieldCondition(jsonbAlias, key, filterValue, propMeta));
         }
-        return andParts.length > 0 ? andParts.join(' AND ') : 'TRUE';
+        return andParts.length ? andParts.join(' AND ') : 'TRUE';
     }
 
     private buildJsonbWhereCondition(
@@ -406,7 +406,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
             conditions.push(handler(jsonPath, textPath, castPath, val, fieldKey, propMeta));
         }
 
-        return conditions.length > 0 ? conditions.join(' AND ') : 'TRUE';
+        return conditions.length ? conditions.join(' AND ') : 'TRUE';
     }
 
     private toSqlLiteral(val: unknown): string {

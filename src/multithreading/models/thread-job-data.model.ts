@@ -1,4 +1,4 @@
-import { BaseThreadJobWorkerData } from './base-thread-job-worker-data.model';
+import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from './base-thread-job-worker-data.model';
 
 /**
  * The function values of the thread job data.
@@ -26,7 +26,7 @@ export type ThreadJobDataFunctions = {
 /**
  * Data that is needed to start a thread job.
  */
-export type ThreadJobData<T extends BaseThreadJobWorkerData> = ThreadJobDataFunctions & {
+export type ThreadJobData<T extends BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>> = ThreadJobDataFunctions & {
     /**
      * Data that should be passed to the worker.
      */

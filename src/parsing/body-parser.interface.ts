@@ -25,3 +25,29 @@ export interface BodyParserInterface {
      */
     parseFromHttpClientResponse: (res: HttpClientResponse, bodyMetadata: BodyMetadata) => unknown | Promise<unknown>
 }
+
+/**
+ * Checks whether or not the given value is a body parser.
+ * @param value - The value to check.
+ * @returns True if the value has all the keys of BodyParserInterface, false otherwise.
+ */
+export function isBodyParser(value: unknown): value is BodyParserInterface {
+    const keys: (keyof BodyParserInterface)[] = [
+        'contentType',
+        'parseFromHttpClientResponse',
+        'parseFromHttpRequest',
+        'parseFromWebsocketRequest'
+    ];
+
+    if (value == undefined || typeof value !== 'object') {
+        return false;
+    }
+
+    for (const key of keys) {
+        if (!(key in value)) {
+            return false;
+        }
+    }
+
+    return true;
+}

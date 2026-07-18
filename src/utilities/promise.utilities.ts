@@ -19,7 +19,7 @@ export type ChunkingOptions = {
  * An error to throw when an operation runs into a timeout.
  */
 export class TimeoutError extends ExternalError {
-    constructor(message: TranslatedString = $ts`Timed out`, title = message, options?: ErrorOptions) {
+    constructor(message: TranslatedString = $ts`Timed out`, title = $ts`Timed out`, options?: ErrorOptions) {
         super(message, title, options);
         this.name = 'TimeoutError';
     }

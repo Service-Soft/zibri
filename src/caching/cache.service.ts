@@ -4,8 +4,12 @@ import { matchesAnyTag } from './cache-tag-matchers';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { getAllRegisteredTokens } from '../di/get-all-registered-tokens.function';
+import { getDiTokenName } from '../di/get-di-token-name.function';
+import { getRegisteredProvidersOfVariant } from '../di/get-registered-providers-of-variant.function';
 import { inject } from '../di/inject.function';
-import { GlobalRegistry } from '../global/global-registry';
+import { DiProvider } from '../di/models/di-provider.model';
+import { DiVariants } from '../di/models/di-variant.model';
 import { OnAppInit } from '../global/on-app-init.interface';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { MultiTierCache } from './cache/multi-tier.cache';
@@ -37,24 +41,29 @@ export class CacheService implements CacheServiceInterface, OnAppInit {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async onAppInit(): Promise<void> {
-        if (GlobalRegistry.cacheClasses.length) {
-            // eslint-disable-next-line stylistic/max-len
-            await this.logger.info(`configures ${GlobalRegistry.cacheClasses.length} ${GlobalRegistry.cacheClasses.length > 1 ? 'caches' : 'cache'}:`);
+        const cacheProviders: DiProvider<unknown>[] = getRegisteredProvidersOfVariant(DiVariants.CACHE);
+        if (cacheProviders.length) {
+            await this.logger.info(`configures ${cacheProviders.length} ${cacheProviders.length > 1 ? 'caches' : 'cache'}:`);
         }
 
-        for (const cacheClass of GlobalRegistry.cacheClasses) {
-            const cache: AnyCache = inject(cacheClass);
-            this.caches.push(cache);
+        for (const provider of cacheProviders) {
+            const cache: unknown = inject(provider.token);
             if (!isCache(cache)) {
-                throw new InitCacheServiceError(`Invalid class marked with @Cache: ${cacheClass.name} needs to implement CacheInterface`);
+                throw new InitCacheServiceError(
+                    `Invalid class marked with @Cache: ${getDiTokenName(provider.token)} needs to implement CacheInterface`
+                );
             }
+            this.caches.push(cache);
             await this.logger.info(`  - ${cache.name}`);
         }
 
-        for (const cacheInjectable of GlobalRegistry.injectables.map(i => inject(i.token)).filter(i => isCache(i))) {
-            if (!this.caches.find(c => c.name === cacheInjectable.name)) {
+        const caches: AnyCache[] = getAllRegisteredTokens()
+            .map(t => inject(t))
+            .filter(i => isCache(i));
+        for (const cache of caches) {
+            if (!this.caches.find(c => c.name === cache.name)) {
                 throw new InitCacheServiceError(
-                    `The class "${cacheInjectable.constructor}" seems to be a cache but has not been decorated with @Cache()`
+                    `The class "${cache.constructor.name}" seems to be a cache but has not been decorated with @Cache()`
                 );
             }
         }

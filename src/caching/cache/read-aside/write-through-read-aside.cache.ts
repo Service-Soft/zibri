@@ -50,14 +50,14 @@ export abstract class WriteThroughReadAsideCache<K, V, N extends string, CacheTa
                     const storeStart: number = performance.now();
                     await this.store.set(key, this.createCachedValue(value, tags, ttl));
                     this.metrics.storeDuration.observe(
-                        { cache: this.name, operation: 'set' },
+                        { cache: this.name, operation: 'SET' },
                         performance.now() - storeStart
                     );
                     this.metrics.writes.increase({ cache: this.name });
                     await this.updateSizeGauge();
                 }
                 catch (error) {
-                    this.metrics.errors.increase({ cache: this.name, operation: 'set' });
+                    this.metrics.errors.increase({ cache: this.name, operation: 'SET' });
                     await this.logger.warn(
                         'Cache store failed after successful source write, source write was not rolled back',
                         { error }
@@ -79,7 +79,7 @@ export abstract class WriteThroughReadAsideCache<K, V, N extends string, CacheTa
             await this.updateSizeGauge();
         }
         catch (error) {
-            this.metrics.errors.increase({ cache: this.name, operation: 'set' });
+            this.metrics.errors.increase({ cache: this.name, operation: 'SET' });
             await this.logger.warn('Cache store failed in setDirect', { error });
         }
     }

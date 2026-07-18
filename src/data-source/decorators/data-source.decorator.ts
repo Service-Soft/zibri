@@ -1,19 +1,12 @@
-import { GlobalRegistry } from '../../global/global-registry';
-import { Newable } from '../../types/newable.type';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
+
+import { Injectable, InjectableOptions } from '../../di/decorators/injectable.decorator';
 
 /**
  * Marks a class to be a data source.
+ * @param options - Options for the data source.
  */
-export function DataSource(): ClassDecorator {
+export function DataSource<T>(options: InjectableOptions<T> = {}): ClassDecorator {
     return target => {
-        // eslint-disable-next-line unicorn/error-message
-        const stack: string = new Error().stack ?? '';
-        MetadataUtilities.setFilePath(target, stack);
-
-        GlobalRegistry.injectables.push({
-            token: target as unknown as Newable<unknown>,
-            useClass: target as unknown as Newable<unknown>
-        });
+        Injectable(options)(target);
     };
 }

@@ -1,18 +1,32 @@
 /* eslint-disable jsdoc/require-jsdoc */
-import { parentPort } from 'node:worker_threads';
+// eslint-disable-next-line unusedImports/no-unused-imports
+import { parentPort, workerData } from 'node:worker_threads';
 
-import { register } from 'ts-node';
+import { register as tsNodeRegister } from 'ts-node';
 
 import { reportCompletion } from './helpers';
-import { BaseThreadJobWorkerData, BaseFunctionThreadJobWorkerData } from '../../models/base-thread-job-worker-data.model';
-import { ThreadJobFunction } from '../../models/thread-job-function.model';
-import { ThreadJobMessage } from '../../models/thread-job-message.model';
+import { CacheStoreInterface } from '../../../caching/store/cache-store.interface';
+import { InMemoryCacheStore } from '../../../caching/store/in-memory.cache-store';
+import { InternalError } from '../../../error-handling/internal-error.model';
+import type { BaseThreadJobWorkerData, BaseFunctionThreadJobWorkerData } from '../../models/base-thread-job-worker-data.model';
+import type { ThreadJobFunction } from '../../models/thread-job-function.model';
+import type { ThreadJobMessage } from '../../models/thread-job-message.model';
 
 if (!parentPort) {
-    throw new Error('Internal Error with the thread-job-worker: parentPort not available.');
+    throw new InternalError('Internal Error with the thread-job-worker: parentPort not available.');
 }
 
-register();
+const functionCache: CacheStoreInterface<string, ThreadJobFunction<unknown, unknown>> = new InMemoryCacheStore();
+
+tsNodeRegister({ transpileOnly: true });
+
+process.on('uncaughtException', (err) => {
+    parentPort?.postMessage({ type: 'error', error: toError(err) });
+});
+
+process.on('unhandledRejection', (err) => {
+    parentPort?.postMessage({ type: 'error', error: toError(err) });
+});
 
 const message: ThreadJobMessage = { type: 'initialization' };
 
@@ -27,25 +41,23 @@ parentPort.on('message', (wData: BaseThreadJobWorkerData | BaseFunctionThreadJob
         return;
     }
 
-    // Clear the module from the cache
-    if (wData.filePath.endsWith('.ts')) {
-        const parts: string[] = wData.filePath.split('.ts');
-        parts.splice(parts.length - 1, 1);
-        wData.filePath = parts.join('') + '.js';
-    }
-
-    if (require.cache[require.resolve(wData.filePath)]) {
+    // Clear the module from the cache, so that top level code is run again
+    // and no state is kept between runs.
+    if (require.cache[wData.filePath]) {
         // eslint-disable-next-line typescript/no-dynamic-delete
-        delete require.cache[require.resolve(wData.filePath)];
+        delete require.cache[wData.filePath];
     }
 
-    void importWorkerFile(wData);
+    importWorkerFile(wData);
 });
 
 async function callFunction(wData: BaseFunctionThreadJobWorkerData<unknown>): Promise<void> {
     try {
-        // eslint-disable-next-line typescript/no-unsafe-assignment
-        const fn: ThreadJobFunction<unknown, unknown> = eval(`(${wData.func})`);
+        let fn: ThreadJobFunction<unknown, unknown> | undefined = (await functionCache.get(wData.func))?.value;
+        if (fn == undefined) {
+            fn = eval(`(${wData.func})`) as ThreadJobFunction<unknown, unknown>;
+            await functionCache.set(wData.func, { createdAt: new Date(), tags: [], value: fn });
+        }
         const result: unknown = await fn(wData.input);
         reportCompletion(result);
     }
@@ -55,9 +67,10 @@ async function callFunction(wData: BaseFunctionThreadJobWorkerData<unknown>): Pr
     }
 }
 
-async function importWorkerFile(workerData: BaseThreadJobWorkerData): Promise<void> {
+function importWorkerFile(workerData: BaseThreadJobWorkerData): void {
     try {
-        await import(workerData.filePath);
+        // eslint-disable-next-line typescript/no-require-imports
+        require(workerData.filePath);
     }
     catch (error) {
         const message: ThreadJobMessage = { type: 'error', error: toError(error) };
@@ -66,10 +79,12 @@ async function importWorkerFile(workerData: BaseThreadJobWorkerData): Promise<vo
 }
 
 function toError(value: unknown): Error {
-    if (value instanceof Error) {
-        return value;
-    }
-    return new Error(`${value}`);
+    const error: Error = value instanceof Error ? value : new Error(`${value}`);
+    return {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+    };
 }
 
 function isFunctionWorkerData<T>(value: unknown): value is BaseFunctionThreadJobWorkerData<T> {

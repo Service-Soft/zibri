@@ -1,21 +1,21 @@
-# Handling websocket connections
+# Websocket
 The way Zibri handles websocket connections is pretty similar to http. It also supports recovering and replaying a prior connection.
 
-## Establishing a connection
-By default, the websocket service accepts all connection attempts. You can override this behaviour by providing the following in your providers array:
+## Key exports
+| Export | Kind | Purpose |
+|---|---|---|
+| `WebsocketController` | decorator | Registers a class as a websocket controller |
+| `WebsocketRoute` | decorator | Registers a method to handle an incoming websocket event |
+| `WebsocketBody` | decorator | Parses/validates the body of an incoming websocket message |
+| `CurrentWebsocketConnection` | decorator | Injects the connection that sent the current message |
+| `BaseWebsocketConnection` | type | The connection object passed to route handlers |
+| `WebsocketService` | class | Sends messages to a connection, all connections, or a channel |
+| `WebsocketChannel` | entity | Entity used to create and join/leave channels |
+| `ZIBRI_DI_TOKENS.WEBSOCKET_SERVICE` | DI token | Injects `WebsocketService` |
+| `ZIBRI_DI_TOKENS.WEBSOCKET_OPTIONS` | DI token | Overrides websocket connection options |
 
-```ts
-// ...
-[ZIBRI_DI_TOKENS.WEBSOCKET_OPTIONS]: {
-    useFactory: () => ({ 
-        timeoutInMs: Ms.SECOND * 5,
-        isAllowedToConnect: () => false
-    })
-}
-// ...
-```
-
-## Receiving messages
+## Usage
+### Receiving messages
 For handling incomig websocket messages, you need to create a websocket controller:
 
 ```ts
@@ -44,7 +44,7 @@ export class TestWebsocketController {
 
 As you can see it is basically exactly the same as a "normal" controller. With all the parsing/validation etc. builtin.
 
-## Sending messages
+### Sending messages
 Messages can be send by using the websocket service. It provides methods for:
 - sending to a specific connection
 - sending to all connections
@@ -85,8 +85,27 @@ export class TestWebsocketController {
 }
 ```
 
-## Handling channels
+### Handling channels
 Channels are created by using a repository with the `WebsocketChannel` entity. See [accessing a data source](./data-source.md#accessing-the-data-source) for more information.
 
 A websocket connection can join or leave them by using the respective methods on the websocket service.
 This will also be completely restored when connecting again in the future.
+
+## Configuration
+By default, the websocket service accepts all connection attempts. You can override this behaviour by providing the following in your providers array:
+
+```ts
+// ...
+defineProvider({
+    token: ZIBRI_DI_TOKENS.WEBSOCKET_OPTIONS,
+    useFactory: () => ({ 
+        timeoutInMs: Ms.SECOND * 5,
+        isAllowedToConnect: () => false
+    })
+})
+// ...
+```
+
+## See also
+- [Data source](./data-source.md) — accessing the data source used by `WebsocketChannel` repositories
+- [Request context](./request-context.md) — the connection context available while handling a websocket message

@@ -84,12 +84,12 @@ export abstract class ReadThroughCache<
 
                         const storeStart: number = performance.now();
                         await this.store.set(key, this.createCachedValue(value, tags, ttl));
-                        this.metrics.storeDuration.observe({ cache: this.name, operation: 'set' }, performance.now() - storeStart);
+                        this.metrics.storeDuration.observe({ cache: this.name, operation: 'SET' }, performance.now() - storeStart);
 
                         await this.updateSizeGauge();
                     }
                     catch (error) {
-                        this.metrics.errors.increase({ cache: this.name, operation: 'set' });
+                        this.metrics.errors.increase({ cache: this.name, operation: 'SET' });
                         await this.logger.warn(
                             'Cache store failed after successful source read, value was returned but not cached',
                             { error }

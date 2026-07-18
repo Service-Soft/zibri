@@ -1,6 +1,7 @@
 import { AssetServiceInterface } from '../../assets/asset-service.interface';
 import { TwoFactorServiceInterface } from '../../auth/2fa/two-factor-service.interface';
 import { AuthServiceInterface } from '../../auth/auth-service.interface';
+import { EncryptionKey } from '../../auth/encryption/encryption-key.model';
 import { EncryptionMasterOptions } from '../../auth/encryption/encryption-master-options.model';
 import { EncryptionServiceInterface } from '../../auth/encryption/encryption-service.interface';
 import { EncryptionStrategyInterface } from '../../auth/encryption/strategies/encryption-strategy.interface';
@@ -10,6 +11,7 @@ import { CookieAuthSessionOptionsInput } from '../../auth/strategies/cookie/cook
 import { PasswordResetEmailTemplate } from '../../auth/strategies/jwt/jwt-auth.controller';
 import { UserServiceInterface } from '../../auth/user/user-service.interface';
 import { BackupServiceInterface } from '../../backup/backup-service.interface';
+import { WriteThroughReadThroughCache } from '../../caching/cache/read-through/write-through-read-through.cache';
 import { CacheServiceInterface } from '../../caching/cache-service.interface';
 import { CacheContext } from '../../context/cache/cache.context';
 import { HttpRequestContext } from '../../context/request/http-request.context';
@@ -32,6 +34,8 @@ import { MultithreadingServiceInterface } from '../../multithreading/services/mu
 import { OpenApiServiceInterface } from '../../open-api/open-api-service.interface';
 import { CspOptions } from '../../parsing/html/csp-options.model';
 import { ParserInterface } from '../../parsing/parser.interface';
+import { RateLimiterInterface } from '../../rate-limiting/limiter/rate-limiter.interface';
+import { RateLimitingServiceInterface } from '../../rate-limiting/rate-limiting-service.interface';
 import { RouterInterface } from '../../routing/router.interface';
 import { Newable } from '../../types/newable.type';
 import { FsPath } from '../../utilities/fs.utilities';
@@ -53,6 +57,7 @@ function ziToken<T = never>(k: `zi.${string}`): InjectionToken<T> {
 // eslint-disable-next-line typescript/typedef
 export const ZIBRI_DI_TOKENS = {
     // static/singleton tokens
+    ZIBRI_PACKAGE_ROOT: ziToken<FsPath>('zi.zibri_package_root'),
     ROUTER: ziToken<RouterInterface>('zi.router'),
     LOGGER: ziToken<LoggerInterface>('zi.logger'),
     LOGGER_TRANSPORTS: ziToken<LoggerTransport<BaseLoggerTransportConfig>[]>('zi.logger_transports'),
@@ -87,6 +92,8 @@ export const ZIBRI_DI_TOKENS = {
     FILE_UPLOAD_TEMP_FOLDER: ziToken<FsPath>('zi.file_upload_temp_folder'),
     EMAIL_SERVICE: ziToken<EmailServiceInterface>('zi.email_service'),
     EMAIL_CONFIG: ziToken<EmailConfigInput | undefined>('zi.email_config'),
+    // eslint-disable-next-line typescript/no-explicit-any
+    EMAIL_RATE_LIMITER: ziToken<RateLimiterInterface<any>>('zi.email_rate_limiter'),
     MULTITHREADING_SERVICE: ziToken<MultithreadingServiceInterface>('zi.multithreading_service'),
     MULTITHREADING_OPTIONS: ziToken<MultithreadingOptions>('zi.multithreading_options'),
     // eslint-disable-next-line typescript/no-explicit-any
@@ -108,6 +115,7 @@ export const ZIBRI_DI_TOKENS = {
     ENCRYPTION_MASTER_OPTIONS: ziToken<EncryptionMasterOptions<any, any, any> | undefined>(
         'zi.encryption_master_options'
     ),
+    ENCRYPTION_KEY_CACHE: ziToken<WriteThroughReadThroughCache<string, EncryptionKey, 'EncryptionKeyCache'>>('zi.encryption_key_cache'),
     CACHE_SERVICE: ziToken<CacheServiceInterface>('zi.cache_service'),
     VERSIONING_SERVICE: ziToken<VersioningServiceInterface>('zi.versioning_service'),
     VERSION_HEADER: ziToken<string>('zi.version_header'),
@@ -115,6 +123,7 @@ export const ZIBRI_DI_TOKENS = {
     LOCALIZE_SERVICE: ziToken<LocalizeServiceInterface>('zi.localize_service'),
     LOCALIZE_OPTIONS_INPUT: ziToken<LocalizeOptionsInput>('zi.localize_options_input'),
     LOCALIZE_OPTIONS: ziToken<LocalizeOptions>('zi.localize_options'),
+    RATE_LIMITING_SERVICE: ziToken<RateLimitingServiceInterface>('zi.rate_limiting_service'),
     // dynamic/context based tokens
     CURRENT_REQUEST_CONTEXT: ziToken<HttpRequestContext | WebsocketRequestContext | undefined>('zi.current_request_context'),
     DEFAULT_CSP_OPTIONS: ziToken<CspOptions>('zi.default_csp_options'),

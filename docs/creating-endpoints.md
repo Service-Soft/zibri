@@ -1,7 +1,32 @@
 # Creating endpoints
 Zibri uses controller classes for registering endpoints.
 
-## Defining a controller
+## Key exports
+| Export | Kind | Purpose |
+|---|---|---|
+| `Controller` | decorator | Marks a class as a controller and defines its base route |
+| `Get` | decorator | Defines a GET endpoint |
+| `Post` | decorator | Defines a POST endpoint |
+| `Property` | namespace | Decorators for defining model properties |
+| `Body` | decorator | Injects and validates the request body |
+| `Param` | namespace | Decorators for path, query and header parameters |
+| `CurrentUser` | decorator | Injects the currently logged in user |
+| `Auth` | namespace | Decorators for securing endpoints |
+| `Response` | namespace | Decorators for documenting OpenAPI responses |
+| `FileResponse` | class | Response type for returning files |
+| `HtmlResponse` | class | Response type for returning html |
+| `File` | class | Represents an uploaded file |
+| `FormData` | class | Typed wrapper for a form-data request body |
+| `MimeType` | enum | Mime type constants (eg. for allowed file uploads) |
+| `OmitClass` | function | Creates a class that omits given properties from a base class |
+| `PickClass` | function | Creates a class that picks given properties from a base class |
+| `IntersectionClass` | function | Combines multiple classes into one |
+| `CrudController` | function | Base controller providing generic CRUD endpoints |
+| `HttpStatus` | enum | HTTP status code constants |
+| `PaginationResult` | type | Shape of a paginated response |
+
+## Usage
+### Defining a controller
 You can define any class to be a controller by using the `@Controller` decorator:
 
 ```ts
@@ -33,7 +58,7 @@ You then need to register the controller in the application:
 // ...
 ```
 
-## Defining endpoints on the controller
+### Defining endpoints on the controller
 To actual define your first endpoint, you need to create a method and decorate it with the respective decorators. The example below shows a simple endpoint for getting some arbitrary users:
 
 ```ts
@@ -68,7 +93,7 @@ You can try the example above and navigate to your applications open api explore
 
 You should now see a new route get `/users` with the correctly defined return type.
 
-## Inheritance for controllers
+### Inheritance for controllers
 You can use inheritance for controllers using generics and even with the provided helper types like "OmitClass", "PickClass" etc. Zibri additionally provides a helper type for defining base crud endpoints that you can also extend from:
 
 ```ts
@@ -92,15 +117,15 @@ The above will expose the endpoints
 - `PATCH /tests-crud/:id` (coming from CrudController, which updates a single Test with TestUpdateDTO)
 - `GET /metrics` (coming from MetricsController, which in this example returns a html dashboard)
 
-## Accessing request data
+### Accessing request data
 
-### request body
+#### request body
 
 To access the request body, you need to use the `@Body()` decorator with the class of the request body. This also automatically handles validation for you:
 
 ```ts
 // src/controllers/user.controller.ts
-import { Body, Controller, Post, OmitType } from 'zibri';
+import { Body, Controller, Post, OmitClass } from 'zibri';
 
 class User {
     @Property.string({ primary: true })
@@ -113,7 +138,7 @@ class User {
     email!: string;
 }
 
-class UserCreateDTO extends OmitType(User, ['id']) {}
+class UserCreateDTO extends OmitClass(User, ['id']) {}
 
 @Controller('/users')
 export class UserController {
@@ -136,7 +161,7 @@ You can try the example above and navigate to your applications open api explore
 
 You should now see a new route post `/users` with the correctly defined request body and return type.
 
-### path, query and header params
+#### path, query and header params
 
 To access path, query and header params you can use the respective decorators on your route:
 
@@ -168,7 +193,7 @@ You can try the example above and navigate to your applications open api explore
 
 You should now see a new route post `/newsletters/:id/signup` with the correctly defined parameters.
 
-### Accessing the currently logged in user
+#### Accessing the currently logged in user
 
 Zibri provides an easy way to inject the currently logged in user by leveraging its auth framework. We won't go into the details of how that works here, but you can inject a user as follows:
 
@@ -220,7 +245,7 @@ You can try the example above and navigate to your applications open api explore
 
 You should now see a new route get `/articles` which can return different results based on whether you are logged in or not.
 
-### handling file uploads
+#### handling file uploads
 Zibri supports the uploading of one or multiple files together with some optional request data by using form-data:
 
 ```ts
@@ -249,12 +274,12 @@ export class FileController {
 
 > Notice that `FormData` is being imported from Zibri.
 
-## Securing endpoints
+### Securing endpoints
 To secure and protect your endpoints Zibri provides the `@Auth` namespace which has a lot of differnt decorators that handle most use cases. These decorators can be used either on the whole controller, securing every endpoint on it or on a single endpoint, depending on your needs.
 
 Every decorator also comes with a `skip` property, so you can easily secure a controller and skip all auth or certain auth rules for a single endpoint.
 
-### isLoggedIn
+#### isLoggedIn
 Checks if there is a logged in requesting user.
 
 ```ts
@@ -279,7 +304,7 @@ export class AuthController {
 }
 ```
 
-### isNotLoggedIn
+#### isNotLoggedIn
 Checks if there is no requesting user.
 
 ```ts
@@ -297,7 +322,7 @@ export class AuthController {
 }
 ```
 
-### hasRole
+#### hasRole
 Determines if the currently logged in user has a certain role:
 
 ```ts
@@ -319,7 +344,7 @@ export class AuthController {
 }
 ```
 
-### belongsTo
+#### belongsTo
 Probably the most complex auth decorator of Zibri is `@Auth.belongsTo`.
 
 It automatically checks if the ressource being requested belongs to the currently logged in user.
@@ -354,7 +379,7 @@ export class AuthController {
 }
 ```
 
-## Defining open api responses
+### Defining open api responses
 For defining responses, Zibri offers the `@Response` namespace which has a lot of decorators you can use on your endpoints:
 
 ```ts
@@ -379,10 +404,10 @@ export class UserController {
 
 There are additional decorators for non json return values, which are documented in the [changing the return type section](#changing-the-return-type)
 
-## Changing the return type
+### Changing the return type
 By default, Zibri sends back the returned value from your endpoints as json. In the following, we will take a look at how you can change that.
 
-### Returning files
+#### Returning files
 To return files instead of json, Zibri offers the `FileResponse` class:
 
 ```ts
@@ -400,7 +425,7 @@ export class FileController {
 
 ```
 
-### Returning html
+#### Returning html
 To return html instead of json, Zibri offers the `HtmlResponse` class:
 
 ```ts
@@ -417,3 +442,8 @@ export class HtmlController {
 }
 
 ```
+
+## See also
+- [Data sources](./data-source.md) — entities used as request bodies and `@Auth.belongsTo` targets
+- [Error handling](./error-handling.md) — the errors thrown/documented via `@Response.error`
+- [Templating](./templating.md) — building the html returned via `HtmlResponse`

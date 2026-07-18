@@ -1,3 +1,5 @@
+import { InjectableOptions } from '../../di/decorators/injectable.decorator';
+import { OmitStrict } from '../../types/omit-strict.type';
 import { BackupTransportInterface } from '../transports/backup-transport.interface';
 
 /**
@@ -21,4 +23,6 @@ export type BackupResourceMetadata = {
 /**
  * Input for creating BackupResourceMetadata.
  */
-export type BackupResourceMetadataInput = Pick<BackupResourceMetadata, 'transports'> & Partial<BackupResourceMetadata>;
+export type BackupResourceMetadataInput<T> = OmitStrict<InjectableOptions<T>, 'variant'>
+    & Pick<BackupResourceMetadata, 'transports'>
+    & Partial<BackupResourceMetadata>;

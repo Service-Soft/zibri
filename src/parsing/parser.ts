@@ -1,13 +1,17 @@
 import assert from 'assert';
 
-import { BodyParserInterface } from './body-parser.interface';
+import { BodyParserInterface, isBodyParser } from './body-parser.interface';
 import { ParserInterface } from './parser.interface';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { getAllRegisteredTokens } from '../di/get-all-registered-tokens.function';
+import { getDiTokenName } from '../di/get-di-token-name.function';
+import { getRegisteredProvidersOfVariant } from '../di/get-registered-providers-of-variant.function';
 import { inject } from '../di/inject.function';
+import { DiProvider } from '../di/models/di-provider.model';
+import { DiVariants } from '../di/models/di-variant.model';
 import { UnsupportedMediaTypeError } from '../error-handling/errors/unsupported-media-type.error';
 import { InternalError } from '../error-handling/internal-error.model';
-import { GlobalRegistry } from '../global/global-registry';
 import { OnAppInit } from '../global/on-app-init.interface';
 import { HttpRequest, isHttpRequest } from '../http/http-request.model';
 import { KnownHeader } from '../http/known-header.enum';
@@ -40,6 +44,17 @@ type QueryParamParseFunction = (rawValue: unknown, meta: QueryParamMetadata) => 
  * Function for parsing header parameters.
  */
 type HeaderParamParseFunction = (rawValue: string | undefined, meta: HeaderParamMetadata) => unknown;
+
+/**
+ * An error to throw during parser initialization.
+ */
+class InitParserError extends InternalError {
+    constructor(message: string | string[]) {
+        const messageArray: string[] = typeof message === 'string' ? [message] : message;
+        super(['Error initializing parser.', ...messageArray]);
+        this.name = 'InitParserError';
+    }
+}
 
 /**
  * Default parser implementation of Zibri.
@@ -153,11 +168,28 @@ export class Parser implements ParserInterface, OnAppInit {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async onAppInit(): Promise<void> {
-        await this.logger.info(`registers ${GlobalRegistry.bodyParsers.length} request body parsers:`);
-        for (const parserClass of GlobalRegistry.bodyParsers) {
-            const parser: BodyParserInterface = inject(parserClass);
+        const providers: DiProvider<unknown>[] = getRegisteredProvidersOfVariant(DiVariants.BODY_PARSER);
+        await this.logger.info(`registers ${providers.length} request body parsers:`);
+        for (const provider of providers) {
+            const parser: unknown = inject(provider.token);
+            if (!isBodyParser(parser)) {
+                throw new InitParserError(
+                    `Invalid resource marked with @Backup: ${getDiTokenName(provider.token)} needs to implement BodyParserInterface`
+                );
+            }
             this.bodyParsers.push(parser);
-            await this.logger.info(`  - ${parserClass.name} (${parser.contentType})`);
+            await this.logger.info(`  - ${getDiTokenName(provider.token)} (${parser.contentType})`);
+        }
+
+        const parsers: BodyParserInterface[] = getAllRegisteredTokens()
+            .map(t => inject(t))
+            .filter(i => isBodyParser(i));
+        for (const parser of parsers) {
+            if (!this.bodyParsers.find(c => c.constructor.name === parser.constructor.name)) {
+                throw new InitParserError(
+                    `The class "${parser.constructor.name}" seems to be a body parser but has not been decorated with @BodyParser()`
+                );
+            }
         }
     }
 }

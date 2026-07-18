@@ -1,4 +1,4 @@
-import { BaseThreadJobWorkerData } from '../models/base-thread-job-worker-data.model';
+import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from '../models/base-thread-job-worker-data.model';
 import { ThreadJobData, ThreadJobDataFunctions } from '../models/thread-job-data.model';
 import { ThreadJobEntity } from '../models/thread-job-entity.model';
 import { ThreadJobFunction } from '../models/thread-job-function.model';
@@ -14,7 +14,7 @@ export interface MultithreadingServiceInterface {
      *
      * **This differs from the threadId, which is created by the os and set when the thread actually starts.**.
      */
-    queueThreadJob: <WorkerData extends BaseThreadJobWorkerData>(
+    queueThreadJob: <WorkerData extends BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>>(
         threadJobData: ThreadJobData<WorkerData>
     ) => Promise<string> | string,
     /**
@@ -22,7 +22,7 @@ export interface MultithreadingServiceInterface {
      * @param threadJobData - The data of the job to queue.
      * @returns The thread job.
      */
-    runThreadJob: <WorkerData extends BaseThreadJobWorkerData, ResultType>(
+    runThreadJob: <WorkerData extends BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>, ResultType>(
         threadJobData: ThreadJobData<WorkerData>
     ) => Promise<ThreadJobEntity<WorkerData, ResultType>> | ThreadJobEntity<WorkerData, ResultType>,
     /**
@@ -54,7 +54,7 @@ export interface MultithreadingServiceInterface {
      * @param data - Additional data for the job.
      * @returns The thread job.
      */
-    rerunThreadJob: <WorkerData extends BaseThreadJobWorkerData, ResultType>(
+    rerunThreadJob: <WorkerData extends BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>, ResultType>(
         jobId: string,
         data?: ThreadJobDataFunctions
     ) => Promise<ThreadJobEntity<WorkerData, ResultType>> | ThreadJobEntity<WorkerData, ResultType>,
@@ -63,7 +63,10 @@ export interface MultithreadingServiceInterface {
      * @param jobId - The id of the thread job to wait for.
      * @returns The thread job.
      */
-    waitForThreadJob: <ResultType, WorkerData extends BaseThreadJobWorkerData = BaseThreadJobWorkerData>(
+    waitForThreadJob: <
+        ResultType,
+        WorkerData extends BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown> = BaseThreadJobWorkerData
+    >(
         jobId: string
     ) => Promise<ThreadJobEntity<WorkerData, ResultType>> | ThreadJobEntity<WorkerData, ResultType>
 }

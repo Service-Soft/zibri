@@ -13,11 +13,31 @@
           <x id="seconds" equiv-text="{seconds}"/>
           s
         </source>
-        <note>src/templates/components/metrics-status.tsx:51</note>
+        <note>src/templates/pages/metrics/metrics-status.tsx:51</note>
       </trans-unit>
       <trans-unit id="A password reset was requested for your account." xml:space="preserve">
         <source>A password reset was requested for your account.</source>
         <note>src/templates/emails/password-reset.tsx:25</note>
+      </trans-unit>
+      <trans-unit id="Active keys" xml:space="preserve">
+        <source>Active keys</source>
+        <note>src/templates/pages/metrics/rate-limiter/rate-limiter-detail.tsx:138</note>
+      </trans-unit>
+      <trans-unit id="Active Keys" xml:space="preserve">
+        <source>Active Keys</source>
+        <note>src/templates/pages/metrics/rate-limiter/rate-limiter-detail.tsx:131</note>
+      </trans-unit>
+      <trans-unit id="Active reservations" xml:space="preserve">
+        <source>Active reservations</source>
+        <note>src/templates/pages/metrics/rate-limiter/rate-limiter-reservation-stat-card.tsx:35</note>
+      </trans-unit>
+      <trans-unit id="Allowed" xml:space="preserve">
+        <source>Allowed</source>
+        <note>src/templates/pages/metrics/rate-limiter/rate-limiter-detail.tsx:25</note>
+      </trans-unit>
+      <trans-unit id="Allowed / Blocked" xml:space="preserve">
+        <source>Allowed / Blocked</source>
+        <note>src/templates/pages/metrics/rate-limiter/rate-limiter-detail.tsx:18</note>
       </trans-unit>
       <trans-unit id="Assets" xml:space="preserve">
         <source>Assets</source>
@@ -25,7 +45,19 @@
       </trans-unit>
       <trans-unit id="Automatic reload" xml:space="preserve">
         <source>Automatic reload</source>
-        <note>src/templates/pages/metrics.tsx:98</note>
+        <note>src/templates/pages/metrics/metrics.tsx:104</note>
+      </trans-unit>
+      <trans-unit id="Block rate" xml:space="preserve">
+        <source>Block rate</source>
+        <note>src/templates/pages/metrics/rate-limiter/rate-limiter-block-rate-stat-card.tsx:40, src/templates/pages/metrics/rate-limiter/rate-limiter-overview-chart.tsx:72</note>
+      </trans-unit>
+      <trans-unit id="Block rate (%)" xml:space="preserve">
+        <source>Block rate (%)</source>
+        <note>src/templates/pages/metrics/rate-limiter/rate-limiter-overview-chart.tsx:104</note>
+      </trans-unit>
+      <trans-unit id="Blocked" xml:space="preserve">
+        <source>Blocked</source>
+        <note>src/templates/pages/metrics/rate-limiter/rate-limiter-detail.tsx:32</note>
       </trans-unit>
       <trans-unit id="Button with id &quot;button-{tab.id}&quot; could not be found" xml:space="preserve">
         <source>
@@ -45,15 +77,15 @@
       </trans-unit>
       <trans-unit id="Cache Errors" xml:space="preserve">
         <source>Cache Errors</source>
-        <note>src/templates/components/cache-overview-chart.tsx:82</note>
+        <note>src/templates/pages/metrics/cache/cache-overview-chart.tsx:82</note>
       </trans-unit>
       <trans-unit id="Cache hit rate" xml:space="preserve">
         <source>Cache hit rate</source>
-        <note>src/templates/components/cache-hit-rate-chart.tsx:57</note>
+        <note>src/templates/pages/metrics/cache/cache-hit-rate-chart.tsx:57</note>
       </trans-unit>
       <trans-unit id="Caches" xml:space="preserve">
         <source>Caches</source>
-        <note>src/templates/pages/metrics.tsx:102</note>
+        <note>src/templates/pages/metrics/metrics.tsx:110</note>
       </trans-unit>
       <trans-unit id="Click the link down below to proceed." xml:space="preserve">
         <source>Click the link down below to proceed.</source>
@@ -61,7 +93,7 @@
       </trans-unit>
       <trans-unit id="Client Error" xml:space="preserve">
         <source>Client Error</source>
-        <note>src/templates/components/requests-per-second-chart.tsx:109</note>
+        <note>src/templates/pages/metrics/requests-per-second-chart.tsx:109</note>
       </trans-unit>
       <trans-unit id="Client IP" xml:space="preserve">
         <source>Client IP</source>
@@ -82,13 +114,17 @@
         </source>
         <note>src/templates/emails/mailing-list-subscribe-confirmation.tsx:21</note>
       </trans-unit>
+      <trans-unit id="Count" xml:space="preserve">
+        <source>Count</source>
+        <note>src/templates/pages/metrics/rate-limiter/rate-limiter-detail.tsx:48, src/templates/pages/metrics/rate-limiter/rate-limiter-detail.tsx:163, src/templates/pages/metrics/rate-limiter/rate-limiter-detail.tsx:168</note>
+      </trans-unit>
       <trans-unit id="Count (delta)" xml:space="preserve">
         <source>Count (delta)</source>
-        <note>src/templates/components/cache-details-section.tsx:50</note>
+        <note>src/templates/pages/metrics/cache/cache-detail.tsx:48</note>
       </trans-unit>
       <trans-unit id="CPU (%)" xml:space="preserve">
         <source>CPU (%)</source>
-        <note>src/templates/components/resource-usage-chart.tsx:64</note>
+        <note>src/templates/pages/metrics/resource-usage-chart.tsx:64</note>
       </trans-unit>
       <trans-unit id="Critical Error" xml:space="preserve">
         <source>Critical Error</source>
@@ -98,13 +134,21 @@
         <source>Debug Log</source>
         <note>src/templates/emails/log.tsx:14</note>
       </trans-unit>
+      <trans-unit id="Decision (mean)" xml:space="preserve">
+        <source>Decision (mean)</source>
+        <note>src/templates/pages/metrics/rate-limiter/rate-limiter-detail.tsx:94</note>
+      </trans-unit>
+      <trans-unit id="Decision &amp; Store duration" xml:space="preserve">
+        <source>Decision &amp; Store duration</source>
+        <note>src/templates/pages/metrics/rate-limiter/rate-limiter-detail.tsx:87</note>
+      </trans-unit>
       <trans-unit id="Details" xml:space="preserve">
         <source>Details</source>
         <note>src/templates/emails/log.tsx:52</note>
       </trans-unit>
       <trans-unit id="Entries" xml:space="preserve">
         <source>Entries</source>
-        <note>src/templates/components/cache-details-section.tsx:167</note>
+        <note>src/templates/pages/metrics/cache/cache-detail.tsx:165</note>
       </trans-unit>
       <trans-unit id="Error" xml:space="preserve">
         <source>Error</source>
@@ -112,15 +156,15 @@
       </trans-unit>
       <trans-unit id="Errors" xml:space="preserve">
         <source>Errors</source>
-        <note>src/templates/components/cache-overview-chart.tsx:115</note>
+        <note>src/templates/pages/metrics/rate-limiter/rate-limiter-overview-chart.tsx:78, src/templates/pages/metrics/rate-limiter/rate-limiter-overview-chart.tsx:111, src/templates/pages/metrics/cache/cache-overview-chart.tsx:115</note>
       </trans-unit>
       <trans-unit id="Event Loop Lag" xml:space="preserve">
         <source>Event Loop Lag</source>
-        <note>src/templates/components/requests-per-second-chart.tsx:94</note>
+        <note>src/templates/pages/metrics/requests-per-second-chart.tsx:94</note>
       </trans-unit>
       <trans-unit id="failed to load metrics" xml:space="preserve">
         <source>failed to load metrics</source>
-        <note>src/templates/pages/metrics.tsx:84</note>
+        <note>src/templates/pages/metrics/metrics.tsx:90</note>
       </trans-unit>
       <trans-unit id="failed updating preferences" xml:space="preserve">
         <source>failed updating preferences</source>
@@ -151,19 +195,19 @@
       </trans-unit>
       <trans-unit id="Hit / Miss" xml:space="preserve">
         <source>Hit / Miss</source>
-        <note>src/templates/components/cache-details-section.tsx:20</note>
+        <note>src/templates/pages/metrics/cache/cache-detail.tsx:18</note>
       </trans-unit>
       <trans-unit id="Hit rate" xml:space="preserve">
         <source>Hit rate</source>
-        <note>src/templates/components/cache-hit-rate-stat-card.tsx:41, src/templates/components/cache-overview-chart.tsx:76</note>
+        <note>src/templates/pages/metrics/cache/cache-hit-rate-stat-card.tsx:41, src/templates/pages/metrics/cache/cache-overview-chart.tsx:76</note>
       </trans-unit>
       <trans-unit id="Hit rate (%)" xml:space="preserve">
         <source>Hit rate (%)</source>
-        <note>src/templates/components/cache-overview-chart.tsx:108</note>
+        <note>src/templates/pages/metrics/cache/cache-overview-chart.tsx:108</note>
       </trans-unit>
       <trans-unit id="Hits" xml:space="preserve">
         <source>Hits</source>
-        <note>src/templates/components/cache-details-section.tsx:27</note>
+        <note>src/templates/pages/metrics/cache/cache-detail.tsx:25</note>
       </trans-unit>
       <trans-unit id="Home" xml:space="preserve">
         <source>Home</source>
@@ -183,11 +227,15 @@
       </trans-unit>
       <trans-unit id="In-flight" xml:space="preserve">
         <source>In-flight</source>
-        <note>src/templates/components/cache-details-section.tsx:150, src/templates/components/cache-details-section.tsx:172</note>
+        <note>src/templates/pages/metrics/cache/cache-detail.tsx:148, src/templates/pages/metrics/cache/cache-detail.tsx:170</note>
       </trans-unit>
       <trans-unit id="Info Log" xml:space="preserve">
         <source>Info Log</source>
         <note>src/templates/emails/log.tsx:15</note>
+      </trans-unit>
+      <trans-unit id="keys" xml:space="preserve">
+        <source>keys</source>
+        <note>src/templates/pages/metrics/rate-limiter/rate-limiter-size-stat-card.tsx:32</note>
       </trans-unit>
       <trans-unit id="Kind regards," xml:space="preserve">
         <source>Kind regards,</source>
@@ -195,7 +243,7 @@
       </trans-unit>
       <trans-unit id="Lag (ms)" xml:space="preserve">
         <source>Lag (ms)</source>
-        <note>src/templates/components/requests-per-second-chart.tsx:145</note>
+        <note>src/templates/pages/metrics/requests-per-second-chart.tsx:145</note>
       </trans-unit>
       <trans-unit id="Lists all publicly registered assets." xml:space="preserve">
         <source>Lists all publicly registered assets.</source>
@@ -221,6 +269,10 @@
         <source>Manage your preferences</source>
         <note>src/templates/pages/mailing-list-unsubscribe-confirmation.tsx:31</note>
       </trans-unit>
+      <trans-unit id="Mean" xml:space="preserve">
+        <source>Mean</source>
+        <note>src/templates/pages/metrics/rate-limiter/rate-limiter-detail.tsx:124</note>
+      </trans-unit>
       <trans-unit id="Message" xml:space="preserve">
         <source>Message</source>
         <note>src/templates/emails/log.tsx:46, src/templates/emails/log.tsx:70</note>
@@ -231,11 +283,11 @@
       </trans-unit>
       <trans-unit id="Metrics" xml:space="preserve">
         <source>Metrics</source>
-        <note>src/templates/pages/metrics.tsx:90, src/templates/pages/metrics.tsx:95</note>
+        <note>src/templates/pages/metrics/metrics.tsx:96, src/templates/pages/metrics/metrics.tsx:101</note>
       </trans-unit>
       <trans-unit id="Misses" xml:space="preserve">
         <source>Misses</source>
-        <note>src/templates/components/cache-details-section.tsx:34</note>
+        <note>src/templates/pages/metrics/cache/cache-detail.tsx:32</note>
       </trans-unit>
       <trans-unit id="Name" xml:space="preserve">
         <source>Name</source>
@@ -243,11 +295,11 @@
       </trans-unit>
       <trans-unit id="Network" xml:space="preserve">
         <source>Network</source>
-        <note>src/templates/components/network-chart.tsx:51</note>
+        <note>src/templates/pages/metrics/network-chart.tsx:51</note>
       </trans-unit>
       <trans-unit id="Ongoing cache operations" xml:space="preserve">
         <source>Ongoing cache operations</source>
-        <note>src/templates/components/cache-inflight-stat-card.tsx:37</note>
+        <note>src/templates/pages/metrics/cache/cache-inflight-stat-card.tsx:37</note>
       </trans-unit>
       <trans-unit id="OpenAPI Explorer" xml:space="preserve">
         <source>OpenAPI Explorer</source>
@@ -255,7 +307,7 @@
       </trans-unit>
       <trans-unit id="Operation" xml:space="preserve">
         <source>Operation</source>
-        <note>src/templates/components/cache-details-section.tsx:97</note>
+        <note>src/templates/pages/metrics/cache/cache-detail.tsx:95</note>
       </trans-unit>
       <trans-unit id="Origin" xml:space="preserve">
         <source>Origin</source>
@@ -263,7 +315,7 @@
       </trans-unit>
       <trans-unit id="Overview" xml:space="preserve">
         <source>Overview</source>
-        <note>src/templates/pages/metrics.tsx:102, src/templates/components/cache-overview-chart.tsx:69</note>
+        <note>src/templates/pages/metrics/metrics.tsx:109, src/templates/pages/metrics/rate-limiter/rate-limiter-overview-chart.tsx:65, src/templates/pages/metrics/cache/cache-overview-chart.tsx:69</note>
       </trans-unit>
       <trans-unit id="Password Reset" xml:space="preserve">
         <source>Password Reset</source>
@@ -283,15 +335,19 @@
       </trans-unit>
       <trans-unit id="RAM (MB)" xml:space="preserve">
         <source>RAM (MB)</source>
-        <note>src/templates/components/resource-usage-chart.tsx:57</note>
+        <note>src/templates/pages/metrics/resource-usage-chart.tsx:57</note>
+      </trans-unit>
+      <trans-unit id="Rate Limiters" xml:space="preserve">
+        <source>Rate Limiters</source>
+        <note>src/templates/pages/metrics/metrics.tsx:111</note>
       </trans-unit>
       <trans-unit id="received invalid metrics event" xml:space="preserve">
         <source>received invalid metrics event</source>
-        <note>src/templates/components/cache-hit-rate-stat-card.tsx:12, src/templates/components/cache-inflight-stat-card.tsx:14, src/templates/components/cache-size-stat-card.tsx:12, src/templates/components/chart.tsx:48, src/templates/components/metrics-status.tsx:24</note>
+        <note>src/templates/pages/metrics/metrics-status.tsx:24, src/templates/pages/metrics/rate-limiter/rate-limiter-block-rate-stat-card.tsx:12, src/templates/pages/metrics/rate-limiter/rate-limiter-reservation-stat-card.tsx:14, src/templates/pages/metrics/rate-limiter/rate-limiter-size-stat-card.tsx:12, src/templates/pages/metrics/cache/cache-hit-rate-stat-card.tsx:12, src/templates/pages/metrics/cache/cache-inflight-stat-card.tsx:14, src/templates/pages/metrics/cache/cache-size-stat-card.tsx:12, src/templates/components/chart.tsx:48</note>
       </trans-unit>
       <trans-unit id="registered" xml:space="preserve">
         <source>registered</source>
-        <note>src/templates/pages/metrics.tsx:122</note>
+        <note>src/templates/pages/metrics/metrics.tsx:132, src/templates/pages/metrics/metrics.tsx:149</note>
       </trans-unit>
       <trans-unit id="Request" xml:space="preserve">
         <source>Request</source>
@@ -299,15 +355,19 @@
       </trans-unit>
       <trans-unit id="Request duration" xml:space="preserve">
         <source>Request duration</source>
-        <note>src/templates/components/request-duration-chart.tsx:56</note>
+        <note>src/templates/pages/metrics/request-duration-chart.tsx:56</note>
       </trans-unit>
       <trans-unit id="Requests per second" xml:space="preserve">
         <source>Requests per second</source>
-        <note>src/templates/components/requests-per-second-chart.tsx:87</note>
+        <note>src/templates/pages/metrics/requests-per-second-chart.tsx:87</note>
       </trans-unit>
       <trans-unit id="Requests/sec" xml:space="preserve">
         <source>Requests/sec</source>
-        <note>src/templates/components/requests-per-second-chart.tsx:140</note>
+        <note>src/templates/pages/metrics/requests-per-second-chart.tsx:140</note>
+      </trans-unit>
+      <trans-unit id="Reservations" xml:space="preserve">
+        <source>Reservations</source>
+        <note>src/templates/pages/metrics/rate-limiter/rate-limiter-detail.tsx:146</note>
       </trans-unit>
       <trans-unit id="Reset Password" xml:space="preserve">
         <source>Reset Password</source>
@@ -315,31 +375,31 @@
       </trans-unit>
       <trans-unit id="Resource Usage" xml:space="preserve">
         <source>Resource Usage</source>
-        <note>src/templates/components/resource-usage-chart.tsx:50</note>
+        <note>src/templates/pages/metrics/resource-usage-chart.tsx:50</note>
       </trans-unit>
       <trans-unit id="Server Error" xml:space="preserve">
         <source>Server Error</source>
-        <note>src/templates/components/requests-per-second-chart.tsx:102</note>
+        <note>src/templates/pages/metrics/requests-per-second-chart.tsx:102</note>
       </trans-unit>
       <trans-unit id="Since" xml:space="preserve">
         <source>Since</source>
-        <note>src/templates/components/metrics-status.tsx:79</note>
+        <note>src/templates/pages/metrics/metrics-status.tsx:79</note>
       </trans-unit>
       <trans-unit id="Size" xml:space="preserve">
         <source>Size</source>
-        <note>src/templates/components/cache-details-section.tsx:142</note>
+        <note>src/templates/pages/metrics/cache/cache-detail.tsx:140</note>
       </trans-unit>
       <trans-unit id="Size &amp; In-flight" xml:space="preserve">
         <source>Size &amp; In-flight</source>
-        <note>src/templates/components/cache-details-section.tsx:135</note>
+        <note>src/templates/pages/metrics/cache/cache-detail.tsx:133</note>
       </trans-unit>
       <trans-unit id="Source (mean)" xml:space="preserve">
         <source>Source (mean)</source>
-        <note>src/templates/components/cache-details-section.tsx:90</note>
+        <note>src/templates/pages/metrics/cache/cache-detail.tsx:88</note>
       </trans-unit>
       <trans-unit id="Source &amp; Store duration" xml:space="preserve">
         <source>Source &amp; Store duration</source>
-        <note>src/templates/components/cache-details-section.tsx:83</note>
+        <note>src/templates/pages/metrics/cache/cache-detail.tsx:81</note>
       </trans-unit>
       <trans-unit id="Stack Trace" xml:space="preserve">
         <source>Stack Trace</source>
@@ -347,11 +407,11 @@
       </trans-unit>
       <trans-unit id="Status" xml:space="preserve">
         <source>Status</source>
-        <note>src/templates/components/metrics-status.tsx:67</note>
+        <note>src/templates/pages/metrics/metrics-status.tsx:67</note>
       </trans-unit>
       <trans-unit id="Store (mean)" xml:space="preserve">
         <source>Store (mean)</source>
-        <note>src/templates/components/cache-details-section.tsx:91</note>
+        <note>src/templates/pages/metrics/rate-limiter/rate-limiter-detail.tsx:95, src/templates/pages/metrics/cache/cache-detail.tsx:89</note>
       </trans-unit>
       <trans-unit id="Subscribed successfully" xml:space="preserve">
         <source>Subscribed successfully</source>
@@ -359,7 +419,7 @@
       </trans-unit>
       <trans-unit id="Success" xml:space="preserve">
         <source>Success</source>
-        <note>src/templates/components/requests-per-second-chart.tsx:116</note>
+        <note>src/templates/pages/metrics/requests-per-second-chart.tsx:116</note>
       </trans-unit>
       <trans-unit id="TabPanel with id &quot;{tab.id}&quot; could not be found" xml:space="preserve">
         <source>
@@ -391,11 +451,19 @@
       </trans-unit>
       <trans-unit id="Total cached entries" xml:space="preserve">
         <source>Total cached entries</source>
-        <note>src/templates/components/cache-size-stat-card.tsx:32</note>
+        <note>src/templates/pages/metrics/cache/cache-size-stat-card.tsx:32</note>
       </trans-unit>
       <trans-unit id="Total caches" xml:space="preserve">
         <source>Total caches</source>
-        <note>src/templates/pages/metrics.tsx:122</note>
+        <note>src/templates/pages/metrics/metrics.tsx:132</note>
+      </trans-unit>
+      <trans-unit id="Total rate limiters" xml:space="preserve">
+        <source>Total rate limiters</source>
+        <note>src/templates/pages/metrics/metrics.tsx:149</note>
+      </trans-unit>
+      <trans-unit id="Tracked identities" xml:space="preserve">
+        <source>Tracked identities</source>
+        <note>src/templates/pages/metrics/rate-limiter/rate-limiter-size-stat-card.tsx:32</note>
       </trans-unit>
       <trans-unit id="unsubscribe" xml:space="preserve">
         <source>unsubscribe</source>
@@ -415,7 +483,7 @@
       </trans-unit>
       <trans-unit id="Uptime" xml:space="preserve">
         <source>Uptime</source>
-        <note>src/templates/components/metrics-status.tsx:75</note>
+        <note>src/templates/pages/metrics/metrics-status.tsx:75</note>
       </trans-unit>
       <trans-unit id="URL" xml:space="preserve">
         <source>URL</source>
@@ -427,7 +495,7 @@
       </trans-unit>
       <trans-unit id="Version" xml:space="preserve">
         <source>Version</source>
-        <note>src/templates/components/metrics-status.tsx:71</note>
+        <note>src/templates/pages/metrics/metrics-status.tsx:71</note>
       </trans-unit>
       <trans-unit id="Warning" xml:space="preserve">
         <source>Warning</source>
@@ -523,7 +591,7 @@
           <x id="EncryptionStrategyEntity.name" equiv-text="{EncryptionStrategyEntity.name}"/>
           .
         </source>
-        <note>node_modules/zibri/src/auth/encryption/encryption.service.ts:288, node_modules/zibri/src/auth/encryption/encryption.service.ts:352, node_modules/zibri/src/auth/encryption/encryption.service.ts:397</note>
+        <note>node_modules/zibri/src/auth/encryption/encryption.service.ts:258, node_modules/zibri/src/auth/encryption/encryption.service.ts:322, node_modules/zibri/src/auth/encryption/encryption.service.ts:367</note>
       </trans-unit>
       <trans-unit id="Could not find {this.entityClass.name} with id &quot;{id}&quot;." xml:space="preserve">
         <source>
@@ -549,7 +617,7 @@
           <x id="id" equiv-text="{id}"/>
           ".
         </source>
-        <note>node_modules/zibri/src/websocket/services/websocket.service.ts:600</note>
+        <note>node_modules/zibri/src/websocket/services/websocket.service.ts:604</note>
       </trans-unit>
       <trans-unit id="Could not find connection with userId &quot;{userId}&quot;." xml:space="preserve">
         <source>
@@ -557,7 +625,7 @@
           <x id="userId" equiv-text="{userId}"/>
           ".
         </source>
-        <note>node_modules/zibri/src/websocket/services/websocket.service.ts:609</note>
+        <note>node_modules/zibri/src/websocket/services/websocket.service.ts:613</note>
       </trans-unit>
       <trans-unit id="Could not find cron job with name &quot;{name}&quot;" xml:space="preserve">
         <source>
@@ -573,7 +641,7 @@
           <x id="connection.resolvedVersion.value" equiv-text="{connection.resolvedVersion.value}"/>
           "
         </source>
-        <note>node_modules/zibri/src/websocket/services/websocket.service.ts:624</note>
+        <note>node_modules/zibri/src/websocket/services/websocket.service.ts:628</note>
       </trans-unit>
       <trans-unit id="Could not find route &quot;{request.url}&quot; for version &quot;{version.value}&quot;" xml:space="preserve">
         <source>
@@ -583,14 +651,14 @@
           <x id="version.value" equiv-text="{version.value}"/>
           "
         </source>
-        <note>node_modules/zibri/src/routing/router.ts:461</note>
+        <note>node_modules/zibri/src/routing/router.ts:466</note>
       </trans-unit>
       <trans-unit id="Could not find strategy for key with id {id}" xml:space="preserve">
         <source>
           Could not find strategy for key with id 
           <x id="id" equiv-text="{id}"/>
         </source>
-        <note>node_modules/zibri/src/auth/encryption/encryption.service.ts:487</note>
+        <note>node_modules/zibri/src/auth/encryption/encryption.service.ts:457</note>
       </trans-unit>
       <trans-unit id="Could not find user with email &quot;{mail}&quot;." xml:space="preserve">
         <source>
@@ -598,7 +666,7 @@
           <x id="mail" equiv-text="{mail}"/>
           ".
         </source>
-        <note>node_modules/zibri/src/auth/user/user.service.ts:56</note>
+        <note>node_modules/zibri/src/auth/user/user.service.ts:108</note>
       </trans-unit>
       <trans-unit id="Could not find user with id &quot;{id}&quot;." xml:space="preserve">
         <source>
@@ -606,7 +674,7 @@
           <x id="id" equiv-text="{id}"/>
           ".
         </source>
-        <note>node_modules/zibri/src/auth/user/user.service.ts:43</note>
+        <note>node_modules/zibri/src/auth/user/user.service.ts:95</note>
       </trans-unit>
       <trans-unit id="Could not find websocket event &quot;{ev}&quot;" xml:space="preserve">
         <source>
@@ -614,7 +682,7 @@
           <x id="ev" equiv-text="{ev}"/>
           "
         </source>
-        <note>node_modules/zibri/src/websocket/services/websocket.service.ts:191</note>
+        <note>node_modules/zibri/src/websocket/services/websocket.service.ts:195</note>
       </trans-unit>
       <trans-unit id="Could not reset the changes from the change set: The changeSet doesn't belong to the entity with the given id." xml:space="preserve">
         <source>Could not reset the changes from the change set: The changeSet doesn't belong to the entity with the given id.</source>
@@ -626,7 +694,7 @@
           <x id="user.email" equiv-text="{user.email}"/>
           ".
         </source>
-        <note>node_modules/zibri/src/auth/user/user.service.ts:70</note>
+        <note>node_modules/zibri/src/auth/user/user.service.ts:122</note>
       </trans-unit>
       <trans-unit id="Could not resolve the currently logged in user." xml:space="preserve">
         <source>Could not resolve the currently logged in user.</source>
@@ -802,7 +870,7 @@
       </trans-unit>
       <trans-unit id="Not allowed to connect" xml:space="preserve">
         <source>Not allowed to connect</source>
-        <note>node_modules/zibri/src/websocket/services/websocket.service.ts:133</note>
+        <note>node_modules/zibri/src/websocket/services/websocket.service.ts:137</note>
       </trans-unit>
       <trans-unit id="Not Found" xml:space="preserve">
         <source>Not Found</source>
@@ -815,6 +883,10 @@
       <trans-unit id="October" xml:space="preserve">
         <source>October</source>
         <note>node_modules/zibri/src/localization/models/month.enum.ts:34</note>
+      </trans-unit>
+      <trans-unit id="Rate limit was reached" xml:space="preserve">
+        <source>Rate limit was reached</source>
+        <note>node_modules/zibri/src/rate-limiting/limiter/base-rate-limiter.model.ts:278, node_modules/zibri/src/rate-limiting/limiter/semaphore.rate-limiter.ts:200</note>
       </trans-unit>
       <trans-unit id="relations are not allowed as part of create or update data." xml:space="preserve">
         <source>relations are not allowed as part of create or update data.</source>
@@ -911,7 +983,7 @@
       </trans-unit>
       <trans-unit id="There should only be one message sent." xml:space="preserve">
         <source>There should only be one message sent.</source>
-        <note>node_modules/zibri/src/websocket/services/websocket.service.ts:209</note>
+        <note>node_modules/zibri/src/websocket/services/websocket.service.ts:213</note>
       </trans-unit>
       <trans-unit id="this key is unknown" xml:space="preserve">
         <source>this key is unknown</source>
@@ -927,7 +999,7 @@
       </trans-unit>
       <trans-unit id="Too Many Requests" xml:space="preserve">
         <source>Too Many Requests</source>
-        <note>node_modules/zibri/src/error-handling/errors/too-many-requests.error.ts:11</note>
+        <note>node_modules/zibri/src/error-handling/errors/too-many-requests.error.ts:12</note>
       </trans-unit>
       <trans-unit id="Tuesday" xml:space="preserve">
         <source>Tuesday</source>

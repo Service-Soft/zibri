@@ -1,7 +1,7 @@
 import { BehaviorSubject } from 'rxjs';
 
 import { Percentage } from '../../types/percentage.type';
-import { BaseThreadJobWorkerData } from '../models/base-thread-job-worker-data.model';
+import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from '../models/base-thread-job-worker-data.model';
 import { ThreadJobData, ThreadJobDataFunctions } from '../models/thread-job-data.model';
 import { ThreadJobEntity } from '../models/thread-job-entity.model';
 import { ThreadJobStatus } from '../models/thread-job-status.enum';
@@ -9,7 +9,10 @@ import { ThreadJobStatus } from '../models/thread-job-status.enum';
 /**
  * A thread job.
  */
-export class ThreadJob<WorkerData extends BaseThreadJobWorkerData, ResultType> implements ThreadJobData<WorkerData> {
+export class ThreadJob<
+    WorkerData extends BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>,
+    ResultType
+> implements ThreadJobData<WorkerData> {
     /**
      * Timestamp of when the job was queued in milliseconds.
      */

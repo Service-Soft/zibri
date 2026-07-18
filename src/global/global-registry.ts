@@ -1,12 +1,8 @@
 import { ZibriApplicationOptions } from '../application-options.model';
 import { AppState } from './app-state.enum';
-import { UserRepositories } from '../auth/models/user-repositories.model';
-import { BackupResourceInterface } from '../backup/backup-resource.interface';
-import { AnyCache } from '../caching/cache/cache.interface';
 import { DiProvider } from '../di/models/di-provider.model';
 import { BaseEntity } from '../entity/base-entity.model';
 import { InternalError } from '../error-handling/internal-error.model';
-import { BodyParserInterface } from '../parsing/body-parser.interface';
 import { Newable } from '../types/newable.type';
 import { SemVerVersion } from '../utilities/sem-ver.utilities';
 
@@ -64,33 +60,9 @@ export abstract class GlobalRegistry {
      */
     static readonly lazyInjectables: DiProvider<unknown>[] = [];
     /**
-     * All controllers registered with \@Controller.
-     */
-    static readonly controllerClasses: Newable<unknown>[] = [];
-    /**
-     * All websocket controllers registered with \@WebsocketController.
-     */
-    static readonly websocketControllerClasses: Newable<unknown>[] = [];
-    /**
      * All entities registered with \@Entity.
      */
     static readonly entityClasses: Newable<BaseEntity>[] = [];
-    /**
-     * All entities registered with \@Cache.
-     */
-    static readonly cacheClasses: Newable<AnyCache>[] = [];
-    /**
-     * All backup resources registered with \@Backup.
-     */
-    static readonly backupResources: Newable<BackupResourceInterface>[] = [];
-    /**
-     * All body parsers registered with \@BodyParser.
-     */
-    static readonly bodyParsers: Newable<BodyParserInterface>[] = [];
-    /**
-     * All user repositories registered with \@UserRepo.
-     */
-    static readonly userRepositories: UserRepositories = [];
 
     private static readonly validateAppStateChange: Record<AppState, () => void> = {
         [AppState.OFFLINE]: () => {
