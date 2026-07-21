@@ -88,7 +88,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
     await server.shutdown();
-});
+}, 15000);
 
 beforeEach(async () => {
     await productRepo.deleteAll({});
@@ -484,6 +484,109 @@ describe('Where filters', () => {
             ];
             const res: Product[] = await productRepo.findAll({ where: filters });
             expect(res.map(p => p.id).sort()).toEqual([prodA.id, prodB.id].sort());
+        });
+    });
+
+    // =================== INVALID FILTERS (defensive InternalError checks) ===================
+    // These filters are shaped to violate WhereFilter's own compile-time types (eg. a string where
+    // "oneOf" must be an array), simulating what an untyped caller (eg. a raw HTTP JSON body) could
+    // send at runtime — hence the `as unknown as WhereFilter<Product>` casts, which are load-bearing
+    // here rather than a typing shortcut.
+    describe('invalid filters throw InternalError instead of silently misbehaving', () => {
+        beforeEach(async () => {
+            await seedProducts({ name: 'Alpha', price: 10, tags: ['tag1'], metadata: { color: 'red', weight: 100 } });
+        });
+
+        it('oneOf on a string field must be an array', async () => {
+            const where: WhereFilter<Product> = { name: { oneOf: 'not-an-array' } } as unknown as WhereFilter<Product>;
+            await expect(productRepo.findAll({ where })).rejects.toThrow('needs to be an array');
+        });
+
+        it('notOneOf on a string field must be an array', async () => {
+            const where: WhereFilter<Product> = { name: { notOneOf: 'not-an-array' } } as unknown as WhereFilter<Product>;
+            await expect(productRepo.findAll({ where })).rejects.toThrow('needs to be an array');
+        });
+
+        it('includes on an array field must be an array', async () => {
+            const where: WhereFilter<Product> = { tags: { includes: 'not-an-array' } } as unknown as WhereFilter<Product>;
+            await expect(productRepo.findAll({ where })).rejects.toThrow('needs to be an array');
+        });
+
+        it('isIncludedIn on an array field must be an array', async () => {
+            const where: WhereFilter<Product> = { tags: { isIncludedIn: 'not-an-array' } } as unknown as WhereFilter<Product>;
+            await expect(productRepo.findAll({ where })).rejects.toThrow('needs to be an array');
+        });
+
+        it('"where" is rejected on a property without nested metadata (eg. a plain string)', async () => {
+            const where: WhereFilter<Product> = { name: { where: { anything: true } } } as unknown as WhereFilter<Product>;
+            await expect(productRepo.findAll({ where })).rejects.toThrow('not supported on this property without nested metadata');
+        });
+
+        it('rejects an empty where filter object', async () => {
+            const where: WhereFilter<Product> = { name: {} } as unknown as WhereFilter<Product>;
+            await expect(productRepo.findAll({ where })).rejects.toThrow('Empty where filter');
+        });
+
+        it('rejects an unknown filter key', async () => {
+            const where: WhereFilter<Product> = { name: { bogusOperator: 'x' } } as unknown as WhereFilter<Product>;
+            await expect(productRepo.findAll({ where })).rejects.toThrow(/Unknown key/);
+        });
+
+        it('"where" on an array of primitives (not objects) is rejected', async () => {
+            const where: WhereFilter<Product> = { tags: { where: [{ anything: true }] } } as unknown as WhereFilter<Product>;
+            await expect(productRepo.findAll({ where })).rejects.toThrow('requires an array of objects');
+        });
+
+        it('fuzzyLike on a plain string column requires an object with a "value" property', async () => {
+            const where: WhereFilter<Product> = { name: { fuzzyLike: 'not-an-object' } } as unknown as WhereFilter<Product>;
+            await expect(productRepo.findAll({ where })).rejects.toThrow('fuzzyLike expects an object');
+        });
+
+        // ---- JSONB-nested variants (go through the postgres-specific JSONB operator handlers) ----
+
+        it('oneOf inside a JSONB nested filter must be an array', async () => {
+            const where: WhereFilter<Product> = { metadata: { where: { color: { oneOf: 'not-an-array' } } } } as unknown as WhereFilter<Product>;
+            await expect(productRepo.findAll({ where })).rejects.toThrow(/must be an array/);
+        });
+
+        it('notOneOf inside a JSONB nested filter must be an array', async () => {
+            const where: WhereFilter<Product> = { metadata: { where: { color: { notOneOf: 'not-an-array' } } } } as unknown as WhereFilter<Product>;
+            await expect(productRepo.findAll({ where })).rejects.toThrow(/must be an array/);
+        });
+
+        it('includes inside a JSONB nested filter must be an array', async () => {
+            const where: WhereFilter<Product> = { metadata: { where: { color: { includes: 'not-an-array' } } } } as unknown as WhereFilter<Product>;
+            await expect(productRepo.findAll({ where })).rejects.toThrow(/must be an array/);
+        });
+
+        it('isIncludedIn inside a JSONB nested filter must be an array', async () => {
+            const where: WhereFilter<Product> = { metadata: { where: { color: { isIncludedIn: 'not-an-array' } } } } as unknown as WhereFilter<Product>;
+            await expect(productRepo.findAll({ where })).rejects.toThrow(/must be an array/);
+        });
+
+        it('fuzzyLike inside a JSONB nested filter requires an object with a "value" property', async () => {
+            const where: WhereFilter<Product> = { metadata: { where: { color: { fuzzyLike: 'not-an-object' } } } } as unknown as WhereFilter<Product>;
+            await expect(productRepo.findAll({ where })).rejects.toThrow('fuzzyLike expects an object');
+        });
+
+        it('rejects an unknown operator inside a JSONB nested filter', async () => {
+            const where: WhereFilter<Product> = { metadata: { where: { color: { bogusOperator: 'x' } } } } as unknown as WhereFilter<Product>;
+            await expect(productRepo.findAll({ where })).rejects.toThrow(/Unknown JSONB filter operator/);
+        });
+
+        it('"where" on a non-object, non-array JSONB field is rejected', async () => {
+            const where: WhereFilter<Product> = { metadata: { where: { weight: { where: { anything: true } } } } } as unknown as WhereFilter<Product>;
+            await expect(productRepo.findAll({ where })).rejects.toThrow(/non-object, non-array JSONB field/);
+        });
+
+        it('rejects a JSONB filter value that cannot be converted to a SQL literal', async () => {
+            const where: WhereFilter<Product> = { metadata: { where: { color: { oneOf: [{ nested: true }] } } } } as unknown as WhereFilter<Product>;
+            await expect(productRepo.findAll({ where })).rejects.toThrow(/Cannot convert value/);
+        });
+
+        it('rejects a JSONB filter value of an unsupported runtime type (eg. a function)', async () => {
+            const where: WhereFilter<Product> = { metadata: { where: { color: (() => undefined) as unknown as string } } } as unknown as WhereFilter<Product>;
+            await expect(productRepo.findAll({ where })).rejects.toThrow(/Unexpected JSONB filter value/);
         });
     });
 });

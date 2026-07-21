@@ -14,7 +14,7 @@ import { Cache } from '../decorators/cache.decorator';
 import { CachedValue } from '../store/cached-value.model';
 
 // ---------------------------------------------------------------------------
-// Two simple tiers – both are plain WriteThroughReadThrough caches.
+// Two simple tiers of WriteThroughReadThrough caches.
 // ---------------------------------------------------------------------------
 @Cache()
 class FastCache extends WriteThroughReadThroughCache<string, number, 'Fast'> {
@@ -46,7 +46,7 @@ class SlowCache extends WriteThroughReadThroughCache<string, number, 'Slow'> {
 }
 
 // ---------------------------------------------------------------------------
-// The multi‑tier cache under test – it uses FastCache and SlowCache.
+// The multi‑tier cache that will be tested, uses the FastCache and SlowCache from above.
 // ---------------------------------------------------------------------------
 @Cache()
 class TestMultiTierCache extends MultiTierCache<string, number, [FastCache, SlowCache]> {
@@ -66,7 +66,7 @@ class TestMultiTierCache extends MultiTierCache<string, number, [FastCache, Slow
     }
 }
 
-describe('MultiTierCache – basic integration', () => {
+describe('MultiTierCache basic integration', () => {
     let server: StartedTestServer;
 
     beforeAll(async () => {
@@ -75,7 +75,7 @@ describe('MultiTierCache – basic integration', () => {
 
     afterAll(async () => {
         await server?.shutdown();
-    });
+    }, 15000);
 
     // ------------------------------------------------------------------
     // 1. read through: miss populates both tiers, next call hits fast tier
@@ -90,7 +90,6 @@ describe('MultiTierCache – basic integration', () => {
         // eslint-disable-next-line typescript/typedef
         const wrapped = multi.wrap(fn, key => key);
 
-        // first call – miss, fn is invoked
         const first: number = await wrapped('alpha');
         expect(first).toBe(42);
         expect(fn).toHaveBeenCalledTimes(1);
@@ -99,7 +98,6 @@ describe('MultiTierCache – basic integration', () => {
         expect(await fast.store.get('alpha')).toHaveProperty('value', 42);
         expect(await slow.store.get('alpha')).toHaveProperty('value', 42);
 
-        // second call – hit (fast tier), fn is NOT called again
         const second: number = await wrapped('alpha');
         expect(second).toBe(42);
         expect(fn).toHaveBeenCalledTimes(1);
@@ -122,7 +120,6 @@ describe('MultiTierCache – basic integration', () => {
         // eslint-disable-next-line typescript/typedef
         const wrapped = multi.wrapWrite(
             fn,
-            // keyFn – key comes from result + args (WR = true because both tiers are true)
             (res, name) => `user:${name}:${res}`,
             {
                 perCache: {

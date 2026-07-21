@@ -1,5 +1,7 @@
 import { IsRequiredValidationProblem, RelationsNotAllowedValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from './validation-problem.model';
 import { ValidationServiceInterface } from './validation-service.interface';
+import { HttpRequestContext } from '../context/request/http-request.context';
+import { WebsocketRequestContext } from '../context/request/websocket-request.context';
 import { BaseEntity } from '../entity/base-entity.model';
 import { validateBoolean } from './functions/validate-boolean.function';
 import { validateDate } from './functions/validate-date.function';
@@ -156,6 +158,12 @@ export class ValidationService implements ValidationServiceInterface {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async getBodyValidationProblems(body: unknown, meta: BodyMetadata): Promise<ValidationProblem[]> {
+        if (body == undefined) {
+            const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
+            const isRequired: boolean = typeof meta.required === 'boolean' ? meta.required : await meta.required(undefined, context);
+            return isRequired ? [new IsRequiredValidationProblem('body')] : [];
+        }
+
         // eslint-disable-next-line jsdoc/require-jsdoc
         class Temp implements OmitStrict<FormData<typeof meta.modelClass>, 'cleanup'> {
             // eslint-disable-next-line jsdoc/require-jsdoc

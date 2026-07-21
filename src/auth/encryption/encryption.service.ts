@@ -445,7 +445,11 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
     ): Promise<EncryptionKey> {
         const updated: EncryptionKey = await this.keyRepository.updateById(id, data, options);
         const key: EncryptionKey = await this.keyRepository.findById(updated.id, { relations: ['strategy'], ...options });
-        this.syncStrategyEntityKey(updated.strategy, key);
+        const strategyEntity: EncryptionStrategyEntity | undefined = this.strategyEntities.find(s => s.id === key.strategyId);
+        if (!strategyEntity) {
+            throw new NotFoundError($ts`Could not find ${EncryptionStrategyEntity.name}.`);
+        }
+        this.syncStrategyEntityKey(strategyEntity, key);
         return key;
     }
 

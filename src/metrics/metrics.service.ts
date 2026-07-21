@@ -108,14 +108,18 @@ export class PrometheusMetricsService implements MetricsServiceInterface, OnAppI
             return;
         }
 
+        // Prometheus/HTTP metrics convention expects the canonical uppercase method token, unlike our
+        // lowercase HttpMethod enum values (same reasoning as HttpClient.buildRequestInit()).
+        const method: string = req.method.toUpperCase();
+
         this.getCounter('http_requests_total').increase({
-            method: req.method,
+            method,
             route,
             status_code: String(res.statusCode)
         });
 
         this.getHistogram('http_request_duration_ms').observe({
-            method: req.method,
+            method,
             route,
             status_code: String(res.statusCode)
         }, durationInMs);

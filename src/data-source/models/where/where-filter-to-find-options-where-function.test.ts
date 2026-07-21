@@ -29,7 +29,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
     await server.shutdown();
-});
+}, 15000);
 
 describe('whereFilterToFindOptionsWhere - primitive filters', () => {
     it('string equality', () => {

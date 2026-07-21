@@ -4,7 +4,7 @@ import { parentPort, workerData } from 'node:worker_threads';
 
 import { register as tsNodeRegister } from 'ts-node';
 
-import { reportCompletion } from './helpers';
+import { reportCompletion, reportError } from './helpers';
 import { CacheStoreInterface } from '../../../caching/store/cache-store.interface';
 import { InMemoryCacheStore } from '../../../caching/store/in-memory.cache-store';
 import { InternalError } from '../../../error-handling/internal-error.model';
@@ -21,11 +21,12 @@ const functionCache: CacheStoreInterface<string, ThreadJobFunction<unknown, unkn
 tsNodeRegister({ transpileOnly: true });
 
 process.on('uncaughtException', (err) => {
-    parentPort?.postMessage({ type: 'error', error: toError(err) });
+    reportError(err);
 });
 
 process.on('unhandledRejection', (err) => {
-    parentPort?.postMessage({ type: 'error', error: toError(err) });
+    const error: Error = err instanceof Error ? err : new Error(`${err}`);
+    reportError(error);
 });
 
 const message: ThreadJobMessage = { type: 'initialization' };
@@ -62,8 +63,8 @@ async function callFunction(wData: BaseFunctionThreadJobWorkerData<unknown>): Pr
         reportCompletion(result);
     }
     catch (error) {
-        const message: ThreadJobMessage = { type: 'error', error: toError(error) };
-        parentPort?.postMessage(message);
+        const err: Error = error instanceof Error ? error : new Error(`${error}`);
+        reportError(err);
     }
 }
 
@@ -73,18 +74,9 @@ function importWorkerFile(workerData: BaseThreadJobWorkerData): void {
         require(workerData.filePath);
     }
     catch (error) {
-        const message: ThreadJobMessage = { type: 'error', error: toError(error) };
-        parentPort?.postMessage(message);
+        const err: Error = error instanceof Error ? error : new Error(`${error}`);
+        reportError(err);
     }
-}
-
-function toError(value: unknown): Error {
-    const error: Error = value instanceof Error ? value : new Error(`${value}`);
-    return {
-        name: error.name,
-        message: error.message,
-        stack: error.stack
-    };
 }
 
 function isFunctionWorkerData<T>(value: unknown): value is BaseFunctionThreadJobWorkerData<T> {

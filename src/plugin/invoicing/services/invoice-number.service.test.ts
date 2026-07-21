@@ -121,7 +121,7 @@ describe('generateInvoiceNumber', () => {
 
     afterAll(async () => {
         await testServer.shutdown();
-    });
+    }, 15000);
 
     it('should generate the expected number for a company customer', async () => {
         const number: string = await invoiceNumberService.generateInvoiceNumber('1', companyData, undefined);

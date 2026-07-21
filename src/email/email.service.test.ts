@@ -16,6 +16,7 @@ import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { type LoggerInterface } from '../logging/logger.interface';
+import { FsUtilities } from '../utilities/fs.utilities';
 
 // ---------- Test email service (mocks the transporter) ----------
 
@@ -104,7 +105,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
     await server.shutdown();
-});
+}, 15000);
 
 beforeEach(async () => {
     await emailRepo.deleteAll({});
@@ -290,68 +291,11 @@ describe('EmailService.sendQueuedEmails', () => {
     });
 });
 
-// describe('EmailService rate limiting', () => {
-//     // A separate server with a very low rate limit so we can exhaust it with real sends
-//     const rateLimitConfig: EmailConfig = { ...testConfig, maxEmailsPerHour: 3 };
-
-//     let rateLimitServer: StartedTestServer;
-//     let rateLimitEmailService: TestEmailService;
-//     let rateLimitEmailRepo: Repository<Email, CreateEmailData>;
-
-//     beforeAll(async () => {
-//         rateLimitServer = await startTestServer({
-//             dataSources: [
-//                 createTestDataSource({
-//                     entities: [...defaultTestServerEntities, Email]
-//                 })
-//             ],
-//             controllers: [],
-//             cronJobs: [],
-//             providers: [
-//                 ...defaultTestServerProviders,
-//                 { token: ZIBRI_DI_TOKENS.EMAIL_CONFIG, useValue: rateLimitConfig },
-//                 { token: ZIBRI_DI_TOKENS.EMAIL_SERVICE, useClass: TestEmailService }
-//             ]
-//         });
-//         await rateLimitServer.start();
-//         rateLimitEmailService = inject(TestEmailService);
-//         rateLimitEmailRepo = inject(repositoryTokenFor(Email));
-//     }, 15000);
-
-//     afterAll(async () => {
-//         await rateLimitServer.shutdown();
-//     });
-
-//     beforeEach(async () => {
-//         await rateLimitEmailRepo.deleteAll({});
-//         mockSendMail.mockReset();
-//         mockSendMail.mockResolvedValue(sentMessageInfo());
-//     });
-
-//     it('returns false and sends nothing when the rate limit is exhausted', async () => {
-//         // Exhaust the limit: queue and send 3 emails (maxEmailsPerHour: 3)
-//         for (let i = 0; i < 3; i++) {
-//             await rateLimitEmailService.queue(makeQueueData({ subject: `Email ${i}` }));
-//         }
-//         await rateLimitEmailService.sendQueuedEmails();
-//         expect(mockSendMail).toHaveBeenCalledTimes(3);
-
-//         // Queue one more — rate limiter should now block it
-//         await rateLimitEmailService.queue(makeQueueData({ subject: 'One too many' }));
-//         mockSendMail.mockReset();
-
-//         const result = await rateLimitEmailService.sendQueuedEmails();
-
-//         expect(result).toBe(false);
-//         expect(mockSendMail).not.toHaveBeenCalled();
-//     });
-// });
-
 describe('EmailService attachment validation', () => {
     it('throws when an attachment path does not exist', async () => {
         await emailService.queue(makeQueueData({
             persist: true,
-            attachments: [{ filename: 'missing.pdf', path: '/nonexistent/missing.pdf' as never }]
+            attachments: [{ filename: 'missing.pdf', path: FsUtilities.getPath('/nonexistent/missing.pdf') }]
         }));
         mockSendMail.mockResolvedValue(sentMessageInfo());
 
@@ -374,7 +318,7 @@ describe('EmailService attachment validation', () => {
         // __filename is always a real path
         await emailService.queue(makeQueueData({
             persist: true,
-            attachments: [{ filename: 'test.ts', path: __filename as never }]
+            attachments: [{ filename: 'test.ts', path: FsUtilities.getPath(__filename) }]
         }));
 
         await expect(emailService.sendQueuedEmails()).resolves.not.toThrow();

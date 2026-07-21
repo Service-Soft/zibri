@@ -3,6 +3,7 @@ import { describe, expect, it } from '@jest/globals';
 import { RateLimiter } from './rate-limiter.decorator';
 import { DiProvider } from '../../di/models/di-provider.model';
 import { DiVariants } from '../../di/models/di-variant.model';
+import { InjectionToken } from '../../di/models/injection-token.model';
 import { GlobalRegistry } from '../../global/global-registry';
 
 describe('RateLimiter decorator', () => {
@@ -27,9 +28,9 @@ describe('RateLimiter decorator', () => {
     });
 
     it('registers the class under a custom token when one is provided', () => {
-        const customToken: symbol = Symbol('custom-limiter-token');
+        const customToken: InjectionToken<unknown> = new InjectionToken('custom-limiter-token');
 
-        @RateLimiter({ token: customToken as never })
+        @RateLimiter({ token: customToken })
         class TokenedLimiter {}
 
         const provider: DiProvider<unknown> | undefined = GlobalRegistry.injectables.find(p => p.useClass === TokenedLimiter);

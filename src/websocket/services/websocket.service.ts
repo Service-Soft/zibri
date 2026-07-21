@@ -155,6 +155,9 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async beforeAppShutdown(): Promise<void> {
+        if (this.socketServer == undefined) {
+            return;
+        }
         await this.socketServer.close();
     }
 
@@ -740,9 +743,10 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
     }
 
     private checkForOrphanedControllers(controllers: Newable<unknown>[]): void {
-        // TODO!!!
         const orphanedControllers: DiProvider<unknown>[] = getRegisteredProvidersOfVariant(DiVariants.WEBSOCKET_CONTROLLER).filter(c => {
-            return isNewable(c) && !controllers.includes(c) && !(MetadataUtilities.getWebsocketControllerData(c)?.allowOrphan ?? false);
+            return isNewable(c.useClass)
+                && !controllers.includes(c.useClass)
+                && !(MetadataUtilities.getWebsocketControllerData(c.useClass)?.allowOrphan ?? false);
         });
         if (orphanedControllers.length) {
             const message: string[] = ['Error initializing websocket service.', 'Found orphaned controllers:'];

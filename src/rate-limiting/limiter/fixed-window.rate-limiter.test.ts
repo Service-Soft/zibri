@@ -4,6 +4,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, jest } from '@j
 
 import { FixedWindowRateLimiter, FixedWindowState } from './fixed-window.rate-limiter';
 import { initDiContainer } from '../../di/init-di-container.function';
+import { Ms } from '../../utilities/ms';
 import { RateLimitResult } from '../rate-limit-result.model';
 import { RateLimitReservationResult } from '../reservation/rate-limit-reservation-result.model';
 import { InMemoryRateLimiterStore } from '../stores/in-memory.rate-limiter-store';
@@ -158,7 +159,7 @@ describe('FixedWindowRateLimiter', () => {
             await limiter.consume('k', 1);
             // Far beyond any reasonable idle horizon, with no further
             // activity and no pending reservations for this key.
-            jest.setSystemTime(NOW + 1000 * 60 * 60 * 24 * 365);
+            jest.setSystemTime(NOW + Ms.YEAR);
             await limiter.cleanup();
             expect(await limiter.config.store.get('k')).toBeUndefined();
         });

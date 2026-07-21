@@ -33,14 +33,17 @@ export function RateLimited<TArgs extends unknown[], C extends RateLimiterInterf
     ): TypedPropertyDescriptor<(...args: TArgs) => Promise<V>> => {
         const ctor: Function = target.constructor;
 
-        const responses: OpenApiResponse[] = MetadataUtilities.getRouteResponses(ctor, propertyKey.toString());
-        responses.push({
-            type: 'json',
-            cls: SuccessRateLimitReservationResult,
-            isArray: undefined,
-            status: HttpStatus.ACCEPTED
-        });
-        MetadataUtilities.setRouteResponses(ctor, responses, propertyKey.toString());
+        if (options?.reserveIfUnavailable === true) {
+            const responses: OpenApiResponse[] = MetadataUtilities.getRouteResponses(ctor, propertyKey.toString());
+            responses.push({
+                type: 'json',
+                cls: SuccessRateLimitReservationResult,
+                isArray: undefined,
+                status: HttpStatus.ACCEPTED,
+                implicit: true
+            });
+            MetadataUtilities.setRouteResponses(ctor, responses, propertyKey.toString());
+        }
 
         // eslint-disable-next-line typescript/no-non-null-assertion
         const original: (...args: TArgs) => V | Promise<V> = descriptor.value!;

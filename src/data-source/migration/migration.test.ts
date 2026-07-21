@@ -150,5 +150,5 @@ describe('AddTestValueMigration', () => {
     });
     afterAll(async () => {
         await container.stop();
-    });
+    }, 15000);
 });

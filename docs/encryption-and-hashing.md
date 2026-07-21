@@ -25,6 +25,28 @@ hashedValue!: HashString;
 
 This will encrypt/hash any values that are stored in a data source via a repository.
 
+### Create data typing
+A hashed property is typed as `HashString` on the entity (a branded type), but a plain `string` is what you actually pass in when creating one. The branding only exists after the value has been hashed.
+
+Encryption does not have this problem, as the value might be automatically decrypted there, so the typing is always string.
+
+You can solve this inconsistency by defining a separate create-data class and override the hashed property back to type `string`:
+
+```ts
+@Entity()
+export class Credentials extends BaseEntity {
+    @Property.string({ hash: true })
+    password!: HashString;
+}
+
+export class CredentialsCreateData extends OmitClass(Credentials, ['id', 'password']) {
+    @Property.string({ hash: true })
+    password!: string;
+}
+```
+
+See `JwtCredentials`/`JwtCredentialsCreateData` in the auth module for a real example of this split.
+
 ### Decryption
 When using the `@Property` decorator, encrypted values are automatically decrypted when read from the datasource. This can be configured when using the options object instead of the simple boolean flag. This configuration is pretty flexible with a callback, it allows for example to decrypt based on the current users role. So you could specify that Admins are allowed to decrypt, but normal Users aren't.
 

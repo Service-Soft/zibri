@@ -63,7 +63,7 @@ function getKeyFromArrayParams(params: AstExpression[], parentKey: string | unde
         case 'UndefinedLiteral':
         case 'NullLiteral':
         default: {
-            throw new InternalError(`Unknown AST param for if block "${params[0].type}"`);
+            throw new InternalError(`Unknown AST param for each block "${params[0].type}"`);
         }
 
     }
@@ -92,7 +92,7 @@ function getKeyFromIfParams(params: AstExpression[], parentKey: string | undefin
         case 'UndefinedLiteral':
         case 'NullLiteral':
         default: {
-            throw new InternalError(`Unknown AST param for each block "${params[0].type}"`);
+            throw new InternalError(`Unknown AST param for if block "${params[0].type}"`);
         }
 
     }

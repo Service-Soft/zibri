@@ -34,7 +34,19 @@ export function reportCompletion<T>(result?: T): void {
 export function reportError(error: Error): void {
     const message: ThreadJobMessage = {
         type: 'error',
-        error
+        // name/message/stack are non-enumerable on Error instances, so they would be lost once the
+        // reported error is JSON-serialized for persistence.
+        error: toError(error)
     };
     parentPort?.postMessage(message);
+}
+
+// eslint-disable-next-line jsdoc/require-jsdoc
+function toError(value: unknown): Error {
+    const error: Error = value instanceof Error ? value : new Error(`${value}`);
+    return {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+    };
 }

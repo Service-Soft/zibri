@@ -8,8 +8,10 @@ import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
+import { NotFoundError } from '../error-handling/errors/not-found.error';
 import { OnAppInit } from '../global/on-app-init.interface';
 import { HttpMethod } from '../http/http-method.enum';
+import { $ts } from '../localization/translate.function';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { FileResponse } from '../parsing/form-data/file-response.model';
 import { Route } from '../routing/controller-route-configuration.model';
@@ -58,7 +60,13 @@ export class AssetService implements AssetServiceInterface, OnAppInit {
         await inject(ZIBRI_DI_TOKENS.ROUTER).registerRoute({
             httpMethod: HttpMethod.GET,
             route: '/favicon.ico',
-            handler: () => FileResponse.fromPath(FsUtilities.getPath(this.publicAssetsPath, 'favicon.png')),
+            handler: async () => {
+                const faviconPath: FsPath = FsUtilities.getPath(this.publicAssetsPath, 'favicon.png');
+                if (!await FsUtilities.exists(faviconPath)) {
+                    throw new NotFoundError($ts`No favicon.png was found in the public assets folder.`);
+                }
+                return FileResponse.fromPath(faviconPath);
+            },
             versions: 'all',
             openApi: { useInOpenApi: false }
         });

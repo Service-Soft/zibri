@@ -128,7 +128,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
     await server.shutdown();
-});
+}, 15000);
 
 beforeEach(async () => {
     // Clean all data in reverse dependency order

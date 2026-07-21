@@ -52,13 +52,13 @@ export const logToEmail: LoggerTransportSend<EmailLoggerTransportConfig> = async
         recipients: config.recipients(log),
         subject,
         priority: config.priority?.(log) ?? EmailPriority.HIGH,
-        attachments: config.attachments?.(log),
-        cc: config.cc?.(log),
-        bcc: config.bcc?.(log),
-        persist: config.persist?.(log),
-        sender: config.sender?.(log),
-        userId: config.userId?.(log),
-        html
+        html,
+        ...config.attachments ? { attachments: config.attachments(log) } : {},
+        ...config.cc ? { cc: config.cc(log) } : {},
+        ...config.bcc ? { bcc: config.bcc(log) } : {},
+        ...config.persist ? { persist: config.persist(log) } : {},
+        ...config.sender ? { sender: config.sender(log) } : {},
+        ...config.userId ? { userId: config.userId(log) } : {}
     });
 };
 

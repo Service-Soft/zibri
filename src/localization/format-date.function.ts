@@ -19,8 +19,8 @@ export function formatDate<const S extends string>(
 
     const month: Month = date.getMonth() as Month;
     const hours: number = date.getHours();
-    const amPmHours: number = hours >= 13 ? hours - 12 : hours;
-    const amPmLabel: string = hours >= 13 ? 'PM' : 'AM';
+    const amPmHours: number = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+    const amPmLabel: string = hours >= 12 ? 'PM' : 'AM';
 
     const replacements: Record<DateFormatToken, string> = {
         YYYY: String(date.getFullYear()),

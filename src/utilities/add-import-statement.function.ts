@@ -53,5 +53,6 @@ function getUpdatedImportStatement(existingImport: string, imp: TsImportDefiniti
     if (existingImport.includes('{')) {
         return existingImport.replace('import {', `import { ${imp.element},`);
     }
-    return existingImport.replace('import ', `import { ${imp.element} }, `);
+    const defaultElement: string = existingImport.replace('import ', '').split(' from ')[0];
+    return existingImport.replace(`import ${defaultElement} from `, `import ${defaultElement}, { ${imp.element} } from `);
 }

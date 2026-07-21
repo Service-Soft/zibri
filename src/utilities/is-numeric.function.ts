@@ -7,7 +7,7 @@ const NUMERIC_REGEX: RegExp = /^-?(0|[1-9]\d*)(\.\d+)?$/;
  */
 export function isNumeric(value: unknown): value is number | string {
     if (typeof value === 'number') {
-        return true;
+        return !Number.isNaN(value);
     }
     if (typeof value === 'string') {
         return NUMERIC_REGEX.test(value);

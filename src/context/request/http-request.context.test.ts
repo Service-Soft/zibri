@@ -16,7 +16,7 @@ import { Get } from '../../routing/decorators/get.decorator';
 const CURRENT_USER: RequestContextToken<{ isAdmin: boolean }> = new RequestContextToken(
     'current-user',
     (ctx) => {
-        const auth: string | undefined = ctx.request.headers[KnownHeader.AUTHORIZATION];
+        const auth: string | undefined = ctx.request.headers?.[KnownHeader.AUTHORIZATION];
         return { isAdmin: auth === 'admin' };
     }
 );
@@ -72,7 +72,7 @@ describe('request context integration', () => {
 
     afterAll(async () => {
         await server.shutdown();
-    });
+    }, 15000);
 
     test('context is available during exclude/default evaluation and is cached', async () => {
         const res: Response = await fetch(`${baseUrl}/context-test`, { headers: { Authorization: 'admin' } });

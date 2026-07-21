@@ -481,4 +481,204 @@ describe('generateEntityFiles', () => {
         expect(indexLines.some(l => l.includes(`${kebabPrefix}.pet-response.model`))).toBe(true);
     });
 
+    function expectNoDecoratorAboveProperty(fileContent: string, propNameRegex: RegExp): void {
+        const lines: string[] = fileContent.split(/\r?\n/);
+        const propIndex: number = lines.findIndex(l => propNameRegex.test(l));
+        expect(propIndex).toBeGreaterThan(0);
+        expect(lines[propIndex - 1].trim()).toBe('');
+    }
+
+    it(
+        'KNOWN GAP: enum string properties get a correct TS union type but no "enum" validation on the decorator '
+        + '(see the "handle enums in entity generation" comment in generate-entity-file.function.ts)',
+        async () => {
+            const spec: OpenApiDefinition = {
+                openapi: '3.1.0',
+                info: { title: 'enum-gap', version: '1.0' },
+                components: {
+                    schemas: {
+                        Status: {
+                            type: 'object',
+                            properties: {
+                                state: { type: 'string', enum: ['active', 'inactive'] }
+                            },
+                            required: ['state']
+                        }
+                    }
+                },
+                paths: {}
+            };
+
+            const provider: InlineProvider = new InlineProvider('EnumSvc', spec);
+            const { filesToGenerate } = await generateEntityFilesForProvider(provider, 'test');
+
+            const className: string = `${toPascalCase(provider.prefix)}${toPascalCase('Status')}`;
+            const file: FileToGenerate | undefined = findFile(filesToGenerate, className);
+            expect(file).toBeDefined();
+            assert(file);
+            const content: string = file.lines.join('\n');
+
+            // the TS type itself correctly becomes a string-literal union
+            expect(content).toContain('\'state\'!: \'active\' | \'inactive\';');
+            // but the decorator does NOT carry the enum values. It degrades to a plain string with no validation
+            expectDecoratorAboveProperty(content, /@Property\.string\(\)/, /'state'!:/);
+            expect(content).not.toMatch(/@Property\.string\([^)]*enum/);
+        }
+    );
+
+    it('an object property without "properties" maps to Record<string, unknown> with @Property.unknown()', async () => {
+        const spec: OpenApiDefinition = {
+            openapi: '3.1.0',
+            info: { title: 'no-props-object', version: '1.0' },
+            components: {
+                schemas: {
+                    Bag: {
+                        type: 'object',
+                        properties: {
+                            payload: { type: 'object' }
+                        },
+                        required: ['payload']
+                    }
+                }
+            },
+            paths: {}
+        };
+
+        const provider: InlineProvider = new InlineProvider('LooseSvc', spec);
+        const { filesToGenerate } = await generateEntityFilesForProvider(provider, 'test');
+
+        const className: string = `${toPascalCase(provider.prefix)}${toPascalCase('Bag')}`;
+        const file: FileToGenerate | undefined = findFile(filesToGenerate, className);
+        expect(file).toBeDefined();
+        assert(file);
+        const content: string = file.lines.join('\n');
+
+        expect(content).toContain('\'payload\'!: Record<string, unknown>;');
+        expectDecoratorAboveProperty(content, /@Property\.unknown\(\)/, /'payload'!:/);
+    });
+
+    it('an array property without "items" maps to unknown[] with @Property.array({ items: { type: \'unknown\' } })', async () => {
+        const spec: OpenApiDefinition = {
+            openapi: '3.1.0',
+            info: { title: 'no-items-array', version: '1.0' },
+            components: {
+                schemas: {
+                    Basket: {
+                        type: 'object',
+                        properties: {
+                            items: { type: 'array' }
+                        },
+                        required: ['items']
+                    }
+                }
+            },
+            paths: {}
+        };
+
+        const provider: InlineProvider = new InlineProvider('BasketSvc', spec);
+        const { filesToGenerate } = await generateEntityFilesForProvider(provider, 'test');
+
+        const className: string = `${toPascalCase(provider.prefix)}${toPascalCase('Basket')}`;
+        const file: FileToGenerate | undefined = findFile(filesToGenerate, className);
+        expect(file).toBeDefined();
+        assert(file);
+        const content: string = file.lines.join('\n');
+
+        expect(content).toContain('\'items\'!: unknown[];');
+        expectDecoratorAboveProperty(content, /@Property\.array\({\s*items:\s*{\s*type:\s*'unknown'\s*}\s*}\)/, /'items'!:/);
+    });
+
+    it('an array of objects without "properties" maps items to Record<string, unknown>[] and an "unknown" item decorator', async () => {
+        const spec: OpenApiDefinition = {
+            openapi: '3.1.0',
+            info: { title: 'array-of-empty-objects', version: '1.0' },
+            components: {
+                schemas: {
+                    Crate: {
+                        type: 'object',
+                        properties: {
+                            blobs: { type: 'array', items: { type: 'object' } }
+                        },
+                        required: ['blobs']
+                    }
+                }
+            },
+            paths: {}
+        };
+
+        const provider: InlineProvider = new InlineProvider('CrateSvc', spec);
+        const { filesToGenerate } = await generateEntityFilesForProvider(provider, 'test');
+
+        const className: string = `${toPascalCase(provider.prefix)}${toPascalCase('Crate')}`;
+        const file: FileToGenerate | undefined = findFile(filesToGenerate, className);
+        expect(file).toBeDefined();
+        assert(file);
+        const content: string = file.lines.join('\n');
+
+        expect(content).toContain('\'blobs\'!: Record<string, unknown>[];');
+        expectDecoratorAboveProperty(content, /@Property\.array\({\s*items:\s*{\s*type:\s*'unknown'\s*}\s*}\)/, /'blobs'!:/);
+    });
+
+    it('a "null" typed property gets its TS type but no decorator at all', async () => {
+        const spec: OpenApiDefinition = {
+            openapi: '3.1.0',
+            info: { title: 'null-type', version: '1.0' },
+            components: {
+                schemas: {
+                    NullableThing: {
+                        type: 'object',
+                        properties: {
+                            empty: { type: 'null' }
+                        },
+                        required: ['empty']
+                    }
+                }
+            },
+            paths: {}
+        };
+
+        const provider: InlineProvider = new InlineProvider('NullSvc', spec);
+        const { filesToGenerate } = await generateEntityFilesForProvider(provider, 'test');
+
+        const className: string = `${toPascalCase(provider.prefix)}${toPascalCase('NullableThing')}`;
+        const file: FileToGenerate | undefined = findFile(filesToGenerate, className);
+        expect(file).toBeDefined();
+        assert(file);
+        const content: string = file.lines.join('\n');
+
+        expect(content).toContain('\'empty\'!: null;');
+        expectNoDecoratorAboveProperty(content, /'empty'!:/);
+    });
+
+    it('a property with no "type" at all maps to an "undefined" TS type and no decorator', async () => {
+        const spec: OpenApiDefinition = {
+            openapi: '3.1.0',
+            // eslint-disable-next-line cspell/spellchecker
+            info: { title: 'typeless', version: '1.0' },
+            components: {
+                schemas: {
+                    Loose: {
+                        type: 'object',
+                        properties: {
+                            mystery: { description: 'no type here' }
+                        },
+                        required: ['mystery']
+                    }
+                }
+            },
+            paths: {}
+        };
+
+        const provider: InlineProvider = new InlineProvider('LooseTypeSvc', spec);
+        const { filesToGenerate } = await generateEntityFilesForProvider(provider, 'test');
+
+        const className: string = `${toPascalCase(provider.prefix)}${toPascalCase('Loose')}`;
+        const file: FileToGenerate | undefined = findFile(filesToGenerate, className);
+        expect(file).toBeDefined();
+        assert(file);
+        const content: string = file.lines.join('\n');
+
+        expect(content).toContain('\'mystery\'!: undefined;');
+        expectNoDecoratorAboveProperty(content, /'mystery'!:/);
+    });
 });

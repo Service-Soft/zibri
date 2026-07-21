@@ -172,7 +172,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
     await server.shutdown();
-});
+}, 15000);
 
 describe('VersioningService websocket integration', () => {
     describe('resolveVersion via websocket', () => {

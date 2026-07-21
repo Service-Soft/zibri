@@ -23,7 +23,7 @@ describe('cascade delete', () => {
 
     afterAll(async () => {
         await server?.shutdown();
-    });
+    }, 15000);
 
     it('deletes children when parent removed', async () => {
         const parentRepo: Repository<Parent> = inject(repositoryTokenFor(Parent));

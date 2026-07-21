@@ -76,7 +76,9 @@ describe('BaseRateLimiter.waitForReservation', () => {
             const waitPromise: Promise<void> = limiter.waitForReservation(res.reservation, 2000);
             // Free up capacity shortly after starting the wait, well within
             // the 100ms poll interval's reach.
-            setTimeout(() => { void limiter.release('k', 1); }, 150);
+            setTimeout(() => {
+                void limiter.release('k', 1);
+            }, 150);
 
             await expect(waitPromise).resolves.toBeUndefined();
         }, 10000);
@@ -89,7 +91,9 @@ describe('BaseRateLimiter.waitForReservation', () => {
 
             const first: Promise<void> = strict.waitForReservation(res.reservation, 2000);
             const second: Promise<void> = strict.waitForReservation(res.reservation, 2000);
-            setTimeout(() => { void strict.release('k', 1); }, 150);
+            setTimeout(() => {
+                void strict.release('k', 1);
+            }, 150);
 
             await expect(Promise.all([first, second])).resolves.toEqual([undefined, undefined]);
             await strict.cleanup();

@@ -193,7 +193,7 @@ describe('SlidingWindowLogRateLimiter', () => {
             // Several consumes spread out within the same window, all well
             // before the window's end.
             for (let i: number = 1; i <= 5; i++) {
-                jest.setSystemTime(NOW + i * 100);
+                jest.setSystemTime(NOW + (i * 100));
                 await limiter.consume('k', 1);
             }
             const state: SlidingWindowLogState | undefined = await limiter.config.store.get('k');

@@ -7,9 +7,9 @@ import { CronJob } from '../cron/cron-job.model';
 import { CronServiceInterface } from '../cron/cron-service.interface';
 import { CronService } from '../cron/cron.service';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { inject } from '../di/inject.function';
 import { DiProvider } from '../di/models/di-provider.model';
 import { DiVariants } from '../di/models/di-variant.model';
-import { inject } from '../di/inject.function';
 
 /**
  * Minimal stand-in that satisfies `isRateLimiter`'s structural check without
@@ -18,34 +18,50 @@ import { inject } from '../di/inject.function';
  */
 abstract class FakeRateLimiter {
     abstract readonly config: { name: string };
-    // eslint-disable-next-line jsdoc/require-jsdoc, typescript/no-explicit-any
-    consume(): any { throw new Error('not implemented'); }
-    // eslint-disable-next-line jsdoc/require-jsdoc, typescript/no-explicit-any
-    reserve(): any { throw new Error('not implemented'); }
-    // eslint-disable-next-line jsdoc/require-jsdoc, typescript/no-explicit-any
-    commitReservation(): any { throw new Error('not implemented'); }
-    // eslint-disable-next-line jsdoc/require-jsdoc, typescript/no-explicit-any
-    cancelReservation(): any { throw new Error('not implemented'); }
-    // eslint-disable-next-line jsdoc/require-jsdoc, typescript/no-explicit-any
-    wrap(): any { throw new Error('not implemented'); }
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line typescript/no-explicit-any
+    consume(): any {
+        throw new Error('not implemented');
+    }
+    // eslint-disable-next-line typescript/no-explicit-any
+    reserve(): any {
+        throw new Error('not implemented');
+    }
+    // eslint-disable-next-line typescript/no-explicit-any
+    commitReservation(): any {
+        throw new Error('not implemented');
+    }
+    // eslint-disable-next-line typescript/no-explicit-any
+    cancelReservation(): any {
+        throw new Error('not implemented');
+    }
+    // eslint-disable-next-line typescript/no-explicit-any
+    wrap(): any {
+        throw new Error('not implemented');
+    }
+
     cleanup(): void {}
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    getReservation(): undefined { return undefined; }
+
+    getReservation(): undefined {
+        return undefined;
+    }
 }
 
 class FakeLimiterA extends FakeRateLimiter {
     readonly config: { name: string } = { name: 'limiter-a' };
     cleaned: boolean = false;
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    override cleanup(): void { this.cleaned = true; }
+
+    override cleanup(): void {
+        this.cleaned = true;
+    }
 }
 
 class FakeLimiterB extends FakeRateLimiter {
     readonly config: { name: string } = { name: 'limiter-b' };
     cleaned: boolean = false;
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    override cleanup(): void { this.cleaned = true; }
+
+    override cleanup(): void {
+        this.cleaned = true;
+    }
 }
 
 class FakeLimiterDuplicate1 extends FakeRateLimiter {
@@ -69,7 +85,7 @@ describe('RateLimitingService (via a real app boot)', () => {
 
     afterAll(async () => {
         await server?.shutdown();
-    });
+    }, 15000);
 
     it('collects every class registered with @RateLimiter(), runs their cleanup, and schedules the cleanup cron job', async () => {
         const providers: DiProvider<unknown>[] = [

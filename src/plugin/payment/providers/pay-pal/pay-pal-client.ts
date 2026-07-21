@@ -97,7 +97,7 @@ class CreateOrderResp {
     /**
      * The links of the order.
      */
-    @Property.array({ required: false, items: { type: 'object', cls: () => PayPalLink } })
+    @Property.array({ required: false, items: { type: 'object', cls: () => PayPalLink, allowAdditionalProperties: true } })
     links?: PayPalLink[] | null;
 }
 
@@ -157,7 +157,7 @@ class PayPalPayments {
     /**
      * The payment captures.
      */
-    @Property.array({ required: false, items: { type: 'object', cls: () => PayPalCapture } })
+    @Property.array({ required: false, items: { type: 'object', cls: () => PayPalCapture, allowAdditionalProperties: true } })
     captures?: PayPalCapture[] | null;
 }
 
@@ -168,7 +168,7 @@ class PayPalPurchaseUnit {
     /**
      * Any payments that belong to this purchase unit.
      */
-    @Property.object({ required: false, cls: () => PayPalPayments })
+    @Property.object({ required: false, cls: () => PayPalPayments, allowAdditionalProperties: true })
     payments?: PayPalPayments | null;
 }
 
@@ -191,7 +191,7 @@ export class CaptureOrderResp {
     /**
      * The purchase units of the capture.
      */
-    @Property.array({ required: false, items: { type: 'object', cls: () => PayPalPurchaseUnit } })
+    @Property.array({ required: false, items: { type: 'object', cls: () => PayPalPurchaseUnit, allowAdditionalProperties: true } })
     purchase_units?: PayPalPurchaseUnit[] | null;
 }
 
@@ -214,7 +214,7 @@ class PayPalAuthorization {
     /**
      * The amount that has been authorized.
      */
-    @Property.object({ required: false, cls: () => PaymentAmount })
+    @Property.object({ required: false, cls: () => PaymentAmount, allowAdditionalProperties: true })
     amount?: PaymentAmount | null;
 }
 
@@ -225,7 +225,7 @@ class PayPalPaymentsWithAuth {
     /**
      * The authorizations for the payments.
      */
-    @Property.array({ required: false, items: { type: 'object', cls: () => PayPalAuthorization } })
+    @Property.array({ required: false, items: { type: 'object', cls: () => PayPalAuthorization, allowAdditionalProperties: true } })
     authorizations?: PayPalAuthorization[] | null;
 }
 
@@ -236,7 +236,7 @@ class PayPalPurchaseUnitWithAuth {
     /**
      * The payments including the authorizations.
      */
-    @Property.object({ required: false, cls: () => PayPalPaymentsWithAuth })
+    @Property.object({ required: false, cls: () => PayPalPaymentsWithAuth, allowAdditionalProperties: true })
     payments?: PayPalPaymentsWithAuth | null;
 }
 
@@ -259,7 +259,7 @@ export class GetOrderResp {
     /**
      * The purchase units of this order.
      */
-    @Property.array({ required: false, items: { type: 'object', cls: () => PayPalPurchaseUnitWithAuth } })
+    @Property.array({ required: false, items: { type: 'object', cls: () => PayPalPurchaseUnitWithAuth, allowAdditionalProperties: true } })
     purchase_units?: PayPalPurchaseUnitWithAuth[] | null;
 }
 
@@ -282,7 +282,7 @@ export class AuthorizationCaptureResp {
     /**
      * Any links that belong to this authorization.
      */
-    @Property.array({ required: false, items: { type: 'object', cls: () => PayPalLink } })
+    @Property.array({ required: false, items: { type: 'object', cls: () => PayPalLink, allowAdditionalProperties: true } })
     links?: PayPalLink[] | null;
 }
 
@@ -305,7 +305,7 @@ export class RefundCaptureResp {
     /**
      * Any links that belong to this refund.
      */
-    @Property.array({ required: false, items: { type: 'object', cls: () => PayPalLink } })
+    @Property.array({ required: false, items: { type: 'object', cls: () => PayPalLink, allowAdditionalProperties: true } })
     links?: PayPalLink[] | null;
 }
 
@@ -361,7 +361,7 @@ export class PayPalClient {
             url,
             body,
             {
-                responseBody: CreateOrderResp,
+                responseBody: { modelClass: CreateOrderResp, type: MimeType.JSON, allowAdditionalProperties: true },
                 headers: {
                     Authorization: `Bearer ${token}`
                 }
@@ -382,7 +382,7 @@ export class PayPalClient {
             url,
             {},
             {
-                responseBody: CaptureOrderResp,
+                responseBody: { modelClass: CaptureOrderResp, type: MimeType.JSON, allowAdditionalProperties: true },
                 headers: {
                     Authorization: `Bearer ${token}`
                 }
@@ -401,7 +401,7 @@ export class PayPalClient {
         const token: string = await this.getAccessToken();
         const url: string = `${this.baseUrl}/v2/checkout/orders/${encodeURIComponent(orderId)}`;
         return (await this.http.get(url, {
-            responseBody: GetOrderResp,
+            responseBody: { modelClass: GetOrderResp, type: MimeType.JSON, allowAdditionalProperties: true },
             headers: {
                 Authorization: `Bearer ${token}`
             }
@@ -419,7 +419,7 @@ export class PayPalClient {
         const url: string = `${this.baseUrl}/v2/payments/authorizations/${encodeURIComponent(authorizationId)}/capture`;
 
         return (await this.http.post(url, { amount }, {
-            responseBody: AuthorizationCaptureResp,
+            responseBody: { modelClass: AuthorizationCaptureResp, type: MimeType.JSON, allowAdditionalProperties: true },
             headers: {
                 Authorization: `Bearer ${token}`
             }
@@ -437,7 +437,7 @@ export class PayPalClient {
         const url: string = `${this.baseUrl}/v2/checkout/orders/${encodeURIComponent(orderId)}/authorize`;
 
         return (await this.http.post(url, {}, {
-            responseBody: GetOrderResp,
+            responseBody: { modelClass: GetOrderResp, type: MimeType.JSON, allowAdditionalProperties: true },
             headers: {
                 Authorization: `Bearer ${token}`
             }
@@ -470,7 +470,7 @@ export class PayPalClient {
         const url: string = `${this.baseUrl}/v2/payments/captures/${encodeURIComponent(captureId)}/refund`;
 
         return (await this.http.post(url, { amount }, {
-            responseBody: RefundCaptureResp,
+            responseBody: { modelClass: RefundCaptureResp, type: MimeType.JSON, allowAdditionalProperties: true },
             headers: {
                 Authorization: `Bearer ${token}`
             }

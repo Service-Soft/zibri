@@ -49,6 +49,11 @@ export const cookieMiddleware: (secret: string | undefined) => RequestHandler = 
     const header: string | undefined = req.headers.cookie;
     const raw: Record<string, string> = header ? parseCookieHeader(header) : {};
 
+    // Express's own res.cookie()/res.clearCookie() only sign/verify with { signed: true } when req.secret is set —
+    // normally done by the cookie-parser package, which this middleware replaces, so it must set it too.
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    (req as typeof req & { secret?: string }).secret = secret;
+
     req.cookies = {};
     req.signedCookies = {};
 

@@ -116,7 +116,7 @@ describe('CacheService', () => {
 
     afterAll(async () => {
         await server?.shutdown();
-    });
+    }, 15000);
 
     beforeEach(async () => {
         cacheService.caches.length = 0;

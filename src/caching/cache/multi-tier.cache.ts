@@ -28,7 +28,7 @@ type TierLike<K, V, CacheTag extends string, N extends string> = {
 // eslint-disable-next-line typescript/no-explicit-any, jsdoc/require-jsdoc
 type TierName<Tiers extends readonly TierLike<any, any, any, any>[]> = Tiers[number]['name'];
 
-/** Outer WR – true if any tier is true, else false. */
+/** Outer WR, true if any tier is true, else false. */
 // eslint-disable-next-line typescript/no-explicit-any
 type OuterWR<Tiers extends readonly TierLike<any, any, any, any>[]> = true extends ExtractCacheWriteResultAvailable<Tiers[number]>
     ? true
@@ -52,7 +52,7 @@ export type MultiWrapWriteOptions<
     invalidatesTags?: CacheTagsProvider<TArgs, CacheTag>
 };
 
-/** Per‑tier wrap options – just `CacheWrapOptions` for each tier. */
+/** Per‑tier wrap options as an record of TierName and config. */
 export type MultiWrapOptions<
     V,
     TArgs extends unknown[],
@@ -70,7 +70,7 @@ export type MultiWrapOptions<
  *
  * The `WriteResultAvailable` flag must be supplied explicitly. If you want
  * to mix a `false` tier (e.g. Write‑Around) into a `true` cache, simply cast it
- * `as CacheInterface<K, V, Tag, true>` – the key is provided but the tier
+ * `as CacheInterface<K, V, Tag, true>`. The key is provided but the tier
  * can safely ignore it.
  */
 export abstract class MultiTierCache<
@@ -148,7 +148,7 @@ export abstract class MultiTierCache<
             for (let i: number = 0; i < this.tiers.length; i++) {
                 const cached: CachedValue<V> | undefined = await this.tiers[i].store.get(key);
                 if (cached && (!cached.expiresAt || cached.expiresAt > new Date())) {
-                    // back‑fill earlier tiers – per‑tier options are NOT used here
+                    // Back‑fill earlier tiers. Per‑tier options are NOT used here
                     for (let j: number = 0; j < i; j++) {
                         this.tiers[j].setDirect(key, cached.value, {
                             ttl: cached.expiresAt

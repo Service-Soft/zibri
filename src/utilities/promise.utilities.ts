@@ -40,14 +40,14 @@ export abstract class PromiseUtilities {
      */
     static async allChunked<T, R>(
         items: T[],
-        fn: (item: T) => Promise<R>,
+        fn: (item: T) => R | Promise<R>,
         options?: ChunkingOptions
     ): Promise<Awaited<R>[]> {
         const results: Awaited<R>[] = [];
         const chunkSize: number = options?.chunkSize ?? this.defaultChunkSize;
 
         for (let i: number = 0; i < items.length; i += chunkSize) {
-            const promises: Promise<R>[] = items.slice(i, i + chunkSize).map(fn);
+            const promises: (R | Promise<R>)[] = items.slice(i, i + chunkSize).map(fn);
             results.push(...await Promise.all(promises));
         }
 
@@ -63,7 +63,7 @@ export abstract class PromiseUtilities {
      */
     static async anyValueTrue<T>(
         items: T[],
-        fn: (item: T) => Promise<boolean>,
+        fn: (item: T) => boolean | Promise<boolean>,
         options?: ChunkingOptions
     ): Promise<boolean> {
         const chunkSize: number = options?.chunkSize ?? this.defaultChunkSize;

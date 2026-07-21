@@ -1,9 +1,9 @@
 import { describe, expect, it, jest } from '@jest/globals';
 
+import { RateLimiterInterface } from './limiter/rate-limiter.interface';
 import { RateLimitingCleanupCronJob } from './rate-limiting-cleanup.cron-job';
 import { RateLimitingServiceInterface } from './rate-limiting-service.interface';
 import { BaseRateLimitState } from './stores/rate-limiter-store.interface';
-import { RateLimiterInterface } from './limiter/rate-limiter.interface';
 
 function fakeRateLimitingService(): RateLimitingServiceInterface & { cleanup: jest.Mock<() => Promise<void>> } {
     return {

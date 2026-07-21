@@ -103,8 +103,8 @@ export class RelationsNotAllowedValidationProblem implements ValidationProblem {
     ): string {
         return [
             `class MyEntityCreateDto extends OmitType<MyEntity, '${relationKey}'> {`,
-            `    @Property.array({ items: { type: 'object', cls: ${metadata.target.name}CreateDto} })`,
-            `    ${relationKey}: ${metadata.target.name}CreateDto[]`,
+            `    @Property.array({ items: { type: 'object', cls: ${metadata.target().name}CreateDto} })`,
+            `    ${relationKey}: ${metadata.target().name}CreateDto[]`,
             '}'
         ].join('\n');
     }
@@ -115,8 +115,8 @@ export class RelationsNotAllowedValidationProblem implements ValidationProblem {
     ): string {
         return [
             `class MyEntityCreateDto extends OmitType<MyEntity, '${relationKey}'> {`,
-            `    @Property.object({ cls: ${metadata.target.name}CreateDto })`,
-            `    ${relationKey}: ${metadata.target.name}CreateDto`,
+            `    @Property.object({ cls: ${metadata.target().name}CreateDto })`,
+            `    ${relationKey}: ${metadata.target().name}CreateDto`,
             '}'
         ].join('\n');
     }

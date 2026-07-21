@@ -12,6 +12,7 @@ import { CronJob } from './cron/cron-job.model';
 import { isDataSource } from './data-source/data-sources/data-source.interface';
 import { ZIBRI_DI_TOKENS } from './di/default/zibri-di-tokens.default';
 import { InvalidClassMarkedWithInjectableError } from './di/errors/invalid-class-marked-with-injectable.error';
+import { getAllInstantiatedValues } from './di/get-all-instantiated-values.function';
 import { getAllRegisteredTokens } from './di/get-all-registered-tokens.function';
 import { initDiContainer } from './di/init-di-container.function';
 import { inject } from './di/inject.function';
@@ -238,12 +239,21 @@ export class ZibriApplication {
                 return;
             }
             case AppState.CREATED: {
-                // nothing has been initialized yet, can simply quit without handling shutdown hooks
+                // init() may have partially run (eg. a data source already connected in beforeAppInit)
+                // before failing, so this can't just no-op: only the values that were actually
+                // constructed so far are torn down — getAllInstantiatedValues() (unlike
+                // getAllRegisteredTokens()) never force-constructs something the failed init never touched.
                 await this.logger.info('shutting down...');
                 GlobalRegistry.markAppAsShuttingDown();
                 for (const [signal, handler] of this.signalHandlers) {
                     process.off(signal, handler);
                 }
+
+                const injectables: unknown[] = getAllInstantiatedValues();
+                await this.beforeAppShutdown(injectables, signal);
+                await this.onAppShutdown(injectables, signal);
+                await this.afterAppShutdown(injectables, signal);
+
                 if (signal != undefined) {
                     process.exit(0);
                 }

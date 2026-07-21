@@ -134,7 +134,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
     await server.shutdown();
-});
+}, 15000);
 
 describe('VersioningService integration', () => {
     describe('First startup', () => {

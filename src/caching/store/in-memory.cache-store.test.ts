@@ -117,4 +117,162 @@ describe('InMemoryCacheStore', () => {
 
         expect(store.get('a')?.value).toBe(value);
     });
+
+    describe('eviction on maxEntries overflow', () => {
+        it('leastRecentlyUsed evicts the entry that was accessed longest ago', () => {
+            const store: InMemoryCacheStore<string, number> = new InMemoryCacheStore({
+                maxEntries: 2,
+                removeOnOverflow: 'leastRecentlyUsed'
+            });
+
+            store.set('a', createCachedValue(1, []));
+            store.set('b', createCachedValue(2, []));
+            // touch 'a' so 'b' becomes the least recently used
+            store.get('a');
+            store.set('c', createCachedValue(3, []));
+
+            expect(store.has('a')).toBe(true);
+            expect(store.has('b')).toBe(false);
+            expect(store.has('c')).toBe(true);
+        });
+
+        it('mostRecentlyUsed evicts the entry that was accessed most recently', () => {
+            const store: InMemoryCacheStore<string, number> = new InMemoryCacheStore({
+                maxEntries: 2,
+                removeOnOverflow: 'mostRecentlyUsed'
+            });
+
+            store.set('a', createCachedValue(1, []));
+            store.set('b', createCachedValue(2, []));
+            // touch 'a' so it becomes the most recently used (moved to tail)
+            store.get('a');
+            store.set('c', createCachedValue(3, []));
+
+            expect(store.has('a')).toBe(false);
+            expect(store.has('b')).toBe(true);
+            expect(store.has('c')).toBe(true);
+        });
+
+        it('firstInFirstOut evicts in insertion order regardless of access', () => {
+            const store: InMemoryCacheStore<string, number> = new InMemoryCacheStore({
+                maxEntries: 2,
+                removeOnOverflow: 'firstInFirstOut'
+            });
+
+            store.set('a', createCachedValue(1, []));
+            store.set('b', createCachedValue(2, []));
+            // accessing 'a' must NOT change FIFO order
+            store.get('a');
+            store.set('c', createCachedValue(3, []));
+
+            expect(store.has('a')).toBe(false);
+            expect(store.has('b')).toBe(true);
+            expect(store.has('c')).toBe(true);
+        });
+
+        it('leastFrequentlyUsed evicts the entry with the lowest access frequency', () => {
+            const store: InMemoryCacheStore<string, number> = new InMemoryCacheStore({
+                maxEntries: 2,
+                removeOnOverflow: 'leastFrequentlyUsed'
+            });
+
+            store.set('a', createCachedValue(1, []));
+            store.set('b', createCachedValue(2, []));
+            // access 'a' repeatedly to raise its frequency above 'b'
+            store.get('a');
+            store.get('a');
+            store.set('c', createCachedValue(3, []));
+
+            expect(store.has('a')).toBe(true);
+            expect(store.has('b')).toBe(false);
+            expect(store.has('c')).toBe(true);
+        });
+
+        it('overwriting an existing key does not evict anything even at capacity', () => {
+            const store: InMemoryCacheStore<string, number> = new InMemoryCacheStore({
+                maxEntries: 2,
+                removeOnOverflow: 'leastRecentlyUsed'
+            });
+
+            store.set('a', createCachedValue(1, []));
+            store.set('b', createCachedValue(2, []));
+            store.set('a', createCachedValue(10, []));
+
+            expect(store.size()).toBe(2);
+            expect(store.get('a')?.value).toBe(10);
+            expect(store.get('b')?.value).toBe(2);
+        });
+    });
+
+    describe('eviction on maxBytes overflow', () => {
+        it('evicts entries once the estimated byte size would exceed maxBytes', () => {
+            const sampleValue: CachedValue<string> = createCachedValue('a-value', []);
+            const singleEntryByteSize: number = Buffer.byteLength(JSON.stringify({ key: 'a', value: sampleValue }), 'utf8');
+
+            const store: InMemoryCacheStore<string, string> = new InMemoryCacheStore({
+                maxEntries: 500,
+                // room for exactly one entry of this size, not two
+                maxBytes: singleEntryByteSize + 5,
+                removeOnOverflow: 'leastRecentlyUsed'
+            });
+
+            store.set('a', createCachedValue('a-value', []));
+            store.set('b', createCachedValue('b-value', []));
+
+            expect(store.has('a')).toBe(false);
+            expect(store.has('b')).toBe(true);
+        });
+
+        it('skips caching a single entry that alone exceeds the store capacity', () => {
+            const store: InMemoryCacheStore<string, string> = new InMemoryCacheStore({
+                maxEntries: 500,
+                maxBytes: 1,
+                removeOnOverflow: 'leastRecentlyUsed'
+            });
+
+            store.set('huge', createCachedValue('x'.repeat(1000), []));
+
+            expect(store.has('huge')).toBe(false);
+            expect(store.size()).toBe(0);
+        });
+
+        it('falls back to a fixed byte estimate when the value cannot be stringified', () => {
+            const store: InMemoryCacheStore<string, unknown> = new InMemoryCacheStore({
+                maxEntries: 500,
+                maxBytes: 750 * 1024,
+                removeOnOverflow: 'leastRecentlyUsed'
+            });
+
+            const circular: Record<string, unknown> = {};
+            circular['self'] = circular;
+
+            expect(() => store.set('circular', createCachedValue(circular, []))).not.toThrow();
+            expect(store.get('circular')?.value).toBe(circular);
+        });
+    });
+
+    describe('recordAccess ordering differences', () => {
+        it('firstInFirstOut does not reorder the list on get', () => {
+            const store: InMemoryCacheStore<string, number> = new InMemoryCacheStore({
+                maxEntries: 3,
+                removeOnOverflow: 'firstInFirstOut'
+            });
+
+            store.set('a', createCachedValue(1, []));
+            store.set('b', createCachedValue(2, []));
+            store.set('c', createCachedValue(3, []));
+
+            store.get('a');
+            store.get('a');
+            store.get('a');
+
+            store.set('d', createCachedValue(4, []));
+
+            // 'a' was inserted first, so it is evicted first regardless of access count
+            expect(store.has('a')).toBe(false);
+            expect(store.has('b')).toBe(true);
+            expect(store.has('c')).toBe(true);
+            expect(store.has('d')).toBe(true);
+        });
+    });
 });

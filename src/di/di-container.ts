@@ -48,6 +48,18 @@ export class DiContainer {
     }
 
     /**
+     * Gets every value that has already been instantiated (constructed via `inject()`), without
+     * constructing anything new. Unlike `getAllRegisteredTokens()`, this reflects only what's
+     * actually live right now — needed for cleanup paths that must not force-create instances that
+     * were never touched (eg. Tearing down after a failed app init).
+     * @returns The already-instantiated values, deduplicated (the same instance can be cached under
+     * multiple tokens, eg. A class's own token and its `useClass` provider token, see `inject()`).
+     */
+    getAllInstantiatedValues(): unknown[] {
+        return [...new Set(this.instances.values())];
+    }
+
+    /**
      * Gets all providers of the given variant.
      * @param variant - The variant to filter by.
      * @returns All providers that are of the given variant.

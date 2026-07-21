@@ -187,7 +187,7 @@ function rewriteTemplate(
     const template: ts.TemplateLiteral = node.template;
 
     if (ts.isNoSubstitutionTemplateLiteral(template)) {
-        return { transformed: node, source: template.text };
+        return { transformed: node, source: escapeBraces(template.text) };
     }
 
     let source: string = escapeBraces(template.head.text);

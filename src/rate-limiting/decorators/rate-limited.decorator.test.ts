@@ -38,6 +38,7 @@ class GenerousController {
     callCount: number = 0;
 
     @RateLimited(GenerousDecoratorTestLimiter)
+    // eslint-disable-next-line typescript/require-await
     async doWork(label: string): Promise<string> {
         this.callCount++;
         return `${label}-${this.callCount}`;
@@ -46,6 +47,7 @@ class GenerousController {
 
 class StrictController {
     @RateLimited(StrictDecoratorTestLimiter, { keyFn: () => 'strict-controller-key' })
+    // eslint-disable-next-line typescript/require-await
     async doWork(): Promise<string> {
         return 'ok';
     }
@@ -53,6 +55,7 @@ class StrictController {
 
 class DynamicTokenController {
     @RateLimited(() => GenerousDecoratorTestLimiter, { keyFn: () => 'dynamic-token-key' })
+    // eslint-disable-next-line typescript/require-await
     async doWork(): Promise<string> {
         return 'dynamic-ok';
     }

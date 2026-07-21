@@ -749,58 +749,51 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
                     continue;
                 }
                 case 'object': {
-                    const objectPropMeta: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(meta.cls());
+                    const targetClass: Newable<unknown> = meta.cls();
+                    const objectPropMeta: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(targetClass);
+                    const objectSchema: OpenApiSchemaObject
+                        = this.buildOpenApiSchemaForProperties(objectPropMeta, targetClass, context, visited);
                     properties[key] = {
-                        ...this.buildOpenApiSchemaForProperties(objectPropMeta, entity, context, visited),
-                        description: meta.description
+                        ...objectSchema,
+                        // don't let an explicit (but absent) meta.description blank out the cycle guard's own message
+                        description: meta.description ?? objectSchema.description
                     };
                     continue;
                 }
                 case Relation.HAS_ONE:
                 case Relation.BELONGS_TO_ONE:
                 case Relation.MANY_TO_ONE: {
+                    // getTargetClassForRelation returns a fresh OmitClass-derived class on every call (used here
+                    // only to strip the inverse back-reference key), so it can never match a previously visited
+                    // entry in `visited` — cycle tracking must key off the real, stable target class instead.
                     const targetClass: Newable<BaseEntity> = this.getTargetClassForRelation(meta, entity);
                     const objectPropMeta: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(targetClass);
+                    const objectSchema: OpenApiSchemaObject
+                        = this.buildOpenApiSchemaForProperties(objectPropMeta, meta.target(), context, visited);
                     properties[key] = {
-                        ...this.buildOpenApiSchemaForProperties(objectPropMeta, entity, context, visited),
-                        description: meta.description
+                        ...objectSchema,
+                        description: meta.description ?? objectSchema.description
                     };
                     continue;
                 }
                 case Relation.MANY_TO_MANY:
                 case Relation.ONE_TO_MANY: {
                     const targetClass: Newable<BaseEntity> = this.getTargetClassForRelation(meta, entity);
-
-                    const items: OpenApiSchemaObject = this.buildOpenApiSchemaForProperties(
-                        {
-                            items: {
-                                type: 'object',
-                                cls: () => targetClass,
-                                required: true,
-                                description: undefined,
-                                excludeFromChangeSets: false,
-                                exclude: false,
-                                allowAdditionalProperties: false
-                            }
-                        },
-                        entity,
-                        context,
-                        visited
-                    );
+                    const objectPropMeta: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(targetClass);
+                    const itemSchema: OpenApiSchemaObject
+                        = this.buildOpenApiSchemaForProperties(objectPropMeta, meta.target(), context, visited);
                     properties[key] = {
                         type: 'array',
                         description: meta.description,
-                        items: items.properties?.['items']
+                        items: itemSchema
                     };
                     continue;
                 }
                 case 'array': {
-                    if (meta.items.type === 'object') {
-                        entity = meta.items.cls();
-                    }
+                    // See the comment on the MANY_TO_MANY/ONE_TO_MANY case above for why this needs a fresh class.
                     const items: OpenApiSchemaObject = this.buildOpenApiSchemaForProperties(
                         { items: meta.items },
-                        entity,
+                        class {},
                         context,
                         visited
                     );

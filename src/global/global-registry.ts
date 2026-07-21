@@ -96,7 +96,7 @@ export abstract class GlobalRegistry {
                     return;
                 }
                 case AppState.INITIALIZED: {
-                    throw new AppAlreadyMarkedAsError(AppState.SHUTTING_DOWN);
+                    throw new AppAlreadyMarkedAsError(AppState.INITIALIZED);
                 }
                 case AppState.STARTED: {
                     throw new AppAlreadyMarkedAsError(AppState.STARTED);

@@ -77,7 +77,13 @@ export type FileOpenApiResponse = {
     /**
      * Allowed MIME type(s) for the file response ('all' for any or one/multiple specific types).
      */
-    mimeType?: 'all' | MimeType | MimeType[]
+    mimeType?: 'all' | MimeType | MimeType[],
+    /**
+     * Whether this response was added automatically by the framework rather than explicitly declared by the
+     * developer. Used to distinguish auto-generated documentation from legitimate ones when checking for missing
+     * response data.
+     */
+    implicit?: boolean
 };
 
 /**
@@ -107,7 +113,13 @@ export type JsonOpenApiResponse = {
     /**
      * If true, indicates the response payload is an array of items.
      */
-    isArray?: boolean
+    isArray?: boolean,
+    /**
+     * Whether this response was added automatically by the framework (such as by \@RateLimited) rather than
+     * explicitly declared by the developer. Used to distinguish auto-generated documentation from legitimate ones
+     * when checking for missing response data.
+     */
+    implicit?: boolean
 };
 
 /**
@@ -127,7 +139,13 @@ export type ErrorOpenApiResponse = {
     /**
      * Human-readable description of the error.
      */
-    description?: string
+    description?: string,
+    /**
+     * Whether this response was added automatically by the framework rather than explicitly declared by the
+     * developer. Used to distinguish auto-generated documentation from legitimate ones when checking for missing
+     * response data.
+     */
+    implicit?: boolean
 };
 
 /**
@@ -147,7 +165,13 @@ export type HtmlOpenApiResponse = {
     /**
      * Human-readable description of the HTML response.
      */
-    description?: string
+    description?: string,
+    /**
+     * Whether this response was added automatically by the framework rather than explicitly declared by the
+     * developer. Used to distinguish auto-generated documentation from legitimate ones when checking for missing
+     * response data.
+     */
+    implicit?: boolean
 };
 
 /**

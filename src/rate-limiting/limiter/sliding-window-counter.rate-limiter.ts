@@ -8,6 +8,24 @@ import { RateLimitReservation } from '../reservation/rate-limit-reservation.mode
 import { BaseRateLimitState } from '../stores/rate-limiter-store.interface';
 
 /**
+ * Result of rolling the sliding window forward to the current point in time.
+ */
+type RollWindowResult = {
+    /**
+     * The current window.
+     */
+    currentWindow: number,
+    /**
+     * The current window count.
+     */
+    currentCount: number,
+    /**
+     * The previous window count.
+     */
+    previousCount: number
+};
+
+/**
  * State for a sliding window counter rate limiter state.
  */
 export type SlidingWindowCounterState = BaseRateLimitState & {
@@ -81,7 +99,7 @@ export class SlidingWindowCounterRateLimiter extends BaseRateLimiter<SlidingWind
     private rollWindow(
         state: SlidingWindowCounterState,
         now: number
-    ): { currentWindow: number, currentCount: number, previousCount: number } {
+    ): RollWindowResult {
         const currentWindow: number = Math.floor(now / this.intervalInMs) * this.intervalInMs;
         const windowDiff: number = Math.floor(
             NumberUtilities.subtract(currentWindow, state.currentWindow)
@@ -122,7 +140,7 @@ export class SlidingWindowCounterRateLimiter extends BaseRateLimiter<SlidingWind
         count: number,
         now: number
     ): number {
-        const window0: { currentWindow: number, currentCount: number, previousCount: number } = this.rollWindow(state, now);
+        const window0: RollWindowResult = this.rollWindow(state, now);
         const weightNow: number = this.weightAt(window0.currentWindow, now);
         const estimatedNow: number = NumberUtilities
             .add(window0.currentCount, NumberUtilities.multiply(window0.previousCount, weightNow))
@@ -206,7 +224,7 @@ export class SlidingWindowCounterRateLimiter extends BaseRateLimiter<SlidingWind
                 (current) => {
                     current ??= this.initialAlgoState(now);
                     const reservedCount: number = current.reservedCount;
-                    const rolled: { currentWindow: number, currentCount: number, previousCount: number } = this.rollWindow(current, now);
+                    const rolled: RollWindowResult = this.rollWindow(current, now);
                     const { currentWindow, previousCount } = rolled;
                     let currentCount: number = rolled.currentCount;
 

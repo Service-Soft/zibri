@@ -4,6 +4,7 @@ import { beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals
 
 import { LeakyBucketQueueRateLimiter, LeakyBucketQueueState } from './leaky-bucket-queue.rate-limiter';
 import { initDiContainer } from '../../di/init-di-container.function';
+import { Ms } from '../../utilities/ms';
 import { RateLimitResult } from '../rate-limit-result.model';
 import { RateLimitReservationResult } from '../reservation/rate-limit-reservation-result.model';
 import { RateLimitReservation } from '../reservation/rate-limit-reservation.model';
@@ -59,12 +60,19 @@ describe('LeakyBucketQueueRateLimiter', () => {
         });
 
         it('reserved items are scheduled after existing ones', async () => {
-            // Add a regular request first
-            await limiter.consume('k', 3); // serviceTime = 3*200 = 600ms
-            const res: RateLimitReservationResult = await limiter.reserve('k', 2);
-            assert(res.allowed);
-            // The first request finishes at NOW + 600ms, so the reservation starts then
-            expect(res.reservation.readyAtMs).toBe(Date.now() + 600);
+            jest.useFakeTimers();
+            try {
+                const now: number = Date.now();
+                // Add a regular request first
+                await limiter.consume('k', 3); // serviceTime = 3*200 = 600ms
+                const res: RateLimitReservationResult = await limiter.reserve('k', 2);
+                assert(res.allowed);
+                // The first request finishes at NOW + 600ms, so the reservation starts then
+                expect(res.reservation.readyAtMs).toBe(now + 600);
+            }
+            finally {
+                jest.useRealTimers();
+            }
         });
 
         it('cancel removes reservation and shortens schedule', async () => {
@@ -189,7 +197,7 @@ describe('LeakyBucketQueueRateLimiter', () => {
                 await limiter.consume('k', 1);
                 // Far beyond any reasonable idle horizon - the queued item
                 // has long since finished and no further activity occurred.
-                jest.setSystemTime(now + 1000 * 60 * 60 * 24 * 365);
+                jest.setSystemTime(now + Ms.YEAR);
                 await limiter.cleanup();
                 expect(await limiter.config.store.get('k')).toBeUndefined();
             }

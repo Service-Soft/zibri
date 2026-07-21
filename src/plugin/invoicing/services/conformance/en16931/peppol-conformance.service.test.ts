@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { PeppolConformanceService } from './peppol-conformance.service';
 import { testFileFolder } from '../../../../../__testing__/constants';
@@ -95,7 +95,7 @@ describe('generateXml', () => {
 
     afterAll(async () => {
         await server.shutdown();
-    });
+    }, 15000);
 
     it('should create the expected result', async () => {
         const invoice: Invoice = await repo.create({
@@ -141,5 +141,16 @@ describe('generateXml', () => {
         const xml: XML = await conformanceService.generateXml(invoice);
         const xmlString: string = xml.end({ prettyPrint: true });
         await FsUtilities.upsertFile(FsUtilities.getPath(testFileFolder, 'peppol.xml'), xmlString);
+
+        expect(xmlString).toContain('urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0');
+        expect(xmlString).toContain(invoice.number);
+        expect(xmlString).toContain('Great Company LLC');
+        expect(xmlString).toContain('info@great-company-llc.com');
+        expect(xmlString).toContain('Example Company LLC');
+        expect(xmlString).toContain('DE75 5121 0800 1245 1261 99');
+        expect(xmlString).toContain('ABCD5F');
+        expect(xmlString).toContain('§19 small business');
+        expect(xmlString).toContain('Testing');
+        expect(xmlString).toContain('90');
     });
 });

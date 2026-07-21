@@ -39,7 +39,6 @@ import { FileResponse } from '../parsing/form-data/file-response.model';
 import { buildCspHeaders, CspOptions, CspSource } from '../parsing/html/csp-options.model';
 import { HtmlResponse } from '../parsing/html/html-response.model';
 import type { ParserInterface } from '../parsing/parser.interface';
-import { RateLimitReservation } from '../rate-limiting/reservation/rate-limit-reservation.model';
 import { isNewable, Newable } from '../types/newable.type';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { Ms } from '../utilities/ms';
@@ -135,9 +134,10 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
     }
 
     private checkForOrphanedControllers(controllers: Newable<unknown>[]): void {
-        // TODO!!!
         const orphanedControllers: DiProvider<unknown>[] = getRegisteredProvidersOfVariant(DiVariants.CONTROLLER).filter(c => {
-            return isNewable(c) && !controllers.includes(c) && !(MetadataUtilities.getControllerData(c)?.allowOrphan ?? false);
+            return isNewable(c.useClass)
+                && !controllers.includes(c.useClass)
+                && !(MetadataUtilities.getControllerData(c.useClass)?.allowOrphan ?? false);
         });
         if (orphanedControllers.length) {
             throw new InitRouterError([
@@ -426,6 +426,11 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
         entries: { versions: SupportedVersionsOptions, innerHandler: ControllerInnerHandler }[]
     ): RequestHandler {
         return (async (request: HttpRequest, res, next) => {
+            // Express's own req.method is always uppercase ('GET'), but HttpRequest.method is typed as the
+            // lowercase HttpMethod enum (the same casing expressRouter[httpMethod](...) requires for
+            // registration) — normalize once here so the type is actually true for every handler/downstream
+            // consumer of context.request.method, instead of every comparison site having to remember to do it.
+            request.method = request.method.toLowerCase() as HttpMethod;
             Object.defineProperty(
                 request,
                 'params',
@@ -480,7 +485,7 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
         route: ControllerRouteConfiguration
     ): Promise<ControllerInnerHandler> {
         const responses: OpenApiResponse[] = MetadataUtilities.getRouteResponses(controllerClass, route.controllerMethod);
-        if (!responses.filter(r => r.type === 'json' && r.cls === RateLimitReservation).length) {
+        if (!responses.filter(r => r.implicit !== true).length) {
             await this.logger.warn(`No responses defined on route ${controllerClass.name}.${route.controllerMethod}`);
         }
         return async (context: HttpRequestContext, next: NextFunction) => {

@@ -14,6 +14,11 @@ import { OmitStrict } from '../types/omit-strict.type';
 export type HttpClientHeaderValue = string | string[] | number | boolean | undefined;
 
 /**
+ * Mime types that HttpClient knows how to build a request body for.
+ */
+export type RequestBodyMimeType = MimeType.JSON | MimeType.FORM_URL_ENCODED | MimeType.FORM_DATA | MimeType.OCTET_STREAM;
+
+/**
  * Options for sending a http request with the client.
  */
 type HttpOptions<
@@ -41,6 +46,12 @@ type HttpOptions<
      * Defaults to 1.
      */
     attempts: number,
+    /**
+     * The mime type that the request body should be sent as.
+     *
+     * Defaults to using the request's Content-Type header if set, falling back to treating the body as JSON otherwise.
+     */
+    requestBodyType: RequestBodyMimeType,
     /**
      * Definition on how the response body should look like. Can either be a class that defines the structure of the body or a full body metadata definition.
      *

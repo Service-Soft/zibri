@@ -34,6 +34,7 @@ type StartTestServerOptions = Partial<
         | 'cronJobs'
         | 'version'
         | 'websocketControllers'
+        | 'authStrategies'
     >
 > & {
     dataSources?: Newable<PostgresDataSource>[]
@@ -85,7 +86,8 @@ export class StartedTestServer {
             controllers = this.app.options.controllers,
             websocketControllers = this.app.options.websocketControllers,
             cronJobs = this.app.options.cronJobs,
-            version = this.app.options.version
+            version = this.app.options.version,
+            authStrategies = this.app.options.authStrategies
         }: StartTestServerOptions = {}
     ): Promise<void> {
         const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
@@ -110,10 +112,19 @@ export class StartedTestServer {
             dataSources,
             providers,
             plugins,
-            cronJobs
+            cronJobs,
+            authStrategies
         });
 
-        await this.app.init(H);
+        try {
+            await this.app.init(H);
+        }
+        catch (error) {
+            // a failed init can still have connected a data source in beforeAppInit - shut down
+            // whatever was actually constructed so the containers below don't outlive this call
+            await this.app.shutdown();
+            throw error;
+        }
 
         logger.info = info;
         await logger.info('test server re initialized');
@@ -128,7 +139,9 @@ export async function startTestServer(
         controllers = [],
         websocketControllers = [],
         cronJobs = [],
-        version = '1.0.0'
+        version = '1.0.0',
+        // an empty array (rather than undefined) so ZibriApplication's own JwtAuthStrategy fallback still applies
+        authStrategies = []
     }: StartTestServerOptions = {}
 ): Promise<StartedTestServer> {
     // Reset singleton — every test file gets a clean container with no stale instances.
@@ -166,10 +179,21 @@ export async function startTestServer(
         dataSources,
         providers,
         plugins,
-        cronJobs
+        cronJobs,
+        authStrategies
     });
 
-    await app.init(H);
+    try {
+        await app.init(H);
+    }
+    catch (error) {
+        // a failed init can still have connected a data source in beforeAppInit, and the postgres
+        // containers above are already running - no StartedTestServer is ever returned to clean
+        // either of them up, so both have to be torn down here or they outlive this call.
+        await app.shutdown();
+        await Promise.all(containers.map(c => c.stop()));
+        throw error;
+    }
 
     logger.info = info;
     await logger.info('test server initialized');

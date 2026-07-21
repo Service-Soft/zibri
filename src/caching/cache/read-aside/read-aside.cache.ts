@@ -81,7 +81,7 @@ export abstract class ReadAsideCache<
                 }
 
                 // Single‑flight: coalesce concurrent source calls for the same key.
-                // No store.set – **read‑aside**.
+                // This runs without store as we are in a read‑aside context.
                 return this.runSingleFlight(key, async () => {
                     const sourceStart: number = performance.now();
                     const value: V = await fn(...args);

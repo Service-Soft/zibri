@@ -1,6 +1,6 @@
-import { WriteStream } from 'node:fs';
+import { Stats, WriteStream } from 'node:fs';
 
-import { afterAll, beforeAll, describe, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { InvoicePdfService } from './invoice-pdf.service';
 import { testFileFolder } from '../../../__testing__/constants';
@@ -13,7 +13,7 @@ import { inject } from '../../../di/inject.function';
 import { defineProvider } from '../../../di/models/di-provider.model';
 import { PdfDocument } from '../../../document/pdf.utilities';
 import { OmitStrict } from '../../../types/omit-strict.type';
-import { FsUtilities } from '../../../utilities/fs.utilities';
+import { FsPath, FsUtilities } from '../../../utilities/fs.utilities';
 import { Ms } from '../../../utilities/ms';
 import { ZibriInvoicingPlugin } from '../invoicing.plugin';
 import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../invoicing.tokens';
@@ -96,7 +96,7 @@ describe('createInvoicePdf', () => {
 
     afterAll(async () => {
         await server.shutdown();
-    });
+    }, 15000);
 
     it('should create the expected result', async () => {
         const invoice: Invoice = await repo.create({
@@ -141,11 +141,24 @@ describe('createInvoicePdf', () => {
 
         const pdf: PdfDocument = await invoicePdfService.generateInvoicePdf(invoice, 'en-US', 'x-rechnung');
 
-        const out1: WriteStream = FsUtilities.createWriteStream(FsUtilities.getPath(testFileFolder, `${invoice.number}-stream-1.pdf`));
-        const out2: WriteStream = FsUtilities.createWriteStream(FsUtilities.getPath(testFileFolder, `${invoice.number}-stream-2.pdf`));
+        const path1: FsPath = FsUtilities.getPath(testFileFolder, `${invoice.number}-stream-1.pdf`);
+        const path2: FsPath = FsUtilities.getPath(testFileFolder, `${invoice.number}-stream-2.pdf`);
+        const out1: WriteStream = FsUtilities.createWriteStream(path1);
+        const out2: WriteStream = FsUtilities.createWriteStream(path2);
 
         pdf.pipe(out1);
         pdf.pipe(out2);
         pdf.end();
+
+        await new Promise<void>((resolve, reject) => {
+            out1.on('finish', resolve);
+            out1.on('error', reject);
+        });
+
+        const stats: Stats = await FsUtilities.stat(path1);
+        expect(stats.size).toBeGreaterThan(0);
+
+        const header: string = (await FsUtilities.readFile(path1)).slice(0, 5);
+        expect(header).toBe('%PDF-');
     });
 });

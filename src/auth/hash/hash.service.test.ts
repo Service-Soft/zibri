@@ -22,7 +22,7 @@ describe('HashService', () => {
 
     afterAll(async () => {
         await server?.shutdown();
-    });
+    }, 15000);
 
     test('creates strategy metadata on first hash', async () => {
         const strategiesBeforeHash: HashStrategyEntity[] = await strategyRepository.findAll();

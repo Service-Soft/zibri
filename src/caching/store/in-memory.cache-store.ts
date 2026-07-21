@@ -29,7 +29,6 @@ interface CacheEntry<K, V> {
 export class InMemoryCacheStore<K, V> implements CacheStoreInterface<K, V> {
     private readonly entries: Map<K, CacheEntry<K, V>> = new Map();
 
-    /** Order list – used by LRU, MRU, FIFO.  For LFU it’s still maintained but not used for eviction. */
     private readonly orderList: DoublyLinkedList<K> = new DoublyLinkedList();
 
     private currentBytes: number = 0;
@@ -147,7 +146,6 @@ export class InMemoryCacheStore<K, V> implements CacheStoreInterface<K, V> {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     invalidateTags(tags: string[]): void {
-        // Safe iteration – we delete while iterating
         for (const [key, entry] of this.entries.entries()) {
             if (entry.value.tags.some(t => tags.includes(t))) {
                 this.delete(key);
@@ -198,7 +196,6 @@ export class InMemoryCacheStore<K, V> implements CacheStoreInterface<K, V> {
                 break;
             }
             case 'firstInFirstOut': {
-                // Do not change order – keep insertion order intact
                 break;
             }
             case 'leastFrequentlyUsed': {
@@ -242,7 +239,6 @@ export class InMemoryCacheStore<K, V> implements CacheStoreInterface<K, V> {
     }
 
     private decreaseFrequency(entry: CacheEntry<K, V>): void {
-        // Called when a node is removed – just clean up the frequency sets.
         const frequency: number = entry.frequency;
         const set: Set<K> | undefined = this.frequencyMap.get(frequency);
         if (!set) {

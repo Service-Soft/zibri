@@ -1,4 +1,4 @@
-import { beforeAll, afterAll, describe, it, expect } from '@jest/globals';
+import { beforeAll, afterAll, describe, it, expect, jest } from '@jest/globals';
 
 import { BackupEntity } from './backup-entity.model';
 import { BackupResourceEntity } from './backup-resource-entity.model';
@@ -12,10 +12,12 @@ import { PostgresDataSource, PostgresOptions } from '../data-source/data-sources
 import { DataSource } from '../data-source/decorators/data-source.decorator';
 import { Repository } from '../data-source/repository';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { BaseEntity } from '../entity/base-entity.model';
 import { Entity } from '../entity/decorators/entity.decorator';
 import { Property } from '../entity/decorators/property.decorator';
+import { LoggerInterface } from '../logging/logger.interface';
 import { Newable } from '../types/newable.type';
 import { OmitStrict } from '../types/omit-strict.type';
 import { FsUtilities, FsPath } from '../utilities/fs.utilities';
@@ -72,7 +74,7 @@ describe('Create and restore postgres backup', () => {
 
     afterAll(async () => {
         await server.shutdown();
-    });
+    }, 15000);
 
     it('should create and restore a backup', async () => {
         expect((await itemRepository.findAll()).length).toEqual(1);
@@ -87,5 +89,38 @@ describe('Create and restore postgres backup', () => {
         const backup: BackupEntity = (await backupRepository.findAll({ relations: ['resources'] }))[0];
         await backupService.restore(backup);
         expect((await itemRepository.findAll()).length).toEqual(1);
+    }, 15000);
+
+    it('deletes the stored resource file for a given backup', async () => {
+        await backupService.createBackup({ name: 'delete-test-backup' });
+        const backup: BackupEntity = (await backupRepository.findAll({
+            where: { name: 'delete-test-backup' },
+            relations: ['resources']
+        }))[0];
+        const resource: BackupResourceEntity = backup.resources[0];
+        const resourcePath: FsPath = FsUtilities.getPath(backupFsFolder, backup.name, resource.name);
+        expect(await FsUtilities.exists(resourcePath)).toBe(true);
+
+        await backupService.delete(backup);
+
+        expect(await FsUtilities.exists(resourcePath)).toBe(false);
+    }, 15000);
+
+    it('warns and skips a backup directory that is missing its metadata file', async () => {
+        const orphanBackupName: string = 'orphan-without-metadata';
+        await FsUtilities.mkdir(FsUtilities.getPath(backupFsFolder, orphanBackupName));
+
+        const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
+        // eslint-disable-next-line typescript/typedef
+        const warnSpy = jest.spyOn(logger, 'warn');
+
+        await backupService.syncBackupEntities();
+
+        expect(warnSpy).toHaveBeenCalledWith(
+            expect.stringContaining('Could not find the metadata file needed to resolve a backup')
+        );
+        expect(await backupRepository.findAll({ where: { name: orphanBackupName } })).toHaveLength(0);
+
+        warnSpy.mockRestore();
     }, 15000);
 });

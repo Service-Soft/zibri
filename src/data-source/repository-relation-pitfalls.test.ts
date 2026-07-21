@@ -102,7 +102,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
     await server.shutdown();
-});
+}, 15000);
 
 beforeEach(async () => {
     await bookmarkRepo.deleteAll({});

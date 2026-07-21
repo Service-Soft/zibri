@@ -49,7 +49,37 @@ describe('transaction', () => {
         expect(itemsWithoutTransactionAfterCommit.length).toEqual(1);
     });
 
+    it('should discard changes made inside a rolled back transaction', async () => {
+        const before: Item[] = await repo.findAll();
+
+        const transaction: Transaction = await dataSource.startTransaction();
+
+        await repo.create({ value: 'rolled-back' }, { transaction });
+        const itemsInsideTransaction: Item[] = await repo.findAll({ transaction });
+        expect(itemsInsideTransaction.length).toEqual(before.length + 1);
+
+        await transaction.rollback();
+
+        const itemsAfterRollback: Item[] = await repo.findAll();
+        expect(itemsAfterRollback.length).toEqual(before.length);
+        expect(itemsAfterRollback.some(i => i.value === 'rolled-back')).toBe(false);
+    });
+
+    it('releases the query runner after commit, rejecting further queries against it', async () => {
+        const transaction: Transaction = await dataSource.startTransaction();
+        await transaction.commit();
+
+        await expect(repo.create({ value: 'after-release' }, { transaction })).rejects.toThrow();
+    });
+
+    it('releases the query runner after rollback, rejecting further queries against it', async () => {
+        const transaction: Transaction = await dataSource.startTransaction();
+        await transaction.rollback();
+
+        await expect(repo.create({ value: 'after-release' }, { transaction })).rejects.toThrow();
+    });
+
     afterAll(async () => {
         await server.shutdown();
-    });
+    }, 15000);
 });

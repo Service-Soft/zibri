@@ -166,7 +166,7 @@ describe('WriteThroughReadThroughCache', () => {
 
     afterAll(async () => {
         await server?.shutdown();
-    });
+    }, 15000);
 
     beforeEach(() => {
         cacheService.caches.length = 0;

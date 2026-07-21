@@ -99,6 +99,7 @@ export * from './di/default/zibri-di-tokens.default';
 export * from './di/inject.function';
 export * from './di/init-di-container.function';
 export * from './di/get-all-registered-tokens.function';
+export * from './di/get-all-instantiated-values.function';
 export * from './di/get-registered-providers-of-variant.function';
 
 export * from './di/errors/get-dependency-stack-trace.function';

@@ -90,7 +90,7 @@ export class MailingListService implements MailingListServiceInterface, OnAppIni
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async queueEmailForList<T>(listId: string, data: MailingListQueueEmailData<T>): Promise<void> {
-        const list: MailingList = await this.mailingListRepository.findById(listId);
+        const list: MailingList = await this.mailingListRepository.findById(listId, { relations: ['subscribers'] });
         await PromiseUtilities.allChunked(
             list.subscribers,
             async subscriber => {
@@ -125,7 +125,7 @@ export class MailingListService implements MailingListServiceInterface, OnAppIni
     ): Promise<void> {
 
         const foundSubscriber: MailingListSubscriber | undefined = await this.subscriberRepository.findOne(
-            { where: { email: subscriber.email } },
+            { where: { email: subscriber.email }, relations: ['mailingLists'] },
             false
         );
         const list: MailingList = await this.mailingListRepository.findById(listId);

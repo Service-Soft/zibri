@@ -174,7 +174,7 @@ export class Parser implements ParserInterface, OnAppInit {
             const parser: unknown = inject(provider.token);
             if (!isBodyParser(parser)) {
                 throw new InitParserError(
-                    `Invalid resource marked with @Backup: ${getDiTokenName(provider.token)} needs to implement BodyParserInterface`
+                    `Invalid resource marked with @BodyParser: ${getDiTokenName(provider.token)} needs to implement BodyParserInterface`
                 );
             }
             this.bodyParsers.push(parser);

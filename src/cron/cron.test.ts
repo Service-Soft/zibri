@@ -6,10 +6,14 @@ import { CronJob, InitialCronConfig } from './cron-job.model';
 import { CronService } from './cron.service';
 import { noOp } from '../__testing__/constants';
 import { createTestDataSource, defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { startTestServer, StartedTestServer } from '../__testing__/test-server/start-test-server.function';
+import { ZibriApplication } from '../application';
 import { Repository } from '../data-source/repository';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
+import { defineProvider } from '../di/models/di-provider.model';
 
 // ---------- Helpers ----------
 
@@ -32,325 +36,393 @@ function makeCronJob(config: Partial<InitialCronConfig> & { onTickImpl?: () => v
     return new TestCronJob();
 }
 
-// ---------- Test setup ----------
+// Every other test in this file boots with `cronJobs: []` and calls cronService.schedule() directly,
+// which never exercises afterAppInit's own auto-registration loop (the one driven by
+// ZibriApplicationOptions.cronJobs) — used by the last nested describe below, via reInit().
+class AutoRegisteredCronJob extends CronJob {
+    readonly initialConfig: InitialCronConfig = {
+        name: 'auto-registered-job',
+        cron: CronExpression.every(1, 'minutes').build(),
+        runOnInit: false,
+        stopOnError: true,
+        syncToDataSource: true
+    };
 
-let server: StartedTestServer;
-let cronService: CronService;
-let cronJobRepo: Repository<CronJobEntity, CreateCronJobEntityData>;
+    override onTick(): void {}
+}
 
-beforeAll(async () => {
-    server = await startTestServer({
-        dataSources: [
-            createTestDataSource({
-                entities: [...defaultTestServerEntities, CronJobEntity]
-            })
-        ],
-        controllers: [],
-        cronJobs: []
+// Every describe below needs the real server/DI state set up here — wrapped in one outer describe so
+// these hooks are scoped to it (Jest cascades beforeEach/beforeAll to nested describes, not to sibling
+// ones declared elsewhere in the file), keeping the unrelated, server-free CronExpression tests below
+// completely unaffected by any of it — including by afterAppInit's reInit() call further down, which
+// invalidates every previously-injected reference.
+describe('CronService / CronJob — real server', () => {
+    let server: StartedTestServer;
+    let cronService: CronService;
+    let cronJobRepo: Repository<CronJobEntity, CreateCronJobEntityData>;
+
+    beforeAll(async () => {
+        server = await startTestServer({
+            dataSources: [
+                createTestDataSource({
+                    entities: [...defaultTestServerEntities, CronJobEntity]
+                })
+            ],
+            controllers: [],
+            cronJobs: []
+        });
+        await server.start();
+        cronService = inject(CronService);
+        cronJobRepo = inject(repositoryTokenFor(CronJobEntity));
+    }, 15000);
+
+    afterAll(async () => {
+        await server.shutdown();
+    }, 15000);
+
+    beforeEach(async () => {
+        await cronJobRepo.deleteAll({});
+        // Stop and clear all cron jobs between tests
+        for (const job of cronService.cronJobs) {
+            await job.shutdown();
+        }
+        cronService.cronJobs.length = 0;
     });
-    await server.start();
-    cronService = inject(CronService);
-    cronJobRepo = inject(repositoryTokenFor(CronJobEntity));
-}, 15000);
 
-afterAll(async () => {
-    await server.shutdown();
-});
+    // ---------- Tests ----------
 
-beforeEach(async () => {
-    await cronJobRepo.deleteAll({});
-    // Stop and clear all cron jobs between tests
-    for (const job of cronService.cronJobs) {
-        await job.shutdown();
-    }
-    cronService.cronJobs.length = 0;
-});
+    describe('CronJob initialization', () => {
+        it('creates a new entity in the DB when none exists', async () => {
+            const job: CronJob = makeCronJob({ name: 'init-test', syncToDataSource: true, runOnInit: false });
+            await cronService.schedule(job);
 
-// ---------- Tests ----------
-
-describe('CronJob initialization', () => {
-    it('creates a new entity in the DB when none exists', async () => {
-        const job: CronJob = makeCronJob({ name: 'init-test', syncToDataSource: true, runOnInit: false });
-        await cronService.schedule(job);
-
-        const entity: CronJobEntity | undefined = await cronJobRepo.findOne({ where: { name: 'init-test' } }, false);
-        expect(entity).toBeDefined();
-        expect(entity?.name).toBe('init-test');
-        expect(entity?.active).toBe(true);
-    });
-
-    it('reuses an existing entity from the DB', async () => {
-        // Pre-create entity with active: false
-        await cronJobRepo.create({
-            name: 'reuse-test',
-            cron: CronExpression.every(1, 'minutes').build(),
-            active: false,
-            runOnInit: false,
-            stopOnError: true,
-            lastRun: undefined,
-            errorMessage: undefined
+            const entity: CronJobEntity | undefined = await cronJobRepo.findOne({ where: { name: 'init-test' } }, false);
+            expect(entity).toBeDefined();
+            expect(entity?.name).toBe('init-test');
+            expect(entity?.active).toBe(true);
         });
 
-        const job: CronJob = makeCronJob({ name: 'reuse-test', syncToDataSource: true, runOnInit: false });
-        await cronService.schedule(job);
+        it('reuses an existing entity from the DB', async () => {
+            // Pre-create entity with active: false
+            await cronJobRepo.create({
+                name: 'reuse-test',
+                cron: CronExpression.every(1, 'minutes').build(),
+                active: false,
+                runOnInit: false,
+                stopOnError: true,
+                lastRun: undefined,
+                errorMessage: undefined
+            });
 
-        // Should have picked up active: false from DB, not defaulted to true
-        expect(job.active).toBe(false);
+            const job: CronJob = makeCronJob({ name: 'reuse-test', syncToDataSource: true, runOnInit: false });
+            await cronService.schedule(job);
 
-        // Should not have created a duplicate
-        const entities: CronJobEntity[] = await cronJobRepo.findAll({ where: { name: 'reuse-test' } });
-        expect(entities).toHaveLength(1);
-    });
+            // Should have picked up active: false from DB, not defaulted to true
+            expect(job.active).toBe(false);
 
-    it('calls onTick immediately when runOnInit is true', async () => {
-        // eslint-disable-next-line typescript/typedef
-        const onTickImpl = jest.fn(noOp);
-        const job: CronJob = makeCronJob({ name: 'run-on-init', runOnInit: true, syncToDataSource: false, onTickImpl });
-        await cronService.schedule(job);
-
-        expect(onTickImpl).toHaveBeenCalledTimes(1);
-    });
-
-    it('does not call onTick on init when runOnInit is false', async () => {
-        // eslint-disable-next-line typescript/typedef
-        const onTickImpl = jest.fn(noOp);
-        const job: CronJob = makeCronJob({ name: 'no-run-on-init', runOnInit: false, syncToDataSource: false, onTickImpl });
-        await cronService.schedule(job);
-
-        expect(onTickImpl).not.toHaveBeenCalled();
-    });
-
-    it('throws if initialized twice', async () => {
-        const job: CronJob = makeCronJob({ name: 'double-init', syncToDataSource: false, runOnInit: false });
-        await cronService.schedule(job);
-
-        await expect(
-            cronService.schedule(job)
-        ).rejects.toThrow('already been initialized');
-    });
-});
-
-describe('CronJob tick behavior', () => {
-    it('calls onTick and updates lastRun', async () => {
-        // eslint-disable-next-line typescript/typedef
-        const onTickImpl = jest.fn(noOp);
-        const job: CronJob = makeCronJob({ name: 'tick-test', syncToDataSource: true, runOnInit: false, onTickImpl });
-        await cronService.schedule(job);
-
-        await job.runOnTick();
-
-        expect(onTickImpl).toHaveBeenCalledTimes(1);
-        expect(job['entity']?.lastRun).toBeInstanceOf(Date);
-    });
-
-    it('persists lastRun to DB when syncToDataSource is true', async () => {
-        const job: CronJob = makeCronJob({ name: 'tick-persist', syncToDataSource: true, runOnInit: false });
-        await cronService.schedule(job);
-
-        await job.runOnTick();
-
-        const entity: CronJobEntity | undefined = await cronJobRepo.findOne({ where: { name: 'tick-persist' } }, false);
-        expect(entity?.lastRun).toBeInstanceOf(Date);
-    });
-
-    it('does not persist lastRun to DB when syncToDataSource is false', async () => {
-        const job: CronJob = makeCronJob({ name: 'tick-no-persist', syncToDataSource: false, runOnInit: false });
-        await cronService.schedule(job);
-
-        await job.runOnTick();
-
-        // No entity should exist in the DB
-        const entity: CronJobEntity | undefined = await cronJobRepo.findOne({ where: { name: 'tick-no-persist' } }, false);
-        expect(entity).toBeUndefined();
-    });
-});
-
-describe('CronJob error behavior', () => {
-    it('sets errorMessage when onTick throws', async () => {
-        const job: CronJob = makeCronJob({
-            name: 'error-test',
-            syncToDataSource: false,
-            runOnInit: false,
-            stopOnError: false,
-            onTickImpl: () => {
-                throw new Error('boom');
-            }
+            // Should not have created a duplicate
+            const entities: CronJobEntity[] = await cronJobRepo.findAll({ where: { name: 'reuse-test' } });
+            expect(entities).toHaveLength(1);
         });
-        await cronService.schedule(job);
 
-        await job.runOnTick();
+        it('calls onTick immediately when runOnInit is true', async () => {
+            // eslint-disable-next-line typescript/typedef
+            const onTickImpl = jest.fn(noOp);
+            const job: CronJob = makeCronJob({ name: 'run-on-init', runOnInit: true, syncToDataSource: false, onTickImpl });
+            await cronService.schedule(job);
 
-        expect(job['entity']?.errorMessage).toContain('boom');
-    });
-
-    it('disables the job when stopOnError is true and onTick throws', async () => {
-        const job: CronJob = makeCronJob({
-            name: 'stop-on-error',
-            syncToDataSource: false,
-            runOnInit: false,
-            stopOnError: true,
-            onTickImpl: () => {
-                throw new Error('fatal');
-            }
+            expect(onTickImpl).toHaveBeenCalledTimes(1);
         });
-        await cronService.schedule(job);
 
-        await job.runOnTick();
+        it('does not call onTick on init when runOnInit is false', async () => {
+            // eslint-disable-next-line typescript/typedef
+            const onTickImpl = jest.fn(noOp);
+            const job: CronJob = makeCronJob({ name: 'no-run-on-init', runOnInit: false, syncToDataSource: false, onTickImpl });
+            await cronService.schedule(job);
 
-        expect(job.active).toBe(false);
-    });
-
-    it('does not disable the job when stopOnError is false and onTick throws', async () => {
-        const job: CronJob = makeCronJob({
-            name: 'no-stop-on-error',
-            syncToDataSource: false,
-            runOnInit: false,
-            stopOnError: false,
-            onTickImpl: () => {
-                throw new Error('non-fatal');
-            }
+            expect(onTickImpl).not.toHaveBeenCalled();
         });
-        await cronService.schedule(job);
 
-        await job.runOnTick();
+        it('throws if initialized twice', async () => {
+            const job: CronJob = makeCronJob({ name: 'double-init', syncToDataSource: false, runOnInit: false });
+            await cronService.schedule(job);
 
-        expect(job.active).toBe(true);
-    });
-
-    it('persists errorMessage to DB when syncToDataSource is true', async () => {
-        const job: CronJob = makeCronJob({
-            name: 'error-persist',
-            syncToDataSource: true,
-            runOnInit: false,
-            stopOnError: false,
-            onTickImpl: () => {
-                throw new Error('db-error');
-            }
+            await expect(
+                cronService.schedule(job)
+            ).rejects.toThrow('already been initialized');
         });
-        await cronService.schedule(job);
-
-        await job.runOnTick();
-
-        const entity: CronJobEntity | undefined = await cronJobRepo.findOne({ where: { name: 'error-persist' } }, false);
-        expect(entity?.errorMessage).toContain('db-error');
-    });
-});
-
-describe('CronJob enable/disable', () => {
-    it('disable sets active to false', async () => {
-        const job: CronJob = makeCronJob({ name: 'disable-test', syncToDataSource: false, runOnInit: false });
-        await cronService.schedule(job);
-
-        await job.disable();
-
-        expect(job.active).toBe(false);
     });
 
-    it('enable sets active to true after disable', async () => {
-        const job: CronJob = makeCronJob({ name: 'enable-test', syncToDataSource: false, runOnInit: false });
-        await cronService.schedule(job);
+    describe('CronJob tick behavior', () => {
+        it('calls onTick and updates lastRun', async () => {
+            // eslint-disable-next-line typescript/typedef
+            const onTickImpl = jest.fn(noOp);
+            const job: CronJob = makeCronJob({ name: 'tick-test', syncToDataSource: true, runOnInit: false, onTickImpl });
+            await cronService.schedule(job);
 
-        await job.disable();
-        await job.enable();
+            await job.runOnTick();
 
-        expect(job.active).toBe(true);
+            expect(onTickImpl).toHaveBeenCalledTimes(1);
+            expect(job['entity']?.lastRun).toBeInstanceOf(Date);
+        });
+
+        it('persists lastRun to DB when syncToDataSource is true', async () => {
+            const job: CronJob = makeCronJob({ name: 'tick-persist', syncToDataSource: true, runOnInit: false });
+            await cronService.schedule(job);
+
+            await job.runOnTick();
+
+            const entity: CronJobEntity | undefined = await cronJobRepo.findOne({ where: { name: 'tick-persist' } }, false);
+            expect(entity?.lastRun).toBeInstanceOf(Date);
+        });
+
+        it('does not persist lastRun to DB when syncToDataSource is false', async () => {
+            const job: CronJob = makeCronJob({ name: 'tick-no-persist', syncToDataSource: false, runOnInit: false });
+            await cronService.schedule(job);
+
+            await job.runOnTick();
+
+            // No entity should exist in the DB
+            const entity: CronJobEntity | undefined = await cronJobRepo.findOne({ where: { name: 'tick-no-persist' } }, false);
+            expect(entity).toBeUndefined();
+        });
     });
 
-    it('persists active state to DB on disable', async () => {
-        const job: CronJob = makeCronJob({ name: 'disable-persist', syncToDataSource: true, runOnInit: false });
-        await cronService.schedule(job);
+    describe('CronJob error behavior', () => {
+        it('sets errorMessage when onTick throws', async () => {
+            const job: CronJob = makeCronJob({
+                name: 'error-test',
+                syncToDataSource: false,
+                runOnInit: false,
+                stopOnError: false,
+                onTickImpl: () => {
+                    throw new Error('boom');
+                }
+            });
+            await cronService.schedule(job);
 
-        await job.disable();
+            await job.runOnTick();
 
-        const entity: CronJobEntity | undefined = await cronJobRepo.findOne({ where: { name: 'disable-persist' } }, false);
-        expect(entity?.active).toBe(false);
+            expect(job['entity']?.errorMessage).toContain('boom');
+        });
+
+        it('disables the job when stopOnError is true and onTick throws', async () => {
+            const job: CronJob = makeCronJob({
+                name: 'stop-on-error',
+                syncToDataSource: false,
+                runOnInit: false,
+                stopOnError: true,
+                onTickImpl: () => {
+                    throw new Error('fatal');
+                }
+            });
+            await cronService.schedule(job);
+
+            await job.runOnTick();
+
+            expect(job.active).toBe(false);
+        });
+
+        it('does not disable the job when stopOnError is false and onTick throws', async () => {
+            const job: CronJob = makeCronJob({
+                name: 'no-stop-on-error',
+                syncToDataSource: false,
+                runOnInit: false,
+                stopOnError: false,
+                onTickImpl: () => {
+                    throw new Error('non-fatal');
+                }
+            });
+            await cronService.schedule(job);
+
+            await job.runOnTick();
+
+            expect(job.active).toBe(true);
+        });
+
+        it('persists errorMessage to DB when syncToDataSource is true', async () => {
+            const job: CronJob = makeCronJob({
+                name: 'error-persist',
+                syncToDataSource: true,
+                runOnInit: false,
+                stopOnError: false,
+                onTickImpl: () => {
+                    throw new Error('db-error');
+                }
+            });
+            await cronService.schedule(job);
+
+            await job.runOnTick();
+
+            const entity: CronJobEntity | undefined = await cronJobRepo.findOne({ where: { name: 'error-persist' } }, false);
+            expect(entity?.errorMessage).toContain('db-error');
+        });
     });
 
-    it('persists active state to DB on enable', async () => {
-        const job: CronJob = makeCronJob({ name: 'enable-persist', syncToDataSource: true, runOnInit: false });
-        await cronService.schedule(job);
+    describe('CronJob enable/disable', () => {
+        it('disable sets active to false', async () => {
+            const job: CronJob = makeCronJob({ name: 'disable-test', syncToDataSource: false, runOnInit: false });
+            await cronService.schedule(job);
 
-        await job.disable();
-        await job.enable();
+            await job.disable();
 
-        const entity: CronJobEntity | undefined = await cronJobRepo.findOne({ where: { name: 'enable-persist' } }, false);
-        expect(entity?.active).toBe(true);
-    });
-});
+            expect(job.active).toBe(false);
+        });
 
-describe('CronService', () => {
-    it('schedule adds the job to cronJobs', async () => {
-        const job: CronJob = makeCronJob({ name: 'schedule-test', syncToDataSource: false, runOnInit: false });
-        await cronService.schedule(job);
+        it('enable sets active to true after disable', async () => {
+            const job: CronJob = makeCronJob({ name: 'enable-test', syncToDataSource: false, runOnInit: false });
+            await cronService.schedule(job);
 
-        expect(cronService.cronJobs).toContain(job);
-    });
+            await job.disable();
+            await job.enable();
 
-    it('enable enables a job by name', async () => {
-        const job: CronJob = makeCronJob({ name: 'service-enable', syncToDataSource: false, runOnInit: false });
-        await cronService.schedule(job);
-        await job.disable();
+            expect(job.active).toBe(true);
+        });
 
-        await cronService.enable('service-enable');
+        it('persists active state to DB on disable', async () => {
+            const job: CronJob = makeCronJob({ name: 'disable-persist', syncToDataSource: true, runOnInit: false });
+            await cronService.schedule(job);
 
-        expect(job.active).toBe(true);
-    });
+            await job.disable();
 
-    it('disable disables a job by name', async () => {
-        const job: CronJob = makeCronJob({ name: 'service-disable', syncToDataSource: false, runOnInit: false });
-        await cronService.schedule(job);
+            const entity: CronJobEntity | undefined = await cronJobRepo.findOne({ where: { name: 'disable-persist' } }, false);
+            expect(entity?.active).toBe(false);
+        });
 
-        await cronService.disable('service-disable');
+        it('persists active state to DB on enable', async () => {
+            const job: CronJob = makeCronJob({ name: 'enable-persist', syncToDataSource: true, runOnInit: false });
+            await cronService.schedule(job);
 
-        expect(job.active).toBe(false);
-    });
+            await job.disable();
+            await job.enable();
 
-    it('enable throws when job is not found', async () => {
-        await expect(cronService.enable('nonexistent')).rejects.toThrow('Could not find cron job with name "nonexistent"');
-    });
-
-    it('disable throws when job is not found', async () => {
-        await expect(cronService.disable('nonexistent')).rejects.toThrow('Could not find cron job with name "nonexistent"');
+            const entity: CronJobEntity | undefined = await cronJobRepo.findOne({ where: { name: 'enable-persist' } }, false);
+            expect(entity?.active).toBe(true);
+        });
     });
 
-    it('changeCron throws when job is not found', async () => {
-        await expect(
-            cronService.changeCron('nonexistent', CronExpression.every(5, 'minutes').build())
-        ).rejects.toThrow('Could not find cron job with name "nonexistent"');
+    describe('CronService', () => {
+        it('schedule adds the job to cronJobs', async () => {
+            const job: CronJob = makeCronJob({ name: 'schedule-test', syncToDataSource: false, runOnInit: false });
+            await cronService.schedule(job);
+
+            expect(cronService.cronJobs).toContain(job);
+        });
+
+        it('enable enables a job by name', async () => {
+            const job: CronJob = makeCronJob({ name: 'service-enable', syncToDataSource: false, runOnInit: false });
+            await cronService.schedule(job);
+            await job.disable();
+
+            await cronService.enable('service-enable');
+
+            expect(job.active).toBe(true);
+        });
+
+        it('disable disables a job by name', async () => {
+            const job: CronJob = makeCronJob({ name: 'service-disable', syncToDataSource: false, runOnInit: false });
+            await cronService.schedule(job);
+
+            await cronService.disable('service-disable');
+
+            expect(job.active).toBe(false);
+        });
+
+        it('enable throws when job is not found', async () => {
+            await expect(cronService.enable('nonexistent')).rejects.toThrow('Could not find cron job with name "nonexistent"');
+        });
+
+        it('disable throws when job is not found', async () => {
+            await expect(cronService.disable('nonexistent')).rejects.toThrow('Could not find cron job with name "nonexistent"');
+        });
+
+        it('changeCron throws when job is not found', async () => {
+            await expect(
+                cronService.changeCron('nonexistent', CronExpression.every(5, 'minutes').build())
+            ).rejects.toThrow('Could not find cron job with name "nonexistent"');
+        });
+
+        it('changeCron updates the cron expression', async () => {
+            const job: CronJob = makeCronJob({ name: 'change-cron', syncToDataSource: true, runOnInit: false });
+            await cronService.schedule(job);
+
+            const newCron: CronExpressionString = CronExpression.every(10, 'minutes').build();
+            await cronService.changeCron('change-cron', newCron);
+
+            const entity: CronJobEntity | undefined = await cronJobRepo.findOne({ where: { name: 'change-cron' } }, false);
+            expect(entity?.cron).toBe(newCron);
+        });
+
+        it('update throws when job is not found', async () => {
+            await expect(cronService.update('nonexistent', { name: 'other' })).rejects.toThrow('Could not find cron job with name "nonexistent"');
+        });
+
+        it('update applies data to the job', async () => {
+            const job: CronJob = makeCronJob({ name: 'update-test', syncToDataSource: true, runOnInit: false });
+            await cronService.schedule(job);
+
+            await cronService.update('update-test', { runOnInit: false, stopOnError: false });
+
+            const entity: CronJobEntity | undefined = await cronJobRepo.findOne({ where: { name: 'update-test' } }, false);
+            expect(entity?.stopOnError).toBe(false);
+        });
+
+        it('update throws when renaming to an already-used name', async () => {
+            const job1: CronJob = makeCronJob({ name: 'taken-name', syncToDataSource: false, runOnInit: false });
+            const job2: CronJob = makeCronJob({ name: 'rename-source', syncToDataSource: false, runOnInit: false });
+            await cronService.schedule(job1);
+            await cronService.schedule(job2);
+
+            await expect(cronService.update('rename-source', { name: 'taken-name' })).rejects.toThrow();
+        });
     });
 
-    it('changeCron updates the cron expression', async () => {
-        const job: CronJob = makeCronJob({ name: 'change-cron', syncToDataSource: true, runOnInit: false });
-        await cronService.schedule(job);
+    describe('CronService.afterAppInit — auto-registration from ZibriApplicationOptions.cronJobs', () => {
+        // reInit() re-initializes the *same* running app/container with different options, reusing the
+        // existing container rather than starting a second, independent one (which would fail — see the
+        // comment on the outer describe). Placed last in this file: it invalidates every previously
+        // injected reference, including this describe's own outer cronService/cronJobRepo — both assertions
+        // live in one test so no beforeEach runs against those stale references in between.
+        //
+        // The test server's default CRON_SERVICE provider replaces CronService with a plain mock object
+        // (see defaultTestServerProviders) so that the rest of this file can inject a lazily-constructed
+        // CronService directly without going through afterAppInit. That mock has no afterAppInit method and
+        // is never part of the app's eager-token snapshot, so the framework's real auto-registration lifecycle
+        // never runs against it. Restoring the real class for this one token, for this one reInit call, is
+        // what makes that lifecycle observable end-to-end.
+        //
+        // Once the real CronService is wired back in, several other default services (Logger, EmailService,
+        // RateLimitingService, EventService, PrometheusMetricsService, FormDataBodyParser, JwtAuthStrategy)
+        // also push their own built-in maintenance cron jobs into options.cronJobs from their onAppInit/init
+        // hooks, which run before CronService.afterAppInit reads that array. So cronJobs ends up containing
+        // AutoRegisteredCronJob alongside those framework built-ins — assert containment, not an exact count.
+        it('registers, injects and initializes every class in options.cronJobs on boot, and guards against a second call', async () => {
+            await server.reInit({
+                cronJobs: [AutoRegisteredCronJob],
+                providers: [
+                    ...defaultTestServerProviders.filter((provider) => provider.token !== ZIBRI_DI_TOKENS.CRON_SERVICE),
+                    defineProvider({ token: ZIBRI_DI_TOKENS.CRON_SERVICE, useClass: CronService })
+                ]
+            });
 
-        const newCron: CronExpressionString = CronExpression.every(10, 'minutes').build();
-        await cronService.changeCron('change-cron', newCron);
+            // proves register() ran: the class resolves through the real DI container, not just a manual `new`
+            const injected: AutoRegisteredCronJob = inject(AutoRegisteredCronJob);
+            expect(injected).toBeInstanceOf(AutoRegisteredCronJob);
 
-        const entity: CronJobEntity | undefined = await cronJobRepo.findOne({ where: { name: 'change-cron' } }, false);
-        expect(entity?.cron).toBe(newCron);
-    });
+            const autoCronService: CronService = inject(CronService);
+            expect(autoCronService.cronJobs).toContain(injected);
+            // proves init() actually ran: .active throws on an un-initialized job (see CronJobNotInitializedError)
+            expect(injected.active).toBe(true);
 
-    it('update throws when job is not found', async () => {
-        await expect(cronService.update('nonexistent', { name: 'other' })).rejects.toThrow('Could not find cron job with name "nonexistent"');
-    });
+            const autoCronJobRepo: Repository<CronJobEntity, CreateCronJobEntityData> = inject(repositoryTokenFor(CronJobEntity));
+            const entity: CronJobEntity | undefined = await autoCronJobRepo.findOne({ where: { name: 'auto-registered-job' } }, false);
+            expect(entity).toBeDefined();
 
-    it('update applies data to the job', async () => {
-        const job: CronJob = makeCronJob({ name: 'update-test', syncToDataSource: true, runOnInit: false });
-        await cronService.schedule(job);
-
-        await cronService.update('update-test', { runOnInit: false, stopOnError: false });
-
-        const entity: CronJobEntity | undefined = await cronJobRepo.findOne({ where: { name: 'update-test' } }, false);
-        expect(entity?.stopOnError).toBe(false);
-    });
-
-    it('update throws when renaming to an already-used name', async () => {
-        const job1: CronJob = makeCronJob({ name: 'taken-name', syncToDataSource: false, runOnInit: false });
-        const job2: CronJob = makeCronJob({ name: 'rename-source', syncToDataSource: false, runOnInit: false });
-        await cronService.schedule(job1);
-        await cronService.schedule(job2);
-
-        await expect(cronService.update('rename-source', { name: 'taken-name' })).rejects.toThrow();
+            // afterAppInit only reads `options.cronJobs` off the passed app — a minimal fixture is enough to
+            // exercise the "already initialized" guard without needing a second full ZibriApplication boot.
+            const fakeApp: ZibriApplication = { options: { cronJobs: [] } } as unknown as ZibriApplication;
+            await expect(autoCronService.afterAppInit(fakeApp)).rejects.toThrow('already been initialized');
+        }, 15000);
     });
 });
 

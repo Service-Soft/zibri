@@ -3,7 +3,7 @@ import { ReadableStream as NodeReadableStream } from 'node:stream/web';
 
 import { HttpClientResponse, HttpClientResponseForBodyType } from './http-client-response.model';
 import { HttpClientError, HttpClientErrorOptions } from './http-client.error';
-import { HttpClientHeaderValue, HttpClientInterface, HttpOptionsInput } from './http-client.interface';
+import { HttpClientHeaderValue, HttpClientInterface, HttpOptionsInput, RequestBodyMimeType } from './http-client.interface';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
@@ -11,12 +11,14 @@ import { InternalError } from '../error-handling/internal-error.model';
 import { HttpMethod } from '../http/http-method.enum';
 import { KnownHeader } from '../http/known-header.enum';
 import { MimeType } from '../http/mime-type.enum';
+import { warn } from '../logging/logger.helpers';
 import { type ParserInterface } from '../parsing/parser.interface';
 import { BodyMetadata, resolveMaxBodySize } from '../routing/decorators/body.decorator';
 import { HeaderParamMetadata, HeaderParamMetadataInput } from '../routing/decorators/param.decorator';
 import { createHeaderParamMetadata } from '../routing/param-metdata.helpers';
 import { HeaderMetaObjectToParamsObject, HeaderMetaInputObjectToMetaObject } from '../routing/route-configuration.model';
 import { Newable } from '../types/newable.type';
+import { JsonUtilities } from '../utilities/json.utilities';
 import { Ms } from '../utilities/ms';
 import { ObjectUtilities } from '../utilities/object.utilities';
 import { type ValidationServiceInterface } from '../validation/validation-service.interface';
@@ -42,6 +44,28 @@ const responseTypeForMimeType: Record<BodyMetadata['type'], ResponseType> = {
     // [MimeType.CSV]: 'stream',
     // [MimeType.XLSX]: 'stream',
     // [MimeType.DOCX]: 'stream'
+};
+
+/**
+ * Checks whether the given value is a mime type that HttpClient knows how to build a request body for.
+ * @param value - The value to check.
+ * @returns Whether the value is a supported request body mime type.
+ */
+function isRequestBodyMimeType(value: string): value is RequestBodyMimeType {
+    return value === MimeType.JSON
+        || value === MimeType.FORM_URL_ENCODED
+        || value === MimeType.FORM_DATA
+        || value === MimeType.OCTET_STREAM;
+}
+
+// eslint-disable-next-line jsdoc/require-jsdoc
+type RequestBodySerialization = 'json' | 'raw';
+
+const requestBodySerializationForMimeType: Record<RequestBodyMimeType, RequestBodySerialization> = {
+    [MimeType.JSON]: 'json',
+    [MimeType.FORM_URL_ENCODED]: 'raw',
+    [MimeType.FORM_DATA]: 'raw',
+    [MimeType.OCTET_STREAM]: 'raw'
 };
 
 /**
@@ -204,7 +228,7 @@ export class HttpClient implements HttpClientInterface {
             : undefined;
         const urlWithParams: string = queryString ? `${url}?${queryString}` : url;
 
-        const init: RequestInit = this.buildRequestInit(method, requestBody, options?.headers);
+        const init: RequestInit = this.buildRequestInit(method, requestBody, options?.headers, options?.requestBodyType);
 
         let fetchResponse: Response | undefined;
         let error: unknown;
@@ -353,10 +377,12 @@ export class HttpClient implements HttpClientInterface {
     private buildRequestInit(
         method: HttpMethod,
         body: unknown,
-        headers?: Record<string, HttpClientHeaderValue>
+        headers?: Record<string, HttpClientHeaderValue>,
+        requestBodyType: RequestBodyMimeType = this.resolveContentTypeHeader(headers, body)
     ): RequestInit {
         const init: RequestInit = {
-            method,
+            // fetch requires the canonical uppercase HTTP method token, unlike our lowercase HttpMethod enum values.
+            method: method.toUpperCase(),
             headers: headers as Record<string, string> | undefined
         };
 
@@ -364,19 +390,64 @@ export class HttpClient implements HttpClientInterface {
             return init;
         }
 
-        if (body instanceof FormData || body instanceof Blob || body instanceof ArrayBuffer || body instanceof ReadableStream) {
-            init.body = body;
+        const isPreEncoded: boolean = body instanceof FormData || body instanceof Blob
+            || body instanceof ArrayBuffer || body instanceof ReadableStream;
+        const serialization: RequestBodySerialization = requestBodySerializationForMimeType[requestBodyType];
+
+        if (serialization === 'json' && isPreEncoded) {
+            throw new InternalError(`Cannot send a ${(body as object).constructor.name} body with request body type "${requestBodyType}".`);
         }
-        else {
-            init.body = JSON.stringify(body);
-            const initHeaders: Headers = new Headers(init.headers as HeadersInit);
-            if (!initHeaders.has(KnownHeader.CONTENT_TYPE)) {
-                initHeaders.set(KnownHeader.CONTENT_TYPE, MimeType.JSON);
-            }
+        if (serialization === 'raw' && typeof body !== 'string' && !isPreEncoded) {
+            throw new InternalError(`Cannot send a plain object body with request body type "${requestBodyType}".`);
+        }
+
+        // fetch sets FormData's Content-Type itself (including the multipart boundary) — setting it
+        // manually here would strip that boundary and break parsing on the receiving end.
+        if (!(body instanceof FormData) && headers?.[KnownHeader.CONTENT_TYPE] == undefined) {
+            const initHeaders: Headers = new Headers(init.headers);
+            initHeaders.set(KnownHeader.CONTENT_TYPE, requestBodyType);
             init.headers = Object.fromEntries(initHeaders.entries());
         }
 
+        switch (serialization) {
+            case 'json': {
+                init.body = JsonUtilities.stringify(body);
+                break;
+            }
+            case 'raw': {
+                init.body = body as BodyInit;
+                break;
+            }
+        }
+
         return init;
+    }
+
+    /**
+     * Resolves the mime type that a request body should be sent as.
+     * Prefers an explicit Content-Type header, then infers one from the body's runtime type, defaulting to JSON.
+     * @param headers - The headers to resolve the mime type from if KnownHeader.CONTENT_TYPE is set.
+     * @param body - The body to resolve the mime type from.
+     * @returns The resolved mime type.
+     */
+    private resolveContentTypeHeader(headers: Record<string, HttpClientHeaderValue> | undefined, body: unknown): RequestBodyMimeType {
+        const headerValue: HttpClientHeaderValue = headers?.[KnownHeader.CONTENT_TYPE];
+        if (headerValue != undefined) {
+            const mimeType: string = headerValue.toString();
+            if (!isRequestBodyMimeType(mimeType)) {
+                warn(`Unsupported request body mime type "${mimeType}", defaults to MimeType.JSON`);
+                return MimeType.JSON;
+            }
+            return mimeType;
+        }
+
+        if (body instanceof FormData) {
+            return MimeType.FORM_DATA;
+        }
+        if (body instanceof Blob || body instanceof ArrayBuffer || body instanceof ReadableStream) {
+            return MimeType.OCTET_STREAM;
+        }
+        return MimeType.JSON;
     }
 
     private async sendRequest(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
@@ -393,7 +464,10 @@ export class HttpClient implements HttpClientInterface {
     private async readBody(response: Response, reader: ResponseType): Promise<unknown> {
         switch (reader) {
             case 'json': {
-                return await response.json();
+                // A successful response can still have an empty body (eg. 204 No Content), which
+                // response.json() cannot parse — treat that as "no body" instead of throwing.
+                const text: string = await response.text();
+                return text.length ? JsonUtilities.parse(text) : undefined;
             }
             case 'stream': {
                 if (!response.body) {
@@ -411,12 +485,15 @@ export class HttpClient implements HttpClientInterface {
         requestBody: unknown,
         requestHeaders?: Record<string, HttpClientHeaderValue>
     ): Promise<HttpClientError> {
+        // Read the body once as text: response.json() consumes the body stream even when parsing
+        // fails, which would make a subsequent response.text() throw "Body has already been read".
         let responseBody: unknown;
+        const rawText: string = await response.text();
         try {
-            responseBody = await response.json();
+            responseBody = JsonUtilities.parse(rawText);
         }
         catch {
-            responseBody = await response.text();
+            responseBody = rawText;
         }
 
         const options: HttpClientErrorOptions = {
