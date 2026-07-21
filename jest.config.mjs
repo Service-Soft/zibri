@@ -17,7 +17,8 @@ const config = {
         '/node_modules/',
         '/dist/',
         '/mock/',
-        '/sandbox/'
+        '/sandbox/',
+        '/src/__testing__/'
     ]
 };
 
