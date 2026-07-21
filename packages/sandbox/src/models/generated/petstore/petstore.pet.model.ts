@@ -1,6 +1,7 @@
-import { PetstoreTag } from './petstore.tag.model';
-import { PetstoreCategory } from './petstore.category.model';
 import { Property } from 'zibri';
+
+import { PetstoreCategory } from './petstore.category.model';
+import { PetstoreTag } from './petstore.tag.model';
 
 export class PetstorePet {
 
