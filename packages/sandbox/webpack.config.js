@@ -2,7 +2,7 @@
 const path = require('path');
 const { spawn } = require('child_process');
 const CopyPlugin = require('copy-webpack-plugin');
-const { generateHandlebarTypeFiles, generateEntityFiles, generateClientScripts, generateSourceXlf } = require('zibri');
+const { generateHandlebarTypeFiles, generateEntityFiles, generateClientScripts, generateSourceXlf, resolveZibriRoot } = require('zibri');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const { NormalModuleReplacementPlugin } = require('webpack');
 
@@ -59,7 +59,7 @@ class LocalizationPlugin {
     /** @type {import('webpack').WebpackPluginFunction } */
     apply(compiler) {
         compiler.hooks.beforeCompile.tapPromise('LocalizationPlugin', async () => {
-            const frameworkSrc = path.resolve(compiler.context, 'node_modules/zibri/src');
+            const frameworkSrc = path.join(resolveZibriRoot(), 'src');
             const projectSrc = path.resolve(compiler.context, 'src');
             await generateSourceXlf([
                 {

@@ -4,12 +4,17 @@ import { JsonUtilities } from '../utilities/json.utilities';
 
 /**
  * Resolves the root of the zibri package, no matter the runtime.
+ * @param resolvePackageJsonPath - Defaults to the real require.resolve, overridable in tests since
+ * self-referencing makes the default always succeed when called from inside this package.
  * @returns The path of the compiled zibri package.
  * @throws When the package could not be found.
  */
-export function resolveZibriRoot(): FsPath {
+export function resolveZibriRoot(resolvePackageJsonPath: () => string = () => require.resolve('zibri/package.json')): FsPath {
     try {
-        return FsUtilities.dirName(FsUtilities.getPath(require.resolve('zibri/package.json')));
+        // Bundlers (eg. webpack) that can statically resolve this call rewrite it to a module id (a number),
+        // not a path string, which makes getPath/dirName throw below and fall through to the manual walk.
+        // Keep the fallback even though require.resolve succeeds in plain (unbundled) Node.js.
+        return FsUtilities.dirName(FsUtilities.getPath(resolvePackageJsonPath()));
     }
     catch {
         // continue

@@ -14,7 +14,7 @@
     "dependencies": {
         "chart.js": "^4.5.1",
         "socket.io-client": "^4.8.3",
-        "zibri": "file:.."
+        "zibri": "*"
     },
     "devDependencies": {
         "autoprefixer": "^10.4.24",

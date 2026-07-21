@@ -53,6 +53,7 @@ export const EmailColumn: PreactEmailComponent<Props> = ({
     innerBackgroundColor,
     backgroundColor,
     cssClass = ''
+// eslint-disable-next-line sonar/cognitive-complexity
 }) => {
     const { width: sectionWidth, dir, textAlign } = useEmailContext();
 

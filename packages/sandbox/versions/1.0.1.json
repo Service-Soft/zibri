@@ -1,0 +1,170 @@
+{
+    "routes": [
+        {
+            "key": "GET /favicon.ico",
+            "versions": "all"
+        },
+        {
+            "key": "GET /explorer/spec/:version",
+            "versions": "all"
+        },
+        {
+            "key": "GET /explorer/swagger-ui.css",
+            "versions": "all"
+        },
+        {
+            "key": "GET /explorer/swagger-ui-bundle.js",
+            "versions": "all"
+        },
+        {
+            "key": "GET /explorer/swagger-ui-standalone-preset.js",
+            "versions": "all"
+        },
+        {
+            "key": "GET /explorer/swagger-ui-init.js",
+            "versions": "all"
+        },
+        {
+            "key": "GET /explorer/custom.js",
+            "versions": "all"
+        },
+        {
+            "key": "GET /explorer",
+            "versions": "all"
+        },
+        {
+            "key": "GET /tests/",
+            "versions": "all"
+        },
+        {
+            "key": "GET /tests/:id",
+            "versions": "all"
+        },
+        {
+            "key": "POST /tests/",
+            "versions": "all"
+        },
+        {
+            "key": "PATCH /tests/:id",
+            "versions": "all"
+        },
+        {
+            "key": "DELETE /tests/:id",
+            "versions": "all"
+        },
+        {
+            "key": "POST /files/",
+            "versions": "all"
+        },
+        {
+            "key": "GET /files/stream",
+            "versions": "all"
+        },
+        {
+            "key": "GET /templates/socket",
+            "versions": "all"
+        },
+        {
+            "key": "GET /templates/password-reset-mail",
+            "versions": "all"
+        },
+        {
+            "key": "GET /templates/log",
+            "versions": "all"
+        },
+        {
+            "key": "GET /cron/",
+            "versions": "all"
+        },
+        {
+            "key": "POST /cron/enable-status",
+            "versions": "all"
+        },
+        {
+            "key": "POST /cron/disable-status",
+            "versions": "all"
+        },
+        {
+            "key": "POST /auth/login",
+            "versions": "all"
+        },
+        {
+            "key": "POST /auth/refresh-login",
+            "versions": "all"
+        },
+        {
+            "key": "POST /auth/request-password-reset",
+            "versions": "all"
+        },
+        {
+            "key": "POST /auth/verify-password-reset-token",
+            "versions": "all"
+        },
+        {
+            "key": "POST /auth/confirm-password-reset",
+            "versions": "all"
+        },
+        {
+            "key": "POST /auth/logout",
+            "versions": "all"
+        },
+        {
+            "key": "GET /metrics/",
+            "versions": "all"
+        },
+        {
+            "key": "GET /metrics/dashboard",
+            "versions": "all"
+        },
+        {
+            "key": "POST /tests-crud/",
+            "versions": "all"
+        },
+        {
+            "key": "GET /tests-crud/",
+            "versions": "all"
+        },
+        {
+            "key": "GET /tests-crud/:id",
+            "versions": "all"
+        },
+        {
+            "key": "PATCH /tests-crud/:id",
+            "versions": "all"
+        },
+        {
+            "key": "GET /tests-crud/password-reset-mail",
+            "versions": "all"
+        },
+        {
+            "key": "GET /",
+            "versions": "all"
+        },
+        {
+            "key": "GET /assets",
+            "versions": "all"
+        },
+        {
+            "key": "GET /mailing-lists/:id/subscribe/:token",
+            "versions": "all"
+        },
+        {
+            "key": "GET /mailing-lists/:id/unsubscribe",
+            "versions": "all"
+        },
+        {
+            "key": "GET /mailing-lists/preferences",
+            "versions": "all"
+        },
+        {
+            "key": "PATCH /mailing-lists/preferences",
+            "versions": "all"
+        },
+        {
+            "key": "chat message",
+            "versions": "all"
+        }
+    ],
+    "startsAt": "2026-05-27T08:19:29.305Z",
+    "value": "1.0.1"
+}

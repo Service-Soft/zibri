@@ -139,6 +139,7 @@ export const EmailButton: PreactEmailComponent<Props> = ({
                             style={tableStyle}
                             role="presentation"
                         >
+                            {/* eslint-disable-next-line cspell/spellchecker */}
                             {'<!--[if mso | IE]><v:roundrect...'}
                             {'<!--[if !mso]><!-->'}
                             <a href={href} rel={rel} target={target} style={anchorStyle}>

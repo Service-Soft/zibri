@@ -96,6 +96,7 @@ export const EmailImage: PreactEmailComponent<Props> = ({
         {containerBackgroundColor
             ? `<!--[if mso | IE]><td class="${cssClass}" style="background:${containerBackgroundColor};"><![endif]-->`
             : ''}
+        {/* eslint-disable-next-line stylistic/max-len */}
         {`<!--[if mso | IE]><table align="${align}" border="0" cellpadding="0" cellspacing="0" class="${cssClass}" role="presentation" style="width:${msoWidth};" width="${widthNum ?? width}"><tr><td style="${tdStyle}"><![endif]-->`}
         <table
             {...{ align, border: '0' }}

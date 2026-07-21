@@ -173,6 +173,7 @@ export * from './error-handling/errors/unsupported-media-type.error';
 // assets
 export * from './assets/asset-service.interface';
 export * from './assets/asset.service';
+export * from './assets/resolve-zibri-root.function';
 
 // global
 export * from './global/app-state.enum';

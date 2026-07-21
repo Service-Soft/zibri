@@ -94,7 +94,7 @@ export interface CacheInterface<K, V, CacheTag extends string, WriteResultAvaila
  * The type for any unspecified cache.
  */
 // eslint-disable-next-line typescript/no-explicit-any, stylistic/max-len
-export type AnyCache = MultiTierCache<any, any, any> | CacheInterface<any, any, string, true, any> | CacheInterface<any, any, string, false, any>;
+export type AnyCache = MultiTierCache<any, any, any> | CacheInterface<any, any, string, true, string> | CacheInterface<any, any, string, false, string>;
 
 /**
  * Checks whether or not the given value is a cache.

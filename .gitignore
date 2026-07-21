@@ -2,8 +2,8 @@ node_modules
 dist
 coverage
 *.hbs.ts
-docs/generated
+packages/zibri/docs/generated
 file-output
 .vscode
-src/di/default/temp
+packages/zibri/src/di/default/temp
 .env

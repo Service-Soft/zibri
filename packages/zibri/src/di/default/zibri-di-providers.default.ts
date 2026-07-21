@@ -59,7 +59,7 @@ const maxThreads: number = Math.max(1, availableThreads - 1);
 const maxPriorityThreads: number = availableThreads <= 1 ? 0 : 1;
 
 export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> = {
-    ZIBRI_PACKAGE_ROOT: { useFactory: resolveZibriRoot },
+    ZIBRI_PACKAGE_ROOT: { useFactory: () => resolveZibriRoot() },
     ROUTER: { useClass: Router },
     LOGGER: { useClass: Logger },
     LOGGER_TRANSPORTS: {

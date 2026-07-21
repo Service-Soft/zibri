@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /* eslint-disable typescript/no-non-null-assertion */
 import { io, Socket } from 'socket.io-client?client';
 import { onClient, PreactComponent, WebsocketSendDataMessage } from 'zibri';
@@ -38,11 +39,15 @@ export const SocketIoTestPage: PreactComponent<Props> = ({ primary, secondary }:
             item.style.wordBreak = 'break-all';
             item.style.color = 'whitesmoke';
 
-            item.innerHTML = `
-            <div>${msg.data.message}</div>
-            <div>senderConnectionId: ${msg.senderConnectionId}</div>
-            <div>senderUserId: ${msg.senderUserId}</div>
-        `;
+            item.innerHTML = [
+                // eslint-disable-next-line typescript/no-unsafe-member-access
+                `<div>${msg.data.message}</div>`,
+                // eslint-disable-next-line typescript/no-unsafe-member-access
+                `<div>senderConnectionId: ${msg.senderConnectionId}</div>`,
+                // eslint-disable-next-line typescript/no-unsafe-member-access
+                `<div>senderUserId: ${msg.senderUserId}</div>`
+            ].join('\n');
+            // eslint-disable-next-line typescript/no-unsafe-member-access
             if (msg.senderConnectionId === socket.id) {
                 item.style.backgroundColor = secondary;
                 item.style.marginLeft = 'auto';
@@ -54,22 +59,28 @@ export const SocketIoTestPage: PreactComponent<Props> = ({ primary, secondary }:
             messages.appendChild(item);
             window.scrollTo(0, document.body.scrollHeight);
             if (typeof ack === 'function') {
+                // eslint-disable-next-line typescript/no-unsafe-call
                 ack();
             }
         });
 
-        socket.onAny((ev, msg, ack) => {
+        // eslint-disable-next-line unusedImports/no-unused-vars
+        socket.onAny((ev, msg, _ack) => {
             console.debug('got a new message:', ev, msg, '\n');
             if (typeof socket.auth === 'function') {
                 return;
             }
+            // eslint-disable-next-line typescript/no-unsafe-member-access
             if (msg.seq > socket.auth.offset) {
+                // eslint-disable-next-line typescript/no-unsafe-assignment, typescript/no-unsafe-member-access
                 socket.auth.offset = msg.seq;
+                // eslint-disable-next-line typescript/no-unsafe-member-access
                 console.debug('set offset to', msg.seq);
             }
         });
     });
 
+    // eslint-disable-next-line unusedImports/no-unused-vars
     function closeDialog(): void {
         errorParagraphs.replaceChildren();
         dialog.close();
@@ -86,6 +97,7 @@ export const SocketIoTestPage: PreactComponent<Props> = ({ primary, secondary }:
             return;
         }
 
+        // eslint-disable-next-line typescript/no-unsafe-assignment
         const response: WebsocketSendDataMessage = await socket.timeout(3000)
             .emitWithAck(
                 'chat message',

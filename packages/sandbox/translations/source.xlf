@@ -549,23 +549,23 @@
           <x id="this.otpHeader" equiv-text="{this.otpHeader}"/>
           " header not found
         </source>
-        <note>node_modules/zibri/src/auth/2fa/methods/otp/otp.two-factor-method.ts:90</note>
+        <note>../zibri/src/auth/2fa/methods/otp/otp.two-factor-method.ts:90</note>
       </trans-unit>
       <trans-unit id="A password reset has already been requested for this account." xml:space="preserve">
         <source>A password reset has already been requested for this account.</source>
-        <note>node_modules/zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:248, node_modules/zibri/src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:352</note>
+        <note>../zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:248, ../zibri/src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:352</note>
       </trans-unit>
       <trans-unit id="April" xml:space="preserve">
         <source>April</source>
-        <note>node_modules/zibri/src/localization/models/month.enum.ts:28</note>
+        <note>../zibri/src/localization/models/month.enum.ts:28</note>
       </trans-unit>
       <trans-unit id="August" xml:space="preserve">
         <source>August</source>
-        <note>node_modules/zibri/src/localization/models/month.enum.ts:32</note>
+        <note>../zibri/src/localization/models/month.enum.ts:32</note>
       </trans-unit>
       <trans-unit id="Bad Request" xml:space="preserve">
         <source>Bad Request</source>
-        <note>node_modules/zibri/src/error-handling/errors/bad-request.error.ts:11</note>
+        <note>../zibri/src/error-handling/errors/bad-request.error.ts:11</note>
       </trans-unit>
       <trans-unit id="cannot not change the cron jobs name from &quot;{foundJob.name}&quot; to &quot;{data.name}&quot;:" xml:space="preserve">
         <source>
@@ -575,15 +575,15 @@
           <x id="data.name" equiv-text="{data.name}"/>
           ":
         </source>
-        <note>node_modules/zibri/src/cron/cron.service.ts:116</note>
+        <note>../zibri/src/cron/cron.service.ts:116</note>
       </trans-unit>
       <trans-unit id="Conflict" xml:space="preserve">
         <source>Conflict</source>
-        <note>node_modules/zibri/src/error-handling/errors/conflict.error.ts:11</note>
+        <note>../zibri/src/error-handling/errors/conflict.error.ts:11</note>
       </trans-unit>
       <trans-unit id="Content Too Large" xml:space="preserve">
         <source>Content Too Large</source>
-        <note>node_modules/zibri/src/error-handling/errors/content-too-large.error.ts:11</note>
+        <note>../zibri/src/error-handling/errors/content-too-large.error.ts:11</note>
       </trans-unit>
       <trans-unit id="Could not find {EncryptionStrategyEntity.name}." xml:space="preserve">
         <source>
@@ -591,7 +591,7 @@
           <x id="EncryptionStrategyEntity.name" equiv-text="{EncryptionStrategyEntity.name}"/>
           .
         </source>
-        <note>node_modules/zibri/src/auth/encryption/encryption.service.ts:258, node_modules/zibri/src/auth/encryption/encryption.service.ts:322, node_modules/zibri/src/auth/encryption/encryption.service.ts:367</note>
+        <note>../zibri/src/auth/encryption/encryption.service.ts:258, ../zibri/src/auth/encryption/encryption.service.ts:322, ../zibri/src/auth/encryption/encryption.service.ts:367, ../zibri/src/auth/encryption/encryption.service.ts:450</note>
       </trans-unit>
       <trans-unit id="Could not find {this.entityClass.name} with id &quot;{id}&quot;." xml:space="preserve">
         <source>
@@ -601,7 +601,7 @@
           <x id="id" equiv-text="{id}"/>
           ".
         </source>
-        <note>node_modules/zibri/src/data-source/repository.ts:165, node_modules/zibri/src/change-sets/soft-delete-repository.ts:103, node_modules/zibri/src/change-sets/soft-delete-repository.ts:164</note>
+        <note>../zibri/src/data-source/repository.ts:165, ../zibri/src/change-sets/soft-delete-repository.ts:103, ../zibri/src/change-sets/soft-delete-repository.ts:164</note>
       </trans-unit>
       <trans-unit id="Could not find {this.entityClass.name}." xml:space="preserve">
         <source>
@@ -609,7 +609,7 @@
           <x id="this.entityClass.name" equiv-text="{this.entityClass.name}"/>
           .
         </source>
-        <note>node_modules/zibri/src/data-source/repository.ts:205</note>
+        <note>../zibri/src/data-source/repository.ts:205</note>
       </trans-unit>
       <trans-unit id="Could not find connection with id &quot;{id}&quot;." xml:space="preserve">
         <source>
@@ -617,7 +617,7 @@
           <x id="id" equiv-text="{id}"/>
           ".
         </source>
-        <note>node_modules/zibri/src/websocket/services/websocket.service.ts:604</note>
+        <note>../zibri/src/websocket/services/websocket.service.ts:607</note>
       </trans-unit>
       <trans-unit id="Could not find connection with userId &quot;{userId}&quot;." xml:space="preserve">
         <source>
@@ -625,7 +625,7 @@
           <x id="userId" equiv-text="{userId}"/>
           ".
         </source>
-        <note>node_modules/zibri/src/websocket/services/websocket.service.ts:613</note>
+        <note>../zibri/src/websocket/services/websocket.service.ts:616</note>
       </trans-unit>
       <trans-unit id="Could not find cron job with name &quot;{name}&quot;" xml:space="preserve">
         <source>
@@ -633,7 +633,7 @@
           <x id="name" equiv-text="{name}"/>
           "
         </source>
-        <note>node_modules/zibri/src/cron/cron.service.ts:31</note>
+        <note>../zibri/src/cron/cron.service.ts:31</note>
       </trans-unit>
       <trans-unit id="Could not find handler for websocket event for version &quot;{connection.resolvedVersion.value}&quot;" xml:space="preserve">
         <source>
@@ -641,7 +641,15 @@
           <x id="connection.resolvedVersion.value" equiv-text="{connection.resolvedVersion.value}"/>
           "
         </source>
-        <note>node_modules/zibri/src/websocket/services/websocket.service.ts:628</note>
+        <note>../zibri/src/websocket/services/websocket.service.ts:631</note>
+      </trans-unit>
+      <trans-unit id="Could not find resource with id &quot;{id}&quot;." xml:space="preserve">
+        <source>
+          Could not find resource with id "
+          <x id="id" equiv-text="{id}"/>
+          ".
+        </source>
+        <note>../zibri/src/metrics/metrics.service.test.ts:29</note>
       </trans-unit>
       <trans-unit id="Could not find route &quot;{request.url}&quot; for version &quot;{version.value}&quot;" xml:space="preserve">
         <source>
@@ -651,14 +659,14 @@
           <x id="version.value" equiv-text="{version.value}"/>
           "
         </source>
-        <note>node_modules/zibri/src/routing/router.ts:466</note>
+        <note>../zibri/src/routing/router.ts:472</note>
       </trans-unit>
       <trans-unit id="Could not find strategy for key with id {id}" xml:space="preserve">
         <source>
           Could not find strategy for key with id 
           <x id="id" equiv-text="{id}"/>
         </source>
-        <note>node_modules/zibri/src/auth/encryption/encryption.service.ts:457</note>
+        <note>../zibri/src/auth/encryption/encryption.service.ts:461</note>
       </trans-unit>
       <trans-unit id="Could not find user with email &quot;{mail}&quot;." xml:space="preserve">
         <source>
@@ -666,7 +674,7 @@
           <x id="mail" equiv-text="{mail}"/>
           ".
         </source>
-        <note>node_modules/zibri/src/auth/user/user.service.ts:108</note>
+        <note>../zibri/src/auth/user/user.service.ts:108</note>
       </trans-unit>
       <trans-unit id="Could not find user with id &quot;{id}&quot;." xml:space="preserve">
         <source>
@@ -674,7 +682,7 @@
           <x id="id" equiv-text="{id}"/>
           ".
         </source>
-        <note>node_modules/zibri/src/auth/user/user.service.ts:95</note>
+        <note>../zibri/src/auth/user/user.service.ts:95</note>
       </trans-unit>
       <trans-unit id="Could not find websocket event &quot;{ev}&quot;" xml:space="preserve">
         <source>
@@ -682,11 +690,11 @@
           <x id="ev" equiv-text="{ev}"/>
           "
         </source>
-        <note>node_modules/zibri/src/websocket/services/websocket.service.ts:195</note>
+        <note>../zibri/src/websocket/services/websocket.service.ts:198</note>
       </trans-unit>
       <trans-unit id="Could not reset the changes from the change set: The changeSet doesn't belong to the entity with the given id." xml:space="preserve">
         <source>Could not reset the changes from the change set: The changeSet doesn't belong to the entity with the given id.</source>
-        <note>node_modules/zibri/src/change-sets/change-set-repository.ts:159</note>
+        <note>../zibri/src/change-sets/change-set-repository.ts:159</note>
       </trans-unit>
       <trans-unit id="Could not resolve credentials for user with email &quot;{user.email}&quot;." xml:space="preserve">
         <source>
@@ -694,102 +702,113 @@
           <x id="user.email" equiv-text="{user.email}"/>
           ".
         </source>
-        <note>node_modules/zibri/src/auth/user/user.service.ts:122</note>
+        <note>../zibri/src/auth/user/user.service.ts:122</note>
       </trans-unit>
       <trans-unit id="Could not resolve the currently logged in user." xml:space="preserve">
         <source>Could not resolve the currently logged in user.</source>
-        <note>node_modules/zibri/src/auth/auth.service.ts:149</note>
+        <note>../zibri/src/auth/auth.service.ts:149</note>
       </trans-unit>
       <trans-unit id="Could not resolve version" xml:space="preserve">
         <source>Could not resolve version</source>
-        <note>node_modules/zibri/src/versioning/versioning.service.ts:407</note>
+        <note>../zibri/src/versioning/versioning.service.ts:407</note>
       </trans-unit>
       <trans-unit id="Could not rollback to the given change set: The changeSet doesn't belong to the entity with the given id." xml:space="preserve">
         <source>Could not rollback to the given change set: The changeSet doesn't belong to the entity with the given id.</source>
-        <note>node_modules/zibri/src/change-sets/change-set-repository.ts:249</note>
+        <note>../zibri/src/change-sets/change-set-repository.ts:249</note>
       </trans-unit>
       <trans-unit id="December" xml:space="preserve">
         <source>December</source>
-        <note>node_modules/zibri/src/localization/models/month.enum.ts:36</note>
+        <note>../zibri/src/localization/models/month.enum.ts:36</note>
       </trans-unit>
       <trans-unit id="Error generating token" xml:space="preserve">
         <source>Error generating token</source>
-        <note>node_modules/zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:414</note>
+        <note>../zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:414</note>
       </trans-unit>
       <trans-unit id="Error verifying token: Invalid Token" xml:space="preserve">
         <source>Error verifying token: Invalid Token</source>
-        <note>node_modules/zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:218, node_modules/zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:226</note>
+        <note>../zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:218, ../zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:226</note>
       </trans-unit>
       <trans-unit id="February" xml:space="preserve">
         <source>February</source>
-        <note>node_modules/zibri/src/localization/models/month.enum.ts:26</note>
+        <note>../zibri/src/localization/models/month.enum.ts:26</note>
       </trans-unit>
       <trans-unit id="Friday" xml:space="preserve">
         <source>Friday</source>
-        <note>node_modules/zibri/src/localization/models/weekday.enum.ts:24</note>
+        <note>../zibri/src/localization/models/weekday.enum.ts:24</note>
+      </trans-unit>
+      <trans-unit id="Hello {formOfAddress} {firstName} {lastName}" xml:space="preserve">
+        <source>
+          Hello 
+          <x id="formOfAddress" equiv-text="{formOfAddress}"/>
+           
+          <x id="firstName" equiv-text="{firstName}"/>
+           
+          <x id="lastName" equiv-text="{lastName}"/>
+        </source>
+        <note>../zibri/src/localization/translate.function.test.ts:17</note>
       </trans-unit>
       <trans-unit id="If you don't want to omit the relation, you probably want to do something like:" xml:space="preserve">
         <source>If you don't want to omit the relation, you probably want to do something like:</source>
-        <note>node_modules/zibri/src/validation/validation-problem.model.ts:81</note>
+        <note>../zibri/src/validation/validation-problem.model.ts:81</note>
       </trans-unit>
       <trans-unit id="Internal Server Error" xml:space="preserve">
         <source>Internal Server Error</source>
-        <note>node_modules/zibri/src/error-handling/error.utilities.ts:21, node_modules/zibri/src/error-handling/errors/internal-server.error.ts:11</note>
+        <note>../zibri/src/error-handling/error.utilities.ts:21, ../zibri/src/error-handling/errors/internal-server.error.ts:11</note>
       </trans-unit>
       <trans-unit id="Invalid email or password." xml:space="preserve">
         <source>Invalid email or password.</source>
-        <note>node_modules/zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:138, node_modules/zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:158, node_modules/zibri/src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:176, node_modules/zibri/src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:198</note>
+        <note>../zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:138, ../zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:158, ../zibri/src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:176, ../zibri/src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:198</note>
       </trans-unit>
       <trans-unit id="invalid JSON in request body" xml:space="preserve">
         <source>invalid JSON in request body</source>
-        <note>node_modules/zibri/src/parsing/json/json.body-parser.ts:135</note>
+        <note>../zibri/src/parsing/json/json.body-parser.ts:135</note>
       </trans-unit>
       <trans-unit id="is required" xml:space="preserve">
         <source>is required</source>
-        <note>node_modules/zibri/src/validation/validation-problem.model.ts:33</note>
+        <note>../zibri/src/validation/validation-problem.model.ts:33</note>
       </trans-unit>
       <trans-unit id="January" xml:space="preserve">
         <source>January</source>
-        <note>node_modules/zibri/src/localization/models/month.enum.ts:25</note>
+        <note>../zibri/src/localization/models/month.enum.ts:25</note>
       </trans-unit>
       <trans-unit id="July" xml:space="preserve">
         <source>July</source>
-        <note>node_modules/zibri/src/localization/models/month.enum.ts:31</note>
+        <note>../zibri/src/localization/models/month.enum.ts:31</note>
       </trans-unit>
       <trans-unit id="June" xml:space="preserve">
         <source>June</source>
-        <note>node_modules/zibri/src/localization/models/month.enum.ts:30</note>
+        <note>../zibri/src/localization/models/month.enum.ts:30</note>
       </trans-unit>
       <trans-unit id="Link expired" xml:space="preserve">
         <source>Link expired</source>
-        <note>node_modules/zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:289, node_modules/zibri/src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:396</note>
+        <note>../zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:289, ../zibri/src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:396</note>
       </trans-unit>
       <trans-unit id="Link invalid" xml:space="preserve">
         <source>Link invalid</source>
-        <note>node_modules/zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:285, node_modules/zibri/src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:392</note>
+        <note>../zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:285, ../zibri/src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:392</note>
       </trans-unit>
       <trans-unit id="March" xml:space="preserve">
         <source>March</source>
-        <note>node_modules/zibri/src/localization/models/month.enum.ts:27</note>
+        <note>../zibri/src/localization/models/month.enum.ts:27</note>
       </trans-unit>
       <trans-unit id="May" xml:space="preserve">
         <source>May</source>
-        <note>node_modules/zibri/src/localization/models/month.enum.ts:29</note>
+        <note>../zibri/src/localization/models/month.enum.ts:29</note>
       </trans-unit>
       <trans-unit id="Monday" xml:space="preserve">
         <source>Monday</source>
-        <note>node_modules/zibri/src/localization/models/weekday.enum.ts:20</note>
+        <note>../zibri/src/localization/models/weekday.enum.ts:20</note>
       </trans-unit>
       <trans-unit id="name is already taken" xml:space="preserve">
         <source>name is already taken</source>
-        <note>node_modules/zibri/src/cron/cron.service.ts:117</note>
+        <note>../zibri/src/cron/cron.service.ts:117</note>
       </trans-unit>
       <trans-unit id="needs to be at least {meta.min}" xml:space="preserve">
         <source>
           needs to be at least 
           <x id="meta.min" equiv-text="{meta.min}"/>
         </source>
-        <note>node_modules/zibri/src/validation/functions/validate-number.function.ts:61</note>
+        <note>../zibri/src/validation/functions/validate-number.function.ts:61</note>
       </trans-unit>
       <trans-unit id="needs to be at least {meta.minLength} characters long" xml:space="preserve">
         <source>
@@ -797,14 +816,14 @@
           <x id="meta.minLength" equiv-text="{meta.minLength}"/>
            characters long
         </source>
-        <note>node_modules/zibri/src/validation/functions/validate-string.function.ts:73</note>
+        <note>../zibri/src/validation/functions/validate-string.function.ts:73</note>
       </trans-unit>
       <trans-unit id="needs to be at most {meta.max}" xml:space="preserve">
         <source>
           needs to be at most 
           <x id="meta.max" equiv-text="{meta.max}"/>
         </source>
-        <note>node_modules/zibri/src/validation/functions/validate-number.function.ts:64</note>
+        <note>../zibri/src/validation/functions/validate-number.function.ts:64</note>
       </trans-unit>
       <trans-unit id="needs to be at most {meta.maxLength} characters long" xml:space="preserve">
         <source>
@@ -812,7 +831,7 @@
           <x id="meta.maxLength" equiv-text="{meta.maxLength}"/>
            characters long
         </source>
-        <note>node_modules/zibri/src/validation/functions/validate-string.function.ts:76</note>
+        <note>../zibri/src/validation/functions/validate-string.function.ts:76</note>
       </trans-unit>
       <trans-unit id="needs to be in format &quot;{meta.format}&quot;" xml:space="preserve">
         <source>
@@ -820,14 +839,14 @@
           <x id="meta.format" equiv-text="{meta.format}"/>
           "
         </source>
-        <note>node_modules/zibri/src/validation/functions/validate-number.function.ts:55, node_modules/zibri/src/validation/functions/validate-string.function.ts:64</note>
+        <note>../zibri/src/validation/functions/validate-number.function.ts:55, ../zibri/src/validation/functions/validate-string.function.ts:64</note>
       </trans-unit>
       <trans-unit id="needs to be smaller than {maxSize}" xml:space="preserve">
         <source>
           needs to be smaller than 
           <x id="maxSize" equiv-text="{maxSize}"/>
         </source>
-        <note>node_modules/zibri/src/validation/validation-problem.model.ts:55</note>
+        <note>../zibri/src/validation/validation-problem.model.ts:55</note>
       </trans-unit>
       <trans-unit id="needs to match one of &quot;{ObjectUtilities.values(meta.enum)}&quot;" xml:space="preserve">
         <source>
@@ -835,7 +854,7 @@
           <x id="ObjectUtilities.values(meta.enum)" equiv-text="{ObjectUtilities.values(meta.enum)}"/>
           "
         </source>
-        <note>node_modules/zibri/src/validation/functions/validate-number.function.ts:58, node_modules/zibri/src/validation/functions/validate-string.function.ts:70</note>
+        <note>../zibri/src/validation/functions/validate-number.function.ts:58, ../zibri/src/validation/functions/validate-string.function.ts:70</note>
       </trans-unit>
       <trans-unit id="needs to match regex &quot;{meta.regex}&quot;" xml:space="preserve">
         <source>
@@ -843,66 +862,78 @@
           <x id="meta.regex" equiv-text="{meta.regex}"/>
           "
         </source>
-        <note>node_modules/zibri/src/validation/functions/validate-string.function.ts:67</note>
+        <note>../zibri/src/validation/functions/validate-string.function.ts:67</note>
       </trans-unit>
       <trans-unit id="No active version found" xml:space="preserve">
         <source>No active version found</source>
-        <note>node_modules/zibri/src/versioning/versioning.service.ts:390, node_modules/zibri/src/versioning/versioning.service.ts:459</note>
+        <note>../zibri/src/versioning/versioning.service.ts:390, ../zibri/src/versioning/versioning.service.ts:459</note>
+      </trans-unit>
+      <trans-unit id="No favicon.png was found in the public assets folder." xml:space="preserve">
+        <source>No favicon.png was found in the public assets folder.</source>
+        <note>../zibri/src/assets/asset.service.ts:66</note>
       </trans-unit>
       <trans-unit id="No valid context" xml:space="preserve">
         <source>No valid context</source>
-        <note>node_modules/zibri/src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:228</note>
+        <note>../zibri/src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:228</note>
       </trans-unit>
       <trans-unit id="No valid csrf token" xml:space="preserve">
         <source>No valid csrf token</source>
-        <note>node_modules/zibri/src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:241</note>
+        <note>../zibri/src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:241</note>
       </trans-unit>
       <trans-unit id="No valid refresh session" xml:space="preserve">
         <source>No valid refresh session</source>
-        <note>node_modules/zibri/src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:234, node_modules/zibri/src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:238</note>
+        <note>../zibri/src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:234, ../zibri/src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:238</note>
       </trans-unit>
       <trans-unit id="No version active at date, {$f.date(date)}" xml:space="preserve">
         <source>
           No version active at date, 
           <x id="$f.date(date)" equiv-text="{$f.date(date)}"/>
         </source>
-        <note>node_modules/zibri/src/versioning/versioning.service.ts:479</note>
+        <note>../zibri/src/versioning/versioning.service.ts:479</note>
       </trans-unit>
       <trans-unit id="Not allowed to connect" xml:space="preserve">
         <source>Not allowed to connect</source>
-        <note>node_modules/zibri/src/websocket/services/websocket.service.ts:137</note>
+        <note>../zibri/src/websocket/services/websocket.service.ts:137</note>
+      </trans-unit>
+      <trans-unit id="not found" xml:space="preserve">
+        <source>not found</source>
+        <note>../zibri/src/error-handling/error.utilities.test.ts:24, ../zibri/src/error-handling/error.utilities.test.ts:41, ../zibri/src/error-handling/error.utilities.test.ts:55</note>
       </trans-unit>
       <trans-unit id="Not Found" xml:space="preserve">
         <source>Not Found</source>
-        <note>node_modules/zibri/src/error-handling/errors/not-found.error.ts:14</note>
+        <note>../zibri/src/error-handling/errors/not-found.error.ts:14</note>
+      </trans-unit>
+      <trans-unit id="nothing here" xml:space="preserve">
+        <source>nothing here</source>
+        <note>../zibri/src/error-handling/error-handler.test.ts:20</note>
       </trans-unit>
       <trans-unit id="November" xml:space="preserve">
         <source>November</source>
-        <note>node_modules/zibri/src/localization/models/month.enum.ts:35</note>
+        <note>../zibri/src/localization/models/month.enum.ts:35</note>
       </trans-unit>
       <trans-unit id="October" xml:space="preserve">
         <source>October</source>
-        <note>node_modules/zibri/src/localization/models/month.enum.ts:34</note>
+        <note>../zibri/src/localization/models/month.enum.ts:34</note>
       </trans-unit>
       <trans-unit id="Rate limit was reached" xml:space="preserve">
         <source>Rate limit was reached</source>
-        <note>node_modules/zibri/src/rate-limiting/limiter/base-rate-limiter.model.ts:278, node_modules/zibri/src/rate-limiting/limiter/semaphore.rate-limiter.ts:200</note>
+        <note>../zibri/src/rate-limiting/limiter/base-rate-limiter.model.ts:371, ../zibri/src/rate-limiting/limiter/semaphore.rate-limiter.ts:265</note>
       </trans-unit>
       <trans-unit id="relations are not allowed as part of create or update data." xml:space="preserve">
         <source>relations are not allowed as part of create or update data.</source>
-        <note>node_modules/zibri/src/validation/validation-problem.model.ts:80</note>
+        <note>../zibri/src/validation/validation-problem.model.ts:80</note>
       </trans-unit>
       <trans-unit id="request too large" xml:space="preserve">
         <source>request too large</source>
-        <note>node_modules/zibri/src/error-handling/errors/content-too-large.error.ts:10</note>
+        <note>../zibri/src/error-handling/errors/content-too-large.error.ts:10</note>
       </trans-unit>
       <trans-unit id="Saturday" xml:space="preserve">
         <source>Saturday</source>
-        <note>node_modules/zibri/src/localization/models/weekday.enum.ts:25</note>
+        <note>../zibri/src/localization/models/weekday.enum.ts:25</note>
       </trans-unit>
       <trans-unit id="September" xml:space="preserve">
         <source>September</source>
-        <note>node_modules/zibri/src/localization/models/month.enum.ts:33</note>
+        <note>../zibri/src/localization/models/month.enum.ts:33</note>
       </trans-unit>
       <trans-unit id="should be after &quot;{$f.dateTime(meta.after)}&quot;" xml:space="preserve">
         <source>
@@ -910,7 +941,7 @@
           <x id="$f.dateTime(meta.after)" equiv-text="{$f.dateTime(meta.after)}"/>
           "
         </source>
-        <note>node_modules/zibri/src/validation/functions/validate-date.function.ts:48</note>
+        <note>../zibri/src/validation/functions/validate-date.function.ts:48</note>
       </trans-unit>
       <trans-unit id="should be before &quot;{$f.dateTime(meta.before)}&quot;" xml:space="preserve">
         <source>
@@ -918,32 +949,36 @@
           <x id="$f.dateTime(meta.before)" equiv-text="{$f.dateTime(meta.before)}"/>
           "
         </source>
-        <note>node_modules/zibri/src/validation/functions/validate-date.function.ts:45</note>
+        <note>../zibri/src/validation/functions/validate-date.function.ts:45</note>
       </trans-unit>
       <trans-unit id="should be of type {type}" xml:space="preserve">
         <source>
           should be of type 
           <x id="type" equiv-text="{type}"/>
         </source>
-        <note>node_modules/zibri/src/validation/validation-problem.model.ts:44</note>
+        <note>../zibri/src/validation/validation-problem.model.ts:44</note>
+      </trans-unit>
+      <trans-unit id="slow down" xml:space="preserve">
+        <source>slow down</source>
+        <note>../zibri/src/error-handling/error-handler.test.ts:44</note>
       </trans-unit>
       <trans-unit id="Sunday" xml:space="preserve">
         <source>Sunday</source>
-        <note>node_modules/zibri/src/localization/models/weekday.enum.ts:26</note>
+        <note>../zibri/src/localization/models/weekday.enum.ts:26</note>
       </trans-unit>
       <trans-unit id="the file type needs to be {allowedMimeTypes[0]}" xml:space="preserve">
         <source>
           the file type needs to be 
           <x id="allowedMimeTypes[0]" equiv-text="{allowedMimeTypes[0]}"/>
         </source>
-        <note>node_modules/zibri/src/validation/validation-problem.model.ts:68</note>
+        <note>../zibri/src/validation/validation-problem.model.ts:68</note>
       </trans-unit>
       <trans-unit id="the file type needs to be one of: {allowedMimeTypes.join(', ')}" xml:space="preserve">
         <source>
           the file type needs to be one of: 
           <x id="allowedMimeTypes.join(', ')" equiv-text="{allowedMimeTypes.join(', ')}"/>
         </source>
-        <note>node_modules/zibri/src/validation/validation-problem.model.ts:67</note>
+        <note>../zibri/src/validation/validation-problem.model.ts:67</note>
       </trans-unit>
       <trans-unit id="The generated invoice-number {invoiceNumber} already exists!" xml:space="preserve">
         <source>
@@ -951,19 +986,19 @@
           <x id="invoiceNumber" equiv-text="{invoiceNumber}"/>
            already exists!
         </source>
-        <note>node_modules/zibri/src/plugin/invoicing/services/invoice-number.service.ts:171</note>
+        <note>../zibri/src/plugin/invoicing/services/invoice-number.service.ts:171</note>
       </trans-unit>
       <trans-unit id="The given refresh token has already been used." xml:space="preserve">
         <source>The given refresh token has already been used.</source>
-        <note>node_modules/zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:230</note>
+        <note>../zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:230</note>
       </trans-unit>
       <trans-unit id="The given refresh token is expired." xml:space="preserve">
         <source>The given refresh token is expired.</source>
-        <note>node_modules/zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:234</note>
+        <note>../zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:234</note>
       </trans-unit>
       <trans-unit id="The provided two factor code is invalid." xml:space="preserve">
         <source>The provided two factor code is invalid.</source>
-        <note>node_modules/zibri/src/auth/2fa/methods/otp/otp.two-factor-method.ts:64, node_modules/zibri/src/auth/2fa/methods/otp/otp.two-factor-method.ts:84</note>
+        <note>../zibri/src/auth/2fa/methods/otp/otp.two-factor-method.ts:64, ../zibri/src/auth/2fa/methods/otp/otp.two-factor-method.ts:84</note>
       </trans-unit>
       <trans-unit id="The provided two factor code is not {this.otpLength} digits long." xml:space="preserve">
         <source>
@@ -971,7 +1006,7 @@
           <x id="this.otpLength" equiv-text="{this.otpLength}"/>
            digits long.
         </source>
-        <note>node_modules/zibri/src/auth/2fa/methods/otp/otp.two-factor-method.ts:93</note>
+        <note>../zibri/src/auth/2fa/methods/otp/otp.two-factor-method.ts:93</note>
       </trans-unit>
       <trans-unit id="The route at &quot;{originalUrl}&quot; does not exist." xml:space="preserve">
         <source>
@@ -979,35 +1014,44 @@
           <x id="originalUrl" equiv-text="{originalUrl}"/>
           " does not exist.
         </source>
-        <note>node_modules/zibri/src/error-handling/errors/unmatched-route.error.ts:14</note>
+        <note>../zibri/src/error-handling/errors/unmatched-route.error.ts:14</note>
       </trans-unit>
       <trans-unit id="There should only be one message sent." xml:space="preserve">
         <source>There should only be one message sent.</source>
-        <note>node_modules/zibri/src/websocket/services/websocket.service.ts:213</note>
+        <note>../zibri/src/websocket/services/websocket.service.ts:216</note>
       </trans-unit>
       <trans-unit id="this key is unknown" xml:space="preserve">
         <source>this key is unknown</source>
-        <note>node_modules/zibri/src/validation/validation.service.ts:207, node_modules/zibri/src/validation/validation.service.ts:322</note>
+        <note>../zibri/src/validation/validation.service.ts:215, ../zibri/src/validation/validation.service.ts:330</note>
       </trans-unit>
       <trans-unit id="Thursday" xml:space="preserve">
         <source>Thursday</source>
-        <note>node_modules/zibri/src/localization/models/weekday.enum.ts:23</note>
+        <note>../zibri/src/localization/models/weekday.enum.ts:23</note>
       </trans-unit>
       <trans-unit id="Timed out" xml:space="preserve">
         <source>Timed out</source>
-        <note>node_modules/zibri/src/utilities/promise.utilities.ts:22</note>
+        <note>../zibri/src/utilities/promise.utilities.ts:22, ../zibri/src/utilities/promise.utilities.ts:22</note>
+      </trans-unit>
+      <trans-unit id="Timed out after {timeoutMs} ms waiting for reservation {reservation.id}" xml:space="preserve">
+        <source>
+          Timed out after 
+          <x id="timeoutMs" equiv-text="{timeoutMs}"/>
+           ms waiting for reservation 
+          <x id="reservation.id" equiv-text="{reservation.id}"/>
+        </source>
+        <note>../zibri/src/rate-limiting/limiter/base-rate-limiter.model.ts:137</note>
       </trans-unit>
       <trans-unit id="Too Many Requests" xml:space="preserve">
         <source>Too Many Requests</source>
-        <note>node_modules/zibri/src/error-handling/errors/too-many-requests.error.ts:12</note>
+        <note>../zibri/src/error-handling/errors/too-many-requests.error.ts:12</note>
       </trans-unit>
       <trans-unit id="Tuesday" xml:space="preserve">
         <source>Tuesday</source>
-        <note>node_modules/zibri/src/localization/models/weekday.enum.ts:21</note>
+        <note>../zibri/src/localization/models/weekday.enum.ts:21</note>
       </trans-unit>
       <trans-unit id="Unauthorized" xml:space="preserve">
         <source>Unauthorized</source>
-        <note>node_modules/zibri/src/error-handling/errors/unauthorized.error.ts:11</note>
+        <note>../zibri/src/error-handling/errors/unauthorized.error.ts:11</note>
       </trans-unit>
       <trans-unit id="Unsupported {KnownHeader.CONTENT_TYPE}: &quot;{mediaType}&quot;" xml:space="preserve">
         <source>
@@ -1017,35 +1061,35 @@
           <x id="mediaType" equiv-text="{mediaType}"/>
           "
         </source>
-        <note>node_modules/zibri/src/error-handling/errors/unsupported-media-type.error.ts:12</note>
+        <note>../zibri/src/error-handling/errors/unsupported-media-type.error.ts:12</note>
       </trans-unit>
       <trans-unit id="Unsupported Media Type" xml:space="preserve">
         <source>Unsupported Media Type</source>
-        <note>node_modules/zibri/src/error-handling/errors/unsupported-media-type.error.ts:14</note>
+        <note>../zibri/src/error-handling/errors/unsupported-media-type.error.ts:14</note>
       </trans-unit>
       <trans-unit id="Validation Error" xml:space="preserve">
         <source>Validation Error</source>
-        <note>node_modules/zibri/src/error-handling/errors/validation.error.ts:36</note>
+        <note>../zibri/src/error-handling/errors/validation.error.ts:36</note>
       </trans-unit>
       <trans-unit id="Validation failed for header parameter" xml:space="preserve">
         <source>Validation failed for header parameter</source>
-        <note>node_modules/zibri/src/error-handling/errors/validation.error.ts:18</note>
+        <note>../zibri/src/error-handling/errors/validation.error.ts:18</note>
       </trans-unit>
       <trans-unit id="Validation failed for path parameter" xml:space="preserve">
         <source>Validation failed for path parameter</source>
-        <note>node_modules/zibri/src/error-handling/errors/validation.error.ts:16</note>
+        <note>../zibri/src/error-handling/errors/validation.error.ts:16</note>
       </trans-unit>
       <trans-unit id="Validation failed for query parameter" xml:space="preserve">
         <source>Validation failed for query parameter</source>
-        <note>node_modules/zibri/src/error-handling/errors/validation.error.ts:17</note>
+        <note>../zibri/src/error-handling/errors/validation.error.ts:17</note>
       </trans-unit>
       <trans-unit id="Validation failed for request body" xml:space="preserve">
         <source>Validation failed for request body</source>
-        <note>node_modules/zibri/src/error-handling/errors/validation.error.ts:15</note>
+        <note>../zibri/src/error-handling/errors/validation.error.ts:15</note>
       </trans-unit>
       <trans-unit id="Validation failed for websocket request" xml:space="preserve">
         <source>Validation failed for websocket request</source>
-        <note>node_modules/zibri/src/error-handling/errors/validation.error.ts:19</note>
+        <note>../zibri/src/error-handling/errors/validation.error.ts:19</note>
       </trans-unit>
       <trans-unit id="Version &quot;{versionValue}&quot; not found" xml:space="preserve">
         <source>
@@ -1053,23 +1097,23 @@
           <x id="versionValue" equiv-text="{versionValue}"/>
           " not found
         </source>
-        <note>node_modules/zibri/src/versioning/versioning.service.ts:399, node_modules/zibri/src/open-api/open-api.service.ts:130</note>
+        <note>../zibri/src/versioning/versioning.service.ts:399, ../zibri/src/open-api/open-api.service.ts:130</note>
       </trans-unit>
       <trans-unit id="Wednesday" xml:space="preserve">
         <source>Wednesday</source>
-        <note>node_modules/zibri/src/localization/models/weekday.enum.ts:22</note>
+        <note>../zibri/src/localization/models/weekday.enum.ts:22</note>
       </trans-unit>
       <trans-unit id="You can take a look at the available Routes via the OpenAPI Explorer linked below." xml:space="preserve">
         <source>You can take a look at the available Routes via the OpenAPI Explorer linked below.</source>
-        <note>node_modules/zibri/src/error-handling/errors/unmatched-route.error.ts:15</note>
+        <note>../zibri/src/error-handling/errors/unmatched-route.error.ts:15</note>
       </trans-unit>
       <trans-unit id="You cannot be logged in when accessing this route." xml:space="preserve">
         <source>You cannot be logged in when accessing this route.</source>
-        <note>node_modules/zibri/src/auth/auth.service.ts:252</note>
+        <note>../zibri/src/auth/auth.service.ts:252</note>
       </trans-unit>
       <trans-unit id="You need to be logged in to access this route." xml:space="preserve">
         <source>You need to be logged in to access this route.</source>
-        <note>node_modules/zibri/src/auth/auth.service.ts:245</note>
+        <note>../zibri/src/auth/auth.service.ts:245</note>
       </trans-unit>
       <trans-unit id="You need to have one role of {hasRoleMetadata.allowedRoles} to access this route." xml:space="preserve">
         <source>
@@ -1077,11 +1121,11 @@
           <x id="hasRoleMetadata.allowedRoles" equiv-text="{hasRoleMetadata.allowedRoles}"/>
            to access this route.
         </source>
-        <note>node_modules/zibri/src/auth/auth.service.ts:260</note>
+        <note>../zibri/src/auth/auth.service.ts:260</note>
       </trans-unit>
       <trans-unit id="You need to provide a second factor to access this route." xml:space="preserve">
         <source>You need to provide a second factor to access this route.</source>
-        <note>node_modules/zibri/src/auth/auth.service.ts:267</note>
+        <note>../zibri/src/auth/auth.service.ts:267</note>
       </trans-unit>
       <trans-unit id="You need to to have access to the {belongsToMetadata.targetEntity.name} entity with the id {String(targetId)} to access this route." xml:space="preserve">
         <source>
@@ -1091,7 +1135,7 @@
           <x id="String(targetId)" equiv-text="{String(targetId)}"/>
            to access this route.
         </source>
-        <note>node_modules/zibri/src/auth/auth.service.ts:285</note>
+        <note>../zibri/src/auth/auth.service.ts:285</note>
       </trans-unit>
     </body>
   </file>
