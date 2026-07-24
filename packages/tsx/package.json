@@ -1,0 +1,59 @@
+{
+    "name": "zibri-tsx",
+    "version": "3.0.0",
+    "license": "MIT",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "default": "./dist/index.js"
+        },
+        "./webpack": {
+            "types": "./dist/webpack/index.d.ts",
+            "default": "./dist/webpack/index.js"
+        },
+        "./jsx-runtime": {
+            "types": "./dist/jsx-runtime.d.ts",
+            "default": "./dist/jsx-runtime.js"
+        },
+        "./package.json": "./package.json"
+    },
+    "repository": {
+        "url": "https://github.com/Service-Soft/zibri",
+        "directory": "packages/tsx"
+    },
+    "files": [
+        "./dist",
+        "./README.md",
+        "./LICENSE"
+    ],
+    "engines": {
+        "node": ">=22"
+    },
+    "keywords": [
+        "zibri",
+        "tsx",
+        "compiler"
+    ],
+    "author": "Tim Fabian",
+    "description": "Hand-written TSX compiler for Zibri page templates.",
+    "scripts": {
+        "build": "tsc -p tsconfig.build.json",
+        "typecheck": "tsc -p tsconfig.json --noEmit",
+        "lint": "eslint . --max-warnings=0",
+        "lint:fix": "eslint . --max-warnings=0 --fix",
+        "prepublishOnly": "npm run build",
+        "test": "jest",
+        "test:coverage": "jest --coverage"
+    },
+    "devDependencies": {
+        "@jest/globals": "^30.4.1",
+        "@types/node": "^22.19.17",
+        "eslint": "^9.24.0",
+        "eslint-config-service-soft": "^2.1.6",
+        "jest": "^30.4.2",
+        "ts-jest": "^29.4.11",
+        "typescript": "^5.8.3"
+    }
+}

@@ -24,8 +24,13 @@ jobs:
             # Ensure npm 11.5.1 or later is installed
             - run: npm install -g npm@latest
             - run: npm i
+            # zibri-tsx first: zibri type checks against its built dist and depends on it as a peer.
+            - run: npm run build -w zibri-tsx
+            - run: npm publish -w zibri-tsx
             - run: npm run build:prod -w zibri
             - run: npm publish -w zibri
+            - run: npm run build -w cli
+            - run: npm publish -w cli
 
     updateDocs:
         if: github.event.pull_request.merged
@@ -39,6 +44,7 @@ jobs:
               with:
                 node-version: '22'
             - run: npm ci
+            - run: npm run build -w zibri-tsx
             - run: npm run build:prod -w zibri
             - uses: actions/configure-pages@v5
             - uses: actions/upload-pages-artifact@v3

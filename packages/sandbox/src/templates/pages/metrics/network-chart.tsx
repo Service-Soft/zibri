@@ -1,5 +1,5 @@
 import type { Chart as ChartJsChart } from 'chart.js';
-import { $ts, MetricsSnapshot, PreactComponent } from 'zibri';
+import { $ts, MetricsSnapshot, TsxComponent } from 'zibri';
 
 import { Chart } from '../../components/chart';
 
@@ -11,7 +11,7 @@ type Props = {
 
 type DataPoint = { x: Date, y: number };
 
-export const NetworkChart: PreactComponent<Props> = ({ primary, secondary, className = '' }) => {
+export const NetworkChart: TsxComponent<Props> = ({ primary, secondary, className = '' }) => {
 
     function toRateSeries(
         series: number[],

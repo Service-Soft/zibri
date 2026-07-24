@@ -1,13 +1,12 @@
-import { ComponentChildren } from 'preact';
-import { PreactComponent } from 'zibri';
+import { TsxComponent, TsxChildren } from 'zibri';
 
 type Props = {
-    children: ComponentChildren,
+    children: TsxChildren,
     onSubmit: () => void,
     className?: string
 };
 
-export const Form: PreactComponent<Props> = ({ onSubmit, children, className = '' }: Props) => {
+export const Form: TsxComponent<Props> = ({ onSubmit, children, className = '' }: Props) => {
     return <form className={className} onSubmit={ev => {
         ev.preventDefault();
         onSubmit();

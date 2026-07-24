@@ -1,3 +1,4 @@
+/** @jsxImportSource preact */
 import { JSX } from 'preact';
 import { PreactEmailComponent } from 'zibri';
 

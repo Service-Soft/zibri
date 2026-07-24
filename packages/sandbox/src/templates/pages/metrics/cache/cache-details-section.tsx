@@ -1,4 +1,4 @@
-import { PreactComponent } from 'zibri';
+import { TsxComponent } from 'zibri';
 
 import { CacheDetail } from './cache-detail';
 
@@ -9,7 +9,7 @@ type Props = {
     className?: string
 };
 
-export const CacheDetailSection: PreactComponent<Props> = ({ cacheNames, primary, secondary, className = '' }) => {
+export const CacheDetailSection: TsxComponent<Props> = ({ cacheNames, primary, secondary, className = '' }) => {
     return (
         <div className={`flex flex-col gap-8 ${className}`}>
             {cacheNames.map(n => <CacheDetail name={n} primary={primary} secondary={secondary} />)}

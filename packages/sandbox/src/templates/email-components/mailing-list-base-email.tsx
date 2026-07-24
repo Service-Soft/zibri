@@ -1,3 +1,4 @@
+/** @jsxImportSource preact */
 import { MailingListBaseEmailTemplate } from 'zibri';
 
 import { BaseEmail } from './base-email';

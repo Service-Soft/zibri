@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
 /* eslint-disable typescript/no-non-null-assertion */
 import { io, Socket } from 'socket.io-client?client';
-import { onClient, PreactComponent, WebsocketSendDataMessage } from 'zibri';
+import { onClient, TsxComponent, WebsocketSendDataMessage } from 'zibri';
 
 import { BasePage } from '../components/base-page';
 import { Button } from '../components/button';
@@ -15,7 +15,7 @@ type Props = {
     secondary: string
 };
 
-export const SocketIoTestPage: PreactComponent<Props> = ({ primary, secondary }: Props) => {
+export const SocketIoTestPage: TsxComponent<Props> = ({ primary, secondary }: Props) => {
     let socket: Socket;
     let message: string = '';
     let dialog: HTMLDialogElement;

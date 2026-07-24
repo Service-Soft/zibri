@@ -1,0 +1,35 @@
+{
+    "compilerOptions": {
+        "allowSyntheticDefaultImports": true,
+        "declaration": true,
+        "esModuleInterop": true,
+        "forceConsistentCasingInFileNames": true,
+        "importHelpers": false,
+        "isolatedModules": true,
+        "jsx": "react-jsx",
+        "jsxImportSource": "zibri-tsx",
+        "module": "nodenext",
+        "moduleResolution": "nodenext",
+        "noFallthroughCasesInSwitch": true,
+        "noImplicitAny": true,
+        "noImplicitOverride": true,
+        "noImplicitReturns": true,
+        "noPropertyAccessFromIndexSignature": true,
+        "outDir": "dist",
+        // Resolves the jsx runtime from source, so the type fixture does not depend on a built dist.
+        "paths": {
+            "zibri-tsx/jsx-runtime": ["./src/jsx-runtime.ts"]
+        },
+        "resolveJsonModule": true,
+        "rootDir": "src",
+        "skipLibCheck": true,
+        "sourceMap": true,
+        "strict": true,
+        "target": "ESNext",
+        "types": ["node"],
+        "useDefineForClassFields": true,
+        "useUnknownInCatchVariables": true
+    },
+    "exclude": [],
+    "include": ["src", "jest.config.mjs"]
+}

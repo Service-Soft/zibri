@@ -1,3 +1,4 @@
+/** @jsxImportSource preact */
 import { PreactEmailComponent } from 'zibri';
 
 type Props = {

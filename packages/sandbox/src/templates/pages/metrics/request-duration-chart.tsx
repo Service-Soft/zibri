@@ -1,5 +1,5 @@
 import type { Chart as ChartJsChart } from 'chart.js';
-import { $ts, Metric, MetricsSnapshot, PreactComponent } from 'zibri';
+import { $ts, Metric, MetricsSnapshot, TsxComponent } from 'zibri';
 
 import { Chart } from '../../components/chart';
 
@@ -8,7 +8,7 @@ type Props = {
     secondary: string
 };
 
-export const RequestDurationChart: PreactComponent<Props> = ({ className = '', secondary }) => {
+export const RequestDurationChart: TsxComponent<Props> = ({ className = '', secondary }) => {
 
     function updateChart(chart: ChartJsChart, snaps: MetricsSnapshot[]): void {
         if (!snaps.length) {

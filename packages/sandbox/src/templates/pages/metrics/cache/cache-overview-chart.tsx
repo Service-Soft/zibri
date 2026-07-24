@@ -1,5 +1,5 @@
 import type { Chart as ChartJsChart } from 'chart.js';
-import { $f, $ts, MetricsSnapshot, PreactComponent } from 'zibri';
+import { $f, $ts, MetricsSnapshot, TsxComponent } from 'zibri';
 
 import { Chart } from '../../../components/chart';
 
@@ -10,7 +10,7 @@ type Props = {
 
 type DataPoint = { x: Date, y: number };
 
-export const CacheOverviewChart: PreactComponent<Props> = ({ secondary, className }) => {
+export const CacheOverviewChart: TsxComponent<Props> = ({ secondary, className }) => {
 
     function updateChart(chart: ChartJsChart<'line', DataPoint[]>, snaps: MetricsSnapshot[]): void {
         if (!snaps.length) {

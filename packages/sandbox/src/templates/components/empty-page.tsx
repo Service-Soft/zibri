@@ -1,14 +1,13 @@
-import { ComponentChildren } from 'preact';
-import { GlobalRegistry, onServer, PreactComponent } from 'zibri';
+import { GlobalRegistry, onServer, TsxComponent, TsxChildren } from 'zibri';
 
 type Props = {
     title: string,
-    children: ComponentChildren,
+    children: TsxChildren,
     className?: string,
     scripts?: string[]
 };
 
-export const EmptyPage: PreactComponent<Props> = ({ title, children, className = '', scripts = [] }) => {
+export const EmptyPage: TsxComponent<Props> = ({ title, children, className = '', scripts = [] }) => {
     let finalTitle: string = title;
 
     onServer(() => {

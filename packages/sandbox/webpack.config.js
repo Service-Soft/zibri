@@ -1,8 +1,8 @@
-/* eslint-disable jsdoc/require-description */
 const path = require('path');
 const { spawn } = require('child_process');
 const CopyPlugin = require('copy-webpack-plugin');
-const { generateHandlebarTypeFiles, generateEntityFiles, generateClientScripts, generateSourceXlf, resolveZibriRoot } = require('zibri');
+const { generateHandlebarTypeFiles, generateEntityFiles, generateSourceXlf, resolveZibriRoot } = require('zibri');
+const { ZibriTsxVendorPlugin } = require('zibri-tsx/webpack');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const { NormalModuleReplacementPlugin } = require('webpack');
 
@@ -45,16 +45,6 @@ class EntityGenerationPlugin {
     }
 }
 
-class ClientScriptsGenerationPlugin {
-    /** @type {import('webpack').WebpackPluginFunction } */
-    apply(compiler) {
-        compiler.hooks.beforeCompile.tapPromise(
-            'ClientScriptsGenerationPlugin',
-            () => generateClientScripts()
-        );
-    }
-}
-
 class LocalizationPlugin {
     /** @type {import('webpack').WebpackPluginFunction } */
     apply(compiler) {
@@ -76,6 +66,15 @@ class LocalizationPlugin {
         });
     }
 }
+
+/**
+ * The template directories that are compiled by zibri-tsx. Emails are deliberately left out: they
+ * still render through preact until the email compile target exists.
+ */
+const tsxTemplateDirs = [
+    path.resolve(__dirname, 'src', 'templates', 'pages'),
+    path.resolve(__dirname, 'src', 'templates', 'components')
+];
 
 /** @type {import('webpack').Configuration} */
 module.exports = {
@@ -144,7 +143,13 @@ module.exports = {
     module: {
         rules: [
             {
+                test: /\.tsx$/,
+                include: tsxTemplateDirs,
+                use: 'zibri-tsx/webpack'
+            },
+            {
                 test: /\.tsx?$/,
+                exclude: tsxTemplateDirs,
                 use: 'ts-loader'
             },
             {
@@ -185,7 +190,11 @@ module.exports = {
     },
     plugins: [
         new HandlebarsTypegenPlugin(),
-        new ClientScriptsGenerationPlugin(),
+        new ZibriTsxVendorPlugin({
+            templateDirs: tsxTemplateDirs,
+            outDir: path.resolve(__dirname, 'assets', 'public', 'vendor'),
+            resolveFrom: __dirname
+        }),
         new EntityGenerationPlugin(),
         new LocalizationPlugin(),
         new OnBuildSuccessPlugin(),

@@ -1,4 +1,4 @@
-import { Controller, errorToLoggedError, Get, HtmlResponse, HttpMethod, Log, LogLevel, Param, PreactUtilities, Response, UUIDUtilities } from 'zibri';
+import { Controller, errorToLoggedError, Get, HtmlResponse, HttpMethod, Log, LogLevel, Param, PreactUtilities, Response, TsxUtilities, UUIDUtilities } from 'zibri';
 
 import { LogEmail } from '../templates/emails/log';
 import { PasswordResetEmail } from '../templates/emails/password-reset';
@@ -10,7 +10,7 @@ export class TemplateController {
     @Response.html()
     @Get('/socket')
     async socketIo(): Promise<HtmlResponse> {
-        const html: string = await PreactUtilities.renderPage(SocketIoTestPage, { primary: '#0e456f', secondary: '#00b4d8' });
+        const html: string = TsxUtilities.renderPage(SocketIoTestPage, { primary: '#0e456f', secondary: '#00b4d8' });
         return HtmlResponse.fromString(html);
     }
 

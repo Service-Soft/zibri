@@ -1,0 +1,49 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+import { describe, expect, it } from '@jest/globals';
+
+import { validate, ValidationCode } from './validate';
+import { parseOk } from '../__testing__/parse.helper';
+import { collectTsxFiles } from '../__testing__/sandbox.helper';
+import { Diagnostic } from '../diagnostics/diagnostic.model';
+
+function diagnose(source: string): Diagnostic[] {
+    return validate(parseOk(source));
+}
+
+describe('validate', () => {
+    it('accepts a well-formed component', () => {
+        expect(diagnose('export const Page = ({ title }: Props) => <h1>{title}</h1>;')).toEqual([]);
+    });
+
+    it('accepts a component with no props', () => {
+        expect(diagnose('export const Page = () => <h1>hi</h1>;')).toEqual([]);
+    });
+
+    it('rejects a component with multiple parameters', () => {
+        const [diagnostic] = diagnose('export const Page = (a, b) => <div>{a}{b}</div>;');
+        expect(diagnostic.code).toBe(ValidationCode.MULTIPLE_PARAMS);
+    });
+
+    it('rejects an async component', () => {
+        const [diagnostic] = diagnose('export const Page = async () => <div/>;');
+        expect(diagnostic.code).toBe(ValidationCode.ASYNC_COMPONENT);
+    });
+
+    it('does not flag a two-argument map callback that returns JSX', () => {
+        expect(diagnose('export const List = ({ items }) => <ul>{items.map((item, index) => <li>{index}{item}</li>)}</ul>;')).toEqual([]);
+    });
+});
+
+describe('validate against real sandbox templates', () => {
+    const files: string[] = collectTsxFiles(join(__dirname, '..', '..', '..', 'sandbox', 'src', 'templates'));
+
+    it.each(files.map(f => [f.split('/templates/')[1], f] as const))(
+        'reports no errors for %s',
+        (_name, file) => {
+            const diagnostics: Diagnostic[] = validate(parseOk(readFileSync(file, 'utf8')));
+            expect(diagnostics).toEqual([]);
+        }
+    );
+});

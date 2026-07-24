@@ -1,5 +1,5 @@
 import { ChartConfiguration, Chart as ChartJsChart } from 'chart.js?client';
-import { $ts, MetricsSnapshot, onClient, PreactComponent } from 'zibri';
+import { $ts, MetricsSnapshot, onClient, TsxComponent } from 'zibri';
 
 import { Card } from './card';
 import { Heading } from './heading';
@@ -14,7 +14,7 @@ type Props = {
     className?: string
 };
 
-export const Chart: PreactComponent<Props> = ({ className = '', title, canvasId, chartConfig, updateChart }) => {
+export const Chart: TsxComponent<Props> = ({ className = '', title, canvasId, chartConfig, updateChart }) => {
     onClient(() => {
         let chart: ChartJsChart | undefined;
 

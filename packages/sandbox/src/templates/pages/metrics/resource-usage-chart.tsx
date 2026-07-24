@@ -1,5 +1,5 @@
 import type { Chart as ChartJsChart } from 'chart.js';
-import { $f, $ts, Metric, MetricsSnapshot, PreactComponent } from 'zibri';
+import { $f, $ts, Metric, MetricsSnapshot, TsxComponent } from 'zibri';
 
 import { Chart } from '../../components/chart';
 
@@ -11,7 +11,7 @@ type Props = {
 
 type DataPoint = { x: Date, y: number };
 
-export const ResourceUsageChart: PreactComponent<Props> = ({ primary, secondary, className = '' }) => {
+export const ResourceUsageChart: TsxComponent<Props> = ({ primary, secondary, className = '' }) => {
 
     function updateChart(chart: ChartJsChart<'line', DataPoint[]>, snaps: MetricsSnapshot[]): void {
         const ramSeries: DataPoint[] = snaps.map(snap => {

@@ -1,11 +1,5 @@
 {
-    "Chart": [
-        "chart.js"
-    ],
-    "MetricsPage": [
-        "chart.js"
-    ],
-    "SocketIoTestPage": [
-        "socket.io-client"
-    ]
+    "Chart": ["chart.js"],
+    "MetricsPage": ["chart.js"],
+    "SocketIoTestPage": ["socket.io-client"]
 }

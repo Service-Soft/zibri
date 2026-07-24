@@ -1,3 +1,4 @@
+/** @jsxImportSource preact */
 import { inject, LogLevel, ZIBRI_DI_TOKENS, LogEmailTemplate, $ts } from 'zibri';
 
 import { BaseEmail } from '../email-components/base-email';

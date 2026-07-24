@@ -10,7 +10,7 @@ import { HttpError } from './errors/http.error';
 import { KnownHeader } from '../http/known-header.enum';
 import { MimeType } from '../http/mime-type.enum';
 import { LoggerInterface } from '../logging/logger.interface';
-import { PreactUtilities } from '../preact/preact.utilities';
+import { TsxUtilities } from '../tsx/tsx.utilities';
 import { GlobalError } from './errors/global.error';
 import { TooManyRequestsError } from './errors/too-many-requests.error';
 import { NumberUtilities } from '../utilities/number.utilities';
@@ -65,7 +65,7 @@ export const errorHandler: GlobalErrorHandler = async (error: unknown, req: Http
     }
 
     try {
-        const html: string = await PreactUtilities.renderPage(template, { error: httpError });
+        const html: string = TsxUtilities.renderPage(template, { error: httpError });
         res.setHeader(KnownHeader.CONTENT_TYPE, MimeType.HTML);
         res.status(httpError.status).send(html);
     }

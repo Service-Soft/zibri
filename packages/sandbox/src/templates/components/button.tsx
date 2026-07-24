@@ -1,16 +1,15 @@
-import { ComponentChildren } from 'preact';
-import { PreactComponent } from 'zibri';
+import { TsxComponent, TsxChildren } from 'zibri';
 
 type Props = {
     type?: 'submit' | 'reset' | 'button',
     id?: string,
     className?: string,
     disabled?: boolean,
-    children: ComponentChildren,
+    children: TsxChildren,
     onClick?: () => void
 };
 
-export const Button: PreactComponent<Props> = ({
+export const Button: TsxComponent<Props> = ({
     type = 'button',
     id,
     className = '',

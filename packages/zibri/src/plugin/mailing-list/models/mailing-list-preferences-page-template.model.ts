@@ -1,6 +1,6 @@
 import { MailingListSubscriber } from './mailing-list-subscriber.model';
 import { MailingList } from './mailing-list.model';
-import { PreactComponent } from '../../../preact/preact-component.model';
+import { TsxComponent } from '../../../tsx/tsx-component.model';
 
 /**
  * Properties of a mailing list preferences page component.
@@ -23,4 +23,4 @@ type MailingListPreferencesPageTemplateProps = {
 /**
  * Definition for a mailing list preferences page template.
  */
-export type MailingListPreferencesPageTemplate = PreactComponent<MailingListPreferencesPageTemplateProps>;
+export type MailingListPreferencesPageTemplate = TsxComponent<MailingListPreferencesPageTemplateProps>;

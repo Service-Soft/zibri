@@ -1,5 +1,5 @@
 import type { Chart as ChartJsChart } from 'chart.js';
-import { $ts, Metric, MetricsSnapshot, PreactComponent } from 'zibri';
+import { $ts, Metric, MetricsSnapshot, TsxComponent } from 'zibri';
 
 import { Chart } from '../../components/chart';
 
@@ -12,7 +12,7 @@ type StatusClass = 'success' | 'client' | 'server';
 
 type DataPoint = { x: Date, y: number };
 
-export const RequestsPerSecondChart: PreactComponent<Props> = ({ secondary, className = '' }) => {
+export const RequestsPerSecondChart: TsxComponent<Props> = ({ secondary, className = '' }) => {
 
     function sumForStatus(statusClass: StatusClass, metrics: Metric[]): number {
         return metrics.filter(m => {

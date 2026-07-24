@@ -15,12 +15,12 @@ import { inject } from '../../di/inject.function';
 import { OnAppInit } from '../../global/on-app-init.interface';
 import { Response } from '../../open-api/decorators/response.decorator';
 import { HtmlResponse } from '../../parsing/html/html-response.model';
-import { PreactUtilities } from '../../preact/preact.utilities';
 import { Body } from '../../routing/decorators/body.decorator';
 import { Controller } from '../../routing/decorators/controller.decorator';
 import { Get } from '../../routing/decorators/get.decorator';
 import { Param } from '../../routing/decorators/param.decorator';
 import { Patch } from '../../routing/decorators/patch.decorator';
+import { TsxUtilities } from '../../tsx/tsx.utilities';
 
 @Controller('/mailing-lists', { allowOrphan: true, versions: 'all' })
 export class MailingListController implements OnAppInit {
@@ -67,7 +67,7 @@ export class MailingListController implements OnAppInit {
         const subscriber: MailingListSubscriber = await this.mailingListService.confirmSubscribeToList(token);
         const managePreferencesLink: string = this.mailingListService.getManagePreferencesLink(subscriber.id);
 
-        const html: string = await PreactUtilities.renderPage(
+        const html: string = TsxUtilities.renderPage(
             this.SubscribeSuccessPage,
             { subscriber, mailingList, managePreferencesLink }
         );
@@ -88,7 +88,7 @@ export class MailingListController implements OnAppInit {
         await this.mailingListService.unsubscribeFromList(id, subscriberId);
         const managePreferencesLink: string = this.mailingListService.getManagePreferencesLink(subscriberId);
 
-        const html: string = await PreactUtilities.renderPage(
+        const html: string = TsxUtilities.renderPage(
             this.UnsubscribeConfirmationPage,
             { subscriber, mailingList, managePreferencesLink }
         );
@@ -105,7 +105,7 @@ export class MailingListController implements OnAppInit {
         const mailingLists: MailingList[] = await this.mailingListRepository.findAll();
         const managePreferencesApiUrl: string = this.mailingListService.getManagePreferencesLink(subscriberId);
 
-        const html: string = await PreactUtilities.renderPage(this.PreferencesPage, { subscriber, mailingLists, managePreferencesApiUrl });
+        const html: string = TsxUtilities.renderPage(this.PreferencesPage, { subscriber, mailingLists, managePreferencesApiUrl });
         return HtmlResponse.fromString(html);
     }
 

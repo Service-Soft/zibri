@@ -1,4 +1,4 @@
-import { $ts, MetricsSnapshot, onClient, PreactComponent } from 'zibri';
+import { $ts, MetricsSnapshot, onClient, TsxComponent } from 'zibri';
 
 import { StatCard } from '../../../components/stat-card';
 import { MetricsEvent } from '../metrics';
@@ -7,7 +7,7 @@ type Props = {
     className?: string
 };
 
-export const RateLimiterReservationsStatCard: PreactComponent<Props> = ({ className = '' }) => {
+export const RateLimiterReservationsStatCard: TsxComponent<Props> = ({ className = '' }) => {
     onClient(() => {
         document.addEventListener('metrics:update', (ev) => {
             if (!(ev instanceof CustomEvent) || !('snaps' in ev.detail)) {

@@ -1,3 +1,4 @@
+/** @jsxImportSource preact */
 import { $ts, PasswordResetEmailTemplate } from 'zibri';
 
 import { Roles, User } from '../../models';

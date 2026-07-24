@@ -1,5 +1,7 @@
 node_modules
 dist
+tmp
+/out-tsc
 coverage
 *.hbs.ts
 packages/zibri/docs/generated
@@ -7,3 +9,4 @@ file-output
 .vscode
 packages/zibri/src/di/default/temp
 .env
+packages/cli/sandbox

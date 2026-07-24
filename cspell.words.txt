@@ -32,3 +32,12 @@ unsigns
 upserts
 upserted
 paypal
+whitesmoke
+chartjs
+Petstore
+petstore
+ZTSX
+unreviewed
+prec
+quasis
+inlines

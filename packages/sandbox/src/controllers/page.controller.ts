@@ -1,4 +1,4 @@
-import { AssetServiceInterface, Cache, Cached, CacheServiceInterface, Controller, Get, GlobalRegistry, HtmlResponse, HttpRequestContext, Inject, inject, InMemoryCacheStore, LocaleCode, LoggerInterface, MetricsServiceInterface, PreactUtilities, Response, TreeNode, WebsocketRequestContext, WriteThroughReadThroughCache, ZIBRI_DI_TOKENS } from 'zibri';
+import { AssetServiceInterface, Cache, Cached, CacheServiceInterface, Controller, Get, GlobalRegistry, HtmlResponse, HttpRequestContext, Inject, inject, InMemoryCacheStore, LocaleCode, LoggerInterface, MetricsServiceInterface, TsxUtilities, Response, TreeNode, WebsocketRequestContext, WriteThroughReadThroughCache, ZIBRI_DI_TOKENS } from 'zibri';
 
 import { AssetsPage } from '../templates/pages/assets';
 import { HomePage } from '../templates/pages/home';
@@ -30,7 +30,7 @@ export class PageController {
     @Response.html()
     @Get()
     async index(): Promise<HtmlResponse> {
-        const html: string = await PreactUtilities.renderPage(HomePage, { appName: GlobalRegistry.getAppData('name') ?? '' });
+        const html: string = TsxUtilities.renderPage(HomePage, { appName: GlobalRegistry.getAppData('name') ?? '' });
         return HtmlResponse.fromString(html);
     }
 
@@ -40,7 +40,7 @@ export class PageController {
     async assets(): Promise<HtmlResponse> {
         const assetService: AssetServiceInterface = inject(ZIBRI_DI_TOKENS.ASSET_SERVICE);
         const nodes: TreeNode[] = await assetService.buildFileTree();
-        const html: string = await PreactUtilities.renderPage(AssetsPage, { nodes });
+        const html: string = TsxUtilities.renderPage(AssetsPage, { nodes });
         return HtmlResponse.fromString(html);
     }
 }

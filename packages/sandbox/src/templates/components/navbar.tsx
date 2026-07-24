@@ -1,4 +1,4 @@
-import { $ts, PreactComponent } from 'zibri';
+import { $ts, TsxComponent } from 'zibri';
 
 import { Link } from './link';
 
@@ -6,7 +6,7 @@ type Props = {
     activeRoute: string
 };
 
-export const Navbar: PreactComponent<Props> = ({ activeRoute }) => {
+export const Navbar: TsxComponent<Props> = ({ activeRoute }) => {
     return (
         <nav className="bg-dark-gray px-6 shadow-elevation">
             <div className="flex items-center justify-center gap-8">

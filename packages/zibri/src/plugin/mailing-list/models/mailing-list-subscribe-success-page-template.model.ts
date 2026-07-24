@@ -1,6 +1,6 @@
 import { MailingListSubscriber } from './mailing-list-subscriber.model';
 import { MailingList } from './mailing-list.model';
-import { PreactComponent } from '../../../preact/preact-component.model';
+import { TsxComponent } from '../../../tsx/tsx-component.model';
 
 /**
  * Properties of a mailing list subscribe success page.
@@ -23,4 +23,4 @@ type MailingListSubscribeSuccessPageTemplateProps = {
 /**
  * Definition for a mailing list subscribe success page template.
  */
-export type MailingListSubscribeSuccessPageTemplate = PreactComponent<MailingListSubscribeSuccessPageTemplateProps>;
+export type MailingListSubscribeSuccessPageTemplate = TsxComponent<MailingListSubscribeSuccessPageTemplateProps>;

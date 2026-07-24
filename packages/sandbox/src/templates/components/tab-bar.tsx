@@ -1,5 +1,4 @@
-import { ComponentChildren } from 'preact';
-import { $ts, onClient, PreactComponent } from 'zibri';
+import { $ts, onClient, TsxComponent, TsxChildren } from 'zibri';
 
 type Tab = {
     id: string,
@@ -9,11 +8,11 @@ type Tab = {
 type Props = {
     tabs: Tab[],
     currentTabId?: string,
-    children?: ComponentChildren,
+    children?: TsxChildren,
     className?: string
 };
 
-export const TabBar: PreactComponent<Props> = ({ tabs, children, currentTabId: initialCurrentTabId, className = '' }) => {
+export const TabBar: TsxComponent<Props> = ({ tabs, children, currentTabId: initialCurrentTabId, className = '' }) => {
     let currentTabId: string = initialCurrentTabId ?? tabs.at(0)?.id ?? '';
 
     onClient(() => changeTab(currentTabId));

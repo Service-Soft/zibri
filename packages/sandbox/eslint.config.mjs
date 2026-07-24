@@ -1,5 +1,20 @@
-/* eslint-disable jsdoc/require-description */
-import { configs } from 'eslint-config-service-soft';
+import baseConfig from '../../eslint.config.mjs';
+import { cspellOptions } from 'eslint-config-service-soft';
 
 /** @type {import('eslint').Linter.Config} */
-export default [...configs, { rules: { 'jsdoc/require-jsdoc': 'off' } }, { ignores: ['assets'] }];
+export default [
+    ...baseConfig,
+    { ignores: ['assets'] },
+    {
+        rules: {
+            'cspell/spellchecker': [
+                'warn',
+                {
+                    ...cspellOptions,
+                    customWordListFile: '../../cspell.words.txt'
+                }
+            ]
+        }
+    },
+    { rules: { 'jsdoc/require-jsdoc': 'off' } }
+];

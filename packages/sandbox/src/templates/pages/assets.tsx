@@ -1,4 +1,4 @@
-import { $ts, PreactComponent, TreeNode } from 'zibri';
+import { $ts, TsxComponent, TreeNode } from 'zibri';
 
 import { BasePage } from '../components/base-page';
 import { Card } from '../components/card';
@@ -9,7 +9,7 @@ type Props = {
     nodes: TreeNode[]
 };
 
-export const AssetsPage: PreactComponent<Props> = ({ nodes }) => {
+export const AssetsPage: TsxComponent<Props> = ({ nodes }) => {
     return (
         <BasePage title={$ts`Assets`} activeRoute='/assets' className="flex flex-col gap-4 py-8">
             <Heading className="text-center">Assets</Heading>

@@ -1,3 +1,4 @@
+/** @jsxImportSource preact */
 import { $ts, MailingListSubscribeConfirmationEmailTemplate } from 'zibri';
 
 import { BaseEmail } from '../email-components/base-email';

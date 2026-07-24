@@ -1,13 +1,12 @@
-import { ComponentChildren } from 'preact';
-import { PreactComponent } from 'zibri';
+import { TsxComponent, TsxChildren } from 'zibri';
 
 type Props = {
     id?: string,
     className?: string,
-    children: ComponentChildren
+    children: TsxChildren
 };
 
-export const Dialog: PreactComponent<Props> = ({ children, id, className = '' }) => {
+export const Dialog: TsxComponent<Props> = ({ children, id, className = '' }) => {
     return <dialog id={id} className={`rounded-2xl border-none ${className}`}>
         {children}
     </dialog>;

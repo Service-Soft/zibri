@@ -1,16 +1,15 @@
-import { ComponentChildren } from 'preact';
-import { PreactComponent } from 'zibri';
+import { TsxComponent, TsxChildren } from 'zibri';
 
 type Props = {
     href: string,
-    children: ComponentChildren,
+    children: TsxChildren,
     activeRoute?: string,
     className?: string,
     icon?: string,
     iconClassName?: string
 };
 
-export const Link: PreactComponent<Props> = ({ href, children, activeRoute, className = '', icon, iconClassName = '' }) => {
+export const Link: TsxComponent<Props> = ({ href, children, activeRoute, className = '', icon, iconClassName = '' }) => {
     const defaultClasses: string = 'tracking-wider hover:text-secondary transition duration-200 ease-in';
     const activeClasses: string = activeRoute === href ? 'text-secondary' : 'text-white';
 

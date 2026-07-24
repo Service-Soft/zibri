@@ -1,5 +1,5 @@
 import { Chart } from 'chart.js?client';
-import { $ts, MetricsSnapshot, onClient, PreactComponent } from 'zibri';
+import { $ts, MetricsSnapshot, onClient, TsxComponent } from 'zibri';
 
 import { CacheDetailSection } from './cache/cache-details-section';
 import { CacheHitRateStatCard } from './cache/cache-hit-rate-stat-card';
@@ -35,17 +35,19 @@ type Props = {
     rateLimiterNames: string[]
 };
 
-export const MetricsPage: PreactComponent<Props> = ({ version, primary, secondary, cacheNames, rateLimiterNames }) => {
-    Chart.defaults.color = 'whitesmoke';
-    Chart.defaults.borderColor = 'whitesmoke';
-    Chart.defaults.scale.grid.color = 'rgba(200, 200, 200, 0.3)';
-
+export const MetricsPage: TsxComponent<Props> = ({ version, primary, secondary, cacheNames, rateLimiterNames }) => {
     let snaps: MetricsSnapshot[] = [];
     let automaticReload: boolean = true;
 
     const tabs: string[] = ['overview', 'caches'];
 
     onClient(() => {
+        // Chart comes from a ?client import, so it only exists in the browser. This runs before any
+        // nested chart component's setup, which is where the charts are actually created.
+        Chart.defaults.color = 'whitesmoke';
+        Chart.defaults.borderColor = 'whitesmoke';
+        Chart.defaults.scale.grid.color = 'rgba(200, 200, 200, 0.3)';
+
         window.addEventListener('load', () => {
             activateTab('overview');
 

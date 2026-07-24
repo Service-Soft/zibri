@@ -1,4 +1,4 @@
-import { PreactComponent } from 'zibri';
+import { TsxComponent } from 'zibri';
 
 type Props = {
     id: string,
@@ -7,7 +7,7 @@ type Props = {
     className?: string
 };
 
-export const TextArea: PreactComponent<Props> = ({ label, id, className, onChange }) => {
+export const TextArea: TsxComponent<Props> = ({ label, id, className, onChange }) => {
     return (
         <div className={`flex flex-col gap-1 ${className}`}>
             {label && <label className="cursor-pointer" for={id}>

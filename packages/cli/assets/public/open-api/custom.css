@@ -1,0 +1,131 @@
+body {
+    margin: 0;
+    padding-bottom: 20px;
+}
+
+#zibri-openapi-logo {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    align-items: center;
+    position: absolute;
+    margin-top: -25px;
+    color: whitesmoke;
+    transition: 0.3s ease;
+    font-size: 28px;
+}
+
+#zibri-openapi-logo:hover  {
+    color: #00b4d8;
+}
+
+.zibri-roles-container {
+    flex: 1;
+    display: flex;
+    justify-content: end;
+}
+
+.zibri-role-badge {
+    background-color: #1a1a26;
+    border: 1px solid whitesmoke;
+    padding-left: 8px;
+    padding-right: 8px;
+    padding-bottom: 2px;
+    border-radius: 10px;
+    font-size: 14px;
+}
+
+.swagger-ui .opblock .opblock-summary .view-line-link {
+    margin: 0px !important;
+    width: 30px !important;
+}
+
+body,
+.swagger-ui .dialog-ux .modal-ux {
+    background-color: #2a2a35;;
+}
+
+svg {
+    filter: brightness(0) saturate(100%) invert(96%) sepia(0%) saturate(0%) hue-rotate(0deg) contrast(1);
+}
+
+.swagger-ui .topbar svg {
+    /* filter: brightness(0) saturate(100%) invert(96%) sepia(0%) saturate(0%) hue-rotate(0deg) contrast(1); */
+    display: none;
+}
+
+.swagger-ui .info .title {
+    text-align: center;
+}
+
+.swagger-ui .info .link {
+    display: none;
+}
+
+.swagger-ui .json-schema-2020-12-property .json-schema-2020-12__title,
+.swagger-ui .tab li,
+.swagger-ui .parameter__type,
+.swagger-ui .parameter__name,
+.swagger-ui table thead tr th,
+.swagger-ui,
+.swagger-ui .opblock .opblock-section-header h4,
+.swagger-ui .btn,
+.swagger-ui .responses-inner h5,
+.swagger-ui .responses-inner h4,
+.swagger-ui .response-col_links,
+.swagger-ui table thead tr td,
+.swagger-ui .response-col_status,
+.swagger-ui .opblock-description-wrapper p,
+.swagger-ui .opblock-tag,
+.swagger-ui .opblock .opblock-summary-path,
+.swagger-ui .info .title,
+.swagger-ui .dialog-ux .modal-ux-header h3,
+.swagger-ui .dialog-ux .modal-ux-content h4,
+.swagger-ui .dialog-ux .modal-ux-content p,
+.swagger-ui label {
+    color: whitesmoke;
+}
+
+.swagger-ui table thead tr th,
+.swagger-ui table thead tr td,
+.swagger-ui .opblock-tag {
+    border-bottom: 1px solid white;
+}
+
+.swagger-ui .tab li:first-of-type::after {
+    background: lightgray;
+}
+
+.swagger-ui .btn {
+    border: 2px solid whitesmoke;
+}
+
+.swagger-ui .opblock .opblock-section-header,
+.swagger-ui .topbar,
+.swagger-ui .scheme-container {
+    background-color: #1a1a26;
+}
+
+.swagger-ui table thead tr td,
+.swagger-ui .response-col_status {
+    padding-right: 2em;
+}
+
+.swagger-ui .topbar .download-url-wrapper {
+    display: flex;
+}
+
+.swagger-ui .json-schema-2020-12-body {
+    border-left: 1px dashed #afaeae;
+}
+
+.swagger-ui .json-schema-2020-12__attribute--primary {
+    color: #019fbe;
+}
+
+.swagger-ui .dialog-ux .auth-btn-wrapper {
+    justify-content: start;
+}
+.swagger-ui .dialog-ux .auth-btn-wrapper .btn-done {
+    display: none;
+}

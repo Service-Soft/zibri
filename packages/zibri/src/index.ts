@@ -387,6 +387,12 @@ export * from './preact/validate-email-templates.function';
 export * from './preact/hooks/on-client.hook';
 export * from './preact/hooks/on-server.hook';
 
+// tsx
+export * from './tsx/tsx.utilities';
+export * from './tsx/tsx-component.model';
+export * from './tsx/tsx-email-component.model';
+export * from './tsx/tsx-locale-data.model';
+
 // metrics
 export * from './metrics/metrics-service.interface';
 export * from './metrics/metrics.service';

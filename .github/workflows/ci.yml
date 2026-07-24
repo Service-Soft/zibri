@@ -15,7 +15,9 @@ jobs:
               with:
                 node-version: '22'
             - run: npm ci
+            - run: npm run build -w zibri-tsx
             - run: npm run build:prod -w zibri
+            - run: npm run build -w cli
             - run: npm run lint
     test:
         runs-on: ubuntu-latest
@@ -32,8 +34,11 @@ jobs:
                 sudo apt-get update
                 sudo apt-get install -y postgresql-client-17
             - run: npm ci
+            - run: npm run build -w zibri-tsx
             - run: npm run build:prod -w zibri
             - run: npm run test:ci -w zibri
+            - run: npm run test -w zibri-tsx
+            - run: npm run test -w zibri-cli
             - uses: codecov/codecov-action@v5
               with:
                 token: ${{ secrets.CODECOV_TOKEN }}

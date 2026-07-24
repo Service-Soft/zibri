@@ -1,3 +1,4 @@
+/** @jsxImportSource preact */
 import { $ts, GlobalRegistry, MailingListTemplateData, PreactEmailComponent } from 'zibri';
 
 import { BaseMailingListFooter } from './base-mailing-list-footer';

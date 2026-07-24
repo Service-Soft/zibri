@@ -12,6 +12,7 @@ import { MailingListSubscriber } from './models/mailing-list-subscriber.model';
 import { MailingListSubscriptionConfirmationToken } from './models/mailing-list-subscription-confirmation-token.model';
 import { MailingListUnsubscribeConfirmationPageTemplate } from './models/mailing-list-unsubscribe-confirmation-page-template.model';
 import { MailingList } from './models/mailing-list.model';
+import { compileTsxTemplate } from '../../__testing__/compile-tsx-template.function';
 import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
@@ -28,11 +29,20 @@ import { Ms } from '../../utilities/ms';
 // eslint-disable-next-line unicorn/no-null
 const baseEmailTemplate: MailingListBaseEmailTemplate = props => h('div', null, props.title);
 const subscribeConfirmationEmailTemplate: MailingListSubscribeConfirmationEmailTemplate = props => h('a', { href: props.confirmEmailLink });
-const preferencesPageTemplate: MailingListPreferencesPageTemplate = props => h('div', { id: 'preferences-page' }, props.subscriber.email);
+// Page templates are compiled by zibri-tsx in a real app; the tests compile inline source the same
+// way, so the controller renders exactly the compiled-component shape it will see in production.
+const preferencesPageTemplate: MailingListPreferencesPageTemplate
+    = compileTsxTemplate<MailingListPreferencesPageTemplate>(
+        'export const Page = ({ subscriber }) => <div id="preferences-page">{subscriber.email}</div>;'
+    );
 const subscribeSuccessPageTemplate: MailingListSubscribeSuccessPageTemplate
-    = props => h('div', { id: 'subscribe-success-page' }, props.subscriber.email);
+    = compileTsxTemplate<MailingListSubscribeSuccessPageTemplate>(
+        'export const Page = ({ subscriber }) => <div id="subscribe-success-page">{subscriber.email}</div>;'
+    );
 const unsubscribeConfirmationPageTemplate: MailingListUnsubscribeConfirmationPageTemplate
-    = props => h('div', { id: 'unsubscribe-confirmation-page' }, props.subscriber.email);
+    = compileTsxTemplate<MailingListUnsubscribeConfirmationPageTemplate>(
+        'export const Page = ({ subscriber }) => <div id="unsubscribe-confirmation-page">{subscriber.email}</div>;'
+    );
 
 const dataSources: Newable<PostgresDataSource>[] = [
     createTestDataSource({

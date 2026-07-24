@@ -1,10 +1,10 @@
-import { PreactComponent, TreeNode } from 'zibri';
+import { TsxComponent, TreeNode } from 'zibri';
 
 import { Link } from './link';
 
 type Props = { node: TreeNode, className?: string };
 
-export const FileEntryComponent: PreactComponent<Props> = ({ node, className = '' }) => {
+export const FileEntryComponent: TsxComponent<Props> = ({ node, className = '' }) => {
     if (node.type === 'directory') {
         return (
             <details className={`flex flex-col ${className}`}>

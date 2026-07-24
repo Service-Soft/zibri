@@ -8,7 +8,7 @@
         "lint": "eslint . --max-warnings 0"
     },
     "keywords": [],
-    "author": "",
+    "author": "Tim Fabian",
     "license": "ISC",
     "description": "",
     "dependencies": {
@@ -29,6 +29,7 @@
         "ts-loader": "^9.5.2",
         "typescript": "^5.8.3",
         "webpack": "^5.105.3",
-        "webpack-cli": "^6.0.1"
+        "webpack-cli": "^6.0.1",
+        "eslint-config-service-soft": "^2.1.6"
     }
 }

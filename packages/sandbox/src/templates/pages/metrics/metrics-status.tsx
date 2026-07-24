@@ -1,4 +1,4 @@
-import { $f, $ts, Metric, MetricsSnapshot, onClient, PreactComponent } from 'zibri';
+import { $f, $ts, Metric, MetricsSnapshot, onClient, TsxComponent } from 'zibri';
 
 import { MetricsEvent } from './metrics';
 import { Card } from '../../components/card';
@@ -10,7 +10,7 @@ type Props = {
     className?: string
 };
 
-export const MetricsStatus: PreactComponent<Props> = ({
+export const MetricsStatus: TsxComponent<Props> = ({
     className = '',
     version = '-',
     id

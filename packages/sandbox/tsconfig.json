@@ -4,7 +4,9 @@
         "esModuleInterop": true,
         "experimentalDecorators": true,
         "jsx": "react-jsx",
-        "jsxImportSource": "preact",
+        // Email templates still render through preact and opt back in with a per file
+        // `@jsxImportSource preact` pragma.
+        "jsxImportSource": "zibri-tsx",
         "module": "NodeNext",
         "moduleResolution": "NodeNext",
         "outDir": "dist",

@@ -2,7 +2,7 @@ import { NextFunction } from 'express';
 
 import { HttpRequest } from '../http/http-request.model';
 import { HttpResponse } from '../http/http-response.model';
-import { PreactComponent } from '../preact/preact-component.model';
+import { TsxComponent } from '../tsx/tsx-component.model';
 import { HttpError } from './errors/http.error';
 
 /**
@@ -18,7 +18,7 @@ type ErrorPageTemplateProps = {
 /**
  * Definition for an error page template.
  */
-export type ErrorPageTemplate = PreactComponent<ErrorPageTemplateProps>;
+export type ErrorPageTemplate = TsxComponent<ErrorPageTemplateProps>;
 
 /**
  * A global error handler function.

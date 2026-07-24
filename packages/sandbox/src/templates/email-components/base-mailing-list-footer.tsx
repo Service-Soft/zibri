@@ -1,3 +1,4 @@
+/** @jsxImportSource preact */
 import { $ts, inject, MailingList, MailingListServiceInterface, MailingListSubscriber, PreactEmailComponent, ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from 'zibri';
 
 import { EmailColumn } from './email-column';

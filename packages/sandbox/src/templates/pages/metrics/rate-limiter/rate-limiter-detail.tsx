@@ -1,5 +1,5 @@
 import type { Chart as ChartJsChart } from 'chart.js';
-import { $ts, MetricsSnapshot, PreactComponent } from 'zibri';
+import { $ts, MetricsSnapshot, TsxComponent } from 'zibri';
 
 import { Chart } from '../../../components/chart';
 
@@ -9,7 +9,7 @@ type Props = {
     secondary: string
 };
 
-export const RateLimiterDetail: PreactComponent<Props> = ({ name, primary, secondary }) => {
+export const RateLimiterDetail: TsxComponent<Props> = ({ name, primary, secondary }) => {
     return (
         <div className="flex flex-col gap-3">
             <h3 className="text-white text-2xl tracking-wider">{name}</h3>

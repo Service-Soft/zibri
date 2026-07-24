@@ -1,4 +1,4 @@
-import { $ts, PreactComponent } from 'zibri';
+import { $ts, TsxComponent } from 'zibri';
 
 import { BasePage } from '../components/base-page';
 import { Card } from '../components/card';
@@ -9,7 +9,7 @@ type Props = {
     appName: string
 };
 
-export const HomePage: PreactComponent<Props> = ({ appName }) => {
+export const HomePage: TsxComponent<Props> = ({ appName }) => {
     return (
         <BasePage title='' activeRoute='/' className="flex flex-col gap-4 py-8">
             <Heading className="text-center">{appName}</Heading>

@@ -1,3 +1,4 @@
+/** @jsxImportSource preact */
 import { GlobalRegistry, PreactEmailComponent } from 'zibri';
 
 import { EmailColumn } from './email-column';

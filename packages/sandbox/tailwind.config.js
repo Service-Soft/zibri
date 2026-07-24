@@ -1,11 +1,9 @@
-// eslint-disable-next-line jsdoc/require-description
 /** @type {import('tailwindcss').Config} */
 module.exports = {
     content: ['./src/templates/**/*.{tsx,hbs}'],
     theme: {
         colors: {
             primary: '#0e456f',
-            // eslint-disable-next-line cspell/spellchecker
             white: 'whitesmoke',
             secondary: '#00b4d8',
             gray: '#2a2a35',

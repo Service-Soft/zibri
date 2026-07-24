@@ -1,5 +1,4 @@
-import { ComponentChildren } from 'preact';
-import { PreactComponent } from 'zibri';
+import { TsxComponent, TsxChildren } from 'zibri';
 
 import { Card } from './card';
 import { Heading } from './heading';
@@ -9,10 +8,10 @@ type Props = {
     id: string,
     unit?: string,
     className?: string,
-    children?: ComponentChildren
+    children?: TsxChildren
 };
 
-export const StatCard: PreactComponent<Props> = ({ title, id, unit = '', className = '', children = '...' }) => {
+export const StatCard: TsxComponent<Props> = ({ title, id, unit = '', className = '', children = '...' }) => {
     return (
         <Card className={`flex flex-col gap-2 ${className}`}>
             <Heading className='!text-xl' tag='h2'>{title}</Heading>

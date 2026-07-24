@@ -1,6 +1,6 @@
 import { MailingListSubscriber } from './mailing-list-subscriber.model';
 import { MailingList } from './mailing-list.model';
-import { PreactComponent } from '../../../preact/preact-component.model';
+import { TsxComponent } from '../../../tsx/tsx-component.model';
 
 /**
  * Properties of a mailing list unsubscribe confirmation page component.
@@ -23,4 +23,4 @@ type MailingListUnsubscribeConfirmationPageTemplateProps = {
 /**
  * Definition for a mailing list unsubscribe confirmation page template.
  */
-export type MailingListUnsubscribeConfirmationPageTemplate = PreactComponent<MailingListUnsubscribeConfirmationPageTemplateProps>;
+export type MailingListUnsubscribeConfirmationPageTemplate = TsxComponent<MailingListUnsubscribeConfirmationPageTemplateProps>;

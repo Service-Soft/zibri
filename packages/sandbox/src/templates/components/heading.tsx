@@ -1,14 +1,13 @@
-import { ComponentChildren } from 'preact';
-import { PreactComponent } from 'zibri';
+import { TsxComponent, TsxChildren } from 'zibri';
 
 type Props = {
     tag?: 'h1' | 'h2' | 'h3',
     id?: string,
-    children: ComponentChildren,
+    children: TsxChildren,
     className?: string
 };
 
-export const Heading: PreactComponent<Props> = ({
+export const Heading: TsxComponent<Props> = ({
     tag = 'h1',
     id,
     children,
