@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
-import { h } from 'preact';
 
 import { EmailLoggerTransportConfig, logToEmail } from './log-to-email.function';
 import { LogEmailTemplate } from './logger-transport.model';
+import { compileTsxTemplate } from '../../__testing__/compile-tsx-template.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../data-source/repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
@@ -13,8 +13,9 @@ import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { LogLevel } from '../log-level.enum';
 import { Log } from '../log.model';
 
-// eslint-disable-next-line unicorn/no-null
-const template: LogEmailTemplate = props => h('div', null, props.log.message);
+const template: LogEmailTemplate = compileTsxTemplate<LogEmailTemplate>(
+    'export const Email = ({ log }) => <div>{log.message}</div>;'
+);
 
 function createLog(overrides: Partial<Log> = {}): Log {
     return {

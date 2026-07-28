@@ -1,11 +1,11 @@
-import os from 'node:os';
 import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
 
 import { NewCommand } from './new.command';
+import { testFileFolder } from '../../__testing__/constants';
 import { CPUtilities, FsUtilities } from '../../encapsulation';
-import { Path } from '../../utilities';
+import { getPath, Path } from '../../utilities';
 
 const TEST_TIMEOUT_MS: number = 120_000;
 
@@ -13,7 +13,7 @@ describe('NewCommand (real npm install)', () => {
     let workDir: Path;
 
     beforeEach(async () => {
-        workDir = path.join(os.tmpdir(), `zibri-cli-new-command-heavy-test-${Date.now()}`) as Path;
+        workDir = getPath(testFileFolder, 'new-command-heavy');
         await FsUtilities.mkdir(workDir);
         CPUtilities['cwd'] = workDir;
         // Only set for this test: makes the generated app depend on the local zibri workspace build

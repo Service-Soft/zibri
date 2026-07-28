@@ -23,6 +23,7 @@ export class MetricsController {
     @Cached(StaticPagesCache, () => StaticPagesCache.getPageKey('dashboard'))
     @Response.html()
     @Get('/dashboard')
+    // eslint-disable-next-line typescript/require-await
     async dashboard(): Promise<HtmlResponse> {
         const version: string = GlobalRegistry.getAppData('version') ?? '-';
         const cacheNames: string[] = this.cacheService.caches.map(c => c.name);

@@ -55,6 +55,20 @@ export function raw(html: string): Raw {
 }
 
 /**
+ * Emits a trusted HTML string as an element, unescaped. The template-facing form of {@link raw}, for
+ * markup JSX cannot express - most notably the Outlook conditional comments (`<!--[if mso]>...`) MJML
+ * wraps its layout in, which are siblings rather than a subtree.
+ *
+ * Server-only: the compiler lowers a `$raw(...)` call to a `$ssr.raw(...)` call, so client code that
+ * uses it fails to compile like any other server import used on the client.
+ * @param html - The trusted HTML.
+ * @returns The wrapped value, usable anywhere a JSX child is.
+ */
+export function $raw(html: string): Raw {
+    return { __raw: html };
+}
+
+/**
  * Whether a value is a {@link Raw} marker.
  * @param value - The value to test.
  * @returns True when the value is a Raw marker.
@@ -519,6 +533,51 @@ export type ClientInstanceEntry = {
 };
 
 /**
+ * A render context token: the shared identity a `provideContext`/`useContext` pair matches on, plus
+ * the value used when nothing provided it. Created once with {@link createContext} and imported by
+ * every component that reads or provides it, so the identity is the same across files.
+ *
+ * This is a server-only mechanism: values live on the per-render runtime and are read where a
+ * component renders, so a section can hand layout down to its columns. It never reaches the browser -
+ * client code that references `provideContext`/`useContext` fails to compile, like any other server
+ * import used on the client.
+ */
+export type RenderContext<T> = {
+    /**
+     * Marks the object as a context token.
+     */
+    __renderContext: true,
+    /**
+     * The value {@link RenderServerRuntime.useContext} returns when no ancestor provided one.
+     */
+    default: T
+};
+
+/**
+ * Creates a render context with the value used when nothing provides it. Call it once in a shared
+ * module and import the token wherever it is provided or read.
+ * @param defaultValue - The value read when no ancestor provided one.
+ * @returns The context token.
+ */
+export function createContext<T>(defaultValue: T): RenderContext<T> {
+    return { __renderContext: true, default: defaultValue };
+}
+
+/**
+ * One provided context value on the runtime's stack.
+ */
+type ContextFrame = {
+    /**
+     * The token the value was provided for.
+     */
+    context: RenderContext<unknown>,
+    /**
+     * The provided value.
+     */
+    value: unknown
+};
+
+/**
  * A per-render server runtime: the stateless helpers plus a handler registry and the helpers that
  * stamp `data-ssr-handlers` (`on`) and create markers for handlers passed to components (`mark`).
  */
@@ -542,7 +601,7 @@ export type RenderServerRuntime = ServerRuntime & {
      * Also takes a plain tag name, because a capitalized identifier holding one
      * (`const Tag = 'h1'; <Tag/>`) cannot be told apart from a component at compile time.
      */
-    component: (component: CompiledComponent | string, props: Record<string, unknown>) => Raw,
+    component: (component: CompiledComponent | string, props: Record<string, unknown>, children?: () => unknown) => Raw,
     /**
      * The handler instances collected so far this render.
      */
@@ -558,7 +617,28 @@ export type RenderServerRuntime = ServerRuntime & {
     /**
      * The client-prop instances collected so far this render.
      */
-    clientProps: ClientPropRegistryEntry[]
+    clientProps: ClientPropRegistryEntry[],
+    /**
+     * Provides a value for a context to everything rendered by the current component, including its
+     * lazily rendered children. Removed automatically once that component's render finishes.
+     */
+    provideContext: <T>(context: RenderContext<T>, value: T) => void,
+    /**
+     * Reads the value the nearest enclosing provider gave for a context, or its default when none did.
+     */
+    useContext: <T>(context: RenderContext<T>) => T,
+    /**
+     * Records a value on a named channel, de-duplicated and in first-seen order. A component deep in
+     * the tree uses this to surface something an ancestor needs to know - an email column registering
+     * its width so the document can emit the matching responsive rule.
+     */
+    collect: (channel: string, value: string) => void,
+    /**
+     * Reads the values recorded on a channel so far, in first-seen order. An ancestor that renders its
+     * children before its own shell (an email document building its head from what the body used) sees
+     * everything they collected.
+     */
+    collected: (channel: string) => string[]
 };
 
 /**
@@ -573,6 +653,42 @@ export function createServerRuntime(): RenderServerRuntime {
     // nested component gets the next id, so an instance can be handed exactly its own handlers.
     let ownerCounter: number = 0;
     let currentOwner: number = 0;
+    // Context is dynamic, not lexical: a value is visible to whatever renders while it is on the
+    // stack (including lazily forced children), and each component's provides are popped once its
+    // render returns. The nearest provider wins, so the stack is searched from the top.
+    const contextStack: ContextFrame[] = [];
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    function provideContext<T>(context: RenderContext<T>, value: T): void {
+        contextStack.push({ context: context as RenderContext<unknown>, value });
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    function useContext<T>(context: RenderContext<T>): T {
+        for (let i: number = contextStack.length - 1; i >= 0; i--) {
+            if (contextStack[i].context === context) {
+                return contextStack[i].value as T;
+            }
+        }
+        return context.default;
+    }
+
+    // Values surfaced from deep in the tree to an ancestor that assembles after its children render.
+    const channels: Map<string, string[]> = new Map<string, string[]>();
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    function collect(channel: string, value: string): void {
+        const values: string[] = channels.get(channel) ?? [];
+        if (!values.includes(value)) {
+            values.push(value);
+            channels.set(channel, values);
+        }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    function collected(channel: string): string[] {
+        return channels.get(channel) ?? [];
+    }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     function on(specs: HandlerSpec[]): string {
@@ -601,6 +717,41 @@ export function createServerRuntime(): RenderServerRuntime {
         return marker;
     }
 
+    /**
+     * Adds the children as a lazily rendered prop, so they are built when the component reads them
+     * rather than before it runs. A component that never reads its children never renders them.
+     *
+     * The owner is restored to the one that was current when the thunk was created: the children are
+     * written in the parent's source, so any handler or client prop among them belongs to the
+     * parent's client setup, no matter which component ends up reading them.
+     * @param props - The props the component was given.
+     * @param children - Renders the children.
+     * @returns The props, with `children` resolved on first read.
+     */
+    function withLazyChildren(props: Record<string, unknown>, children: () => unknown): Record<string, unknown> {
+        const declaringOwner: number = currentOwner;
+        let rendered: boolean = false;
+        let value: unknown;
+        return Object.defineProperty({ ...props }, 'children', {
+            enumerable: true,
+            get: (): unknown => {
+                if (rendered) {
+                    return value;
+                }
+                const parent: number = currentOwner;
+                currentOwner = declaringOwner;
+                try {
+                    value = children();
+                    rendered = true;
+                }
+                finally {
+                    currentOwner = parent;
+                }
+                return value;
+            }
+        });
+    }
+
     const instances: ClientInstanceEntry[] = [];
     const vendorPackages: string[] = [];
 
@@ -616,13 +767,18 @@ export function createServerRuntime(): RenderServerRuntime {
         instances,
         vendorPackages,
         clientProps,
+        provideContext,
+        useContext,
+        collect,
+        collected,
         // Registers a client instance (when the component has client behavior), then delegates to
         // its server render, handing it this same runtime so nested renders share the registries.
-        component: (compiled: CompiledComponent | string, props: Record<string, unknown>): Raw => {
+        component: (compiled: CompiledComponent | string, props: Record<string, unknown>, children?: () => unknown): Raw => {
+            const withChildren: Record<string, unknown> = children ? withLazyChildren(props, children) : props;
             // A capitalized identifier holding a tag name (`const Tag = 'h1'; <Tag/>`) looks exactly
             // like a component to the compiler, so the element case is resolved here.
             if (typeof compiled === 'string') {
-                return renderDynamicElement(compiled, props, on);
+                return renderDynamicElement(compiled, withChildren, on);
             }
             for (const packageName of compiled.clientPackages ?? []) {
                 if (!vendorPackages.includes(packageName)) {
@@ -639,17 +795,25 @@ export function createServerRuntime(): RenderServerRuntime {
                     referencedHooks,
                     referencedTranslations,
                     owner,
+                    // Deliberately the original props: reading the lazy children here would render
+                    // them before the component runs, which is exactly what they are lazy to avoid.
+                    // Rendered markup never reaches the page as a prop anyway.
                     props: pickSerializable(props, referencedProps)
                 });
             }
             // Handlers and client props declared while this component renders belong to this instance.
             const parent: number = currentOwner;
             currentOwner = owner;
+            // Anything this component provides is scoped to its render: its children are forced while
+            // building the returned markup, so by the time render returns every descendant has read
+            // what it needed and the frames can be dropped.
+            const contextDepth: number = contextStack.length;
             try {
-                return compiled.render(props, runtime);
+                return compiled.render(withChildren, runtime);
             }
             finally {
                 currentOwner = parent;
+                contextStack.length = contextDepth;
             }
         }
     };

@@ -1,77 +1,56 @@
-/** @jsxImportSource preact */
-import { ComponentChildren } from 'preact';
-import { LocaleCode, PreactEmailComponent } from 'zibri';
-
-import { EmailBody } from './email-body';
-import { EmailHead } from './email-head';
-import { EmailHtml } from './email-html';
+import { LocaleCode, MjAttributes, MjBody, MjHead, Mjml, MjStyle, MjTitle, TsxChildren, TsxComponent } from 'zibri';
 
 type Props = {
+    title: string,
+    children: TsxChildren,
     lang?: LocaleCode,
     dir?: 'auto' | 'rtl' | 'ltr',
     backgroundColor?: string,
     width?: string,
     cssClass?: string,
-    textAlign?: 'left' | 'center' | 'right' | 'justify',
     color?: string,
     fontFamily?: string,
     lineHeight?: number,
-    padding?: string,
-    paddingTop?: string,
-    paddingRight?: string,
-    paddingBottom?: string,
-    paddingLeft?: string,
-
-    title: string,
-    children: ComponentChildren
+    textAlign?: 'left' | 'center' | 'right' | 'justify'
 };
 
-export const BaseEmail: PreactEmailComponent<Props> = ({
+const HOVER_STYLES: string = '.btn-primary a:hover {'
+    + ' background-color: #0e456f !important;'
+    + ' transition: background-color 300ms ease !important;'
+    + ' }';
+
+export const BaseEmail: TsxComponent<Props> = ({
     title,
     children,
-    dir = 'auto',
     lang = 'und',
+    dir = 'auto',
     backgroundColor = '#2a2a35',
-    color = 'whitesmoke',
     width,
     cssClass,
-    textAlign,
+    color = 'whitesmoke',
     fontFamily,
     lineHeight,
-    padding,
-    paddingBottom = '40px',
-    paddingLeft,
-    paddingRight,
-    paddingTop = '40px'
+    textAlign
 }) => {
-    const customStyles: string = `
-        .btn-primary a:hover {
-            background-color: #0e456f !important;
-            transition: background-color 300ms ease !important;
-        }
-    `;
+    // Document-wide typography defaults, applied through MJML's mj-attributes. Only the set values are
+    // included so unset ones keep MJML's defaults.
+    const typography: Record<string, string> = {
+        color,
+        ...fontFamily ? { fontFamily } : {},
+        ...textAlign ? { textAlign } : {},
+        ...lineHeight === undefined ? {} : { lineHeight: String(lineHeight) }
+    };
 
     return (
-        <EmailHtml lang={lang} dir={dir}>
-            <EmailHead title={title} customStyles={customStyles} />
-            <EmailBody
-                backgroundColor={backgroundColor}
-                cssClass={cssClass}
-                dir={dir}
-                textAlign={textAlign}
-                lang={lang}
-                width={width}
-                color={color}
-                fontFamily={fontFamily}
-                lineHeight={lineHeight}
-                padding={padding}
-                paddingBottom={paddingBottom}
-                paddingLeft={paddingLeft}
-                paddingRight={paddingRight}
-                paddingTop={paddingTop}
-            >
+        <Mjml lang={lang} dir={dir}>
+            <MjHead>
+                <MjTitle>{title}</MjTitle>
+                <MjAttributes all={typography}/>
+                <MjStyle>{HOVER_STYLES}</MjStyle>
+            </MjHead>
+            <MjBody backgroundColor={backgroundColor} width={width} cssClass={cssClass}>
                 {children}
-            </EmailBody>
-        </EmailHtml>
+            </MjBody>
+        </Mjml>
     );
 };

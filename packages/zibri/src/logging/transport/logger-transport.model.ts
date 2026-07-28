@@ -1,4 +1,4 @@
-import { PreactEmailComponent } from '../../preact/preact-email-component.model';
+import { TsxEmailComponent } from '../../tsx/tsx-email-component.model';
 import { LogLevel } from '../log-level.enum';
 import { Log } from '../log.model';
 import { logToConsole } from './log-to-console.function';
@@ -18,7 +18,7 @@ type LogEmailTemplateProps = {
 /**
  * Definition for a log email template.
  */
-export type LogEmailTemplate = PreactEmailComponent<LogEmailTemplateProps>;
+export type LogEmailTemplate = TsxEmailComponent<LogEmailTemplateProps>;
 
 /**
  * The base configuration options shared by all logger transports.

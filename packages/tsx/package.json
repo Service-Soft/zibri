@@ -13,6 +13,10 @@
             "types": "./dist/webpack/index.d.ts",
             "default": "./dist/webpack/index.js"
         },
+        "./email": {
+            "types": "./dist/email/index.d.ts",
+            "default": "./dist/email/index.js"
+        },
         "./jsx-runtime": {
             "types": "./dist/jsx-runtime.d.ts",
             "default": "./dist/jsx-runtime.js"
@@ -53,6 +57,7 @@
         "eslint": "^9.24.0",
         "eslint-config-service-soft": "^2.1.6",
         "jest": "^30.4.2",
+        "mjml": "^5.4.0",
         "ts-jest": "^29.4.11",
         "typescript": "^5.8.3"
     }

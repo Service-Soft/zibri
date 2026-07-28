@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { compileComponent, renderComponent } from '../../__testing__/server-render.helper';
+import { compileComponent, renderComponent, serverRenderCode } from '../../__testing__/server-render.helper';
 import { CompiledComponent } from '../../runtime/server-runtime';
 
 describe('server render codegen', () => {
@@ -120,6 +120,54 @@ describe('server render codegen', () => {
                 { Card }
             );
             expect(html).toBe('<section class="c">Hello</section>');
+        });
+    });
+
+    describe('context hooks', () => {
+        it('lowers provideContext to a call on the render runtime', () => {
+            const code: string = serverRenderCode(
+                'const A = ({ ctx }) => { provideContext(ctx, { w: 1 }); return <div/>; };'
+            );
+            expect(code).toContain('$ssr.provideContext(ctx, { w: 1 })');
+            expect(code).not.toContain(' provideContext(');
+        });
+
+        it('lowers useContext to a call on the render runtime', () => {
+            const code: string = serverRenderCode(
+                'const A = ({ ctx }) => <div>{useContext(ctx).w}</div>;'
+            );
+            expect(code).toContain('$ssr.useContext(ctx)');
+        });
+
+        it('leaves an unrelated call named similarly on a member alone', () => {
+            // Only a bare identifier call is a hook; a method call keeps its receiver.
+            const code: string = serverRenderCode('const A = ({ store }) => <div>{store.useContext()}</div>;');
+            expect(code).toContain('store.useContext()');
+            expect(code).not.toContain('$ssr.useContext');
+        });
+    });
+
+    describe('$raw', () => {
+        it('lowers $raw to the runtime raw constructor', () => {
+            const code: string = serverRenderCode('const A = () => <div>{$raw(\'<x>\')}</div>;');
+            expect(code).toContain('$ssr.raw(\'<x>\')');
+        });
+
+        it('emits the trusted html verbatim, unescaped', () => {
+            // The conditional comments MJML wraps its layout in cannot be written as JSX, so they go
+            // through $raw and must land in the output exactly as given.
+            const html: string = renderComponent(
+                'const A = ({ children }) => <div>{$raw(\'<!--[if mso]><table><![endif]-->\')}{children}</div>;',
+                { children: 'x' }
+            );
+            expect(html).toBe('<div><!--[if mso]><table><![endif]-->x</div>');
+        });
+
+        it('places raw html as a sibling of normal elements', () => {
+            const html: string = renderComponent(
+                'const A = () => <>{$raw(\'<!--a-->\')}<span>b</span>{$raw(\'<!--c-->\')}</>;'
+            );
+            expect(html).toBe('<!--a--><span>b</span><!--c-->');
         });
     });
 });

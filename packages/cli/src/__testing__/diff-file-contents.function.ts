@@ -1,4 +1,24 @@
-import { diffStringsUnified } from 'jest-diff';
+import { DiffOptions, DiffOptionsColor, diffStringsUnified } from 'jest-diff';
+
+/**
+ * Disables coloring for a single part of the diff.
+ * Jest-diff colors its output with chalk by default, which embeds ansi escape sequences that are
+ * invisible when the diff is printed but still part of the string. That would make the diff
+ * impossible to copy into acceptedSandboxDifferences, so all colors are disabled.
+ * @param value - The value that would have been colored.
+ * @returns The value unchanged.
+ */
+const noColor: DiffOptionsColor = (value: string) => value;
+
+const DIFF_OPTIONS: DiffOptions = {
+    aAnnotation: 'generated',
+    bAnnotation: 'sandbox',
+    aColor: noColor,
+    bColor: noColor,
+    changeColor: noColor,
+    commonColor: noColor,
+    patchColor: noColor
+};
 
 /**
  * Heuristic for whether a buffer holds text: binary files (images, .ico, ...) almost always
@@ -28,6 +48,6 @@ export function diffFileContents(generated: Buffer, sandbox: Buffer): string {
     return diffStringsUnified(
         generated.toString('utf8'),
         sandbox.toString('utf8'),
-        { aAnnotation: 'generated', bAnnotation: 'sandbox' }
+        DIFF_OPTIONS
     ) ?? '';
 }

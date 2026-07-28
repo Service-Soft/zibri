@@ -4,7 +4,7 @@ import { EmailServiceInterface } from '../../email/email-service.interface';
 import { EmailPriority } from '../../email/models/email-priority.enum';
 import { Email } from '../../email/models/email.model';
 import { GlobalRegistry } from '../../global/global-registry';
-import { PreactUtilities } from '../../preact/preact.utilities';
+import { TsxUtilities } from '../../tsx/tsx.utilities';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { LogLevel } from '../log-level.enum';
 import { Log } from '../log.model';
@@ -46,7 +46,7 @@ export const logToEmail: LoggerTransportSend<EmailLoggerTransportConfig> = async
 ) => {
     const emailService: EmailServiceInterface = inject(ZIBRI_DI_TOKENS.EMAIL_SERVICE);
     const subject: string = (config.subject ?? getSubject)(log);
-    const html: string = PreactUtilities.renderEmail(config.emailTemplate, { log });
+    const html: string = TsxUtilities.renderEmail(config.emailTemplate, { log });
 
     await emailService.queue({
         recipients: config.recipients(log),

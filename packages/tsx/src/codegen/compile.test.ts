@@ -47,6 +47,31 @@ describe('compile', () => {
         expect(result.code).not.toContain('Other');
     });
 
+    it('drops server-inlined context hook imports but keeps createContext', () => {
+        // provideContext/useContext are lowered to $ssr methods, so their import bindings are dead
+        // in the emitted module; keeping them would require a runtime export that does not exist.
+        const source: string = 'import { createContext, provideContext, useContext } from \'zibri\';\n'
+            + 'const Ctx = createContext(0);\n'
+            + 'export const Home = ({ n }) => { provideContext(Ctx, n); return <div>{useContext(Ctx)}</div>; };';
+        const result: CompileResult = compile(source);
+        assert(result.code);
+        expect(result.code).toContain('import { createContext } from "zibri";');
+        expect(result.code).not.toContain('provideContext } from');
+        expect(result.code).toContain('$ssr.provideContext(Ctx, n)');
+        expect(result.code).toContain('$ssr.useContext(Ctx)');
+    });
+
+    it('lowers $raw to the runtime constructor and drops its import', () => {
+        // $raw needs no per-render state, so it is inlined to $ssr.raw like the context hooks, which
+        // is what keeps it server-only and needs no runtime export.
+        const source: string = 'import { $raw } from \'zibri\';\n'
+            + 'export const Home = ({ children }) => <div>{$raw(\'<!--[if mso]>x<![endif]-->\')}{children}</div>;';
+        const result: CompileResult = compile(source);
+        assert(result.code);
+        expect(result.code).toContain('$ssr.raw(\'<!--[if mso]>x<![endif]-->\')');
+        expect(result.code).not.toContain('from "zibri"');
+    });
+
     it('drops ?client imports (the browser gets them as globals)', () => {
         const source: string = 'import { Chart } from \'chart.js?client\';\n'
             + 'export const Home = () => { onClient(() => { new Chart(); }); return <div/>; };';

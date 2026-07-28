@@ -22,7 +22,7 @@ Zibri routes every thrown error through a single global error handler, which tur
 | `MissingTokensError` | error | Internal, DI tokens that couldn't be injected |
 | `InvalidDecoratorCombinationError` | error | Internal, conflicting decorators on the same target |
 | `GlobalErrorHandler` | type | Signature of the express-style handler that processes every error |
-| `ErrorPageTemplate` | type | Signature of a preact component used to render the HTML error page |
+| `ErrorPageTemplate` | type | Signature of a tsx component used to render the HTML error page |
 | `ErrorUtilities` | class | Static helpers for classifying and converting errors |
 | `ZIBRI_DI_TOKENS.GLOBAL_ERROR_HANDLER` | DI token | Injects/overrides the `GlobalErrorHandler` |
 | `ZIBRI_DI_TOKENS.ERROR_PAGE_TEMPLATE` | DI token | Injects/overrides the `ErrorPageTemplate` |
@@ -121,7 +121,7 @@ Every error thrown anywhere in the request pipeline eventually reaches the `Glob
 4. Negotiates the response format via `Accept`: JSON clients get `{ status, name, message, paragraphs }`; HTML clients get the rendered `ErrorPageTemplate`, falling back to the same JSON (with a warning logged) if no template is configured.
 
 ### Custom error page
-By default `ZIBRI_DI_TOKENS.ERROR_PAGE_TEMPLATE` is `undefined`, so HTML-accepting clients get the JSON fallback described above. To render an actual error page, provide a preact component (see [templating](./templating.md)) that accepts an `error: HttpError` prop:
+By default `ZIBRI_DI_TOKENS.ERROR_PAGE_TEMPLATE` is `undefined`, so HTML-accepting clients get the JSON fallback described above. To render an actual error page, provide a tsx component (see [templating](./templating.md)) that accepts an `error: HttpError` prop:
 
 ```tsx
 // src/templates/pages/error.tsx
@@ -200,7 +200,7 @@ Both are overridden the same way as any other injectable, see [dependency inject
 
 ## See also
 - [Dependency injection](./di.md) — how to override `GLOBAL_ERROR_HANDLER` and `ERROR_PAGE_TEMPLATE`
-- [Templating](./templating.md) — writing the preact component used as `ErrorPageTemplate`
+- [Templating](./templating.md) — writing the tsx component used as `ErrorPageTemplate`
 - [Localization](./localization.md) — `$t`/`$ts` and how error messages get translated
 - [Rate limiting](./rate-limiting.md) — `TooManyRequestsError` and its `rateLimitResult`
 - [Creating endpoints](./creating-endpoints.md) — `@Response.error()` for documenting thrown errors in the OpenAPI schema

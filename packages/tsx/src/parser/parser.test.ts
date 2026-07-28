@@ -32,8 +32,8 @@ describe('Parser', () => {
             expect(decl.declarations[0]).toMatchObject({ id: { name: 'x' }, init: { kind: 'NumericLiteral', raw: '1' } });
         });
 
-        it('erases the PreactComponent typed arrow form used by templates', () => {
-            const decl: VariableDeclaration = parseStatement('const Page: PreactComponent<Props> = ({ title }) => title;') as VariableDeclaration;
+        it('erases the TsxComponent typed arrow form used by templates', () => {
+            const decl: VariableDeclaration = parseStatement('const Page: TsxComponent<Props> = ({ title }) => title;') as VariableDeclaration;
             expect(decl.declarations[0].init?.kind).toBe('ArrowFunctionExpression');
         });
 

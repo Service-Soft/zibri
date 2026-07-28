@@ -28,7 +28,7 @@
     },
     "scripts": {
         "start": "npm run build && cd sandbox && ZIBRI_CLI_LOCAL_DEV=1 node ../dist/index.js",
-        "build": "tsc",
+        "build": "tsc -p tsconfig.build.json",
         "clear": "rm -rf sandbox && mkdir sandbox && npm run start n api",
         "lint": "eslint . --max-warnings=0",
         "lint:fix": "eslint . --max-warnings=0 --fix",

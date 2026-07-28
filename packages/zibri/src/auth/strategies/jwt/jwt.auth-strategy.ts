@@ -39,7 +39,7 @@ import { PasswordResetToken, PasswordResetTokenCreateData } from '../../models/p
 import { type UserServiceInterface } from '../../user/user-service.interface';
 import { AuthStrategyInterface } from '../auth-strategy.interface';
 import { PasswordResetEmailTemplate } from './jwt-auth.controller';
-import { PreactUtilities } from '../../../preact/preact.utilities';
+import { TsxUtilities } from '../../../tsx/tsx.utilities';
 import { UUIDUtilities } from '../../../utilities/uuid.utilities';
 import { type HashServiceInterface } from '../../hash/hash-service.interface';
 
@@ -258,7 +258,7 @@ implements AuthStrategyInterface<
             { transaction: data.transaction }
         );
 
-        const html: string = PreactUtilities.renderEmail(
+        const html: string = TsxUtilities.renderEmail(
             this.PasswordResetEmail,
             {
                 user: data.user,

@@ -71,15 +71,12 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
         await CPUtilities.exec(`cd ${appPath} && npm i -D ${devDependencies.join(' ')}`);
         // ZIBRI_CLI_LOCAL_DEV is only set by this package's own "start"/"clear" scripts, so a
         // published "zi new" install always resolves the real packages from npm.
-        // zibri-tsx is installed explicitly (not just as zibri's peer) because the app's
-        // webpack.config.js requires 'zibri-tsx/webpack' and its tsconfig uses it as jsxImportSource.
+        // zibri-tsx is not installed explicitly: it is a peer dependency of zibri, so npm resolves
+        // it on its own and the generated app does not need to declare it.
         const zibriDependency: string = process.env['ZIBRI_CLI_LOCAL_DEV']
             ? `file:${getPath(__dirname, '..', '..', '..', '..', 'zibri')}`
             : `zibri@${version}`;
-        const zibriTsxDependency: string = process.env['ZIBRI_CLI_LOCAL_DEV']
-            ? `file:${getPath(__dirname, '..', '..', '..', '..', 'tsx')}`
-            : `zibri-tsx@${version}`;
-        await CPUtilities.exec(`cd ${appPath} && npm i ${zibriDependency} ${zibriTsxDependency} chart.js`);
+        await CPUtilities.exec(`cd ${appPath} && npm i ${zibriDependency} chart.js`);
 
         await this.createTsConfig(appPath);
         await this.createPostCssConfig(appPath);
@@ -113,7 +110,7 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             getPath(appPath, 'src', 'controllers', 'page.controller.ts'),
             [
                 // eslint-disable-next-line stylistic/max-len
-                'import { AssetServiceInterface, Cache, Cached, CacheServiceInterface, Controller, Get, GlobalRegistry, HtmlResponse, HttpRequestContext, Inject, inject, InMemoryCacheStore, LoggerInterface, MetricsServiceInterface, Response, TreeNode, TsxUtilities, WebsocketRequestContext, WriteThroughReadThroughCache, ZIBRI_DI_TOKENS, ZIBRI_REQUEST_CONTEXT_TOKENS } from \'zibri\';',
+                'import { AssetServiceInterface, Cache, Cached, CacheServiceInterface, Controller, Get, GlobalRegistry, HtmlResponse, HttpRequestContext, Inject, inject, InMemoryCacheStore, LocaleCode, LoggerInterface, MetricsServiceInterface, Response, TreeNode, TsxUtilities, WebsocketRequestContext, WriteThroughReadThroughCache, ZIBRI_DI_TOKENS } from \'zibri\';',
                 '',
                 'import { AssetsPage } from \'../templates/pages/assets\';',
                 'import { HomePage } from \'../templates/pages/home\';',
@@ -134,18 +131,18 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
                 '    static getPageKey(page: string): string {',
                 // eslint-disable-next-line stylistic/max-len
                 '        const ctx: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);',
-                '        return ctx?.get(ZIBRI_REQUEST_CONTEXT_TOKENS.CURRENT_LANGUAGE) + page;',
+                '        const locale: LocaleCode = inject(ZIBRI_DI_TOKENS.LOCALIZE_SERVICE).resolveSupportedLocale(ctx);',
+                '        return locale + page;',
                 '    }',
                 '}',
                 '',
-                '@Controller(\'/\')',
+                '@Controller(\'/\', { versions: \'all\' })',
                 'export class PageController {',
                 '',
                 '    @Cached(StaticPagesCache, () => StaticPagesCache.getPageKey(\'index\'))',
                 '    @Response.html()',
                 '    @Get()',
                 '    async index(): Promise<HtmlResponse> {',
-
                 '        const html: string = TsxUtilities.renderPage(HomePage, { appName: GlobalRegistry.getAppData(\'name\') ?? \'\' });',
                 '        return HtmlResponse.fromString(html);',
                 '    }',
@@ -208,10 +205,6 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
                 '        useFactory: () => \'JWT_REFRESH_TOKEN_SECRET\'',
                 '    }),',
                 '    defineProvider({',
-                '        token: ZIBRI_DI_TOKENS.CONFIRM_PASSWORD_RESET_URL,',
-                '        useFactory: () => \'http://localhost:4200/confirm-password-reset\'',
-                '    }),',
-                '    defineProvider({',
                 '        token: ZIBRI_DI_TOKENS.EMAIL_CONFIG,',
                 '        useFactory: (): EmailConfigInput => {',
                 '            return {',
@@ -225,6 +218,10 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
                 '                }',
                 '            };',
                 '        }',
+                '    }),',
+                '    defineProvider({',
+                '        token: ZIBRI_DI_TOKENS.CONFIRM_PASSWORD_RESET_URL,',
+                '        useFactory: () => \'http://localhost:4200/confirm-password-reset\'',
                 '    })',
                 '    defineProvider({',
                 '        token: ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS.PREFERENCES_PAGE_TEMPLATE,',
@@ -246,7 +243,7 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
                 '        token: ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS.SUBSCRIBE_SUCCESS_PAGE_TEMPLATE,',
                 '        useFactory: () => SubscribeSuccessPage',
                 '    }),',
-                ']'
+                '];'
             ]
         );
     }
@@ -281,9 +278,12 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             '    await logger.info(\'  - default admin\');',
             '    const transaction: Transaction = await dataSource.startTransaction();',
             '    try {',
-            '        const user: User = await userRepository.create({ name: \'root\', email: \'zibri@zibri.de\', roles: [Roles.ADMIN] });',
-
-            '        await credentialsRepository.create({ email: user.email, password: \'password\', userId: user.id });',
+            // eslint-disable-next-line stylistic/max-len
+            '        const user: User = await userRepository.create({ name: \'root\', email: \'zibri@zibri.de\', roles: [Roles.ADMIN] }, { transaction });',
+            '        await credentialsRepository.create(',
+            '            { email: user.email, password: \'password\', userId: user.id },',
+            '            { transaction }',
+            '        );',
             '        await transaction.commit();',
             '    }',
             '    catch (error) {',
@@ -296,15 +296,14 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
 
     private async createIndexTs(appPath: Path, configuration: NewConfiguration): Promise<void> {
         await FsUtilities.createFile(getPath(appPath, 'src', 'index.ts'), [
-            'import H from \'handlebars/runtime\';',
             // eslint-disable-next-line stylistic/max-len
-            'import { inject, JwtAuthController, LoggerInterface, MailingListController, SemVerUtilities, ZibriMailingListPlugin, ZIBRI_DI_TOKENS, ZibriApplication } from \'zibri\';',
+            'import { inject, JwtAuthController, LoggerInterface, MailingListController, SemVerUtilities, ZIBRI_DI_TOKENS, ZibriApplication, ZibriMailingListPlugin } from \'zibri\';',
             '',
+            'import { PageController } from \'./controllers\';',
+            'import { createDefaultData } from \'./create-default-data.function\';',
             `import { DbDataSource } from './${DATA_SOURCES_DIR}';`,
             'import { version } from \'../package.json\';',
-            'import { createDefaultData } from \'./create-default-data.function\';',
             'import { providers } from \'./providers\';',
-            'import { PageController } from \'./controllers\';',
             '',
             'export let logger: LoggerInterface;',
             '',
@@ -315,16 +314,16 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             '',
             '    const app: ZibriApplication = new ZibriApplication({',
             `        name: '${configuration.name}',`,
-            '        version,',
             '        baseUrl: \'http://localhost:3000\',',
             '        plugins: [new ZibriMailingListPlugin()],',
             '        controllers: [PageController, MailingListController, JwtAuthController],',
             '        websocketControllers: [],',
             '        dataSources: [DbDataSource],',
             '        cronJobs: [],',
+            '        version,',
             '        providers',
             '    });',
-            '    await app.init(H);',
+            '    await app.init();',
             '',
             '    logger = inject(ZIBRI_DI_TOKENS.LOGGER);',
             '',
@@ -354,12 +353,12 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             '}'
         ]);
         await FsUtilities.createFile(getPath(appPath, 'src', 'models', 'user.model.ts'), [
-            'import { BaseUser, Entity, IntersectionClass, JwtCredentials, OmitClass, Property } from \'zibri\';',
+            'import { BaseUserEntity, Entity, IntersectionClass, JwtCredentials, OmitClass, Property } from \'zibri\';',
             '',
             'import { Roles } from \'./roles.enum\';',
             '',
             '@Entity()',
-            'export class User BaseUserEntity(Roles) {',
+            'export class User extends BaseUserEntity(Roles) {',
             '    @Property.string()',
             '    name!: string;',
             '}',
@@ -377,7 +376,7 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
         await FsUtilities.createFile(getPath(appPath, 'src', 'repositories', 'index.ts'), 'export * from \'./user.repository\';');
         await FsUtilities.createFile(getPath(appPath, 'src', 'repositories', 'user.repository.ts'), [
             // eslint-disable-next-line stylistic/max-len
-            'import { getDefaultBeforeReturnHook, getDefaultBeforeSaveHook, inject, InjectRepository, JwtCredentials, Repository, repositoryTokenFor, UserRepo, UserRepositoryInterface } from \'zibri\';',
+            'import { getDefaultBeforeReturnHook, getDefaultBeforeSaveHook, Inject, inject, InjectRepository, JwtCredentials, LoggerInterface, Repository, repositoryTokenFor, UserRepo, UserRepositoryInterface, ZIBRI_DI_TOKENS } from \'zibri\';',
             '',
             'import { Roles, User, UserCreateData } from \'../models\';',
             '',
@@ -463,15 +462,20 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             'const path = require(\'path\');',
             'const { spawn } = require(\'child_process\');',
             'const CopyPlugin = require(\'copy-webpack-plugin\');',
-            'const { generateHandlebarTypeFiles, generateEntityFiles } = require(\'zibri\');',
+            'const { generateHandlebarTypeFiles, generateEntityFiles, generateSourceXlf, resolveZibriRoot } = require(\'zibri\');',
             'const { ZibriTsxVendorPlugin } = require(\'zibri-tsx/webpack\');',
             'const MiniCssExtractPlugin = require(\'mini-css-extract-plugin\');',
             'const { NormalModuleReplacementPlugin } = require(\'webpack\');',
             '',
-            '// Page and component templates are compiled by zibri-tsx. Emails stay on preact.',
+            '/**',
+            ' * The template directories that are compiled by zibri-tsx: pages, components, and',
+            ' * the emails and their components too.',
+            ' */',
             'const tsxTemplateDirs = [',
             '    path.resolve(__dirname, \'src\', \'templates\', \'pages\'),',
-            '    path.resolve(__dirname, \'src\', \'templates\', \'components\')',
+            '    path.resolve(__dirname, \'src\', \'templates\', \'components\'),',
+            '    path.resolve(__dirname, \'src\', \'templates\', \'emails\'),',
+            '    path.resolve(__dirname, \'src\', \'templates\', \'email-components\')',
             '];',
             '',
             'class OnBuildSuccessPlugin {',
@@ -516,10 +520,45 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             '    }',
             '}',
             '',
+            'class LocalizationPlugin {',
+            '    /** @type {import(\'webpack\').WebpackPluginFunction } */',
+            '    apply(compiler) {',
+            '        compiler.hooks.beforeCompile.tapPromise(\'LocalizationPlugin\', async () => {',
+            '            const frameworkSrc = path.join(resolveZibriRoot(), \'src\');',
+            '            const projectSrc = path.resolve(compiler.context, \'src\');',
+            '            await generateSourceXlf([',
+            '                {',
+            '                    origin: \'zibri\',',
+            '                    originLocale: \'en-US\',',
+            '                    patterns: { include: `${frameworkSrc}/**/*.{ts,tsx}`, exclude: \'**/*.test.{ts,tsx}\' }',
+            '                },',
+            '                {',
+            '                    origin: \'project\',',
+            '                    originLocale: \'en-US\',',
+            '                    patterns: { include: `${projectSrc}/**/*.{ts,tsx}`, exclude: \'**/*.test.{ts,tsx}\' }',
+            '                }',
+            '            ]);',
+            '        });',
+            '    }',
+            '}',
+            '',
             '/** @type {import(\'webpack\').Configuration} */',
             // eslint-disable-next-line sonar/no-duplicate-string
             'module.exports = {',
             '    target: \'node\',',
+            // Both warnings come from zibri's own dependencies (typeorm's dynamic requires and
+            // handlebars' require.extensions) and cannot be acted on from inside a generated app.
+            '    ignoreWarnings: [',
+            '        (warning) => {',
+            '            if (',
+            '                warning.message.includes(\'Critical dependency: the request of a dependency is an expression\')',
+            '                || warning.message.includes(\'require.extensions is not supported by webpack.\')',
+            '            ) {',
+            '                return true;',
+            '            }',
+            '            return false;',
+            '        }',
+            '    ],',
             '    mode: \'none\',',
             '    entry: {',
             '        bundle: \'./src/index.ts\',',
@@ -566,12 +605,12 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             '        \'utf-8-validate\': \'commonjs2 utf-8-validate\',',
             '        bufferutil: \'commonjs2 bufferutil\',',
             '        \'macos-temperature-sensor\': \'commonjs2 macos-temperature-sensor\',',
-            '        \'express\': \'commonjs2 express\',',
-            '        \'typeorm\': \'commonjs2 typeorm\',',
-            '        \'handlebars\': \'commonjs2 handlebars\'',
+            '        express: \'commonjs2 express\',',
+            '        typeorm: \'commonjs2 typeorm\',',
+            '        handlebars: \'commonjs2 handlebars\'',
             '    },',
             '    resolve: {',
-            '        extensions: [\'.ts\', \'.tsx\', \'.js\', \'.css\'],',
+            '        extensions: [\'.ts\', \'.tsx\', \'.js\', \'.css\']',
             '    },',
             '    module: {',
             '        rules: [',
@@ -624,7 +663,7 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             '                    \'postcss-loader\'',
             '                ]',
             '            }',
-            '        ],',
+            '        ]',
             '    },',
             '    plugins: [',
             '        new HandlebarsTypegenPlugin(),',
@@ -634,10 +673,11 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             '            resolveFrom: __dirname',
             '        }),',
             '        new EntityGenerationPlugin(),',
+            '        new LocalizationPlugin(),',
             '        new OnBuildSuccessPlugin(),',
             '        new MiniCssExtractPlugin({ filename: \'assets/public/style.css\' }),',
             '        new NormalModuleReplacementPlugin(',
-            '            /^([^?]+)\?client$/,',
+            '            /^([^?]+)\\?client$/,',
             '            (resource) => resource.request = resource.request.replace(/\\?client$/, \'\')',
             '        ),',
             '        new CopyPlugin({',
@@ -653,8 +693,12 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             '                {',
             '                    from: path.resolve(__dirname, \'versions\'),',
             '                    to: path.resolve(__dirname, \'dist\', \'versions\')',
+            '                },',
+            '                {',
+            '                    from: path.resolve(__dirname, \'translations\'),',
+            '                    to: path.resolve(__dirname, \'dist\', \'translations\')',
             '                }',
-            '            ],',
+            '            ]',
             '        })',
             '    ]',
             '};'
@@ -665,19 +709,19 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
         await FsUtilities.createFile(getPath(appPath, 'tsconfig.json'), [
             '{',
             '    "compilerOptions": {',
-            '        "target": "ES2022",',
-            '        "module": "NodeNext",',
-            '        "moduleResolution": "NodeNext",',
+            '        "emitDecoratorMetadata": true,',
+            '        "esModuleInterop": true,',
+            '        "experimentalDecorators": true,',
             '        "jsx": "react-jsx",',
             '        "jsxImportSource": "zibri-tsx",',
+            '        "module": "NodeNext",',
+            '        "moduleResolution": "NodeNext",',
             '        "outDir": "dist",',
-            '        "strict": true,',
-            '        "esModuleInterop": true,',
+            '        "resolveJsonModule": true,',
             '        "skipLibCheck": true,',
-            '        "experimentalDecorators": true,',
-            '        "emitDecoratorMetadata": true,',
             '        "sourceMap": true,',
-            '        "resolveJsonModule": true',
+            '        "strict": true,',
+            '        "target": "ES2022"',
             '    },',
             '    "include": ["src"]',
             '}'

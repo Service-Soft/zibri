@@ -1,9 +1,9 @@
 import { ChartConfiguration, Chart as ChartJsChart } from 'chart.js?client';
-import { MetricsSnapshot, onClient, TsxComponent } from 'zibri';
+import { $ts, MetricsSnapshot, onClient, TsxComponent } from 'zibri';
 
 import { Card } from './card';
 import { Heading } from './heading';
-import { MetricsEvent } from '../pages/metrics';
+import { MetricsEvent } from '../pages/metrics/metrics';
 
 type Props = {
     title: string,
@@ -45,7 +45,7 @@ export const Chart: TsxComponent<Props> = ({ className = '', title, canvasId, ch
 
         document.addEventListener('metrics:update', (ev) => {
             if (!(ev instanceof CustomEvent) || !('snaps' in ev.detail)) {
-                throw new Error('received invalid metrics event');
+                throw new Error($ts`received invalid metrics event`);
             }
             if (!chart) {
                 return;

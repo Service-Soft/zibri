@@ -9,9 +9,10 @@ import { Raw } from '../runtime/server-runtime';
 export type TsxElement = Raw;
 
 /**
- * A single value that may be placed inside an element.
+ * A single value that may be placed inside an element. `null`/`undefined`/`boolean` render as
+ * nothing, so a conditional child (`cond && <x/>`) is valid.
  */
-export type TsxChild = TsxElement | string | number | bigint | boolean | undefined;
+export type TsxChild = TsxElement | string | number | bigint | boolean | undefined | null;
 
 /**
  * Anything that may be placed inside an element, including nested arrays produced by `.map`.

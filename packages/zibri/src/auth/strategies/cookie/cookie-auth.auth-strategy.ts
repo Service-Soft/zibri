@@ -27,7 +27,7 @@ import { HttpMethod } from '../../../http/http-method.enum';
 import { KnownHeader } from '../../../http/known-header.enum';
 import { $ts } from '../../../localization/translate.function';
 import { OpenApiSecuritySchemeObject } from '../../../open-api/open-api.model';
-import { PreactUtilities } from '../../../preact/preact.utilities';
+import { TsxUtilities } from '../../../tsx/tsx.utilities';
 import { Newable } from '../../../types/newable.type';
 import { type OmitStrict } from '../../../types/omit-strict.type';
 import { Ms } from '../../../utilities/ms';
@@ -362,7 +362,7 @@ export class CookieAuthStrategy<
             { transaction: data.transaction }
         );
 
-        const html: string = PreactUtilities.renderEmail(
+        const html: string = TsxUtilities.renderEmail(
             this.PasswordResetEmail,
             {
                 user: data.user,

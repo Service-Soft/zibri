@@ -17,7 +17,15 @@ export enum ValidationCode {
     /**
      * Client code referenced a binding from an ordinary import.
      */
-    SERVER_IMPORT_IN_CLIENT_CODE = 'ZTSX003'
+    SERVER_IMPORT_IN_CLIENT_CODE = 'ZTSX003',
+    /**
+     * An email component was nested somewhere the schema does not allow.
+     */
+    ILLEGAL_EMAIL_NESTING = 'ZTSX004',
+    /**
+     * An email template contains client-only code, which emails cannot run.
+     */
+    CLIENT_CODE_IN_EMAIL = 'ZTSX005'
 }
 
 /**

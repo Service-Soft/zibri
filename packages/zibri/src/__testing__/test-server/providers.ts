@@ -12,6 +12,7 @@ import { MultithreadingServiceInterface } from '../../multithreading/services/mu
 import { type RouterInterface } from '../../routing/router.interface';
 import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
 import { VersioningService } from '../../versioning/versioning.service';
+import { compileTsxTemplate } from '../compile-tsx-template.function';
 import { noOp, noOpAsync, testFileFolder } from '../constants';
 
 const testVersionsDir: FsPath = FsUtilities.getPath(testFileFolder, 'versions-default');
@@ -53,7 +54,9 @@ export const defaultTestServerProviders: DiProvider<unknown>[] = [
     defineProvider({
         token: ZIBRI_DI_TOKENS.PASSWORD_RESET_EMAIL_TEMPLATE,
         // eslint-disable-next-line typescript/no-explicit-any
-        useValue: (() => 'string') as unknown as PasswordResetEmailTemplate<any, any>
+        useValue: compileTsxTemplate<PasswordResetEmailTemplate<any, any>>(
+            'export const Email = ({ confirmPasswordResetLink }) => <a href={confirmPasswordResetLink}></a>;'
+        )
     }),
     defineProvider({
         token: ZIBRI_DI_TOKENS.EMAIL_CONFIG,

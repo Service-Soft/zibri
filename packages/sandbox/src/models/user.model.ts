@@ -1,4 +1,4 @@
-import { Entity, JwtCredentials, Property, BaseUserEntity, IntersectionClass, OmitClass, OmitStrict } from 'zibri';
+import { BaseUserEntity, Entity, IntersectionClass, JwtCredentials, OmitClass, OmitStrict, Property } from 'zibri';
 
 import { Company } from './company.model';
 import { Roles } from './roles.enum';

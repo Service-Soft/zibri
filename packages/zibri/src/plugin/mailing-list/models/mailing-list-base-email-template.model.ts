@@ -1,6 +1,6 @@
 import { MailingListSubscriber } from './mailing-list-subscriber.model';
 import { MailingList } from './mailing-list.model';
-import { PreactEmailComponent } from '../../../preact/preact-email-component.model';
+import { TsxEmailComponent } from '../../../tsx/tsx-email-component.model';
 
 /**
  * Data about the mailing list that this email belongs to.
@@ -33,4 +33,4 @@ type MailingListBaseEmailTemplateProps = MailingListTemplateData & {
 /**
  * Definition for a mailing list base email template.
  */
-export type MailingListBaseEmailTemplate = PreactEmailComponent<MailingListBaseEmailTemplateProps>;
+export type MailingListBaseEmailTemplate = TsxEmailComponent<MailingListBaseEmailTemplateProps>;

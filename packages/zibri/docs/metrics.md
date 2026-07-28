@@ -32,7 +32,7 @@ You can simply create a new controller and expose it there:
 
 ```ts
 // src/controllers/metrics.controller.ts
-import { Controller, Inject, ZIBRI_DI_TOKENS, Metric, Get, Response, MetricsSnapshot, MetricsServiceInterface, HtmlResponse, PreactUtilities, GlobalRegistry, CacheServiceInterface, Cached, RateLimitingServiceInterface } from 'zibri';
+import { Controller, Inject, ZIBRI_DI_TOKENS, Metric, Get, Response, MetricsSnapshot, MetricsServiceInterface, HtmlResponse, TsxUtilities, GlobalRegistry, CacheServiceInterface, Cached, RateLimitingServiceInterface } from 'zibri';
 
 import { StaticPagesCache } from './page.controller';
 import { MetricsPage } from '../templates/pages/metrics/metrics';
@@ -62,7 +62,7 @@ export class MetricsController {
         const cacheNames: string[] = this.cacheService.caches.map(c => c.name);
         const rateLimiterNames: string[] = this.rateLimitingService.limiters.map(c => c.config.name);
 
-        const html: string = await PreactUtilities.renderPage(
+        const html: string = TsxUtilities.renderPage(
             MetricsPage,
             { version, cacheNames, rateLimiterNames, primary: '#0e456f', secondary: '#00b4d8' }
         );

@@ -186,4 +186,20 @@ describe('server code never reaches the client script', () => {
             expect(result.client?.code).toContain('io()');
         });
     });
+
+    describe('server-only framework hooks', () => {
+        // useContext/provideContext/$raw are lowered to $ssr methods that only exist during a server
+        // render, so they are as server-only as any other import - using one in client code must not
+        // compile rather than reach the browser as an undefined identifier.
+        it.each([
+            ['useContext', 'export const A = () => { onClient(() => { read(useContext(Ctx)); }); return <div/>; };'],
+            ['provideContext', 'export const A = () => { onClient(() => { provideContext(Ctx, 1); }); return <div/>; };'],
+            ['$raw', 'export const A = () => { onClient(() => { el.innerHTML = $raw(\'<b>\'); }); return <div/>; };']
+        ])('rejects %s used inside onClient', (name, usage) => {
+            const result: CompileResult = compile(`import { ${name} } from 'zibri';\n${usage}`);
+
+            expect(result.code).toBeUndefined();
+            expect(result.diagnostics.map(d => d.message).join('\n')).toContain(name);
+        });
+    });
 });

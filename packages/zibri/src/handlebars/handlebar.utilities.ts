@@ -1,10 +1,27 @@
 import handlebars, { ParseOptions } from 'handlebars';
+import H from 'handlebars/runtime';
 
 import { AstProgram } from './ast.model';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { inject } from '../di/inject.function';
 import { FsUtilities, FsPath } from '../utilities/fs.utilities';
 import { JsonUtilities } from '../utilities/json.utilities';
 import { MaskUtilities } from '../utilities/mask.utilities';
 import { toCamelCase } from '../utilities/to-camel-case.function';
+
+/**
+ *
+ */
+export type HandlebarOptions = {
+    /**
+     * The external handlebar object. Is needed so helpers can be registered both inside and outside of Zibri.
+     */
+    H?: typeof Handlebars,
+    /**
+     * The directory where components reside.
+     */
+    componentsDir?: string
+};
 
 /**
  * Utilities for handling handlebar templates.
@@ -14,11 +31,10 @@ export abstract class HandlebarUtilities {
 
     /**
      * Initializes the handlebar utilities.
-     * @param H - The external handlebar object. Is needed so helpers can be registered both inside and outside of Zibri.
-     * @param componentsDir - The directory where components reside.
      */
-    static async init(H: typeof Handlebars, componentsDir: string): Promise<void> {
-        this.H = H;
+    static async init(): Promise<void> {
+        const options: HandlebarOptions = inject(ZIBRI_DI_TOKENS.HANDLEBAR_OPTIONS);
+        this.H = options.H ?? H;
         this.registerHelper('json', (context) => JsonUtilities.stringify(context));
         this.registerHelper('concat', (...args: unknown[]) => {
             args.pop();
@@ -44,6 +60,8 @@ export abstract class HandlebarUtilities {
             return new handlebars.SafeString(MaskUtilities.mask(value));
         });
 
+        const componentsDir: string = options.componentsDir
+            ?? FsUtilities.getPath(inject(ZIBRI_DI_TOKENS.ASSET_SERVICE).assetsPath, 'templates', 'components');
         const files: FsPath[] = await FsUtilities.glob(FsUtilities.getPath(componentsDir, '*.hbs'));
         for (const file of files) {
             const src: string = await FsUtilities.readFile(file);

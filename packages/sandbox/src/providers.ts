@@ -1,4 +1,4 @@
-import { AesGcmEncryptionStrategy, defineDateFormat, defineProvider, DiProvider, LoggerTransport, LogLevel, ZIBRI_DI_TOKENS, ZIBRI_INVOICING_PLUGIN_DI_TOKENS, ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from 'zibri';
+import { AesGcmEncryptionStrategy, defineDateFormat, defineProvider, DiProvider, EmailConfigInput, LoggerTransport, LogLevel, ZIBRI_DI_TOKENS, ZIBRI_INVOICING_PLUGIN_DI_TOKENS, ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from 'zibri';
 
 import { MailingListBaseEmail } from './templates/email-components/mailing-list-base-email';
 import { MailingListSubscribeConfirmationEmail } from './templates/emails/mailing-list-subscribe-confirmation';
@@ -41,7 +41,7 @@ export const providers: DiProvider<unknown>[] = [
     }),
     defineProvider({
         token: ZIBRI_DI_TOKENS.EMAIL_CONFIG,
-        useFactory: () => {
+        useFactory: (): EmailConfigInput => {
             return {
                 maxEmailsPerHour: 0,
                 defaultSender: 'Max Mustermann',

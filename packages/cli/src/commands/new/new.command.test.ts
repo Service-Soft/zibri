@@ -1,20 +1,20 @@
-import os from 'node:os';
 import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 import { NewCommand } from './new.command';
 import { version } from '../../../package.json';
+import { testFileFolder } from '../../__testing__/constants';
 import { mockExitGracefully, ProcessExitError } from '../../__testing__/mock-exit-gracefully.function';
 import { CPUtilities, FsUtilities } from '../../encapsulation';
-import { Path } from '../../utilities';
+import { getPath, Path } from '../../utilities';
 
 describe('NewCommand', () => {
     let workDir: Path;
     let execSpy: jest.SpiedFunction<typeof CPUtilities.exec>;
 
     beforeEach(async () => {
-        workDir = path.join(os.tmpdir(), `zibri-cli-new-command-test-${Date.now()}`) as Path;
+        workDir = getPath(testFileFolder, 'new-command');
         await FsUtilities.mkdir(workDir);
         CPUtilities['cwd'] = workDir;
         execSpy = jest.spyOn(CPUtilities, 'exec').mockResolvedValue(undefined);
@@ -64,7 +64,9 @@ describe('NewCommand', () => {
         const appDir: Path = path.join(workDir, 'api') as Path;
         expect(execSpy).toHaveBeenNthCalledWith(1, expect.stringContaining(`cd ${appDir} && npm i -D `));
         expect(execSpy.mock.calls[0][0]).toContain('webpack');
-        expect(execSpy).toHaveBeenNthCalledWith(2, `cd ${appDir} && npm i zibri@${version} zibri-tsx@${version} chart.js`);
+        // zibri-tsx is intentionally absent: it is a peer dependency of zibri and must not be
+        // installed into the app directly.
+        expect(execSpy).toHaveBeenNthCalledWith(2, `cd ${appDir} && npm i zibri@${version} chart.js`);
     });
 
     it('refuses to overwrite an existing directory', async () => {

@@ -6,6 +6,17 @@ const { ZibriTsxVendorPlugin } = require('zibri-tsx/webpack');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const { NormalModuleReplacementPlugin } = require('webpack');
 
+/**
+ * The template directories that are compiled by zibri-tsx: pages, components, and
+ * the emails and their components too.
+ */
+const tsxTemplateDirs = [
+    path.resolve(__dirname, 'src', 'templates', 'pages'),
+    path.resolve(__dirname, 'src', 'templates', 'components'),
+    path.resolve(__dirname, 'src', 'templates', 'emails'),
+    path.resolve(__dirname, 'src', 'templates', 'email-components')
+];
+
 class OnBuildSuccessPlugin {
     /** @type {import('webpack').WebpackPluginFunction } */
     apply(compiler) {
@@ -67,15 +78,6 @@ class LocalizationPlugin {
     }
 }
 
-/**
- * The template directories that are compiled by zibri-tsx. Emails are deliberately left out: they
- * still render through preact until the email compile target exists.
- */
-const tsxTemplateDirs = [
-    path.resolve(__dirname, 'src', 'templates', 'pages'),
-    path.resolve(__dirname, 'src', 'templates', 'components')
-];
-
 /** @type {import('webpack').Configuration} */
 module.exports = {
     target: 'node',
@@ -133,9 +135,12 @@ module.exports = {
         '@sap\/hana-client': 'commonjs2 @sap\/hana-client',
         '@sap\/hana-client\/extension\/Stream': 'commonjs2 @sap\/hana-client\/extension\/Stream',
         'ts-node': 'commonjs2 ts-node',
-        'utf-8-validate': 'utf-8-validate',
-        bufferutil: 'bufferutil',
-        'macos-temperature-sensor': 'macos-temperature-sensor'
+        'utf-8-validate': 'commonjs2 utf-8-validate',
+        bufferutil: 'commonjs2 bufferutil',
+        'macos-temperature-sensor': 'commonjs2 macos-temperature-sensor',
+        express: 'commonjs2 express',
+        typeorm: 'commonjs2 typeorm',
+        handlebars: 'commonjs2 handlebars'
     },
     resolve: {
         extensions: ['.ts', '.tsx', '.js', '.css']
@@ -176,12 +181,15 @@ module.exports = {
                 ]
             },
             {
-                test: /\.css$/i,
+                test: /\.css$/,
                 use: [
                     MiniCssExtractPlugin.loader,
                     {
                         loader: 'css-loader',
-                        options: { importLoaders: 1, esModule: false }
+                        options: {
+                            importLoaders: 1,
+                            esModule: false
+                        }
                     },
                     'postcss-loader'
                 ]

@@ -3,7 +3,7 @@ import { compileServerRender, ServerRenderCode } from '../codegen/server/render-
 import { parse, ParseResult } from '../parser/parser';
 import { CompiledPage } from '../runtime/render-page';
 import { SERVER_HOOKS } from '../runtime/server-hooks';
-import { ClientInstanceEntry, CompiledComponent, createServerRuntime, HandlerRegistryEntry, Raw, renderChild, RenderServerRuntime } from '../runtime/server-runtime';
+import { ClientInstanceEntry, CompiledComponent, createContext, createServerRuntime, HandlerRegistryEntry, Raw, renderChild, RenderServerRuntime } from '../runtime/server-runtime';
 import { collectClientGlobalAliasesFromSource, collectClientPackagesFromSource } from '../semantics/client-packages';
 import { findComponents, ComponentInfo } from '../semantics/component';
 
@@ -66,6 +66,7 @@ export function compileComponent(source: string, deps: Record<string, CompiledCo
     const factory: (...args: unknown[]) => ServerRenderFn = new Function(
         'onClient',
         'onServer',
+        'createContext',
         ...depNames,
         `${server.code}\nreturn ${server.componentName};`
     ) as (...args: unknown[]) => ServerRenderFn;
@@ -73,6 +74,7 @@ export function compileComponent(source: string, deps: Record<string, CompiledCo
     const fn: ServerRenderFn = factory(
         SERVER_HOOKS.onClient,
         SERVER_HOOKS.onServer,
+        createContext,
         ...depNames.map(name => deps[name])
     );
 

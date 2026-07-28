@@ -1,4 +1,4 @@
-import { AssetServiceInterface, Cache, Cached, CacheServiceInterface, Controller, Get, GlobalRegistry, HtmlResponse, HttpRequestContext, Inject, inject, InMemoryCacheStore, LocaleCode, LoggerInterface, MetricsServiceInterface, TsxUtilities, Response, TreeNode, WebsocketRequestContext, WriteThroughReadThroughCache, ZIBRI_DI_TOKENS } from 'zibri';
+import { AssetServiceInterface, Cache, Cached, CacheServiceInterface, Controller, Get, GlobalRegistry, HtmlResponse, HttpRequestContext, Inject, inject, InMemoryCacheStore, LocaleCode, LoggerInterface, MetricsServiceInterface, Response, TreeNode, TsxUtilities, WebsocketRequestContext, WriteThroughReadThroughCache, ZIBRI_DI_TOKENS } from 'zibri';
 
 import { AssetsPage } from '../templates/pages/assets';
 import { HomePage } from '../templates/pages/home';
@@ -29,6 +29,7 @@ export class PageController {
     @Cached(StaticPagesCache, () => StaticPagesCache.getPageKey('index'))
     @Response.html()
     @Get()
+    // eslint-disable-next-line typescript/require-await
     async index(): Promise<HtmlResponse> {
         const html: string = TsxUtilities.renderPage(HomePage, { appName: GlobalRegistry.getAppData('name') ?? '' });
         return HtmlResponse.fromString(html);

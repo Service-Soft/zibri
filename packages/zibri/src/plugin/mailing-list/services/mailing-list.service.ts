@@ -13,8 +13,8 @@ import { EmailPriority } from '../../../email/models/email-priority.enum';
 import { InternalError } from '../../../error-handling/internal-error.model';
 import { GlobalRegistry } from '../../../global/global-registry';
 import { OnAppInit } from '../../../global/on-app-init.interface';
-import { PreactUtilities } from '../../../preact/preact.utilities';
 import { Route } from '../../../routing/controller-route-configuration.model';
+import { TsxUtilities } from '../../../tsx/tsx.utilities';
 import { OmitStrict } from '../../../types/omit-strict.type';
 import { PromiseUtilities } from '../../../utilities/promise.utilities';
 import { ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from '../mailing-list.tokens';
@@ -96,7 +96,7 @@ export class MailingListService implements MailingListServiceInterface, OnAppIni
             async subscriber => {
                 const content: string = await data.compile(data.template, { subscriber, list });
 
-                const html: string = PreactUtilities.renderEmail(
+                const html: string = TsxUtilities.renderEmail(
                     this.MailingListBaseEmail,
                     {
                         list,
@@ -142,7 +142,7 @@ export class MailingListService implements MailingListServiceInterface, OnAppIni
             listId
         });
 
-        const html: string = PreactUtilities.renderEmail(
+        const html: string = TsxUtilities.renderEmail(
             this.MailingListSubscribeConfirmationEmail,
             {
                 subscriber,

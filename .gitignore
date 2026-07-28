@@ -10,3 +10,4 @@ file-output
 packages/zibri/src/di/default/temp
 .env
 packages/cli/sandbox
+packages/cli/src/__testing__/recorded-sandbox-diffs.json

@@ -17,7 +17,7 @@
       </trans-unit>
       <trans-unit id="A password reset was requested for your account." xml:space="preserve">
         <source>A password reset was requested for your account.</source>
-        <note>src/templates/emails/password-reset.tsx:26</note>
+        <note>src/templates/emails/password-reset.tsx:21</note>
       </trans-unit>
       <trans-unit id="Active keys" xml:space="preserve">
         <source>Active keys</source>
@@ -89,7 +89,7 @@
       </trans-unit>
       <trans-unit id="Click the link down below to proceed." xml:space="preserve">
         <source>Click the link down below to proceed.</source>
-        <note>src/templates/emails/password-reset.tsx:27</note>
+        <note>src/templates/emails/password-reset.tsx:22</note>
       </trans-unit>
       <trans-unit id="Client Error" xml:space="preserve">
         <source>Client Error</source>
@@ -97,22 +97,22 @@
       </trans-unit>
       <trans-unit id="Client IP" xml:space="preserve">
         <source>Client IP</source>
-        <note>src/templates/emails/log.tsx:63</note>
+        <note>src/templates/emails/log.tsx:78</note>
       </trans-unit>
       <trans-unit id="Confirm" xml:space="preserve">
         <source>Confirm</source>
-        <note>src/templates/emails/mailing-list-subscribe-confirmation.tsx:33</note>
+        <note>src/templates/emails/mailing-list-subscribe-confirmation.tsx:28</note>
       </trans-unit>
       <trans-unit id="Confirm Email" xml:space="preserve">
         <source>Confirm Email</source>
-        <note>src/templates/emails/mailing-list-subscribe-confirmation.tsx:24</note>
+        <note>src/templates/emails/mailing-list-subscribe-confirmation.tsx:19</note>
       </trans-unit>
       <trans-unit id="Confirm Email for mailing list {mailingList.name}" xml:space="preserve">
         <source>
           Confirm Email for mailing list 
           <x id="mailingList.name" equiv-text="{mailingList.name}"/>
         </source>
-        <note>src/templates/emails/mailing-list-subscribe-confirmation.tsx:22</note>
+        <note>src/templates/emails/mailing-list-subscribe-confirmation.tsx:17</note>
       </trans-unit>
       <trans-unit id="Count" xml:space="preserve">
         <source>Count</source>
@@ -128,11 +128,11 @@
       </trans-unit>
       <trans-unit id="Critical Error" xml:space="preserve">
         <source>Critical Error</source>
-        <note>src/templates/emails/log.tsx:19</note>
+        <note>src/templates/emails/log.tsx:15</note>
       </trans-unit>
       <trans-unit id="Debug Log" xml:space="preserve">
         <source>Debug Log</source>
-        <note>src/templates/emails/log.tsx:15</note>
+        <note>src/templates/emails/log.tsx:11</note>
       </trans-unit>
       <trans-unit id="Decision (mean)" xml:space="preserve">
         <source>Decision (mean)</source>
@@ -144,7 +144,7 @@
       </trans-unit>
       <trans-unit id="Details" xml:space="preserve">
         <source>Details</source>
-        <note>src/templates/emails/log.tsx:53</note>
+        <note>src/templates/emails/log.tsx:50</note>
       </trans-unit>
       <trans-unit id="Entries" xml:space="preserve">
         <source>Entries</source>
@@ -152,7 +152,7 @@
       </trans-unit>
       <trans-unit id="Error" xml:space="preserve">
         <source>Error</source>
-        <note>src/templates/emails/log.tsx:18, src/templates/emails/log.tsx:69</note>
+        <note>src/templates/emails/log.tsx:14, src/templates/emails/log.tsx:92</note>
       </trans-unit>
       <trans-unit id="Errors" xml:space="preserve">
         <source>Errors</source>
@@ -172,14 +172,14 @@
       </trans-unit>
       <trans-unit id="Hello" xml:space="preserve">
         <source>Hello</source>
-        <note>src/templates/emails/mailing-list-subscribe-confirmation.tsx:19</note>
+        <note>src/templates/emails/mailing-list-subscribe-confirmation.tsx:14</note>
       </trans-unit>
       <trans-unit id="Hello {subscriber.name}" xml:space="preserve">
         <source>
           Hello 
           <x id="subscriber.name" equiv-text="{subscriber.name}"/>
         </source>
-        <note>src/templates/emails/mailing-list-subscribe-confirmation.tsx:19</note>
+        <note>src/templates/emails/mailing-list-subscribe-confirmation.tsx:14</note>
       </trans-unit>
       <trans-unit id="Hello {user.name}," xml:space="preserve">
         <source>
@@ -187,7 +187,7 @@
           <x id="user.name" equiv-text="{user.name}"/>
           ,
         </source>
-        <note>src/templates/emails/password-reset.tsx:25</note>
+        <note>src/templates/emails/password-reset.tsx:20</note>
       </trans-unit>
       <trans-unit id="here" xml:space="preserve">
         <source>here</source>
@@ -215,15 +215,15 @@
       </trans-unit>
       <trans-unit id="ID" xml:space="preserve">
         <source>ID</source>
-        <note>src/templates/emails/log.tsx:54</note>
+        <note>src/templates/emails/log.tsx:53</note>
       </trans-unit>
       <trans-unit id="If you did not request to reset your password, you can ignore this mail." xml:space="preserve">
         <source>If you did not request to reset your password, you can ignore this mail.</source>
-        <note>src/templates/emails/password-reset.tsx:32</note>
+        <note>src/templates/emails/password-reset.tsx:27</note>
       </trans-unit>
       <trans-unit id="If you did not try to subscribe to this mailing list, you can ignore this mail." xml:space="preserve">
         <source>If you did not try to subscribe to this mailing list, you can ignore this mail.</source>
-        <note>src/templates/emails/mailing-list-subscribe-confirmation.tsx:36</note>
+        <note>src/templates/emails/mailing-list-subscribe-confirmation.tsx:31</note>
       </trans-unit>
       <trans-unit id="In-flight" xml:space="preserve">
         <source>In-flight</source>
@@ -231,7 +231,7 @@
       </trans-unit>
       <trans-unit id="Info Log" xml:space="preserve">
         <source>Info Log</source>
-        <note>src/templates/emails/log.tsx:16</note>
+        <note>src/templates/emails/log.tsx:12</note>
       </trans-unit>
       <trans-unit id="keys" xml:space="preserve">
         <source>keys</source>
@@ -239,7 +239,7 @@
       </trans-unit>
       <trans-unit id="Kind regards," xml:space="preserve">
         <source>Kind regards,</source>
-        <note>src/templates/email-components/base-email-footer.tsx:21</note>
+        <note>src/templates/email-components/base-email-footer.tsx:17</note>
       </trans-unit>
       <trans-unit id="Lag (ms)" xml:space="preserve">
         <source>Lag (ms)</source>
@@ -263,7 +263,7 @@
       </trans-unit>
       <trans-unit id="manage preferences" xml:space="preserve">
         <source>manage preferences</source>
-        <note>src/templates/email-components/base-mailing-list-footer.tsx:42</note>
+        <note>src/templates/email-components/base-mailing-list-footer.tsx:29</note>
       </trans-unit>
       <trans-unit id="Manage your preferences" xml:space="preserve">
         <source>Manage your preferences</source>
@@ -275,11 +275,11 @@
       </trans-unit>
       <trans-unit id="Message" xml:space="preserve">
         <source>Message</source>
-        <note>src/templates/emails/log.tsx:47, src/templates/emails/log.tsx:71</note>
+        <note>src/templates/emails/log.tsx:43, src/templates/emails/log.tsx:104</note>
       </trans-unit>
       <trans-unit id="Method" xml:space="preserve">
         <source>Method</source>
-        <note>src/templates/emails/log.tsx:61</note>
+        <note>src/templates/emails/log.tsx:66</note>
       </trans-unit>
       <trans-unit id="Metrics" xml:space="preserve">
         <source>Metrics</source>
@@ -291,7 +291,7 @@
       </trans-unit>
       <trans-unit id="Name" xml:space="preserve">
         <source>Name</source>
-        <note>src/templates/emails/log.tsx:70</note>
+        <note>src/templates/emails/log.tsx:98</note>
       </trans-unit>
       <trans-unit id="Network" xml:space="preserve">
         <source>Network</source>
@@ -311,7 +311,7 @@
       </trans-unit>
       <trans-unit id="Origin" xml:space="preserve">
         <source>Origin</source>
-        <note>src/templates/emails/log.tsx:56</note>
+        <note>src/templates/emails/log.tsx:55</note>
       </trans-unit>
       <trans-unit id="Overview" xml:space="preserve">
         <source>Overview</source>
@@ -319,7 +319,7 @@
       </trans-unit>
       <trans-unit id="Password Reset" xml:space="preserve">
         <source>Password Reset</source>
-        <note>src/templates/emails/password-reset.tsx:19, src/templates/emails/password-reset.tsx:21</note>
+        <note>src/templates/emails/password-reset.tsx:14, src/templates/emails/password-reset.tsx:16</note>
       </trans-unit>
       <trans-unit id="Please confirm the registration of this email for the mailing list &quot;{mailingList.name}&quot;" xml:space="preserve">
         <source>
@@ -327,7 +327,7 @@
           <x id="mailingList.name" equiv-text="{mailingList.name}"/>
           "
         </source>
-        <note>src/templates/emails/mailing-list-subscribe-confirmation.tsx:30</note>
+        <note>src/templates/emails/mailing-list-subscribe-confirmation.tsx:25</note>
       </trans-unit>
       <trans-unit id="preferences updated" xml:space="preserve">
         <source>preferences updated</source>
@@ -371,7 +371,7 @@
       </trans-unit>
       <trans-unit id="Reset Password" xml:space="preserve">
         <source>Reset Password</source>
-        <note>src/templates/emails/password-reset.tsx:29</note>
+        <note>src/templates/emails/password-reset.tsx:24</note>
       </trans-unit>
       <trans-unit id="Resource Usage" xml:space="preserve">
         <source>Resource Usage</source>
@@ -403,7 +403,7 @@
       </trans-unit>
       <trans-unit id="Stack Trace" xml:space="preserve">
         <source>Stack Trace</source>
-        <note>src/templates/emails/log.tsx:73</note>
+        <note>src/templates/emails/log.tsx:110</note>
       </trans-unit>
       <trans-unit id="Status" xml:space="preserve">
         <source>Status</source>
@@ -443,11 +443,11 @@
       </trans-unit>
       <trans-unit id="There has been a new log" xml:space="preserve">
         <source>There has been a new log</source>
-        <note>src/templates/emails/log.tsx:41</note>
+        <note>src/templates/emails/log.tsx:37</note>
       </trans-unit>
       <trans-unit id="Time" xml:space="preserve">
         <source>Time</source>
-        <note>src/templates/emails/log.tsx:55</note>
+        <note>src/templates/emails/log.tsx:54</note>
       </trans-unit>
       <trans-unit id="Total cached entries" xml:space="preserve">
         <source>Total cached entries</source>
@@ -467,7 +467,7 @@
       </trans-unit>
       <trans-unit id="unsubscribe" xml:space="preserve">
         <source>unsubscribe</source>
-        <note>src/templates/email-components/base-mailing-list-footer.tsx:53</note>
+        <note>src/templates/email-components/base-mailing-list-footer.tsx:35</note>
       </trans-unit>
       <trans-unit id="Unsubscribed by accident?" xml:space="preserve">
         <source>Unsubscribed by accident?</source>
@@ -487,11 +487,11 @@
       </trans-unit>
       <trans-unit id="URL" xml:space="preserve">
         <source>URL</source>
-        <note>src/templates/emails/log.tsx:62</note>
+        <note>src/templates/emails/log.tsx:72</note>
       </trans-unit>
       <trans-unit id="User Agent" xml:space="preserve">
         <source>User Agent</source>
-        <note>src/templates/emails/log.tsx:64</note>
+        <note>src/templates/emails/log.tsx:84</note>
       </trans-unit>
       <trans-unit id="Version" xml:space="preserve">
         <source>Version</source>
@@ -499,7 +499,7 @@
       </trans-unit>
       <trans-unit id="Warning" xml:space="preserve">
         <source>Warning</source>
-        <note>src/templates/emails/log.tsx:17</note>
+        <note>src/templates/emails/log.tsx:13</note>
       </trans-unit>
       <trans-unit id="We are happy to have you with us 🙂" xml:space="preserve">
         <source>We are happy to have you with us 🙂</source>
@@ -515,7 +515,7 @@
           <x id="list.name" equiv-text="{list.name}"/>
           "
         </source>
-        <note>src/templates/email-components/base-mailing-list-footer.tsx:30</note>
+        <note>src/templates/email-components/base-mailing-list-footer.tsx:22</note>
       </trans-unit>
       <trans-unit id="You can manage your preferences" xml:space="preserve">
         <source>You can manage your preferences</source>
@@ -537,7 +537,7 @@
           Your Team at 
           <x id="appName" equiv-text="{appName}"/>
         </source>
-        <note>src/templates/email-components/base-email-footer.tsx:22</note>
+        <note>src/templates/email-components/base-email-footer.tsx:18</note>
       </trans-unit>
     </body>
   </file>

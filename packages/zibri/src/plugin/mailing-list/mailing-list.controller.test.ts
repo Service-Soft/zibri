@@ -1,5 +1,4 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
-import { h } from 'preact';
 
 import { MailingListController } from './mailing-list.controller';
 import { ZibriMailingListPlugin } from './mailing-list.plugin';
@@ -26,9 +25,13 @@ import { GlobalRegistry } from '../../global/global-registry';
 import { Newable } from '../../types/newable.type';
 import { Ms } from '../../utilities/ms';
 
-// eslint-disable-next-line unicorn/no-null
-const baseEmailTemplate: MailingListBaseEmailTemplate = props => h('div', null, props.title);
-const subscribeConfirmationEmailTemplate: MailingListSubscribeConfirmationEmailTemplate = props => h('a', { href: props.confirmEmailLink });
+const baseEmailTemplate: MailingListBaseEmailTemplate = compileTsxTemplate<MailingListBaseEmailTemplate>(
+    'export const Email = ({ title }) => <div>{title}</div>;'
+);
+const subscribeConfirmationEmailTemplate: MailingListSubscribeConfirmationEmailTemplate
+    = compileTsxTemplate<MailingListSubscribeConfirmationEmailTemplate>(
+        'export const Email = ({ confirmEmailLink }) => <a href={confirmEmailLink}></a>;'
+    );
 // Page templates are compiled by zibri-tsx in a real app; the tests compile inline source the same
 // way, so the controller renders exactly the compiled-component shape it will see in production.
 const preferencesPageTemplate: MailingListPreferencesPageTemplate

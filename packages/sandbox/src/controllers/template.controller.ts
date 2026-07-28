@@ -1,5 +1,6 @@
-import { Controller, errorToLoggedError, Get, HtmlResponse, HttpMethod, Log, LogLevel, Param, PreactUtilities, Response, TsxUtilities, UUIDUtilities } from 'zibri';
+import { Cached, Controller, errorToLoggedError, Get, HtmlResponse, HttpMethod, Log, LogLevel, Param, Response, TsxUtilities, UUIDUtilities } from 'zibri';
 
+import { StaticPagesCache } from './page.controller';
 import { LogEmail } from '../templates/emails/log';
 import { PasswordResetEmail } from '../templates/emails/password-reset';
 import { SocketIoTestPage } from '../templates/pages/socket-io-test';
@@ -7,17 +8,21 @@ import { SocketIoTestPage } from '../templates/pages/socket-io-test';
 @Controller('/templates', { versions: 'all' })
 export class TemplateController {
 
+    @Cached(StaticPagesCache, () => StaticPagesCache.getPageKey('socket-io'))
     @Response.html()
     @Get('/socket')
+    // eslint-disable-next-line typescript/require-await
     async socketIo(): Promise<HtmlResponse> {
         const html: string = TsxUtilities.renderPage(SocketIoTestPage, { primary: '#0e456f', secondary: '#00b4d8' });
         return HtmlResponse.fromString(html);
     }
 
+    @Cached(StaticPagesCache, () => StaticPagesCache.getPageKey('password-reset-mail'))
     @Response.html()
     @Get('/password-reset-mail')
-    getMailTemplate(): HtmlResponse {
-        const html: string = PreactUtilities.renderEmail(
+    // eslint-disable-next-line typescript/require-await
+    async getMailTemplate(): Promise<HtmlResponse> {
+        const html: string = TsxUtilities.renderEmail(
             PasswordResetEmail,
             {
                 confirmPasswordResetLink: 'http://localhost:4200/confirm-password-reset/test-token',
@@ -60,7 +65,7 @@ export class TemplateController {
             }
         };
 
-        const preactHtml: string = PreactUtilities.renderEmail(LogEmail, { log });
-        return HtmlResponse.fromString(preactHtml);
+        const html: string = TsxUtilities.renderEmail(LogEmail, { log });
+        return HtmlResponse.fromString(html);
     }
 }

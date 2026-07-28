@@ -1,5 +1,4 @@
-/** @jsxImportSource preact */
-import { MailingListBaseEmailTemplate } from 'zibri';
+import { MailingListBaseEmailTemplate, MjColumn, MjRaw, MjSection } from 'zibri';
 
 import { BaseEmail } from './base-email';
 import { BaseEmailFooter } from './base-email-footer';
@@ -17,7 +16,11 @@ export const MailingListBaseEmail: MailingListBaseEmailTemplate = ({
             <EmailWrapper backgroundColor='#1a1a26' borderRadius='5px' boxShadow='0 0 8px 4px rgba(0, 0, 0, 0.15)'>
                 <BaseEmailHeader>{title}</BaseEmailHeader>
 
-                <div dangerouslySetInnerHTML={{ __html: html }} />
+                <MjSection>
+                    <MjColumn>
+                        <MjRaw>{html}</MjRaw>
+                    </MjColumn>
+                </MjSection>
 
                 <BaseEmailFooter mailingListData={{ list, subscriber }}/>
             </EmailWrapper>

@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
-import { h } from 'preact';
 
 import { MailingListServiceInterface, MailingListSubscriberCreateData } from './mailing-list-service.interface';
 import { MailingListService } from './mailing-list.service';
+import { compileTsxTemplate } from '../../../__testing__/compile-tsx-template.function';
 import { createTestDataSource, defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
@@ -19,9 +19,13 @@ import { MailingListSubscriber } from '../models/mailing-list-subscriber.model';
 import { MailingListSubscriptionConfirmationToken } from '../models/mailing-list-subscription-confirmation-token.model';
 import { MailingList } from '../models/mailing-list.model';
 
-// eslint-disable-next-line unicorn/no-null
-const baseEmailTemplate: MailingListBaseEmailTemplate = props => h('div', null, props.title);
-const subscribeConfirmationEmailTemplate: MailingListSubscribeConfirmationEmailTemplate = props => h('a', { href: props.confirmEmailLink });
+const baseEmailTemplate: MailingListBaseEmailTemplate = compileTsxTemplate<MailingListBaseEmailTemplate>(
+    'export const Email = ({ title }) => <div>{title}</div>;'
+);
+const subscribeConfirmationEmailTemplate: MailingListSubscribeConfirmationEmailTemplate
+    = compileTsxTemplate<MailingListSubscribeConfirmationEmailTemplate>(
+        'export const Email = ({ confirmEmailLink }) => <a href={confirmEmailLink}></a>;'
+    );
 
 describe('MailingListService', () => {
     let server: StartedTestServer;

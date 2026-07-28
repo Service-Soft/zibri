@@ -1,8 +1,9 @@
-/** @jsxImportSource preact */
-import { PreactEmailComponent } from 'zibri';
+import { MjText, TsxComponent } from 'zibri';
 
-import { EmailContextValue, useEmailContext } from './email-context';
-
+/**
+ * A styled link. MJML has no link component - a link is an `<a>` inside text - so this wraps one in
+ * an MjText, which provides the row/cell, while the anchor carries the link styling.
+ */
 type Props = {
     href: string,
     children: string | string[],
@@ -29,10 +30,10 @@ type Props = {
     cssClass?: string
 };
 
-export const EmailLink: PreactEmailComponent<Props> = ({
+export const EmailLink: TsxComponent<Props> = ({
     href,
     children,
-    color,
+    color = '#1a82e2',
     fontFamily,
     fontSize = '16px',
     fontWeight = 'normal',
@@ -52,49 +53,36 @@ export const EmailLink: PreactEmailComponent<Props> = ({
     target = '_blank',
     rel,
     title,
-    cssClass = ''
+    cssClass
 }) => {
-    const ctx: EmailContextValue = useEmailContext();
-
-    const resolvedColor: string = color ?? ctx.color;
-    const resolvedFontFamily: string = fontFamily ?? ctx.fontFamily;
-    const resolvedLineHeight: number = lineHeight ?? ctx.lineHeight;
-
-    const resolvedPadding: string = [
-        paddingTop ?? padding.split(' ')[0],
-        paddingRight ?? padding.split(' ')[1] ?? padding.split(' ')[0],
-        paddingBottom ?? padding.split(' ')[2] ?? padding.split(' ')[0],
-        paddingLeft ?? padding.split(' ')[3] ?? padding.split(' ')[1] ?? padding.split(' ')[0]
-    ].join(' ');
-
-    const tdStyle: string = [
-        containerBackgroundColor ? `background:${containerBackgroundColor}` : '',
-        height ? `height:${height}` : '',
-        `padding:${resolvedPadding}`,
-        'word-break:break-word'
-    ].filter(Boolean).join('; ');
-
     const anchorStyle: string = [
-        `color:${resolvedColor}`,
-        `font-family:${resolvedFontFamily}`,
+        `color:${color}`,
+        fontFamily ? `font-family:${fontFamily}` : '',
         `font-size:${fontSize}`,
         `font-style:${fontStyle}`,
         `font-weight:${fontWeight}`,
-        `letter-spacing:${letterSpacing ?? 'normal'}`,
-        `line-height:${resolvedLineHeight}`,
-        'display: block',
+        letterSpacing ? `letter-spacing:${letterSpacing}` : '',
+        lineHeight === undefined ? '' : `line-height:${lineHeight}`,
+        'display:block',
         'margin:0',
         `text-align:${align}`,
         `text-decoration:${textDecoration}`,
         `text-transform:${textTransform}`,
         'mso-style-priority:99'
-    ].join('; ');
+    ].filter(Boolean).join(';');
 
-    return <>
-        {containerBackgroundColor
-            ? `<!--[if mso | IE]><td class="${cssClass}" style="background:${containerBackgroundColor};"><![endif]-->`
-            : ''}
-        <div class={cssClass} style={tdStyle}>
+    return (
+        <MjText
+            align={align}
+            padding={padding}
+            paddingTop={paddingTop}
+            paddingRight={paddingRight}
+            paddingBottom={paddingBottom}
+            paddingLeft={paddingLeft}
+            containerBackgroundColor={containerBackgroundColor}
+            height={height}
+            cssClass={cssClass}
+        >
             <a
                 href={href}
                 target={target}
@@ -104,9 +92,6 @@ export const EmailLink: PreactEmailComponent<Props> = ({
             >
                 {children}
             </a>
-        </div>
-        {containerBackgroundColor
-            ? '<!--[if mso | IE]></td><![endif]-->'
-            : ''}
-    </>;
+        </MjText>
+    );
 };

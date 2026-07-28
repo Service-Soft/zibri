@@ -41,3 +41,11 @@ unreviewed
 prec
 quasis
 inlines
+cellspacing
+cellpadding
+roledescription
+lspace
+rspace
+mso
+bgcolor
+valign

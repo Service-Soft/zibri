@@ -1,19 +1,20 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { mkdir, readFile, rm } from 'node:fs/promises';
+import path from 'node:path';
 
 import { afterAll, describe, expect, it } from '@jest/globals';
 
 import { generateVendorBundles, VendorBundle, VendorBundleOptions } from './vendor';
+import { testFileFolder } from '../__testing__/constants';
 
 // Resolution is anchored at the sandbox app, which depends on the browser-shipping packages the
 // templates import with `?client`.
-const appRoot: string = join(__dirname, '..', '..', '..', 'sandbox');
+const appRoot: string = path.join(__dirname, '..', '..', '..', 'sandbox');
 
 const tempDirs: string[] = [];
 
 async function outDir(): Promise<string> {
-    const dir: string = await mkdtemp(join(tmpdir(), 'zibri-tsx-vendor-'));
+    const dir: string = path.join(testFileFolder, `zibri-tsx-vendor-${Date.now()}`);
+    await mkdir(dir);
     tempDirs.push(dir);
     return dir;
 }
@@ -36,7 +37,7 @@ describe('generateVendorBundles', () => {
         });
 
         expect(written).toEqual([{ packageName: 'chart.js', fileName: 'chart-js.js', written: true }]);
-        const contents: string = await readFile(join(dir, 'chart-js.js'), 'utf8');
+        const contents: string = await readFile(path.join(dir, 'chart-js.js'), 'utf8');
         expect(contents.length).toBeGreaterThan(1000);
     });
 

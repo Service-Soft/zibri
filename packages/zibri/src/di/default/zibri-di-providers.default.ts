@@ -166,6 +166,7 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
         }
     },
     RATE_LIMITING_SERVICE: { useClass: RateLimitingService },
+    HANDLEBAR_OPTIONS: { useValue: {} },
     // dynamic
     CURRENT_REQUEST_CONTEXT: {
         useFactory: () => AlsUtilities.getCurrentRequestContext(),

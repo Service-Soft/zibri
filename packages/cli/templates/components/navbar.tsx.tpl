@@ -17,7 +17,7 @@ export const Navbar: TsxComponent<Props> = ({ activeRoute }) => {
                     {$ts`Home`}
                 </Link>
                 <Link href="/explorer" activeRoute={activeRoute}>
-                    OpenAPI Explorer
+                    {$ts`OpenAPI Explorer`}
                 </Link>
                 <Link href="/assets" activeRoute={activeRoute}>
                     {$ts`Assets`}

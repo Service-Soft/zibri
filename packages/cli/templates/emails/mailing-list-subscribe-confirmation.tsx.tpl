@@ -1,13 +1,8 @@
-/** @jsxImportSource preact */
-import { MailingListSubscribeConfirmationEmailTemplate } from 'zibri';
+import { $ts, MailingListSubscribeConfirmationEmailTemplate, MjButton, MjColumn, MjSection, MjText } from 'zibri';
 
 import { BaseEmail } from '../email-components/base-email';
 import { BaseEmailFooter } from '../email-components/base-email-footer';
 import { BaseEmailHeader } from '../email-components/base-email-header';
-import { EmailButton } from '../email-components/email-button';
-import { EmailColumn } from '../email-components/email-column';
-import { EmailSection } from '../email-components/email-section';
-import { EmailText } from '../email-components/email-text';
 import { EmailWrapper } from '../email-components/email-wrapper';
 
 export const MailingListSubscribeConfirmationEmail: MailingListSubscribeConfirmationEmailTemplate = ({
@@ -16,27 +11,27 @@ export const MailingListSubscribeConfirmationEmail: MailingListSubscribeConfirma
     confirmEmailLink
 }) => {
 
-    const greeting: string = subscriber.name ? `Hello ${subscriber.name}` : 'Hello';
+    const greeting: string = subscriber.name ? $ts`Hello ${subscriber.name}` : $ts`Hello`;
 
     return (
-        <BaseEmail title={`Confirm Email for mailing list ${mailingList.name}`}>
+        <BaseEmail title={$ts`Confirm Email for mailing list ${mailingList.name}`}>
             <EmailWrapper backgroundColor='#1a1a26' borderRadius='5px' boxShadow='0 0 8px 4px rgba(0, 0, 0, 0.15)'>
-                <BaseEmailHeader>Confirm Email</BaseEmailHeader>
+                <BaseEmailHeader>{$ts`Confirm Email`}</BaseEmailHeader>
 
-                <EmailSection paddingBottom='0px'>
-                    <EmailColumn>
-                        <EmailText paddingBottom='10px'>{greeting},</EmailText>
-                        <EmailText paddingBottom='25px'>
-                            Please confirm the registration of this email for the mailing list "{mailingList.name}":
-                        </EmailText>
-                        <EmailButton href={confirmEmailLink} cssClass='btn-primary'>
-                            Confirm
-                        </EmailButton>
-                        <EmailText paddingTop='25px'>
-                            If you did not try to subscribe to this mailing list, you can ignore this mail.
-                        </EmailText>
-                    </EmailColumn>
-                </EmailSection>
+                <MjSection paddingBottom='0px'>
+                    <MjColumn>
+                        <MjText paddingBottom='10px'>{greeting},</MjText>
+                        <MjText paddingBottom='25px'>
+                            {$ts`Please confirm the registration of this email for the mailing list "${mailingList.name}"`}:
+                        </MjText>
+                        <MjButton href={confirmEmailLink} cssClass='btn-primary'>
+                            {$ts`Confirm`}
+                        </MjButton>
+                        <MjText paddingTop='25px'>
+                            {$ts`If you did not try to subscribe to this mailing list, you can ignore this mail.`}
+                        </MjText>
+                    </MjColumn>
+                </MjSection>
 
                 <BaseEmailFooter />
             </EmailWrapper>

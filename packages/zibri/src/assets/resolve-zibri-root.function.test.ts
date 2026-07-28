@@ -94,7 +94,7 @@ describe('resolveZibriRoot', () => {
         });
 
         it('throws when no zibri package can be found up to the filesystem root', async () => {
-            const isolatedDir: FsPath = FsUtilities.getPath(os.tmpdir(), `zibri-root-test-${Date.now()}`);
+            const isolatedDir: FsPath = FsUtilities.getPath(os.tmpdir(), 'zibri-root-test');
             await FsUtilities.mkdir(isolatedDir);
 
             process.chdir(isolatedDir);

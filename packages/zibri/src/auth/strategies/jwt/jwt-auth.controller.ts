@@ -12,10 +12,10 @@ import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { Property } from '../../../entity/decorators/property.decorator';
 import { OmitClass } from '../../../entity/omit-class.model';
 import { Response } from '../../../open-api/decorators/response.decorator';
-import { PreactEmailComponent } from '../../../preact/preact-email-component.model';
 import { Body } from '../../../routing/decorators/body.decorator';
 import { Controller } from '../../../routing/decorators/controller.decorator';
 import { Post } from '../../../routing/decorators/post.decorator';
+import { TsxEmailComponent } from '../../../tsx/tsx-email-component.model';
 import { AuthControllerInterface } from '../../auth-controller.interface';
 import { type AuthServiceInterface } from '../../auth-service.interface';
 import { BaseUser } from '../../models/base-user.model';
@@ -35,7 +35,7 @@ type PasswordResetEmailTemplateProps<Role extends string, UserType extends BaseU
  */
 export type PasswordResetEmailTemplate<
     Role extends string, UserType extends BaseUser<Role>
-> = PreactEmailComponent<PasswordResetEmailTemplateProps<Role, UserType>>;
+> = TsxEmailComponent<PasswordResetEmailTemplateProps<Role, UserType>>;
 
 class JwtRequestPasswordResetInput {
     @Property.string({ format: 'email' })

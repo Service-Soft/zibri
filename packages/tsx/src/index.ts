@@ -22,3 +22,6 @@ export * from './build/vendor';
 export * from './jsx/jsx.model';
 export * from './jsx/jsx-element-attributes.model';
 export * from './jsx/intrinsic-elements.model';
+// Also surfaced from the main entry (not only the `./email` subpath) so consumers on classic module
+// resolution, like zibri's CommonJS build, can re-export the email components.
+export * from './email/index';

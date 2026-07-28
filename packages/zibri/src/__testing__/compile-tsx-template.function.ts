@@ -3,8 +3,8 @@ import { compile, CompiledPage, CompileResult } from 'zibri-tsx';
 import { InternalError } from '../error-handling/internal-error.model';
 import { $f } from '../localization/format.function';
 import { $t, $ts } from '../localization/translate.function';
-import { onClient } from '../preact/hooks/on-client.hook';
-import { onServer } from '../preact/hooks/on-server.hook';
+import { onClient } from '../tsx/on-client.hook';
+import { onServer } from '../tsx/on-server.hook';
 
 /**
  * The framework hooks a template would normally import from zibri. The real implementations are

@@ -1,27 +1,23 @@
-/** @jsxImportSource preact */
-import { $ts, GlobalRegistry, MailingListTemplateData, PreactEmailComponent } from 'zibri';
+import { $ts, GlobalRegistry, MailingListTemplateData, MjColumn, MjSection, MjText, TsxComponent } from 'zibri';
 
 import { BaseMailingListFooter } from './base-mailing-list-footer';
-import { EmailColumn } from './email-column';
-import { EmailSection } from './email-section';
-import { EmailText } from './email-text';
 
 type Props = {
     mailingListData?: MailingListTemplateData
 };
 
-export const BaseEmailFooter: PreactEmailComponent<Props> = ({
+export const BaseEmailFooter: TsxComponent<Props> = ({
     mailingListData
 }) => {
     const appName: string = GlobalRegistry.getAppData('name') ?? '';
 
     return <>
-        <EmailSection paddingBottom='0px' paddingTop='20px'>
-            <EmailColumn>
-                <EmailText paddingBottom='10px'>{$ts`Kind regards,`}</EmailText>
-                <EmailText>{$ts`Your Team at ${appName}`}</EmailText>
-            </EmailColumn>
-        </EmailSection>
+        <MjSection paddingTop='20px' paddingBottom='0px'>
+            <MjColumn>
+                <MjText paddingBottom='10px'>{$ts`Kind regards,`}</MjText>
+                <MjText>{$ts`Your Team at ${appName}`}</MjText>
+            </MjColumn>
+        </MjSection>
         {mailingListData && <BaseMailingListFooter {...mailingListData}></BaseMailingListFooter>}
     </>;
 };

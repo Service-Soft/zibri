@@ -1,5 +1,6 @@
 import { ClientScript, compileClientScript } from './client/client-codegen';
 import { CLIENT_HOOK_SOURCES } from './client/hooks';
+import { SERVER_INLINED_HOOKS } from './server/print';
 import { compileServerRender, ServerRenderCode } from './server/render-codegen';
 import { Diagnostic } from '../diagnostics/diagnostic.model';
 import { ImportDeclaration, ImportSpecifier, Program } from '../parser/ast';
@@ -7,6 +8,7 @@ import { parse, ParseResult } from '../parser/parser';
 import { collectClientGlobalAliases, collectClientPackages } from '../semantics/client-packages';
 import { ComponentInfo, findComponents } from '../semantics/component';
 import { validate, validateClientImports } from '../semantics/validate';
+import { validateEmailNesting, validateNoClientInEmail } from '../semantics/validate-email';
 
 /**
  * The module format of an emitted template.
@@ -95,6 +97,15 @@ export function compile(source: string, options: CompileOptions = {}): CompileRe
     );
     if (leaks.length > 0) {
         return { diagnostics: leaks, code: undefined, componentName: undefined, client: undefined, clientPackages };
+    }
+
+    // Email templates get their own gate: MJML nesting rules, and no client code (emails run none).
+    const emailDiagnostics: Diagnostic[] = [
+        ...validateEmailNesting(parsed.program),
+        ...validateNoClientInEmail(parsed.program, client.code !== undefined, clientPackages)
+    ];
+    if (emailDiagnostics.length > 0) {
+        return { diagnostics: emailDiagnostics, code: undefined, componentName: undefined, client: undefined, clientPackages };
     }
 
     const code: string = emitModule(
@@ -194,12 +205,16 @@ function hasBindings(declaration: ImportDeclaration): boolean {
 }
 
 /**
- * The import's value specifiers, i.e. Without the type-only ones.
+ * The import's runtime specifiers: neither type-only, nor a server-inlined hook. A server-inlined
+ * hook (`useContext`, `provideContext`) is lowered to a `$ssr` method, so its import binding is dead
+ * in the emitted module - and keeping it would demand a matching runtime export that does not exist.
  * @param declaration - The import to read.
  * @returns The value specifiers.
  */
 function valueSpecifiers(declaration: ImportDeclaration): ImportSpecifier[] {
-    return declaration.specifiers.filter(specifier => !specifier.typeOnly);
+    return declaration.specifiers.filter(
+        specifier => !specifier.typeOnly && !(specifier.local in SERVER_INLINED_HOOKS)
+    );
 }
 
 /**

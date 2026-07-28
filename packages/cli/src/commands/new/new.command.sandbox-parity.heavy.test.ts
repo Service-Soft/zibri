@@ -1,19 +1,21 @@
 import { Dirent, readdirSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { NewCommand } from './new.command';
 import { acceptedSandboxDifferences } from '../../__testing__/accepted-sandbox-differences';
+import { testFileFolder } from '../../__testing__/constants';
 import { diffFileContents } from '../../__testing__/diff-file-contents.function';
+import { normalizePackageJson } from '../../__testing__/normalize-package-json.function';
 import { CPUtilities, FsUtilities } from '../../encapsulation';
-import { Path } from '../../utilities';
+import { getPath, Path } from '../../utilities';
 
 const TEST_TIMEOUT_MS: number = 180_000;
 const CLI_ROOT: string = path.join(__dirname, '..', '..', '..');
 const SANDBOX_DIR: Path = path.join(__dirname, '..', '..', '..', '..', 'sandbox') as Path;
+const RECORDED_DIFFS_PATH: Path = path.join(CLI_ROOT, 'src', '__testing__', 'recorded-sandbox-diffs.json') as Path;
 
 const EXPLICITLY_CREATED_FILES: string[] = [
     'package.json',
@@ -70,12 +72,19 @@ const GENERATED_FILE_PATHS: string[] = [
     ...listCopiedTemplateFiles(path.join(CLI_ROOT, 'templates'), 'src/templates')
 ];
 
+/**
+ * Every file that really differs, together with its exact diff. Written to disk after the run so
+ * that acceptedSandboxDifferences can be filled from it instead of by copying a diff out of the
+ * test report, which mangles trailing whitespace and newlines.
+ */
+const recordedDifferences: Record<string, string> = {};
+
 describe('NewCommand (sandbox parity)', () => {
     let workDir: Path;
     let appDir: Path;
 
     beforeAll(async () => {
-        workDir = path.join(os.tmpdir(), `zibri-cli-sandbox-parity-test-${Date.now()}`) as Path;
+        workDir = getPath(testFileFolder, 'sandbox-parity');
         appDir = path.join(workDir, 'sandbox') as Path;
         await FsUtilities.mkdir(workDir);
         CPUtilities['cwd'] = workDir;
@@ -91,6 +100,11 @@ describe('NewCommand (sandbox parity)', () => {
         CPUtilities['cwd'] = undefined;
         delete process.env['ZIBRI_CLI_LOCAL_DEV'];
         await FsUtilities.rm(workDir);
+        // Re-records the fixture accepted-sandbox-differences.test.ts checks against, so that
+        // filling acceptedSandboxDifferences never means copying a diff out of the test report.
+        await (await FsUtilities.exists(RECORDED_DIFFS_PATH)
+            ? FsUtilities.updateFile(RECORDED_DIFFS_PATH, `${JSON.stringify(recordedDifferences, undefined, 4)}\n`, 'replace')
+            : FsUtilities.createFile(RECORDED_DIFFS_PATH, `${JSON.stringify(recordedDifferences, undefined, 4)}\n`));
     }, TEST_TIMEOUT_MS);
 
     it.each(GENERATED_FILE_PATHS)('matches packages/sandbox at %s', async relativePath => {
@@ -101,11 +115,19 @@ describe('NewCommand (sandbox parity)', () => {
 
         // Read as raw buffers (not FsUtilities.readFile, which decodes as utf8 and would corrupt
         // binary assets like images).
-        const generated: Buffer = await readFile(path.join(appDir, relativePath) as Path);
-        const sandbox: Buffer = await readFile(sandboxPath);
+        let generated: Buffer = await readFile(path.join(appDir, relativePath) as Path);
+        let sandbox: Buffer = await readFile(sandboxPath);
+
+        if (relativePath === 'package.json') {
+            ({ generated, sandbox } = normalizePackageJson(generated, sandbox));
+        }
 
         const diff: string = diffFileContents(generated, sandbox);
+        if (diff !== '') {
+            recordedDifferences[relativePath] = diff;
+        }
+
         const accepted: string = acceptedSandboxDifferences[relativePath] ?? '';
-        expect(diff).toBe(accepted);
+        expect(diff).toEqual(accepted);
     });
 });

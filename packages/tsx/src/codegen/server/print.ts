@@ -12,6 +12,18 @@ import { HandlerSite } from '../client/handlers';
 export const SSR: string = '$ssr';
 
 /**
+ * Framework hooks whose calls are lowered to a method on the per-render {@link SSR} runtime instead
+ * of being resolved as imports, keyed by hook name to the runtime method it becomes. They need the
+ * render runtime, which only exists as the render function's parameter, so they cannot be plain
+ * imported functions.
+ */
+export const SERVER_INLINED_HOOKS: Readonly<Record<string, string>> = {
+    provideContext: 'provideContext',
+    useContext: 'useContext',
+    $raw: 'raw'
+};
+
+/**
  * The handler-site map for the current server-render compilation. When set, host elements whose
  * `on*` handlers appear in the map are stamped with a `data-ssr-handlers` attribute. Codegen is
  * synchronous, so a module-scoped compile session is safe.
@@ -115,7 +127,17 @@ export function printExpression(expr: Expression): string {
             return `${printExpression(expr.test)} ? ${printExpression(expr.consequent)} : ${printExpression(expr.alternate)}`;
         }
         case 'CallExpression': {
-            return `${printExpression(expr.callee)}${expr.optional ? '?.' : ''}(${expr.arguments.map(printExpression).join(', ')})`;
+            const args: string = expr.arguments.map(printExpression).join(', ');
+            const inlined: string | undefined = expr.callee.kind === 'Identifier'
+                ? SERVER_INLINED_HOOKS[expr.callee.name]
+                : undefined;
+            // A context hook is a call on the per-render runtime, so it is lowered to a `$ssr` method
+            // rather than resolved as an import. That also keeps it server-only: client code that
+            // named it would find no import and fail the leak check.
+            if (inlined && !expr.optional) {
+                return `${SSR}.${inlined}(${args})`;
+            }
+            return `${printExpression(expr.callee)}${expr.optional ? '?.' : ''}(${args})`;
         }
         case 'NewExpression': {
             return `new ${printExpression(expr.callee)}(${expr.arguments.map(printExpression).join(', ')})`;
@@ -426,13 +448,23 @@ function lowerComponentElement(element: JSXElement): string {
             entries.push(componentPropEntry(attribute));
         }
     }
-    const childrenValue: string | undefined = componentChildrenValue(element.children);
-    if (childrenValue !== undefined) {
+    const childrenValue: string | undefined = TsxChildrenValue(element.children);
+    // Children are passed as a thunk so they render when the component reads them, not before it
+    // runs. That is what lets a component establish state its children depend on.
+    //
+    // Static text is the exception: it cannot depend on anything, so it stays an ordinary prop and
+    // remains serializable for a client setup that reads it.
+    const isStaticText: boolean = element.children.every(child => child.kind === 'JSXText');
+    let children: string = '';
+    if (childrenValue !== undefined && isStaticText) {
         entries.push(`children: ${childrenValue}`);
+    }
+    else if (childrenValue !== undefined) {
+        children = `, () => (${childrenValue})`;
     }
     // Routed through the runtime so it can register a client instance for components that have
     // client behavior, then delegate to their server render.
-    return `${SSR}.component(${name}, { ${entries.join(', ')} })`;
+    return `${SSR}.component(${name}, { ${entries.join(', ')} }${children})`;
 }
 
 // eslint-disable-next-line jsdoc/require-jsdoc
@@ -471,7 +503,7 @@ function handlerPropValue(handler: Expression): string {
 }
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-function componentChildrenValue(children: JSXChild[]): string | undefined {
+function TsxChildrenValue(children: JSXChild[]): string | undefined {
     const values: string[] = children.map(childValue).filter(c => c.length > 0);
     if (values.length === 0) {
         return undefined;

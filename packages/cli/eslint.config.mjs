@@ -4,7 +4,9 @@ import baseConfig from '../../eslint.config.mjs';
 /** @type {import('eslint').Linter.Config} */
 export default [
     ...baseConfig,
-    { ignores: ['assets', 'sandbox'] },
+    // recorded-sandbox-diffs.json holds diff output recorded by the sandbox parity test verbatim,
+    // so its key order and wording are not ours to lint.
+    { ignores: ['assets', 'sandbox', 'src/__testing__/recorded-sandbox-diffs.json'] },
     {
         files: ['**/*.ts'],
         languageOptions: {

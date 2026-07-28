@@ -1,4 +1,3 @@
-import H from 'handlebars/runtime';
 import { inject, JwtAuthController, LoggerInterface, MailingListController, SemVerUtilities, ZIBRI_DI_TOKENS, ZibriApplication, ZibriInvoicingPlugin, ZibriMailingListPlugin } from 'zibri';
 
 import { CronController, FileController, MetricsController, PageController, TemplateController, TestController, TestCrudController, TestWebsocketController } from './controllers';
@@ -36,7 +35,7 @@ async function start(): Promise<void> {
         version,
         providers
     });
-    await app.init(H);
+    await app.init();
 
     logger = inject(ZIBRI_DI_TOKENS.LOGGER);
 

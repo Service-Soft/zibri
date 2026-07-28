@@ -1,5 +1,5 @@
 import { MailingList } from './mailing-list.model';
-import { PreactEmailComponent } from '../../../preact/preact-email-component.model';
+import { TsxEmailComponent } from '../../../tsx/tsx-email-component.model';
 import { MailingListSubscriberCreateData } from '../services/mailing-list-service.interface';
 
 /**
@@ -23,4 +23,4 @@ type MailingListSubscribeConfirmationEmailTemplateProps = {
 /**
  * Definition for a mailing list subscribe confirmation email template.
  */
-export type MailingListSubscribeConfirmationEmailTemplate = PreactEmailComponent<MailingListSubscribeConfirmationEmailTemplateProps>;
+export type MailingListSubscribeConfirmationEmailTemplate = TsxEmailComponent<MailingListSubscribeConfirmationEmailTemplateProps>;

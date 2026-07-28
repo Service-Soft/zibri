@@ -44,7 +44,7 @@ As you can see, the above uses a really simple in memory cache store. But you co
 To use your cache, you can use the provided decorators on whichever method that should be cached:
 
 ```ts
-import { Cached, Get, GlobalRegistry, HtmlResponse, HttpRequestContext, inject, PreactUtilities, Response, WebsocketRequestContext, ZIBRI_DI_TOKENS, ZIBRI_REQUEST_CONTEXT_TOKENS } from 'zibri';
+import { Cached, Get, GlobalRegistry, HtmlResponse, HttpRequestContext, inject, TsxUtilities, Response, WebsocketRequestContext, ZIBRI_DI_TOKENS, ZIBRI_REQUEST_CONTEXT_TOKENS } from 'zibri';
 
 import { HomePage } '../home';
 
@@ -56,7 +56,7 @@ import { HomePage } '../home';
 @Response.html()
 @Get()
 async index(): Promise<HtmlResponse> {
-    const html: string = await PreactUtilities.renderPage(HomePage, { appName: GlobalRegistry.getAppData('name') ?? '' });
+    const html: string = TsxUtilities.renderPage(HomePage, { appName: GlobalRegistry.getAppData('name') ?? '' });
     return HtmlResponse.fromString(html);
 }
 ```

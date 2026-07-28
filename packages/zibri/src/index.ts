@@ -377,21 +377,14 @@ export * from './rate-limiting/stores/in-memory.rate-limiter-store';
 export * from './handlebars/generate-handlebar-type-files.function';
 export * from './handlebars/handlebar.utilities';
 
-// preact
-export * from './preact/preact.utilities';
-export * from './preact/preact-component.model';
-export * from './preact/preact-email-component.model';
-export * from './preact/generate-client-scripts.function';
-export * from './preact/validate-email-templates.function';
-
-export * from './preact/hooks/on-client.hook';
-export * from './preact/hooks/on-server.hook';
-
 // tsx
 export * from './tsx/tsx.utilities';
 export * from './tsx/tsx-component.model';
 export * from './tsx/tsx-email-component.model';
 export * from './tsx/tsx-locale-data.model';
+export * from './tsx/email';
+export * from './tsx/on-client.hook';
+export * from './tsx/on-server.hook';
 
 // metrics
 export * from './metrics/metrics-service.interface';

@@ -22,6 +22,7 @@ import { EmailServiceInterface } from '../../email/email-service.interface';
 import { EmailConfigInput } from '../../email/models/email-config.model';
 import { GlobalErrorHandler, ErrorPageTemplate } from '../../error-handling/error-handler.model';
 import { EventServiceInterface } from '../../event/event-service.interface';
+import { HandlebarOptions } from '../../handlebars/handlebar.utilities';
 import { HttpClientInterface } from '../../http-client/http-client.interface';
 import { LocalizeServiceInterface } from '../../localization/localize-service.interface';
 import { LocalizeOptionsInput, LocalizeOptions } from '../../localization/models/localize-options.model';
@@ -124,6 +125,7 @@ export const ZIBRI_DI_TOKENS = {
     LOCALIZE_OPTIONS_INPUT: ziToken<LocalizeOptionsInput>('zi.localize_options_input'),
     LOCALIZE_OPTIONS: ziToken<LocalizeOptions>('zi.localize_options'),
     RATE_LIMITING_SERVICE: ziToken<RateLimitingServiceInterface>('zi.rate_limiting_service'),
+    HANDLEBAR_OPTIONS: ziToken<HandlebarOptions>('zi.handlebar_options'),
     // dynamic/context based tokens
     CURRENT_REQUEST_CONTEXT: ziToken<HttpRequestContext | WebsocketRequestContext | undefined>('zi.current_request_context'),
     DEFAULT_CSP_OPTIONS: ziToken<CspOptions>('zi.default_csp_options'),
