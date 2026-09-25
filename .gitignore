@@ -7,7 +7,7 @@ coverage
 packages/zibri/docs/generated
 file-output
 .vscode
-packages/zibri/src/di/default/temp
+.zibri/
 .env
 packages/cli/sandbox
 packages/cli/src/__testing__/recorded-sandbox-diffs.json

@@ -2,7 +2,7 @@ import { InternalError } from '../../error-handling/internal-error.model';
 import { GlobalRegistry } from '../../global/global-registry';
 import { Newable } from '../../types/newable.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { DiProvider } from '../models/di-provider.model';
+import { DiProvider, DiScope } from '../models/di-provider.model';
 import { DiToken } from '../models/di-token.model';
 import { DiVariant } from '../models/di-variant.model';
 
@@ -19,6 +19,10 @@ export type InjectableOptions<T> = {
      */
     register?: 'immediately' | 'onUse',
     /**
+     * How long an instance lives, and therefore when a new one is built. Defaults to 'application'.
+     */
+    scope?: DiScope,
+    /**
      * The variant of the injectable.
      */
     variant?: DiVariant
@@ -29,7 +33,7 @@ export type InjectableOptions<T> = {
  * @param options - Options for the injectable.
  */
 export function Injectable<T>(options: InjectableOptions<T> = {}): ClassDecorator {
-    const { register = 'immediately', token, variant } = options;
+    const { register = 'immediately', token, variant, scope } = options;
 
     return target => {
         MetadataUtilities.setDiToken(target, token);
@@ -62,7 +66,8 @@ export function Injectable<T>(options: InjectableOptions<T> = {}): ClassDecorato
         const provider: DiProvider<T> = {
             token: (token ?? target) as DiToken<T>,
             useClass: target as unknown as Newable<T>,
-            variants
+            variants,
+            scope
         };
         if (register === 'immediately') {
             GlobalRegistry.injectables.push(provider);

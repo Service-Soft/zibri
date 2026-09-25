@@ -2,13 +2,15 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { type Relation } from 'typeorm';
 
 import { DefaultDescriptor } from './default-descriptor';
+import { NestedDescriptor } from './model-descriptor';
 import { ModelRegistry } from './model.registry';
+import { restoreExcludeProperties } from './restore-exclude-properties.function';
 import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { AesGcmEncryptionStrategy } from '../../auth/encryption/strategies/aes-gcm.encryption-strategy';
 import { type HashServiceInterface } from '../../auth/hash/hash-service.interface';
 import { type HashString } from '../../auth/hash/hash.utilities';
-import { Repository } from '../../data-source/repository';
+import { Repository } from '../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
@@ -303,6 +305,17 @@ describe('model-registry descriptors — function-based dynamic options', () => 
     });
 });
 
+/**
+ * The defaults of the one model a property holds.
+ * @param descriptor - The defaults of the class that has the property.
+ * @param key - The property.
+ * @returns The defaults of the model it holds, or undefined when it holds one of several shapes or none.
+ */
+function nestedDefaultsOf(descriptor: DefaultDescriptor, key: string): DefaultDescriptor | undefined {
+    const nested: NestedDescriptor<DefaultDescriptor> | undefined = descriptor.nestedKeys.get(key);
+    return nested instanceof DefaultDescriptor ? nested : undefined;
+}
+
 // A genuine 3-hop relation cycle (A -> B -> C -> A). Deliberately not @Entity()-decorated/registered on a data
 // source: the descriptors only read @Property metadata off the class, they don't need a real schema for this.
 class RegNodeC extends BaseEntity {
@@ -338,9 +351,90 @@ describe('model-registry descriptors — genuine multi-hop relation cycles', () 
         const defaultDescriptor: DefaultDescriptor = ModelRegistry.get(RegNodeA).defaultDescriptor;
         // RegNodeA -> next (RegNodeB) -> next (RegNodeC, which has a real default on `name`)
         expect(defaultDescriptor.nestedKeys.has('next')).toBe(true);
-        const nodeBDefaults: DefaultDescriptor | undefined = defaultDescriptor.nestedKeys.get('next');
+        const nodeBDefaults: DefaultDescriptor | undefined = nestedDefaultsOf(defaultDescriptor, 'next');
         expect(nodeBDefaults?.nestedKeys.has('next')).toBe(true);
-        const nodeCDefaults: DefaultDescriptor | undefined = nodeBDefaults?.nestedKeys.get('next');
+        const nodeCDefaults: DefaultDescriptor | undefined = nodeBDefaults && nestedDefaultsOf(nodeBDefaults, 'next');
         expect(nodeCDefaults?.keys.get('name')).toBe('c-default');
+    });
+});
+
+// The same cycle again, with the class carrying the default at the near end instead of the far one.
+// Which class is resolved first is decided by data source registration order and by which repository
+// is injected first — nothing an entity declaration controls — so both ends have to come out the same.
+class OrderNodeC extends BaseEntity {
+    @Property.string({ default: 'c-default' })
+    name!: string;
+
+    @Property.hasOne({ target: () => OrderNodeA, inverseSide: 'next' })
+    next!: Relation<OrderNodeA>;
+}
+
+class OrderNodeB extends BaseEntity {
+    @Property.string()
+    name!: string;
+
+    @Property.hasOne({ target: () => OrderNodeC, inverseSide: 'next' })
+    next!: Relation<OrderNodeC>;
+}
+
+class OrderNodeA extends BaseEntity {
+    @Property.string()
+    name!: string;
+
+    @Property.hasOne({ target: () => OrderNodeB, inverseSide: 'next' })
+    next!: Relation<OrderNodeB>;
+}
+
+describe('model-registry descriptors — resolution order', () => {
+    it('propagates a nested default the same way no matter which class of a cycle is resolved first', () => {
+        // resolving from the end of the chain first is what a data source registering OrderNodeC
+        // before OrderNodeA does. Every class of the cycle is built from inside this one call.
+        ModelRegistry.get(OrderNodeC);
+
+        const nodeADefaults: DefaultDescriptor = ModelRegistry.get(OrderNodeA).defaultDescriptor;
+        expect(nodeADefaults.nestedKeys.has('next')).toBe(true);
+        const nodeBDefaults: DefaultDescriptor | undefined = nestedDefaultsOf(nodeADefaults, 'next');
+        expect(nodeBDefaults?.nestedKeys.has('next')).toBe(true);
+        expect((nodeBDefaults && nestedDefaultsOf(nodeBDefaults, 'next'))?.keys.get('name')).toBe('c-default');
+    });
+});
+
+// A class that nests itself is the shortest cycle there is, and the data may follow it: an entity
+// loaded with both sides of a relation holds a reference back to itself.
+class CyclicComment {
+    @Property.string({ exclude: true })
+    authorEmail!: string;
+
+    @Property.object({ cls: () => CyclicComment, required: false })
+    reply?: CyclicComment;
+}
+
+describe('model-registry descriptors — cyclic data', () => {
+    it('walks data that references itself without recursing forever', () => {
+        const comment: CyclicComment = new CyclicComment();
+        comment.authorEmail = 'someone@example.com';
+        comment.reply = comment;
+
+        expect(() => restoreExcludeProperties(comment, CyclicComment)).not.toThrow();
+    });
+});
+
+describe('model-registry descriptors — one object reached through two properties', () => {
+    it('encrypts a shared nested instance once rather than once per path to it', async () => {
+        // the same instance under both properties is what an identity map hands out for two relations
+        // pointing at one row. Encrypting it twice stores a value that one decrypt cannot undo.
+        const shared: NestedSecret = new NestedSecret();
+        shared.nestedSensitive = 'shared secret value';
+        shared.nestedSecret = 'b';
+
+        const created: PropagationTestItem = await propagationTestItemRepo.create({
+            plain: 'x',
+            nested: shared,
+            nestedArray: [shared]
+        });
+
+        const found: PropagationTestItem = await propagationTestItemRepo.findById(created.id);
+        expect(found.nested?.nestedSensitive).toBe('shared secret value');
+        expect(found.nestedArray?.[0]?.nestedSensitive).toBe('shared secret value');
     });
 });

@@ -1,4 +1,4 @@
-import { SupportedVersionsOptions } from './supported-versions-options.model';
+import { type SupportedVersionsOptions } from './supported-versions-options.model';
 
 /**
  * Defines a route identified by a key with their respective versions.

@@ -2,7 +2,6 @@
 import { MetadataInjectionKeys } from './metadata-injection-keys.enum';
 import { ReflectUtilities } from './reflect.utilities';
 import { CurrentUserMetadata } from '../auth/decorators/current-user.decorator';
-import { BelongsToMetadata, SkipBelongsToMetadata } from '../auth/models/belongs-to-metadata.model';
 import { HasRoleMetadata, SkipHasRoleMetadata } from '../auth/models/has-role-metadata.model';
 import { IsLoggedInMetadata, SkipIsLoggedInMetadata } from '../auth/models/is-logged-in-metadata.model';
 import { IsNotLoggedInMetadata, SkipIsNotLoggedInMetadata } from '../auth/models/is-not-logged-in-metadata.model';
@@ -10,13 +9,16 @@ import { Require2faMetadata, SkipRequire2faMetadata } from '../auth/models/requi
 import { SkipAuthMetadata } from '../auth/models/skip-auth-metadata.model';
 import { BackupResourceInterface } from '../backup/backup-resource.interface';
 import { BackupResourceMetadata } from '../backup/decorators/backup-resource-metadata.model';
+import { DataSourceMetadata } from '../data-source/decorators/data-source.decorator';
 import { DiToken } from '../di/models/di-token.model';
-import { BaseEntity } from '../entity/base-entity.model';
+import { type BaseEntity } from '../entity/base-entity.model';
 import { EntityMetadata } from '../entity/decorators/entity.decorator';
 import { PropertyMetadata } from '../entity/decorators/property.decorator';
 import { OpenApiResponse } from '../open-api/open-api.model';
+import { XmlPropertyMetadata } from '../parsing/xml/xml-property-metadata.model';
+import { XmlRootMetadata } from '../parsing/xml/xml-root-metadata.model';
 import { ControllerRouteConfiguration } from '../routing/controller-route-configuration.model';
-import { BodyMetadata } from '../routing/decorators/body.decorator';
+import { BodyMetadata } from '../routing/decorators/body-metadata.model';
 import { ControllerData } from '../routing/decorators/controller.decorator';
 import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from '../routing/decorators/param.decorator';
 import { Newable } from '../types/newable.type';
@@ -25,20 +27,48 @@ import { WebsocketControllerData } from '../websocket/decorators/websocket-contr
 import { WebsocketControllerRouteConfiguration } from '../websocket/models/websocket-controller-route-configuration.model';
 
 const modelPropertiesStore: WeakMap<Function, Record<string, PropertyMetadata>> = new WeakMap();
+const xmlPropertiesStore: WeakMap<Function, Record<string, XmlPropertyMetadata>> = new WeakMap();
+const xmlRootStore: WeakMap<Function, XmlRootMetadata> = new WeakMap();
+const xmlNamespaceStore: WeakMap<Function, string> = new WeakMap();
 
 /**
  * Utilities for handling Metadata.
  */
 export abstract class MetadataUtilities {
     // ---------- helpers ----------
-    private static structuredCloneSafe<T>(value: T): T {
+    /**
+     * Copies a declaration so that whoever asked for it cannot write to the original.
+     *
+     * Deep, because the interesting parts of a declaration are the arrays and objects inside it - the
+     * roles a route accepts, the strategies it accepts them from - and a copy that shared those hands
+     * out the ability to widen the route it came from.
+     *
+     * Everything that is not a plain object or an array is passed on as it is. Classes, factories and
+     * validators are what a declaration points at rather than what it holds, and copying one of those
+     * would break the identity the rest of the framework compares it by.
+     * @param value - What was stored.
+     * @returns A copy that shares nothing writable with it.
+     */
+    private static cloneMetadata<T>(value: T): T {
         if (Array.isArray(value)) {
-            return [...value] as T;
+            const entries: unknown[] = value;
+            return entries.map(entry => MetadataUtilities.cloneMetadata(entry)) as T;
         }
-        return { ...value };
+        if (typeof value !== 'object' || value == undefined) {
+            return value;
+        }
+        const prototype: unknown = Object.getPrototypeOf(value);
+        if (prototype != undefined && prototype !== Object.prototype) {
+            return value;
+        }
+        const clone: Record<string, unknown> = {};
+        for (const key of Object.keys(value)) {
+            clone[key] = MetadataUtilities.cloneMetadata((value as Record<string, unknown>)[key]);
+        }
+        return clone as T;
     }
 
-    private static ensureInheritedStore<T extends Record<string, unknown>>(store: WeakMap<Function, T>, ctor: Newable<unknown>): T {
+    private static resolveInheritedStore<T extends Record<string, unknown>>(store: WeakMap<Function, T>, ctor: Newable<unknown>): T {
         let entry: T | undefined = store.get(ctor);
         if (entry !== undefined) {
             return entry;
@@ -46,7 +76,7 @@ export abstract class MetadataUtilities {
 
         const parentCtor: Newable<unknown> | undefined = MetadataUtilities.getParentConstructor(ctor);
         const parentEntry: T | undefined = parentCtor
-            ? MetadataUtilities.ensureInheritedStore(store, parentCtor)
+            ? MetadataUtilities.resolveInheritedStore(store, parentCtor)
             : undefined;
 
         // shallow clone parent's entry so child gets its own object
@@ -63,7 +93,7 @@ export abstract class MetadataUtilities {
         // if child has its own metadata, return clone immediately
         const own: T | undefined = ReflectUtilities.getOwnMetadata(metadataKey, ctor, controllerMethod);
         if (own !== undefined) {
-            return MetadataUtilities.structuredCloneSafe(own);
+            return MetadataUtilities.cloneMetadata(own);
         }
 
         // walk parents and clone+cache the first parent value found
@@ -71,7 +101,7 @@ export abstract class MetadataUtilities {
         while (parentCtor) {
             const parentOwn: T | undefined = ReflectUtilities.getOwnMetadata(metadataKey, parentCtor, controllerMethod);
             if (parentOwn !== undefined) {
-                const clone: T | undefined = MetadataUtilities.structuredCloneSafe(parentOwn);
+                const clone: T | undefined = MetadataUtilities.cloneMetadata(parentOwn);
                 ReflectUtilities.setMetadata(metadataKey, clone, ctor, controllerMethod);
                 return clone;
             }
@@ -88,7 +118,9 @@ export abstract class MetadataUtilities {
 
     // ---------- file path ----------
     static setFilePath(target: Object, errorStack: string): void {
-        const callerLine: string = errorStack.split('\n')[5];
+        // a stack can be shorter than the frame being reached for, and then there is no caller line
+        // to read a path out of - which the 'unknown' below already answers for
+        const callerLine: string = errorStack.split('\n')[5] ?? '';
         const filePath: string = callerLine.match(/\((.*):\d+:\d+\)/)?.[1] ?? 'unknown';
 
         ReflectUtilities.setMetadata(MetadataInjectionKeys.FILE_LOCATION, filePath, this.toNewable(target));
@@ -296,54 +328,6 @@ export abstract class MetadataUtilities {
         return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.CONTROLLER_SKIP_HAS_ROLE, controller);
     }
 
-    // ---------- belongsTo (method-level, inherit) ----------
-    static setRouteBelongsTo<T extends Newable<BaseEntity>>(
-        controller: Function,
-        data: BelongsToMetadata<T>,
-        controllerMethod: string
-    ): void {
-        ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_BELONGS_TO, data, controller, controllerMethod);
-    }
-
-    static getRouteBelongsTo<T extends Newable<BaseEntity>>(
-        controller: Function,
-        controllerMethod: string
-    ): BelongsToMetadata<T> | undefined {
-        return MetadataUtilities.ensureInheritedReflectMetadata<BelongsToMetadata<T>>(
-            MetadataInjectionKeys.ROUTE_BELONGS_TO,
-            controller,
-            controllerMethod
-        );
-    }
-
-    static setRouteSkipBelongsTo(controller: Function, data: SkipBelongsToMetadata, controllerMethod: string): void {
-        ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_SKIP_BELONGS_TO, data, controller, controllerMethod);
-    }
-
-    static getRouteSkipBelongsTo(controller: Function, controllerMethod: string): SkipBelongsToMetadata | undefined {
-        return MetadataUtilities.ensureInheritedReflectMetadata<SkipBelongsToMetadata>(
-            MetadataInjectionKeys.ROUTE_SKIP_BELONGS_TO,
-            controller,
-            controllerMethod
-        );
-    }
-
-    static setControllerBelongsTo<T extends Newable<BaseEntity>>(controller: Function, data: BelongsToMetadata<T>): void {
-        ReflectUtilities.setMetadata(MetadataInjectionKeys.CONTROLLER_BELONGS_TO, data, controller);
-    }
-
-    static getControllerBelongsTo<T extends Newable<BaseEntity>>(controller: Function): BelongsToMetadata<T> | undefined {
-        return ReflectUtilities.getMetadata(MetadataInjectionKeys.CONTROLLER_BELONGS_TO, controller);
-    }
-
-    static setControllerSkipBelongsTo(controller: Function, data: SkipBelongsToMetadata): void {
-        ReflectUtilities.setMetadata(MetadataInjectionKeys.CONTROLLER_SKIP_BELONGS_TO, data, controller);
-    }
-
-    static getControllerSkipBelongsTo(controller: Function): SkipBelongsToMetadata | undefined {
-        return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.CONTROLLER_SKIP_BELONGS_TO, controller);
-    }
-
     // ---------- require2fa (method-level, inherit) ----------
     static setRouteRequire2fa(
         controller: Function,
@@ -406,14 +390,55 @@ export abstract class MetadataUtilities {
         );
     }
 
+    static setControllerSkipAuth(controller: Function, data: SkipAuthMetadata): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.CONTROLLER_SKIP_AUTH, data, controller);
+    }
+
+    static getControllerSkipAuth(controller: Function): SkipAuthMetadata | undefined {
+        return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.CONTROLLER_SKIP_AUTH, controller);
+    }
+
     // ---------- model properties (WeakMap store, inherit) ----------
     static setModelProperties<T extends Newable<unknown>>(ctor: T, properties: Record<string, PropertyMetadata>): void {
-        // store a cloned copy to avoid external references
-        modelPropertiesStore.set(ctor as unknown as Function, MetadataUtilities.structuredCloneSafe(properties));
+        // the record itself is copied so the caller keeps writing to its own, and the property
+        // metadata inside it stays shared. Deliberately not the deep copy above: `@Property` reads
+        // this record back, adds one entry and stores it again once per decorated property, and the
+        // class helpers that derive one model from another pass entries straight through.
+        modelPropertiesStore.set(ctor as unknown as Function, { ...properties });
     }
 
     static getModelProperties<T extends Newable<unknown>>(ctor: T): Record<string, PropertyMetadata> {
-        return MetadataUtilities.ensureInheritedStore<Record<string, PropertyMetadata>>(modelPropertiesStore, ctor);
+        return MetadataUtilities.resolveInheritedStore<Record<string, PropertyMetadata>>(modelPropertiesStore, ctor);
+    }
+
+    // ---------- xml properties (WeakMap store, inherit) ----------
+    static setXmlProperties<T extends Newable<unknown>>(ctor: T, properties: Record<string, XmlPropertyMetadata>): void {
+        xmlPropertiesStore.set(ctor as unknown as Function, { ...properties });
+    }
+
+    static getXmlProperties<T extends Newable<unknown>>(ctor: T): Record<string, XmlPropertyMetadata> {
+        return MetadataUtilities.resolveInheritedStore<Record<string, XmlPropertyMetadata>>(xmlPropertiesStore, ctor);
+    }
+
+    // ---------- xml root (WeakMap store, own) ----------
+    // not inherited: a subclass is a model of its own, and takes its own class name as the root
+    // rather than the name its parent chose
+    static setXmlRoot(ctor: Newable<unknown>, metadata: XmlRootMetadata): void {
+        xmlRootStore.set(ctor, metadata);
+    }
+
+    static findXmlRoot(ctor: Newable<unknown>): XmlRootMetadata | undefined {
+        return xmlRootStore.get(ctor);
+    }
+
+    // ---------- xml namespace (WeakMap store, own) ----------
+    // not inherited, like the root: a subclass is a model of its own
+    static setXmlNamespace(ctor: Newable<unknown>, namespace: string): void {
+        xmlNamespaceStore.set(ctor, namespace);
+    }
+
+    static findXmlNamespace(ctor: Newable<unknown>): string | undefined {
+        return xmlNamespaceStore.get(ctor);
     }
 
     // ---------- parent constructor helper ----------
@@ -437,8 +462,17 @@ export abstract class MetadataUtilities {
         ReflectUtilities.setMetadata(MetadataInjectionKeys.ENTITY_METADATA, metadata, entity);
     }
 
-    static getEntityMetadata(entity: Newable<unknown>): EntityMetadata | undefined {
+    static getEntityMetadata<T extends BaseEntity>(entity: Newable<T>): EntityMetadata<T> | undefined {
         return ReflectUtilities.getMetadata(MetadataInjectionKeys.ENTITY_METADATA, entity);
+    }
+
+    // ---------- data source metadata ----------
+    static setDataSourceMetadata(dataSource: Function, metadata: DataSourceMetadata): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.DATA_SOURCE_METADATA, metadata, dataSource);
+    }
+
+    static getDataSourceMetadata(dataSource: Function): DataSourceMetadata | undefined {
+        return ReflectUtilities.getMetadata(MetadataInjectionKeys.DATA_SOURCE_METADATA, dataSource);
     }
 
     // ---------- backup resource metadata ----------

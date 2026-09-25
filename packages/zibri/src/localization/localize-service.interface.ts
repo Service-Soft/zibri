@@ -1,9 +1,10 @@
 import { CurrencyCode } from './models/currency-code.model';
 import { DateFormatShortcut, DateFormatString } from './models/date-format.model';
 import { LocaleCode } from './models/locale-code.model';
+import { Timezone } from './models/timezone.model';
 import { HttpRequestContext } from '../context/request/http-request.context';
 import { WebsocketRequestContext } from '../context/request/websocket-request.context';
-import { BigNumber } from '../utilities/number.utilities';
+import { AnyNumber } from '../data-source/models/where/number-where-filter.model';
 
 /**
  * The options for formatting a price.
@@ -36,7 +37,12 @@ export type FormatDateOptions = {
     /**
      * The locale to use.
      */
-    locale?: LocaleCode
+    locale?: LocaleCode,
+    /**
+     * The time zone to read the date in, deciding which calendar day and hour it lands on.
+     * Defaults to the `defaultTimezone` of the localize options.
+     */
+    timezone?: Timezone
 };
 
 /**
@@ -75,7 +81,7 @@ export interface LocalizeServiceInterface {
     /**
      * Formats the given price.
      */
-    formatPrice: (price: number | bigint | BigNumber, options: FormatPriceOptions) => string,
+    formatPrice: (price: AnyNumber, options: FormatPriceOptions) => string,
     /**
      * Format the given percentage value.
      */
@@ -87,5 +93,17 @@ export interface LocalizeServiceInterface {
         date: Date,
         format?: DateFormatString<S> | DateFormatShortcut,
         options?: FormatDateOptions
-    ) => string
+    ) => string,
+    /**
+     * Orders two texts the way the default locale does.
+     *
+     * Which text sorts after which is a question about a language - Swedish sorts `ä` after `z`
+     * where German sorts it with `a` - so it is answered here rather than by whatever is comparing. Every
+     * data source is held to this one answer: a postgres text column is created with the matching
+     * collation, and anything comparing in process calls this.
+     *
+     * Returns a negative number when the first text sorts first, a positive one when it sorts last,
+     * and zero when the two sort the same.
+     */
+    compareText: (a: string, b: string) => number
 }

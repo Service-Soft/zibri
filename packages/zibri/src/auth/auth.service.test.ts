@@ -2,7 +2,6 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@je
 
 import { AuthServiceInterface } from './auth-service.interface';
 import { Auth } from './decorators/auth.decorator';
-import { BelongsToMetadata } from './models/belongs-to-metadata.model';
 import { HasRoleMetadata } from './models/has-role-metadata.model';
 import { IsLoggedInMetadata } from './models/is-logged-in-metadata.model';
 import { IsNotLoggedInMetadata } from './models/is-not-logged-in-metadata.model';
@@ -15,31 +14,19 @@ import { createTestDataSource, defaultTestServerEntities } from '../__testing__/
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { DefaultTestServerUserRepository } from '../__testing__/test-server/user-repository';
 import { HttpRequestContext } from '../context/request/http-request.context';
-import { Repository } from '../data-source/repository';
+import { Repository } from '../data-source/repository/repository';
 import { Transaction } from '../data-source/transaction/transaction.model';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
-import { BaseEntity } from '../entity/base-entity.model';
-import { Entity } from '../entity/decorators/entity.decorator';
-import { Property } from '../entity/decorators/property.decorator';
+import { Email } from '../email/models/email.model';
 import { InvalidDecoratorCombinationError } from '../error-handling/errors/invalid-decorator-combination.error';
 import { LoggerInterface } from '../logging/logger.interface';
 import { Controller } from '../routing/decorators/controller.decorator';
 import { Get } from '../routing/decorators/get.decorator';
-import { Newable } from '../types/newable.type';
 import { JwtAuthData } from './strategies/jwt/jwt-auth-data.model';
 import { JwtCredentials, JwtCredentialsCreateData } from './strategies/jwt/jwt-credentials.model';
 import { JwtAuthStrategy } from './strategies/jwt/jwt.auth-strategy';
-
-@Entity()
-class Note extends BaseEntity {
-    @Property.string()
-    title!: string;
-
-    @Property.string({ format: 'uuid' })
-    userId!: string;
-}
 
 // ----- dummy controller with auth decorators -----
 @Controller('/dummy')
@@ -55,10 +42,6 @@ class DummyController {
     @Auth.hasRole([Roles.ADMIN], [JwtAuthStrategy])
     adminOnly(): void {}
 
-    @Get('/note/:id')
-    @Auth.belongsTo(Note, 'id', 'userId', [JwtAuthStrategy])
-    belongsToNote(): void {}
-
     @Get('/2fa-required')
     @Auth.require2fa([])
     require2fa(): void {}
@@ -70,10 +53,16 @@ class DummyController {
     @Get('/skip-auth')
     @Auth.skip()
     skipAuth(): void {}
+
+    @Get('/skip-auth-allowed-redundant')
+    @Auth.skip({ allowRedundant: true })
+    skipAuthAllowedRedundant(): void {}
 }
 
 // ----- controller with conflicting route-level decorator combinations -----
-@Controller('/route-conflict')
+// orphans on purpose: an application that registers a route whose declaration nothing can satisfy
+// does not boot, so these are resolved directly rather than mounted
+@Controller('/route-conflict', { allowOrphan: true })
 class RouteConflictController {
     @Get('/is-logged-in-and-skip')
     @Auth.isLoggedIn([JwtAuthStrategy])
@@ -105,16 +94,6 @@ class RouteConflictController {
     @Auth.hasRole.skip()
     hasRoleAndHasRoleSkip(): void {}
 
-    @Get('/belongs-to-and-skip')
-    @Auth.belongsTo(Note, 'id', 'userId', [JwtAuthStrategy])
-    @Auth.skip()
-    belongsToAndSkip(): void {}
-
-    @Get('/belongs-to-and-belongs-to-skip')
-    @Auth.belongsTo(Note, 'id', 'userId', [JwtAuthStrategy])
-    @Auth.belongsTo.skip()
-    belongsToAndBelongsToSkip(): void {}
-
     @Get('/require-2fa-and-skip')
     @Auth.require2fa([])
     @Auth.skip()
@@ -135,12 +114,33 @@ class RouteConflictController {
 @Auth.isNotLoggedIn.skip()
 @Auth.hasRole([Roles.ADMIN], [JwtAuthStrategy])
 @Auth.hasRole.skip()
-@Auth.belongsTo(Note, 'id', 'userId', [JwtAuthStrategy])
-@Auth.belongsTo.skip()
 @Auth.require2fa([])
 @Auth.require2fa.skip()
-@Controller('/controller-conflict')
+@Controller('/controller-conflict', { allowOrphan: true })
 class ControllerLevelConflictController {
+    @Get('/x')
+    x(): void {}
+}
+
+// ----- controller-level check beside a controller-level @Auth.skip -----
+// Only expressible since @Auth.skip gained a class form. The two say opposite things, and without a
+// conflict check the check wins silently - leaving a skip that reads like it opens the controller
+// and does nothing. Stacked like the controller above, for the same reason.
+@Auth.isLoggedIn([JwtAuthStrategy])
+@Auth.isNotLoggedIn([JwtAuthStrategy])
+@Auth.hasRole([Roles.ADMIN], [JwtAuthStrategy])
+@Auth.require2fa([])
+@Auth.skip()
+@Controller('/controller-skip-conflict', { allowOrphan: true })
+class ControllerSkipConflictController {
+    @Get('/x')
+    x(): void {}
+}
+
+// ----- a controller-level @Auth.skip with nothing to skip -----
+@Auth.skip()
+@Controller('/controller-skip')
+class ControllerSkipController {
     @Get('/x')
     x(): void {}
 }
@@ -161,7 +161,6 @@ let server: StartedTestServer;
 let authService: AuthServiceInterface;
 let userRepo: DefaultTestServerUserRepository;
 let credentialsRepository: Repository<JwtCredentials, JwtCredentialsCreateData>;
-let noteRepo: Repository<Note>;
 const strategies: AuthStrategies = [JwtAuthStrategy];
 
 const adminEmail: string = 'auth-test@example.com';
@@ -177,13 +176,16 @@ describe('AuthService contract', () => {
 
     beforeAll(async () => {
         server = await startTestServer({
-            dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Note] })],
-            controllers: [DummyController, RouteConflictController, ControllerLevelConflictController]
+            dataSources: [createTestDataSource({ entities: defaultTestServerEntities })],
+            // the three conflict controllers are deliberately not registered: a route whose
+            // declaration nothing can satisfy is refused while it is being registered, so an
+            // application carrying one does not boot. They are resolved directly below instead,
+            // which is the same call the router makes.
+            controllers: [DummyController, ControllerSkipController]
         });
         authService = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
         userRepo = inject(DefaultTestServerUserRepository);
         credentialsRepository = inject(repositoryTokenFor(JwtCredentials));
-        noteRepo = inject(repositoryTokenFor(Note));
     }, 15000);
 
     afterAll(async () => {
@@ -191,7 +193,6 @@ describe('AuthService contract', () => {
     }, 15000);
 
     beforeEach(async () => {
-        await noteRepo.deleteAll({});
         await userRepo.deleteAll({});
         await credentialsRepository.deleteAll({});
 
@@ -302,27 +303,6 @@ describe('AuthService contract', () => {
         });
     });
 
-    // --------- belongsTo ----------
-    describe('belongsTo', () => {
-        let note: Note;
-
-        beforeEach(async () => {
-            note = await noteRepo.create({ title: 'my note', userId: testAdmin.id });
-        });
-
-        it('returns true for owned resource', async () => {
-            const ctx: HttpRequestContext = buildContext(adminAuthData.accessToken.value, { id: note.id });
-            const result: boolean = await authService.belongsTo(ctx, strategies, Note, 'userId', 'id');
-            expect(result).toBe(true);
-        });
-
-        it('returns false for resource owned by someone else', async () => {
-            const ctx: HttpRequestContext = buildContext(userAuthData.accessToken.value, { id: note.id });
-            const result: boolean = await authService.belongsTo(ctx, strategies, Note, 'userId', 'id');
-            expect(result).toBe(false);
-        });
-    });
-
     // --------- metadata resolvers ----------
     describe('resolve*Metadata', () => {
         it('resolveIsLoggedInMetadata reads @Auth.isLoggedIn', async () => {
@@ -343,14 +323,6 @@ describe('AuthService contract', () => {
             expect(hasRoleMeta.allowedRoles).toEqual([Roles.ADMIN]);
         });
 
-        it('resolveBelongsToMetadata reads @Auth.belongsTo', async () => {
-            const meta: BelongsToMetadata<Newable<BaseEntity>> | undefined = await authService.resolveBelongsToMetadata(DummyController, 'belongsToNote');
-            expect(meta).toBeDefined();
-            const belongsMeta: BelongsToMetadata<Newable<BaseEntity>> = meta as BelongsToMetadata<Newable<BaseEntity>>;
-            expect(belongsMeta.targetEntity).toBe(Note);
-            expect(belongsMeta.targetUserIdKey).toBe('userId');
-        });
-
         it('resolveRequire2faMetadata reads @Auth.require2fa', async () => {
             const meta: Require2faMetadata | undefined = await authService.resolveRequire2faMetadata(DummyController, 'require2fa');
             expect(meta).toBeDefined();
@@ -362,31 +334,25 @@ describe('AuthService contract', () => {
         describe('route-level: @Auth.X + @Auth.skip()', () => {
             it('resolveIsLoggedInMetadata throws for @Auth.isLoggedIn + @Auth.skip', async () => {
                 await expect(
-                    authService.resolveIsLoggedInMetadata(RouteConflictController, 'isLoggedInAndSkip')
+                    async () => await authService.resolveIsLoggedInMetadata(RouteConflictController, 'isLoggedInAndSkip')
                 ).rejects.toThrow(InvalidDecoratorCombinationError);
             });
 
             it('resolveIsNotLoggedInMetadata throws for @Auth.isNotLoggedIn + @Auth.skip', async () => {
                 await expect(
-                    authService.resolveIsNotLoggedInMetadata(RouteConflictController, 'isNotLoggedInAndSkip')
+                    async () => await authService.resolveIsNotLoggedInMetadata(RouteConflictController, 'isNotLoggedInAndSkip')
                 ).rejects.toThrow(InvalidDecoratorCombinationError);
             });
 
             it('resolveHasRoleMetadata throws for @Auth.hasRole + @Auth.skip', async () => {
                 await expect(
-                    authService.resolveHasRoleMetadata(RouteConflictController, 'hasRoleAndSkip')
-                ).rejects.toThrow(InvalidDecoratorCombinationError);
-            });
-
-            it('resolveBelongsToMetadata throws for @Auth.belongsTo + @Auth.skip', async () => {
-                await expect(
-                    authService.resolveBelongsToMetadata(RouteConflictController, 'belongsToAndSkip')
+                    async () => await authService.resolveHasRoleMetadata(RouteConflictController, 'hasRoleAndSkip')
                 ).rejects.toThrow(InvalidDecoratorCombinationError);
             });
 
             it('resolveRequire2faMetadata throws for @Auth.require2fa + @Auth.skip', async () => {
                 await expect(
-                    authService.resolveRequire2faMetadata(RouteConflictController, 'require2faAndSkip')
+                    async () => await authService.resolveRequire2faMetadata(RouteConflictController, 'require2faAndSkip')
                 ).rejects.toThrow(InvalidDecoratorCombinationError);
             });
         });
@@ -394,31 +360,25 @@ describe('AuthService contract', () => {
         describe('route-level: @Auth.X + @Auth.X.skip()', () => {
             it('resolveIsLoggedInMetadata throws for @Auth.isLoggedIn + @Auth.isLoggedIn.skip', async () => {
                 await expect(
-                    authService.resolveIsLoggedInMetadata(RouteConflictController, 'isLoggedInAndIsLoggedInSkip')
+                    async () => await authService.resolveIsLoggedInMetadata(RouteConflictController, 'isLoggedInAndIsLoggedInSkip')
                 ).rejects.toThrow(InvalidDecoratorCombinationError);
             });
 
             it('resolveIsNotLoggedInMetadata throws for @Auth.isNotLoggedIn + @Auth.isNotLoggedIn.skip', async () => {
                 await expect(
-                    authService.resolveIsNotLoggedInMetadata(RouteConflictController, 'isNotLoggedInAndIsNotLoggedInSkip')
+                    async () => await authService.resolveIsNotLoggedInMetadata(RouteConflictController, 'isNotLoggedInAndIsNotLoggedInSkip')
                 ).rejects.toThrow(InvalidDecoratorCombinationError);
             });
 
             it('resolveHasRoleMetadata throws for @Auth.hasRole + @Auth.hasRole.skip', async () => {
                 await expect(
-                    authService.resolveHasRoleMetadata(RouteConflictController, 'hasRoleAndHasRoleSkip')
-                ).rejects.toThrow(InvalidDecoratorCombinationError);
-            });
-
-            it('resolveBelongsToMetadata throws for @Auth.belongsTo + @Auth.belongsTo.skip', async () => {
-                await expect(
-                    authService.resolveBelongsToMetadata(RouteConflictController, 'belongsToAndBelongsToSkip')
+                    async () => await authService.resolveHasRoleMetadata(RouteConflictController, 'hasRoleAndHasRoleSkip')
                 ).rejects.toThrow(InvalidDecoratorCombinationError);
             });
 
             it('resolveRequire2faMetadata throws for @Auth.require2fa + @Auth.require2fa.skip', async () => {
                 await expect(
-                    authService.resolveRequire2faMetadata(RouteConflictController, 'require2faAndRequire2faSkip')
+                    async () => await authService.resolveRequire2faMetadata(RouteConflictController, 'require2faAndRequire2faSkip')
                 ).rejects.toThrow(InvalidDecoratorCombinationError);
             });
         });
@@ -426,31 +386,51 @@ describe('AuthService contract', () => {
         describe('controller-level: @Auth.X + @Auth.X.skip()', () => {
             it('resolveIsLoggedInMetadata throws for @Auth.isLoggedIn + @Auth.isLoggedIn.skip', async () => {
                 await expect(
-                    authService.resolveIsLoggedInMetadata(ControllerLevelConflictController, 'x')
+                    async () => await authService.resolveIsLoggedInMetadata(ControllerLevelConflictController, 'x')
                 ).rejects.toThrow(InvalidDecoratorCombinationError);
             });
 
             it('resolveIsNotLoggedInMetadata throws for @Auth.isNotLoggedIn + @Auth.isNotLoggedIn.skip', async () => {
                 await expect(
-                    authService.resolveIsNotLoggedInMetadata(ControllerLevelConflictController, 'x')
+                    async () => await authService.resolveIsNotLoggedInMetadata(ControllerLevelConflictController, 'x')
                 ).rejects.toThrow(InvalidDecoratorCombinationError);
             });
 
             it('resolveHasRoleMetadata throws for @Auth.hasRole + @Auth.hasRole.skip', async () => {
                 await expect(
-                    authService.resolveHasRoleMetadata(ControllerLevelConflictController, 'x')
-                ).rejects.toThrow(InvalidDecoratorCombinationError);
-            });
-
-            it('resolveBelongsToMetadata throws for @Auth.belongsTo + @Auth.belongsTo.skip', async () => {
-                await expect(
-                    authService.resolveBelongsToMetadata(ControllerLevelConflictController, 'x')
+                    async () => await authService.resolveHasRoleMetadata(ControllerLevelConflictController, 'x')
                 ).rejects.toThrow(InvalidDecoratorCombinationError);
             });
 
             it('resolveRequire2faMetadata throws for @Auth.require2fa + @Auth.require2fa.skip', async () => {
                 await expect(
-                    authService.resolveRequire2faMetadata(ControllerLevelConflictController, 'x')
+                    async () => await authService.resolveRequire2faMetadata(ControllerLevelConflictController, 'x')
+                ).rejects.toThrow(InvalidDecoratorCombinationError);
+            });
+        });
+
+        describe('controller-level: @Auth.X + @Auth.skip()', () => {
+            it('resolveIsLoggedInMetadata throws for @Auth.isLoggedIn + @Auth.skip', async () => {
+                await expect(
+                    async () => await authService.resolveIsLoggedInMetadata(ControllerSkipConflictController, 'x')
+                ).rejects.toThrow(InvalidDecoratorCombinationError);
+            });
+
+            it('resolveIsNotLoggedInMetadata throws for @Auth.isNotLoggedIn + @Auth.skip', async () => {
+                await expect(
+                    async () => await authService.resolveIsNotLoggedInMetadata(ControllerSkipConflictController, 'x')
+                ).rejects.toThrow(InvalidDecoratorCombinationError);
+            });
+
+            it('resolveHasRoleMetadata throws for @Auth.hasRole + @Auth.skip', async () => {
+                await expect(
+                    async () => await authService.resolveHasRoleMetadata(ControllerSkipConflictController, 'x')
+                ).rejects.toThrow(InvalidDecoratorCombinationError);
+            });
+
+            it('resolveRequire2faMetadata throws for @Auth.require2fa + @Auth.skip', async () => {
+                await expect(
+                    async () => await authService.resolveRequire2faMetadata(ControllerSkipConflictController, 'x')
                 ).rejects.toThrow(InvalidDecoratorCombinationError);
             });
         });
@@ -493,15 +473,44 @@ describe('AuthService contract', () => {
             ).resolves.toBeUndefined();
         });
 
-        it('warns that @Auth.skip is useless when no other auth rule is configured for the route', async () => {
+        // the three below resolve the declaration rather than check a request against it, because
+        // that is when the warning is due: the router resolves each route once while registering it,
+        // and whoever serves a request reads the answer back out of the route registry
+        it('warns that @Auth.skip is useless when no other auth rule is configured for the route', () => {
             const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
             // eslint-disable-next-line typescript/typedef
             const warnSpy = jest.spyOn(logger, 'warn');
 
-            const ctx: HttpRequestContext = buildContext();
-            await authService.checkAccess(DummyController, 'skipAuth', ctx);
+            authService.resolveRouteAuth(DummyController, 'skipAuth');
 
             expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Useless @Auth.skip'));
+            warnSpy.mockRestore();
+        });
+
+        it('warns that a controller-level @Auth.skip is useless when the controller has no auth rules', () => {
+            const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
+            // eslint-disable-next-line typescript/typedef
+            const warnSpy = jest.spyOn(logger, 'warn');
+
+            authService.resolveRouteAuth(ControllerSkipController, 'x');
+
+            // named as the controller rather than the route, because that is where the decorator is
+            // and where it has to be removed
+            expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Useless @Auth.skip on controller'));
+            warnSpy.mockRestore();
+        });
+
+        it('stays quiet about a redundant @Auth.skip that says it is redundant', () => {
+            const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
+            // eslint-disable-next-line typescript/typedef
+            const warnSpy = jest.spyOn(logger, 'warn');
+
+            authService.resolveRouteAuth(DummyController, 'skipAuthAllowedRedundant');
+
+            // what a controller shipped by a library needs: it has to state its own posture because
+            // it cannot know the application's, and the warning above would leave it no way to be
+            // correct under both defaults at once
+            expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining('Useless @Auth.skip'));
             warnSpy.mockRestore();
         });
 
@@ -526,21 +535,6 @@ describe('AuthService contract', () => {
             ).rejects.toThrow();
         });
 
-        it('throws for belongsTo dispatched through checkAccess when the resource belongs to someone else', async () => {
-            const note: Note = await noteRepo.create({ title: 'someone else\'s note', userId: testAdmin.id });
-            const ctx: HttpRequestContext = buildContext(userAuthData.accessToken.value, { id: note.id });
-            await expect(
-                authService.checkAccess(DummyController, 'belongsToNote', ctx)
-            ).rejects.toThrow();
-        });
-
-        it('succeeds for belongsTo dispatched through checkAccess when the resource belongs to the current user', async () => {
-            const note: Note = await noteRepo.create({ title: 'my note', userId: testAdmin.id });
-            const ctx: HttpRequestContext = buildContext(adminAuthData.accessToken.value, { id: note.id });
-            await expect(
-                authService.checkAccess(DummyController, 'belongsToNote', ctx)
-            ).resolves.toBeUndefined();
-        });
     });
 
     // --------- resilience: empty/failing strategies ----------
@@ -555,22 +549,36 @@ describe('AuthService contract', () => {
             await expect(authService.hasRole(ctx, [], [Roles.ADMIN])).resolves.toBe(false);
         });
 
-        it('belongsTo returns false (not throws) for an empty strategies array', async () => {
-            const note: Note = await noteRepo.create({ title: 'n', userId: testAdmin.id });
-            const ctx: HttpRequestContext = buildContext(adminAuthData.accessToken.value, { id: note.id });
-            await expect(authService.belongsTo(ctx, [], Note, 'userId', 'id')).resolves.toBe(false);
-        });
     });
 
     // --------- password reset ----------
     describe('requestPasswordReset / confirmPasswordReset', () => {
         let resetTokenRepo: Repository<PasswordResetToken, PasswordResetTokenCreateData>;
+        let emailRepo: Repository<Email>;
+
+        /**
+         * The reset token as the user gets it: out of the link in the email.
+         *
+         * The stored value is hashed, so the row cannot hand the token back - which is the point of
+         * hashing it.
+         * @returns The token from the most recently queued password reset email.
+         */
+        async function resetTokenFromEmail(): Promise<string> {
+            const emails: Email[] = await emailRepo.findAll({ where: { recipients: { includes: [adminEmail] } } });
+            const link: RegExpExecArray | null = /confirm-password-reset\/([\da-f]+)/.exec(emails.at(-1)?.html ?? '');
+            if (!link?.[1]) {
+                throw new Error('no password reset link was mailed');
+            }
+            return link[1];
+        }
 
         beforeAll(() => {
             resetTokenRepo = inject(repositoryTokenFor(PasswordResetToken));
+            emailRepo = inject(repositoryTokenFor(Email));
         });
 
         beforeEach(async () => {
+            await emailRepo.deleteAll({});
             await resetTokenRepo.deleteAll({});
         });
 
@@ -584,8 +592,8 @@ describe('AuthService contract', () => {
 
             const tokens: PasswordResetToken[] = await resetTokenRepo.findAll({ where: { userId: testAdmin.id } });
             expect(tokens).toHaveLength(1);
-            expect(tokens[0].value).toBeTruthy();
-            expect(tokens[0].expirationDate).toBeInstanceOf(Date);
+            expect(tokens[0]?.value).toBeTruthy();
+            expect(tokens[0]?.expirationDate).toBeInstanceOf(Date);
         });
 
         it('confirmPasswordReset with valid token updates password', async () => {
@@ -596,8 +604,7 @@ describe('AuthService contract', () => {
                 { user: testAdmin, transaction }
             );
             await transaction.commit();
-            const tokens: PasswordResetToken[] = await resetTokenRepo.findAll({ where: { userId: testAdmin.id } });
-            const resetValue: string = tokens[0].value;
+            const resetValue: string = await resetTokenFromEmail();
 
             // 2. Confirm reset with new password
             const transaction2: Transaction = await userRepo.dataSource.startTransaction();

@@ -1,8 +1,8 @@
+import { SemVerVersion } from './sem-ver.utilities';
 import { SupportedVersionsOptions } from './supported-versions-options.model';
 import { Version, VersionFile } from './version.model';
 import { HttpRequestContext } from '../context/request/http-request.context';
 import { WebsocketRequestContext } from '../context/request/websocket-request.context';
-import { SemVerVersion } from '../utilities/sem-ver.utilities';
 
 /**
  * Interface for a versioning service.

@@ -3,7 +3,7 @@ import { Dirent } from 'node:fs';
 import express from 'express';
 
 import { AssetServiceInterface } from './asset-service.interface';
-import { ZibriApplication } from '../application';
+import { ZibriApplication } from '../application/application';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
@@ -11,6 +11,7 @@ import { inject } from '../di/inject.function';
 import { NotFoundError } from '../error-handling/errors/not-found.error';
 import { OnAppInit } from '../global/on-app-init.interface';
 import { HttpMethod } from '../http/http-method.enum';
+import { MiddlewarePhase } from '../http/middleware-phase.enum';
 import { $ts } from '../localization/translate.function';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { FileResponse } from '../parsing/form-data/file-response.model';
@@ -53,11 +54,13 @@ export class AssetService implements AssetServiceInterface, OnAppInit {
     ) {}
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async onAppInit(app: ZibriApplication): Promise<void> {
-        await this.logger.info(`registers public static assets from folder "${this.publicAssetsPath}" at ${this.assetsRoute}`);
-        app.use(this.assetsRoute, express.static(this.publicAssetsPath));
+    onAppInit(app: ZibriApplication): void {
+        this.logger.info(`registers public static assets from folder "${this.publicAssetsPath}" at ${this.assetsRoute}`);
+        // routing rather than anything earlier: serving a file is answering the request, so it
+        // belongs beside the router and behind everything that is about the request itself
+        app.use(this.assetsRoute, express.static(this.publicAssetsPath), MiddlewarePhase.ROUTING);
 
-        await inject(ZIBRI_DI_TOKENS.ROUTER).registerRoute({
+        inject(ZIBRI_DI_TOKENS.ROUTER).registerRoute({
             httpMethod: HttpMethod.GET,
             route: '/favicon.ico',
             handler: async () => {
@@ -68,7 +71,12 @@ export class AssetService implements AssetServiceInterface, OnAppInit {
                 return FileResponse.fromPath(faviconPath);
             },
             versions: 'all',
-            openApi: { useInOpenApi: false }
+            openApi: { useInOpenApi: false },
+            // the one framework route that states it is public rather than letting `defaultAuth`
+            // decide: a browser asks for a favicon on its own, before and regardless of any login,
+            // and a 401 for it is a broken tab icon on the login page of an application that did
+            // everything right
+            auth: { skip: true }
         });
 
     }
@@ -85,8 +93,7 @@ export class AssetService implements AssetServiceInterface, OnAppInit {
             const segments: string[] = item.relPath.split(FsUtilities.separator);
             let current: NodeMap = root;
 
-            for (let i: number = 0; i < segments.length; i++) {
-                const seg: string = segments[i];
+            for (const [i, seg] of segments.entries()) {
                 const isLeaf: boolean = i === segments.length - 1;
                 current[seg] ??= {};
                 if (isLeaf) {

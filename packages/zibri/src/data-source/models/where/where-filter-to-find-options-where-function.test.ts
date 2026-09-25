@@ -1,6 +1,6 @@
 /* eslint-disable unicorn/no-null */
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
-import { EqualOperator, FindOptionsWhere, FindOperator, Equal, FindOptionsWhere as ToFindOptionsWhere } from 'typeorm';
+import { EqualOperator, FindOptionsWhere, FindOperator, Equal, ObjectLiteral, FindOptionsWhere as ToFindOptionsWhere } from 'typeorm';
 
 import { Where, WhereFilter } from './where-filter.model';
 import { Address } from '../../../__testing__/mocks/entities/address.model';
@@ -11,8 +11,10 @@ import { inject } from '../../../di/inject.function';
 import { Newable } from '../../../types/newable.type';
 import { DataSource } from '../../decorators/data-source.decorator';
 
+// the factory returns a decorated class, so extending it registers two data sources and deploys one.
+// The base exists to be inherited from, never to be run
 @DataSource()
-class DbDataSource extends createTestDataSource() {}
+class DbDataSource extends createTestDataSource({ allowOrphan: true }) {}
 
 function whereFilterToFindOptionsWhere<T extends object>(
     filter: Where<T>,
@@ -103,7 +105,7 @@ describe('whereFilterToFindOptionsWhere - date filters', () => {
 });
 
 describe('whereFilterToFindOptionsWhere - object filters', () => {
-    it('nested where on json fields yields Raw operator with inline SQL', () => {
+    it('nested where on json fields yields a Raw operator that binds what the caller supplied', () => {
         const filter: Where<User> = { address: { where: { street: 'Main St' } } };
         const result: FindOptionsWhere<User> = whereFilterToFindOptionsWhere(filter, User);
 
@@ -111,7 +113,23 @@ describe('whereFilterToFindOptionsWhere - object filters', () => {
         const raw: FindOperator<Address> = result.address as FindOperator<Address>;
 
         const sql: string | undefined = raw.getSql?.('"TestAlias"."address"');
-        expect(sql).toEqual('("TestAlias"."address"->>\'street\') = \'Main St\'');
+        const parameters: ObjectLiteral = raw.objectLiteralParameters ?? {};
+
+        // neither the value nor the json key reaches the statement. The key is bound rather than
+        // escaped because a json key does not have to be spellable as a sql identifier
+        expect(sql).not.toContain('Main St');
+        expect(sql).not.toContain('street');
+        expect(Object.values(parameters)).toEqual(['street', 'Main St']);
+
+        // asserted through the names rather than against a literal `zi_p0`, because the numbering is
+        // per converter and never resets - pinning it here would make this test depend on what ran
+        // before it
+        // the column is tested for holding an object before anything inside it is compared, because
+        // an absent key reads as null - without the guard, a row with no address at all would answer
+        // questions about the street inside it
+        const [key, value]: string[] = Object.keys(parameters);
+        const guard: string = '("TestAlias"."address" IS NOT NULL AND "TestAlias"."address" <> \'null\'::jsonb)';
+        expect(sql).toBe(`(${guard} AND ("TestAlias"."address"->>:${key}::text) = :${value})`);
     });
     it('nested where on relation fields yields nested filter', () => {
         const filter: Where<User> = { company: { where: { id: '42' } } };

@@ -1,5 +1,5 @@
 # Error handling
-Zibri routes every thrown error through a single global error handler, which turns it into either a JSON response or a rendered HTML error page, depending on what the client accepts. A small hierarchy of error classes controls what gets shown to the end user and what stays server-side only.
+Zibri routes every thrown error through a single global error handler, which turns it into a JSON response, an XML response or a rendered HTML error page, depending on what the client accepts. A small hierarchy of error classes controls what gets shown to the end user and what stays server-side only.
 
 ## Key exports
 | Export | Kind | Purpose |
@@ -12,12 +12,18 @@ Zibri routes every thrown error through a single global error handler, which tur
 | `UnmatchedRouteError` | error | 404, the route itself doesn't exist (extends `NotFoundError`) |
 | `BadRequestError` | error | 400, generic invalid client input |
 | `ValidationError` | error | 400, thrown automatically by Zibri's validation (extends `BadRequestError`) |
-| `UnauthorizedError` | error | 401, the caller isn't allowed to do this |
+| `UnauthorizedError` | error | 401, the caller didn't say who it is, or the credential it sent isn't good |
+| `ForbiddenError` | error | 403, the caller is known and still isn't allowed to do this |
+| `CredentialReusedError` | error | A 401 that reads as `UnauthorizedError` on the wire, but tells the [audit trail](./logging.md#the-audit-trail) a spent credential came back |
+| `MethodNotAllowedError` | error | 405, the path exists under other methods; thrown by Zibri itself and answered with an `Allow` header |
+| `NotAcceptableError` | error | 406, the caller accepts nothing the route produces; thrown by Zibri itself |
 | `ConflictError` | error | 409, conflicting state on the server |
 | `ContentTooLargeError` | error | 413, request body exceeds an allowed size |
 | `UnsupportedMediaTypeError` | error | 415, request `Content-Type` isn't supported by the endpoint |
 | `TooManyRequestsError` | error | 429, a rate limit was exceeded |
 | `InternalServerError` | error | 500, generic unexpected server error |
+| `ServiceUnavailableError` | error | 503, the application cannot take the request right now and the caller may try again |
+| `GatewayTimeoutError` | error | 504, a handler ran longer than its route allows; thrown by Zibri itself |
 | `MissingEntitiesError` | error | Internal, entities not registered on a data source |
 | `MissingTokensError` | error | Internal, DI tokens that couldn't be injected |
 | `InvalidDecoratorCombinationError` | error | Internal, conflicting decorators on the same target |
@@ -43,10 +49,10 @@ throw new InternalError('The application has already been started');
 
 ```ts
 // abstract, always extended - shown here for illustration only
-abstract class ExternalError extends Error {
-    readonly isInternal: false;
-    title: TranslatedString;
-    paragraphs: TranslatedString[];
+abstract class IllustratedExternalError extends Error {
+    abstract readonly isInternal: false;
+    abstract title: TranslatedString;
+    abstract paragraphs: TranslatedString[];
 }
 ```
 
@@ -59,7 +65,9 @@ You normally don't extend either of these directly. Instead, throw one of the bu
 // src/data-source/repository.ts
 import { $ts, NotFoundError } from 'zibri';
 
-throw new NotFoundError($ts`Could not find ${this.entityClass.name} with id "${id}".`);
+export function refuseMissing(entityName: string, id: string): never {
+    throw new NotFoundError($ts`Could not find ${entityName} with id "${id}".`);
+}
 ```
 
 The full catalogue:
@@ -68,22 +76,38 @@ The full catalogue:
 |---|---|---|
 | `BadRequestError` | 400 | `(message, options?)` |
 | `UnauthorizedError` | 401 | `(message, options?)` |
+| `ForbiddenError` | 403 | `(message, options?)` |
 | `NotFoundError` | 404 | `(message, options?)` |
 | `UnmatchedRouteError` | 404 | `(originalUrl, options?)` — thrown by Zibri itself for unregistered routes |
+| `MethodNotAllowedError` | 405 | `(method, allowedMethods, options?)` — thrown by Zibri itself, see below |
+| `NotAcceptableError` | 406 | `(accept, producibleMediaTypes, options?)` — thrown by Zibri itself, see below |
 | `ConflictError` | 409 | `(message, options?)` |
 | `ContentTooLargeError` | 413 | `(message = $ts\`request too large\`, options?)` |
 | `UnsupportedMediaTypeError` | 415 | `(mediaType, options?)` |
 | `TooManyRequestsError` | 429 | `(message, rateLimitResult?, options?)` — see [rate limiting](./rate-limiting.md) |
 | `InternalServerError` | 500 | `(message, options?)` |
+| `ServiceUnavailableError` | 503 | `(message, options?)` |
+| `GatewayTimeoutError` | 504 | `(message, options?)` — thrown by Zibri itself, see [deadlines](./creating-endpoints.md#deadlines) |
 | `ValidationError` | 400 | `(type, paramName, problems, options?)` — thrown automatically, see below |
 
 `message` is always `TranslatedString | TranslatedString[]`.
+
+#### `UnauthorizedError` (401) vs `ForbiddenError` (403)
+Throw `UnauthorizedError` when the request failed to establish who the caller is — no credential, an expired one, a wrong password. Throw `ForbiddenError` when it did establish that and the answer is still no — a missing role, an entity belonging to somebody else. The distinction is not cosmetic: clients treat a 401 as *"the credential is stale, refresh it and retry"*, so answering a permission failure with one puts a well behaved client in a refresh loop that can never succeed. See [auth](./auth.md) for which check produces which.
+
+#### The two Zibri raises for you: 405 and 406
+A request for a path that exists under a method it does not have is answered `405`, with an `Allow` header naming the methods that do exist — a 404 there would say "wrong address" for what is really "wrong verb", and those want opposite fixes. The same list answers an `OPTIONS` for that path, at `204`.
+
+A request whose `Accept` header excludes everything a route can produce is answered `406`, before the handler runs. What a route produces is what it declared with `@Response` — a route that declared nothing is unconstrained and answers everybody, and so is one whose only declarations Zibri added itself. Error responses do not count: they say how a failure is reported rather than what the resource looks like.
 
 ### Declaring thrown errors in the OpenAPI docs
 Use `@Response.error()` on a controller method so the error shows up in the generated OpenAPI docs (see [creating endpoints](./creating-endpoints.md)):
 
 ```ts
+// src/controllers/user.controller.ts
 import { Controller, Get, HttpStatus, Response } from 'zibri';
+
+import { User, userRepository } from '../repositories';
 
 @Controller('/users')
 export class UserController {
@@ -91,6 +115,7 @@ export class UserController {
     @Get('/:id')
     async findById(): Promise<User> {
         // throws NotFoundError if the user doesn't exist
+        return await userRepository.findById('42');
     }
 }
 ```
@@ -118,7 +143,7 @@ Every error thrown anywhere in the request pipeline eventually reaches the `Glob
 1. Wraps the caught value in a `GlobalError` and logs it — via `logger.critical` if the value isn't even an `Error`, via `logger.error` if it's an internal error, and not at all if it's an external error (external errors are expected, user-facing outcomes, not bugs).
 2. Converts the error to an `HttpError` via `ErrorUtilities.toHttpError` — anything that already is one passes through, anything else becomes a generic `InternalServerError`.
 3. Attaches rate-limit headers (`X-RateLimit-*`, `Retry-After`) if the error is a `TooManyRequestsError` with a `rateLimitResult`.
-4. Negotiates the response format via `Accept`: JSON clients get `{ status, name, message, paragraphs }`; HTML clients get the rendered `ErrorPageTemplate`, falling back to the same JSON (with a warning logged) if no template is configured.
+4. Negotiates the response format via `Accept`: JSON clients get `{ status, name, message, paragraphs, traceId }`; XML clients get the same as an `Error` document, with one `paragraph` element per paragraph; HTML clients get the rendered `ErrorPageTemplate`, falling back to the same JSON (with a warning logged) if no template is configured. A client naming none of them, or accepting anything, gets JSON. Between formats a client weighs equally, the one it names first is taken.
 
 ### Custom error page
 By default `ZIBRI_DI_TOKENS.ERROR_PAGE_TEMPLATE` is `undefined`, so HTML-accepting clients get the JSON fallback described above. To render an actual error page, provide a tsx component (see [templating](./templating.md)) that accepts an `error: HttpError` prop:
@@ -139,8 +164,6 @@ export const ErrorPage: ErrorPageTemplate = ({ error }) => {
 // src/providers.ts
 import { defineProvider, DiProvider, ZIBRI_DI_TOKENS } from 'zibri';
 
-import { ErrorPage } from './templates/pages/error';
-
 export const providers: DiProvider<unknown>[] = [
     defineProvider({
         token: ZIBRI_DI_TOKENS.ERROR_PAGE_TEMPLATE,
@@ -151,7 +174,7 @@ export const providers: DiProvider<unknown>[] = [
 ```
 
 ### Replacing the global error handler
-If negotiating JSON/HTML isn't what you want at all, override `ZIBRI_DI_TOKENS.GLOBAL_ERROR_HANDLER` with your own `GlobalErrorHandler`, which has the same signature as an express error middleware:
+If negotiating JSON/XML/HTML isn't what you want at all, override `ZIBRI_DI_TOKENS.GLOBAL_ERROR_HANDLER` with your own `GlobalErrorHandler`, which has the same signature as an express error middleware:
 
 ```ts
 // src/my-error-handler.ts
@@ -163,18 +186,11 @@ export const myErrorHandler: GlobalErrorHandler = async (error, req, res, next) 
 ```
 
 ```ts
-// src/providers.ts
-import { defineProvider, DiProvider, ZIBRI_DI_TOKENS } from 'zibri';
-
-import { myErrorHandler } from './my-error-handler';
-
-export const providers: DiProvider<unknown>[] = [
-    defineProvider({
-        token: ZIBRI_DI_TOKENS.GLOBAL_ERROR_HANDLER,
-        useFactory: () => myErrorHandler
-    })
-    // ...
-];
+// src/providers.ts - one more entry in the same array
+defineProvider({
+    token: ZIBRI_DI_TOKENS.GLOBAL_ERROR_HANDLER,
+    useFactory: () => myErrorHandler
+});
 ```
 
 Doing this bypasses `ErrorPageTemplate` entirely, since that's only consulted by the default handler.

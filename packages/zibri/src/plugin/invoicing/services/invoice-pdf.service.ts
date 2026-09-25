@@ -8,7 +8,9 @@ import { PdfContentDefinition, PdfColumnDefinition, PdfDocument, PdfDocumentDefi
 import { InternalError } from '../../../error-handling/internal-error.model';
 import { type LocalizeServiceInterface } from '../../../localization/localize-service.interface';
 import { LocaleCode } from '../../../localization/models/locale-code.model';
+import { Timezone } from '../../../localization/models/timezone.model';
 import { BigNumber } from '../../../utilities/number.utilities';
+import { optionalPeer } from '../../../utilities/optional-peer.function';
 import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../invoicing.tokens';
 import { Invoice } from '../models/invoice.model';
 import { type InvoicingOptions } from '../models/invoicing-options.model';
@@ -42,14 +44,30 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
         @Inject(ZIBRI_DI_TOKENS.LOCALIZE_SERVICE)
         private readonly localizeService: LocalizeServiceInterface
     ) {
+        // at startup rather than at the first invoice. This service is registered by the invoicing
+        // plugin, and every registered token is constructed while the application starts - so an
+        // application that declared the plugin without installing pdfmake finds out on the way up,
+        // months before the first invoice run would have found out for it.
+        optionalPeer('pdfmake', 'The invoicing plugin');
+
         this.header = this.getHeader();
         this.footer = this.getFooter();
         this.companyLetterheadColumn = this.getCompanyLetterheadColumn();
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async generateInvoicePdf(invoice: Invoice, locale: LocaleCode, conformance?: InvoiceConformance): Promise<PdfDocument> {
-        const documentDefinition: PdfDocumentDefinition = await this.generateInvoiceDocumentDefinition(invoice, conformance, locale);
+    async generateInvoicePdf(
+        invoice: Invoice,
+        locale: LocaleCode,
+        timezone: Timezone,
+        conformance?: InvoiceConformance
+    ): Promise<PdfDocument> {
+        const documentDefinition: PdfDocumentDefinition = await this.generateInvoiceDocumentDefinition(
+            invoice,
+            conformance,
+            locale,
+            timezone
+        );
         const doc: PdfDocument = PdfUtilities.create(documentDefinition, undefined);
         return doc;
     }
@@ -59,12 +77,14 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
      * @param invoice - The invoice to generate the document definition for.
      * @param conformance - The legal conformance that the invoice should conform to.
      * @param locale - The locale that the invoice should be in.
+     * @param timezone - The time zone the invoice's dates are read in, deciding which calendar day each lands on.
      * @returns The invoice document definition.
      */
     protected async generateInvoiceDocumentDefinition(
         invoice: Invoice,
         conformance: InvoiceConformance | undefined,
-        locale: LocaleCode
+        locale: LocaleCode,
+        timezone: Timezone
     ): Promise<PdfDocumentDefinition> {
         const taxGroups: Vat[] = this.getTaxGroups(invoice);
         const res: PdfDocumentDefinition = {
@@ -86,7 +106,7 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
                     margin: [0, 10, 0, 10],
                     bold: true
                 },
-                await this.getNumberAndDates(invoice, locale),
+                await this.getNumberAndDates(invoice, locale, timezone),
                 ...this.getContentFromParagraphs(invoice.textBeforeItems),
                 await this.getInvoiceItemsTable(invoice, taxGroups, locale),
                 await this.getTotalTable(invoice, taxGroups, locale),
@@ -95,7 +115,7 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
             footer: this.footer
         };
         if (conformance != undefined) {
-            await this.getConformanceService(conformance).updateDocumentDefinition(invoice, res);
+            await this.getConformanceService(conformance).updateDocumentDefinition(invoice, res, timezone);
         }
         return res;
     }
@@ -308,9 +328,10 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
      * Gets the invoice number and the dates.
      * @param invoice - The invoice to build the content from.
      * @param locale - The locale that the invoice should be in.
+     * @param timezone - The time zone the invoice's dates are read in, deciding which calendar day each lands on.
      * @returns The content containing the invoice number and the date, performance date and due date.
      */
-    protected getNumberAndDates(invoice: Invoice, locale: LocaleCode): PdfContentDefinition {
+    protected getNumberAndDates(invoice: Invoice, locale: LocaleCode, timezone: Timezone): PdfContentDefinition {
         const invoiceNumberColumn: PdfColumnDefinition = [
             {
                 text: `${this.options.invoiceNumberLabel}: ${invoice.number}`,
@@ -325,7 +346,7 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
         const invoiceDate: string = this.localizeService.formatDate(
             invoice.date,
             'date',
-            { locale }
+            { locale, timezone }
         );
         const dateColumn: PdfColumnDefinition = [
             {
@@ -337,7 +358,7 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
             const performanceDate: string = this.localizeService.formatDate(
                 invoice.performanceDate,
                 'date',
-                { locale }
+                { locale, timezone }
             );
             dateColumn.push({
                 text: `${this.options.performanceDateLabel}: ${performanceDate}`,
@@ -348,7 +369,7 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
             const dueDate: string = this.localizeService.formatDate(
                 invoice.dueDate,
                 'date',
-                { locale }
+                { locale, timezone }
             );
             dateColumn.push({
                 text: `${this.options.dueDateLabel}: ${dueDate}`,

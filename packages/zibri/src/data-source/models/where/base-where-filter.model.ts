@@ -1,4 +1,13 @@
 /**
+ * What a filter key takes: one value, or several that all have to hold.
+ *
+ * Several is what says "starts with rent and ends with 2026", which one pattern cannot. Only the
+ * patterns take it - every other key says what it means once, since two bounds are the narrower of
+ * the two and a list of allowed values is already a list.
+ */
+export type AllOf<T> = T | T[];
+
+/**
  * The base where filter object.
  */
 export type BaseWhereFilterObject<T> = {

@@ -38,6 +38,21 @@ export async function validateDate(
             return [];
         }
     }
+    return dateValueProblems(fullKey, property, meta);
+}
+
+/**
+ * The problems of a date value, judged by the value alone.
+ *
+ * Everything about a date except whether it may be left out, which can depend on the request.
+ * What decides which of several shapes a value is uses exactly this, so it cannot disagree with
+ * validation about any rule it looks at.
+ * @param fullKey - The key the problems are reported under.
+ * @param property - The value.
+ * @param meta - What the date is declared as.
+ * @returns All validation problems found.
+ */
+export function dateValueProblems(fullKey: string, property: unknown, meta: DatePropertyMetadata | DateParamMetadata): ValidationProblem[] {
     if (!(property instanceof Date)) {
         return [new TypeMismatchValidationProblem(fullKey, 'date')];
     }

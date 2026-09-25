@@ -2,50 +2,128 @@ import { randomBytes } from 'node:crypto';
 
 import { TwoFactorMethod } from '../two-factor-method.interface';
 import { base32Encode } from './base32-encode.function';
+import { OtpCodeAlreadyUsedError } from './otp-code-already-used.error';
 import { OtpCredentials, OtpCredentialsCreateData } from './otp-credentials.model';
-import { OtpUtilities } from './otp.utilities';
+import { OTP_PERIOD_IN_SECONDS, OtpUtilities, type OtpValidationWindowInMs } from './otp.utilities';
 import { HttpRequestContext } from '../../../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../../../context/request/websocket-request.context';
-import { Repository } from '../../../../data-source/repository';
+import { Repository } from '../../../../data-source/repository/repository';
 import { InjectRepository } from '../../../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default';
+import { Property } from '../../../../entity/decorators/property.decorator';
 import { UnauthorizedError } from '../../../../error-handling/errors/unauthorized.error';
 import { KnownHeader } from '../../../../http/known-header.enum';
+import { type LeaseServiceInterface } from '../../../../leases/lease-service.interface';
 import { $ts } from '../../../../localization/translate.function';
+import { Ms } from '../../../../utilities/ms';
+import { optionalPeer } from '../../../../utilities/optional-peer.function';
 import { BaseUser } from '../../../models/base-user.model';
 
 /**
  * The data for confirming the registration of the otp two factor method.
  */
-export type OtpConfirmRegisterData = {
+export class OtpConfirmRegisterData {
     /**
      * The token to validate.
      */
-    token: string
-};
+    @Property.string()
+    token!: string;
+}
+
+/**
+ * What a user needs in order to finish enrolling an authenticator.
+ *
+ * Both fields are derived from the secret and neither is stored: the url is what a qr code encodes,
+ * and the secret is the same thing in the form someone types when they cannot scan one. Handing them
+ * back at enrollment time is the only moment either is needed in the clear.
+ */
+export class OtpRegistration {
+    /**
+     * The otpauth url to render as a qr code.
+     */
+    @Property.string()
+    qrCodeUrl!: string;
+
+    /**
+     * The secret itself, for entering by hand.
+     */
+    @Property.string()
+    secret!: string;
+}
 
 /**
  * One Time Password Two Factor Method.
  */
-export class OtpTwoFactorMethod implements TwoFactorMethod<never, OtpConfirmRegisterData> {
+export class OtpTwoFactorMethod implements TwoFactorMethod<never, OtpConfirmRegisterData, OtpRegistration> {
 
     constructor(
         @Inject(ZIBRI_DI_TOKENS.OTP_HEADER)
         private readonly otpHeader: KnownHeader,
         @Inject(ZIBRI_DI_TOKENS.OTP_LENGTH)
         private readonly otpLength: number,
+        @Inject(ZIBRI_DI_TOKENS.OTP_VALIDATION_WINDOW_IN_MS)
+        private readonly validationWindowInMs: OtpValidationWindowInMs,
+        @Inject(ZIBRI_DI_TOKENS.LEASE_SERVICE)
+        private readonly leaseService: LeaseServiceInterface,
         @InjectRepository(OtpCredentials)
         private readonly otpCredentialsRepository: Repository<OtpCredentials, OtpCredentialsCreateData>
-    ) {}
+    ) {
+        // here rather than where a code is finally generated or checked. This method is registered
+        // in an application's options, so constructing it is the moment the deployment says it
+        // intends to do two factor - and an application that says so without having installed the
+        // package should not get as far as the first person trying to log in with it.
+        optionalPeer('otpauth', 'Two factor authentication with an otp');
+    }
+
+    /**
+     * Records that a step has been used, and reports whether this was the first time.
+     *
+     * A grant that is kept rather than handed back, because it is not protecting work in progress -
+     * it *is* the record that these digits have been spent. It lapses on its own once the step can no
+     * longer be accepted, so nothing has to clean it up, and it is a lease rather than anything local
+     * so that a replay against a different replica is refused just as firmly.
+     * @param credentialsId - The credentials the code belongs to. Two users can hold the same digits
+     * at the same moment, so the step alone would let one of them spend the other's.
+     * @param step - The step the accepted code belongs to.
+     * @throws When the step has already been spent.
+     */
+    private async consumeStep(credentialsId: string, step: number): Promise<void> {
+        const first: boolean | undefined = await this.leaseService.withLease(
+            {
+                key: `otp:${credentialsId}:${step}`,
+                // the step's own length plus the skew allowed either side of it, which is exactly how
+                // long this step can still be presented for
+                leaseInMs: (this.validationWindowInMs * 2) + (OTP_PERIOD_IN_SECONDS * Ms.SECOND),
+                mode: 'skip',
+                onCompletion: 'retain'
+            },
+            () => Promise.resolve(true)
+        );
+
+        if (first !== true) {
+            throw new OtpCodeAlreadyUsedError();
+        }
+    }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async requestRegisterForUser<Role extends string, UserType extends BaseUser<Role>>(
         user: UserType
-    ): Promise<void> {
+    ): Promise<OtpRegistration> {
+        // asking for a new enrollment gives up on any that was never finished. Without this every
+        // call left another secret behind, so an abandoned setup accumulated valid-looking rows for
+        // as long as the account existed. Confirmed credentials are untouched: a user setting up a
+        // new device must not lose the one that currently works before the new one is proven.
+        await this.otpCredentialsRepository.deleteAll({ userId: user.id, confirmed: false });
+
         const secret: string = this.generateSecret();
-        const qrCodeUrl: string = OtpUtilities.createQrCodeUrl(secret);
-        await this.otpCredentialsRepository.create({ secret, qrCodeUrl, userId: user.id });
+        await this.otpCredentialsRepository.create({ secret, userId: user.id });
+
+        // derived here rather than stored beside the secret. The url embeds the secret in plaintext,
+        // so a column holding it was a second, unprotected copy of exactly what the encrypted one
+        // guards - and nothing ever read it back, which is why enrolling had no way to show a user
+        // their qr code at all.
+        return { qrCodeUrl: OtpUtilities.createQrCodeUrl(secret), secret };
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -53,9 +131,19 @@ export class OtpTwoFactorMethod implements TwoFactorMethod<never, OtpConfirmRegi
         user: UserType,
         data: OtpConfirmRegisterData
     ): Promise<void> {
-        const credentials: OtpCredentials[] = await this.otpCredentialsRepository.findAll({ where: { userId: user.id } });
+        // only the enrollment that is waiting to be finished. Confirming is the step that proves the
+        // authenticator holds this secret, so a code from one that is already confirmed proves
+        // nothing about the new one and must not stand in for it.
+        const credentials: OtpCredentials[] = await this.otpCredentialsRepository.findAll({
+            where: { userId: user.id, confirmed: false }
+        });
         for (const c of credentials) {
-            if (OtpUtilities.validate(c.secret, data.token)) {
+            const step: number | undefined = OtpUtilities.validate(c.secret, data.token, this.validationWindowInMs);
+            if (step != undefined) {
+                // spent here too: confirming is a successful validation, so letting the same digits
+                // through again afterwards would leave the very first code a user enters open to
+                // being used a second time
+                await this.consumeStep(c.id, step);
                 await this.otpCredentialsRepository.updateById(c.id, { confirmed: true });
                 return;
             }
@@ -74,10 +162,17 @@ export class OtpTwoFactorMethod implements TwoFactorMethod<never, OtpConfirmRegi
         user: UserType,
         context: HttpRequestContext | WebsocketRequestContext
     ): Promise<void> {
-        const credentials: OtpCredentials[] = await this.otpCredentialsRepository.findAll({ where: { userId: user.id } });
+        // confirmed only. An enrollment that was requested but never finished is a secret nobody has
+        // proven they hold - accepting it meant a second factor could be satisfied by enrolling one
+        // and simply not completing the step that exists to verify it.
+        const credentials: OtpCredentials[] = await this.otpCredentialsRepository.findAll({
+            where: { userId: user.id, confirmed: true }
+        });
         const token: string = this.extractTokenFromRequestContext(context);
         for (const c of credentials) {
-            if (OtpUtilities.validate(c.secret, token)) {
+            const step: number | undefined = OtpUtilities.validate(c.secret, token, this.validationWindowInMs);
+            if (step != undefined) {
+                await this.consumeStep(c.id, step);
                 return;
             }
         }

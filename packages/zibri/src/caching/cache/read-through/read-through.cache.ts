@@ -39,24 +39,17 @@ export abstract class ReadThroughCache<
                         performance.now() - storeStart
                     );
 
+                    // a store answers with what is still valid: an entry whose time to live has run
+                    // out is removed and reported as absent, so there is nothing to check here
                     if (cached !== undefined) {
-                        if (cached.expiresAt !== undefined && cached.expiresAt.getTime() <= Date.now()) {
-                            this.metrics.expiredEvictions.increase(label);
-                            await Promise.resolve()
-                                .then(() => this.store.delete(key as K))
-                                .catch(() => undefined);
-                            await this.updateSizeGauge();
-                        }
-                        else {
-                            cacheCtx.hit = true;
-                            this.metrics.hits.increase(label);
-                            return cached.value;
-                        }
+                        cacheCtx.hit = true;
+                        this.metrics.hits.increase(label);
+                        return cached.value;
                     }
                 }
                 catch (error) {
                     this.metrics.errors.increase({ cache: this.name, operation: CacheOperation.WRAP });
-                    await this.logger.warn('Cache read failed, treating as miss', { error });
+                    this.logger.warn('Cache read failed, treating as miss', { error });
                 }
 
                 cacheCtx.hit = false;
@@ -90,7 +83,7 @@ export abstract class ReadThroughCache<
                     }
                     catch (error) {
                         this.metrics.errors.increase({ cache: this.name, operation: 'SET' });
-                        await this.logger.warn(
+                        this.logger.warn(
                             'Cache store failed after successful source read, value was returned but not cached',
                             { error }
                         );

@@ -7,7 +7,7 @@ import { inject } from '../../../di/inject.function';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { Entity } from '../../../entity/decorators/entity.decorator';
 import { Property } from '../../../entity/decorators/property.decorator';
-import { Repository } from '../../repository';
+import { Repository } from '../../repository/repository';
 
 class ContactDetails {
     @Property.string()

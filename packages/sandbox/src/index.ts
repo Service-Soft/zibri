@@ -1,47 +1,26 @@
-import { inject, JwtAuthController, LoggerInterface, MailingListController, SemVerUtilities, ZIBRI_DI_TOKENS, ZibriApplication, ZibriInvoicingPlugin, ZibriMailingListPlugin } from 'zibri';
+import { inject, LoggerInterface, ZIBRI_DI_TOKENS, ZibriApplication } from 'zibri';
 
-import { CronController, FileController, MetricsController, PageController, TemplateController, TestController, TestCrudController, TestWebsocketController } from './controllers';
+import { applicationOptions } from './application-options';
 import { createDefaultData } from './create-default-data.function';
-import { StatusCronJob } from './cron';
 import { DbDataSource } from './data-sources';
-import { version } from '../package.json';
-import { providers } from './providers';
+import { requireEnv } from './env';
 
 export let logger: LoggerInterface;
 
 async function start(): Promise<void> {
-    if (!SemVerUtilities.isSemVerVersion(version)) {
-        throw new Error('The version of the package.json is not valid.');
-    }
-
-    const app: ZibriApplication = new ZibriApplication({
-        name: 'Zibri Api',
-        baseUrl: 'http://localhost:3000',
-        plugins: [new ZibriInvoicingPlugin(), new ZibriMailingListPlugin()],
-        controllers: [
-            TestController,
-            FileController,
-            TemplateController,
-            CronController,
-            JwtAuthController,
-            MetricsController,
-            TestCrudController,
-            PageController,
-            MailingListController
-        ],
-        websocketControllers: [TestWebsocketController],
-        dataSources: [DbDataSource],
-        cronJobs: [StatusCronJob],
-        version,
-        providers
-    });
+    const app: ZibriApplication = new ZibriApplication(applicationOptions);
     await app.init();
 
     logger = inject(ZIBRI_DI_TOKENS.LOGGER);
 
     await createDefaultData(DbDataSource);
 
-    await app.start(3000);
+    await app.start(Number(requireEnv('PORT')));
 }
 
-void start();
+// eslint-disable-next-line promise/prefer-await-to-callbacks
+void start().catch((error: unknown) => {
+    // eslint-disable-next-line no-console
+    console.error(error);
+    process.exit(1);
+});

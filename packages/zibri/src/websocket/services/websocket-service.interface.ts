@@ -111,7 +111,7 @@ export interface WebsocketServiceInterface<Connection extends BaseWebsocketConne
     /**
      * Registers a websocket controller that listens to events.
      */
-    registerController: (controllerClass: Newable<unknown>) => void | Promise<void>,
+    registerController: (controllerClass: Newable<unknown>) => void,
     /**
      * Sends a message to a single connection.
      */

@@ -22,7 +22,6 @@ const EMAIL_REGEX: RegExp = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  * @param entity - The entity that this value belongs to.
  * @returns All validation problems found.
  */
-// eslint-disable-next-line sonar/cognitive-complexity
 export async function validateString(
     key: string,
     property: unknown,
@@ -35,28 +34,35 @@ export async function validateString(
         // eslint-disable-next-line typescript/no-explicit-any
         = metadata as StringPropertyMetadata<any, any, any, any, any> | StringParamMetadata<any, any, any, any, any>;
     const fullKey: string = parentKey ? `${parentKey}.${key}` : key;
-    const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
-    const isRequired: boolean = typeof metadata.required === 'boolean'
-        ? metadata.required
-        : await metadata.required(entity, context);
-    if (
-        property == undefined
+    if (property == undefined) {
+        const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
+        const isRequired: boolean = typeof metadata.required === 'boolean'
+            ? metadata.required
+            : await metadata.required(entity, context);
         // eslint-disable-next-line typescript/no-explicit-any
-        && (meta as StringPropertyMetadata<any, any, any, any, any>).default == undefined
-        && isRequired
-    ) {
-        return [new IsRequiredValidationProblem(fullKey)];
+        const hasDefault: boolean = (meta as StringPropertyMetadata<any, any, any, any, any>).default != undefined;
+        return isRequired && !hasDefault ? [new IsRequiredValidationProblem(fullKey)] : [];
     }
-    if (
-        property == undefined
-        && (
-            !isRequired
-            // eslint-disable-next-line typescript/no-explicit-any
-            || (meta as StringPropertyMetadata<any, any, any, any, any>).default != undefined
-        )
-    ) {
-        return [];
-    }
+    return stringValueProblems(fullKey, property, meta);
+}
+
+/**
+ * The problems of a string value that is there, judged by the value alone.
+ *
+ * Everything about a string except whether it may be left out, which can depend on the request.
+ * What decides which of several shapes a value is uses exactly this, so it cannot disagree with
+ * validation about any rule it looks at.
+ * @param fullKey - The key the problems are reported under.
+ * @param property - The value.
+ * @param meta - What the string is declared as.
+ * @returns All validation problems found.
+ */
+export function stringValueProblems(
+    fullKey: string,
+    property: unknown,
+    // eslint-disable-next-line typescript/no-explicit-any
+    meta: StringPropertyMetadata<any, any, any, any, any> | StringParamMetadata<any, any, any, any, any>
+): ValidationProblem[] {
     if (typeof property !== 'string') {
         return [new TypeMismatchValidationProblem(fullKey, 'string')];
     }

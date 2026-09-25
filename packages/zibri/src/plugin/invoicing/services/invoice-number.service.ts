@@ -1,5 +1,5 @@
 import { InvoiceNumberServiceInterface } from './invoice-number-service.interface';
-import { Repository } from '../../../data-source/repository';
+import { Repository } from '../../../data-source/repository/repository';
 import { Transaction } from '../../../data-source/transaction/transaction.model';
 import { InjectRepository } from '../../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../../di/decorators/inject.decorator';
@@ -54,12 +54,15 @@ export class InvoiceNumberService implements InvoiceNumberServiceInterface<Invoi
 
         // eslint-disable-next-line stylistic/max-len
         const result: string = `TEMP${this.options.separator}${currentYear}${this.options.separator}${customerNameAbbreviation}${this.options.separator}${consecutiveNumber}`;
-        if (!await this.invoiceRepository.findOne({ where: { number: result } }, false)) {
+        if (!await this.invoiceRepository.findOne({ where: { number: result }, required: false })) {
             return result;
         }
 
         let suffix: number = 2;
-        while (await this.invoiceRepository.findOne({ where: { number: `${result}${this.options.separator}${suffix}` } }, false)) {
+        while (await this.invoiceRepository.findOne({
+            where: { number: `${result}${this.options.separator}${suffix}` },
+            required: false
+        })) {
             suffix++;
         }
         return `${result}${this.options.separator}${suffix}`;
@@ -74,8 +77,7 @@ export class InvoiceNumberService implements InvoiceNumberServiceInterface<Invoi
     protected async getTemporaryConsecutiveNumber(recipientId: string): Promise<string> {
         const currentYear: number = new Date(Date.now()).getFullYear();
         let numberOfInvoices: NumberInvoices | undefined = await this.numberInvoicesRepository.findOne(
-            { where: { year: currentYear, recipientId } },
-            false
+            { where: { year: currentYear, recipientId }, required: false }
         );
         numberOfInvoices ??= {
             number: 0,
@@ -96,30 +98,24 @@ export class InvoiceNumberService implements InvoiceNumberServiceInterface<Invoi
      */
     protected async getConsecutiveNumber(recipientId: string, transaction: Transaction | undefined): Promise<string> {
         const currentYear: number = new Date(Date.now()).getFullYear();
-        let numberOfInvoices: NumberInvoices | undefined = await this.numberInvoicesRepository.findOne(
-            { where: { year: currentYear, recipientId: recipientId } },
-            false
-        );
-        if (numberOfInvoices) {
-            numberOfInvoices.number++;
-            await this.numberInvoicesRepository.updateById(
-                numberOfInvoices.id,
-                { number: numberOfInvoices.number, recipientId: numberOfInvoices.recipientId, year: numberOfInvoices.year },
-                { transaction }
-            );
-        }
-        else {
-            numberOfInvoices = await this.numberInvoicesRepository.create(
-                {
-                    number: 1,
-                    year: currentYear,
-                    recipientId: recipientId
-                },
-                { transaction }
-            );
-        }
 
-        return String(numberOfInvoices.number).padStart(this.options.numberOfDigits, '0');
+        // One upsert, because nothing weaker holds. Reading the counter and writing it back is a
+        // race whether or not it runs under a lock: the lock only covers the window it is held for,
+        // and with a transaction the write lands on commit - after that window has closed. Two
+        // callers then both read 41, both write 42, and two invoices carry the same legally binding
+        // number. Only an increment with no window to interleave in avoids that.
+        //
+        // Staying inside the caller's transaction is deliberate. The number rolls back with the
+        // invoice it was drawn for, so an abandoned invoice leaves no gap in the sequence - which is
+        // the whole reason a counter is used here rather than a database sequence.
+        const counter: NumberInvoices = await this.numberInvoicesRepository.upsert(
+            { year: currentYear, recipientId: recipientId },
+            { year: currentYear, recipientId: recipientId, number: 1 },
+            { number: { increment: 1 } },
+            { transaction }
+        );
+
+        return String(counter.number).padStart(this.options.numberOfDigits, '0');
     }
 
     /**
@@ -167,7 +163,7 @@ export class InvoiceNumberService implements InvoiceNumberServiceInterface<Invoi
      * @param invoiceNumber - The invoice number to validate.
      */
     protected async validateInvoiceNumber(invoiceNumber: string): Promise<void> {
-        if (await this.invoiceRepository.findOne({ where: { number: invoiceNumber } }, false)) {
+        if (await this.invoiceRepository.findOne({ where: { number: invoiceNumber }, required: false })) {
             throw new ConflictError($ts`The generated invoice-number ${invoiceNumber} already exists!`);
         }
     }

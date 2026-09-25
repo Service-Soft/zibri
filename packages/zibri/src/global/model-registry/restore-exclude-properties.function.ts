@@ -16,14 +16,21 @@ export function restoreExcludeProperties<Data, EntityClass>(
         return;
     }
     const descriptor: ExcludeDescriptor<EntityClass> = ModelRegistry.get(entityClass).excludeDescriptor;
-    restoreExcludePropertiesRecursive(data, descriptor);
+    restoreExcludePropertiesRecursive(data, descriptor, new Set());
 }
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 function restoreExcludePropertiesRecursive<Data, EntityClass>(
     data: Data,
-    descriptor: ExcludeDescriptor<EntityClass>
+    descriptor: ExcludeDescriptor<EntityClass>,
+    visited: Set<unknown>
 ): void {
+    // relations point both ways, so both the descriptors and the data they walk can be cyclic
+    if (visited.has(data)) {
+        return;
+    }
+    visited.add(data);
+
     for (const [key] of descriptor.keys) {
         const currentDescriptor: PropertyDescriptor | undefined = Object.getOwnPropertyDescriptor(data, key);
         if (currentDescriptor && currentDescriptor.enumerable !== true && currentDescriptor.get) {
@@ -37,18 +44,7 @@ function restoreExcludePropertiesRecursive<Data, EntityClass>(
         }
     }
 
-    for (const [key, nested] of descriptor.nestedKeys) {
-        const value: unknown = (data as AnyObject)[key];
-        if (value == undefined) {
-            continue;
-        }
-        if (Array.isArray(value)) {
-            for (const item of value) {
-                restoreExcludePropertiesRecursive(item, nested);
-            }
-        }
-        else {
-            restoreExcludePropertiesRecursive(value, nested);
-        }
+    for (const nested of descriptor.nestedValues(data)) {
+        restoreExcludePropertiesRecursive(nested.data, nested.descriptor, visited);
     }
 }

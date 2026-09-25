@@ -15,9 +15,13 @@ export type RateLimitCountProvider<TArgs extends unknown[]> = (...args: TArgs) =
  */
 export type RateLimitWrapOptions<TArgs extends unknown[]> = {
     /**
-     * Defines how a key is resolved, if the rate limit eg. Depends on a user.
+     * What the limit is counted per, if not the client address it defaults to.
+     *
+     * Either a key of its own - `RateLimitKeys.GLOBAL` for a limit that belongs to the resource
+     * rather than the caller - or a function resolving one, which is what a key derived from the
+     * arguments needs.
      */
-    keyFn?: RateLimitKeyProvider<TArgs>,
+    keyFn?: RateLimitKeyProvider<TArgs> | string,
     /**
      * Defines how many tokens the operation uses, if its eg. A batch endpoint.
      */

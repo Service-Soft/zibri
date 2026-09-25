@@ -5,11 +5,10 @@ import { testFileFolder } from '../../../../../__testing__/constants';
 import { createTestDataSource, defaultTestServerEntities } from '../../../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../../../../__testing__/test-server/start-test-server.function';
-import { Repository } from '../../../../../data-source/repository';
+import { Repository } from '../../../../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../../../../di/decorators/inject-repository.decorator';
 import { inject } from '../../../../../di/inject.function';
 import { defineProvider } from '../../../../../di/models/di-provider.model';
-import { XML } from '../../../../../document/xml.utilities';
 import { OmitStrict } from '../../../../../types/omit-strict.type';
 import { FsUtilities } from '../../../../../utilities/fs.utilities';
 import { Ms } from '../../../../../utilities/ms';
@@ -138,8 +137,7 @@ describe('generateXml', () => {
             textAfterItems: ['Unless otherwise stated, the date of delivery/service corresponds to the date of invoice.']
         });
 
-        const xml: XML = await conformanceService.generateXml(invoice);
-        const xmlString: string = xml.end({ prettyPrint: true });
+        const xmlString: string = await conformanceService.generateXml(invoice, 'UTC');
         await FsUtilities.upsertFile(FsUtilities.getPath(testFileFolder, 'xrechnung.xml'), xmlString);
 
         expect(xmlString).toContain('urn:cen.eu:en16931:2017#compliant#urn:xrechnung:3.0');
@@ -152,5 +150,57 @@ describe('generateXml', () => {
         expect(xmlString).toContain('§19 small business');
         expect(xmlString).toContain('Testing');
         expect(xmlString).toContain('90');
+    });
+
+    it('states the calendar day of the given time zone, not of the machine', async () => {
+        // 01:30 utc on new year's day is still December 31st in New York, and the document has to
+        // say whichever of the two the caller asked for no matter where the server stands
+        const invoice: Invoice = await repo.create({
+            // eslint-disable-next-line cspell/spellchecker
+            number: `${new Date().getFullYear()}-GREATC-0002`,
+            currency: 'EUR',
+            items: [
+                {
+                    name: 'Testing',
+                    amount: 4,
+                    amountUnit: {
+                        displayName: 'Hours',
+                        code: 'HUR'
+                    },
+                    vat: {
+                        categoryCode: 'E',
+                        rate: 0,
+                        exemptionReason: '§19 small business'
+                    },
+                    price: 90
+                }
+            ],
+            date: new Date(Date.UTC(2024, 0, 1, 1, 30)),
+            performanceDate: new Date(Date.UTC(2024, 0, 1, 1, 30)),
+            dueDate: new Date(Date.UTC(2024, 0, 15, 1, 30)),
+            customerAddressData: {
+                formOfAddress: '',
+                firstName: '',
+                lastName: '',
+                street: 'Great Street',
+                number: '42',
+                postcode: '12345',
+                city: 'Great City',
+                company: true,
+                companyName: 'Great Company LLC',
+                countryId: 'DE',
+                email: 'info@great-company-llc.com'
+            },
+            textBeforeItems: [''],
+            textAfterItems: ['Unless otherwise stated, the date of delivery/service corresponds to the date of invoice.']
+        });
+
+        const utcXml: string = await conformanceService.generateXml(invoice, 'UTC');
+        expect(utcXml).toContain('20240101');
+        expect(utcXml).toContain('20240115');
+
+        const newYorkXml: string = await conformanceService.generateXml(invoice, 'America/New_York');
+        expect(newYorkXml).toContain('20231231');
+        expect(newYorkXml).toContain('20240114');
     });
 });

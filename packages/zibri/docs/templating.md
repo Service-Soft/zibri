@@ -23,7 +23,6 @@ A page is a `TsxComponent`. Render it from a controller with `TsxUtilities.rende
 ```ts
 import { Controller, Get, GlobalRegistry, HtmlResponse, TsxUtilities, Response } from 'zibri';
 
-import { HomePage } from '../templates/pages/home';
 
 @Controller('/')
 export class PageController {
@@ -50,11 +49,11 @@ import { Card } from '../components/card';
 import { Heading } from '../components/heading';
 import { Link } from '../components/link';
 
-type Props = {
+type HomePageProps = {
     appName: string
 };
 
-export const HomePage: TsxComponent<Props> = ({ appName }) => {
+export const HomePage: TsxComponent<HomePageProps> = ({ appName }) => {
     return (
         <BasePage title='' activeRoute='/' className="flex flex-col gap-4 py-8">
             <Heading className="text-center">{appName}</Heading>
@@ -81,6 +80,16 @@ export const HomePage: TsxComponent<Props> = ({ appName }) => {
 };
 ```
 
+A template file is an ordinary module: next to its components it can declare constants, helper
+functions, contexts and further components, exported or not, and all of them are available while
+rendering. JSX and the render hooks (`useContext`, `provideContext`, `$raw`) are written inside a
+component - a function named in PascalCase that returns JSX (`ZTSX010`).
+
+Templates are read by TypeScript itself, so any TypeScript syntax works, inside components as well as
+around them - classes, enums, generators, getters, every kind of loop. The compiled server module and
+client script target ES2022, which Node and current browsers run; newer syntax such as decorators and
+`using` is lowered on the way.
+
 This system is great for a server side framework to render some basic pages. If you have more advanced
 use cases however you will probably be better off creating a separate client application that consumes
 the Zibri API.
@@ -93,12 +102,12 @@ Emails are built from Zibri's MJML component set - the same responsive, Outlook-
 ```tsx
 import { $ts, Mjml, MjHead, MjTitle, MjBody, MjSection, MjColumn, MjText, MjButton, TsxEmailComponent } from 'zibri';
 
-type Props = {
+type PasswordResetEmailProps = {
     user: { name: string },
     confirmPasswordResetLink: string
 };
 
-export const PasswordResetEmail: TsxEmailComponent<Props> = ({ user, confirmPasswordResetLink }) => {
+export const PasswordResetEmail: TsxEmailComponent<PasswordResetEmailProps> = ({ user, confirmPasswordResetLink }) => {
     return (
         <Mjml>
             <MjHead>
@@ -118,7 +127,7 @@ export const PasswordResetEmail: TsxEmailComponent<Props> = ({ user, confirmPass
 ```
 
 ```ts
-const html: string = TsxUtilities.renderEmail(PasswordResetEmail, {
+const emailHtml: string = TsxUtilities.renderEmail(PasswordResetEmail, {
     user: { name: 'James Smith' },
     confirmPasswordResetLink: 'http://localhost:4200/confirm-password-reset/test-token'
 });
@@ -161,8 +170,32 @@ the html/script sent to the client. **No imports are resolved automatically.**
 This means you can't accidentally leak server side secrets to the client. Even if you use
 `environment.apiUrl` somewhere and the file it's imported from also contains secrets, only what a
 component actually receives as a prop (or a browser global from a `?client` import) crosses to the
-browser - nothing else. Client code that references an ordinary import is a compile error (`ZTSX003`).
+browser - nothing else. Client code that references an ordinary import is a compile error (`ZTSX003`),
+and so is client code that loads a module with `import(...)` or reads `import.meta` (`ZTSX008`): the
+client script is part of the page, not a module.
 (A recurring problem with frameworks that blur the line between front- and backend.)
+
+Each name in client code is resolved to the declaration it refers to, and the script carries exactly
+the declarations and props client code reads, including those nested in `if` blocks, loops and
+multi-variable declarations. A local, parameter or loop variable inside client code is its own
+variable, whatever else in the component shares its name.
+
+Client code reads from a closed set of names. Besides the component's own declarations and props, it
+can read:
+- the browser's globals (`document`, `window`, `fetch`, `JSON`, ...)
+- the globals a `?client` import provides
+- globals the page provides and the template declares, e.g. `declare const gtag: (...args: unknown[]) => void;`
+- the hooks listed below
+
+Any other name is a compile error (`ZTSX009`). That includes a declaration of the template outside the
+component: the markup can render it, and client code declares or receives what it needs itself. Once
+generated, the client script is checked a second time on its own against the same set, so nothing
+outside it reaches the page.
+
+A prop or loop value that client code reads is written into the page as the fields client code reads
+from it - followed through aliases, destructuring, loops and array callbacks like `map` and `find`. A
+value client code uses whole (passes on, spreads, stringifies) is written whole. As a rule of thumb, give
+client code only the values it needs.
 
 Because of this, functionality is more restrictive than React: every hook has to be provided by the
 framework. Currently available:
@@ -178,7 +211,21 @@ Let's take the metrics page as an example (full content down below), because it 
 client functionality. The first thing you'll notice is the strange import at the start of the file:
 
 ```tsx
+// src/templates/pages/metrics.tsx
 import { Chart } from 'chart.js?client';
+
+import { MetricsSnapshot, onClient, TsxComponent } from 'zibri';
+
+import { BasePage } from '../components/base-page';
+import { Heading } from '../components/heading';
+import { MetricsStatus } from '../components/metrics-status';
+import { NetworkChart, RequestDurationChart, RequestsPerSecondChart, ResourceUsageChart } from '../components/charts';
+
+type MetricsPageProps = {
+    version: string,
+    primary: string,
+    secondary: string
+};
 ```
 
 This is how you tell the templating engine "chart.js needs to be available on the client side". A js
@@ -228,7 +275,8 @@ async function loadSnapshots(): Promise<void> {
 Finally the template returned:
 
 ```tsx
-<BasePage title='Metrics'
+export const MetricsPage: TsxComponent<MetricsPageProps> = ({ version, primary, secondary }) => <BasePage
+    title='Metrics'
     activeRoute='/metrics/dashboard'
     scripts={['/assets/lib/chartjs-adapter-date-fns.js']}
     className="flex flex-col gap-4 py-8"
@@ -253,7 +301,7 @@ Finally the template returned:
             <NetworkChart primary={primary} secondary={secondary}></NetworkChart>
         </div>
     </div>
-</BasePage>
+</BasePage>;
 ```
 
 ## Alternative: Handlebars
@@ -262,20 +310,20 @@ If you'd rather use string templates, Zibri also supports [Handlebars](https://h
 ```ts
 import renderBaseEmail from '../templates/emails/base-email.hbs';
 import renderPasswordResetTemplate from '../templates/emails/password-reset.hbs';
-// ...
-const content: string = renderPasswordResetTemplate({
-    confirmPasswordResetUrl: 'http://localhost:4200/confirm-password-reset',
-    resetToken: 'test-token',
-    user: { name: 'James Smith' }
-});
-const html: string = renderBaseEmail({
-    content,
-    base: {
-        title: 'Password Reset',
-        baseUrl: 'http://localhost:3000'
-    }
-});
-// ...
+export function renderPasswordResetEmail(): string {
+    const content: string = renderPasswordResetTemplate({
+        confirmPasswordResetUrl: 'http://localhost:4200/confirm-password-reset',
+        resetToken: 'test-token',
+        user: { name: 'James Smith' }
+    });
+    return renderBaseEmail({
+        content,
+        base: {
+            title: 'Password Reset',
+            baseUrl: 'http://localhost:3000'
+        }
+    });
+}
 ```
 
 You might be wondering how we can import a ts function from a file ending with `.hbs`.

@@ -16,6 +16,15 @@ type UnwrapDiToken<T>
             : unknown;
 
 /**
+ * Names a token the way the code that declared it does.
+ * @param token - The token to name.
+ * @returns The key of an injection token, or the name of a class used as one.
+ */
+export function tokenName(token: DiToken<unknown>): string {
+    return 'key' in token ? token.key : token.name;
+}
+
+/**
  * A record of DI tokens.
  */
 export type TokenRecord = Record<Uppercase<string>, DiToken<unknown>>;

@@ -1,6 +1,6 @@
 
-import { ZibriApplication } from '../application';
 import { OpenApiDefinition } from './open-api.model';
+import { ZibriApplication } from '../application/application';
 import { Route } from '../routing/controller-route-configuration.model';
 import { Version } from '../versioning/version.model';
 

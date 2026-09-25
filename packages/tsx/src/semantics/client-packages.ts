@@ -1,17 +1,29 @@
-import { Program } from '../parser/ast';
-import { parse } from '../parser/parser';
+import * as ts from 'typescript';
+
+import { readImports } from './imports';
+import { parseTemplate, syntaxErrorsOf } from './symbols';
+
+/**
+ * Parses a template source, or gives up when it has a syntax error.
+ * @param source - The template source.
+ * @returns The parsed file, or undefined.
+ */
+export function parseCompilableTemplate(source: string): ts.SourceFile | undefined {
+    const file: ts.SourceFile = parseTemplate(source);
+    return syntaxErrorsOf(file).length === 0 ? file : undefined;
+}
 
 /**
  * Collects the packages a template imports with the `?client` marker, in source order and without
  * duplicates. These are not imported on the server: the browser receives them as globals from a
  * vendor bundle instead.
- * @param program - The parsed template.
+ * @param file - The parsed template.
  * @returns The bare package names (the `?client` query already stripped).
  */
-export function collectClientPackages(program: Program): string[] {
+export function collectClientPackages(file: ts.SourceFile): string[] {
     const packages: string[] = [];
-    for (const item of program.body) {
-        if (item.kind === 'ImportDeclaration' && item.client && !packages.includes(item.source)) {
+    for (const item of readImports(file)) {
+        if (item.client && !packages.includes(item.source)) {
             packages.push(item.source);
         }
     }
@@ -19,14 +31,14 @@ export function collectClientPackages(program: Program): string[] {
 }
 
 /**
- * Collects the `?client` packages of a template source. Returns an empty list when the source
- * cannot be parsed — callers that need diagnostics should use `compile` instead.
+ * Collects the `?client` packages of a template source. Returns an empty list when the source does
+ * not compile — callers that need diagnostics should use `compile` instead.
  * @param source - The template source.
  * @returns The bare package names.
  */
 export function collectClientPackagesFromSource(source: string): string[] {
-    const program: Program | undefined = parse(source).program;
-    return program ? collectClientPackages(program) : [];
+    const file: ts.SourceFile | undefined = parseCompilableTemplate(source);
+    return file === undefined ? [] : collectClientPackages(file);
 }
 
 /**
@@ -47,13 +59,13 @@ export type ClientGlobalAlias = {
  * Collects the renamed `?client` import bindings. A vendor bundle exposes a package's exports as
  * browser globals named after the export, so `{ Chart }` resolves by itself while
  * `{ Chart as ChartJsChart }` has no matching global and needs an alias in the client script.
- * @param program - The parsed template.
+ * @param file - The parsed template.
  * @returns The local name and the global backing it, for every renamed binding.
  */
-export function collectClientGlobalAliases(program: Program): ClientGlobalAlias[] {
+export function collectClientGlobalAliases(file: ts.SourceFile): ClientGlobalAlias[] {
     const aliases: ClientGlobalAlias[] = [];
-    for (const item of program.body) {
-        if (item.kind !== 'ImportDeclaration' || !item.client || item.typeOnly) {
+    for (const item of readImports(file)) {
+        if (!item.client || item.typeOnly) {
             continue;
         }
         for (const specifier of item.specifiers) {
@@ -67,26 +79,12 @@ export function collectClientGlobalAliases(program: Program): ClientGlobalAlias[
 }
 
 /**
- * Collects the renamed `?client` import bindings of a template source. Returns an empty list when
- * the source cannot be parsed — callers that need diagnostics should use `compile` instead.
+ * Collects the renamed `?client` import bindings of a template source. Returns an empty list when the
+ * source does not compile — callers that need diagnostics should use `compile` instead.
  * @param source - The template source.
  * @returns The local name and the global backing it, for every renamed binding.
  */
 export function collectClientGlobalAliasesFromSource(source: string): ClientGlobalAlias[] {
-    const program: Program | undefined = parse(source).program;
-    return program ? collectClientGlobalAliases(program) : [];
-}
-
-/**
- * Maps a package name to the file name its vendor bundle is written to (and served under).
- * @param packageName - The package name, e.g. `chart.js` or `@scope/pkg`.
- * @returns The bundle file name, e.g. `chart-js.js`.
- */
-export function vendorFileName(packageName: string): string {
-    const kebab: string = packageName
-        .replaceAll(/[^\da-z]+/gi, '-')
-        .replaceAll(/([\da-z])([A-Z])/g, '$1-$2')
-        .toLowerCase()
-        .replaceAll(/^-+|-+$/g, '');
-    return `${kebab}.js`;
+    const file: ts.SourceFile | undefined = parseCompilableTemplate(source);
+    return file === undefined ? [] : collectClientGlobalAliases(file);
 }

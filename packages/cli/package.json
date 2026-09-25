@@ -15,37 +15,38 @@
         "./templates"
     ],
     "engines": {
-        "node": ">=22"
+        "node": ">=24"
     },
     "keywords": [
         "zibri",
         "cli"
     ],
     "author": "Tim Fabian",
-    "description": "",
+    "description": "Command line interface for the Zibri framework. Scaffolds a new project with `zi new`.",
     "bin": {
         "zi": "dist/index.js"
     },
     "scripts": {
         "start": "npm run build && cd sandbox && ZIBRI_CLI_LOCAL_DEV=1 node ../dist/index.js",
-        "build": "tsc -p tsconfig.build.json",
+        "build": "npm run build:clean && tsc -p tsconfig.build.json",
+        "build:clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
         "clear": "rm -rf sandbox && mkdir sandbox && npm run start n api",
         "lint": "eslint . --max-warnings=0",
         "lint:fix": "eslint . --max-warnings=0 --fix",
         "prepublishOnly": "npm run build",
         "test": "npm run test:normal && npm run test:heavy",
         "test:normal": "jest --testPathPatterns='^(?!.*\\.heavy\\.test\\.ts$).*'",
-        "test:heavy": "jest --runInBand --testPathPatterns='\\.heavy\\.test\\.ts$'"
+        "test:heavy": "jest --runInBand --testPathPatterns='\\.heavy\\.test\\.ts$'",
+        "test:ci": "npm run test:coverage",
+        "test:coverage": "jest --runInBand --coverage --coverageReporters=lcov --coverageReporters=text-summary"
     },
     "dependencies": {
         "chalk": "^5.4.1",
-        "death": "^1.1.0",
         "figlet": "^1.8.1",
         "inquirer": "^13.3.2"
     },
     "devDependencies": {
         "@jest/globals": "^30.4.1",
-        "@types/death": "^1.1.5",
         "@types/figlet": "^1.7.0",
         "@types/node": "^22.19.17",
         "eslint": "^9.24.0",

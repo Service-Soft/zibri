@@ -6,17 +6,24 @@ import { type Relation } from 'typeorm';
 import { Response } from './decorators/response.decorator';
 import { OpenApiDefinition, OpenApiOperation, OpenApiReferenceObject, OpenApiSchemaObject } from './open-api.model';
 import { type PaginationResult } from './pagination-result.model';
+import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { Auth } from '../auth/decorators/auth.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
+import { defineProvider } from '../di/models/di-provider.model';
 import { BaseEntity } from '../entity/base-entity.model';
 import { Property } from '../entity/decorators/property.decorator';
+import { type OneOf } from '../entity/models/one-of.model';
+import { OnAppInit } from '../global/on-app-init.interface';
 import { HttpMethod } from '../http/http-method.enum';
 import { HttpStatus } from '../http/http-status.enum';
 import { MimeType } from '../http/mime-type.enum';
 import { FileResponse } from '../parsing/form-data/file-response.model';
 import { HtmlResponse } from '../parsing/html/html-response.model';
+import { XmlAttribute } from '../parsing/xml/xml-attribute.decorator';
+import { XmlElement } from '../parsing/xml/xml-element.decorator';
+import { XmlRoot } from '../parsing/xml/xml-root.decorator';
 import { Body } from '../routing/decorators/body.decorator';
 import { Controller } from '../routing/decorators/controller.decorator';
 import { Get } from '../routing/decorators/get.decorator';
@@ -65,6 +72,16 @@ class CreateItemBody {
 
     @Property.object({ cls: () => Tag })
     tag!: Tag;
+
+    @Property.oneOf({
+        shapes: { Tag: { type: 'object', cls: () => Tag }, Untagged: { type: 'string', enum: { untagged: 'untagged' } } },
+        required: false,
+        description: 'a tag, or none on purpose'
+    })
+    secondaryTag?: OneOf<{ Tag: Tag, Untagged: string }>;
+
+    @Property.array({ items: { type: 'oneOf', shapes: { At: { type: 'date' }, Note: { type: 'string' } } }, required: false })
+    schedule?: OneOf<{ At: Date, Note: string }>[];
 }
 
 // A bidirectional relation, deliberately not @Entity()-decorated/registered on a data source: the OpenAPI
@@ -132,6 +149,22 @@ class Team extends BaseEntity {
 class PingResponse {
     @Property.boolean()
     ok!: boolean;
+}
+
+class OrderLine {
+    @Property.string()
+    name!: string;
+}
+
+@XmlRoot({ name: 'Order', namespace: 'urn:example:orders' })
+class XmlOrder {
+    @XmlAttribute('id')
+    @Property.string()
+    orderId!: string;
+
+    @XmlElement('Line')
+    @Property.array({ items: { type: 'object', cls: () => OrderLine } })
+    lines!: OrderLine[];
 }
 
 @Controller('/items')
@@ -218,6 +251,15 @@ class ItemController {
         return {} as Team;
     }
 
+    @Response.object(XmlOrder, { status: HttpStatus.OK, mimeTypes: [MimeType.JSON, MimeType.XML] })
+    @Post('/orders')
+    createOrder(
+        @Body(XmlOrder, { type: MimeType.XML })
+        order: XmlOrder
+    ): XmlOrder {
+        return order;
+    }
+
     @Response.object(NodeA, { status: HttpStatus.OK })
     @Get('/:id/chain')
     getChain(
@@ -234,17 +276,13 @@ function schemaOf(value: OpenApiSchemaObject | OpenApiReferenceObject | undefine
     return value;
 }
 
-describe('OpenApiService', () => {
-    let server: StartedTestServer;
-    let baseUrl: string;
-    let spec: OpenApiDefinition;
-
-    beforeAll(async () => {
-        server = await startTestServer({ controllers: [ItemController], version: '1.0.0' });
-        baseUrl = await server.start();
-
+// a route with no controller behind it, registered from a lifecycle hook the way AssetService
+// registers /favicon.ico. It has to be an init hook rather than a line in beforeAll: the document is
+// built once in afterAppInit, so a route registered after the app is up is not in it.
+class ManualPingRoute implements OnAppInit {
+    onAppInit(): void {
         const router: RouterInterface = inject(ZIBRI_DI_TOKENS.ROUTER);
-        await router.registerRoute({
+        router.registerRoute({
             httpMethod: HttpMethod.GET,
             route: '/manual/ping',
             versions: 'all',
@@ -255,12 +293,27 @@ describe('OpenApiService', () => {
             },
             handler: () => ({ ok: true })
         });
+    }
+}
+
+describe('OpenApiService', () => {
+    let server: StartedTestServer;
+    let baseUrl: string;
+    let spec: OpenApiDefinition;
+
+    beforeAll(async () => {
+        server = await startTestServer({
+            controllers: [ItemController],
+            version: '1.0.0',
+            providers: [...defaultTestServerProviders, defineProvider({ token: ManualPingRoute, useClass: ManualPingRoute })]
+        });
+        baseUrl = await server.start();
 
         const res: globalThis.Response = await fetch(`${baseUrl}/explorer/spec/1.0.0`);
         expect(res.status).toBe(200);
         // eslint-disable-next-line typescript/no-unsafe-assignment
         spec = await res.json();
-    }, 20000);
+    }, 25000);
 
     afterAll(async () => {
         await server?.shutdown();
@@ -365,7 +418,8 @@ describe('OpenApiService', () => {
         expect(schema.properties?.['price']).toMatchObject({ type: 'number', minimum: 0, maximum: 1000 });
         expect(schema.properties?.['primaryTag']).toMatchObject({ type: 'object', properties: { label: { type: 'string' } } });
         expect(schema.properties?.['labels']).toMatchObject({ type: 'array', items: { type: 'string' } });
-        expect(schema.properties?.['tags']).toMatchObject({ type: 'array', items: { type: 'object' } });
+        // Tag is also described by primaryTag right before, which is no cycle
+        expect(schema.properties?.['tags']).toMatchObject({ type: 'array', items: { type: 'object', properties: { label: { type: 'string' } } } });
     });
 
     it('builds an array response schema for @Response.array()', () => {
@@ -387,10 +441,13 @@ describe('OpenApiService', () => {
         expect(schemaOf(items.items).type).toBe('object');
     });
 
-    it('builds no content for @Response.empty()', () => {
+    it('builds no content for @Response.empty(), under the status it defaults to', () => {
         const operation: OpenApiOperation = op('/items/admin-only', 'get');
+        // 204 rather than 200: a route that returns nothing says so, and the document has to agree
+        // with what the router actually answers
+        expect(operation.responses?.['204']).toBeDefined();
         // eslint-disable-next-line typescript/no-unsafe-member-access
-        expect(operation.responses?.['200']?.content).toBeUndefined();
+        expect(operation.responses?.['204']?.content).toBeUndefined();
     });
 
     it('builds a request body schema with a nested object property and a required list', () => {
@@ -400,6 +457,71 @@ describe('OpenApiService', () => {
         expect(schema.required).toEqual(expect.arrayContaining(['name', 'tag']));
         expect(schema.required).not.toContain('quantity');
         expect(schema.properties?.['tag']).toMatchObject({ type: 'object', properties: { label: { type: 'string' } } });
+    });
+
+    it('describes a value of several named shapes as exactly one of them, told apart by its name', () => {
+        const operation: OpenApiOperation = op('/items/', 'post');
+        assert(operation.requestBody && !('$ref' in operation.requestBody));
+        const schema: OpenApiSchemaObject = schemaOf(operation.requestBody.content[MimeType.JSON]?.schema);
+
+        expect(schema.properties?.['secondaryTag']).toEqual({
+            description: 'a tag, or none on purpose',
+            discriminator: { propertyName: 'shape' },
+            oneOf: [
+                {
+                    type: 'object',
+                    properties: {
+                        shape: { type: 'string', enum: ['Tag'] },
+                        value: expect.objectContaining({ type: 'object', properties: { label: expect.objectContaining({ type: 'string' }) } })
+                    },
+                    required: ['shape', 'value']
+                },
+                {
+                    type: 'object',
+                    properties: {
+                        shape: { type: 'string', enum: ['Untagged'] },
+                        value: expect.objectContaining({ type: 'string', enum: ['untagged'] })
+                    },
+                    required: ['shape', 'value']
+                }
+            ]
+        });
+        expect(schema.required).not.toContain('secondaryTag');
+        expect(schema.properties?.['schedule']).toMatchObject({
+            type: 'array',
+            items: {
+                discriminator: { propertyName: 'shape' },
+                oneOf: [
+                    { properties: { shape: { enum: ['At'] }, value: { type: 'string', format: 'date-time' } } },
+                    { properties: { shape: { enum: ['Note'] }, value: { type: 'string' } } }
+                ]
+            }
+        });
+    });
+
+    it('describes a response that can be json or xml under both, the xml one naming its root', () => {
+        const operation: OpenApiOperation = op('/items/orders', 'post');
+        // eslint-disable-next-line typescript/typedef, typescript/no-unsafe-assignment, typescript/no-unsafe-member-access
+        const content = operation.responses?.['200']?.content;
+        // eslint-disable-next-line typescript/no-unsafe-argument, typescript/no-unsafe-member-access
+        const json: OpenApiSchemaObject = schemaOf(content?.[MimeType.JSON]?.schema);
+        // eslint-disable-next-line typescript/no-unsafe-argument, typescript/no-unsafe-member-access
+        const xml: OpenApiSchemaObject = schemaOf(content?.[MimeType.XML]?.schema);
+
+        expect(json.xml).toBeUndefined();
+        expect(xml.xml).toEqual({ name: 'Order', namespace: 'urn:example:orders' });
+        expect(xml.properties?.['orderId']).toMatchObject({ type: 'string', xml: { name: 'id', attribute: true } });
+        expect(xml.properties?.['lines']).toMatchObject({ type: 'array', items: { xml: { name: 'Line' } } });
+    });
+
+    it('describes an xml request body as the document of its model', () => {
+        const operation: OpenApiOperation = op('/items/orders', 'post');
+        assert(operation.requestBody && !('$ref' in operation.requestBody));
+
+        const schema: OpenApiSchemaObject = schemaOf(operation.requestBody.content[MimeType.XML]?.schema);
+
+        expect(schema.xml).toEqual({ name: 'Order', namespace: 'urn:example:orders' });
+        expect(schema.properties?.['orderId']).toMatchObject({ xml: { name: 'id', attribute: true } });
     });
 
     it('builds a binary schema for a file response', () => {

@@ -1,10 +1,11 @@
-import { ArrowFunctionExpression, BlockStatement, ExportDeclaration, Expression, FunctionDeclaration,
-    FunctionExpression, Program, Statement, VariableDeclaration } from '../parser/ast';
+import * as ts from 'typescript';
+
+import { unwrapTypeSyntax } from './walk';
 
 /**
  * A function form that can act as a page/template component.
  */
-export type ComponentFunction = FunctionDeclaration | FunctionExpression | ArrowFunctionExpression;
+export type ComponentFunction = ts.FunctionDeclaration | ts.FunctionExpression | ts.ArrowFunction;
 
 /**
  * A top-level component declaration discovered in a module.
@@ -39,52 +40,38 @@ export function isPascalCase(name: string): boolean {
 }
 
 /**
- * Whether an expression evaluates to JSX (unwrapping parentheses, ternaries, and `&&`/`||`).
- * @param expr - The expression to inspect.
+ * Operators whose result is one of their operands, so JSX on either side can be what they yield.
+ */
+const LOGICAL_OPERATORS: ReadonlySet<ts.SyntaxKind> = new Set<ts.SyntaxKind>([
+    ts.SyntaxKind.AmpersandAmpersandToken,
+    ts.SyntaxKind.BarBarToken,
+    ts.SyntaxKind.QuestionQuestionToken
+]);
+
+/**
+ * Whether an expression evaluates to JSX (unwrapping parentheses, ternaries, `&&`/`||`/`??` and the
+ * comma operator, and looking through type-only wrappers).
+ * @param node - The expression to inspect.
  * @returns True when the expression yields a JSX element or fragment.
  */
-export function isJsxExpression(expr: Expression): boolean {
-    switch (expr.kind) {
-        case 'JSXElement':
-        case 'JSXFragment': {
-            return true;
-        }
-        case 'ParenthesizedExpression': {
-            return isJsxExpression(expr.expression);
-        }
-        case 'ConditionalExpression': {
-            return isJsxExpression(expr.consequent) || isJsxExpression(expr.alternate);
-        }
-        case 'LogicalExpression': {
-            return isJsxExpression(expr.left) || isJsxExpression(expr.right);
-        }
-        case 'SequenceExpression': {
-            return isJsxExpression(expr.expressions[expr.expressions.length - 1]);
-        }
-        case 'Identifier':
-        case 'NumericLiteral':
-        case 'StringLiteral':
-        case 'BooleanLiteral':
-        case 'NullLiteral':
-        case 'RegexLiteral':
-        case 'TemplateLiteral':
-        case 'TaggedTemplateExpression':
-        case 'ThisExpression':
-        case 'ArrayExpression':
-        case 'ObjectExpression':
-        case 'ArrowFunctionExpression':
-        case 'FunctionExpression':
-        case 'UnaryExpression':
-        case 'UpdateExpression':
-        case 'BinaryExpression':
-        case 'AssignmentExpression':
-        case 'NewExpression':
-        case 'MemberExpression':
-        case 'SpreadElement':
-        case 'CallExpression': {
-            return false;
-        }
+export function isJsxExpression(node: ts.Expression): boolean {
+    const expression: ts.Expression = unwrapTypeSyntax(node);
+    if (ts.isJsxElement(expression) || ts.isJsxSelfClosingElement(expression) || ts.isJsxFragment(expression)) {
+        return true;
     }
+    if (ts.isParenthesizedExpression(expression)) {
+        return isJsxExpression(expression.expression);
+    }
+    if (ts.isConditionalExpression(expression)) {
+        return isJsxExpression(expression.whenTrue) || isJsxExpression(expression.whenFalse);
+    }
+    if (ts.isBinaryExpression(expression) && LOGICAL_OPERATORS.has(expression.operatorToken.kind)) {
+        return isJsxExpression(expression.left) || isJsxExpression(expression.right);
+    }
+    if (ts.isBinaryExpression(expression) && expression.operatorToken.kind === ts.SyntaxKind.CommaToken) {
+        return isJsxExpression(expression.right);
+    }
+    return false;
 }
 
 /**
@@ -94,11 +81,13 @@ export function isJsxExpression(expr: Expression): boolean {
  * @returns True when the function is a component (returns JSX).
  */
 export function returnsJsx(fn: ComponentFunction): boolean {
-    if (fn.kind === 'ArrowFunctionExpression' && fn.body.kind !== 'BlockStatement') {
+    if (fn.body == undefined) {
+        return false;
+    }
+    if (!ts.isBlock(fn.body)) {
         return isJsxExpression(fn.body);
     }
-    const body: BlockStatement = fn.body as BlockStatement;
-    return statementsReturnJsx(body.body);
+    return statementsReturnJsx(fn.body.statements);
 }
 
 /**
@@ -107,150 +96,121 @@ export function returnsJsx(fn: ComponentFunction): boolean {
  * @param statements - The statements to scan.
  * @returns True when a JSX return is found.
  */
-// eslint-disable-next-line sonar/cognitive-complexity
-function statementsReturnJsx(statements: Statement[]): boolean {
-    for (const statement of statements) {
-        switch (statement.kind) {
-            case 'ReturnStatement': {
-                if (statement.argument && isJsxExpression(statement.argument)) {
-                    return true;
-                }
-                break;
-            }
-            case 'BlockStatement': {
-                if (statementsReturnJsx(statement.body)) {
-                    return true;
-                }
-                break;
-            }
-            case 'IfStatement': {
-                if (statementsReturnJsx([statement.consequent])
-                    || (statement.alternate && statementsReturnJsx([statement.alternate]))) {
-                    return true;
-                }
-                break;
-            }
-            case 'ForStatement':
-            case 'ForOfStatement':
-            case 'WhileStatement':
-            case 'LabeledStatement': {
-                if (statementsReturnJsx([statement.body])) {
-                    return true;
-                }
-                break;
-            }
-            case 'TryStatement': {
-                if (statementsReturnJsx(statement.block.body)
-                    || (statement.handlerBody && statementsReturnJsx(statement.handlerBody.body))
-                    || (statement.finalizer && statementsReturnJsx(statement.finalizer.body))) {
-                    return true;
-                }
-                break;
-            }
-            case 'SwitchStatement': {
-                if (statement.cases.some(c => statementsReturnJsx(c.consequent))) {
-                    return true;
-                }
-                break;
-            }
-            case 'FunctionDeclaration':
-            case 'VariableDeclaration':
-            case 'ExpressionStatement':
-            case 'BreakStatement':
-            case 'ContinueStatement':
-            case 'ThrowStatement':
-            case 'EmptyStatement': {
-                break;
-            }
-        }
+function statementsReturnJsx(statements: readonly ts.Statement[]): boolean {
+    return statements.some(statementReturnsJsx);
+}
+
+/**
+ * Whether a statement, or a statement nested in its control flow, returns JSX.
+ * @param statement - The statement to scan.
+ * @returns True when a JSX return is found.
+ */
+function statementReturnsJsx(statement: ts.Statement): boolean {
+    if (ts.isReturnStatement(statement)) {
+        return statement.expression != undefined && isJsxExpression(statement.expression);
     }
-    return false;
+    return statementsReturnJsx(nestedStatements(statement));
+}
+
+/**
+ * The statements directly nested in a statement's control flow: a block's statements, the branches of
+ * an `if`, the body of a loop or label, the blocks of a `try` and the statements of each `switch` case.
+ * A nested function is not control flow, so nothing inside one is included.
+ * @param statement - The statement.
+ * @returns The nested statements.
+ */
+export function nestedStatements(statement: ts.Statement): ts.Statement[] {
+    if (ts.isBlock(statement)) {
+        return [...statement.statements];
+    }
+    if (ts.isIfStatement(statement)) {
+        return statement.elseStatement == undefined ? [statement.thenStatement] : [statement.thenStatement, statement.elseStatement];
+    }
+    if (ts.isForStatement(statement) || ts.isForOfStatement(statement) || ts.isForInStatement(statement)
+        || ts.isWhileStatement(statement) || ts.isDoStatement(statement) || ts.isLabeledStatement(statement)) {
+        return [statement.statement];
+    }
+    if (ts.isTryStatement(statement)) {
+        return [
+            statement.tryBlock,
+            ...statement.catchClause == undefined ? [] : [statement.catchClause.block],
+            ...statement.finallyBlock == undefined ? [] : [statement.finallyBlock]
+        ];
+    }
+    if (ts.isSwitchStatement(statement)) {
+        return statement.caseBlock.clauses.flatMap(clause => [...clause.statements]);
+    }
+    return [];
+}
+
+/**
+ * Whether a statement carries the given modifier.
+ * @param node - The statement to inspect.
+ * @param kind - The modifier keyword.
+ * @returns True when the modifier is present.
+ */
+export function hasModifier(node: ts.Node, kind: ts.SyntaxKind): boolean {
+    return ts.canHaveModifiers(node) && (ts.getModifiers(node) ?? []).some(modifier => modifier.kind === kind);
 }
 
 /**
  * Finds the top-level component declarations in a module. A component is a PascalCase-named
  * function or const-bound arrow/function that returns JSX.
- * @param program - The parsed program.
+ * @param file - The parsed template.
  * @returns The discovered components in source order.
  */
-export function findComponents(program: Program): ComponentInfo[] {
-    const components: ComponentInfo[] = [];
-    for (const item of program.body) {
-        switch (item.kind) {
-            case 'FunctionDeclaration': {
-                pushIfComponent(components, item.id, item, false, false);
-                break;
-            }
-            case 'VariableDeclaration': {
-                collectFromVariableDeclaration(components, item, false);
-                break;
-            }
-            case 'ExportDeclaration': {
-                collectFromExport(components, item);
-                break;
-            }
-            case 'BlockStatement':
-            case 'ExpressionStatement':
-            case 'ReturnStatement':
-            case 'IfStatement':
-            case 'ForStatement':
-            case 'ForOfStatement':
-            case 'WhileStatement':
-            case 'BreakStatement':
-            case 'ContinueStatement':
-            case 'ThrowStatement':
-            case 'TryStatement':
-            case 'SwitchStatement':
-            case 'EmptyStatement':
-            case 'LabeledStatement':
-            case 'ImportDeclaration':
-                // No default
+export function findComponents(file: ts.SourceFile): ComponentInfo[] {
+    return file.statements.flatMap(componentsOf);
+}
 
+/**
+ * The components one top-level statement declares.
+ * @param statement - The statement.
+ * @returns Its components, in source order.
+ */
+function componentsOf(statement: ts.Statement): ComponentInfo[] {
+    if (ts.isExportAssignment(statement)) {
+        const expression: ts.Expression = unwrapTypeSyntax(statement.expression);
+        if (statement.isExportEquals === true || !isComponentFunction(expression) || !returnsJsx(expression)) {
+            return [];
         }
+        return [{ name: 'default', fn: expression, exported: true, isDefault: true }];
     }
-    return components;
+    const exported: boolean = hasModifier(statement, ts.SyntaxKind.ExportKeyword);
+    if (ts.isFunctionDeclaration(statement)) {
+        const isDefault: boolean = exported && hasModifier(statement, ts.SyntaxKind.DefaultKeyword);
+        return asComponent(statement.name?.text ?? '', statement, exported, isDefault);
+    }
+    if (!ts.isVariableStatement(statement)) {
+        return [];
+    }
+    return statement.declarationList.declarations.flatMap(declaration => {
+        const init: ts.Expression | undefined = declaration.initializer == undefined
+            ? undefined
+            : unwrapTypeSyntax(declaration.initializer);
+        return ts.isIdentifier(declaration.name) && init != undefined && isComponentFunction(init)
+            ? asComponent(declaration.name.text, init, exported, false)
+            : [];
+    });
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
-function collectFromExport(components: ComponentInfo[], item: ExportDeclaration): void {
-    if (item.declaration?.kind === 'FunctionDeclaration') {
-        pushIfComponent(components, item.declaration.id, item.declaration, true, item.default);
-    }
-    else if (item.declaration?.kind === 'VariableDeclaration') {
-        collectFromVariableDeclaration(components, item.declaration, true);
-    }
-    else if (item.default && item.expression && isComponentFunction(item.expression) && returnsJsx(item.expression)) {
-        components.push({ name: 'default', fn: item.expression, exported: true, isDefault: true });
-    }
+/**
+ * Whether an expression is a function that can be a component.
+ * @param node - The expression to test.
+ * @returns True for an arrow function or a function expression.
+ */
+function isComponentFunction(node: ts.Expression): node is ts.ArrowFunction | ts.FunctionExpression {
+    return ts.isArrowFunction(node) || ts.isFunctionExpression(node);
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
-function collectFromVariableDeclaration(
-    components: ComponentInfo[],
-    declaration: VariableDeclaration,
-    exported: boolean
-): void {
-    for (const declarator of declaration.declarations) {
-        if (declarator.id.kind === 'IdentifierPattern' && declarator.init && isComponentFunction(declarator.init)) {
-            pushIfComponent(components, declarator.id.name, declarator.init, exported, false);
-        }
-    }
-}
-
-// eslint-disable-next-line jsdoc/require-jsdoc
-function isComponentFunction(expr: Expression): expr is ArrowFunctionExpression | FunctionExpression {
-    return expr.kind === 'ArrowFunctionExpression' || expr.kind === 'FunctionExpression';
-}
-
-// eslint-disable-next-line jsdoc/require-jsdoc
-function pushIfComponent(
-    components: ComponentInfo[],
-    name: string,
-    fn: ComponentFunction,
-    exported: boolean,
-    isDefault: boolean
-): void {
-    if (isPascalCase(name) && returnsJsx(fn)) {
-        components.push({ name, fn, exported, isDefault });
-    }
+/**
+ * A function as a component, when it is named like one and returns JSX.
+ * @param name - The declared name.
+ * @param fn - The function.
+ * @param exported - Whether it is exported.
+ * @param isDefault - Whether it is the default export.
+ * @returns The component, or nothing.
+ */
+function asComponent(name: string, fn: ComponentFunction, exported: boolean, isDefault: boolean): ComponentInfo[] {
+    return isPascalCase(name) && returnsJsx(fn) ? [{ name, fn, exported, isDefault }] : [];
 }

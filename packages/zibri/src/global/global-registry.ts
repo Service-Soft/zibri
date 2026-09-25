@@ -1,10 +1,15 @@
-import { ZibriApplicationOptions } from '../application-options.model';
 import { AppState } from './app-state.enum';
+import { registerFrameworkCopy } from './framework-copies';
+import { ZibriApplicationOptions } from '../application/application-options.model';
 import { DiProvider } from '../di/models/di-provider.model';
 import { BaseEntity } from '../entity/base-entity.model';
 import { InternalError } from '../error-handling/internal-error.model';
 import { Newable } from '../types/newable.type';
-import { SemVerVersion } from '../utilities/sem-ver.utilities';
+import { SemVerVersion } from '../versioning/sem-ver.utilities';
+
+// counted from here because everything that uses the framework at all loads this module, and a
+// second evaluation of it is precisely what a second copy of the framework is
+registerFrameworkCopy();
 
 /**
  * The data of the app.
@@ -66,7 +71,21 @@ export abstract class GlobalRegistry {
 
     private static readonly validateAppStateChange: Record<AppState, () => void> = {
         [AppState.OFFLINE]: () => {
-            throw new InternalError(`Cannot manually mark an an app as "${AppState.OFFLINE}".`);
+            switch (this.appData.state) {
+                case AppState.SHUTTING_DOWN: {
+                    return;
+                }
+                case AppState.OFFLINE: {
+                    throw new AppAlreadyMarkedAsError(AppState.OFFLINE);
+                }
+                case AppState.CREATED:
+                case AppState.INITIALIZED:
+                case AppState.STARTED: {
+                    // going straight to offline would skip every shutdown hook, so the state machine
+                    // is what refuses it rather than each caller having to remember
+                    throw new AppNotYetMarkedAsError(AppState.SHUTTING_DOWN);
+                }
+            }
         },
         [AppState.CREATED]: () => {
             switch (this.appData.state) {
@@ -185,6 +204,24 @@ export abstract class GlobalRegistry {
      */
     static markAppAsShuttingDown(): void {
         this.changeAppState(AppState.SHUTTING_DOWN);
+    }
+
+    /**
+     * Marks the app as offline, which is the end of its lifecycle.
+     *
+     * Without this the state machine has no way back to where it started, so a process that has run
+     * one application can never run another - and the error a second one gets is about a state rather
+     * than about anything it did.
+     *
+     * What is deliberately *not* cleared is everything the decorators registered. `@Entity`,
+     * `@Injectable` and `@DataSource` run when their module is first loaded and never again, so
+     * dropping those arrays would leave the next application with nothing to build from.
+     */
+    static markAppAsOffline(): void {
+        this.changeAppState(AppState.OFFLINE);
+        this.appData.name = undefined;
+        this.appData.version = undefined;
+        this.appData.baseUrl = undefined;
     }
 
     /**

@@ -6,7 +6,7 @@ import { compileTsxTemplate } from '../../../__testing__/compile-tsx-template.fu
 import { createTestDataSource, defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
-import { Repository } from '../../../data-source/repository';
+import { Repository } from '../../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
 import { inject } from '../../../di/inject.function';
 import { defineProvider } from '../../../di/models/di-provider.model';
@@ -88,11 +88,11 @@ describe('MailingListService', () => {
 
             const tokens: MailingListSubscriptionConfirmationToken[] = await confirmationTokenRepository.findAll({ where: { email } });
             expect(tokens.length).toBe(1);
-            expect(tokens[0].listId).toBe(list.id);
+            expect(tokens[0]?.listId).toBe(list.id);
 
             const emails: Email[] = await emailRepository.findAll({ where: { recipients: { includes: [email] } } });
             expect(emails.length).toBe(1);
-            expect(emails[0].subject).toBe('Please confirm');
+            expect(emails[0]?.subject).toBe('Please confirm');
 
             const subscribers: MailingListSubscriber[] = await subscriberRepository.findAll({ where: { email } });
             expect(subscribers.length).toBe(0);

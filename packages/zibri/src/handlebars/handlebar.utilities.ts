@@ -1,16 +1,17 @@
-import handlebars, { ParseOptions } from 'handlebars';
-import H from 'handlebars/runtime';
+import type { ParseOptions } from 'handlebars';
 
 import { AstProgram } from './ast.model';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
+import { InternalError } from '../error-handling/internal-error.model';
 import { FsUtilities, FsPath } from '../utilities/fs.utilities';
 import { JsonUtilities } from '../utilities/json.utilities';
 import { MaskUtilities } from '../utilities/mask.utilities';
+import { hasOptionalPeer, optionalPeer } from '../utilities/optional-peer.function';
 import { toCamelCase } from '../utilities/to-camel-case.function';
 
 /**
- *
+ * Options for configuring things about handlebars.
  */
 export type HandlebarOptions = {
     /**
@@ -27,14 +28,31 @@ export type HandlebarOptions = {
  * Utilities for handling handlebar templates.
  */
 export abstract class HandlebarUtilities {
-    private static H: typeof Handlebars;
+    private static H: typeof Handlebars | undefined;
+
+    /**
+     * The full compiler, loaded the first time anything actually needs one.
+     * @returns Handlebars itself.
+     */
+    private static compiler(): typeof Handlebars {
+        return optionalPeer<typeof Handlebars>('handlebars', 'Rendering a handlebars template');
+    }
 
     /**
      * Initializes the handlebar utilities.
+     *
+     * Runs for every application, whether or not it has a single template, so a missing handlebars
+     * is not something this can refuse over - there is simply nothing to register helpers and
+     * partials on. Anything that then goes on to ask for a template says which package is missing.
+     * A consumer who passed their own `H` has said they intend to use templating, so that case is
+     * held to the installed package rather than skipped.
      */
     static async init(): Promise<void> {
         const options: HandlebarOptions = inject(ZIBRI_DI_TOKENS.HANDLEBAR_OPTIONS);
-        this.H = options.H ?? H;
+        if (options.H == undefined && !hasOptionalPeer('handlebars')) {
+            return;
+        }
+        this.H = options.H ?? optionalPeer<typeof Handlebars>('handlebars/runtime', 'Rendering a handlebars template');
         this.registerHelper('json', (context) => JsonUtilities.stringify(context));
         this.registerHelper('concat', (...args: unknown[]) => {
             args.pop();
@@ -43,21 +61,22 @@ export abstract class HandlebarUtilities {
         // eslint-disable-next-line typescript/no-unsafe-return
         this.registerHelper('??', (a, b) => a ?? b);
         this.registerHelper('and',
-            // args = [a, b, ..., options]
-            (...args) => {
-                // eslint-disable-next-line typescript/no-unsafe-assignment, jsdoc/require-jsdoc
-                const opts: { fn?: Function, inverse: Function, data: { root: unknown } } = args.pop();
+            // args = [a, b, ..., options]. A function rather than an arrow, because `this` is the context
+            // the block is used in - inside an each, the item - and the block renders against it
+            function(this: unknown, ...args: unknown[]) {
+                // eslint-disable-next-line jsdoc/require-jsdoc
+                const opts: { fn?: Function, inverse: Function } = args.pop() as { fn?: Function, inverse: Function };
                 if (opts.fn == undefined) {
                     return args.every(Boolean);
                 }
                 // eslint-disable-next-line typescript/no-unsafe-return, typescript/no-unsafe-call
-                return args.every(Boolean) ? opts.fn(opts.data.root) : opts.inverse(opts.data.root);
+                return args.every(Boolean) ? opts.fn(this) : opts.inverse(this);
             });
         this.registerHelper('mask', (value: unknown) => {
             if (typeof value !== 'string') {
                 return '';
             }
-            return new handlebars.SafeString(MaskUtilities.mask(value));
+            return new (this.compiler().SafeString)(MaskUtilities.mask(value));
         });
 
         const componentsDir: string = options.componentsDir
@@ -65,7 +84,8 @@ export abstract class HandlebarUtilities {
         const files: FsPath[] = await FsUtilities.glob(FsUtilities.getPath(componentsDir, '*.hbs'));
         for (const file of files) {
             const src: string = await FsUtilities.readFile(file);
-            const base: string = FsUtilities.baseName(file).split('.hbs')[0];
+            const fileName: string = FsUtilities.baseName(file);
+            const base: string = fileName.split('.hbs')[0] ?? fileName;
             const partialName: string = toCamelCase(base);
             this.registerPartial(partialName, src);
         }
@@ -78,8 +98,8 @@ export abstract class HandlebarUtilities {
      * @returns The compiled template function.
      */
     static render<T>(input: string, options?: CompileOptions): HandlebarsTemplateDelegate<T> {
-        if (typeof this.H.compile !== 'function') {
-            return handlebars.compile(input, options);
+        if (typeof this.H?.compile !== 'function') {
+            return this.compiler().compile(input, options);
         }
         return this.H.compile(input, options);
     }
@@ -117,43 +137,55 @@ export abstract class HandlebarUtilities {
      * @returns The abstract syntax tree of the template.
      */
     static parse(input: string, options?: ParseOptions): AstProgram {
-        return handlebars.parse(input, options) as AstProgram;
+        return this.compiler().parse(input, options) as AstProgram;
+    }
+
+    /**
+     * The runtime `init` settled on, which is either the consumer's own or handlebars'.
+     * @returns The runtime to register on.
+     * @throws If `init` has not run, or skipped because handlebars is not installed.
+     */
+    private static get runtime(): typeof Handlebars {
+        if (this.H == undefined) {
+            throw new InternalError('The handlebar utilities were used before the application initialized them.');
+        }
+        return this.H;
     }
 
     private static registerHelper(name: string, fn: Handlebars.HelperDelegate): void {
-        handlebars.registerHelper(name, fn);
-        this.H.registerHelper(name, fn);
+        this.compiler().registerHelper(name, fn);
+        this.runtime.registerHelper(name, fn);
     }
 
     private static registerPartial(name: string, template: string): void {
         let compiledFn: HandlebarsTemplateDelegate;
 
         // 1) If injected instance has a compiler, prefer it (keeps compile + runtime identical)
-        if (typeof this.H.compile === 'function') {
-            compiledFn = this.H.compile(template);
+        if (typeof this.runtime.compile === 'function') {
+            compiledFn = this.runtime.compile(template);
         }
         else {
             // 2) Injected runtime is probably runtime-only. Create a template function that runtime understands:
             //    a) precompile with local full compiler -> returns a JS string for the templateSpec
             //    b) evaluate that spec to an object and call this.H.template(spec) to get a function
-            if (typeof this.H.template !== 'function') {
+            if (typeof this.runtime.template !== 'function') {
                 // Unexpected: fallback to local compile (best-effort)
-                compiledFn = handlebars.compile(template);
+                compiledFn = this.compiler().compile(template);
             }
             else {
                 // Precompile to a template spec text
-                const specSource: TemplateSpecification = handlebars.precompile(template);
+                const specSource: TemplateSpecification = this.compiler().precompile(template);
                 // specSource is JS source that evaluates to the templateSpec object.
                 // Convert it into an object by evaluating it in a safe local function scope.
                 // This uses `new Function` which is the same approach Handlebars' CLI/runtime uses.
                 // eslint-disable-next-line typescript/no-unsafe-assignment, typescript/no-implied-eval, typescript/no-unsafe-call, typescript/no-base-to-string
                 const specObj: TemplateSpecification = new Function(`return (${specSource})`)();
                 // Now produce a runtime function using the injected runtime
-                compiledFn = this.H.template(specObj);
+                compiledFn = this.runtime.template(specObj);
             }
         }
 
-        handlebars.registerPartial(name, compiledFn);
-        this.H.registerPartial(name, compiledFn);
+        this.compiler().registerPartial(name, compiledFn);
+        this.runtime.registerPartial(name, compiledFn);
     }
 }

@@ -16,14 +16,35 @@ For collecting data the service provides a collect method:
 
 ```ts
 import { MetricsServiceInterface, inject, ZIBRI_DI_TOKENS } from 'zibri';
-// ...
-const metricsService: MetricsServiceInterface = inject(ZIBRI_DI_TOKENS.METRICS_SERVICE);
-await metricsService.collect();
-// ...
+
+export async function collectSnapshot(): Promise<void> {
+    const metricsService: MetricsServiceInterface = inject(ZIBRI_DI_TOKENS.METRICS_SERVICE);
+    await metricsService.collect();
+}
 ```
 
 You will however most likely use the provided `CollectMetricsCronJob` which collects a snapshot every 5 seconds.
 See [registering cron jobs](./cron.md#registering-the-cron-job).
+
+### What a snapshot contains
+
+Every counter, gauge and histogram the application registered, plus what the framework collects on
+its own:
+
+| Metric | Labels | Holds |
+|---|---|---|
+| `http_requests_total` | `method`, `route`, `status_code` | How many requests each route answered |
+| `http_request_duration_ms` | `method`, `route`, `status_code` | How long they took |
+| `network_bytes_received_total` | `interface` | Bytes that interface received |
+| `network_bytes_transmitted_total` | `interface` | Bytes that interface transmitted |
+
+`route` is the route template — `/invoices/:id` rather than the url that was asked for — so a path
+parameter stays out of the label. A request that matched no route is counted as `<unmatched>`, for
+the same reason.
+
+The two network counters are collected once per interface and labelled with its name, so a query
+names the interface it means. They are the counters of the machine the process runs on, which is
+what makes them a measure of the host rather than of the application.
 
 ### Exposing a basic dashboard
 By default, your project contains a `metrics.tsx` file that is used to display the data of the metrics service.

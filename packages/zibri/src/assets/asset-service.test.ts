@@ -22,6 +22,11 @@ describe('AssetService', () => {
     describe('buildFileTree', () => {
         it('should build a file tree for a given directory', async () => {
             const mockDirPath: FsPath = FsUtilities.getPath(__dirname, '..', '__testing__', 'mocks', 'tree');
+            // put back afterwards, because this is the same asset service the describe below boots an
+            // application around - the service is a singleton and the path is only writable here at
+            // all by casting the readonly away. Leaving the mock folder in place pointed that
+            // application's static middleware at it, so every asset it did serve was 404
+            const realPublicAssetsPath: FsPath = assetService.publicAssetsPath;
             (assetService.publicAssetsPath as unknown as FsPath) = mockDirPath;
             const expectedTree: TreeNode[] = [
                 // Mocked file tree structure
@@ -29,8 +34,13 @@ describe('AssetService', () => {
                 { name: 'subdir', type: 'directory', children: [{ name: 'file2.txt', type: 'file', route: '/assets/subdir/file2.txt' }] }
             ];
 
-            const fileTree: TreeNode[] = await assetService.buildFileTree();
-            expect(fileTree).toEqual(expectedTree);
+            try {
+                const fileTree: TreeNode[] = await assetService.buildFileTree();
+                expect(fileTree).toEqual(expectedTree);
+            }
+            finally {
+                (assetService.publicAssetsPath as unknown as FsPath) = realPublicAssetsPath;
+            }
         });
     });
 

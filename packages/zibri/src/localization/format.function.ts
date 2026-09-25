@@ -1,8 +1,8 @@
+import { AnyNumber } from '../data-source/models/where/number-where-filter.model';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { InternalError } from '../error-handling/internal-error.model';
 import { GlobalRegistry } from '../global/global-registry';
-import { BigNumber } from '../utilities/number.utilities';
 import { CurrencyCode } from './models/currency-code.model';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
@@ -67,7 +67,7 @@ export const $f = {
      * @returns The formatted string.
      * @throws When used while the app is still offline, as that would lead to always using the default locale.
      */
-    price(price: number | bigint | BigNumber, currency: CurrencyCode): string {
+    price(price: AnyNumber, currency: CurrencyCode): string {
         if (GlobalRegistry.isAppOffline()) {
             throw new FormatCalledWhileAppOfflineError('price');
         }

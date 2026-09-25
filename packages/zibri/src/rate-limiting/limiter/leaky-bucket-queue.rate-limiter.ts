@@ -3,7 +3,7 @@ import assert from 'node:assert';
 import { NumberUtilities } from '../../utilities/number.utilities';
 import { RateLimitResult } from '../rate-limit-result.model';
 import { BaseRateLimiter } from './base-rate-limiter.model';
-import { RateLimiterConfigInput } from './rate-limiter-config.model';
+import { RateLimiterConfigInput, RateLimitStoreFailurePolicy } from './rate-limiter-config.model';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { RateLimitReservationNotFoundError } from '../reservation/rate-limit-reservation-not-found.error';
 import { RateLimitReservationRejectionReason } from '../reservation/rate-limit-reservation-rejection-reason.enum';
@@ -62,13 +62,14 @@ export class LeakyBucketQueueRateLimiter extends BaseRateLimiter<LeakyBucketQueu
     private readonly serviceTimePerUnitMs: number;
 
     protected constructor(
-        private readonly maxRate: number, // number of units allowed per interval
+        maxRate: number, // number of units allowed per interval
         private readonly intervalInMs: number, // time window for maxRate
         private readonly maxQueueSize: number, // maximum number of units that can be queued
         config: RateLimiterConfigInput<LeakyBucketQueueState>
     ) {
         super({
             reservationGracePeriodMs: (waitMs) => Math.max(5000, waitMs),
+            onStoreFailure: RateLimitStoreFailurePolicy.REJECT,
             maxReservationCount: config.capacity,
             ...config
         });
@@ -101,7 +102,7 @@ export class LeakyBucketQueueRateLimiter extends BaseRateLimiter<LeakyBucketQueu
      * @returns The timestamp (ms since epoch) at which this key expires.
      */
     private queueExpiresAtMs(queue: readonly ScheduledItem[], now: number): number {
-        const latestFinish: number = queue.length ? queue[queue.length - 1].finishMs : now;
+        const latestFinish: number = queue.at(-1)?.finishMs ?? now;
         return Math.max(now + this.intervalInMs, latestFinish);
     }
 
@@ -270,8 +271,7 @@ export class LeakyBucketQueueRateLimiter extends BaseRateLimiter<LeakyBucketQueu
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    protected async doReserve(key: string, count: number): Promise<RateLimitReservationResult> {
+    protected override async doReserve(key: string, count: number): Promise<RateLimitReservationResult> {
         const id: string = UUIDUtilities.generate();
 
         try {
@@ -356,8 +356,7 @@ export class LeakyBucketQueueRateLimiter extends BaseRateLimiter<LeakyBucketQueu
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    async commitReservation(reservationInput: RateLimitReservation): Promise<void> {
+    override async commitReservation(reservationInput: RateLimitReservation): Promise<void> {
         await this.config.store.atomicUpdate(reservationInput.key, (current) => {
             if (!current) {
                 throw new RateLimitReservationNotFoundError(reservationInput.key, reservationInput.id);
@@ -378,8 +377,7 @@ export class LeakyBucketQueueRateLimiter extends BaseRateLimiter<LeakyBucketQueu
         this.recordReservationClosed();
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    async cancelReservation(reservationInput: RateLimitReservation): Promise<void> {
+    override async cancelReservation(reservationInput: RateLimitReservation): Promise<void> {
         await this.config.store.atomicUpdate(reservationInput.key, (current) => {
             if (!current) {
                 throw new RateLimitReservationNotFoundError(reservationInput.key, reservationInput.id);

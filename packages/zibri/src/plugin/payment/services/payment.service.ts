@@ -1,6 +1,6 @@
 import { PaymentServiceInterface } from './payment-service.interface';
 import { PaymentDataForMethod, ValidatedPaymentDataForMethod, PaymentForMethod, AllowedReservationMethods, PaymentReservationForMethod, AllowedCancellationMethods, AllowedRefundMethods } from './payment-service.types';
-import { Repository } from '../../../data-source/repository';
+import { Repository } from '../../../data-source/repository/repository';
 import { InjectRepository } from '../../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../../di/decorators/inject.decorator';
 import { Injectable } from '../../../di/decorators/injectable.decorator';
@@ -85,7 +85,7 @@ export class PaymentService<
     ): Promise<void> {
         if (payment.status === PaymentStatus.RESERVED) {
             // already reserved, a warning is enough here as this is probably just a timing problem.
-            await this.logger.warn(
+            this.logger.warn(
                 `Tried to confirm a payment reservation (transactionId: ${payment.transactionId}) that has already been reserved`
             );
             return undefined;
@@ -101,7 +101,7 @@ export class PaymentService<
     async confirmPayment<M extends Methods[number]>(payment: PaymentForMethod<Methods, M, P>): Promise<void> {
         if (payment.status === PaymentStatus.PAID) {
             // already confirmed, a warning is enough here as this is probably just a timing problem.
-            await this.logger.warn(`Tried to confirm a payment (transactionId: ${payment.transactionId}) that has already been confirmed`);
+            this.logger.warn(`Tried to confirm a payment (transactionId: ${payment.transactionId}) that has already been confirmed`);
             return undefined;
         }
         if (payment.status !== PaymentStatus.CREATED) {
@@ -117,7 +117,7 @@ export class PaymentService<
     ): Promise<void> {
         if (payment.status === PaymentStatus.PAID) {
             // already confirmed, a warning is enough here as this is probably just a timing problem.
-            await this.logger.warn(`Tried to collect a payment (transactionId: ${payment.transactionId}) that has already been collected`);
+            this.logger.warn(`Tried to collect a payment (transactionId: ${payment.transactionId}) that has already been collected`);
             return undefined;
         }
         if (payment.status !== PaymentStatus.RESERVED) {
@@ -133,7 +133,7 @@ export class PaymentService<
     ): Promise<void> {
         if (payment.status === PaymentStatus.CANCELLED) {
             // already cancelled, a warning is enough here as this is probably just a timing problem.
-            await this.logger.warn(`Tried to collect a payment (transactionId: ${payment.transactionId}) that has already been collected`);
+            this.logger.warn(`Tried to collect a payment (transactionId: ${payment.transactionId}) that has already been collected`);
             return undefined;
         }
         if (payment.status !== PaymentStatus.CREATED && payment.status !== PaymentStatus.RESERVED) {
@@ -147,7 +147,7 @@ export class PaymentService<
     async refundPayment<M extends AllowedRefundMethods<Methods, P>>(payment: PaymentForMethod<Methods, M, P>): Promise<void> {
         if (payment.status === PaymentStatus.REFUNDED) {
             // already refunded, a warning is enough here as this is probably just a timing problem.
-            await this.logger.warn(`Tried to refund a payment (transactionId: ${payment.transactionId}) that has already been refunded`);
+            this.logger.warn(`Tried to refund a payment (transactionId: ${payment.transactionId}) that has already been refunded`);
             return undefined;
         }
         if (payment.status !== PaymentStatus.PAID) {

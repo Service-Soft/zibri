@@ -12,7 +12,10 @@ export class CollectMetricsCronJob extends CronJob {
     initialConfig: InitialCronConfig = {
         name: 'Collect Metrics',
         cron: CronExpression.every(5, 'seconds').build(),
-        runOnInit: false
+        runOnInit: false,
+        // every instance has its own registry and its own host, so this has to run on all of them.
+        // Electing one would silently leave every other instance uncollected.
+        distributed: false
     };
 
     constructor(
@@ -24,7 +27,7 @@ export class CollectMetricsCronJob extends CronJob {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async onTick(): Promise<void> {
-        await this.logger.debug('collects metrics');
+        this.logger.debug('collects metrics');
         await this.metricsService.collect();
     }
 }

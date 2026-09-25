@@ -3,12 +3,12 @@ import { describe, expect, it, jest } from '@jest/globals';
 import { LogCleanupCronJob } from './log-cleanup.cron-job';
 import { Log } from './log.model';
 import { LoggerInterface } from './logger.interface';
-import { Repository } from '../data-source/repository';
+import { Repository } from '../data-source/repository/repository';
 
-function fakeLogRepository(): Repository<Log> & { deleteAll: jest.Mock<() => Promise<void>> } {
+function fakeLogRepository(): Repository<Log> & { deleteAll: jest.Mock<(options: unknown) => Promise<void>> } {
     return {
-        deleteAll: jest.fn<() => Promise<void>>().mockResolvedValue(undefined)
-    } as unknown as Repository<Log> & { deleteAll: jest.Mock<() => Promise<void>> };
+        deleteAll: jest.fn<(options: unknown) => Promise<void>>().mockResolvedValue(undefined)
+    } as unknown as Repository<Log> & { deleteAll: jest.Mock<(options: unknown) => Promise<void>> };
 }
 
 function fakeLogger(): LoggerInterface {
@@ -23,7 +23,7 @@ function fakeLogger(): LoggerInterface {
 
 describe('LogCleanupCronJob', () => {
     it('deletes all logs whose cleanupAt has passed', async () => {
-        const repo: Repository<Log> & { deleteAll: jest.Mock<() => Promise<void>> } = fakeLogRepository();
+        const repo: Repository<Log> & { deleteAll: jest.Mock<(options: unknown) => Promise<void>> } = fakeLogRepository();
         const cronJob: LogCleanupCronJob = new LogCleanupCronJob(repo);
         (cronJob as unknown as { logger: LoggerInterface }).logger = fakeLogger();
 
@@ -32,13 +32,13 @@ describe('LogCleanupCronJob', () => {
         const after: Date = new Date();
 
         expect(repo.deleteAll).toHaveBeenCalledTimes(1);
-        const where: { cleanupAt: { before: Date } } = repo.deleteAll.mock.calls[0][0] as unknown as { cleanupAt: { before: Date } };
+        const where: { cleanupAt: { before: Date } } = repo.deleteAll.mock.calls[0]?.[0] as { cleanupAt: { before: Date } };
         expect(where.cleanupAt.before.getTime()).toBeGreaterThanOrEqual(before.getTime());
         expect(where.cleanupAt.before.getTime()).toBeLessThanOrEqual(after.getTime());
     });
 
     it('logs an info message on each tick', async () => {
-        const repo: Repository<Log> & { deleteAll: jest.Mock<() => Promise<void>> } = fakeLogRepository();
+        const repo: Repository<Log> & { deleteAll: jest.Mock<(options: unknown) => Promise<void>> } = fakeLogRepository();
         const cronJob: LogCleanupCronJob = new LogCleanupCronJob(repo);
         const logger: LoggerInterface = fakeLogger();
         (cronJob as unknown as { logger: LoggerInterface }).logger = logger;

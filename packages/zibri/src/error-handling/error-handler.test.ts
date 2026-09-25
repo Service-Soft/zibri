@@ -1,3 +1,5 @@
+import assert from 'node:assert';
+
 import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from '@jest/globals';
 
 import { NotFoundError } from './errors/not-found.error';
@@ -7,6 +9,7 @@ import { StartedTestServer, startTestServer } from '../__testing__/test-server/s
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { KnownHeader } from '../http/known-header.enum';
+import { MimeType } from '../http/mime-type.enum';
 import { $ts } from '../localization/translate.function';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { FailedRateLimitResult } from '../rate-limiting/rate-limit-result.model';
@@ -94,7 +97,7 @@ describe('errorHandler', () => {
         expect(criticalSpy).toHaveBeenCalled();
     });
 
-    it('logs via logger.error for internal (non-external) errors', async () => {
+    it('logs the error that was actually thrown, not a wrapper around it', async () => {
         const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
         // eslint-disable-next-line typescript/typedef
         const errorSpy = jest.spyOn(logger, 'error');
@@ -102,16 +105,31 @@ describe('errorHandler', () => {
         await fetch(`${baseUrl}/error-cases/internal`);
 
         expect(errorSpy).toHaveBeenCalled();
+
+        // the message and the stack are the two fields an aggregator groups on. Handing it a
+        // GlobalError made every 5xx in the application identical, and blanking that wrapper's stack
+        // left nothing to fingerprint either
+        const [firstCall] = errorSpy.mock.calls;
+        assert(firstCall, 'the error was never logged');
+        const logged: Error = firstCall[0];
+        expect(logged.name).not.toBe('GlobalError');
+        expect(logged.stack).toBeTruthy();
     });
 
-    it('does not log via logger.error for external (http) errors', async () => {
+    it('does not raise the error level for an external (http) error', async () => {
         const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
         // eslint-disable-next-line typescript/typedef
         const errorSpy = jest.spyOn(logger, 'error');
+        // eslint-disable-next-line typescript/typedef
+        const warnSpy = jest.spyOn(logger, 'warn');
 
         await fetch(`${baseUrl}/error-cases/not-found`);
 
+        // a client error is not a defect. The security relevant ones reach the record through the
+        // audit trail, which carries a reason a detection rule can key on; a 404 for a missing icon
+        // belongs in an access log and on neither of these levels
         expect(errorSpy).not.toHaveBeenCalled();
+        expect(warnSpy).not.toHaveBeenCalled();
     });
 
     it('sets rate-limit headers when the error is a TooManyRequestsError with a rateLimitResult', async () => {
@@ -126,6 +144,35 @@ describe('errorHandler', () => {
     it('does not set rate-limit headers for a normal error', async () => {
         const res: Response = await fetch(`${baseUrl}/error-cases/not-found`);
         expect(res.headers.get(KnownHeader.X_RATE_LIMIT_LIMIT)).toBeNull();
+    });
+
+    it('answers with an xml document when the client prefers xml', async () => {
+        const res: Response = await fetch(`${baseUrl}/error-cases/not-found`, {
+            headers: { Accept: `${MimeType.XML}, ${MimeType.JSON};q=0.5` }
+        });
+        expect(res.status).toBe(404);
+        expect(res.headers.get(KnownHeader.CONTENT_TYPE)).toContain(MimeType.XML);
+        expect(res.headers.get(KnownHeader.VARY)?.toLowerCase()).toContain('accept');
+
+        const xml: string = await res.text();
+        expect(xml).toMatch(/^<\?xml version="1.0" encoding="UTF-8"\?><Error>/);
+        expect(xml).toContain('<status>404</status>');
+        expect(xml).toContain('<name>NotFoundError</name>');
+        expect(xml).toContain('<paragraph>nothing here</paragraph>');
+    });
+
+    it('answers with json when the client accepts anything', async () => {
+        const res: Response = await fetch(`${baseUrl}/error-cases/not-found`, {
+            headers: { Accept: '*/*' }
+        });
+        expect(res.headers.get(KnownHeader.CONTENT_TYPE)).toContain(MimeType.JSON);
+    });
+
+    it('answers with the format the client names first among those it weighs equally', async () => {
+        const res: Response = await fetch(`${baseUrl}/error-cases/not-found`, {
+            headers: { Accept: `${MimeType.XML}, ${MimeType.JSON}` }
+        });
+        expect(res.headers.get(KnownHeader.CONTENT_TYPE)).toContain(MimeType.XML);
     });
 
     it('falls back to JSON when the client accepts html but no error page template is configured', async () => {

@@ -1,10 +1,12 @@
 import { PaymentProviderInterface } from '../payment-provider.interface';
 import { AuthorizationCaptureResp, CaptureOrderResp, GetOrderResp, PayPalCapture, PayPalClient, RefundCaptureResp } from './pay-pal-client';
-import { Repository } from '../../../../data-source/repository';
+import { Repository } from '../../../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../../../di/decorators/inject-repository.decorator';
 import { inject } from '../../../../di/inject.function';
+import { Property } from '../../../../entity/decorators/property.decorator';
 import { InternalError } from '../../../../error-handling/internal-error.model';
-import { CurrencyCode } from '../../../../localization/models/currency-code.model';
+import { currencyCodeEnum, type CurrencyCode } from '../../../../localization/models/currency-code.model';
+import { errorToLoggedError } from '../../../../logging/error-to-logged-error.function';
 import { KnownPaymentMethod } from '../../models/payment-method.model';
 import { PaymentStatus } from '../../models/payment-status.enum';
 import { Payment } from '../../models/payment.model';
@@ -22,28 +24,36 @@ type SupportedMethods = [KnownPaymentMethod.PAY_PAL];
 /**
  * The data for creating a new payment.
  */
-export type PayPalPaymentData = {
+export class PayPalPaymentData {
     /**
      * The amount of the payment.
+     *
+     * `min` is inclusive, so this rejects negatives and lets a zero through. `validatePaymentData`
+     * is what refuses that one - the real bound is above zero, and metadata cannot say so.
      */
-    amount: number,
+    @Property.number({ min: 0 })
+    amount!: number;
     /**
      * The currency of the payment.
      */
-    currencyCode: CurrencyCode,
+    @Property.string({ enum: currencyCodeEnum })
+    currencyCode!: CurrencyCode;
     /**
      * The url to return to to confirm the payment.
      */
-    returnUrl?: string,
+    @Property.string({ required: false })
+    returnUrl?: string;
     /**
      * The url to return to to cancel the payment.
      */
-    cancelUrl?: string,
+    @Property.string({ required: false })
+    cancelUrl?: string;
     /**
      * The transactionId, used to prevent duplicate payments.
      */
-    transactionId: string
-};
+    @Property.string()
+    transactionId!: string;
+}
 
 /**
  * The validated payment data.
@@ -340,7 +350,7 @@ export class PayPalPaymentProvider implements PaymentProviderInterface<
         }
         catch (error: unknown) {
             payment.status = PaymentStatus.FAILED;
-            payment.error = error instanceof Error ? error : new Error(String(error));
+            payment.error = errorToLoggedError(error instanceof Error ? error : new Error(String(error)));
         }
 
         await this.getPaymentRepository().updateById(payment.id, payment);
@@ -367,13 +377,13 @@ export class PayPalPaymentProvider implements PaymentProviderInterface<
             }
             else {
                 payment.status = PaymentStatus.FAILED;
-                payment.error = new Error(`capture failed, status=${String(captureStatus)}`);
+                payment.error = errorToLoggedError(new Error(`capture failed, status=${String(captureStatus)}`));
                 payment.data = { ...payment.data, captureId: capture?.id };
             }
         }
         catch (error) {
             payment.status = PaymentStatus.FAILED;
-            payment.error = error instanceof Error ? error : new Error(String(error));
+            payment.error = errorToLoggedError(error instanceof Error ? error : new Error(String(error)));
         }
 
         await this.getPaymentRepository<M, ProviderPaymentDataMap[M]>().updateById(payment.id, payment);
@@ -418,7 +428,7 @@ export class PayPalPaymentProvider implements PaymentProviderInterface<
             }
             else {
                 payment.status = PaymentStatus.FAILED;
-                payment.error = new Error(`authorization capture failed, status=${String(captureResp.status)}`);
+                payment.error = errorToLoggedError(new Error(`authorization capture failed, status=${String(captureResp.status)}`));
                 payment.data = {
                     ...payment.data,
                     captureId: captureResp.id
@@ -427,7 +437,7 @@ export class PayPalPaymentProvider implements PaymentProviderInterface<
         }
         catch (error: unknown) {
             payment.status = PaymentStatus.FAILED;
-            payment.error = error instanceof Error ? error : new Error(String(error));
+            payment.error = errorToLoggedError(error instanceof Error ? error : new Error(String(error)));
         }
 
         await this.getPaymentRepository().updateById(payment.id, payment);
@@ -446,7 +456,7 @@ export class PayPalPaymentProvider implements PaymentProviderInterface<
             }
             catch (error: unknown) {
                 payment.status = PaymentStatus.FAILED;
-                payment.error = error instanceof Error ? error : new Error(String(error));
+                payment.error = errorToLoggedError(error instanceof Error ? error : new Error(String(error)));
             }
 
             await this.getPaymentRepository<M, ProviderReservationPaymentDataMap[M]>().updateById(payment.id, payment);
@@ -495,13 +505,13 @@ export class PayPalPaymentProvider implements PaymentProviderInterface<
             }
             else {
                 payment.status = PaymentStatus.FAILED;
-                payment.error = new Error(`refund failed, status=${String(resp.status)}`);
+                payment.error = errorToLoggedError(new Error(`refund failed, status=${String(resp.status)}`));
                 payment.data = { ...payment.data, refundId: resp.id };
             }
         }
         catch (error: unknown) {
             payment.status = PaymentStatus.FAILED;
-            payment.error = error instanceof Error ? error : new Error(String(error));
+            payment.error = errorToLoggedError(error instanceof Error ? error : new Error(String(error)));
         }
 
         await this.getPaymentRepository().updateById(payment.id, payment);

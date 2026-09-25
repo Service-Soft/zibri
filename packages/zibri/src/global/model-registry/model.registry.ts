@@ -2,6 +2,8 @@ import { DefaultDescriptor } from './default-descriptor';
 import { EncryptionDescriptor } from './encryption-descriptor';
 import { ExcludeDescriptor } from './exclude-descriptor';
 import { HashDescriptor } from './hash-descriptor';
+import { KeyDescriptor } from './key-descriptor';
+import { OptimisticLockDescriptor } from './optimistic-lock-descriptor';
 import { Newable } from '../../types/newable.type';
 
 /**
@@ -23,7 +25,15 @@ export type ModelRegistryData<T> = {
     /**
      * Pre-built default descriptor for this class.
      */
-    readonly defaultDescriptor: DefaultDescriptor
+    readonly defaultDescriptor: DefaultDescriptor,
+    /**
+     * Pre-built unique and index groups for this class.
+     */
+    readonly keyDescriptor: KeyDescriptor,
+    /**
+     * Pre-built set of properties this class refuses to have written blindly.
+     */
+    readonly optimisticLockDescriptor: OptimisticLockDescriptor
 };
 
 /**
@@ -37,6 +47,16 @@ export abstract class ModelRegistry {
      * Placeholder instances are mutated in place to keep cross-references valid.
      */
     private static readonly cache: Map<Newable<unknown>, ModelRegistryData<unknown>> = new Map();
+
+    /**
+     * The classes built by the get() currently in progress, kept until it settles them.
+     */
+    private static readonly building: Map<Newable<unknown>, ModelRegistryData<unknown>> = new Map();
+
+    /**
+     * How many builds are currently on the stack. Zero means the outermost one just finished.
+     */
+    private static buildDepth: number = 0;
 
     /**
      * Returns the cached model data for the given class, building it if necessary.
@@ -62,18 +82,82 @@ export abstract class ModelRegistry {
                 excludeDescriptor: new ExcludeDescriptor<T>(),
                 encryptionDescriptor: new EncryptionDescriptor<T>(),
                 hashDescriptor: new HashDescriptor(),
-                defaultDescriptor: new DefaultDescriptor()
+                defaultDescriptor: new DefaultDescriptor(),
+                keyDescriptor: new KeyDescriptor(),
+                optimisticLockDescriptor: new OptimisticLockDescriptor()
             };
             this.cache.set(entityClass, modelRegistryData);
         }
+        this.building.set(entityClass, modelRegistryData);
 
-        // Resolve inherited properties first, so descriptors see the full picture
-        // modelRegistryData.properties = ;
+        this.buildDepth++;
+        try {
+            this.updateDescriptors(entityClass, modelRegistryData);
+        }
+        finally {
+            this.buildDepth--;
+        }
+
+        if (this.buildDepth === 0) {
+            this.settle();
+        }
+
+        return modelRegistryData;
+    }
+
+    /**
+     * Runs every descriptor of one class against what that class declares.
+     * @param entityClass - The class to read the declarations from.
+     * @param modelRegistryData - The data to update in place.
+     */
+    private static updateDescriptors<T>(entityClass: Newable<T>, modelRegistryData: ModelRegistryData<unknown>): void {
         modelRegistryData.encryptionDescriptor.update(entityClass);
         modelRegistryData.hashDescriptor.update(entityClass);
         modelRegistryData.excludeDescriptor.update(entityClass);
         modelRegistryData.defaultDescriptor.update(entityClass);
+        modelRegistryData.keyDescriptor.update(entityClass);
+        modelRegistryData.optimisticLockDescriptor.update(entityClass);
+    }
 
-        return modelRegistryData;
+    /**
+     * Re-runs everything the finished build touched until the descriptors stop changing.
+     *
+     * A nested descriptor is registered once the descriptor it points at has something in it, and in
+     * a relation cycle that is not yet true when the edge is first looked at - whichever class is
+     * asked for first is resolved against placeholders of the others. Registering only ever adds, so
+     * repeating until nothing moves reaches the same result no matter which class that was.
+     */
+    private static settle(): void {
+        const built: [Newable<unknown>, ModelRegistryData<unknown>][] = [...this.building];
+        this.building.clear();
+
+        let previous: number = -1;
+        let current: number = this.nestedKeyCount(built);
+        while (current !== previous) {
+            previous = current;
+            for (const [entityClass, modelRegistryData] of built) {
+                this.updateDescriptors(entityClass, modelRegistryData);
+            }
+            current = this.nestedKeyCount(built);
+        }
+    }
+
+    /**
+     * How many nested descriptors are registered across the given data.
+     *
+     * The number a settle pass is measured by: keys come straight from the metadata and cannot
+     * change between passes, so this is the only thing that can still move.
+     * @param built - The data to count over.
+     * @returns The total number of registered nested keys.
+     */
+    private static nestedKeyCount(built: [Newable<unknown>, ModelRegistryData<unknown>][]): number {
+        let res: number = 0;
+        for (const [, modelRegistryData] of built) {
+            res += modelRegistryData.encryptionDescriptor.nestedCount()
+                + modelRegistryData.hashDescriptor.nestedCount()
+                + modelRegistryData.excludeDescriptor.nestedCount()
+                + modelRegistryData.defaultDescriptor.nestedCount();
+        }
+        return res;
     }
 }

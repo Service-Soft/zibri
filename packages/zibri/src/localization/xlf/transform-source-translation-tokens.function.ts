@@ -1,7 +1,18 @@
-import ts from 'typescript';
+import type ts from 'typescript';
 
 import { FsPath, FsUtilities, GlobPattern } from '../../utilities/fs.utilities';
+import { optionalPeer } from '../../utilities/optional-peer.function';
 import { LocaleCode } from '../models/locale-code.model';
+
+/**
+ * TypeScript's own module, as loaded at runtime.
+ *
+ * Only the types are imported at the top of this file. Extraction is a build step - it runs from a
+ * webpack config - and a value import here would be resolved by every consumer the barrel reaches,
+ * which a production image that pruned its devDependencies cannot do, and followed by every bundler,
+ * which ships the whole compiler inside the application.
+ */
+type TypeScriptModule = typeof ts;
 
 /**
  * Definition of a translation string extracted by the build step.
@@ -97,6 +108,9 @@ export type SourceTranslationOrigin = {
 export async function transformSourceTranslationOriginTokens(
     origins: SourceTranslationOrigin[]
 ): Promise<Record<string, TransformResult>> {
+    // asked for before anything is read, so a missing compiler is named up front rather than only
+    // once some origin turns out to have a file in it
+    const typescript: TypeScriptModule = optionalPeer<TypeScriptModule>('typescript', 'Extracting source translations');
     const res: Record<string, TransformResult> = {};
 
     await Promise.all(origins.map(async origin => {
@@ -104,11 +118,11 @@ export async function transformSourceTranslationOriginTokens(
         await Promise.all(files.map(async file => {
             const fileContent: string = await FsUtilities.readFile(file);
             // const displayFilename: FsPath = FsUtilities.getPath('node_modules/zibri/src', file);
-            const transformResult: TransformResult = transformSourceTranslationTokensInternal(fileContent, {
+            const transformResult: TransformResult = transformSourceTranslationTokensInternal(typescript, fileContent, {
                 filename: file,
                 displayFilename: FsUtilities.relative(process.cwd() as FsPath, file), // TODO: fix
                 sourceLocale: origin.originLocale,
-                scriptKind: file.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+                scriptKind: file.endsWith('.tsx') ? typescript.ScriptKind.TSX : typescript.ScriptKind.TS,
                 origin: origin.origin
             });
 
@@ -120,21 +134,25 @@ export async function transformSourceTranslationOriginTokens(
 }
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-function transformSourceTranslationTokensInternal(sourceCode: string, options: TransformOptions): TransformResult {
+function transformSourceTranslationTokensInternal(
+    typescript: TypeScriptModule,
+    sourceCode: string,
+    options: TransformOptions
+): TransformResult {
     const extracted: ExtractedTranslationString[] = [];
 
-    const sourceFile: ts.SourceFile = ts.createSourceFile(
+    const sourceFile: ts.SourceFile = typescript.createSourceFile(
         options.filename,
         sourceCode,
-        ts.ScriptTarget.Latest,
+        typescript.ScriptTarget.Latest,
         true,
         options.scriptKind
     );
 
     const transformer: ts.TransformerFactory<ts.SourceFile> = (context) => (root) => {
         const visit: (node: ts.Node) => ts.Node = (node: ts.Node): ts.Node => {
-            if (ts.isTaggedTemplateExpression(node) && isTargetTag(node.tag)) {
-                const { transformed, source } = rewriteTemplate(node, context.factory, sourceCode);
+            if (typescript.isTaggedTemplateExpression(node) && isTargetTag(typescript, node.tag)) {
+                const { transformed, source } = rewriteTemplate(typescript, node, context.factory, sourceCode);
                 const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
                 extracted.push({
                     source,
@@ -146,32 +164,34 @@ function transformSourceTranslationTokensInternal(sourceCode: string, options: T
                 });
                 return transformed;
             }
-            return ts.visitEachChild(node, visit, context);
+            return typescript.visitEachChild(node, visit, context);
         };
-        return ts.visitNode(root, visit) as ts.SourceFile;
+        return typescript.visitNode(root, visit) as ts.SourceFile;
     };
 
-    const { transformed: [out] } = ts.transform(sourceFile, [transformer]);
-    const code: string = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed }).printFile(out);
+    // one file in, one file out
+    const { transformed: [out = sourceFile] } = typescript.transform(sourceFile, [transformer]);
+    const code: string = typescript.createPrinter({ newLine: typescript.NewLineKind.LineFeed }).printFile(out);
     return { code, extracted };
 }
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-function isTargetTag(node: ts.Expression): boolean {
-    return ts.isIdentifier(node) && (node.text === '$t' || node.text === '$ts');
+function isTargetTag(typescript: TypeScriptModule, node: ts.Expression): boolean {
+    return typescript.isIdentifier(node) && (node.text === '$t' || node.text === '$ts');
 }
 
 /**
  * Gets the member key for the given node.
+ * @param typescript - TypeScript's module.
  * @param node - The node to build the key for.
  * @returns The member access chain string if possible, or undefined for anything too complex.
  */
-function getMemberKey(node: ts.Expression): string | undefined {
-    if (ts.isIdentifier(node)) {
+function getMemberKey(typescript: TypeScriptModule, node: ts.Expression): string | undefined {
+    if (typescript.isIdentifier(node)) {
         return node.text;
     }
-    if (ts.isPropertyAccessExpression(node)) {
-        const left: string | undefined = getMemberKey(node.expression);
+    if (typescript.isPropertyAccessExpression(node)) {
+        const left: string | undefined = getMemberKey(typescript, node.expression);
         return left != undefined ? `${left}.${node.name.text}` : undefined;
     }
     return undefined;
@@ -179,6 +199,7 @@ function getMemberKey(node: ts.Expression): string | undefined {
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 function rewriteTemplate(
+    typescript: TypeScriptModule,
     node: ts.TaggedTemplateExpression,
     factory: ts.NodeFactory,
     sourceCode: string
@@ -186,7 +207,7 @@ function rewriteTemplate(
 ): { transformed: ts.TaggedTemplateExpression, source: string } {
     const template: ts.TemplateLiteral = node.template;
 
-    if (ts.isNoSubstitutionTemplateLiteral(template)) {
+    if (typescript.isNoSubstitutionTemplateLiteral(template)) {
         return { transformed: node, source: escapeBraces(template.text) };
     }
 
@@ -197,16 +218,18 @@ function rewriteTemplate(
         let key: string;
         let newExpr: ts.Expression;
 
-        if (ts.isObjectLiteralExpression(expr)) {
+        if (typescript.isObjectLiteralExpression(expr)) {
             // Already manually wrapped: ${{ "my.key": value }} — leave it alone
-            const prop: ts.ObjectLiteralElementLike = expr.properties[0];
-            key = ts.isPropertyAssignment(prop) && (ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name))
+            const prop: ts.ObjectLiteralElementLike | undefined = expr.properties[0];
+            key = prop != undefined
+                && typescript.isPropertyAssignment(prop)
+                && (typescript.isIdentifier(prop.name) || typescript.isStringLiteral(prop.name))
                 ? prop.name.text
                 : '_';
             newExpr = expr;
         }
         else {
-            key = getMemberKey(expr)
+            key = getMemberKey(typescript, expr)
                 ?? getExpressionSourceText(sourceCode, expr)
                 ?? `$${index + 1}`;
             newExpr = factory.createObjectLiteralExpression([factory.createPropertyAssignment(factory.createStringLiteral(key), expr)]);

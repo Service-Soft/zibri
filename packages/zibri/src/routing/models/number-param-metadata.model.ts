@@ -7,7 +7,7 @@ import { OmitStrict } from '../../types/omit-strict.type';
  */
 export type NumberParamMetadata = BaseParamMetadata & OmitStrict<
     NumberPropertyMetadata,
-    'primary' | 'default' | 'exclude' | 'excludeFromChangeSets'
+    'primary' | 'default' | 'exclude' | 'excludeFromChangeSets' | 'index' | 'optimisticLocking'
 >;
 
 /**

@@ -9,9 +9,17 @@
             "types": "./dist/index.d.ts",
             "default": "./dist/index.js"
         },
+        "./compiler": {
+            "types": "./dist/compiler.d.ts",
+            "default": "./dist/compiler.js"
+        },
         "./webpack": {
             "types": "./dist/webpack/index.d.ts",
             "default": "./dist/webpack/index.js"
+        },
+        "./jest": {
+            "types": "./dist/jest/index.d.ts",
+            "default": "./dist/jest/index.js"
         },
         "./email": {
             "types": "./dist/email/index.d.ts",
@@ -33,7 +41,7 @@
         "./LICENSE"
     ],
     "engines": {
-        "node": ">=22"
+        "node": ">=24"
     },
     "keywords": [
         "zibri",
@@ -43,13 +51,17 @@
     "author": "Tim Fabian",
     "description": "Hand-written TSX compiler for Zibri page templates.",
     "scripts": {
-        "build": "tsc -p tsconfig.build.json",
+        "build": "npm run build:clean && tsc -p tsconfig.build.json",
+        "build:clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
         "typecheck": "tsc -p tsconfig.json --noEmit",
         "lint": "eslint . --max-warnings=0",
         "lint:fix": "eslint . --max-warnings=0 --fix",
         "prepublishOnly": "npm run build",
         "test": "jest",
         "test:coverage": "jest --coverage"
+    },
+    "peerDependencies": {
+        "typescript": "^5.9.2"
     },
     "devDependencies": {
         "@jest/globals": "^30.4.1",

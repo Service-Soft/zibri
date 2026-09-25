@@ -10,7 +10,7 @@ import { HttpResponse } from '../http/http-response.model';
 import { WebsocketRequest } from '../websocket/models/websocket-request.model';
 
 function createHttpContext(): HttpRequestContext {
-    return new HttpRequestContext({} as HttpRequest, {} as HttpResponse, undefined, undefined);
+    return new HttpRequestContext({} as HttpRequest, {} as HttpResponse);
 }
 
 function createWebsocketContext(): WebsocketRequestContext {

@@ -3,6 +3,7 @@ import { ThreadJobStatus } from './thread-job-status.enum';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
+import { LoggedError } from '../../logging/logged-error.model';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { type Percentage } from '../../types/percentage.type';
 import { ThreadJob } from '../services/thread-job';
@@ -59,9 +60,15 @@ export class ThreadJobEntity<WorkerData extends BaseThreadJobWorkerData | BaseFu
     @Property.number()
     timeout!: number;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    /**
+     * What the job failed with.
+     *
+     * A `LoggedError` rather than an `Error`: an `Error` keeps its message, stack and cause on
+     * non-enumerable fields, so a column storing one keeps `{}` - the row would say a job failed
+     * and nothing whatever about what.
+     */
     @Property.unknown({ required: false })
-    error?: Error | null;
+    error?: LoggedError | null;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     @Property.unknown()

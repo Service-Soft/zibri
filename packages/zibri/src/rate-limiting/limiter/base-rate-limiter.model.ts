@@ -3,7 +3,7 @@ import assert from 'node:assert';
 
 import { exhaustMap, filter, firstValueFrom, from, interval, Observable, take, throwError, timeout } from 'rxjs';
 
-import { RateLimiterConfig } from './rate-limiter-config.model';
+import { RateLimiterConfig, RateLimitStoreFailurePolicy } from './rate-limiter-config.model';
 import { RateLimiterInterface } from './rate-limiter.interface';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
@@ -13,8 +13,9 @@ import { OnAppInit } from '../../global/on-app-init.interface';
 import { $ts } from '../../localization/translate.function';
 import { type MetricsServiceInterface } from '../../metrics/metrics-service.interface';
 import { NumberUtilities } from '../../utilities/number.utilities';
-import { TimeoutError } from '../../utilities/promise.utilities';
+import { PromiseUtilities, TimeoutError } from '../../utilities/promise.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { RateLimitKeys } from '../rate-limit-keys';
 import { RateLimitResult } from '../rate-limit-result.model';
 import { RateLimitWrapOptions, RateLimitWrapResult } from '../rate-limit-wrap-options.model';
 import { RateLimiterMetrics } from '../rate-limiter-metrics.model';
@@ -23,6 +24,7 @@ import { RateLimitReservationRejectionReason } from '../reservation/rate-limit-r
 import { RateLimitReservationResult } from '../reservation/rate-limit-reservation-result.model';
 import { RateLimitReservationError } from '../reservation/rate-limit-reservation.error';
 import { RateLimitReservation } from '../reservation/rate-limit-reservation.model';
+import { RateLimitStoreUnavailableError } from '../stores/rate-limit-store-unavailable.error';
 import { BaseRateLimitState } from '../stores/rate-limiter-store.interface';
 
 const defaultKey: string = 'global';
@@ -314,7 +316,7 @@ export abstract class BaseRateLimiter<TState extends BaseRateLimitState> impleme
         options?: TOptions
     ): (...args: TArgs) => RateLimitWrapResult<V, TOptions> {
         return (async (...args) => {
-            const key: string = options?.keyFn ? await options.keyFn(...args) : defaultKey;
+            const key: string = await this.resolveKey(options, args);
             const count: number = options?.countFn ? await options.countFn(...args) : 1;
 
             if (count === 0) {
@@ -342,6 +344,11 @@ export abstract class BaseRateLimiter<TState extends BaseRateLimitState> impleme
                     limiter: this.config.name,
                     operation: 'consume'
                 });
+                // a limiter that cannot reach its store knows nothing about this caller, so it can
+                // neither say yes nor say no. Which way to be wrong is the app's call, not this one's
+                if (error instanceof RateLimitStoreUnavailableError && this.config.onStoreFailure === RateLimitStoreFailurePolicy.ALLOW) {
+                    return await fn(...args);
+                }
                 throw error;
             }
 
@@ -488,54 +495,93 @@ export abstract class BaseRateLimiter<TState extends BaseRateLimitState> impleme
      * Must be called by a reservation's `commit()`/`cancel()` closures
      * (exactly once each), and by TTL-based auto-expiry, whenever an open
      * reservation is resolved.
+     * @param count - How many reservations were resolved, for callers that resolve several at once.
      */
-    protected recordReservationClosed(): void {
-        this.metrics.activeReservations.decrease({ limiter: this.config.name });
+    protected recordReservationClosed(count: number = 1): void {
+        this.metrics.activeReservations.decrease({ limiter: this.config.name }, count);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    /**
+     * Drops what expired and gives back the capacity that abandoned reservations are still holding.
+     *
+     * Asks the store for the two things it needs rather than walking every key: everything expired
+     * goes in one operation, and only the keys actually holding an expired reservation are updated.
+     * On a healthy limiter that second list is empty, so a run costs two store operations instead of
+     * three per key - which is what makes running this every ten seconds affordable against a store
+     * that is not in this process. The updates that are left run chunked rather than all at once,
+     * because against such a store each one takes a lock.
+     */
     async cleanup(): Promise<void> {
         await this.measureStoreOperation('cleanup', async () => {
-            const keys: string[] = await this.config.store.keys();
+            const now: number = Date.now();
+            await this.config.store.deleteExpired(now);
 
-            await Promise.all(keys.map(async key => {
+            const keys: string[] = await this.config.store.keysWithExpiredReservations(now);
+            const refunded: number[] = await PromiseUtilities.allChunked(keys, async key => await this.refundExpiredReservations(key));
 
-                const state: TState | undefined = await this.config.store.get(key);
-                // Key is already expired or missing – just remove it
-                if (!state || state.expiresAtMs <= Date.now()) {
-                    await this.config.store.delete(key);
-                    return;
-                }
-
-                try {
-                    await this.config.store.atomicUpdate(key, (current) => {
-                        if (!current) {
-                            throw new InternalError(`Data with key "${key}" could not be found`);
-                        }
-                        const now: number = Date.now();
-                        let changed: boolean = false;
-                        for (const r of current.reservations) {
-                            if (r.expiresAtMs <= now) {
-                                // Refund capacity
-                                current = this.creditCapacity(current, r.count);
-                                changed = true;
-                            }
-                        }
-                        if (changed) {
-                            current.reservations = current.reservations.filter(r => r.expiresAtMs > now);
-                            current = this.recomputeReadyTimes(current, now); // must return new state
-                        }
-                        return current;
-                    });
-                }
-                catch {
-                    // nothing to cleanup
-                }
-
-            }));
+            // counted from what the updates actually removed, rather than by recomputing the gauge
+            // over every key afterwards - which is the same full scan this method exists to avoid
+            this.recordReservationClosed(refunded.reduce((sum, amount) => sum + amount, 0));
         });
         void this.updateActiveKeysGauge();
-        void this.updateActiveReservationsGauge();
+    }
+
+    /**
+     * Removes the reservations of one key that nobody came back for, and credits their capacity back.
+     * @param key - The key to clean up.
+     * @returns How many reservations were removed.
+     */
+    private async refundExpiredReservations(key: string): Promise<number> {
+        let refunded: number = 0;
+        try {
+            await this.config.store.atomicUpdate(key, (current) => {
+                if (!current) {
+                    throw new InternalError(`Data with key "${key}" could not be found`);
+                }
+                // read inside the updater, because the update may have waited for a lock to get here
+                const now: number = Date.now();
+                const expired: RateLimitReservation[] = current.reservations.filter(r => r.expiresAtMs <= now);
+                if (!expired.length) {
+                    return current;
+                }
+                for (const reservation of expired) {
+                    current = this.creditCapacity(current, reservation.count);
+                }
+                current = {
+                    ...current,
+                    reservations: current.reservations.filter(r => r.expiresAtMs > now)
+                };
+                refunded = expired.length;
+                return this.recomputeReadyTimes(current, now);
+            });
+        }
+        catch {
+            // the key expired or was written by someone else in between - whatever is left of it is
+            // the next run's problem
+            return 0;
+        }
+        return refunded;
+    }
+
+    /**
+     * What a limited call is counted against.
+     *
+     * Per caller when the method names no key of its own. One shared bucket is what lets a single
+     * caller spend everybody else's capacity, and it used to be what saying nothing got you - a
+     * limiter that really wants it asks for {@link RateLimitKeys.GLOBAL}, and work that no request
+     * triggered lands there anyway.
+     * @param options - What the limited method declared.
+     * @param args - The arguments it was called with, for a key derived from them.
+     * @returns The key.
+     */
+    protected async resolveKey<TArgs extends unknown[]>(
+        options: RateLimitWrapOptions<TArgs> | undefined,
+        args: TArgs
+    ): Promise<string> {
+        if (typeof options?.keyFn === 'function') {
+            return await options.keyFn(...args);
+        }
+        return options?.keyFn ?? RateLimitKeys.perConnection();
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -545,27 +591,6 @@ export abstract class BaseRateLimiter<TState extends BaseRateLimitState> impleme
             return undefined;
         }
         return state.reservations.find(r => r.id === id);
-    }
-
-    /**
-     * Updates the active reservations gauge metric.
-     */
-    protected async updateActiveReservationsGauge(): Promise<void> {
-        try {
-            const keys: string[] = await this.config.store.keys();
-            const now: number = Date.now();
-            let total: number = 0;
-            for (const key of keys) {
-                const state: TState | undefined = await this.config.store.get(key);
-                if (state && state.expiresAtMs > now) {
-                    total += state.reservations.filter(r => r.expiresAtMs > now).length;
-                }
-            }
-            this.metrics.activeReservations.set({ limiter: this.config.name }, total);
-        }
-        catch {
-            // not critical
-        }
     }
 
     /**
@@ -603,7 +628,11 @@ export abstract class BaseRateLimiter<TState extends BaseRateLimitState> impleme
                 limiter: this.config.name,
                 operation
             });
-            throw error;
+            // everything that gets here means the limit could not be read or written at all, which is
+            // the one failure callers get to have a policy about. Reservations refusing or going
+            // missing is the updater talking rather than the store, and those paths do not come
+            // through here - they call the store directly
+            throw new RateLimitStoreUnavailableError(this.config.name, { cause: error });
         }
         finally {
             this.metrics.storeDuration.observe(

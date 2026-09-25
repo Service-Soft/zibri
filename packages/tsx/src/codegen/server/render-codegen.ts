@@ -1,5 +1,6 @@
-import { beginHandlerStamping, endHandlerStamping, printPattern, printStatement, printExpression, SSR } from './print';
-import { BlockStatement, Expression, Pattern } from '../../parser/ast';
+import * as ts from 'typescript';
+
+import { printNode, SSR, StampSites } from './print';
 import { ComponentInfo } from '../../semantics/component';
 import { collectClientPropSites } from '../client/client-props';
 import { collectHandlerSites } from '../client/handlers';
@@ -14,7 +15,7 @@ export type ServerRenderCode = {
      */
     componentName: string,
     /**
-     * The generated JavaScript source (references the `$ssr` runtime namespace).
+     * The generated source (references the `$ssr` runtime namespace). Type syntax is still in it.
      */
     code: string
 };
@@ -29,16 +30,10 @@ export type ServerRenderCode = {
 export function compileServerRender(component: ComponentInfo): ServerRenderCode {
     const { fn, name } = component;
     const componentName: string = name === 'default' ? '__Component' : name;
-    const param: string = fn.params.length > 0 ? printPattern(fn.params[0]) : '';
+    const param: string = fn.parameters.length > 0 ? printNode(fn.parameters[0]) : '';
 
-    beginHandlerStamping(collectHandlerSites(fn).byNode, collectClientPropSites(fn).byNode);
-    let body: string;
-    try {
-        body = printComponentBody(fn.body);
-    }
-    finally {
-        endHandlerStamping();
-    }
+    const stamps: StampSites = { handlers: collectHandlerSites(fn).byNode, clientProps: collectClientPropSites(fn).byNode };
+    const body: string = printComponentBody(fn.body, stamps);
 
     // `$ssr` is the first parameter so the emitted module can pass a fresh per-render runtime
     // (rather than closing over a shared one), and nested components receive the same instance.
@@ -51,20 +46,15 @@ export function compileServerRender(component: ComponentInfo): ServerRenderCode 
 /**
  * Prints a component's body. A concise arrow expression body becomes a `return`.
  * @param body - The component body (block or concise expression).
+ * @param stamps - The sites to stamp.
  * @returns The printed body block source.
  */
-function printComponentBody(body: BlockStatement | Expression): string {
-    if (body.kind === 'BlockStatement') {
-        return `{\n${body.body.map(printStatement).join('\n')}\n}`;
+function printComponentBody(body: ts.ConciseBody | undefined, stamps: StampSites): string {
+    if (body == undefined) {
+        return '{\n}';
     }
-    return `{\nreturn ${printExpression(body)};\n}`;
-}
-
-/**
- * Prints just a parameter pattern (exposed for tests and reuse).
- * @param param - The parameter pattern.
- * @returns The printed pattern.
- */
-export function printParam(param: Pattern): string {
-    return printPattern(param);
+    if (ts.isBlock(body)) {
+        return `{\n${body.statements.map(statement => printNode(statement, stamps)).join('\n')}\n}`;
+    }
+    return `{\nreturn ${printNode(body, stamps)};\n}`;
 }

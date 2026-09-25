@@ -1,12 +1,12 @@
-import { HttpClientResponseForBodyType } from './http-client-response.model';
+import { HttpClientDispatcher } from './http-client-options.model';
+import { HttpClientResponseBodyInput, HttpClientResponseForBody } from './http-client-response.model';
+import { XmlString } from '../document/xml-string.type';
 import { HttpMethod } from '../http/http-method.enum';
 import { KnownHeader } from '../http/known-header.enum';
 import { MimeType } from '../http/mime-type.enum';
-import { BodyMetadata, BodyMetadataInput } from '../routing/decorators/body.decorator';
 import { HeaderParamMetadataInput } from '../routing/decorators/param.decorator';
 import { HeaderMetaObjectToParamsObject, HeaderMetaInputObjectToMetaObject } from '../routing/route-configuration.model';
 import { Newable } from '../types/newable.type';
-import { OmitStrict } from '../types/omit-strict.type';
 
 /**
  * Possible values to send as headers when using the http client.
@@ -16,7 +16,19 @@ export type HttpClientHeaderValue = string | string[] | number | boolean | undef
 /**
  * Mime types that HttpClient knows how to build a request body for.
  */
-export type RequestBodyMimeType = MimeType.JSON | MimeType.FORM_URL_ENCODED | MimeType.FORM_DATA | MimeType.OCTET_STREAM;
+export type HttpClientRequestBodyMimeType = MimeType.JSON
+    | MimeType.XML
+    | MimeType.FORM_URL_ENCODED
+    | MimeType.FORM_DATA
+    | MimeType.OCTET_STREAM;
+
+/**
+ * What a request body is for the mime type it is sent as: a well formed document for xml, like one written with
+ * `XmlUtilities.generateFrom`, and whatever the client can send for anything else.
+ */
+export type HttpClientRequestBody<RequestBodyType extends HttpClientRequestBodyMimeType> = RequestBodyType extends MimeType.XML
+    ? XmlString
+    : unknown;
 
 /**
  * Options for sending a http request with the client.
@@ -26,8 +38,9 @@ type HttpOptions<
     QueryParamsObject extends Record<string, unknown>,
     HeaderParamsObject extends Record<string, HttpClientHeaderValue>,
     ResponseHeaderMetaInputObject extends Record<string, HeaderParamMetadataInput>,
-    BodyType extends BodyMetadata['type'],
-    IsArray extends boolean
+    IsArray extends boolean,
+    ResponseBody extends HttpClientResponseBodyInput<T, IsArray>,
+    RequestBodyType extends HttpClientRequestBodyMimeType
 > = {
     /**
      * The query parameters of the request, as an object.
@@ -47,30 +60,30 @@ type HttpOptions<
      */
     attempts: number,
     /**
+     * What this one request is sent over, replacing whatever the application configured.
+     *
+     * For the destination that needs different egress from everything else - a partner reached over
+     * mutual tls, or one endpoint that must bypass the proxy. It *replaces* rather than merges,
+     * because a dispatcher is one connection policy and half of two is not a policy.
+     *
+     * Everything sent the same way belongs on `HttpClientOptions.dispatcher` instead, so that a
+     * proxy or a CA bundle is stated once rather than at every call site.
+     */
+    dispatcher: HttpClientDispatcher,
+    /**
      * The mime type that the request body should be sent as.
      *
      * Defaults to using the request's Content-Type header if set, falling back to treating the body as JSON otherwise.
+     * An xml body is an `XmlString`.
      */
-    requestBodyType: RequestBodyMimeType,
+    requestBodyType: RequestBodyType,
     /**
-     * Definition on how the response body should look like. Can either be a class that defines the structure of the body or a full body metadata definition.
+     * Definition on how the response body should look like. Can either be a class that defines the structure of the body,
+     * a full body metadata definition, or several shapes the body can be one of.
      *
      * THIS ALSO ACTUALLY VALIDATES THE RESPONSE.
      */
-    responseBody: Newable<T> | OmitStrict<BodyMetadataInput, 'type' | 'isArray'> & {
-        /**
-         * The type of the response.
-         */
-        type: BodyType,
-        /**
-         * The class that defines the structure of the body.
-         */
-        modelClass: Newable<T>,
-        /**
-         * Whether or not the response is an array.
-         */
-        isArray?: IsArray
-    },
+    responseBody: ResponseBody,
     /**
      * Definition of the expected response headers. Also handles validating them.
      */
@@ -85,9 +98,10 @@ export type HttpOptionsInput<
     QueryParamsObject extends Record<string, unknown> = Record<string, string | undefined>,
     HeaderParamsObject extends Record<string, HttpClientHeaderValue> = Partial<Record<KnownHeader, HttpClientHeaderValue>>,
     ResponseHeaderMetaInputObject extends Record<string, HeaderParamMetadataInput> = Record<string, HeaderParamMetadataInput>,
-    BodyType extends BodyMetadata['type'] = MimeType.JSON,
-    IsArray extends boolean = false
-> = Partial<HttpOptions<T, QueryParamsObject, HeaderParamsObject, ResponseHeaderMetaInputObject, BodyType, IsArray>>;
+    IsArray extends boolean = false,
+    ResponseBody extends HttpClientResponseBodyInput<T, IsArray> = Newable<T>,
+    RequestBodyType extends HttpClientRequestBodyMimeType = HttpClientRequestBodyMimeType
+> = Partial<HttpOptions<T, QueryParamsObject, HeaderParamsObject, ResponseHeaderMetaInputObject, IsArray, ResponseBody, RequestBodyType>>;
 
 /**
  * Interface for a http client.
@@ -101,18 +115,27 @@ export interface HttpClientInterface {
         QueryParamsObject extends Record<string, unknown>,
         HeaderParamsObject extends Record<string, HttpClientHeaderValue>,
         ResponseHeaderMetaInputObject extends Record<string, HeaderParamMetadataInput>,
-        BodyType extends BodyMetadata['type'],
-        IsArray extends boolean
+        IsArray extends boolean,
+        ResponseBody extends HttpClientResponseBodyInput<T, IsArray> = never,
+        RequestBodyType extends HttpClientRequestBodyMimeType = HttpClientRequestBodyMimeType
     >(
         method: HttpMethod,
         url: string,
-        requestBody: unknown,
-        options: HttpOptionsInput<T, QueryParamsObject, HeaderParamsObject, ResponseHeaderMetaInputObject, BodyType, IsArray> | undefined
+        requestBody: NoInfer<HttpClientRequestBody<RequestBodyType>>,
+        options: HttpOptionsInput<
+            T,
+            QueryParamsObject,
+            HeaderParamsObject,
+            ResponseHeaderMetaInputObject,
+            IsArray,
+            ResponseBody,
+            RequestBodyType
+        > | undefined
     ) => Promise<
-        HttpClientResponseForBodyType<
+        HttpClientResponseForBody<
             T,
             HeaderMetaObjectToParamsObject<HeaderMetaInputObjectToMetaObject<ResponseHeaderMetaInputObject>>,
-            BodyType,
+            ResponseBody,
             IsArray
         >
     >,
@@ -124,17 +147,26 @@ export interface HttpClientInterface {
         QueryParamsObject extends Record<string, unknown> = Record<string, string | undefined>,
         HeaderParamsObject extends Record<string, HttpClientHeaderValue> = Partial<Record<KnownHeader, HttpClientHeaderValue>>,
         ResponseHeaderMetaInputObject extends Record<string, HeaderParamMetadataInput> = Record<string, HeaderParamMetadataInput>,
-        BodyType extends BodyMetadata['type'] = MimeType.JSON,
-        IsArray extends boolean = false
+        IsArray extends boolean = false,
+        ResponseBody extends HttpClientResponseBodyInput<T, IsArray> = never,
+        RequestBodyType extends HttpClientRequestBodyMimeType = HttpClientRequestBodyMimeType
     >(
         url: string,
-        body: unknown,
-        options?: HttpOptionsInput<T, QueryParamsObject, HeaderParamsObject, ResponseHeaderMetaInputObject, BodyType, IsArray>
+        body: NoInfer<HttpClientRequestBody<RequestBodyType>>,
+        options?: HttpOptionsInput<
+            T,
+            QueryParamsObject,
+            HeaderParamsObject,
+            ResponseHeaderMetaInputObject,
+            IsArray,
+            ResponseBody,
+            RequestBodyType
+        >
     ) => Promise<
-        HttpClientResponseForBodyType<
+        HttpClientResponseForBody<
             T,
             HeaderMetaObjectToParamsObject<HeaderMetaInputObjectToMetaObject<ResponseHeaderMetaInputObject>>,
-            BodyType,
+            ResponseBody,
             IsArray
         >
     >,
@@ -146,16 +178,23 @@ export interface HttpClientInterface {
         QueryParamsObject extends Record<string, unknown> = Record<string, string | undefined>,
         HeaderParamsObject extends Record<string, HttpClientHeaderValue> = Partial<Record<KnownHeader, HttpClientHeaderValue>>,
         ResponseHeaderMetaInputObject extends Record<string, HeaderParamMetadataInput> = Record<string, HeaderParamMetadataInput>,
-        BodyType extends BodyMetadata['type'] = MimeType.JSON,
-        IsArray extends boolean = false
+        IsArray extends boolean = false,
+        ResponseBody extends HttpClientResponseBodyInput<T, IsArray> = never
     >(
         url: string,
-        options?: HttpOptionsInput<T, QueryParamsObject, HeaderParamsObject, ResponseHeaderMetaInputObject, BodyType, IsArray>
+        options?: HttpOptionsInput<
+            T,
+            QueryParamsObject,
+            HeaderParamsObject,
+            ResponseHeaderMetaInputObject,
+            IsArray,
+            ResponseBody
+        >
     ) => Promise<
-        HttpClientResponseForBodyType<
+        HttpClientResponseForBody<
             T,
             HeaderMetaObjectToParamsObject<HeaderMetaInputObjectToMetaObject<ResponseHeaderMetaInputObject>>,
-            BodyType,
+            ResponseBody,
             IsArray
         >
     >,
@@ -167,17 +206,26 @@ export interface HttpClientInterface {
         QueryParamsObject extends Record<string, unknown> = Record<string, string | undefined>,
         HeaderParamsObject extends Record<string, HttpClientHeaderValue> = Partial<Record<KnownHeader, HttpClientHeaderValue>>,
         ResponseHeaderMetaInputObject extends Record<string, HeaderParamMetadataInput> = Record<string, HeaderParamMetadataInput>,
-        BodyType extends BodyMetadata['type'] = MimeType.JSON,
-        IsArray extends boolean = false
+        IsArray extends boolean = false,
+        ResponseBody extends HttpClientResponseBodyInput<T, IsArray> = never,
+        RequestBodyType extends HttpClientRequestBodyMimeType = HttpClientRequestBodyMimeType
     >(
         url: string,
-        body: unknown,
-        options?: HttpOptionsInput<T, QueryParamsObject, HeaderParamsObject, ResponseHeaderMetaInputObject, BodyType, IsArray>
+        body: NoInfer<HttpClientRequestBody<RequestBodyType>>,
+        options?: HttpOptionsInput<
+            T,
+            QueryParamsObject,
+            HeaderParamsObject,
+            ResponseHeaderMetaInputObject,
+            IsArray,
+            ResponseBody,
+            RequestBodyType
+        >
     ) => Promise<
-        HttpClientResponseForBodyType<
+        HttpClientResponseForBody<
             T,
             HeaderMetaObjectToParamsObject<HeaderMetaInputObjectToMetaObject<ResponseHeaderMetaInputObject>>,
-            BodyType,
+            ResponseBody,
             IsArray
         >
     >,
@@ -189,17 +237,26 @@ export interface HttpClientInterface {
         QueryParamsObject extends Record<string, unknown> = Record<string, string | undefined>,
         HeaderParamsObject extends Record<string, HttpClientHeaderValue> = Partial<Record<KnownHeader, HttpClientHeaderValue>>,
         ResponseHeaderMetaInputObject extends Record<string, HeaderParamMetadataInput> = Record<string, HeaderParamMetadataInput>,
-        BodyType extends BodyMetadata['type'] = MimeType.JSON,
-        IsArray extends boolean = false
+        IsArray extends boolean = false,
+        ResponseBody extends HttpClientResponseBodyInput<T, IsArray> = never,
+        RequestBodyType extends HttpClientRequestBodyMimeType = HttpClientRequestBodyMimeType
     >(
         url: string,
-        body: unknown,
-        options?: HttpOptionsInput<T, QueryParamsObject, HeaderParamsObject, ResponseHeaderMetaInputObject, BodyType, IsArray>
+        body: NoInfer<HttpClientRequestBody<RequestBodyType>>,
+        options?: HttpOptionsInput<
+            T,
+            QueryParamsObject,
+            HeaderParamsObject,
+            ResponseHeaderMetaInputObject,
+            IsArray,
+            ResponseBody,
+            RequestBodyType
+        >
     ) => Promise<
-        HttpClientResponseForBodyType<
+        HttpClientResponseForBody<
             T,
             HeaderMetaObjectToParamsObject<HeaderMetaInputObjectToMetaObject<ResponseHeaderMetaInputObject>>,
-            BodyType,
+            ResponseBody,
             IsArray
         >
     >,
@@ -211,16 +268,23 @@ export interface HttpClientInterface {
         QueryParamsObject extends Record<string, unknown> = Record<string, string | undefined>,
         HeaderParamsObject extends Record<string, HttpClientHeaderValue> = Partial<Record<KnownHeader, HttpClientHeaderValue>>,
         ResponseHeaderMetaInputObject extends Record<string, HeaderParamMetadataInput> = Record<string, HeaderParamMetadataInput>,
-        BodyType extends BodyMetadata['type'] = MimeType.JSON,
-        IsArray extends boolean = false
+        IsArray extends boolean = false,
+        ResponseBody extends HttpClientResponseBodyInput<T, IsArray> = never
     >(
         url: string,
-        options?: HttpOptionsInput<T, QueryParamsObject, HeaderParamsObject, ResponseHeaderMetaInputObject, BodyType, IsArray>
+        options?: HttpOptionsInput<
+            T,
+            QueryParamsObject,
+            HeaderParamsObject,
+            ResponseHeaderMetaInputObject,
+            IsArray,
+            ResponseBody
+        >
     ) => Promise<
-        HttpClientResponseForBodyType<
+        HttpClientResponseForBody<
             T,
             HeaderMetaObjectToParamsObject<HeaderMetaInputObjectToMetaObject<ResponseHeaderMetaInputObject>>,
-            BodyType,
+            ResponseBody,
             IsArray
         >
     >

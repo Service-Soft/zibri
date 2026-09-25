@@ -94,6 +94,32 @@ describe('FormDataBodyParser', () => {
         expect(res.status).toBe(413);
     });
 
+    it('answers 400 for a text field the model does not declare, rather than failing to handle it', async () => {
+        const form: FormData = new FormData();
+        form.append('label', 'hello');
+        form.append('file', new Blob(['small content'], { type: 'text/plain' }), 'note.txt');
+        form.append('somethingElse', 'not declared on UploadDto');
+
+        const res: Response = await fetch(`${baseUrl}/upload`, { method: 'POST', body: form });
+
+        // every field the client sent is put on the value, declared or not, and the parser then
+        // read the property metadata for each of them without checking there was any. An extra
+        // field is a request anybody can send, so that was a 500 on hostile input where the
+        // validation layer already has an answer for it
+        expect(res.status).toBe(400);
+    });
+
+    it('answers 400 for a file field the model does not declare, rather than failing to handle it', async () => {
+        const form: FormData = new FormData();
+        form.append('label', 'hello');
+        form.append('file', new Blob(['small content'], { type: 'text/plain' }), 'note.txt');
+        form.append('extraFile', new Blob(['more content'], { type: 'text/plain' }), 'extra.txt');
+
+        const res: Response = await fetch(`${baseUrl}/upload`, { method: 'POST', body: form });
+
+        expect(res.status).toBe(400);
+    });
+
     it('parses unicode filenames correctly', async () => {
         const form: FormData = new FormData();
         form.append('label', 'unicode');

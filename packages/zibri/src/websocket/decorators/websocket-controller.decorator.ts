@@ -1,5 +1,6 @@
 import { Injectable, InjectableOptions } from '../../di/decorators/injectable.decorator';
 import { DiVariants } from '../../di/models/di-variant.model';
+import { HandlerTimeout } from '../../http/handler-timeout.type';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { SupportedVersionsOptions } from '../../versioning/supported-versions-options.model';
@@ -20,7 +21,14 @@ export type WebsocketControllerData = {
     /**
      * The versions that should be supported by this websocket controller's events. Can be overridden per event.
      */
-    versions: SupportedVersionsOptions
+    versions: SupportedVersionsOptions,
+    /**
+     * How long the handlers of this controller's events have to produce a result.
+     *
+     * Overrides the application's `handlerInMs` for every event on it, and an event overrides this
+     * with its own `timeoutInMs`.
+     */
+    timeoutInMs: HandlerTimeout | undefined
 };
 
 /**
@@ -33,9 +41,9 @@ export type WebsocketControllerInputData<T> = OmitStrict<InjectableOptions<T>, '
  * @param options - Options for the websocket controller.
  */
 export function WebsocketController<T>(options: WebsocketControllerInputData<T> = {}): ClassDecorator {
-    const { allowOrphan = false, versions = ['^latest'], eventPrefix = '' } = options;
+    const { allowOrphan = false, versions = ['^latest'], eventPrefix = '', timeoutInMs } = options;
     return target => {
         Injectable({ ...options, variant: DiVariants.WEBSOCKET_CONTROLLER })(target);
-        MetadataUtilities.setWebsocketControllerData(target, { allowOrphan, versions, eventPrefix });
+        MetadataUtilities.setWebsocketControllerData(target, { allowOrphan, versions, eventPrefix, timeoutInMs });
     };
 }

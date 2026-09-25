@@ -1,13 +1,14 @@
 import { ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from './mailing-list.tokens';
+import { type MailingListPreferencesPageTemplate } from './models/mailing-list-preferences-page-template.model';
+import { type MailingListSubscribeSuccessPageTemplate } from './models/mailing-list-subscribe-success-page-template.model';
 import { MailingListSubscriber } from './models/mailing-list-subscriber.model';
+import { type MailingListUnsubscribeConfirmationPageTemplate } from './models/mailing-list-unsubscribe-confirmation-page-template.model';
 import { MailingList } from './models/mailing-list.model';
 import { UpdateMailingListPreferences } from './models/update-mailing-list-preferences.model';
 import { type MailingListServiceInterface } from './services/mailing-list-service.interface';
-import { ZibriApplication } from '../../application';
-import { type MailingListPreferencesPageTemplate } from './models/mailing-list-preferences-page-template.model';
-import { type MailingListSubscribeSuccessPageTemplate } from './models/mailing-list-subscribe-success-page-template.model';
-import { type MailingListUnsubscribeConfirmationPageTemplate } from './models/mailing-list-unsubscribe-confirmation-page-template.model';
-import { Repository } from '../../data-source/repository';
+import { ZibriApplication } from '../../application/application';
+import { Auth } from '../../auth/decorators/auth.decorator';
+import { Repository } from '../../data-source/repository/repository';
 import { InjectRepository } from '../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../di/decorators/inject.decorator';
 import { NoProviderError } from '../../di/errors/no-provider.error';
@@ -22,6 +23,10 @@ import { Param } from '../../routing/decorators/param.decorator';
 import { Patch } from '../../routing/decorators/patch.decorator';
 import { TsxUtilities } from '../../tsx/tsx.utilities';
 
+// reached from a link in an email, by someone who is not logged in and may not have an account at
+// all, so these cannot require one whatever the application declared. Redundant on purpose for the
+// same reason as the builtin auth controllers: a plugin does not know the host's `defaultAuth`.
+@Auth.skip({ allowRedundant: true })
 @Controller('/mailing-lists', { allowOrphan: true, versions: 'all' })
 export class MailingListController implements OnAppInit {
 

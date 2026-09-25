@@ -1,4 +1,4 @@
-import { oas31 } from 'openapi3-ts';
+import type { oas31 } from 'openapi3-ts';
 
 import { HttpStatus } from '../http/http-status.enum';
 import { MimeType } from '../http/mime-type.enum';
@@ -35,9 +35,25 @@ export type OpenApiRequestBodyObject = oas31.RequestBodyObject;
 export type OpenApiSchemaObject = oas31.SchemaObject;
 
 /**
+ * How a schema appears in xml: its element's name and namespace, or that it is an attribute.
+ */
+export type OpenApiXmlObject = oas31.XmlObject;
+
+/**
  * Reference definition object.
  */
 export type OpenApiReferenceObject = oas31.ReferenceObject;
+
+/**
+ * Whether the given value is a reference to a schema rather than a schema.
+ * @param value - The value to check.
+ * @returns True when the value is a reference object.
+ */
+export function isOpenApiReferenceObject(value: unknown): value is OpenApiReferenceObject {
+    // our own rather than openapi3-ts's: that package is only a devDependency, so this file may
+    // import nothing from it but types
+    return typeof value === 'object' && value != undefined && Object.hasOwn(value, '$ref');
+}
 
 /**
  * Schema definitions.
@@ -115,9 +131,49 @@ export type JsonOpenApiResponse = {
      */
     isArray?: boolean,
     /**
+     * The formats the response can be written in, in the order they are preferred. The request's `Accept` header
+     * picks one, and the first is taken when it accepts several or names none. Defaults to json.
+     *
+     * Xml is written as the document `cls` describes, with `cls` as its root element, so it needs a `cls` and a
+     * response that is not an array. The json and empty responses of a route name the same formats, which is
+     * checked at startup.
+     */
+    mimeTypes?: (MimeType.JSON | MimeType.XML)[],
+    /**
      * Whether this response was added automatically by the framework (such as by \@RateLimited) rather than
      * explicitly declared by the developer. Used to distinguish auto-generated documentation from legitimate ones
      * when checking for missing response data.
+     */
+    implicit?: boolean
+};
+
+/**
+ * Descriptor for a response without a body:
+ * - type: 'empty'
+ * - optional HTTP status, description and the formats the route answers in.
+ */
+export type EmptyOpenApiResponse = {
+    /**
+     * Constant identifier for an empty response.
+     */
+    type: 'empty',
+    /**
+     * HTTP status code to use for the empty response.
+     */
+    status?: HttpStatus,
+    /**
+     * Human-readable description of the empty response.
+     */
+    description?: string,
+    /**
+     * The formats the route answers in. An empty response has no body in any of them, so this defaults to json
+     * and xml; the json responses of the same route name the same formats, which is checked at startup.
+     */
+    mimeTypes?: (MimeType.JSON | MimeType.XML)[],
+    /**
+     * Whether this response was added automatically by the framework rather than explicitly declared by the
+     * developer. Used to distinguish auto-generated documentation from legitimate ones when checking for missing
+     * response data.
      */
     implicit?: boolean
 };
@@ -204,6 +260,7 @@ export type OpenApiContentObject = oas31.ContentObject;
  */
 export type OpenApiResponse
     = | JsonOpenApiResponse
+        | EmptyOpenApiResponse
         | HtmlOpenApiResponse
         | ErrorOpenApiResponse
         | FileOpenApiResponse;

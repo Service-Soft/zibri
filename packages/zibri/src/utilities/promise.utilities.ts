@@ -29,6 +29,18 @@ export class TimeoutError extends ExternalError {
  * Encapsulates functionality for handling promises.
  */
 export abstract class PromiseUtilities {
+    /**
+     * How many items are worked on at once when the caller does not say.
+     *
+     * Sized against the data source pool rather than against anything here, because most of what is
+     * chunked ends in a query and the pool is what decides how many of those actually run. Above the
+     * pool on purpose: a chunk is a barrier, so sizing it to exactly fill the pool leaves every
+     * connection idle waiting for the slowest item of the batch, where a queue behind the pool hands
+     * each freed connection its next item immediately. Far above the pool would buy nothing on the
+     * database and cost the heap, since everything queued is held until its turn.
+     *
+     * A caller that knows better passes its own. See `docs/replication.md`.
+     */
     private static readonly defaultChunkSize: number = 50;
 
     /**
@@ -90,23 +102,31 @@ export abstract class PromiseUtilities {
      * Waits for the given promise for a given timeout.
      * @param promise - The promise to await.
      * @param timeoutInMs - The timeout after which an error should be thrown.
+     * @param signal - A signal that ends the wait before the timeout does, if it fires first.
      * @returns The result of the function if finished in time.
      */
     static async withTimeout<T>(
         promise: (signal: AbortSignal) => T | Promise<T>,
-        timeoutInMs: number
+        timeoutInMs: number,
+        signal?: AbortSignal
     ): Promise<T> {
         const ac: AbortController = new AbortController();
+        // what the work is handed fires for either reason, because from the work's side there is no
+        // difference: it has stopped being worth finishing
+        const combined: AbortSignal = signal ? AbortSignal.any([ac.signal, signal]) : ac.signal;
         const timeoutFn: () => Promise<never> = async () => {
             await setTimeout(timeoutInMs, undefined, { signal: ac.signal });
             throw new TimeoutError();
         };
 
         try {
-            const res: T = await Promise.race([
-                Promise.resolve().then(() => promise(ac.signal)),
-                timeoutFn()
-            ]);
+            const res: T = await this.withSignal(
+                Promise.race([
+                    Promise.resolve().then(() => promise(combined)),
+                    timeoutFn()
+                ]),
+                signal
+            );
 
             ac.abort();
             return res;
@@ -114,6 +134,43 @@ export abstract class PromiseUtilities {
         catch (error) {
             ac.abort();
             throw error;
+        }
+    }
+
+    /**
+     * Stops waiting for the given promise as soon as the signal fires.
+     *
+     * The promise itself is not stopped - nothing can stop a promise. What this ends is the waiting,
+     * which is what matters when the answer has stopped being worth having. Whatever was handed the
+     * same signal ends itself.
+     * @param promise - What is being waited for.
+     * @param signal - The signal that ends the wait, or undefined to simply wait.
+     * @returns The result, when it arrives first.
+     * @throws The signal's reason, when that fires first.
+     */
+    static async withSignal<T>(promise: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
+        if (!signal) {
+            return await promise;
+        }
+        if (signal.aborted) {
+            throw signal.reason;
+        }
+
+        // held in an object so that the listener taken off again is the one that went on. One
+        // request's signal is read by everything that request waits for, so a listener left behind
+        // per wait is a leak on exactly the requests doing the most work
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        const listener: { onAbort: () => void } = { onAbort: () => {} };
+        const aborted: Promise<never> = new Promise<never>((_resolve, reject) => {
+            listener.onAbort = () => reject(signal.reason);
+            signal.addEventListener('abort', listener.onAbort, { once: true });
+        });
+
+        try {
+            return await Promise.race([promise, aborted]);
+        }
+        finally {
+            signal.removeEventListener('abort', listener.onAbort);
         }
     }
 }

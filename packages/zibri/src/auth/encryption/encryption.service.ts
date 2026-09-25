@@ -1,15 +1,17 @@
 import { EncryptionKeyCreateData, EncryptionKeyStatus, EncryptionKey } from './encryption-key.model';
 import { type EncryptionMasterOptions, EncryptionMasterKey } from './encryption-master-options.model';
+import { EncryptionRotationCronJob } from './encryption-rotation.cron-job';
 import { type DeleteEncryptionKeyOptions, EncryptionServiceInterface, EncryptOptions } from './encryption-service.interface';
 import { EncryptionContent, type EncryptionString, EncryptionUtilities } from './encryption.utilities';
 import { EncryptionStrategyEntity, type EncryptionStrategyEntityCreateData, EncryptionStrategyStatus } from './strategies/encryption-strategy-entity.model';
 import { BaseDecryptOptions, BaseEncryptOptions, EncryptionStrategyInterface } from './strategies/encryption-strategy.interface';
+import { ZibriApplication } from '../../application/application';
 import { CacheDelete } from '../../caching/decorators/cache-delete.decorator';
 import { CacheWrite } from '../../caching/decorators/cache-write.decorator';
 import { Cached } from '../../caching/decorators/cached.decorator';
 import { type BaseRepositoryOptions } from '../../data-source/models/options/base-repository-options.model';
 import { Where } from '../../data-source/models/where/where-filter.model';
-import { Repository } from '../../data-source/repository';
+import { Repository } from '../../data-source/repository/repository';
 import { Transaction } from '../../data-source/transaction/transaction.model';
 import { InjectRepository } from '../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../di/decorators/inject.decorator';
@@ -27,14 +29,6 @@ import { type DeepPartial } from '../../types/deep-partial.type';
 import { type Newable } from '../../types/newable.type';
 import { type OmitStrict } from '../../types/omit-strict.type';
 import { PromiseUtilities } from '../../utilities/promise.utilities';
-
-// eslint-disable-next-line jsdoc/require-jsdoc
-type StrategyAndEntity<TKey> = {
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    strategy: EncryptionStrategyInterface<TKey>,
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    entity: EncryptionStrategyEntity | undefined
-};
 
 /**
  * An error to throw during encryption service initialization.
@@ -92,7 +86,15 @@ class MasterKeyNotFoundError extends InternalError {
  */
 @Injectable({ register: 'onUse' })
 export class EncryptionService implements EncryptionServiceInterface, OnAppInit {
-    private hasCreatedInitialDefaultStrategy: boolean = false;
+    /**
+     * The creation of a strategy's first key, while it is happening.
+     *
+     * Keyed by the strategy's name and version, so everything encrypting with it while the first
+     * key is being written waits on that one write instead of starting another. Emptied as soon as
+     * it settles - what it stands in for is the window, not the result.
+     */
+    private readonly creatingDefaultKey: Map<string, Promise<EncryptionKey>> = new Map();
+
     private readonly strategies: EncryptionStrategyInterface<unknown>[] = [];
     private readonly strategyEntities: EncryptionStrategyEntity[] = [];
     private readonly options: EncryptionMasterOptions<unknown>;
@@ -114,15 +116,24 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async onAppInit(): Promise<void> {
+    async onAppInit(app: ZibriApplication): Promise<void> {
         if (!this.strategyClasses.length) {
             throw new InitEncryptionServiceError('Needs to provide at least one encryption strategy.');
+        }
+        // registered here rather than left to the application, because deprecating a key is the whole
+        // point of being able to deprecate one, and nothing acts on it otherwise
+        if (!app.options.cronJobs.includes(EncryptionRotationCronJob)) {
+            app.options.cronJobs.push(EncryptionRotationCronJob);
         }
         for (const strategy of this.strategyClasses) {
             register({ token: strategy, useClass: strategy });
             this.strategies.push(inject(strategy));
         }
-        const strategies: EncryptionStrategyEntity[] = await this.strategyRepository.findAll();
+        // with their keys, because everything that reads `strategyEntities` afterwards treats `keys`
+        // as an array it can search and push to. A strategy row that already existed comes back with
+        // the relation unloaded otherwise, and the first boot hides it: the table is empty then, so
+        // every strategy is one this process just created and still holds the keys it was given
+        const strategies: EncryptionStrategyEntity[] = await this.strategyRepository.findAll({ relations: ['keys'] });
         this.strategyEntities.push(...strategies);
         this.validateNoDuplicateEncryptionStrategy();
         this.validateNoMissingEncryptionStrategy();
@@ -142,62 +153,27 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         value: string,
         options?: EncryptOptions<TKey, TEncryptOptions>
     ): Promise<EncryptionString> {
-        if (!options) {
-            const strategy: StrategyAndEntity<TKey> = this.findDefaultStrategy();
-            if (!this.hasCreatedInitialDefaultStrategy && !strategy.entity && !this.strategyEntities.length) {
-                const key: EncryptionKeyCreateData = {
-                    status: EncryptionKeyStatus.DEFAULT,
-                    value: await this.generateEncryptedKey(strategy.strategy)
-                };
-                const entity: EncryptionStrategyEntity = await this.createStrategyEntity({
-                    name: strategy.strategy.name,
-                    version: strategy.strategy.version,
-                    status: EncryptionStrategyStatus.DEFAULT,
-                    keys: [key]
-                });
-                this.hasCreatedInitialDefaultStrategy = true;
-                const strategyClass: Newable<EncryptionStrategyInterface<TKey>> = this.findStrategyClass(
-                    strategy.strategy.name,
-                    strategy.strategy.version
-                );
-                const decryptedKey: TKey = await this.decryptKey(strategyClass, key.value);
-                return await strategy.strategy.encrypt(value, { keyId: entity.keys[0].id, key: decryptedKey });
-            }
-
-            if (!strategy.entity) {
-                const key: EncryptionKeyCreateData = {
-                    status: EncryptionKeyStatus.DEFAULT,
-                    value: await this.generateEncryptedKey(strategy.strategy)
-                };
-                const entity: EncryptionStrategyEntity = await this.createStrategyEntity({
-                    name: strategy.strategy.name,
-                    version: strategy.strategy.version,
-                    status: EncryptionStrategyStatus.ACTIVE,
-                    keys: [key]
-                });
-                const strategyClass: Newable<EncryptionStrategyInterface<TKey>> = this.findStrategyClass(
-                    strategy.strategy.name,
-                    strategy.strategy.version
-                );
-                const decryptedKey: TKey = await this.decryptKey(strategyClass, key.value);
-                return await strategy.strategy.encrypt(value, { keyId: entity.keys[0].id, key: decryptedKey });
-            }
-
+        // the strategy options are carried through every branch below rather than only the ones that
+        // name a strategy. The binding lives in them, and a property that says nothing beyond
+        // "encrypt this" is exactly the one that has to end up bound
+        if (!options?.strategy) {
+            const strategy: EncryptionStrategyInterface<TKey> = this.findDefaultStrategy<TKey>();
             const strategyClass: Newable<EncryptionStrategyInterface<TKey>> = this.findStrategyClass(
-                strategy.strategy.name,
-                strategy.strategy.version
+                strategy.name,
+                strategy.version
             );
-            const key: EncryptionKey = await this.findOrCreateDefaultKeyForStrategy(strategy.entity);
+            const key: EncryptionKey = await this.resolveDefaultKey(strategy);
             const decryptedKey: TKey = await this.decryptKey(strategyClass, key.value);
-            return await strategy.strategy.encrypt(value, { keyId: key.id, key: decryptedKey });
+            return await strategy.encrypt(value, { keyId: key.id, key: decryptedKey, ...options?.strategyOptions });
         }
 
+        const strategyClass: Newable<EncryptionStrategyInterface<TKey, TEncryptOptions>> = options.strategy;
         const strategy: EncryptionStrategyInterface<TKey> | undefined = this.strategies.find(
-            s => s instanceof options.strategy
+            s => s instanceof strategyClass
         ) as EncryptionStrategyInterface<TKey> | undefined;
         if (!strategy) {
             throw new InternalError(
-                `The given strategy ${options.strategy.name} was not provided as part of ZIBRI_DI_TOKENS.ENCRYPTION_STRATEGIES`
+                `The given strategy ${strategyClass.name} was not provided as part of ZIBRI_DI_TOKENS.ENCRYPTION_STRATEGIES`
             );
         }
 
@@ -209,27 +185,144 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
             );
         }
 
-        const entity: EncryptionStrategyEntity | undefined = this.strategyEntities.find(
-            s => s.name === strategy.name && s.version === strategy.version
-        );
-        if (!entity) {
-            const key: EncryptionKeyCreateData = {
-                status: EncryptionKeyStatus.DEFAULT,
-                value: await this.generateEncryptedKey(strategy)
-            };
-            const createdEntity: EncryptionStrategyEntity = await this.createStrategyEntity({
-                name: strategy.name,
-                version: strategy.version,
-                status: EncryptionStrategyStatus.ACTIVE,
-                keys: [key]
-            });
-            const decryptedKey: TKey = await this.decryptKey(options.strategy, key.value);
-            return await strategy.encrypt(value, { keyId: createdEntity.keys[0].id, key: decryptedKey, ...options.strategyOptions });
-        }
-
-        const key: EncryptionKey = await this.findOrCreateDefaultKeyForStrategy(entity);
+        const key: EncryptionKey = await this.resolveDefaultKey(strategy);
         const decryptedKey: TKey = await this.decryptKey(options.strategy, key.value);
         return await strategy.encrypt(value, { key: decryptedKey, keyId: key.id, ...options.strategyOptions });
+    }
+
+    /**
+     * The key an encryption with the given strategy is stamped with.
+     *
+     * Creates the strategy's row and its first key when a deployment has neither yet, which is what
+     * every path through {@link encrypt} used to do inline - four of them, each a check followed by
+     * a write with awaits in between, so two encryptions arriving together both found nothing and
+     * both wrote.
+     *
+     * Everyone who arrives while that is happening waits on the same promise rather than starting
+     * their own, and what the promise does is atomic, so two *processes* arriving together are
+     * covered as well. The flag that used to stand in for the first half was set after its own
+     * awaits and so guarded nothing.
+     * @param strategy - The strategy the value is being encrypted with.
+     * @returns Its default key.
+     */
+    private async resolveDefaultKey<TKey>(strategy: EncryptionStrategyInterface<TKey>): Promise<EncryptionKey> {
+        const known: EncryptionKey | undefined = this.readDefaultKey(strategy);
+        if (known) {
+            return known;
+        }
+
+        const identity: string = `${strategy.name}:${strategy.version}`;
+        const inFlight: Promise<EncryptionKey> | undefined = this.creatingDefaultKey.get(identity);
+        if (inFlight) {
+            return await inFlight;
+        }
+
+        const creating: Promise<EncryptionKey> = this.createDefaultKey(strategy);
+        this.creatingDefaultKey.set(identity, creating);
+        try {
+            return await creating;
+        }
+        finally {
+            // on the way out either way: a failed creation that stayed here would hand the same
+            // rejection to everything that encrypts afterwards
+            this.creatingDefaultKey.delete(identity);
+        }
+    }
+
+    /**
+     * The strategy's default key, as far as this process already knows it.
+     * @param strategy - The strategy to read for.
+     * @returns The key, or undefined when this process has not seen one.
+     */
+    private readDefaultKey<TKey>(strategy: EncryptionStrategyInterface<TKey>): EncryptionKey | undefined {
+        const entity: EncryptionStrategyEntity | undefined = this.entityFor(strategy);
+        return entity?.keys.find(k => k.status === EncryptionKeyStatus.DEFAULT) ?? entity?.keys.at(0);
+    }
+
+    /**
+     * Writes the strategy's row and its first key, or reads whatever another writer got there first.
+     * @param strategy - The strategy to create for.
+     * @returns Its default key.
+     */
+    private async createDefaultKey<TKey>(strategy: EncryptionStrategyInterface<TKey>): Promise<EncryptionKey> {
+        const entity: EncryptionStrategyEntity = await this.resolveStrategyEntity(strategy);
+        const existing: EncryptionKey | undefined = entity.keys.find(k => k.status === EncryptionKeyStatus.DEFAULT)
+            ?? entity.keys.at(0);
+        if (existing) {
+            return existing;
+        }
+        return await this.createDefaultKeyEntity(entity, await this.generateEncryptedKey(strategy));
+    }
+
+    /**
+     * The row naming this strategy, written when nothing names it yet.
+     *
+     * Insert-or-get rather than insert: two instances first encrypting at the same moment would
+     * otherwise each write a row, and the keys of one strategy would then be split across two of
+     * them with nothing saying which is the real one.
+     * @param strategy - The strategy to resolve the row for.
+     * @returns The row, with its keys.
+     */
+    private async resolveStrategyEntity<TKey>(strategy: EncryptionStrategyInterface<TKey>): Promise<EncryptionStrategyEntity> {
+        const known: EncryptionStrategyEntity | undefined = this.entityFor(strategy);
+        if (known) {
+            return known;
+        }
+
+        // the first strategy a deployment writes is the one it encrypts with; anything added later
+        // is active until somebody promotes it
+        const status: EncryptionStrategyStatus = this.strategyEntities.length
+            ? EncryptionStrategyStatus.ACTIVE
+            : EncryptionStrategyStatus.DEFAULT;
+        const entity: EncryptionStrategyEntity = await this.strategyRepository.upsert(
+            { name: strategy.name, version: strategy.version },
+            { name: strategy.name, version: strategy.version, status },
+            // the identity written back to itself, because there is nothing to change: a conflict
+            // here means somebody else wrote the row, and what this needs from the statement is that
+            // row rather than an edit to it
+            { name: { set: strategy.name } },
+            { relations: ['keys'] }
+        );
+        this.strategyEntities.push(entity);
+        return entity;
+    }
+
+    /**
+     * Writes the strategy's default key, or reads whatever another writer got there first.
+     *
+     * Takes the generated value rather than the strategy that generates it, because a method with a
+     * type parameter of its own cannot carry the cache decorator - and the generating is the caller's
+     * either way, since a value generated for a key that turns out to exist is thrown away.
+     * @param entity - The strategy row the key belongs to.
+     * @param value - The generated key, already encrypted with the master key.
+     * @returns The key.
+     */
+    // eslint-disable-next-line unusedImports/no-unused-vars
+    @CacheWrite(ZIBRI_DI_TOKENS.ENCRYPTION_KEY_CACHE, (key, ..._) => key.id)
+    private async createDefaultKeyEntity(
+        entity: EncryptionStrategyEntity,
+        value: EncryptionString
+    ): Promise<EncryptionKey> {
+        const key: EncryptionKey = await this.keyRepository.upsert(
+            { strategyId: entity.id },
+            { value, strategy: entity, status: EncryptionKeyStatus.DEFAULT },
+            // the status rather than the value. A conflict means this strategy already has a default
+            // key, and writing over its value is writing over the only thing that can read back
+            // everything encrypted with it
+            { status: { set: EncryptionKeyStatus.DEFAULT } },
+            { relations: ['strategy'] }
+        );
+        this.syncStrategyEntityKey(entity, key);
+        return key;
+    }
+
+    /**
+     * The row naming the given strategy, among the ones this process has loaded.
+     * @param strategy - The strategy to look for.
+     * @returns Its row, or undefined when there is none yet.
+     */
+    private entityFor<TKey>(strategy: EncryptionStrategyInterface<TKey>): EncryptionStrategyEntity | undefined {
+        return this.strategyEntities.find(s => s.name === strategy.name && s.version === strategy.version);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -357,7 +450,21 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async needsReEncryption(encrypted: EncryptionString): Promise<boolean> {
+    async deprecateKey(keyId: string, options?: BaseRepositoryOptions): Promise<void> {
+        const key: EncryptionKey = await this.findKeyEntityById(keyId, options);
+        if (key.status === EncryptionKeyStatus.DEFAULT) {
+            throw new InternalError(
+                'The default key cannot be deprecated - make another key the default first, or there is nothing left to encrypt with.'
+            );
+        }
+        // through the same write every other status change goes through, so the cache learns about it.
+        // Setting the status on the row directly would leave this process still believing the key is
+        // fine, and it is the process that decides what gets rewritten
+        await this.updateKeyEntityById(keyId, { status: EncryptionKeyStatus.DEPRECATED }, options);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async needsReEncryption(encrypted: EncryptionString, shouldBeBoundToRow: boolean = false): Promise<boolean> {
         const content: EncryptionContent = EncryptionUtilities.encryptionStringToContent(encrypted);
         const strategy: EncryptionStrategyInterface<Record<string, unknown>> = this.findStrategy(content.strategyName, content.version);
         const strategyEntity: EncryptionStrategyEntity | undefined = this.strategyEntities.find(
@@ -365,6 +472,12 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         );
         if (!strategyEntity) {
             throw new NotFoundError($ts`Could not find ${EncryptionStrategyEntity.name}.`);
+        }
+        // a value that should be bound to its row but is not was written before binding existed, and
+        // is movable until it is written again. Only the caller knows whether it should be - the
+        // property may have asked not to be, and rewriting those would never finish
+        if (shouldBeBoundToRow && !strategy.isBoundToRow(encrypted)) {
+            return true;
         }
         const key: EncryptionKey = await this.findKeyEntityById(content.keyId, undefined);
         return strategyEntity.status === EncryptionStrategyStatus.DEPRECATED || key.status === EncryptionKeyStatus.DEPRECATED;
@@ -464,12 +577,6 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         await this.keyRepository.deleteById(id, options);
     }
 
-    private async createStrategyEntity(data: EncryptionStrategyEntityCreateData): Promise<EncryptionStrategyEntity> {
-        const res: EncryptionStrategyEntity = await this.strategyRepository.create(data);
-        this.strategyEntities.push(res);
-        return res;
-    }
-
     private syncStrategyEntityKey(strategy: EncryptionStrategyEntity, key: EncryptionKey): void {
         const existingIndex: number = strategy.keys.findIndex(k => k.id === key.id);
         if (existingIndex >= 0) {
@@ -477,12 +584,6 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
             return;
         }
         strategy.keys.push(key);
-    }
-
-    private async findOrCreateDefaultKeyForStrategy(strategy: EncryptionStrategyEntity): Promise<EncryptionKey> {
-        return strategy.keys.find(k => k.status === EncryptionKeyStatus.DEFAULT)
-            ?? strategy.keys.at(0)
-            ?? await this.createKey(this.findStrategyClass(strategy.name, strategy.version), { status: EncryptionKeyStatus.DEFAULT });
     }
 
     private findStrategy<
@@ -548,11 +649,21 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         return await masterStrategy.decrypt(encrypted, { key: masterKey.value, keyId: masterKey.id });
     }
 
-    private findDefaultStrategy<TKey>(): StrategyAndEntity<TKey> {
+    /**
+     * The strategy an encryption that names none is performed with.
+     *
+     * Only the strategy, and deliberately: the row belonging to it is looked up by what identifies
+     * it - its name and version - rather than by its status. Answering both questions here is what
+     * used to write a new strategy row on *every* unnamed encryption once the table held rows but
+     * none of them was the default one, which a first encryption naming its strategy is enough to
+     * bring about.
+     * @returns The default strategy, or the first one there is when nothing is marked as default.
+     */
+    private findDefaultStrategy<TKey>(): EncryptionStrategyInterface<TKey> {
         const entity: EncryptionStrategyEntity | undefined = this.strategyEntities.find(s => s.status === EncryptionStrategyStatus.DEFAULT);
         return entity
-            ? { strategy: this.findStrategy(entity.name, entity.version), entity }
-            : { strategy: this.strategies[0] as EncryptionStrategyInterface<TKey>, entity };
+            ? this.findStrategy(entity.name, entity.version)
+            : this.strategies[0] as EncryptionStrategyInterface<TKey>;
     }
 
     private validateNoDuplicateEncryptionStrategy(): void {

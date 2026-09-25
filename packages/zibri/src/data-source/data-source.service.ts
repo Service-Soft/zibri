@@ -1,6 +1,7 @@
 import { DataSourceServiceInterface } from './data-source-service.interface';
-import { ZibriApplication } from '../application';
+import { ZibriApplication } from '../application/application';
 import { DataSourceInterface } from './data-sources/data-source.interface';
+import { RegisteredDataSource, resolveEntityOwnership } from './entity-ownership.function';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
@@ -27,16 +28,23 @@ export class DataSourceService implements DataSourceServiceInterface {
     async beforeAppInit(app: ZibriApplication): Promise<void> {
         const { dataSources } = app.options;
         if (dataSources.length) {
-            await this.logger.info(`initializes ${dataSources.length} ${dataSources.length > 1 ? 'data sources' : 'data source'}`);
+            this.logger.info(`initializes ${dataSources.length} ${dataSources.length > 1 ? 'data sources' : 'data source'}`);
         }
 
-        for (const dataSourceClass of dataSources) {
-            const dataSource: DataSourceInterface = inject(dataSourceClass);
+        const registeredDataSources: RegisteredDataSource[] = dataSources.map(dataSourceClass => {
             if (!MetadataUtilities.getFilePath(dataSourceClass)) {
                 throw new InternalError(`The data source ${dataSourceClass.name} is not decorated with @DataSource.`);
             }
+            return { dataSourceClass, dataSource: inject(dataSourceClass) };
+        });
+
+        // has to happen before any data source is initialized, because only here it is known
+        // which entities belong to more than one of them
+        resolveEntityOwnership(registeredDataSources);
+
+        for (const { dataSourceClass, dataSource } of registeredDataSources) {
             this.dataSources.push(dataSource);
-            await this.logger.info(`  - ${dataSourceClass.name} (${dataSource.entities.length} entities)`);
+            this.logger.info(`  - ${dataSourceClass.name} (${dataSource.entities.length} entities)`);
             await dataSource.init();
         }
 

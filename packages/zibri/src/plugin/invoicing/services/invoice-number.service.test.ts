@@ -6,7 +6,7 @@ import { createTestDataSource, defaultTestServerEntities } from '../../../__test
 import { defaultTestServerPlugins } from '../../../__testing__/test-server/plugins';
 import { defaultTestServerProviders } from '../../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
-import { Repository } from '../../../data-source/repository';
+import { Repository } from '../../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
 import { inject } from '../../../di/inject.function';
 import { defineProvider } from '../../../di/models/di-provider.model';

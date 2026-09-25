@@ -3,7 +3,7 @@ import { describe, expect, it, jest } from '@jest/globals';
 import { CookieAuthRefreshSession } from './cookie-auth-refresh-session.model';
 import { CookieAuthSessionCleanupCronJob } from './cookie-auth-session-cleanup.cron-job';
 import { CookieAuthSession } from './cookie-auth-session.model';
-import { Repository } from '../../../data-source/repository';
+import { Repository } from '../../../data-source/repository/repository';
 import { BaseEntity } from '../../../entity/base-entity.model';
 
 type FakeRepository<T extends BaseEntity> = Repository<T> & { deleteAll: jest.Mock<Repository<T>['deleteAll']> };
@@ -28,12 +28,12 @@ describe('CookieAuthSessionCleanupCronJob', () => {
         expect(refreshSessionRepository.deleteAll).toHaveBeenCalledTimes(1);
 
         const sessionWhere: { expirationDate: { before: Date } }
-            = sessionRepository.deleteAll.mock.calls[0][0] as unknown as { expirationDate: { before: Date } };
+            = sessionRepository.deleteAll.mock.calls[0]?.[0] as unknown as { expirationDate: { before: Date } };
         expect(sessionWhere.expirationDate.before.getTime()).toBeGreaterThanOrEqual(before.getTime());
         expect(sessionWhere.expirationDate.before.getTime()).toBeLessThanOrEqual(after.getTime());
 
         const refreshWhere: { expirationDate: { before: Date } }
-            = refreshSessionRepository.deleteAll.mock.calls[0][0] as unknown as { expirationDate: { before: Date } };
+            = refreshSessionRepository.deleteAll.mock.calls[0]?.[0] as unknown as { expirationDate: { before: Date } };
         expect(refreshWhere.expirationDate.before.getTime()).toBeGreaterThanOrEqual(before.getTime());
         expect(refreshWhere.expirationDate.before.getTime()).toBeLessThanOrEqual(after.getTime());
     });
@@ -45,7 +45,7 @@ describe('CookieAuthSessionCleanupCronJob', () => {
 
         await cronJob.onTick();
 
-        const refreshWhere: Record<string, unknown> = refreshSessionRepository.deleteAll.mock.calls[0][0] as unknown as Record<string, unknown>;
+        const refreshWhere: Record<string, unknown> = refreshSessionRepository.deleteAll.mock.calls[0]?.[0] as unknown as Record<string, unknown>;
         expect(refreshWhere).not.toHaveProperty('blacklisted');
     });
 

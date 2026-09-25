@@ -1,5 +1,6 @@
 import { BehaviorSubject } from 'rxjs';
 
+import { LoggedError } from '../../logging/logged-error.model';
 import { Percentage } from '../../types/percentage.type';
 import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from '../models/base-thread-job-worker-data.model';
 import { ThreadJobData, ThreadJobDataFunctions } from '../models/thread-job-data.model';
@@ -50,7 +51,7 @@ export class ThreadJob<
     /**
      * The error that the job failed with.
      */
-    error?: Error | null;
+    error?: LoggedError | null;
     /**
      * The result that the job finished with.
      */

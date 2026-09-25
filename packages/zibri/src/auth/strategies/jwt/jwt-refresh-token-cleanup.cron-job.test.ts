@@ -2,7 +2,7 @@ import { describe, expect, it, jest } from '@jest/globals';
 
 import { JwtRefreshTokenCleanupCronJob } from './jwt-refresh-token-cleanup.cron-job';
 import { JwtRefreshToken } from './jwt-refresh-token.model';
-import { Repository } from '../../../data-source/repository';
+import { Repository } from '../../../data-source/repository/repository';
 
 function fakeRefreshTokenRepository(): Repository<JwtRefreshToken> & { deleteAll: jest.Mock<Repository<JwtRefreshToken>['deleteAll']> } {
     return {
@@ -20,7 +20,7 @@ describe('JwtRefreshTokenCleanupCronJob', () => {
         const after: Date = new Date();
 
         expect(repo.deleteAll).toHaveBeenCalledTimes(1);
-        const where: { expirationDate: { before: Date } } = repo.deleteAll.mock.calls[0][0] as unknown as { expirationDate: { before: Date } };
+        const where: { expirationDate: { before: Date } } = repo.deleteAll.mock.calls[0]?.[0] as unknown as { expirationDate: { before: Date } };
         expect(where.expirationDate.before.getTime()).toBeGreaterThanOrEqual(before.getTime());
         expect(where.expirationDate.before.getTime()).toBeLessThanOrEqual(after.getTime());
     });
@@ -31,7 +31,7 @@ describe('JwtRefreshTokenCleanupCronJob', () => {
 
         await cronJob.onTick();
 
-        const where: Record<string, unknown> = repo.deleteAll.mock.calls[0][0] as unknown as Record<string, unknown>;
+        const where: Record<string, unknown> = repo.deleteAll.mock.calls[0]?.[0] as unknown as Record<string, unknown>;
         expect(where).not.toHaveProperty('blacklisted');
     });
 

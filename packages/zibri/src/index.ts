@@ -2,8 +2,8 @@
 import 'reflect-metadata';
 
 // application
-export * from './application';
-export * from './application-options.model';
+export * from './application/application';
+export * from './application/application-options.model';
 
 // auth
 export * from './auth/decorators/auth.decorator';
@@ -15,12 +15,14 @@ export * from './auth/models/base-user.model';
 export * from './auth/models/user-repositories.model';
 export * from './auth/models/has-role-metadata.model';
 export * from './auth/models/is-not-logged-in-metadata.model';
-export * from './auth/models/belongs-to-metadata.model';
 export * from './auth/models/skip-auth-metadata.model';
+export * from './auth/models/resolved-auth-metadata.model';
+export * from './auth/models/route-auth-configuration.model';
 export * from './auth/models/password-reset-token.model';
 export * from './auth/models/require-2fa-metadata.model';
 
 export * from './auth/auth-service.interface';
+export * from './auth/auth.rate-limiter';
 export * from './auth/auth.service';
 export * from './auth/auth-controller.interface';
 
@@ -30,6 +32,7 @@ export * from './auth/strategies/jwt/jwt.utilities';
 export * from './auth/strategies/jwt/encoded-jwt-access-token.model';
 export * from './auth/strategies/jwt/jwt-credentials.model';
 export * from './auth/strategies/jwt/jwt-auth-data.model';
+export * from './auth/strategies/jwt/jwt-auth-options.model';
 export * from './auth/strategies/jwt/jwt.model';
 export * from './auth/strategies/jwt/jwt-refresh-token-payload.model';
 export * from './auth/strategies/jwt/jwt-refresh-token.model';
@@ -63,6 +66,7 @@ export * from './auth/2fa/two-factor-methods.model';
 
 export * from './auth/2fa/methods/two-factor-method.interface';
 export * from './auth/2fa/methods/otp/otp.two-factor-method';
+export * from './auth/2fa/methods/otp/otp-code-already-used.error';
 export * from './auth/2fa/methods/otp/otp-credentials.model';
 export * from './auth/2fa/methods/otp/otp.utilities';
 
@@ -70,6 +74,7 @@ export * from './auth/encryption/encryption-key.model';
 export * from './auth/encryption/encryption-master-options.model';
 export * from './auth/encryption/encryption-service.interface';
 export * from './auth/encryption/encryption.service';
+export * from './auth/encryption/encryption-rotation.cron-job';
 export * from './auth/encryption/encryption.utilities';
 
 export * from './auth/encryption/strategies/aes-gcm.encryption-strategy';
@@ -82,6 +87,7 @@ export * from './auth/hash/hash.utilities';
 
 export * from './auth/hash/strategies/bcrypt.hash-strategy';
 export * from './auth/hash/strategies/scrypt.hash-strategy';
+export * from './auth/hash/strategies/sha256.hash-strategy';
 export * from './auth/hash/strategies/hash-strategy-entity.model';
 export * from './auth/hash/strategies/hash-strategy.interface';
 
@@ -96,6 +102,7 @@ export * from './di/models/injection-token.model';
 
 export * from './di/default/zibri-di-tokens.default';
 
+export * from './di/di-container';
 export * from './di/inject.function';
 export * from './di/init-di-container.function';
 export * from './di/get-all-registered-tokens.function';
@@ -104,14 +111,24 @@ export * from './di/get-registered-providers-of-variant.function';
 
 export * from './di/errors/get-dependency-stack-trace.function';
 export * from './di/errors/no-provider.error';
+export * from './di/errors/circular-dependency.error';
+export * from './di/errors/provider-collision.error';
+export * from './di/errors/outside-request-scope.error';
+export * from './di/errors/captured-request-scope.error';
+export * from './di/errors/uninjectable-parameter.error';
+export * from './di/errors/missed-lifecycle-hooks.error';
+export * from './di/errors/unresolved-async-provider.error';
+export * from './di/errors/inject-inside-async-factory.error';
 export * from './di/errors/invalid-class-marked-with-injectable.error';
 
 // event
 export * from './event/event-service.interface';
 export * from './event/event.service';
+export * from './event/event-subscriber-registration.model';
 export * from './event/event-subscriber-run.model';
 export * from './event/event.model';
 export * from './event/event-cleanup.cron-job';
+export * from './event/event-dispatch.cron-job';
 export * from './event/event-processing.error';
 
 // routing
@@ -128,6 +145,7 @@ export * from './routing/decorators/patch.decorator';
 export * from './routing/decorators/http-decorator-option-input.model';
 export * from './routing/decorators/param.decorator';
 export * from './routing/decorators/body.decorator';
+export * from './routing/decorators/body-metadata.model';
 
 export * from './routing/models/string-param-metadata.model';
 export * from './routing/models/number-param-metadata.model';
@@ -156,12 +174,18 @@ export * from './error-handling/internal-error.model';
 
 export * from './error-handling/errors/http.error';
 export * from './error-handling/errors/internal-server.error';
+export * from './error-handling/errors/method-not-allowed.error';
+export * from './error-handling/errors/not-acceptable.error';
 export * from './error-handling/errors/not-found.error';
 export * from './error-handling/errors/unmatched-route.error';
 export * from './error-handling/errors/bad-request.error';
 export * from './error-handling/errors/validation.error';
 export * from './error-handling/errors/unauthorized.error';
+export * from './error-handling/errors/forbidden.error';
+export * from './error-handling/errors/credential-reused.error';
 export * from './error-handling/errors/too-many-requests.error';
+export * from './error-handling/errors/service-unavailable.error';
+export * from './error-handling/errors/gateway-timeout.error';
 export * from './error-handling/errors/conflict.error';
 export * from './error-handling/errors/missing-entities.error';
 export * from './error-handling/errors/missing-tokens.error';
@@ -173,7 +197,8 @@ export * from './error-handling/errors/unsupported-media-type.error';
 // assets
 export * from './assets/asset-service.interface';
 export * from './assets/asset.service';
-export * from './assets/resolve-zibri-root.function';
+export * from './utilities/resolve-app-root.function';
+export * from './utilities/resolve-zibri-root.function';
 
 // global
 export * from './global/app-state.enum';
@@ -182,11 +207,13 @@ export * from './global/before-app-init.interface';
 export * from './global/on-app-init.interface';
 export * from './global/after-app-init.interface';
 export * from './global/on-app-start.interface';
+export * from './global/after-app-start.interface';
 export * from './global/before-app-shutdown.interface';
 export * from './global/on-app-shutdown.interface';
 export * from './global/after-app-shutdown.interface';
 export * from './global/global-registry';
 
+export * from './global/model-registry/model.registry';
 export * from './global/model-registry/remove-exclude-properties.function';
 export * from './global/model-registry/restore-exclude-properties.function';
 export * from './global/model-registry/set-default-values.function';
@@ -198,6 +225,8 @@ export * from './logging/log.model';
 export * from './logging/log-level.enum';
 export * from './logging/logged-error.model';
 export * from './logging/error-to-logged-error.function';
+export * from './logging/audit-event.model';
+export * from './logging/audit-reason-for.function';
 
 export * from './logging/transport/logger-transport.model';
 
@@ -221,9 +250,17 @@ export * from './entity/entity-metadata-missing.error';
 export * from './entity/decorators/entity.decorator';
 export * from './entity/decorators/property.decorator';
 
+export * from './entity/models/entity-order.model';
+export * from './entity/models/entity-order.utilities';
+export * from './entity/models/entity-relations.model';
+export * from './entity/models/entity-relations.utilities';
+export * from './entity/models/entity-scope.model';
+export * from './entity/models/unique-declaration.model';
 export * from './entity/models/string-property-metadata.model';
 export * from './entity/models/number-property-metadata.model';
 export * from './entity/models/object-property-metadata.model';
+export * from './entity/models/one-of-property-metadata.model';
+export * from './entity/models/one-of.model';
 export * from './entity/models/array-property-metadata.model';
 export * from './entity/models/date-property-metadata.model';
 export * from './entity/models/boolean-property-metadata.model';
@@ -246,9 +283,22 @@ export * from './parsing/body-parser.interface';
 export * from './parsing/parser';
 export * from './parsing/parser.interface';
 
+export * from './parsing/functions/parse-array.function';
+export * from './parsing/functions/parse-object.function';
+export * from './parsing/functions/parse-one-of.function';
+
 export * from './parsing/decorators/body-parser.decorator';
 
 export * from './parsing/json/json.body-parser';
+export * from './parsing/xml/xml.body-parser';
+export * from './parsing/xml/xml-attribute.decorator';
+export * from './parsing/xml/xml-text.decorator';
+export * from './parsing/xml/xml-element.decorator';
+export * from './parsing/xml/xml-root.decorator';
+export * from './parsing/xml/xml-namespace.decorator';
+export * from './parsing/xml/xml-mixed.decorator';
+export * from './parsing/xml/xml-property-metadata.model';
+export * from './parsing/xml/xml-root-metadata.model';
 export * from './parsing/html/html-response.model';
 export * from './parsing/html/csp-options.model';
 export * from './parsing/form-data/form-data.body-parser';
@@ -257,15 +307,41 @@ export * from './parsing/form-data/file.model';
 export * from './parsing/form-data/file-response.model';
 
 // http
+export * from './http/compression.middleware';
+export * from './http/cors.middleware';
 export * from './http/http-method.enum';
 export * from './http/http-status.enum';
 export * from './http/mime-type.enum';
 export * from './http/known-header.enum';
+export * from './http/middleware-phase.enum';
 export * from './http/header.type';
 export * from './http/http-request.model';
 export * from './http/http-response.model';
 export * from './http/mime-type.helpers';
 export * from './http/cookie-options.model';
+export * from './http/handler-timeout.type';
+export * from './http/http-server-timeouts.model';
+export * from './http/request-deadline.utilities';
+export * from './http/route-label.utilities';
+export * from './http/trace-context.middleware';
+
+export * from './tracing/trace-span-attributes.model';
+export * from './tracing/trace-span-context.model';
+export * from './tracing/trace-span-kind.enum';
+export * from './tracing/trace-span-record.model';
+export * from './tracing/trace-span-status.enum';
+export * from './tracing/trace-span.interface';
+export * from './tracing/trace-buffer.interface';
+export * from './tracing/in-memory.trace-buffer';
+export * from './tracing/tracer.interface';
+export * from './tracing/trace-context.utilities';
+export * from './tracing/tracing.utilities';
+export * from './tracing/open-telemetry/open-telemetry-api.model';
+export * from './tracing/open-telemetry/open-telemetry.span';
+export * from './tracing/open-telemetry/open-telemetry.tracer';
+export * from './tracing/open-telemetry/open-telemetry.utilities';
+export * from './tracing/open-telemetry/otlp-trace-exporter.function';
+export * from './tracing/open-telemetry/trace-buffer.span-processor';
 
 // validation
 export * from './validation/validation-problem.model';
@@ -274,25 +350,53 @@ export * from './validation/validation.service';
 
 // data source
 export * from './data-source/data-source.service';
+export * from './data-source/entity-ownership.function';
 export * from './data-source/data-source-service.interface';
-export * from './data-source/repository';
+export * from './data-source/json-value-type-mismatch.error';
 export * from './data-source/query-failed.error';
+export * from './data-source/unique-constraint-violation.error';
+export * from './data-source/unique-group-for.function';
+export * from './data-source/upsert-conflict-where.function';
+// needed to add or drop the constraint from a migration, which has to name it exactly as the schema did
+export * from './data-source/index-name.function';
+export * from './data-source/unique-constraint-name.function';
+
+export * from './data-source/repository/repository';
 
 export * from './data-source/decorators/data-source.decorator';
 
 export * from './data-source/data-sources/data-source.interface';
-export * from './data-source/data-sources/postgres-typeorm-data-source.model';
+export * from './data-source/data-sources/pub-sub-data-source.interface';
 export * from './data-source/data-sources/typeorm-base-data-source.model';
 export * from './data-source/data-sources/data-source-initialization.error';
 export * from './data-source/data-sources/sql-data-source.interface';
 
+export * from './data-source/data-sources/postgres/postgres-typeorm-data-source.model';
+
+export * from './data-source/data-sources/val-key/val-key-data-source.model';
+
 export * from './data-source/data-sources/where-converter/typeorm-where-filter.converter';
 export * from './data-source/data-sources/where-converter/postgres-typeorm-where-filter.converter';
+export * from './data-source/data-sources/where-converter/where-filter.evaluator';
 
+export * from './data-source/driver/repository-driver.interface';
+export * from './data-source/driver/typeorm.repository-driver';
+export * from './data-source/driver/val-key.repository-driver';
+
+export * from './data-source/keyset/after-cursor-where.function';
+export * from './data-source/keyset/keyset-order.model';
+
+export * from './data-source/transaction/transaction-already-finished.error';
 export * from './data-source/transaction/transaction.model';
+export * from './data-source/transaction/typeorm-transaction.model';
+export * from './data-source/transaction/val-key-transaction.model';
 
 export * from './data-source/models/data-source-options.model';
 export * from './data-source/models/column-type.model';
+export * from './data-source/models/schema-management.model';
+// the shape of the onConflict argument, so a caller can type one outside the call
+export * from './data-source/models/atomic-update.model';
+export * from './data-source/models/keyset-cursor.model';
 
 export * from './data-source/models/options/base-repository-options.model';
 export * from './data-source/models/options/create-options.model';
@@ -303,8 +407,10 @@ export * from './data-source/models/options/find-all-options.model';
 export * from './data-source/models/options/find-all-paginated-options.model';
 export * from './data-source/models/options/find-by-id-options.model';
 export * from './data-source/models/options/find-one-options.model';
+export * from './data-source/models/options/stream-options.model';
 export * from './data-source/models/options/update-all-options.model';
 export * from './data-source/models/options/update-by-id-options.model';
+export * from './data-source/models/options/upsert-options.model';
 export * from './data-source/models/options/count-options.model';
 
 export * from './data-source/models/where/array-where-filter.model';
@@ -312,12 +418,17 @@ export * from './data-source/models/where/boolean-where-filter.model';
 export * from './data-source/models/where/date-where-filter.model';
 export * from './data-source/models/where/number-where-filter.model';
 export * from './data-source/models/where/object-where-filter.model';
+export * from './data-source/models/where/one-of-where-filter.model';
+export * from './data-source/models/where/one-of-where-filter.utilities';
 export * from './data-source/models/where/string-where-filter.model';
+export * from './data-source/models/where/fuzzy-like.model';
 export * from './data-source/models/where/where-filter-keys.model';
 export * from './data-source/models/where/where-filter.model';
+export * from './data-source/models/where/where-for.function';
 
 export * from './data-source/migration/migration.model';
 export * from './data-source/migration/migration-entity.model';
+export * from './data-source/migration/run-migrations.function';
 
 export * from './data-source/hooks/hooks.default';
 export * from './data-source/hooks/before-return';
@@ -328,7 +439,17 @@ export * from './cron/cron-job-entity.model';
 export * from './cron/cron-job.model';
 export * from './cron/cron-service.interface';
 export * from './cron/cron.service';
+export * from './cron/should-run-execution.type';
 export * from './cron/cron-expression.utilities';
+
+// leases
+export * from './leases/held-lease.model';
+export * from './leases/lease-acquisition-timeout.error';
+export * from './leases/lease-cleanup.cron-job';
+export * from './leases/lease-options.model';
+export * from './leases/lease-service.interface';
+export * from './leases/lease.model';
+export * from './leases/lease.service';
 
 // email
 export * from './email/email-service.interface';
@@ -341,7 +462,11 @@ export * from './email/models/email-priority.enum';
 export * from './email/models/create-email-data.model';
 export * from './email/models/email-config.model';
 
+export * from './email/transports/email-transport.interface';
+export * from './email/transports/smtp.email-transport';
+
 // rate limiting
+export * from './rate-limiting/rate-limit-keys';
 export * from './rate-limiting/rate-limit-result.model';
 export * from './rate-limiting/rate-limit-wrap-options.model';
 export * from './rate-limiting/rate-limiter-metrics.model';
@@ -371,7 +496,12 @@ export * from './rate-limiting/reservation/rate-limit-reservation.error';
 export * from './rate-limiting/reservation/rate-limit-reservation.model';
 
 export * from './rate-limiting/stores/rate-limiter-store.interface';
+export * from './rate-limiting/stores/rate-limit-store-unavailable.error';
 export * from './rate-limiting/stores/in-memory.rate-limiter-store';
+export * from './rate-limiting/stores/repository.rate-limiter-store';
+export * from './rate-limiting/stores/rate-limit-state-entity.model';
+export * from './rate-limiting/stores/rate-limiter-lock.interface';
+export * from './rate-limiting/stores/val-key.rate-limiter-lock';
 
 // handlebars
 export * from './handlebars/generate-handlebar-type-files.function';
@@ -401,9 +531,12 @@ export * from './change-sets/change-set-repository';
 export * from './change-sets/soft-delete-repository';
 
 export * from './change-sets/models/change-set-entity.model';
+export * from './change-sets/models/is-change-set-entity.function';
+export * from './change-sets/models/is-soft-delete-entity.function';
 export * from './change-sets/models/change-set-type.enum';
 export * from './change-sets/models/change-set.model';
 export * from './change-sets/models/change.model';
+export * from './change-sets/models/soft-delete-count-options.model';
 export * from './change-sets/models/soft-delete-entity.model';
 export * from './change-sets/models/soft-delete-find-all-options.model';
 export * from './change-sets/models/soft-delete-find-by-id-options.model';
@@ -416,6 +549,10 @@ export * from './change-sets/models/soft-delete-update-by-id-options.model';
 // document
 export * from './document/pdf.utilities';
 export * from './document/xml.utilities';
+export * from './document/xml-element-node.model';
+export * from './document/xml-string.type';
+export * from './document/xml-generate-options.model';
+export * from './document/xml-parse-options.model';
 
 // plugin
 export * from './plugin/plugin.model';
@@ -497,6 +634,7 @@ export * from './localization/models/date-format.model';
 export * from './localization/models/locale-code.model';
 export * from './localization/models/localize-options.model';
 export * from './localization/models/month.enum';
+export * from './localization/models/timezone.model';
 export * from './localization/models/weekday.enum';
 export * from './localization/models/translated-string.model';
 
@@ -508,6 +646,7 @@ export * from './multithreading/models/base-thread-job-worker-data.model';
 export * from './multithreading/models/thread-job-data.model';
 export * from './multithreading/models/thread-job-function.model';
 export * from './multithreading/models/thread-job-entity.model';
+export * from './multithreading/run-queued-thread-jobs.cron-job';
 
 export * from './multithreading/services/multithreading-service.interface';
 export * from './multithreading/services/multithreading.service';
@@ -527,6 +666,7 @@ export * from './websocket/models/websocket-channel.model';
 export * from './websocket/models/websocket-channel.model';
 export * from './websocket/models/websocket-message.model';
 export * from './websocket/models/websocket-options.model';
+export * from './websocket/data-source.websocket-adapter';
 
 export * from './websocket/models/connection/base-websocket-connection.model';
 export * from './websocket/models/connection/socket-io-websocket-connection.model';
@@ -538,6 +678,7 @@ export * from './websocket/decorators/current-websocket-connection.decorator';
 
 // backup
 export * from './backup/backup-entity.model';
+export * from './backup/backup-format';
 export * from './backup/backup.service';
 export * from './backup/backup-service.interface';
 export * from './backup/backup-resource.interface';
@@ -545,14 +686,18 @@ export * from './backup/backup-resource-entity.model';
 
 export * from './backup/transports/backup-transport.interface';
 export * from './backup/transports/fs.backup-transport';
+export * from './backup/transports/s3.backup-transport';
+export * from './backup/transports/s3/s3-backup-transport-options.model';
 
 export * from './backup/decorators/backup-resource-metadata.model';
 export * from './backup/decorators/backup-resource.decorator';
+export * from './backup/decorators/backup-transport.decorator';
 
 // http client
 export * from './http-client/http-client';
 export * from './http-client/http-client.interface';
 export * from './http-client/http-client-response.model';
+export * from './http-client/http-client-options.model';
 export * from './http-client/http-client.error';
 
 // caching
@@ -560,6 +705,9 @@ export * from './caching/cache-metrics.model';
 export * from './caching/cache-service.interface';
 export * from './caching/cache-tag-matchers';
 export * from './caching/cache.service';
+export * from './caching/cache-invalidation.model';
+export * from './caching/cache-invalidation.cron-job';
+export * from './caching/cache-expiry-cleanup.cron-job';
 
 export * from './caching/cache/base-cache.model';
 export * from './caching/cache/cache-operation.enum';
@@ -590,9 +738,12 @@ export * from './caching/decorators/cached.decorator';
 export * from './caching/store/cache-store.interface';
 export * from './caching/store/cached-value.model';
 export * from './caching/store/in-memory.cache-store';
+export * from './caching/store/val-key.cache-store';
+export * from './caching/store/cache-model.model';
 
 // versioning
 export * from './versioning/route-with-version-data.model';
+export * from './versioning/stored-route.model';
 export * from './versioning/supported-versions-options.model';
 export * from './versioning/version.model';
 export * from './versioning/versioning-service.interface';
@@ -603,20 +754,24 @@ export * from './types/any-enum.type';
 export * from './types/deep-partial.type';
 export * from './types/exclude-strict.type';
 export * from './types/newable.type';
+export * from './types/self-describing.type';
 export * from './types/omit-strict.type';
 export * from './types/percentage.type';
 
 // utilities
 export * from './utilities/bytes';
 export * from './utilities/doubly-linked-list';
-export * from './utilities/sem-ver.utilities';
+export * from './versioning/sem-ver.utilities';
 export * from './utilities/now-in-ns.function';
 export * from './utilities/promise.utilities';
 export * from './utilities/ms';
 export * from './utilities/number.utilities';
+export * from './utilities/read-number.function';
 export * from './utilities/validate-entities-registered.function';
 export * from './utilities/validate-tokens-registered.function';
 export * from './utilities/uuid.utilities';
 export * from './utilities/mask.utilities';
 export * from './utilities/fs.utilities';
 export * from './utilities/json.utilities';
+export * from './utilities/metadata.utilities';
+export * from './utilities/object.utilities';

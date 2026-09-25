@@ -1,58 +1,74 @@
-import { expect } from '@jest/globals';
+import * as ts from 'typescript';
 
-import { Expression, Program, Statement } from '../parser/ast';
-import { parse, ParseResult } from '../parser/parser';
+import { parseTemplate, syntaxErrorsOf } from '../semantics/symbols';
 
 /**
- * Parses a source string and asserts there were no diagnostics, returning the program.
+ * Parses a template into TypeScript's syntax tree, asserting that it has no syntax error.
  * @param source - The source to parse.
- * @throws When parsing the given source returns at least one diagnostics.
- * @returns The parsed program.
+ * @returns The parsed file.
+ * @throws When the source has a syntax error.
  */
-export function parseOk(source: string): Program {
-    const result: ParseResult = parse(source);
-    if (result.diagnostics.length > 0) {
-        const first: ParseResult['diagnostics'][number] = result.diagnostics[0];
-        throw new Error(`Unexpected diagnostic: ${first.message} at offset ${first.span.start}`);
+export function parseTemplateOk(source: string): ts.SourceFile {
+    const file: ts.SourceFile = parseTemplate(source);
+    const [error] = syntaxErrorsOf(file);
+    if (error !== undefined) {
+        throw new Error(`Expected source without syntax errors: ${error.message}`);
     }
-    if (!result.program) {
-        throw new Error('Expected a program.');
-    }
-    return result.program;
+    return file;
 }
 
 /**
- * Asserts that parsing the given source produces at least one diagnostic, and returns the first.
+ * Parses source that holds a single top-level statement and returns it.
  * @param source - The source to parse.
- * @returns The first diagnostic message.
+ * @returns The statement.
+ * @throws When the source holds no statement.
  */
-export function parseError(source: string): string {
-    const result: ParseResult = parse(source);
-    expect(result.diagnostics.length).toBeGreaterThan(0);
-    return result.diagnostics[0].message;
+export function parseTemplateStatement(source: string): ts.Statement {
+    const statement: ts.Statement | undefined = parseTemplateOk(source).statements[0];
+    if (statement === undefined) {
+        throw new Error('Expected a statement.');
+    }
+    return statement;
 }
 
 /**
  * Parses a single expression statement and returns its expression.
  * @param source - The expression source (without a trailing semicolon).
- * @throws When the given source isn't an expression.
- * @returns The parsed expression.
+ * @returns The expression.
+ * @throws When the source isn't an expression.
  */
-export function parseExpression(source: string): Expression {
-    const program: Program = parseOk(`${source};`);
-    const statement: Statement | undefined = program.body[0] as Statement | undefined;
-    if (!statement || statement.kind !== 'ExpressionStatement') {
-        throw new Error(`Expected an expression statement, got ${statement?.kind ?? 'nothing'}.`);
+export function parseTemplateExpression(source: string): ts.Expression {
+    const statement: ts.Statement = parseTemplateStatement(`${source};`);
+    if (!ts.isExpressionStatement(statement)) {
+        throw new Error(`Expected an expression statement, got ${ts.SyntaxKind[statement.kind]}.`);
     }
     return statement.expression;
 }
 
 /**
- * Parses source that is expected to contain a single top-level statement and returns it.
- * @param source - The source to parse.
- * @returns The first statement.
+ * Parses an arrow function expression.
+ * @param source - The arrow function source.
+ * @returns The arrow function.
+ * @throws When the source isn't an arrow function.
  */
-export function parseStatement(source: string): Statement {
-    const program: Program = parseOk(source);
-    return program.body[0] as Statement;
+export function parseTemplateArrow(source: string): ts.ArrowFunction {
+    const expression: ts.Expression = parseTemplateExpression(source);
+    if (!ts.isArrowFunction(expression)) {
+        throw new Error(`Expected an arrow function, got ${ts.SyntaxKind[expression.kind]}.`);
+    }
+    return expression;
+}
+
+/**
+ * Parses a single variable statement and returns its first declaration's binding name.
+ * @param source - The variable statement source.
+ * @returns The binding name.
+ * @throws When the source isn't a variable statement.
+ */
+export function parseTemplateBinding(source: string): ts.BindingName {
+    const statement: ts.Statement = parseTemplateStatement(source);
+    if (!ts.isVariableStatement(statement)) {
+        throw new Error(`Expected a variable statement, got ${ts.SyntaxKind[statement.kind]}.`);
+    }
+    return statement.declarationList.declarations[0].name;
 }

@@ -18,7 +18,7 @@ import { BaseUserEntity } from '../auth/models/base-user.model';
 import { JwtAuthData } from '../auth/strategies/jwt/jwt-auth-data.model';
 import { JwtCredentials } from '../auth/strategies/jwt/jwt-credentials.model';
 import { JwtAuthStrategy } from '../auth/strategies/jwt/jwt.auth-strategy';
-import { Repository } from '../data-source/repository';
+import { Repository } from '../data-source/repository/repository';
 import { InjectRepository, repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
@@ -26,6 +26,8 @@ import { Entity } from '../entity/decorators/entity.decorator';
 import { Property } from '../entity/decorators/property.decorator';
 import { OmitClass } from '../entity/omit-class.model';
 import { PartialClass } from '../entity/partial-class.model';
+import { ConflictError } from '../error-handling/errors/conflict.error';
+import { NotFoundError } from '../error-handling/errors/not-found.error';
 import { Body } from '../routing/decorators/body.decorator';
 import { Controller } from '../routing/decorators/controller.decorator';
 import { Delete } from '../routing/decorators/delete.decorator';
@@ -142,7 +144,7 @@ beforeAll(async () => {
     await credentialsRepo.create({
         email: testEmail,
         password: testPassword,
-        userId: (await userRepo.findOne({ where: { email: testEmail } }, true)).id
+        userId: (await userRepo.findOne({ where: { email: testEmail } })).id
     });
 
     const authService: AuthServiceInterface = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
@@ -225,6 +227,14 @@ describe('SoftDeleteRepository behavior', () => {
             expect(task.deleted).toBe(true);
         });
 
+        it('findById with required=false returns undefined for a soft-deleted task', async () => {
+            await authFetch(`/tasks/${taskId}`, { method: 'DELETE' });
+            // the row is still there, so this only comes out undefined if the soft delete guard runs
+            // before the requirement is decided rather than after
+            expect(await taskRepo.findById(taskId, { required: false })).toBeUndefined();
+            expect(await taskRepo.findById(taskId, { required: false, withDeleted: true })).toBeDefined();
+        });
+
         it('soft-deleted task can be updated if withDeleted is passed', async () => {
             await authFetch(`/tasks/${taskId}`, { method: 'DELETE' });
             const params: URLSearchParams = new URLSearchParams({ withDeleted: 'true' });
@@ -233,6 +243,55 @@ describe('SoftDeleteRepository behavior', () => {
                 method: 'PATCH',
                 body: JSON.stringify({ title: 'Still here' })
             });
+        });
+    });
+
+    describe('conditional updateById', () => {
+        let taskId: string;
+
+        beforeEach(async () => {
+            const res: Response = await authFetch('/tasks', {
+                method: 'POST',
+                body: JSON.stringify({ title: 'Conditional' })
+            });
+            taskId = ((await res.json()) as Task).id;
+        });
+
+        it('applies the update while the condition holds', async () => {
+            await taskRepo.updateById(taskId, { title: 'Changed' }, { where: { title: 'Conditional' } });
+            expect((await taskRepo.findById(taskId)).title).toBe('Changed');
+        });
+
+        it('still refuses to touch a soft deleted row', async () => {
+            await taskRepo.deleteById(taskId);
+
+            // the condition must not become a way around the soft delete guard. It is an extra thing
+            // the row has to satisfy, never a replacement for the ones it already had - and because
+            // the guard is what puts the row out of reach, absent is all this may be told, even
+            // though the condition it carried would have held
+            await expect(
+                taskRepo.updateById(taskId, { title: 'Changed' }, { where: { title: 'Conditional' } })
+            ).rejects.toThrow(NotFoundError);
+
+            const deleted: Task = await taskRepo.findById(taskId, { withDeleted: true });
+            expect(deleted.title).toBe('Conditional');
+        });
+
+        it('reaches a soft deleted row when it is asked to, and still honors the condition', async () => {
+            await taskRepo.deleteById(taskId);
+
+            await taskRepo.updateById(
+                taskId,
+                { title: 'Revived' },
+                { withDeleted: true, where: { title: 'Conditional' } }
+            );
+            expect((await taskRepo.findById(taskId, { withDeleted: true })).title).toBe('Revived');
+
+            // reached, so a failed condition on it is a conflict - unlike the test above, where the
+            // guard is what hides the row and absent is the only thing it may be told
+            await expect(
+                taskRepo.updateById(taskId, { title: 'Nope' }, { withDeleted: true, where: { title: 'stale' } })
+            ).rejects.toThrow(ConflictError);
         });
     });
 
@@ -286,6 +345,28 @@ describe('SoftDeleteRepository behavior', () => {
         });
     });
 
+    describe('count and exists', () => {
+        beforeEach(async () => {
+            await taskRepo.create({ title: 'Active' });
+            const removed: Task = await taskRepo.create({ title: 'Removed' });
+            await taskRepo.deleteById(removed.id);
+        });
+
+        it('counts only what has not been soft deleted', async () => {
+            // a count that ignores the flag is worse than a findAll that does: nothing about the
+            // number says which rows it stands for, so "2 tasks" reads as true right up until
+            // somebody opens the list and finds one
+            expect(await taskRepo.count()).toBe(1);
+            expect(await taskRepo.count({ withDeleted: true })).toBe(2);
+        });
+
+        it('reports a soft deleted row as gone unless it is asked for', async () => {
+            expect(await taskRepo.exists({ where: { title: 'Active' } })).toBe(true);
+            expect(await taskRepo.exists({ where: { title: 'Removed' } })).toBe(false);
+            expect(await taskRepo.exists({ where: { title: 'Removed' }, withDeleted: true })).toBe(true);
+        });
+    });
+
     describe('deleteAll', () => {
         let id1: string, id2: string;
 
@@ -313,6 +394,20 @@ describe('SoftDeleteRepository behavior', () => {
             assert(task1 && task2);
             expect(task1.deleted).toBe(true);
             expect(task2.deleted).toBe(false);
+        });
+
+        it('returns what it deleted and creates a DELETE change set for it', async () => {
+            // deleteById has recorded one all along, deleteAll silently did not: it read its result
+            // back through the soft delete filter, which excludes the rows it had just marked
+            // deleted, so it handed an empty array to the change set writer and there was nothing
+            // to record. Deleting in bulk left no audit trail at all.
+            const deleted: Task[] = await taskRepo.deleteAll({ title: 'Task 1' }, { returnDeleted: true });
+
+            expect(deleted.map(t => t.id)).toEqual([id1]);
+            expect(deleted[0]?.deleted).toBe(true);
+
+            const changeSets: ChangeSet[] = await changeSetRepo.findAll({ where: { changeSetEntityId: id1 } });
+            expect(changeSets.some(cs => cs.type === ChangeSetType.DELETE)).toBe(true);
         });
 
         it('hard deletes all matching entities', async () => {

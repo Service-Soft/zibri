@@ -20,13 +20,13 @@ export class SocketIOWebsocketConnection implements BaseWebsocketConnection {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     get offset(): number {
-        if (typeof this.socket.handshake.auth.offset !== 'number') {
+        if (typeof this.socket.handshake.auth['offset'] !== 'number') {
             throw new InternalError('socket.io: auth.offset is not a number');
         }
-        return this.socket.handshake.auth.offset;
+        return this.socket.handshake.auth['offset'];
     }
     set offset(value: number) {
-        this.socket.handshake.auth.offset = value;
+        this.socket.handshake.auth['offset'] = value;
     }
 
     constructor(

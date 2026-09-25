@@ -3,4 +3,7 @@
 import { reportCompletion, reportProgress } from './worker/helpers';
 
 reportProgress(50);
-setTimeout(() => reportCompletion('done'), 500);
+// long enough that the mid flight state is there to be read once the reader gets to it. Half a
+// second was the window minus whatever starting this worker cost, and starting a typescript worker
+// starts a compiler with it - so on a loaded machine the window closed before it opened.
+setTimeout(() => reportCompletion('done'), 2000);

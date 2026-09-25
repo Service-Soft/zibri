@@ -2,7 +2,7 @@ import { UserRepo } from '../../auth/decorators/user-repo.decorator';
 import { JwtCredentials } from '../../auth/strategies/jwt/jwt-credentials.model';
 import { UserRepositoryInterface } from '../../auth/user/user-repository.interface';
 import { getDefaultBeforeReturnHook, getDefaultBeforeSaveHook } from '../../data-source/hooks/hooks.default';
-import { Repository } from '../../data-source/repository';
+import { Repository } from '../../data-source/repository/repository';
 import { InjectRepository } from '../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';

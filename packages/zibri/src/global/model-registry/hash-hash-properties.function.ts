@@ -5,6 +5,7 @@ import { AlsUtilities } from '../../context/als.utilities';
 import { HttpRequestContext } from '../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
 import { AnyObject } from '../../entity/any-object.model';
+import { InternalError } from '../../error-handling/internal-error.model';
 import { Newable } from '../../types/newable.type';
 
 /**
@@ -24,19 +25,38 @@ export async function hashHashProperties<Data, EntityClass>(
 
     const context: HttpRequestContext | WebsocketRequestContext | undefined = AlsUtilities.getCurrentRequestContext();
     const descriptor: HashDescriptor<EntityClass> = ModelRegistry.get(entityClass).hashDescriptor;
-    await hashHashPropertiesRecursive(context, data, descriptor, hashService);
+    await hashHashPropertiesRecursive(context, data, descriptor, hashService, new Set());
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc, sonar/cognitive-complexity
+// eslint-disable-next-line jsdoc/require-jsdoc
 async function hashHashPropertiesRecursive<Data, EntityClass>(
     context: HttpRequestContext | WebsocketRequestContext | undefined,
     data: Data,
     descriptor: HashDescriptor<EntityClass>,
-    hashService: HashServiceInterface
+    hashService: HashServiceInterface,
+    visited: Set<unknown>
 ): Promise<void> {
+    // relations point both ways, so both the descriptors and the data they walk can be cyclic. Two
+    // paths reaching the same object also has to hash it once rather than twice
+    if (visited.has(data)) {
+        return;
+    }
+    visited.add(data);
+
     for (const [key, hashOptions] of descriptor.keys) {
         if (typeof (data as AnyObject)[key] !== 'string') {
             continue;
+        }
+        if (hashService.isHash((data as AnyObject)[key] as string)) {
+            // hashing a hash cannot be undone, and the value it replaces is the only thing that could
+            // ever have verified a password again. Refused rather than skipped: skipping would make a
+            // write that meant to change the password silently not change it.
+            throw new InternalError([
+                `The property "${String(key)}" was given a value that is already hashed.`,
+                'This is what a read-modify-write does - loading an entity and saving it back sends',
+                'the stored hash through hashing a second time, which locks the account out for good.',
+                'Leave the property off the update, or set it to the new plaintext.'
+            ]);
         }
         const options: true | HashOptions<AnyObject> = typeof hashOptions === 'function'
             ? await hashOptions(data, context)
@@ -49,18 +69,7 @@ async function hashHashPropertiesRecursive<Data, EntityClass>(
         (data as AnyObject)[key] = hashed;
     }
 
-    for (const [key, nested] of descriptor.nestedKeys) {
-        const value: unknown = (data as AnyObject)[key];
-        if (value == undefined) {
-            continue;
-        }
-        if (Array.isArray(value)) {
-            for (const item of value) {
-                await hashHashPropertiesRecursive(context, item, nested, hashService);
-            }
-        }
-        else {
-            await hashHashPropertiesRecursive(context, value, nested, hashService);
-        }
+    for (const nested of descriptor.nestedValues(data)) {
+        await hashHashPropertiesRecursive(context, nested.data, nested.descriptor, hashService, visited);
     }
 }

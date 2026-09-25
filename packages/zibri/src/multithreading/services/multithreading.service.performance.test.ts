@@ -20,7 +20,7 @@ import { Ms } from '../../utilities/ms';
 // multithreading.service.performance.test.ts`) on an otherwise idle machine to get a meaningful result.
 const allThreads: number = os.availableParallelism();
 const reserveThreadsMain: number = 1;
-const reserveThreadsLibUv: number = Number(process.env.UV_THREADPOOL_SIZE ?? '4');
+const reserveThreadsLibUv: number = Number(process.env['UV_THREADPOOL_SIZE'] ?? '4');
 const availableThreads: number = allThreads - reserveThreadsLibUv - reserveThreadsMain;
 
 const maxThreads: number = Math.max(2, availableThreads - 1);
@@ -58,7 +58,9 @@ describe('MultithreadingService - performance vs main event loop', () => {
                         maxThreads: maxThreads,
                         maxPriorityThreads: maxPriorityThreads,
                         defaultTimeoutMs: Ms.HOUR,
-                        defaultTimeoutPriorityMs: Ms.MINUTE * 5
+                        defaultTimeoutPriorityMs: Ms.MINUTE * 5,
+                        jobClaimInMs: Ms.SECOND * 30,
+                        enableTsWorkerFiles: true
                     }
                 }),
                 defineProvider({

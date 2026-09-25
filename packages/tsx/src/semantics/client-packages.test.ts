@@ -1,6 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { collectClientPackagesFromSource, vendorFileName } from './client-packages';
+import { collectClientPackagesFromSource } from './client-packages';
+import { vendorFileName } from '../vendor-file-name';
 
 describe('collectClientPackagesFromSource', () => {
     it('collects packages imported with ?client', () => {

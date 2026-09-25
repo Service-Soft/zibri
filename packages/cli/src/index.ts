@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 import { Command, HelpCommand, NewCommand, resolveCommand, VersionCommand } from './commands';
-import { DeathUtilities, FigletUtilities } from './encapsulation';
+import { FigletUtilities } from './encapsulation';
+import { exitOnSignal } from './utilities';
 
-DeathUtilities.death();
+exitOnSignal();
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 async function main(): Promise<void> {

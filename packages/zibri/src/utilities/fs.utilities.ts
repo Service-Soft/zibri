@@ -254,13 +254,13 @@ export abstract class FsUtilities {
             }
             case 'append': {
                 let currentContent: string[] = await this.readFileLines(path);
-                currentContent = currentContent[0].length ? [...currentContent, data] : [data];
+                currentContent = currentContent[0]?.length ? [...currentContent, data] : [data];
                 await writeFile(path, this.normalizeData(currentContent));
                 break;
             }
             case 'prepend': {
                 let currentContent: string[] = await this.readFileLines(path);
-                currentContent = currentContent[0].length ? [data, ...currentContent] : [data];
+                currentContent = currentContent[0]?.length ? [data, ...currentContent] : [data];
                 await writeFile(path, this.normalizeData(currentContent));
                 break;
             }

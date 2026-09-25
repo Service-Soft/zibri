@@ -24,10 +24,9 @@ export function resolveTree(ast: AstProgram, arrayKeys: string[]): PathTree {
                 continue;
             }
 
-            if (!(part in node)) {
-                node[part] = {};
-            }
-            node = node[part];
+            const child: PathTree = node[part] ?? {};
+            node[part] = child;
+            node = child;
         }
     }
 

@@ -1,4 +1,7 @@
 /* eslint-disable no-console */
+import { randomBytes } from 'node:crypto';
+import { userInfo } from 'node:os';
+
 import { version } from '../../../package.json';
 import { CPUtilities, FsUtilities, InquirerUtilities, QuestionsFor } from '../../encapsulation';
 import { exitWithError, getPath, Path } from '../../utilities';
@@ -14,6 +17,45 @@ type NewConfiguration = {
     name: string
 };
 
+/**
+ * One line of a generated dotenv file: either a variable or a comment introducing the next few.
+ */
+type EnvironmentVariable = {
+    /**
+     * The name of the variable, which is what the application reads it by.
+     */
+    key: string,
+    /**
+     * What a fresh project starts on. Left out for a secret, which is generated per project instead.
+     */
+    value?: string,
+    /**
+     * Whether this is a secret: generated for `.env`, and blank in the committed `.env.example`.
+     */
+    secret?: boolean,
+    /**
+     * Never set on a variable. Present so a comment can sit in the same list as what it describes.
+     */
+    comment?: undefined
+} | {
+    /**
+     * The text of the comment, written above the variables that follow it.
+     */
+    comment: string,
+    /**
+     * Never set on a comment.
+     */
+    key?: undefined,
+    /**
+     * Never set on a comment.
+     */
+    value?: undefined,
+    /**
+     * Never set on a comment.
+     */
+    secret?: undefined
+};
+
 const newConfigurationQuestions: QuestionsFor<NewConfiguration> = {
     name: {
         name: 'name',
@@ -24,6 +66,69 @@ const newConfigurationQuestions: QuestionsFor<NewConfiguration> = {
 };
 
 const DATA_SOURCES_DIR: string = 'data-sources';
+
+const TESTING_DIR: string = '__testing__';
+
+const IMPORT_REQUIRE_ENV: string = 'import { requireEnv } from \'./env\';';
+
+/**
+ * Every variable the generated application reads, with the value a fresh project starts on.
+ *
+ * The single source of both dotenv files: `.env.example` is this list with every secret blanked and
+ * is committed, `.env` is this list with a secret generated for each and is git ignored. Writing
+ * them from one place is what keeps a project from booting on a variable its own example never
+ * mentions - or being told to set one that nothing reads.
+ */
+const ENVIRONMENT_VARIABLES: EnvironmentVariable[] = [
+    { comment: 'Where the application listens, and the url it hands out in links it generates.' },
+    { key: 'PORT', value: '3000' },
+    { key: 'BASE_URL', value: 'http://localhost:3000' },
+    { comment: 'The database this application stores everything in.' },
+    { key: 'DB_HOST', value: 'localhost' },
+    { key: 'DB_PORT', value: '5432' },
+    { key: 'DB_USERNAME', value: 'postgres' },
+    { key: 'DB_PASSWORD', value: 'postgres' },
+    { key: 'DB_DATABASE', value: 'db' },
+    {
+        comment: 'Signs and verifies access and refresh tokens. Anyone holding these can mint a token'
+            + '\n# for any user of this application, so they belong in a secret store rather than in a repository.'
+    },
+    { key: 'JWT_ACCESS_SECRET', secret: true },
+    { key: 'JWT_REFRESH_SECRET', secret: true },
+    {
+        comment: 'Encrypts every encrypted column. Losing it loses that data, and leaking it reveals'
+            + '\n# all of it - so rotating this one is a migration rather than an edit.'
+    },
+    { key: 'MASTER_KEY', secret: true },
+    { comment: 'The first user, created on startup while the database holds none.' },
+    { key: 'DEFAULT_ADMIN_EMAIL', value: 'admin@example.com' },
+    { key: 'DEFAULT_ADMIN_PASSWORD', secret: true },
+    { comment: 'Where a password reset link points, which is a page of your frontend rather than of this api.' },
+    { key: 'CONFIRM_PASSWORD_RESET_URL', value: 'http://localhost:4200/confirm-password-reset' },
+    { comment: 'The mail server outgoing email is sent through. Blank until there is one to name.' },
+    { key: 'SMTP_HOST', value: '' },
+    { key: 'SMTP_PORT', value: '0' },
+    { key: 'SMTP_USER', value: '' },
+    { key: 'SMTP_PASSWORD', value: '' },
+    { key: 'EMAIL_DEFAULT_SENDER', value: '' }
+];
+
+/**
+ * Who the generated package.json names as the author.
+ * The same places npm looks when it fills the field in itself: what git commits are attributed to,
+ * and the account the command runs under when git has been told nothing. It is a starting point
+ * rather than an answer - a project that is published under someone else edits it - but it beats the
+ * empty string a scaffold would otherwise leave behind for its author to notice.
+ * @returns The name and email address to attribute the project to.
+ */
+function resolveAuthor(): string {
+    const name: string | undefined = CPUtilities.output('git config user.name');
+    const email: string | undefined = CPUtilities.output('git config user.email');
+    if (name != undefined && email != undefined) {
+        return `${name} <${email}>`;
+    }
+    return name ?? email ?? userInfo().username;
+}
 
 /**
  * Creates a new Zibri application.
@@ -48,20 +153,35 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             '    "main": "./dist/index.js",',
             '    "scripts": {',
             '        "start": "webpack --watch",',
-            '        "build": "webpack"',
-            '    }',
+            '        "build": "webpack",',
+            '        "test": "jest"',
+            '    },',
+            // the rest of what "npm init" writes, in the order it writes it. npm warns about every
+            // one of these a package.json leaves out, and "description" is read by anything that
+            // lists the project - so they belong in the file even while they are still empty.
+            '    "keywords": ["zibri"],',
+            // JSON.stringify rather than quotes of its own: this is the one value here that comes
+            // from outside, and a name with an apostrophe in it would otherwise write a broken file.
+            `    "author": ${JSON.stringify(resolveAuthor())},`,
+            '    "license": "MIT",',
+            '    "description": ""',
             '}'
         ]);
         const devDependencies: string[] = [
+            // the types for the runtime this project targets. Its own code reads process.env and
+            // loads a .env, which without these is untyped in a project that compiles with strict on
+            '@types/node@^24.0.0',
             'autoprefixer@^10.4.27',
             'copy-webpack-plugin@^14.0.0',
             'css-loader@^7.1.4',
             'handlebars-loader@^1.7.3',
+            'jest@^30.4.2',
             'mini-css-extract-plugin@^2.10.0',
             'postcss@^8.5.6',
             'postcss-loader@^8.2.1',
             'source-map-loader@^5.0.0',
             'tailwindcss@3',
+            'ts-jest@^29.4.11',
             'ts-loader@^9.5.4',
             'typescript@^5.9.3',
             'webpack@^5.105.3',
@@ -73,17 +193,66 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
         // published "zi new" install always resolves the real packages from npm.
         // zibri-tsx is not installed explicitly: it is a peer dependency of zibri, so npm resolves
         // it on its own and the generated app does not need to declare it.
+        //
+        // ts-node and pg-query-stream are the exceptions, because they are *optional* peer
+        // dependencies and npm therefore installs none of them. A generated app runs its worker
+        // files as TypeScript, which is what `multithreading.enableTsWorkerFiles` defaults to, so it
+        // has to ask for the compiler itself. An app that ships compiled worker files can turn that
+        // option off and drop this. pg-query-stream is what a postgres data source opens a cursor
+        // through, and the generated app has one, so it is refused at boot without it.
+        //
+        // saxes is an optional peer needed by the defaults as well: the xml body parser is one of the
+        // default body parsers, the translations the generated webpack config extracts on every build
+        // are read at startup, and both read through it. otpauth is an optional peer needed at boot: an
+        // application that names no two factor methods is given `OtpTwoFactorMethod`, which asks for
+        // otpauth as it is constructed.
+        //
+        // The two OpenTelemetry packages are the same story once more. The tracer registered by
+        // default records through them and validates them at startup, so an application taking the
+        // defaults needs both; one that registers a tracer of its own drops them with the default it
+        // replaced. Its exporter package is *not* installed: spans are kept in memory until an
+        // application says where to send them, and saying so is what makes the exporter needed.
+        //
+        // The pattern under the optional six: a peer is optional to the *framework* and not to an application
+        // that takes the defaults, so the generator installs what its own generated configuration
+        // reaches for. Turning one of those defaults off is what makes the matching package droppable.
         const zibriDependency: string = process.env['ZIBRI_CLI_LOCAL_DEV']
             ? `file:${getPath(__dirname, '..', '..', '..', '..', 'zibri')}`
             : `zibri@${version}`;
-        await CPUtilities.exec(`cd ${appPath} && npm i ${zibriDependency} chart.js`);
+        await CPUtilities.exec(
+            `cd ${appPath} && npm i ${zibriDependency} chart.js ts-node@^10.9.2 pg-query-stream@^4.10.3`
+            + ' saxes@^6.0.0 otpauth@^9.5.1 @opentelemetry/api@^1.9.1'
+            + ' @opentelemetry/sdk-trace-node@^2.11.0'
+        );
+        // the test harness, which peer depends on zibri and is therefore installed after it. A
+        // devDependency: it starts the application a test drives, and nothing a deployment runs
+        // imports it.
+        const zibriTestingDependency: string = process.env['ZIBRI_CLI_LOCAL_DEV']
+            ? `file:${getPath(__dirname, '..', '..', '..', '..', 'testing')}`
+            : `zibri-testing@${version}`;
+        await CPUtilities.exec(`cd ${appPath} && npm i -D ${zibriTestingDependency}`);
 
+        // where each of the two things a build needs goes: the routes each released version served,
+        // and the extracted translation source. Both carry a ".gitkeep", because git records files
+        // rather than folders - without one the first commit of a new project drops them again, and
+        // the clone after it has a build that fails on a folder its own config names and an
+        // application that refuses to start because its version history is not there.
+        await FsUtilities.createFile(getPath(appPath, 'versions', '.gitkeep'), '');
+        await FsUtilities.createFile(getPath(appPath, 'translations', '.gitkeep'), '');
+
+        await this.createGitignore(appPath);
+        await this.createDockerfile(appPath);
+        await this.createEnvironmentFiles(appPath);
         await this.createTsConfig(appPath);
         await this.createPostCssConfig(appPath);
         await this.createTailwindConfig(appPath);
         await this.createWebpackConfig(appPath);
         await this.createTsxDts(appPath);
-        await this.createIndexTs(appPath, configuration);
+        await this.createJestConfig(appPath);
+        await this.createEnvTs(appPath);
+        await this.createIndexTs(appPath);
+        await this.createApplicationOptions(appPath, configuration);
+        await this.createTestingFiles(appPath);
         await this.createProvidersTs(appPath);
         await this.createCreateDefaultDataFunction(appPath);
         await this.createDataSource(appPath);
@@ -100,7 +269,10 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             getPath(appPath, 'src', 'templates')
         );
 
-        await FsUtilities.createFile(getPath(appPath, 'src', 'controllers', 'index.ts'), 'export * from \'./page.controller\';');
+        await FsUtilities.createFile(getPath(appPath, 'src', 'controllers', 'index.ts'), [
+            'export * from \'./health.controller\';',
+            'export * from \'./page.controller\';'
+        ]);
         await FsUtilities.createFile(getPath(appPath, 'src', 'cron', 'index.ts'), '');
         await FsUtilities.createFile(getPath(appPath, 'src', 'services', 'index.ts'), '');
     }
@@ -159,6 +331,32 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
                 '}'
             ]
         );
+        await FsUtilities.createFile(
+            getPath(appPath, 'src', 'controllers', 'health.controller.ts'),
+            [
+                'import { $ts, Auth, Controller, Get, GlobalRegistry, ServiceUnavailableError } from \'zibri\';',
+                '',
+                // a probe must answer the same way whatever posture the application takes, and this one is
+                // shipped into a project that is invited to switch its default to "requireLogin"
+                '@Auth.skip({ allowRedundant: true })',
+                '@Controller(\'/health\', { versions: \'all\' })',
+                'export class HealthController {',
+                '',
+                '    @Get(\'/live\')',
+                '    live(): { status: string } {',
+                '        return { status: \'ok\' };',
+                '    }',
+                '',
+                '    @Get(\'/ready\')',
+                '    ready(): { status: string } {',
+                '        if (!GlobalRegistry.isAppStarted()) {',
+                '            throw new ServiceUnavailableError($ts`This instance is shutting down.`);',
+                '        }',
+                '        return { status: \'ok\' };',
+                '    }',
+                '}'
+            ]
+        );
     }
 
     private async createProvidersTs(appPath: Path): Promise<void> {
@@ -166,8 +364,9 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             getPath(appPath, 'src', 'providers.ts'),
             [
                 // eslint-disable-next-line stylistic/max-len
-                'import { AesGcmEncryptionStrategy, defineProvider, DiProvider, EmailConfigInput, ZIBRI_DI_TOKENS, ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from \'zibri\';',
+                'import { AesGcmEncryptionStrategy, defineProvider, DiProvider, EmailConfigInput, JwtAuthOptionsInput, SmtpEmailTransport, ZIBRI_DI_TOKENS, ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from \'zibri\';',
                 '',
+                'import { optionalEnv, requireEnv } from \'./env\';',
                 'import { MailingListBaseEmail } from \'./templates/email-components/mailing-list-base-email\';',
                 'import { MailingListSubscribeConfirmationEmail } from \'./templates/emails/mailing-list-subscribe-confirmation\';',
                 'import { PasswordResetEmail } from \'./templates/emails/password-reset\';',
@@ -188,7 +387,7 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
                 '            currentMasterStrategy: new AesGcmEncryptionStrategy(),',
                 '            currentMasterKey: {',
                 '                id: \'k1\',',
-                '                value: \'MASTER_KEY_VALUE\'',
+                '                value: requireEnv(\'MASTER_KEY\')',
                 '            }',
                 '        }',
                 '    }),',
@@ -197,32 +396,36 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
                 '        useFactory: () => PasswordResetEmail',
                 '    }),',
                 '    defineProvider({',
-                '        token: ZIBRI_DI_TOKENS.JWT_ACCESS_TOKEN_SECRET,',
-                '        useFactory: () => \'JWT_ACCESS_TOKEN_SECRET\'',
-                '    }),',
-                '    defineProvider({',
-                '        token: ZIBRI_DI_TOKENS.JWT_REFRESH_TOKEN_SECRET,',
-                '        useFactory: () => \'JWT_REFRESH_TOKEN_SECRET\'',
+                '        token: ZIBRI_DI_TOKENS.JWT_AUTH_OPTIONS_INPUT,',
+                '        useFactory: (): JwtAuthOptionsInput => ({',
+                '            accessTokenSecret: requireEnv(\'JWT_ACCESS_SECRET\'),',
+                '            refreshTokenSecret: requireEnv(\'JWT_REFRESH_SECRET\')',
+                '        })',
                 '    }),',
                 '    defineProvider({',
                 '        token: ZIBRI_DI_TOKENS.EMAIL_CONFIG,',
                 '        useFactory: (): EmailConfigInput => {',
                 '            return {',
                 '                maxEmailsPerHour: 3600,',
-                '                defaultSender: \'\',',
-                '                host: \'\',',
-                '                port: 0,',
-                '                auth: {',
-                '                    user: \'\',',
-                '                    pass: \'\'',
-                '                }',
+                '                defaultSender: optionalEnv(\'EMAIL_DEFAULT_SENDER\')',
                 '            };',
                 '        }',
                 '    }),',
                 '    defineProvider({',
+                '        token: ZIBRI_DI_TOKENS.EMAIL_TRANSPORT,',
+                '        useFactory: () => new SmtpEmailTransport({',
+                '            host: optionalEnv(\'SMTP_HOST\'),',
+                '            port: Number(optionalEnv(\'SMTP_PORT\')),',
+                '            auth: {',
+                '                user: optionalEnv(\'SMTP_USER\'),',
+                '                pass: optionalEnv(\'SMTP_PASSWORD\')',
+                '            }',
+                '        })',
+                '    }),',
+                '    defineProvider({',
                 '        token: ZIBRI_DI_TOKENS.CONFIRM_PASSWORD_RESET_URL,',
-                '        useFactory: () => \'http://localhost:4200/confirm-password-reset\'',
-                '    })',
+                '        useFactory: () => requireEnv(\'CONFIRM_PASSWORD_RESET_URL\')',
+                '    }),',
                 '    defineProvider({',
                 '        token: ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS.PREFERENCES_PAGE_TEMPLATE,',
                 '        useFactory: () => MailingListPreferencesPage',
@@ -254,15 +457,16 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             'import { DataSourceInterface, inject, JwtCredentials, JwtCredentialsCreateData, Newable, Repository, repositoryTokenFor, Transaction } from \'zibri\';',
             '',
             'import { logger } from \'.\';',
+            IMPORT_REQUIRE_ENV,
             'import { Roles, User } from \'./models\';',
             'import { UserRepository } from \'./repositories\';',
             '',
             'export async function createDefaultData(dataSourceClass: Newable<DataSourceInterface>): Promise<void> {',
             '    const dataSource: DataSourceInterface = inject(dataSourceClass);',
-            '    await logger.info(\'Creates default data if missing\');',
+            '    logger.info(\'Creates default data if missing\');',
             '',
             '    await createDefaultAdmin(dataSource);',
-            '    await logger.info(\'Finished creating default data\');',
+            '    logger.info(\'Finished creating default data\');',
             '}',
             '',
             'async function createDefaultAdmin(dataSource: DataSourceInterface): Promise<void> {',
@@ -270,18 +474,19 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             // eslint-disable-next-line stylistic/max-len
             '    const credentialsRepository: Repository<JwtCredentials, JwtCredentialsCreateData> = inject(repositoryTokenFor(JwtCredentials));',
             '',
-            '    const defaultUser: User | undefined = await userRepository.findOne({ where: { email: \'zibri@zibri.de\' } }, false);',
+            '    const email: string = requireEnv(\'DEFAULT_ADMIN_EMAIL\');',
+            '',
+            '    const defaultUser: User | undefined = await userRepository.findOne({ where: { email }, required: false });',
             '    if (defaultUser) {',
             '        return;',
             '    }',
             '',
-            '    await logger.info(\'  - default admin\');',
+            '    logger.info(\'  - default admin\');',
             '    const transaction: Transaction = await dataSource.startTransaction();',
             '    try {',
-            // eslint-disable-next-line stylistic/max-len
-            '        const user: User = await userRepository.create({ name: \'root\', email: \'zibri@zibri.de\', roles: [Roles.ADMIN] }, { transaction });',
+            '        const user: User = await userRepository.create({ name: \'root\', email, roles: [Roles.ADMIN] }, { transaction });',
             '        await credentialsRepository.create(',
-            '            { email: user.email, password: \'password\', userId: user.id },',
+            '            { email: user.email, password: requireEnv(\'DEFAULT_ADMIN_PASSWORD\'), userId: user.id },',
             '            { transaction }',
             '        );',
             '        await transaction.commit();',
@@ -294,45 +499,342 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
         ]);
     }
 
-    private async createIndexTs(appPath: Path, configuration: NewConfiguration): Promise<void> {
+    private async createIndexTs(appPath: Path): Promise<void> {
         await FsUtilities.createFile(getPath(appPath, 'src', 'index.ts'), [
-            // eslint-disable-next-line stylistic/max-len
-            'import { inject, JwtAuthController, LoggerInterface, MailingListController, SemVerUtilities, ZIBRI_DI_TOKENS, ZibriApplication, ZibriMailingListPlugin } from \'zibri\';',
+            'import { inject, LoggerInterface, ZIBRI_DI_TOKENS, ZibriApplication } from \'zibri\';',
             '',
-            'import { PageController } from \'./controllers\';',
+            'import { applicationOptions } from \'./application-options\';',
             'import { createDefaultData } from \'./create-default-data.function\';',
             `import { DbDataSource } from './${DATA_SOURCES_DIR}';`,
-            'import { version } from \'../package.json\';',
-            'import { providers } from \'./providers\';',
+            IMPORT_REQUIRE_ENV,
             '',
             'export let logger: LoggerInterface;',
             '',
             'async function start(): Promise<void> {',
-            '    if (!SemVerUtilities.isSemVerVersion(version)) {',
-            '        throw new Error(\'The version of the package.json is not valid.\');',
-            '    }',
-            '',
-            '    const app: ZibriApplication = new ZibriApplication({',
-            `        name: '${configuration.name}',`,
-            '        baseUrl: \'http://localhost:3000\',',
-            '        plugins: [new ZibriMailingListPlugin()],',
-            '        controllers: [PageController, MailingListController, JwtAuthController],',
-            '        websocketControllers: [],',
-            '        dataSources: [DbDataSource],',
-            '        cronJobs: [],',
-            '        version,',
-            '        providers',
-            '    });',
+            '    const app: ZibriApplication = new ZibriApplication(applicationOptions);',
             '    await app.init();',
             '',
             '    logger = inject(ZIBRI_DI_TOKENS.LOGGER);',
             '',
             '    await createDefaultData(DbDataSource);',
             '',
-            '    await app.start(3000);',
+            '    await app.start(Number(requireEnv(\'PORT\')));',
             '}',
             '',
-            'void start();'
+            '// eslint-disable-next-line promise/prefer-await-to-callbacks',
+            'void start().catch((error: unknown) => {',
+            '    // eslint-disable-next-line no-console',
+            '    console.error(error);',
+            '    process.exit(1);',
+            '});'
+        ]);
+    }
+
+    private async createApplicationOptions(appPath: Path, configuration: NewConfiguration): Promise<void> {
+        await FsUtilities.createFile(getPath(appPath, 'src', 'application-options.base.ts'), [
+            // eslint-disable-next-line stylistic/max-len
+            'import { JwtAuthController, MailingListController, OmitStrict, SemVerUtilities, ZibriApplicationOptions, ZibriMailingListPlugin } from \'zibri\';',
+            '',
+            'import { HealthController, PageController } from \'./controllers\';',
+            IMPORT_REQUIRE_ENV,
+            'import { version } from \'../package.json\';',
+            'import { providers } from \'./providers\';',
+            '',
+            'if (!SemVerUtilities.isSemVerVersion(version)) {',
+            '    throw new Error(\'The version of the package.json is not valid.\');',
+            '}',
+            '',
+            '/**',
+            ' * Everything this application is, apart from where it keeps its data.',
+            ' *',
+            ' * Split from the data source so that a test can build the same application on a different one:',
+            ' * importing a module registers whatever it declares, and a data source that is registered without',
+            ' * being deployed is refused at boot. A test therefore has to reach the controllers, plugins and',
+            ' * providers without reaching the production data source.',
+            ' */',
+            'export const baseApplicationOptions: OmitStrict<ZibriApplicationOptions, \'dataSources\'> = {',
+            `    name: '${configuration.name}',`,
+            '    baseUrl: requireEnv(\'BASE_URL\'),',
+            '    plugins: [new ZibriMailingListPlugin()],',
+            '    controllers: [HealthController, PageController, MailingListController, JwtAuthController],',
+            '    websocketControllers: [],',
+            '    cronJobs: [],',
+            '    version,',
+            '    // what an endpoint with no @Auth decorator requires. Switch to \'requireLogin\' to have',
+            '    // a forgotten decorator answer 401 instead of serving anyone, and mark the endpoints',
+            '    // that really are public with @Auth.skip(). See the auth docs.',
+            '    defaultAuth: \'public\',',
+            '    providers',
+            '};'
+        ]);
+        await FsUtilities.createFile(getPath(appPath, 'src', 'application-options.ts'), [
+            'import { ZibriApplicationOptions } from \'zibri\';',
+            '',
+            'import { baseApplicationOptions } from \'./application-options.base\';',
+            `import { DbDataSource } from './${DATA_SOURCES_DIR}';`,
+            '',
+            '/**',
+            ' * What this application is, as the entry point starts it.',
+            ' *',
+            ' * Exported rather than written inline so that a test builds the application from the same thing the',
+            ' * deployment does, and names only what it changes.',
+            ' */',
+            'export const applicationOptions: ZibriApplicationOptions = {',
+            '    ...baseApplicationOptions,',
+            '    dataSources: [DbDataSource]',
+            '};'
+        ]);
+    }
+
+    private async createTestingFiles(appPath: Path): Promise<void> {
+        await FsUtilities.createFile(getPath(appPath, 'src', TESTING_DIR, 'test-application-options.ts'), [
+            'import { ZibriApplicationOptions } from \'zibri\';',
+            'import { createInMemoryDataSource, defaultTestProviders } from \'zibri-testing\';',
+            '',
+            'import { baseApplicationOptions } from \'../application-options.base\';',
+            `import { entities } from '../${DATA_SOURCES_DIR}/db/entities';`,
+            '',
+            '/**',
+            ' * What this application is when a test starts it.',
+            ' *',
+            ' * The same application, storing its rows in this process rather than in a database, and with the',
+            ' * harness\'s defaults on top of its own providers: work factors sized for a test rather than for an',
+            ' * attacker, a scheduler that fires when a test tells it to, and a mail transport that refuses to',
+            ' * send. A test that is about one of those registers its own provider for that token and gets the',
+            ' * shipped behavior back.',
+            ' */',
+            'export const testApplicationOptions: ZibriApplicationOptions = {',
+            '    ...baseApplicationOptions,',
+            '    dataSources: [createInMemoryDataSource({ entities })],',
+            '    providers: [...baseApplicationOptions.providers ?? [], ...defaultTestProviders]',
+            '};'
+        ]);
+        await FsUtilities.createFile(getPath(appPath, 'src', TESTING_DIR, 'home-page.test.ts'), [
+            'import { afterAll, beforeAll, describe, expect, it } from \'@jest/globals\';',
+            'import { StartedTestServer, startTestServer } from \'zibri-testing\';',
+            '',
+            'import { testApplicationOptions } from \'./test-application-options\';',
+            '',
+            '/**',
+            ' * An example of what testing a Zibri application looks like.',
+            ' *',
+            ' * The server this drives is the application itself - the same controllers, the same auth, the same',
+            ' * lifecycle - so what it answers is what a caller gets.',
+            ' */',
+            '',
+            'let server: StartedTestServer;',
+            'let baseUrl: string;',
+            '',
+            'beforeAll(async () => {',
+            '    server = await startTestServer({ application: testApplicationOptions });',
+            '    baseUrl = await server.start();',
+            '}, 30000);',
+            '',
+            'afterAll(async () => {',
+            '    await server.shutdown();',
+            '}, 30000);',
+            '',
+            'describe(\'the home page\', () => {',
+            '',
+            '    it(\'is served to anyone\', async () => {',
+            '        const response: Response = await fetch(baseUrl);',
+            '',
+            '        expect(response.status).toBe(200);',
+            '    });',
+            '});'
+        ]);
+    }
+
+    private async createGitignore(appPath: Path): Promise<void> {
+        await FsUtilities.createFile(getPath(appPath, '.gitignore'), [
+            'node_modules',
+            'dist',
+            'coverage',
+            '# what an upload is written to while a request is handled',
+            '.zibri/',
+            '# the secrets this application runs on. ".env.example" is the committed list of them',
+            '.env',
+            '# the types generated for the handlebars templates beside them',
+            '*.hbs.ts'
+        ]);
+    }
+
+    private async createDockerfile(appPath: Path): Promise<void> {
+        await FsUtilities.createFile(getPath(appPath, '.dockerignore'), [
+            '# what the build produces or the host happens to have lying around. "node_modules" in',
+            '# particular is installed inside the image for the platform it runs on, rather than copied',
+            '# from whichever machine ran "docker build"',
+            'node_modules',
+            'dist',
+            'coverage',
+            '.git',
+            '.zibri',
+            '*.hbs.ts',
+            '# the secrets this project runs on locally. A deployment sets its own, and a copy baked into',
+            '# an image is one that travels to everyone the image is pushed to',
+            '.env'
+        ]);
+        await FsUtilities.createFile(getPath(appPath, 'Dockerfile'), [
+            '# The build needs the dev dependencies, the sources and the toolchain. What runs needs none',
+            '# of them, so they stay in a stage that is thrown away and only the second one is shipped.',
+            'FROM node:24-slim AS build',
+            'WORKDIR /app',
+            '',
+            '# the manifests first, so that the install layer is reused for every build that does not',
+            '# change a dependency',
+            'COPY package.json package-lock.json ./',
+            'RUN npm ci',
+            '',
+            'COPY . .',
+            'RUN npm run build',
+            '',
+            '# what running needs, out of what building needed. Pruning here rather than installing a',
+            '# second time in the stage below keeps one resolution of the dependency tree, so what the',
+            '# application runs against is what its bundle was built against.',
+            'RUN npm prune --omit=dev',
+            '',
+            'FROM node:24-slim AS runtime',
+            'WORKDIR /app',
+            '',
+            '# read by the framework and by anything it depends on. It is what turns off the machinery a',
+            '# development machine wants and a deployment pays for',
+            'ENV NODE_ENV=production',
+            '',
+            'COPY --from=build --chown=node:node /app/package.json ./package.json',
+            'COPY --from=build --chown=node:node /app/node_modules ./node_modules',
+            '',
+            '# the bundle carries everything read from inside it: the assets, the compiled templates and',
+            '# the translations. "versions" is the one thing read from beside it, because the application',
+            '# writes to it and the next release is checked against what this one recorded. An image',
+            '# without it does not start, which is the point: an application that quietly treated the',
+            '# version it is on as the first one that ever existed would drop every guarantee it gives.',
+            'COPY --from=build --chown=node:node /app/dist ./dist',
+            'COPY --chown=node:node versions ./versions',
+            '',
+            '# the two paths written while the application runs, owned by the user that runs it. Nothing',
+            '# else under /app is, so the rest of the image stays read only to the process using it.',
+            'RUN mkdir -p /app/.zibri && chown -R node:node /app/.zibri',
+            '',
+            'USER node',
+            '',
+            '# what the application listens on by default. It reads PORT, so a deployment that publishes',
+            '# a different one sets that too',
+            'EXPOSE 3000',
+            '',
+            '# the liveness half of the health controller: whether the process is up, which is what a',
+            '# restart should depend on. Readiness is the orchestrator\'s to poll, at /health/ready.',
+            'HEALTHCHECK --interval=30s --timeout=3s --start-period=20s CMD \\',
+            // node 24 has fetch, so this needs nothing installed into the image to ask a question of it
+            '    node -e "fetch(\'http://127.0.0.1:\'+(process.env.PORT||3000)+\'/health/live\')'
+            + '.then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"',
+            '',
+            '# the exec form rather than a shell, so that the signal a stop sends arrives at node itself',
+            '# and the application shuts down in the orderly way it knows how to',
+            'CMD ["node", "dist/bundle.js"]'
+        ]);
+    }
+
+    private async createEnvironmentFiles(appPath: Path): Promise<void> {
+        const example: string[] = [
+            '# Every variable this application reads. Copy it to ".env" to run the app somewhere new.',
+            '#',
+            '# "zi new" already wrote a ".env" with a secret generated for each blank below, so this',
+            '# project runs as it stands. What is missing here is deliberate: a value published with',
+            '# the cli is a value everyone has.'
+        ];
+        const actual: string[] = [
+            '# The secrets this application runs on, generated for this project. Git ignored.',
+            '#',
+            '# ".env.example" is the committed list of what a deployment has to set.'
+        ];
+
+        for (const entry of ENVIRONMENT_VARIABLES) {
+            if (entry.comment != undefined) {
+                example.push('', `# ${entry.comment}`);
+                actual.push('', `# ${entry.comment}`);
+                continue;
+            }
+            example.push(`${entry.key}=${entry.secret === true ? '' : entry.value}`);
+            // 32 bytes, base64url so that nothing in it has to be escaped by whatever reads the file
+            actual.push(`${entry.key}=${entry.secret === true ? randomBytes(32).toString('base64url') : entry.value}`);
+        }
+
+        await FsUtilities.createFile(getPath(appPath, '.env.example'), example);
+        await FsUtilities.createFile(getPath(appPath, '.env'), actual);
+    }
+
+    private async createEnvTs(appPath: Path): Promise<void> {
+        await FsUtilities.createFile(getPath(appPath, 'src', 'env.ts'), [
+            'import { existsSync, readFileSync } from \'node:fs\';',
+            'import { parseEnv } from \'node:util\';',
+            '',
+            '/**',
+            ' * Loads the ".env" beside the application, when there is one.',
+            ' *',
+            ' * Here rather than in the entry point because imports are evaluated before any statement in',
+            ' * it: by the time start() could load anything, every module that reads a variable has already',
+            ' * read it. Anything reaching for a variable imports this file, so the file is loaded first by',
+            ' * construction.',
+            ' *',
+            ' * A missing ".env" is not an error. A deployment usually sets its variables directly, and',
+            ' * writing them to disk there is the thing to avoid rather than the thing to require.',
+            ' */',
+            'if (existsSync(\'.env\')) {',
+            '    // assigned here rather than through process.loadEnvFile, which writes to the environment of the',
+            '    // process itself: jest hands each test file a copy of that, taken before this line ran',
+            '    for (const [key, value] of Object.entries(parseEnv(readFileSync(\'.env\', \'utf8\')))) {',
+            '        // a variable the environment already sets wins over the file, as with process.loadEnvFile',
+            '        process.env[key] ??= value;',
+            '    }',
+            '}',
+            '',
+            '/**',
+            ' * Reads a variable the application cannot run without.',
+            ' * @param key - The name of the variable.',
+            ' * @returns Its value.',
+            ' * @throws When it is unset or empty, naming the variable. A deployment that forgot one stops',
+            ' * here, rather than signing tokens with an empty string and finding out later.',
+            ' */',
+            'export function requireEnv(key: string): string {',
+            '    const value: string | undefined = process.env[key];',
+            '    if (value == undefined || value === \'\') {',
+            '        throw new Error(`The environment variable "${key}" is not set. See .env.example.`);',
+            '    }',
+            '    return value;',
+            '}',
+            '',
+            '/**',
+            ' * Reads a variable the application runs without.',
+            ' * @param key - The name of the variable.',
+            ' * @returns Its value, or an empty string when it is unset.',
+            ' */',
+            'export function optionalEnv(key: string): string {',
+            '    return process.env[key] ?? \'\';',
+            '}'
+        ]);
+    }
+
+    private async createJestConfig(appPath: Path): Promise<void> {
+        await FsUtilities.createFile(getPath(appPath, 'jest.config.mjs'), [
+            '/** @type {import(\'ts-jest\').JestConfigWithTsJest} **/',
+            'const config = {',
+            '    testEnvironment: \'node\',',
+            '    rootDir: \'src\',',
+            '    transform: {',
+            '        // the templates are compiled by zibri-tsx, as the zibri-tsx/webpack loader does for the build',
+            '        \'^.+[\\\\/]src[\\\\/]templates[\\\\/].+\\\\.tsx$\': \'zibri-tsx/jest\',',
+            '        // commonjs, which is what jest runs a test in. ts-jest compiles to it either way, and says so',
+            '        // for every file when the tsconfig names nodenext instead',
+            '        \'^.+.tsx?$\': [\'ts-jest\', { tsconfig: { module: \'commonjs\' } }]',
+            '    },',
+            '    // a package a template imports with ?client is the package itself on the server, which is how',
+            '    // the NormalModuleReplacementPlugin in webpack.config.js resolves it for the build',
+            '    moduleNameMapper: {',
+            '        \'^(.+)\\\\?client$\': \'$1\'',
+            '    }',
+            '};',
+            '',
+            'export default config;'
         ]);
     }
 
@@ -407,48 +909,71 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
 
     private async createDataSource(appPath: Path): Promise<void> {
         await FsUtilities.createFile(getPath(appPath, 'src', DATA_SOURCES_DIR, 'db', 'db.data-source.ts'), [
-            // eslint-disable-next-line stylistic/max-len
-            'import { PostgresDataSource, BaseEntity, Change, ChangeSet, DataSource, Event, EventSubscriberRun, Newable, OmitStrict, PostgresOptions, MigrationEntity, MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken, JwtRefreshToken, JwtCredentials, Log, PasswordResetToken, Email, CronJobEntity, ThreadJobEntity, WebsocketChannel, WebsocketMessage, OtpCredentials, BackupEntity, BackupResourceEntity, HashStrategyEntity, EncryptionStrategyEntity, EncryptionKey } from \'zibri\';',
+            'import { BaseEntity, DataSource, Newable, OmitStrict, PostgresDataSource, PostgresOptions, SchemaManagement } from \'zibri\';',
             '',
-            'import { User } from \'../../models\';',
+            'import { entities } from \'./entities\';',
+            'import { requireEnv } from \'../../env\';',
             '',
             '@DataSource()',
             'export class DbDataSource extends PostgresDataSource {',
+            '    // the framework alters the database to match these classes on every boot, which is what a',
+            '    // model that is still moving wants and the wrong thing once anything is stored: a renamed',
+            '    // property takes the old column and its contents with it. Switch to \'migrations\' before',
+            '    // this application holds data anyone would miss. See the data source docs.',
+            '    schemaManagement: SchemaManagement = \'synchronize\';',
+            '',
             '    options: OmitStrict<PostgresOptions, \'type\' | \'entities\'> = {',
-            '        host: \'localhost\',',
-            '        port: 5432,',
-            '        username: \'postgres\',',
-            '        password: \'password\',',
-            '        database: \'db\',',
-            '        synchronize: true',
+            '        host: requireEnv(\'DB_HOST\'),',
+            '        port: Number(requireEnv(\'DB_PORT\')),',
+            '        username: requireEnv(\'DB_USERNAME\'),',
+            '        password: requireEnv(\'DB_PASSWORD\'),',
+            '        database: requireEnv(\'DB_DATABASE\')',
             '    };',
-            '    entities: Newable<BaseEntity>[] = [',
-            '        MigrationEntity,',
-            '        User,',
-            '        JwtRefreshToken,',
-            '        JwtCredentials,',
-            '        PasswordResetToken,',
-            '        MailingList,',
-            '        MailingListSubscriber,',
-            '        MailingListSubscriptionConfirmationToken,',
-            '        Log,',
-            '        Change,',
-            '        ChangeSet,',
-            '        OtpCredentials,',
-            '        BackupEntity,',
-            '        BackupResourceEntity,',
-            '        Email,',
-            '        CronJobEntity,',
-            '        ThreadJobEntity,',
-            '        WebsocketChannel,',
-            '        WebsocketMessage,',
-            '        Event,',
-            '        EventSubscriberRun,',
-            '        HashStrategyEntity,',
-            '        EncryptionStrategyEntity,',
-            '        EncryptionKey',
-            '    ];',
+            '    entities: Newable<BaseEntity>[] = entities;',
             '}'
+        ]);
+        await FsUtilities.createFile(getPath(appPath, 'src', DATA_SOURCES_DIR, 'db', 'entities.ts'), [
+            // eslint-disable-next-line stylistic/max-len
+            'import { BaseEntity, BackupEntity, BackupResourceEntity, CacheInvalidation, Change, ChangeSet, CronJobEntity, Email, EncryptionKey, EncryptionStrategyEntity, Event, EventSubscriberRegistration, EventSubscriberRun, HashStrategyEntity, JwtCredentials, JwtRefreshToken, Lease, Log, MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken, MigrationEntity, Newable, OtpCredentials, PasswordResetToken, ThreadJobEntity, WebsocketChannel, WebsocketMessage } from \'zibri\';',
+            '',
+            'import { User } from \'../../models\';',
+            '',
+            '/**',
+            ' * Everything this application stores.',
+            ' *',
+            ' * Its own on top of the ones the framework and its plugins keep rows in. Declared here rather than',
+            ' * on the data source so that a test can put the same entities into a data source of its own without',
+            ' * the list drifting from the one production uses.',
+            ' */',
+            'export const entities: Newable<BaseEntity>[] = [',
+            '    MigrationEntity,',
+            '    User,',
+            '    JwtRefreshToken,',
+            '    JwtCredentials,',
+            '    PasswordResetToken,',
+            '    MailingList,',
+            '    MailingListSubscriber,',
+            '    MailingListSubscriptionConfirmationToken,',
+            '    Log,',
+            '    Change,',
+            '    ChangeSet,',
+            '    OtpCredentials,',
+            '    BackupEntity,',
+            '    BackupResourceEntity,',
+            '    Email,',
+            '    CronJobEntity,',
+            '    ThreadJobEntity,',
+            '    WebsocketChannel,',
+            '    WebsocketMessage,',
+            '    Event,',
+            '    EventSubscriberRun,',
+            '    EventSubscriberRegistration,',
+            '    Lease,',
+            '    HashStrategyEntity,',
+            '    EncryptionStrategyEntity,',
+            '    EncryptionKey,',
+            '    CacheInvalidation',
+            '];'
         ]);
         await FsUtilities.createFile(
             getPath(appPath, 'src', DATA_SOURCES_DIR, 'db', 'migrations', 'index.ts'), ''
@@ -630,9 +1155,6 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             '                use: \'source-map-loader\',',
             '                exclude: [',
             '                    /node_modules[\\/\\\\]node-cron/,',
-            '                    /node_modules\\/xmlbuilder2/,',
-            // eslint-disable-next-line cspell/spellchecker
-            '                    /node_modules\\/@oozcitak/,',
             // eslint-disable-next-line cspell/spellchecker
             '                    /node_modules\\/@jridgewell/',
             '                ]',
@@ -690,10 +1212,11 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             '                    from: path.resolve(__dirname, \'src\', \'templates\'),',
             '                    to: path.resolve(__dirname, \'dist\', \'assets\', \'templates\')',
             '                },',
-            '                {',
-            '                    from: path.resolve(__dirname, \'versions\'),',
-            '                    to: path.resolve(__dirname, \'dist\', \'versions\')',
-            '                },',
+            // everything copied here is read back from inside the bundle. "versions" is not copied
+            // because it is the one thing that is not read from there: the application writes to it
+            // and the next release reads what this one wrote, so it lives beside "dist" and travels
+            // with a deployment on its own. It could not live inside "dist" either way - "clean"
+            // empties that folder on every build, so a snapshot written there would not survive one.
             '                {',
             '                    from: path.resolve(__dirname, \'translations\'),',
             '                    to: path.resolve(__dirname, \'dist\', \'translations\')',

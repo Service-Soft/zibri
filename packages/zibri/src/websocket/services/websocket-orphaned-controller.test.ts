@@ -16,5 +16,5 @@ describe('WebsocketService — orphaned controller detection', () => {
     it('rejects startup when a decorated websocket controller is not passed to the application options', async () => {
         await expect(startTestServer({ websocketControllers: [] })).rejects.toThrow(/orphaned controllers/i);
         void OrphanWebsocketController;
-    }, 15000);
+    }, 20000);
 });

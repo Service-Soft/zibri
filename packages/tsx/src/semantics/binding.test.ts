@@ -1,43 +1,49 @@
 import { describe, expect, it } from '@jest/globals';
+import * as ts from 'typescript';
 
-import { collectFreeIdentifiers, collectFunctionBindings, collectPatternNames, collectReferencedIdentifiers } from './binding';
-import { ComponentFunction } from './component';
-import { parseExpression, parseStatement } from '../__testing__/parse.helper';
-import { ArrowFunctionExpression, VariableDeclaration } from '../parser/ast';
-
-function arrow(source: string): ComponentFunction {
-    const expr: ArrowFunctionExpression = parseExpression(source) as ArrowFunctionExpression;
-    return expr;
-}
+import { collectOuterNames, collectPatternBindings, collectPatternNames, collectReferencedIdentifiers, collectReferencedSymbols } from './binding';
+import { symbolOf } from './symbols';
+import { parseTemplateArrow, parseTemplateBinding, parseTemplateExpression } from '../__testing__/parse.helper';
 
 describe('binding analysis', () => {
     describe('collectPatternNames', () => {
         it('collects names from nested destructuring, defaults, renames and rest', () => {
-            const decl: VariableDeclaration = parseStatement('const { a, b: c, d = 1, e: { f }, ...g } = obj;') as VariableDeclaration;
-            expect(new Set(collectPatternNames(decl.declarations[0].id))).toEqual(new Set(['a', 'c', 'd', 'f', 'g']));
+            const names: string[] = collectPatternNames(parseTemplateBinding('const { a, b: c, d = 1, e: { f }, ...g } = obj;'));
+            expect(new Set(names)).toEqual(new Set(['a', 'c', 'd', 'f', 'g']));
         });
 
         it('collects names from array patterns', () => {
-            const decl: VariableDeclaration = parseStatement('const [x, , y = 2, ...z] = arr;') as VariableDeclaration;
-            expect(new Set(collectPatternNames(decl.declarations[0].id))).toEqual(new Set(['x', 'y', 'z']));
+            const names: string[] = collectPatternNames(parseTemplateBinding('const [x, , y = 2, ...z] = arr;'));
+            expect(new Set(names)).toEqual(new Set(['x', 'y', 'z']));
         });
     });
 
-    describe('collectFunctionBindings', () => {
-        it('includes params, locals, and nested function bindings', () => {
-            const fn: ComponentFunction = arrow('({ prop }) => { const local = 1; function inner(p) { const deep = p; } let x; }');
-            expect(collectFunctionBindings(fn)).toEqual(new Set(['prop', 'local', 'inner', 'p', 'deep', 'x']));
+    describe('collectReferencedSymbols', () => {
+        it('tells apart variables that share a name', () => {
+            const fn: ts.ArrowFunction = parseTemplateArrow('({ label }) => { const inner = [1].map(label => label); return label; }');
+            const outer: ts.Identifier = collectPatternBindings(fn.parameters[0])[0];
+            const read: ts.Symbol[] = [...collectReferencedSymbols(fn.body)];
+
+            // the parameter of the `.map` callback, and the prop returned at the end
+            expect(read.map(symbol => symbol.name)).toEqual(['label', 'label']);
+            expect(read.filter(symbol => symbol === symbolOf(outer))).toHaveLength(1);
         });
 
-        it('does not include the referenced free variables', () => {
-            const fn: ComponentFunction = arrow('({ a }) => a + external');
-            expect(collectFunctionBindings(fn).has('external')).toBe(false);
+        it('resolves an object shorthand to the variable it reads', () => {
+            const fn: ts.ArrowFunction = parseTemplateArrow('({ a }) => ({ a })');
+            const binding: ts.Identifier = collectPatternBindings(fn.parameters[0])[0];
+
+            expect([...collectReferencedSymbols(fn.body)]).toEqual([symbolOf(binding)]);
+        });
+
+        it('leaves out a name the template declares nowhere', () => {
+            expect(collectReferencedSymbols(parseTemplateExpression('undeclared + 1')).size).toBe(0);
         });
     });
 
     describe('collectReferencedIdentifiers', () => {
         it('excludes non-computed member properties and object keys', () => {
-            const refs: Set<string> = collectReferencedIdentifiers(parseExpression('a.b[c] + { d: e }.f'));
+            const refs: Set<string> = collectReferencedIdentifiers(parseTemplateExpression('a.b[c] + { d: e }.f'));
             expect(refs.has('a')).toBe(true);
             expect(refs.has('c')).toBe(true);
             expect(refs.has('e')).toBe(true);
@@ -47,20 +53,20 @@ describe('binding analysis', () => {
         });
 
         it('includes object shorthand references', () => {
-            const refs: Set<string> = collectReferencedIdentifiers(parseExpression('({ a, b })'));
+            const refs: Set<string> = collectReferencedIdentifiers(parseTemplateExpression('({ a, b })'));
             expect(refs).toEqual(new Set(['a', 'b']));
+        });
+
+        it('excludes names that only appear in type syntax', () => {
+            const refs: Set<string> = collectReferencedIdentifiers(parseTemplateExpression('(value as Secret).field satisfies Other<Key>'));
+            expect(refs).toEqual(new Set(['value']));
         });
     });
 
-    describe('collectFreeIdentifiers', () => {
-        it('returns references not bound within the function', () => {
-            const fn: ComponentFunction = arrow('({ label }) => { const id = makeId(); return render(label, id, GLOBAL); }');
-            const free: Set<string> = collectFreeIdentifiers(fn);
-            expect(free.has('makeId')).toBe(true);
-            expect(free.has('render')).toBe(true);
-            expect(free.has('GLOBAL')).toBe(true);
-            expect(free.has('label')).toBe(false);
-            expect(free.has('id')).toBe(false);
+    describe('collectOuterNames', () => {
+        it('returns the names read from outside the function', () => {
+            const fn: ts.ArrowFunction = parseTemplateArrow('({ label }) => { const id = makeId(); return render(label, id, GLOBAL); }');
+            expect(collectOuterNames(fn, fn)).toEqual(new Set(['makeId', 'render', 'GLOBAL']));
         });
     });
 });

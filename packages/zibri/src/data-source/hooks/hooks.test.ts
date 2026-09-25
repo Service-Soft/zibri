@@ -1,3 +1,5 @@
+import assert from 'node:assert';
+
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 
 import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
@@ -13,8 +15,8 @@ import { inject } from '../../di/inject.function';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
-import { PostgresDataSource } from '../data-sources/postgres-typeorm-data-source.model';
-import { Repository } from '../repository';
+import { PostgresDataSource } from '../data-sources/postgres/postgres-typeorm-data-source.model';
+import { Repository } from '../repository/repository';
 
 // ==================== TEST ENTITIES ====================
 
@@ -158,11 +160,38 @@ describe('before‑save hooks', () => {
             expect(updated.password).toContain('scrypt.v1');
         });
 
-        it('does NOT re‑set default values (setDefault = false)', async () => {
+        it('does NOT re‑set default values (operation is update, not create)', async () => {
             // Update without providing isActive
             const updated: HookTestEntity = await repo.updateById(entityId, { name: 'Updated' });
             // isActive should remain its original value (true from create's default)
             expect(updated.isActive).toBe(true);
+        });
+
+        it('refuses an update that writes a hashed value back', async () => {
+            const stored: HookTestEntity = await repo.findById(entityId);
+
+            // a read-modify-write. The loaded password is already a hash, and hashing it again would
+            // replace the only value that could ever verify the real password.
+            await expect(repo.updateById(entityId, { password: stored.password })).rejects.toThrow(/already hashed/);
+        });
+    });
+
+    describe('on delete', () => {
+        it('does not run the hash and encryption hooks over the row it is removing', async () => {
+            const entity: HookTestEntity = await repo.create({
+                name: 'ToDelete',
+                secretValue: 'a-secret',
+                password: 'a-password'
+            });
+
+            // a delete loads the row and passes it through beforeSave, so that excluded properties
+            // are restored and encryption is put back for the beforeReturn that follows. What it
+            // must not do is hash: the loaded password is already a hash, and hashing has no read
+            // half to undo it.
+            const deleted: HookTestEntity = await repo.deleteById(entity.id);
+            // decrypted on the way out, which only works because the delete path re-encrypted first
+            expect(deleted.secretValue).toBe('a-secret');
+            await expect(repo.findById(entity.id, { required: false })).resolves.toBeUndefined();
         });
     });
 });
@@ -194,11 +223,11 @@ describe('before‑return hooks', () => {
         it('decrypts encrypted properties on findAll', async () => {
             const results: HookTestEntity[] = await repo.findAll();
             expect(results).toHaveLength(1);
-            expect(results[0].secretValue).toBe(originalSecret);
+            expect(results[0]?.secretValue).toBe(originalSecret);
         });
 
         it('decrypts encrypted properties on findOne', async () => {
-            const fetched: HookTestEntity = await repo.findOne({ where: { id: entityId } }, true);
+            const fetched: HookTestEntity = await repo.findOne({ where: { id: entityId } });
             expect(fetched.secretValue).toBe(originalSecret);
         });
 
@@ -222,7 +251,8 @@ describe('ChangeSetRepository hooks integration', () => {
         const changeSets: ChangeSet[] = await changeSetRepo.findAll({ where: { changeSetEntityId: entity.id } });
         expect(changeSets).toHaveLength(1);
 
-        const cs: ChangeSet = changeSets[0];
+        const [cs]: ChangeSet[] = changeSets;
+        assert(cs, 'no change set was recorded');
         // internalNote should NOT appear in changes
         expect(cs.changes.some(c => c.key === 'internalNote')).toBe(false);
         // other properties should be tracked
@@ -244,8 +274,8 @@ describe('ChangeSetRepository hooks integration', () => {
             order: { createdAt: 'ASC' }
         });
         expect(changeSets).toHaveLength(2);
-        expect(changeSets[0].type).toBe(ChangeSetType.CREATE);
-        expect(changeSets[1].type).toBe(ChangeSetType.UPDATE);
+        expect(changeSets[0]?.type).toBe(ChangeSetType.CREATE);
+        expect(changeSets[1]?.type).toBe(ChangeSetType.UPDATE);
     });
 });
 

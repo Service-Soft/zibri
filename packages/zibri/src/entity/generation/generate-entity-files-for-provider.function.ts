@@ -132,16 +132,16 @@ export async function generateEntityFilesForProvider(
             const generatedData: GenerateEntityFileResult = generateEntityFile(provider, key, value);
 
             // accumulate any inline schemas discovered while generating this file
-            for (const inlineKey of ObjectUtilities.keys(generatedData.foundSchemas)) {
+            for (const [inlineKey, inlineSchema] of ObjectUtilities.entries(generatedData.foundSchemas)) {
                 if (!processedSchemas.has(inlineKey) && !(inlineKey in nextFoundSchemas)) {
-                    nextFoundSchemas[inlineKey] = generatedData.foundSchemas[inlineKey];
+                    nextFoundSchemas[inlineKey] = inlineSchema;
                 }
             }
 
             // mark this one as processed and queue the file write
             processedSchemas.add(key);
             filesToGenerate.push({ path: filePath, lines: generatedData.lines });
-            indexLines.push(`export * from './${fileName.split('.ts')[0]}';`);
+            indexLines.push(`export * from './${fileName.split('.ts')[0] ?? fileName}';`);
         }
 
         foundSchemas = nextFoundSchemas;

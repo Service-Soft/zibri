@@ -14,15 +14,29 @@ function entry(overrides: Partial<ExtractedTranslationString> = {}): ExtractedTr
     };
 }
 
+// no application and no di container, which is how a build runs it
 describe('generateXlf', () => {
     it('generates a valid xliff document with the given source string', () => {
         const xlf: string = generateXlf([entry()]);
 
-        expect(xlf).toContain('<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">');
+        expect(xlf).toContain('<xliff xmlns="urn:oasis:names:tc:xliff:document:1.2" version="1.2">');
         expect(xlf).toContain('<file source-language="en" datatype="plaintext" original="zibri">');
         expect(xlf).toContain('<trans-unit id="Hello" xml:space="preserve">');
         expect(xlf).toContain('<source>Hello</source>');
         expect(xlf).toContain('<note>src/a.ts:1</note>');
+    });
+
+    it('lays the elements out on lines of their own, and leaves the text of a source exactly as it is', () => {
+        const xlf: string = generateXlf([entry({ source: '{days}d {hours}h' })]);
+
+        // every trans-unit says xml:space="preserve", so a translator's tool reads each space inside a
+        // source as part of it - indenting there would change the string that is translated
+        expect(xlf).toContain([
+            '      <trans-unit id="{days}d {hours}h" xml:space="preserve">',
+            '        <source><x id="days" equiv-text="{days}"/>d <x id="hours" equiv-text="{hours}"/>h</source>',
+            '        <note>src/a.ts:1</note>',
+            '      </trans-unit>'
+        ].join('\n'));
     });
 
     it('groups multiple occurrences of the same source string into one trans-unit with combined locations', () => {
@@ -49,9 +63,7 @@ describe('generateXlf', () => {
     it('converts {placeholder} tokens into <x> elements', () => {
         const xlf: string = generateXlf([entry({ source: 'Hello {name}!' })]);
 
-        expect(xlf).toContain('<x id="name" equiv-text="{name}"/>');
-        expect(xlf).toMatch(/Hello/);
-        expect(xlf).toMatch(/!/);
+        expect(xlf).toContain('<source>Hello <x id="name" equiv-text="{name}"/>!</source>');
     });
 
     it('unescapes doubled braces {{ and }} into literal braces', () => {

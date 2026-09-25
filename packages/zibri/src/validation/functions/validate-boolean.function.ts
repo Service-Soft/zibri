@@ -36,6 +36,20 @@ export async function validateBoolean(
             return [];
         }
     }
+    return booleanValueProblems(fullKey, property);
+}
+
+/**
+ * The problems of a boolean value, judged by the value alone.
+ *
+ * Everything about a boolean except whether it may be left out, which can depend on the request.
+ * What decides which of several shapes a value is uses exactly this, so it cannot disagree with
+ * validation about any rule it looks at.
+ * @param fullKey - The key the problems are reported under.
+ * @param property - The value.
+ * @returns All validation problems found.
+ */
+export function booleanValueProblems(fullKey: string, property: unknown): ValidationProblem[] {
     if (typeof property !== 'boolean') {
         return [new TypeMismatchValidationProblem(fullKey, 'boolean')];
     }

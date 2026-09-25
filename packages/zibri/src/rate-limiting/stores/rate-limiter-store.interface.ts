@@ -77,6 +77,27 @@ export interface RateLimiterStoreInterface<TState extends BaseRateLimitState> {
     delete: (key: string) => void | Promise<void>,
 
     /**
+     * Deletes every state that expired at or before `now`, in one operation.
+     *
+     * Expired states are already treated as absent when they are read, so this changes no decision -
+     * it is what keeps the store from growing forever. It is a method of its own rather than
+     * something the caller loops over its keys for, because a store that can express it as a single
+     * filtered delete should do exactly that.
+     * @param now - The current time (ms since epoch).
+     */
+    deleteExpired: (now: number) => void | Promise<void>,
+
+    /**
+     * Returns the keys whose state holds at least one reservation that expired at or before `now`.
+     *
+     * Those reservations still hold capacity that nobody is going to use, and giving it back needs an
+     * atomic update per key. Narrowing them down here rather than in the caller is what keeps that
+     * from being one update per key in the store: usually nothing comes back at all.
+     * @param now - The current time (ms since epoch).
+     */
+    keysWithExpiredReservations: (now: number) => string[] | Promise<string[]>,
+
+    /**
      * Reads the current state for `key` without modifying it.
      * Returns `undefined` when no state exists.
      * Optional – implementations that can’t provide a cheap read may omit it,

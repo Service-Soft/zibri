@@ -1,0 +1,12 @@
+# what the build produces or the host happens to have lying around. "node_modules" in
+# particular is installed inside the image for the platform it runs on, rather than copied
+# from whichever machine ran "docker build"
+node_modules
+dist
+coverage
+.git
+.zibri
+*.hbs.ts
+# the secrets this project runs on locally. A deployment sets its own, and a copy baked into
+# an image is one that travels to everyone the image is pushed to
+.env

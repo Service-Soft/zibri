@@ -1,6 +1,5 @@
-import { ZibriApplication } from '../../application';
+import { ZibriApplication } from '../../application/application';
 import { HttpRequestContext } from '../../context/request/http-request.context';
-import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../../context/request/request-context-token.model';
 import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
 import { Inject } from '../../di/decorators/inject.decorator';
 import { Injectable } from '../../di/decorators/injectable.decorator';
@@ -8,6 +7,8 @@ import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { register } from '../../di/register.function';
 import { OnAppInit } from '../../global/on-app-init.interface';
+import { AuditAction, AuditOutcome } from '../../logging/audit-event.model';
+import { auditReasonFor } from '../../logging/audit-reason-for.function';
 import { type LoggerInterface } from '../../logging/logger.interface';
 import { BaseUser } from '../models/base-user.model';
 import { TwoFactorMethod } from './methods/two-factor-method.interface';
@@ -28,18 +29,18 @@ export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
     ) { }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async onAppInit({ options }: ZibriApplication): Promise<void> {
+    onAppInit({ options }: ZibriApplication): void {
         const { twoFactorMethods } = options;
         for (const method of twoFactorMethods) {
             register({ token: method, useClass: method });
             this.twoFactorMethods.push(method);
         }
         if (twoFactorMethods.length) {
-            await this.logger.info(
+            this.logger.info(
                 `initializes ${twoFactorMethods.length} ${twoFactorMethods.length > 1 ? 'two factor methods' : 'two factor method'}`
             );
             for (const method of twoFactorMethods) {
-                await this.logger.info(`  - ${method.name}`);
+                this.logger.info(`  - ${method.name}`);
             }
         }
     }
@@ -49,13 +50,14 @@ export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
         Role extends string,
         UserType extends BaseUser<Role>,
         TwoFactorRequestRegisterData,
-        TwoFactorConfirmRegisterData
+        TwoFactorConfirmRegisterData,
+        TwoFactorRequestRegisterResult
     >(
         user: UserType,
-        method: TwoFactorMethod<TwoFactorRequestRegisterData, TwoFactorConfirmRegisterData>,
+        method: TwoFactorMethod<TwoFactorRequestRegisterData, TwoFactorConfirmRegisterData, TwoFactorRequestRegisterResult>,
         data: TwoFactorRequestRegisterData
-    ): Promise<void> {
-        await method.requestRegisterForUser(user, data);
+    ): Promise<TwoFactorRequestRegisterResult> {
+        return await method.requestRegisterForUser(user, data);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -66,7 +68,7 @@ export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
         TwoFactorConfirmRegisterData
     >(
         user: UserType,
-        method: TwoFactorMethod<TwoFactorRequestRegisterData, TwoFactorConfirmRegisterData>,
+        method: TwoFactorMethod<TwoFactorRequestRegisterData, TwoFactorConfirmRegisterData, unknown>,
         data: TwoFactorConfirmRegisterData
     ): Promise<void> {
         await method.confirmRegisterForUser(user, data);
@@ -80,7 +82,7 @@ export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
         TwoFactorConfirmRegisterData
     >(
         user: UserType,
-        method: TwoFactorMethod<TwoFactorRequestRegisterData, TwoFactorConfirmRegisterData>
+        method: TwoFactorMethod<TwoFactorRequestRegisterData, TwoFactorConfirmRegisterData, unknown>
     ): Promise<void> {
         await method.unregisterForUser(user);
     }
@@ -91,16 +93,25 @@ export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
         context: HttpRequestContext | WebsocketRequestContext,
         allowedMethods: TwoFactorMethods = this.twoFactorMethods
     ): Promise<boolean> {
-        if (context.has(ZIBRI_REQUEST_CONTEXT_TOKENS.HAS_2FA)) {
-            return context.get(ZIBRI_REQUEST_CONTEXT_TOKENS.HAS_2FA);
-        }
+        // the HAS_2FA token asks this with every registered method, so a route that named a subset
+        // would be told yes by a factor it does not accept. Reading the token here would also make
+        // it its own dependency, since the token is what calls this.
         try {
             await Promise.any(
                 allowedMethods.map(m => inject(m).validate(user, context))
             );
             return true;
         }
-        catch {
+        catch (error) {
+            // Promise.any rejects with every method's error, and dropping them made a wrong code and
+            // a data source that is down look identical - to the caller, who gets 401 either way,
+            // and in the trail, where neither appeared at all
+            this.logger.audit({
+                action: AuditAction.TWO_FACTOR,
+                outcome: AuditOutcome.FAILURE,
+                reason: auditReasonFor(error),
+                userId: user.id
+            });
             return false;
         }
     }

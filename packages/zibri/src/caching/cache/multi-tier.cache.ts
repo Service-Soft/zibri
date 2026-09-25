@@ -9,6 +9,8 @@ import { LoggerInterface } from '../../logging/logger.interface';
 import { MetricsServiceInterface } from '../../metrics/metrics-service.interface';
 import { CacheMetrics } from '../cache-metrics.model';
 import { CacheServiceInterface } from '../cache-service.interface';
+import { CacheSingleFlight } from '../cache-single-flight.model';
+import { type CacheTagMatcher } from '../cache-tag-matchers';
 import { ExtractCacheWriteResultAvailable } from '../decorators/decorator-types';
 import { CacheStoreInterface } from '../store/cache-store.interface';
 import { CachedValue } from '../store/cached-value.model';
@@ -19,6 +21,11 @@ type TierLike<K, V, CacheTag extends string, N extends string> = {
     readonly name: N,
     // eslint-disable-next-line jsdoc/require-jsdoc
     store: CacheStoreInterface<K, V>,
+    /**
+     * The tags values in this tier might carry. Needed so that the multi tier cache can report the
+     * tags of everything it holds, which is how the cache service decides whether to invalidate it.
+     */
+    readonly tags: 'all' | readonly CacheTagMatcher[],
     // eslint-disable-next-line jsdoc/require-jsdoc
     _writeResultAvailable?: boolean,
     // eslint-disable-next-line typescript/method-signature-style
@@ -83,6 +90,8 @@ export abstract class MultiTierCache<
     // Outer WR is computed, not stated by the user.
     private readonly _writeResultAvailable: boolean;
 
+    private readonly inFlight: CacheSingleFlight<V> = new CacheSingleFlight();
+
     private _metrics: CacheMetrics | undefined;
 
     protected abstract cacheService: CacheServiceInterface;
@@ -119,7 +128,6 @@ export abstract class MultiTierCache<
             deletes: this.metricsService.getCounter('cache_deletes_total', ['cache']),
             invalidations: this.metricsService.getCounter('cache_invalidations_total', ['cache']),
             invalidationFailures: this.metricsService.getCounter('cache_invalidation_failures_total', ['cache']),
-            expiredEvictions: this.metricsService.getCounter('cache_expired_evictions_total', ['cache']),
             errors: this.metricsService.getCounter('cache_errors_total', ['cache', 'operation']),
             inFlight: this.metricsService.getGauge('cache_in_flight', ['cache']),
             size: this.metricsService.getGauge('cache_size', ['cache']),
@@ -145,12 +153,15 @@ export abstract class MultiTierCache<
         return async (...args) => {
             const key: K = await keyFn(...args);
 
-            for (let i: number = 0; i < this.tiers.length; i++) {
-                const cached: CachedValue<V> | undefined = await this.tiers[i].store.get(key);
-                if (cached && (!cached.expiresAt || cached.expiresAt > new Date())) {
+            for (const [i, tier] of this.tiers.entries()) {
+                const cached: CachedValue<V> | undefined = await tier.store.get(key);
+                // a store answers with what is still valid. This used to recognize an expired entry
+                // and simply move on to the next tier, leaving it exactly where it was - taking up
+                // room that live entries were then evicted to make
+                if (cached) {
                     // Back‑fill earlier tiers. Per‑tier options are NOT used here
-                    for (let j: number = 0; j < i; j++) {
-                        this.tiers[j].setDirect(key, cached.value, {
+                    for (const earlierTier of this.tiers.slice(0, i)) {
+                        earlierTier.setDirect(key, cached.value, {
                             ttl: cached.expiresAt
                                 ? cached.expiresAt.getTime() - Date.now()
                                 : undefined,
@@ -158,25 +169,34 @@ export abstract class MultiTierCache<
                         // eslint-disable-next-line promise/prefer-await-to-then
                         }).catch(() => {});
                     }
+                    this.metrics.hits.increase({ cache: this.name });
                     return cached.value;
                 }
             }
 
-            // miss
-            const value: V = await fn(...args);
+            // miss. Counted once per caller rather than once per origin call, so that the hit rate
+            // reads as what the callers experienced - the coalesced ones missed too
+            this.metrics.misses.increase({ cache: this.name });
 
-            // populate all tiers using per‑tier options
-            await Promise.all(this.tiers.map(async (tier) => {
-                const tierOpt: CacheWrapOptions<V, TArgs, CacheTag> | undefined = options?.[tier.name as TierName<Tiers>];
-                const ttl: number | undefined = typeof tierOpt?.ttl === 'function'
-                    ? await tierOpt.ttl(value, ...args)
-                    : tierOpt?.ttl;
-                const tags: CacheTag[] | undefined = typeof tierOpt?.tags === 'function'
-                    ? await tierOpt.tags(value, ...args)
-                    : tierOpt?.tags;
-                await tier.setDirect(key, value, { ttl, tags }).catch(() => {});
-            }));
-            return value;
+            // under single flight, so a hot key expiring sends one request to the origin instead of
+            // one per caller waiting on it. Everything that fills the tiers belongs inside: a second
+            // caller joining has to get the value back, not an empty cache and a second origin call
+            return await this.runSingleFlight(key, async () => {
+                const value: V = await fn(...args);
+
+                // populate all tiers using per‑tier options
+                await Promise.all(this.tiers.map(async (tier) => {
+                    const tierOpt: CacheWrapOptions<V, TArgs, CacheTag> | undefined = options?.[tier.name as TierName<Tiers>];
+                    const ttl: number | undefined = typeof tierOpt?.ttl === 'function'
+                        ? await tierOpt.ttl(value, ...args)
+                        : tierOpt?.ttl;
+                    const tags: CacheTag[] | undefined = typeof tierOpt?.tags === 'function'
+                        ? await tierOpt.tags(value, ...args)
+                        : tierOpt?.tags;
+                    await tier.setDirect(key, value, { ttl, tags }).catch(() => {});
+                }));
+                return value;
+            });
         };
     }
 
@@ -280,6 +300,47 @@ export abstract class MultiTierCache<
         };
     }
 
+    // eslint-disable-next-line jsdoc/require-returns
+    /**
+     * The tags any value in any tier might carry.
+     *
+     * A multi tier cache holds whatever its tiers hold, so its tags are their tags. Without this it
+     * has none, and the cache service has no way to tell whether an invalidation concerns it - which
+     * is how tag invalidation came to skip multi tier caches entirely.
+     */
+    get tags(): 'all' | readonly CacheTagMatcher[] {
+        if (this.tiers.some(t => t.tags === 'all')) {
+            return 'all';
+        }
+        return this.tiers.flatMap(t => [...t.tags as readonly CacheTagMatcher[]]);
+    }
+
+    /**
+     * Removes every value carrying one of the given tags, from every tier.
+     *
+     * Goes to the tier stores directly rather than back through the cache service, which is what
+     * safeInvalidateTags does and why that path was a no-op loop.
+     * @param tags - The tags to invalidate.
+     */
+    async invalidateTags(tags: string[]): Promise<void> {
+        await Promise.all(this.tiers.map(t => t.store.invalidateTags(tags)));
+    }
+
+    /**
+     * Runs the given factory under the given key in single flight.
+     * @param key - The key being filled.
+     * @param factory - The work to do once.
+     * @returns What the factory produced, for every caller that waited on it.
+     */
+    private async runSingleFlight(key: K, factory: () => Promise<V>): Promise<V> {
+        try {
+            return await this.inFlight.run(key, factory);
+        }
+        finally {
+            this.metrics.inFlight.set({ cache: this.name }, this.inFlight.size);
+        }
+    }
+
     private async safeInvalidateTags(tags: CacheTag[]): Promise<void> {
         if (!tags.length) {
             return;
@@ -293,7 +354,7 @@ export abstract class MultiTierCache<
             if (this.onInvalidationFailure === 'throw') {
                 throw error;
             }
-            await this.logger.warn('Cache invalidation failed in multi‑tier cache', { error });
+            this.logger.warn('Cache invalidation failed in multi‑tier cache', { error });
         }
     }
 }

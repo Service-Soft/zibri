@@ -74,3 +74,18 @@ export function offsetToLineColumn(source: string, offset: number): LineColumn {
     }
     return { line, column: clamped - lineStart + 1 };
 }
+
+/**
+ * Formats the diagnostics of a template that failed to compile into one readable error.
+ * @param diagnostics - The diagnostics to format.
+ * @param source - The source they refer to.
+ * @param file - The file path, for context.
+ * @returns The error to report.
+ */
+export function resolveCompileError(diagnostics: Diagnostic[], source: string, file: string): Error {
+    const lines: string[] = diagnostics.map(diagnostic => {
+        const { line, column } = offsetToLineColumn(source, diagnostic.span.start);
+        return `${file}:${line}:${column} ${diagnostic.code} ${diagnostic.message}`;
+    });
+    return new Error(`zibri-tsx failed to compile:\n${lines.join('\n')}`);
+}

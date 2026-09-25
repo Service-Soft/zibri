@@ -15,19 +15,18 @@ export class OtpCredentials extends BaseEntity {
     userId!: string;
     /**
      * The secret to use for generating the OTP.
+     *
+     * Encrypted rather than hashed, because it has to be read back: validating a code means
+     * recomputing it from the seed. That is also what makes a leak of it permanent - the seed is the
+     * second factor, and anyone holding it reproduces every future code until the user re-enrolls.
      */
-    @Property.string()
+    @Property.string({ encryption: true })
     secret!: string;
     /**
      * Whether or not these credentials have already been used successfully.
      */
     @Property.boolean({ default: false })
     confirmed!: boolean;
-    /**
-     * The two factor url that is needed to display a qr code.
-     */
-    @Property.string({ required: false })
-    qrCodeUrl: string | undefined | null;
 }
 
 /**

@@ -57,8 +57,8 @@ describe('generateHandlebarTypeFiles', () => {
     it('logs and skips a template that fails to process, without aborting the remaining files', async () => {
         const brokenFile: FsPath = FsUtilities.getPath(rootFolder, 'broken.hbs');
         const goodFile: FsPath = FsUtilities.getPath(rootFolder, 'good.hbs');
-        // "with" blocks are a known unimplemented AST path (see resolve-keys-for-block-statement.function.ts)
-        await FsUtilities.createFile(brokenFile, '{{#with x}}{{y}}{{/with}}');
+        // an each can only iterate over one list
+        await FsUtilities.createFile(brokenFile, '{{#each a b}}{{/each}}');
         await FsUtilities.createFile(goodFile, '{{z}}');
 
         const errorSpy: jest.SpiedFunction<typeof console.error> = jest.spyOn(console, 'error').mockImplementation(() => undefined);

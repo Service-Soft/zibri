@@ -1,5 +1,11 @@
+import { XliffDocument } from './models/xliff-document.model';
+import { XliffFile } from './models/xliff-file.model';
+import { XliffSegment } from './models/xliff-segment.model';
+import { XliffTransUnit } from './models/xliff-trans-unit.model';
 import { ExtractedTranslationString } from './transform-source-translation-tokens.function';
-import { XML, XmlUtilities } from '../../document/xml.utilities';
+import { XmlString } from '../../document/xml-string.type';
+import { XmlWriterUtilities } from '../../document/xml-writer.utilities';
+import { XmlUtilities } from '../../document/xml.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
@@ -13,50 +19,51 @@ type CollectedString = {
 /**
  * Generates a xlf source file from the given extracted translation strings.
  * @param strings - The extracted translation strings.
- * @returns The xlf file content as a string.
+ * @returns The xlf file content.
  */
-export function generateXlf(strings: ExtractedTranslationString[]): string {
+export function generateXlf(strings: ExtractedTranslationString[]): XmlString {
     const byGroup: Record<string, Record<string, CollectedString> | undefined> = {};
 
     for (const entry of strings) {
         const groupKey: string = `${entry.sourceLocale}::${entry.origin}`;
-        byGroup[groupKey] ??= {};
-        byGroup[groupKey][entry.source] ??= { source: entry.source, locations: [] };
-        byGroup[groupKey][entry.source].locations.push({ file: entry.file, line: entry.line });
+        const group: Record<string, CollectedString> = byGroup[groupKey] ?? {};
+        byGroup[groupKey] = group;
+        const collected: CollectedString = group[entry.source] ?? { source: entry.source, locations: [] };
+        group[entry.source] = collected;
+        collected.locations.push({ file: entry.file, line: entry.line });
     }
 
-    const sortedKeys: string[] = ObjectUtilities.keys(byGroup).sort((a, b) => a.localeCompare(b));
+    const files: XliffFile[] = ObjectUtilities.keys(byGroup)
+        .sort((a, b) => a.localeCompare(b))
+        .map(groupKey => {
+            const [locale = '', origin = ''] = groupKey.split('::');
+            const units: XliffTransUnit[] = [...ObjectUtilities.values(byGroup[groupKey] ?? {})]
+                .sort((a, b) => a.source.localeCompare(b.source))
+                .map(unit => resolveTranslationUnit(unit));
+            return { sourceLanguage: locale, datatype: 'plaintext', original: origin, body: { units } };
+        });
 
-    const doc: XML = XmlUtilities.create();
-    const xliff: XML = doc.ele('xliff', {
-        version: '1.2',
-        xmlns: 'urn:oasis:names:tc:xliff:document:1.2'
-    });
-
-    for (const groupKey of sortedKeys) {
-        const [locale, origin] = groupKey.split('::');
-        const body: XML = xliff
-            .ele('file', { 'source-language': locale, datatype: 'plaintext', original: origin })
-            .ele('body');
-
-        for (const unit of [...ObjectUtilities.values(byGroup[groupKey] ?? {})]
-            .sort((a, b) => a.source.localeCompare(b.source))) {
-            buildTranslationUnit(body, unit);
-        }
-    }
-
-    return doc.end({ prettyPrint: true });
+    // indented, since the file is committed and read in diffs. Text is left exactly as it is, which
+    // xml:space="preserve" asks for: a translator's tool reads every space inside a source as part of it.
+    // Written without validating it: this runs in a build, where no application exists to validate
+    // with, and the data is the framework's own
+    const xml: string = XmlWriterUtilities.stringify(XliffDocument, { version: '1.2', files }, { indent: true });
+    return XmlUtilities.resolveXmlString(xml);
 }
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-function buildTranslationUnit(body: XML, { source, locations }: CollectedString): void {
-    const transUnit: XML = body.ele('trans-unit', { id: source, 'xml:space': 'preserve' });
-    buildSourceContent(transUnit.ele('source'), source);
-    transUnit.ele('note').txt(locations.map(l => `${l.file}:${l.line}`).join(', '));
+function resolveTranslationUnit({ source, locations }: CollectedString): XliffTransUnit {
+    return {
+        id: source,
+        space: 'preserve',
+        source: resolveSourceSegment(source),
+        note: locations.map(l => `${l.file}:${l.line}`).join(', ')
+    };
 }
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-function buildSourceContent(sourceEle: XML, source: string): void {
+function resolveSourceSegment(source: string): XliffSegment {
+    const parts: XliffSegment['parts'] = [];
     const regex: RegExp = /{{|}}|{([^}]+)}/g;
     let textBuffer: string = '';
     let lastIndex: number = 0;
@@ -74,11 +81,13 @@ function buildSourceContent(sourceEle: XML, source: string): void {
         }
         else {
             if (textBuffer) {
-                sourceEle.txt(textBuffer);
+                parts.push({ shape: 'text', value: textBuffer });
                 textBuffer = '';
             }
-            const name: string = match[1];
-            sourceEle.ele('x', { id: name, 'equiv-text': `{${name}}` });
+            // the branches above took the two alternatives that carry no group, so this one matched
+            // the placeholder and its name is there
+            const name: string = match[1] ?? '';
+            parts.push({ shape: 'x', value: { id: name, equivText: `{${name}}` } });
         }
 
         match = regex.exec(source);
@@ -86,6 +95,7 @@ function buildSourceContent(sourceEle: XML, source: string): void {
 
     textBuffer += source.slice(lastIndex);
     if (textBuffer) {
-        sourceEle.txt(textBuffer);
+        parts.push({ shape: 'text', value: textBuffer });
     }
+    return { parts };
 }

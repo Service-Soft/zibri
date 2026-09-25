@@ -1,5 +1,17 @@
 import { UserRepositoryInterface } from './user-repository.interface';
+import { FindByIdOptions } from '../../data-source/models/options/find-by-id-options.model';
 import { BaseUser } from '../models/base-user.model';
+
+/**
+ * Options for looking a user up.
+ *
+ * The repository's own requirement flag, and only that one: which data source a user comes from is
+ * the user repository's business, so nothing else here would mean anything.
+ */
+export type FindUserOptions<Required extends boolean = true> = Pick<
+    FindByIdOptions<BaseUser<string>, Required>,
+    'required'
+>;
 
 /**
  * Interface for a user service.
@@ -13,11 +25,17 @@ export interface UserServiceInterface {
     /**
      * Finds a user by the given id.
      */
-    findById: <Role extends string, T extends BaseUser<Role>>(id: T['id']) => Promise<T>,
+    findById: <Role extends string, T extends BaseUser<Role>, B extends boolean = true>(
+        id: T['id'],
+        options?: FindUserOptions<B>
+    ) => Promise<B extends false ? T | undefined : T>,
     /**
      * Finds a user by the given email.
      */
-    findByEmail: <Role extends string, T extends BaseUser<Role>>(email: string) => Promise<T>,
+    findByEmail: <Role extends string, T extends BaseUser<Role>, B extends boolean = true>(
+        email: string,
+        options?: FindUserOptions<B>
+    ) => Promise<B extends false ? T | undefined : T>,
     /**
      * Resolves the credentials for the provided user.
      */

@@ -1,77 +1,46 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
-import SMTPTransport from 'nodemailer/lib/smtp-transport';
 
-import { EmailService } from './email.service';
+import { EmailServiceInterface } from './email-service.interface';
 import { CreateEmailData, QueueEmailData } from './models/create-email-data.model';
+import { EmailConfig } from './models/email-config.model';
 import { EmailPriority } from './models/email-priority.enum';
 import { EmailStatus } from './models/email-status.enum';
 import { Email } from './models/email.model';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { startTestServer, StartedTestServer } from '../__testing__/test-server/start-test-server.function';
-import { Repository } from '../data-source/repository';
-import { EmailConfig } from './models/email-config.model';
-import { InjectRepository, repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
-import { Inject } from '../di/decorators/inject.decorator';
-import { Injectable } from '../di/decorators/injectable.decorator';
+import { Repository } from '../data-source/repository/repository';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
-import { type LoggerInterface } from '../logging/logger.interface';
+import { EmailSendResult, EmailTransportInterface } from './transports/email-transport.interface';
 import { FsUtilities } from '../utilities/fs.utilities';
+import { Ms } from '../utilities/ms';
 
-// ---------- Test email service (mocks the transporter) ----------
+// ---------- The transport under the real service ----------
 
+// The service itself is the framework's own, unmodified. It used to be subclassed here so that
+// `protected send` could be replaced, which meant these tests exercised a send this file had written
+// rather than the one that ships - and the override had drifted: it never wrote `rejectedRecipients`
+// and deleted a failed mail the real one keeps.
 // eslint-disable-next-line typescript/typedef
-const mockSendMail = jest.fn<() => Promise<SMTPTransport.SentMessageInfo>>();
+const mockSend = jest.fn<(email: Email) => Promise<EmailSendResult>>();
 
-const testConfig: EmailConfig = {
-    host: 'smtp.example.com',
-    port: 587,
-    maxEmailsPerHour: 1000,
-    defaultSender: 'noreply@example.com',
-    pool: false,
-    auth: { user: 'user', pass: 'pass' }
+const testTransport: EmailTransportInterface = {
+    name: 'TestEmailTransport',
+    send: async (email: Email) => await mockSend(email)
 };
 
-@Injectable({ register: 'onUse' })
-class TestEmailService extends EmailService {
-    constructor(
-        @Inject(ZIBRI_DI_TOKENS.LOGGER) logger: LoggerInterface,
-        @InjectRepository(Email) emailRepository: Repository<Email, CreateEmailData>
-    ) {
-        super(logger, emailRepository, testConfig);
-    }
-
-    protected override async send(email: Email): Promise<void> {
-        await this.validateAttachments(email.attachments);
-        const res: SMTPTransport.SentMessageInfo = await mockSendMail();
-        const status: EmailStatus = res.rejected.length ? EmailStatus.FAILED : EmailStatus.SENT;
-
-        if (status === EmailStatus.FAILED) {
-            const rejectedRecipients: string[] = res.rejected.map((e) => typeof e === 'string' ? e : e.address);
-            await this['logger'].warn(`mail to ${rejectedRecipients.join(', ')} was rejected`);
-        }
-
-        if (email.persist) {
-            await this['emailRepository'].updateById(email.id, { status });
-            return;
-        }
-
-        await this['emailRepository'].deleteById(email.id);
-    }
-}
+const testConfig: EmailConfig = {
+    maxEmailsPerHour: 1000,
+    defaultSender: 'noreply@example.com',
+    sendLeaseInMs: Ms.MINUTE,
+    sendBatchSize: 10
+};
 
 // ---------- Helpers ----------
 
-function sentMessageInfo(overrides: Partial<SMTPTransport.SentMessageInfo> = {}): SMTPTransport.SentMessageInfo {
-    return {
-        accepted: ['recipient@example.com'],
-        rejected: [],
-        pending: [],
-        response: '250 OK',
-        envelope: { from: 'noreply@example.com', to: ['recipient@example.com'] },
-        messageId: 'test-message-id',
-        ...overrides
-    } as SMTPTransport.SentMessageInfo;
+function accepted(): EmailSendResult {
+    return { rejectedRecipients: [] };
 }
 
 function makeQueueData(overrides: Partial<QueueEmailData> = {}): QueueEmailData {
@@ -86,7 +55,7 @@ function makeQueueData(overrides: Partial<QueueEmailData> = {}): QueueEmailData 
 // ---------- Test setup ----------
 
 let server: StartedTestServer;
-let emailService: TestEmailService;
+let emailService: EmailServiceInterface;
 let emailRepo: Repository<Email, CreateEmailData>;
 
 beforeAll(async () => {
@@ -94,12 +63,12 @@ beforeAll(async () => {
         providers: [
             ...defaultTestServerProviders,
             { token: ZIBRI_DI_TOKENS.EMAIL_CONFIG, useValue: testConfig },
-            { token: ZIBRI_DI_TOKENS.EMAIL_SERVICE, useClass: TestEmailService }
+            { token: ZIBRI_DI_TOKENS.EMAIL_TRANSPORT, useValue: testTransport }
         ]
     });
     await server.start();
 
-    emailService = inject(TestEmailService);
+    emailService = inject(ZIBRI_DI_TOKENS.EMAIL_SERVICE);
     emailRepo = inject(repositoryTokenFor(Email));
 }, 15000);
 
@@ -109,8 +78,8 @@ afterAll(async () => {
 
 beforeEach(async () => {
     await emailRepo.deleteAll({});
-    mockSendMail.mockReset();
-    mockSendMail.mockResolvedValue(sentMessageInfo());
+    mockSend.mockReset();
+    mockSend.mockResolvedValue(accepted());
 });
 
 // ---------- Tests ----------
@@ -121,49 +90,49 @@ describe('EmailService.queue', () => {
 
         const emails: Email[] = await emailRepo.findAll({});
         expect(emails).toHaveLength(1);
-        expect(emails[0].status).toBe(EmailStatus.QUEUED);
+        expect(emails[0]?.status).toBe(EmailStatus.QUEUED);
     });
 
     it('defaults to NORMAL priority', async () => {
         await emailService.queue(makeQueueData());
 
         const emails: Email[] = await emailRepo.findAll({});
-        expect(emails[0].priority).toBe(EmailPriority.NORMAL);
+        expect(emails[0]?.priority).toBe(EmailPriority.NORMAL);
     });
 
     it('respects provided priority', async () => {
         await emailService.queue(makeQueueData({ priority: EmailPriority.HIGH }));
 
         const emails: Email[] = await emailRepo.findAll({});
-        expect(emails[0].priority).toBe(EmailPriority.HIGH);
+        expect(emails[0]?.priority).toBe(EmailPriority.HIGH);
     });
 
     it('defaults to defaultSender from config when no sender provided', async () => {
         await emailService.queue(makeQueueData());
 
         const emails: Email[] = await emailRepo.findAll({});
-        expect(emails[0].sender).toBe(testConfig.defaultSender);
+        expect(emails[0]?.sender).toBe(testConfig.defaultSender);
     });
 
     it('respects provided sender', async () => {
         await emailService.queue(makeQueueData({ sender: 'custom@example.com' }));
 
         const emails: Email[] = await emailRepo.findAll({});
-        expect(emails[0].sender).toBe('custom@example.com');
+        expect(emails[0]?.sender).toBe('custom@example.com');
     });
 
     it('defaults persist to false', async () => {
         await emailService.queue(makeQueueData());
 
         const emails: Email[] = await emailRepo.findAll({});
-        expect(emails[0].persist).toBe(false);
+        expect(emails[0]?.persist).toBe(false);
     });
 
     it('respects provided persist flag', async () => {
         await emailService.queue(makeQueueData({ persist: true }));
 
         const emails: Email[] = await emailRepo.findAll({});
-        expect(emails[0].persist).toBe(true);
+        expect(emails[0]?.persist).toBe(true);
     });
 });
 
@@ -174,7 +143,7 @@ describe('EmailService.sendQueuedEmails', () => {
         const result: boolean = await emailService.sendQueuedEmails();
 
         expect(result).toBe(false);
-        expect(mockSendMail).not.toHaveBeenCalled();
+        expect(mockSend).not.toHaveBeenCalled();
     });
 
     it('returns true after sending emails (indicating there may be more)', async () => {
@@ -183,7 +152,7 @@ describe('EmailService.sendQueuedEmails', () => {
         const result: boolean = await emailService.sendQueuedEmails();
 
         expect(result).toBe(true);
-        expect(mockSendMail).toHaveBeenCalledTimes(1);
+        expect(mockSend).toHaveBeenCalledTimes(1);
     });
 
     it('deletes email after sending when persist is false', async () => {
@@ -202,46 +171,41 @@ describe('EmailService.sendQueuedEmails', () => {
 
         const emails: Email[] = await emailRepo.findAll({});
         expect(emails).toHaveLength(1);
-        expect(emails[0].status).toBe(EmailStatus.SENT);
+        expect(emails[0]?.status).toBe(EmailStatus.SENT);
     });
 
     it('updates email status to FAILED when the send is rejected', async () => {
-        mockSendMail.mockResolvedValue(sentMessageInfo({
-            rejected: ['recipient@example.com'],
-            accepted: []
-        }));
+        mockSend.mockResolvedValue({ rejectedRecipients: ['recipient@example.com'] });
         await emailService.queue(makeQueueData({ persist: true }));
 
         await emailService.sendQueuedEmails();
 
         const emails: Email[] = await emailRepo.findAll({});
-        expect(emails[0].status).toBe(EmailStatus.FAILED);
+        expect(emails[0]?.status).toBe(EmailStatus.FAILED);
+        // read off the row rather than off the transport's answer, so this covers the write the
+        // subclass this file used to carry had quietly stopped doing
+        expect(emails[0]?.rejectedRecipients).toEqual(['recipient@example.com']);
     });
 
     it('sends HIGH priority emails before NORMAL and LOW', async () => {
-        // eslint-disable-next-line typescript/require-await
-        mockSendMail.mockImplementation(async () => {
-            return sentMessageInfo();
-        });
-
         // Queue in reverse priority order to ensure ordering is by priority, not insertion
         await emailService.queue(makeQueueData({ priority: EmailPriority.LOW, subject: 'low' }));
         await emailService.queue(makeQueueData({ priority: EmailPriority.NORMAL, subject: 'normal' }));
         await emailService.queue(makeQueueData({ priority: EmailPriority.HIGH, subject: 'high' }));
 
-        // Capture send order by intercepting the underlying send call
-        const calls: Email[] = [];
-        jest.spyOn(emailService as unknown as { send: (e: Email) => Promise<void> }, 'send')
-            // eslint-disable-next-line typescript/require-await
-            .mockImplementation(async (email: Email) => {
-                calls.push(email);
-            });
+        // the transport is where the order is visible now. It used to be a spy on the service's own
+        // protected send, which meant asserting the order of a call this file had replaced
+        const sent: Email[] = [];
+        mockSend.mockImplementation((email: Email) => {
+            sent.push(email);
+            return Promise.resolve(accepted());
+        });
 
         await emailService.sendQueuedEmails();
 
-        expect(calls[0].priority).toBe(EmailPriority.HIGH);
-        expect(calls[1].priority).toBe(EmailPriority.NORMAL);
-        expect(calls[2].priority).toBe(EmailPriority.LOW);
+        expect(sent[0]?.priority).toBe(EmailPriority.HIGH);
+        expect(sent[1]?.priority).toBe(EmailPriority.NORMAL);
+        expect(sent[2]?.priority).toBe(EmailPriority.LOW);
     });
 
     it('sends at most 10 emails per batch across all priorities', async () => {
@@ -259,7 +223,7 @@ describe('EmailService.sendQueuedEmails', () => {
         await emailService.sendQueuedEmails();
 
         // 8 high + 1 normal + 1 low = 10 (normal is capped at 10 - 1 - highCount)
-        expect(mockSendMail).toHaveBeenCalledTimes(10);
+        expect(mockSend).toHaveBeenCalledTimes(10);
     });
 
     it('sends at most 8 HIGH priority emails per batch', async () => {
@@ -270,7 +234,7 @@ describe('EmailService.sendQueuedEmails', () => {
         await emailService.sendQueuedEmails();
 
         // HIGH is capped at 8; no NORMAL or LOW queued, so total = 8
-        expect(mockSendMail).toHaveBeenCalledTimes(8);
+        expect(mockSend).toHaveBeenCalledTimes(8);
     });
 
     it('fills remaining slots with NORMAL and LOW after HIGH', async () => {
@@ -287,7 +251,7 @@ describe('EmailService.sendQueuedEmails', () => {
         await emailService.sendQueuedEmails();
 
         // 8 high + 1 normal (10 - 1 - 8 = 1) + 1 low (10 - 8 - 1 = 1) = 10
-        expect(mockSendMail).toHaveBeenCalledTimes(10);
+        expect(mockSend).toHaveBeenCalledTimes(10);
     });
 });
 
@@ -297,7 +261,7 @@ describe('EmailService attachment validation', () => {
             persist: true,
             attachments: [{ filename: 'missing.pdf', path: FsUtilities.getPath('/nonexistent/missing.pdf') }]
         }));
-        mockSendMail.mockResolvedValue(sentMessageInfo());
+        mockSend.mockResolvedValue(accepted());
 
         await expect(emailService.sendQueuedEmails()).rejects.toThrow('does not exist');
     });

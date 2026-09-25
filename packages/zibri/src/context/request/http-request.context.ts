@@ -12,13 +12,35 @@ export class HttpRequestContext extends BaseContext<'http-request'> {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly type: 'http-request' = 'http-request';
 
+    /**
+     * The controller the request was routed to, or undefined while routing has not resolved yet.
+     */
+    controllerClass: Newable<unknown> | undefined = undefined;
+
+    /**
+     * The method on that controller, or undefined while routing has not resolved yet.
+     */
+    controllerMethod: string | undefined = undefined;
+
     constructor(
         readonly request: HttpRequest,
-        readonly response: HttpResponse,
-        readonly controllerClass: Newable<unknown> | undefined,
-        readonly controllerMethod: string | undefined
+        readonly response: HttpResponse
     ) {
         super();
+    }
+
+    /**
+     * Records the route this request matched.
+     *
+     * A http request is routed after its context exists - the version that decides which handler
+     * runs is itself read off the context - so the matched route cannot be a constructor argument.
+     * Everything that reads it does so from a handler, which is downstream of this call.
+     * @param controllerClass - The controller that will handle the request.
+     * @param controllerMethod - The method on it that will handle the request.
+     */
+    matchedBy(controllerClass: Newable<unknown>, controllerMethod: string): void {
+        this.controllerClass = controllerClass;
+        this.controllerMethod = controllerMethod;
     }
 
     /**

@@ -1,16 +1,18 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { QueryRunner } from 'typeorm';
 
+import { Transaction } from './transaction.model';
 import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { inject } from '../../di/inject.function';
-import { Repository } from '../repository';
-import { Transaction } from './transaction.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { Newable } from '../../types/newable.type';
+import { TypeOrmUtilities } from '../../utilities/typeorm.utilities';
 import { DataSourceInterface } from '../data-sources/data-source.interface';
-import { PostgresDataSource } from '../data-sources/postgres-typeorm-data-source.model';
+import { PostgresDataSource } from '../data-sources/postgres/postgres-typeorm-data-source.model';
+import { Repository } from '../repository/repository';
 
 @Entity()
 class Item {
@@ -77,6 +79,31 @@ describe('transaction', () => {
         await transaction.rollback();
 
         await expect(repo.create({ value: 'after-release' }, { transaction })).rejects.toThrow();
+    });
+
+    it('releases the pooled connection when the commit itself throws', async () => {
+        // a constraint checked at commit time rather than at insert time is the only way the commit
+        // is the statement that fails. Everything else reports itself while the transaction is still
+        // open, which leaves the release on the path that already worked
+        const setup: Transaction = await dataSource.startTransaction();
+        await TypeOrmUtilities.toTypeOrmTransaction(setup).queryRunner.query(
+            `CREATE TABLE IF NOT EXISTS deferred_check (
+                value int,
+                CONSTRAINT deferred_check_unique UNIQUE (value) DEFERRABLE INITIALLY DEFERRED
+            )`
+        );
+        await setup.commit();
+
+        const transaction: Transaction = await dataSource.startTransaction();
+        const runner: QueryRunner = TypeOrmUtilities.toTypeOrmTransaction(transaction).queryRunner;
+        await runner.query('INSERT INTO deferred_check (value) VALUES (1), (1)');
+
+        await expect(transaction.commit()).rejects.toThrow();
+
+        // the connection goes back to the pool however the commit ended. Releasing only on the way
+        // out of a commit that worked loses one for good every time one does not, and a pool is a
+        // fixed number of them
+        expect(runner.isReleased).toBe(true);
     });
 
     afterAll(async () => {

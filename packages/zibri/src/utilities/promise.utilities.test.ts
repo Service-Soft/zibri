@@ -1,13 +1,25 @@
+import { getEventListeners } from 'node:events';
+
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { createInMemoryDataSource } from 'zibri-testing';
 
 import { PromiseUtilities, TimeoutError } from './promise.utilities';
+import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
+
+// this repository's own fixtures rather than an empty store: importing the harness registers
+// JwtUser, and a data source that does not carry it is refused by name
+const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMemoryDataSource({
+    entities: defaultTestServerEntities
+});
 
 describe('PromiseUtilities', () => {
     let server: StartedTestServer;
 
     beforeAll(async () => {
-        server = await startTestServer({});
+        // nothing here stores anything - what the server is for is an initialized application, since
+        // `$ts` refuses to translate while one is offline
+        server = await startTestServer({ dataSources: [dataSourceClass] });
     }, 15000);
 
     afterAll(async () => {
@@ -120,6 +132,91 @@ describe('PromiseUtilities', () => {
                     throw new Error('inner failure');
                 }, 1000)
             ).rejects.toThrow('inner failure');
+        });
+
+        it('ends with the outer signal\'s reason when that fires first', async () => {
+            const outer: AbortController = new AbortController();
+            const reason: Error = new Error('the caller is gone');
+            setTimeout(() => outer.abort(reason), 20).unref();
+
+            await expect(
+                PromiseUtilities.withTimeout(() => new Promise(resolve => setTimeout(resolve, 2000)), 1000, outer.signal)
+            ).rejects.toBe(reason);
+        });
+
+        it('still ends with a TimeoutError when its own timer is the shorter of the two', async () => {
+            const outer: AbortController = new AbortController();
+
+            await expect(
+                PromiseUtilities.withTimeout(() => new Promise(resolve => setTimeout(resolve, 2000)), 50, outer.signal)
+            ).rejects.toBeInstanceOf(TimeoutError);
+            outer.abort();
+        });
+
+        it('fires the signal it hands the function when the outer one fires', async () => {
+            const outer: AbortController = new AbortController();
+            let innerAborted: boolean = false;
+            setTimeout(() => outer.abort(new Error('gone')), 20).unref();
+
+            await expect(PromiseUtilities.withTimeout(
+                async (signal: AbortSignal) => {
+                    signal.addEventListener('abort', () => {
+                        innerAborted = true;
+                    });
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                },
+                1000,
+                outer.signal
+            )).rejects.toThrow('gone');
+
+            // the whole point of handing one down: the work itself can end rather than being left to
+            // finish something nobody is waiting for
+            expect(innerAborted).toBe(true);
+        });
+    });
+
+    describe('withSignal', () => {
+        it('resolves with the result when nothing aborts', async () => {
+            const controller: AbortController = new AbortController();
+            const result: number = await PromiseUtilities.withSignal(Promise.resolve(42), controller.signal);
+            expect(result).toBe(42);
+        });
+
+        it('resolves when there is no signal at all', async () => {
+            const result: number = await PromiseUtilities.withSignal(Promise.resolve(42), undefined);
+            expect(result).toBe(42);
+        });
+
+        it('rejects with the reason as soon as the signal fires', async () => {
+            const controller: AbortController = new AbortController();
+            const reason: Error = new Error('the caller is gone');
+            setTimeout(() => controller.abort(reason), 20).unref();
+
+            await expect(
+                PromiseUtilities.withSignal(new Promise(resolve => setTimeout(resolve, 2000)), controller.signal)
+            ).rejects.toBe(reason);
+        });
+
+        it('rejects at once when the signal has already fired', async () => {
+            const controller: AbortController = new AbortController();
+            const reason: Error = new Error('long gone');
+            controller.abort(reason);
+
+            await expect(
+                PromiseUtilities.withSignal(new Promise(resolve => setTimeout(resolve, 2000)), controller.signal)
+            ).rejects.toBe(reason);
+        });
+
+        it('leaves no listener behind on a signal that outlives the promise', async () => {
+            const controller: AbortController = new AbortController();
+
+            for (let i: number = 0; i < 5; i++) {
+                await PromiseUtilities.withSignal(Promise.resolve(i), controller.signal);
+            }
+
+            // one request's signal is read by everything it waits for, so a listener per wait is a
+            // listener leak on exactly the requests that do the most work
+            expect(getEventListeners(controller.signal, 'abort').length).toBe(0);
         });
     });
 });

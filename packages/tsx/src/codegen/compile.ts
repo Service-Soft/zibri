@@ -1,14 +1,24 @@
+import * as ts from 'typescript';
+
 import { ClientScript, compileClientScript } from './client/client-codegen';
 import { CLIENT_HOOK_SOURCES } from './client/hooks';
-import { SERVER_INLINED_HOOKS } from './server/print';
+import { unavailableNamesIn } from './client/script-names';
+import { emitModuleCode, eraseTypes } from './erase-types';
+import { printNode, SERVER_INLINED_HOOKS } from './server/print';
 import { compileServerRender, ServerRenderCode } from './server/render-codegen';
-import { Diagnostic } from '../diagnostics/diagnostic.model';
-import { ImportDeclaration, ImportSpecifier, Program } from '../parser/ast';
-import { parse, ParseResult } from '../parser/parser';
+import { Diagnostic, DiagnosticSeverity } from '../diagnostics/diagnostic.model';
 import { collectClientGlobalAliases, collectClientPackages } from '../semantics/client-packages';
 import { ComponentInfo, findComponents } from '../semantics/component';
-import { validate, validateClientImports } from '../semantics/validate';
+import { readImports, TemplateImport, TemplateImportSpecifier } from '../semantics/imports';
+import { parseTemplate, syntaxErrorsOf } from '../semantics/symbols';
+import { namesAvailableInBrowser, validate, validateClientImports, validateClientModuleLoading, validateClientNames, validateRenderSyntaxOutsideComponents, ValidationCode } from '../semantics/validate';
 import { validateEmailNesting, validateNoClientInEmail } from '../semantics/validate-email';
+import { UnhandledSyntaxError } from '../semantics/walk';
+
+/**
+ * The name an anonymous default-exported component is declared under in the emitted module.
+ */
+const DEFAULT_EXPORT_BINDING: string = '__Component';
 
 /**
  * The module format of an emitted template.
@@ -42,11 +52,12 @@ export type CompileResult = {
      */
     code: string | undefined,
     /**
-     * The name of the compiled component (its export name).
+     * The name of the template's first component (its export name).
      */
     componentName: string | undefined,
     /**
-     * The compiled client behavior, for callers that need the metadata directly.
+     * The compiled client behavior of the template's first component, for callers that need the
+     * metadata directly.
      */
     client: ClientScript | undefined,
     /**
@@ -65,131 +76,258 @@ export type CompileResult = {
  * @param source - The template source.
  * @param options - The compile options.
  * @returns The emitted module and any diagnostics.
+ * @throws When the compiler itself fails; every problem with the template is a diagnostic instead.
  */
 export function compile(source: string, options: CompileOptions = {}): CompileResult {
-    const parsed: ParseResult = parse(source);
-    if (!parsed.program) {
-        return {
-            diagnostics: parsed.diagnostics, code: undefined, componentName: undefined, client: undefined, clientPackages: []
-        };
+    const file: ts.SourceFile = parseTemplate(source);
+    const syntaxErrors: Diagnostic[] = syntaxErrorsOf(file);
+    if (syntaxErrors.length > 0) {
+        return { diagnostics: syntaxErrors, code: undefined, componentName: undefined, client: undefined, clientPackages: [] };
     }
+    try {
+        return compileTemplate(file, options);
+    }
+    catch (error) {
+        // Syntax the analysis has no case for would be hidden from it, so it refuses the template instead.
+        if (error instanceof UnhandledSyntaxError) {
+            const diagnostic: Diagnostic = {
+                code: ValidationCode.UNSUPPORTED_SYNTAX,
+                message: `${error.message} It is supported outside components; inside a component it cannot be compiled yet.`,
+                severity: DiagnosticSeverity.ERROR,
+                span: error.span
+            };
+            return { diagnostics: [diagnostic], code: undefined, componentName: undefined, client: undefined, clientPackages: [] };
+        }
+        throw error;
+    }
+}
 
-    const clientPackages: string[] = collectClientPackages(parsed.program);
-    const diagnostics: Diagnostic[] = [...parsed.diagnostics, ...validate(parsed.program)];
+/**
+ * Compiles a template that parsed without syntax errors.
+ * @param file - The parsed template.
+ * @param options - The compile options.
+ * @returns The emitted module and any diagnostics.
+ * @throws {UnhandledSyntaxError} When a component holds syntax the analysis has no case for.
+ */
+function compileTemplate(file: ts.SourceFile, options: CompileOptions): CompileResult {
+    const clientPackages: string[] = collectClientPackages(file);
+    const diagnostics: Diagnostic[] = validate(file);
     if (diagnostics.length > 0) {
         return { diagnostics, code: undefined, componentName: undefined, client: undefined, clientPackages };
     }
 
-    const components: ComponentInfo[] = findComponents(parsed.program);
+    const components: ComponentInfo[] = findComponents(file);
     if (components.length === 0) {
         return { diagnostics, code: undefined, componentName: undefined, client: undefined, clientPackages };
     }
+    const outsideComponents: Diagnostic[] = validateRenderSyntaxOutsideComponents(file, components, Object.keys(SERVER_INLINED_HOOKS));
+    if (outsideComponents.length > 0) {
+        return { diagnostics: outsideComponents, code: undefined, componentName: undefined, client: undefined, clientPackages };
+    }
 
-    const component: ComponentInfo = components[0];
-    const server: ServerRenderCode = compileServerRender(component);
-    const client: ClientScript = compileClientScript(component.fn, component.name, collectClientGlobalAliases(parsed.program));
-
-    // Only checkable once the client code is known, because it depends on what the client reaches.
-    const leaks: Diagnostic[] = validateClientImports(
-        parsed.program,
-        client.referencedIdentifiers,
-        Object.keys(CLIENT_HOOK_SOURCES)
-    );
-    if (leaks.length > 0) {
-        return { diagnostics: leaks, code: undefined, componentName: undefined, client: undefined, clientPackages };
+    const compiled: CompiledTemplateComponent[] = [];
+    for (const component of components) {
+        const compilation: CompiledTemplateComponent | Diagnostic[] = compileTemplateComponent(file, component);
+        if (Array.isArray(compilation)) {
+            return { diagnostics: compilation, code: undefined, componentName: undefined, client: undefined, clientPackages };
+        }
+        compiled.push(compilation);
     }
 
     // Email templates get their own gate: MJML nesting rules, and no client code (emails run none).
     const emailDiagnostics: Diagnostic[] = [
-        ...validateEmailNesting(parsed.program),
-        ...validateNoClientInEmail(parsed.program, client.code !== undefined, clientPackages)
+        ...validateEmailNesting(file),
+        ...validateNoClientInEmail(file, compiled.some(component => component.client.code !== undefined), clientPackages)
     ];
     if (emailDiagnostics.length > 0) {
         return { diagnostics: emailDiagnostics, code: undefined, componentName: undefined, client: undefined, clientPackages };
     }
 
-    const code: string = emitModule(
-        parsed.program,
-        component.name,
-        server,
-        client,
-        clientPackages,
-        options.module ?? 'esm'
-    );
-
-    return { diagnostics, code, componentName: component.name, client, clientPackages };
+    const code: string = emitModule(file, compiled, clientPackages, options.module ?? 'esm');
+    return { diagnostics, code, componentName: compiled[0].info.name, client: compiled[0].client, clientPackages };
 }
 
 /**
- * Emits the module source for a compiled component.
- * @param program - The parsed template.
- * @param name - The component (export) name.
- * @param server - The generated server render.
- * @param client - The generated client behavior.
- * @param clientPackages - The `?client` packages the component needs in the browser.
+ * A component of a template, compiled.
+ */
+type CompiledTemplateComponent = {
+    /**
+     * The component as declared.
+     */
+    info: ComponentInfo,
+    /**
+     * Its server render.
+     */
+    server: ServerRenderCode,
+    /**
+     * Its client behavior, types erased.
+     */
+    client: ClientScript
+};
+
+/**
+ * Compiles one component of a template and checks its client code.
+ * @param file - The parsed template.
+ * @param component - The component.
+ * @returns The compiled component, or the diagnostics that refuse it.
+ */
+function compileTemplateComponent(file: ts.SourceFile, component: ComponentInfo): CompiledTemplateComponent | Diagnostic[] {
+    const server: ServerRenderCode = compileServerRender(component);
+    const compiledClient: ClientScript = compileClientScript(component.fn, component.name, collectClientGlobalAliases(file));
+    const client: ClientScript = {
+        ...compiledClient,
+        code: compiledClient.code === undefined ? undefined : eraseTypes(compiledClient.code)
+    };
+    const hooks: string[] = Object.keys(CLIENT_HOOK_SOURCES);
+
+    // Only checkable once the client code is known, because it depends on what the client reaches. Each
+    // check refuses on its own, in this order.
+    const checks: (() => Diagnostic[])[] = [
+        () => validateClientImports(file, client.referencedIdentifiers, hooks),
+        () => validateClientModuleLoading(client.moduleLoading),
+        () => validateClientNames(file, client.outerNames, hooks),
+        // The finished script is checked once more on its own, so what reaches the page never depends on
+        // the analysis above being right.
+        () => validateFinishedClientScript(file, client.code, component)
+    ];
+    for (const check of checks) {
+        const diagnostics: Diagnostic[] = check();
+        if (diagnostics.length > 0) {
+            return diagnostics;
+        }
+    }
+    return { info: component, server, client };
+}
+
+/**
+ * Refuses a finished client script that reads a name the page does not provide, or loads a module.
+ * @param file - The parsed template.
+ * @param code - The finished client script, or undefined when there is none.
+ * @param component - The compiled component.
+ * @returns One diagnostic per unavailable name.
+ */
+function validateFinishedClientScript(file: ts.SourceFile, code: string | undefined, component: ComponentInfo): Diagnostic[] {
+    if (code === undefined) {
+        return [];
+    }
+    const available: ReadonlySet<string> = namesAvailableInBrowser(file, Object.keys(CLIENT_HOOK_SOURCES));
+    return unavailableNamesIn(code, available).map(name => ({
+        code: ValidationCode.UNAVAILABLE_NAME_IN_CLIENT_CODE,
+        message: `The client script of '${component.name}' reads '${name}', which does not exist where it runs. `
+            + 'Compilation stops rather than send it to the page. The checks before this one should have reported '
+            + 'it, so this is a defect in the compiler.',
+        severity: DiagnosticSeverity.ERROR,
+        span: { start: component.fn.getStart(), end: component.fn.getEnd() }
+    }));
+}
+
+/**
+ * Emits the server module of a template: the template itself, statement by statement, with every
+ * component declaration replaced by its compiled component. What the components read at module level -
+ * constants, helpers, contexts - stays beside them, exactly as written.
+ * @param file - The parsed template.
+ * @param components - Its compiled components.
+ * @param clientPackages - The `?client` packages the template needs in the browser.
  * @param format - The module format to emit.
  * @returns The module source.
  */
-function emitModule(
-    program: Program,
-    name: string,
-    server: ServerRenderCode,
-    client: ClientScript,
-    clientPackages: string[],
-    format: ModuleFormat
-): string {
-    const renderName: string = `__render$${name}`;
-    const serverCode: string = server.code.replace(
-        `function ${server.componentName}(`,
-        () => `function ${renderName}(`
-    );
-    // Both formats declare a local const: a recursive component (a file tree entry rendering itself)
-    // resolves its own name from the module scope, which `exports.X = ...` alone would not provide.
-    const declaration: string = format === 'cjs' ? `const ${name} = {` : `export const ${name} = {`;
-    const trailer: string[] = format === 'cjs' ? [`exports.${name} = ${name};`] : [];
+function emitModule(file: ts.SourceFile, components: CompiledTemplateComponent[], clientPackages: string[], format: ModuleFormat): string {
+    const byStatement: Map<ts.Node, CompiledTemplateComponent[]> = new Map<ts.Node, CompiledTemplateComponent[]>();
+    for (const component of components) {
+        const statement: ts.Node = topLevelStatementOf(component.info.fn);
+        byStatement.set(statement, [...byStatement.get(statement) ?? [], component]);
+    }
+    const body: string[] = file.statements
+        .filter(statement => !ts.isImportDeclaration(statement))
+        .flatMap(statement => {
+            const declared: CompiledTemplateComponent[] | undefined = byStatement.get(statement);
+            return declared === undefined ? [printNode(statement)] : emitComponentStatement(statement, declared, clientPackages);
+        });
+    // The module is written as an ES module; commonjs is converted from it by TypeScript.
+    const module: string = [...emitImports(readImports(file)), ...body].join('\n');
+    return emitModuleCode(module, format === 'cjs' ? ts.ModuleKind.CommonJS : ts.ModuleKind.ESNext);
+}
 
-    const parts: string[] = [
-        ...emitImports(program, format),
-        '',
+/**
+ * The statement of the template a node is written in.
+ * @param node - The node.
+ * @returns The top-level statement holding it.
+ */
+function topLevelStatementOf(node: ts.Node): ts.Node {
+    let current: ts.Node = node;
+    while (!ts.isSourceFile(current.parent)) {
+        current = current.parent;
+    }
+    return current;
+}
+
+/**
+ * Emits a statement that declares components: each component as its compiled component, and every
+ * other declaration of the statement unchanged, in source order.
+ * @param statement - The statement.
+ * @param components - The components it declares.
+ * @param clientPackages - The `?client` packages the template needs in the browser.
+ * @returns The emitted statements.
+ */
+function emitComponentStatement(statement: ts.Node, components: CompiledTemplateComponent[], clientPackages: string[]): string[] {
+    if (!ts.isVariableStatement(statement)) {
+        return components.map(component => emitCompiledComponent(component, clientPackages));
+    }
+    const list: ts.VariableDeclarationList = statement.declarationList;
+    return list.declarations.map(declaration => {
+        const component: CompiledTemplateComponent | undefined = components.find(candidate => candidate.info.fn.parent === declaration
+            || candidate.info.fn.parent.parent === declaration);
+        return component === undefined
+            ? printNode(ts.factory.updateVariableStatement(
+                statement,
+                statement.modifiers,
+                ts.factory.updateVariableDeclarationList(list, [declaration])
+            ))
+            : emitCompiledComponent(component, clientPackages);
+    });
+}
+
+/**
+ * Emits a compiled component: its render function and the component object, exported the way the
+ * template exported the component.
+ * @param component - The compiled component.
+ * @param clientPackages - The `?client` packages the template needs in the browser.
+ * @returns The emitted statements.
+ */
+function emitCompiledComponent(component: CompiledTemplateComponent, clientPackages: string[]): string {
+    const { info, server, client } = component;
+    const renderName: string = `__render$${info.name}`;
+    const serverCode: string = server.code.replace(`function ${server.componentName}(`, () => `function ${renderName}(`);
+    // An anonymous default export has no name to declare, so it is bound under one.
+    const binding: string = info.name === 'default' ? DEFAULT_EXPORT_BINDING : info.name;
+    return [
         serverCode,
-        '',
-        declaration,
-        `    name: ${JSON.stringify(name)},`,
+        `${info.exported && !info.isDefault ? 'export ' : ''}const ${binding} = {`,
+        `    name: ${JSON.stringify(info.name)},`,
         `    render: (props, $ssr) => ${renderName}($ssr, props),`,
         `    clientPackages: ${JSON.stringify(clientPackages)},`,
         '    client: {',
         `        code: ${client.code === undefined ? 'undefined' : JSON.stringify(client.code)},`,
         `        setupName: ${client.setupName === undefined ? 'undefined' : JSON.stringify(client.setupName)},`,
         `        referencedProps: ${JSON.stringify(client.referencedProps)},`,
+        `        propShapes: ${JSON.stringify(client.propShapes)},`,
         `        referencedHooks: ${JSON.stringify(client.referencedHooks)},`,
         `        referencedTranslations: ${JSON.stringify(client.referencedTranslations)}`,
         '    }',
         '};',
-        ...trailer
-    ];
-    return parts.filter((part, index) => !(part === '' && index === 0)).join('\n');
+        ...info.isDefault ? [`export default ${binding};`] : []
+    ].join('\n');
 }
 
 /**
  * Re-emits the template's runtime-relevant imports, dropping type-only and `?client` ones.
- * @param program - The parsed template.
- * @param format - The module format to emit.
+ * @param imports - The template's imports.
  * @returns The import statements to emit.
  */
-function emitImports(program: Program, format: ModuleFormat): string[] {
-    const out: string[] = [];
-    let index: number = 0;
-    for (const item of program.body) {
-        if (item.kind !== 'ImportDeclaration' || item.typeOnly || item.client) {
-            continue;
-        }
-        const statement: string | undefined = format === 'cjs' ? requireImport(item, index) : esmImport(item);
-        if (statement) {
-            out.push(statement);
-            index++;
-        }
-    }
-    return out;
+function emitImports(imports: TemplateImport[]): string[] {
+    return imports
+        .filter(item => !item.typeOnly && !item.client)
+        .flatMap(item => esmImport(item) ?? []);
 }
 
 /**
@@ -198,7 +336,7 @@ function emitImports(program: Program, format: ModuleFormat): string[] {
  * @param declaration - The import to check.
  * @returns True when the import declared bindings.
  */
-function hasBindings(declaration: ImportDeclaration): boolean {
+function hasBindings(declaration: TemplateImport): boolean {
     return declaration.specifiers.length > 0
         || declaration.defaultImport !== undefined
         || declaration.namespaceImport !== undefined;
@@ -211,7 +349,7 @@ function hasBindings(declaration: ImportDeclaration): boolean {
  * @param declaration - The import to read.
  * @returns The value specifiers.
  */
-function valueSpecifiers(declaration: ImportDeclaration): ImportSpecifier[] {
+function valueSpecifiers(declaration: TemplateImport): TemplateImportSpecifier[] {
     return declaration.specifiers.filter(
         specifier => !specifier.typeOnly && !(specifier.local in SERVER_INLINED_HOOKS)
     );
@@ -222,9 +360,9 @@ function valueSpecifiers(declaration: ImportDeclaration): ImportSpecifier[] {
  * @param declaration - The import to emit.
  * @returns The import statement, or undefined.
  */
-function esmImport(declaration: ImportDeclaration): string | undefined {
+function esmImport(declaration: TemplateImport): string | undefined {
     const source: string = JSON.stringify(declaration.source);
-    const named: ImportSpecifier[] = valueSpecifiers(declaration);
+    const named: TemplateImportSpecifier[] = valueSpecifiers(declaration);
     const clauses: string[] = [];
 
     if (declaration.defaultImport) {
@@ -245,51 +383,4 @@ function esmImport(declaration: ImportDeclaration): string | undefined {
         return hasBindings(declaration) ? undefined : `import ${source};`;
     }
     return `import ${clauses.join(', ')} from ${source};`;
-}
-
-/**
- * Emits a single import declaration as a `require` call, or undefined when nothing runtime-relevant
- * remains.
- * @param declaration - The import to emit.
- * @param index - The import's position, used to name the intermediate binding when one is needed.
- * @returns The require statement(s), or undefined.
- */
-function requireImport(declaration: ImportDeclaration, index: number = 0): string | undefined {
-    const source: string = JSON.stringify(declaration.source);
-    const named: ImportSpecifier[] = valueSpecifiers(declaration);
-    const { defaultImport, namespaceImport } = declaration;
-
-    if (!defaultImport && !namespaceImport && named.length === 0) {
-        return hasBindings(declaration) ? undefined : `require(${source});`;
-    }
-
-    const entries: string[] = named.map(specifier => specifier.imported === specifier.local
-        ? specifier.imported
-        : `${specifier.imported}: ${specifier.local}`);
-
-    // A namespace import is the module object itself, so it can bind the require directly.
-    if (namespaceImport && named.length === 0 && !defaultImport) {
-        return `const ${namespaceImport} = require(${source});`;
-    }
-    // Named bindings alone destructure straight from the module object.
-    if (!defaultImport && !namespaceImport) {
-        return `const { ${entries.join(', ')} } = require(${source});`;
-    }
-
-    // A default import needs the interop dance, so the module object gets an intermediate binding.
-    const moduleBinding: string = `__zibriModule${index}`;
-    const lines: string[] = [`const ${moduleBinding} = require(${source});`];
-    if (namespaceImport) {
-        lines.push(`const ${namespaceImport} = ${moduleBinding};`);
-    }
-    if (defaultImport) {
-        lines.push(
-            `const ${defaultImport} = ${moduleBinding} && ${moduleBinding}.__esModule `
-            + `? ${moduleBinding}.default : ${moduleBinding};`
-        );
-    }
-    if (entries.length > 0) {
-        lines.push(`const { ${entries.join(', ')} } = ${moduleBinding};`);
-    }
-    return lines.join('\n');
 }

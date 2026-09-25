@@ -1,4 +1,4 @@
-import { ZibriApplication } from '../../application';
+import { ZibriApplication } from '../../application/application';
 import { DiProvider } from '../../di/models/di-provider.model';
 import { DiTokenProviderRecord, providersFromTokenRecord } from '../../di/models/di-token.model';
 import { Ms } from '../../utilities/ms';
@@ -25,11 +25,9 @@ export class ZibriMailingListPlugin extends ZibriPlugin {
         BASE_EMAIL_TEMPLATE: { useFactory: () => undefined }
     };
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    providers: DiProvider<unknown>[] = providersFromTokenRecord(ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS, this.defaultDiProviders);
+    override providers: DiProvider<unknown>[] = providersFromTokenRecord(ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS, this.defaultDiProviders);
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    validate(app: ZibriApplication): void {
+    override validate(app: ZibriApplication): void {
         // eslint-disable-next-line stylistic/max-len
         validateEntitiesRegistered(this.constructor.name, app, MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken);
         validateTokensRegistered(this.constructor.name, ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS);

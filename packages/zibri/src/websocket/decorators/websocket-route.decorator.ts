@@ -1,3 +1,4 @@
+import { HandlerTimeout } from '../../http/handler-timeout.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { SupportedVersionsOptions } from '../../versioning/supported-versions-options.model';
 import { WebsocketControllerRouteConfiguration } from '../models/websocket-controller-route-configuration.model';
@@ -10,7 +11,14 @@ export type WebsocketRouteOptions = {
      * The supported versions of this route.
      * Defaults to '^latest'.
      */
-    versions?: SupportedVersionsOptions
+    versions?: SupportedVersionsOptions,
+    /**
+     * How long the handler of this route has to produce a result.
+     *
+     * Overrides what the controller says, which overrides the application's `handlerInMs`. Use
+     * `'none'` for an event that legitimately takes as long as it takes.
+     */
+    timeoutInMs?: HandlerTimeout
 };
 
 /**
@@ -25,7 +33,12 @@ export function WebsocketRoute(event: string, options: WebsocketRouteOptions = {
         const stack: string = new Error().stack ?? '';
         MetadataUtilities.setFilePath(ctor, stack);
         const routes: WebsocketControllerRouteConfiguration[] = MetadataUtilities.getWebsocketControllerRoutes(ctor);
-        routes.push({ event, controllerMethod: propertyKey.toString(), versions: options.versions });
+        routes.push({
+            event,
+            controllerMethod: propertyKey.toString(),
+            versions: options.versions,
+            timeoutInMs: options.timeoutInMs
+        });
         MetadataUtilities.setWebsocketControllerRoutes(ctor, routes);
     };
 }

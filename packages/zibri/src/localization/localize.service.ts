@@ -10,21 +10,49 @@ import { parseTranslationXlf } from './xlf/parse-translation-xlf.function';
 import { HttpRequestContext } from '../context/request/http-request.context';
 import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../context/request/request-context-token.model';
 import { WebsocketRequestContext } from '../context/request/websocket-request.context';
+import { AnyNumber } from '../data-source/models/where/number-where-filter.model';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { OnAppInit } from '../global/on-app-init.interface';
 import { KnownHeader } from '../http/known-header.enum';
-import { BigNumber } from '../utilities/number.utilities';
 import { CurrencyCode } from './models/currency-code.model';
 import { type LoggerInterface } from '../logging/logger.interface';
-import { FsPath, FsUtilities } from '../utilities/fs.utilities';
+import { type FsPath, FsUtilities } from '../utilities/fs.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
+import { optionalPeer } from '../utilities/optional-peer.function';
 import { ExtractedTranslationString } from './xlf/transform-source-translation-tokens.function';
 import { InternalError } from '../error-handling/internal-error.model';
 
 const acceptLanguageRegex: RegExp = /((([A-Za-z]+(-[\dA-Za-z]+){0,2})|\*)(;q=[01](\.\d+)?)?)*/g;
+
+/**
+ * How a collator is built wherever text is ordered.
+ *
+ * Every option is stated rather than left to its default, because the default of a comparison is the
+ * runtime's own locale - which would make the order a property of the machine the process runs on.
+ */
+export const TEXT_COLLATOR_OPTIONS: Intl.CollatorOptions = {
+    sensitivity: 'variant',
+    numeric: false,
+    caseFirst: 'false',
+    ignorePunctuation: false
+};
+
+/**
+ * Texts that locales order differently, wherever they order text differently at all.
+ *
+ * Every entry is part of a real tailoring of the unicode default. Swedish sorts `ä` after `z` where
+ * German sorts it with `a`, Danish does the same to `ø`, Spanish puts `ñ` after `n`, Czech sorts
+ * `ch` after `h`, Polish `ł` after `l`, Estonian moves `z` in front of `t`, Turkish keeps the `i`
+ * with its dot apart from the one without, and French compares accents from the end of the word.
+ * Two locales that order all of these the same way order text the same way, as far as anything short
+ * of the collation tables themselves can tell.
+ */
+// eslint-disable-next-line cspell/spellchecker
+const TEXT_ORDER_PROBE: string[] = 'a A ä æ å b c ch d h i ı İ l ł n ñ o ö ø s ß ss t u ü v w z Z cote coté côte côté'
+    .split(' ');
 
 /**
  * Definition of a accept language header part.
@@ -54,18 +82,20 @@ type AcceptLanguageDefinition = {
 @Injectable({ register: 'onUse' })
 export class LocalizeService implements LocalizeServiceInterface, OnAppInit {
 
-    private readonly translationPath: FsPath = FsUtilities.getPath(__dirname, 'translations');
+    private textCollatorOfDefaultLocale: Intl.Collator | undefined;
 
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS)
         private readonly options: LocalizeOptions,
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
-        private readonly logger: LoggerInterface
+        private readonly logger: LoggerInterface,
+        @Inject(ZIBRI_DI_TOKENS.TRANSLATIONS_PATH)
+        private readonly translationPath: FsPath
     ) {}
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async onAppInit(): Promise<void> {
-        await this.logger.info('Initializes localization for the locales');
+        this.logger.info('Initializes localization for the locales');
 
         const supportedLocales: LocaleCode[] = ObjectUtilities.keys(this.options.supportedLocales);
         if (!supportedLocales.includes(this.options.defaultLocale)) {
@@ -73,16 +103,29 @@ export class LocalizeService implements LocalizeServiceInterface, OnAppInit {
                 `The default locale "${this.options.defaultLocale}" is not part of the ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS supported locales`
             );
         }
-        const translationStrings: ExtractedTranslationString[] = await this.resolveExtractedTranslationFromSourceXlf();
+        this.requireOneTextOrder(supportedLocales);
+        const sourceXlfPath: FsPath = FsUtilities.getPath(this.translationPath, 'source.xlf');
+        if (!await FsUtilities.exists(sourceXlfPath)) {
+            // the translations folder belongs to the application, so an application that translates
+            // nothing has none - and this file is the whole of what localization loads. Reading it
+            // regardless made having nothing to translate a boot failure, reported as a bare ENOENT.
+            this.logger.warn(`Found no translations at "${sourceXlfPath}" - every string is served as it was written`);
+            return;
+        }
+        // past this line the application has said it translates something, so the parser the
+        // translations are read with is asked for here, while it starts, and named for why
+        optionalPeer('saxes', 'Translations');
+
+        const translationStrings: ExtractedTranslationString[] = await this.resolveExtractedTranslationFromSourceXlf(sourceXlfPath);
 
         await this.registerTranslationsFromXlfFiles(translationStrings, supportedLocales);
-        await this.warnAboutMissingTranslations(supportedLocales, translationStrings);
+        this.warnAboutMissingTranslations(supportedLocales, translationStrings);
     }
 
-    private async warnAboutMissingTranslations(
+    private warnAboutMissingTranslations(
         supportedLocales: LocaleCode[],
         translationStrings: ExtractedTranslationString[]
-    ): Promise<void> {
+    ): void {
         const missingTranslations: Map<ExtractedTranslationString, LocaleCode[]> = new Map();
 
         // check for missing translations
@@ -98,7 +141,7 @@ export class LocalizeService implements LocalizeServiceInterface, OnAppInit {
         }
 
         for (const [translation, locales] of missingTranslations.entries()) {
-            await this.logger.warn(
+            this.logger.warn(
                 // eslint-disable-next-line stylistic/max-len
                 `Missing translation of "${translation.source}" for ${locales.length > 1 ? 'locales' : 'locale'} "${locales.join()}" (${translation.file}:${translation.line})`
             );
@@ -116,7 +159,7 @@ export class LocalizeService implements LocalizeServiceInterface, OnAppInit {
         }
 
         for (const locale of supportedLocales) {
-            await this.logger.info(`  - ${locale}`);
+            this.logger.info(`  - ${locale}`);
 
             const translationFilePath: FsPath = FsUtilities.getPath(this.translationPath, `${locale}.xlf`);
             if (!await FsUtilities.exists(translationFilePath)) {
@@ -124,7 +167,7 @@ export class LocalizeService implements LocalizeServiceInterface, OnAppInit {
             }
 
             const xml: string = await FsUtilities.readFile(translationFilePath);
-            const parsed: Record<string, string> = parseTranslationXlf(xml);
+            const parsed: Record<string, string> = await parseTranslationXlf(xml);
 
             TranslationRegistry.translations[locale] ??= {};
             for (const [source, translation] of ObjectUtilities.entries(parsed)) {
@@ -133,9 +176,85 @@ export class LocalizeService implements LocalizeServiceInterface, OnAppInit {
         }
     }
 
-    private async resolveExtractedTranslationFromSourceXlf(): Promise<ExtractedTranslationString[]> {
-        const sourceXlf: string = await FsUtilities.readFile(FsUtilities.getPath(this.translationPath, 'source.xlf'));
-        return parseSourceXlf(sourceXlf);
+    private async resolveExtractedTranslationFromSourceXlf(sourceXlfPath: FsPath): Promise<ExtractedTranslationString[]> {
+        const sourceXlf: string = await FsUtilities.readFile(sourceXlfPath);
+        return await parseSourceXlf(sourceXlf);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    compareText(a: string, b: string): number {
+        return this.textCollator.compare(a, b);
+    }
+
+    /**
+     * Refuses an application whose supported locales order text differently and does not say which
+     * order is stored.
+     *
+     * One order is stored, and it is the default locale's - a column's collation belongs to the
+     * schema, not to a request. When every supported locale agrees about text there is nothing to
+     * decide and nothing is asked. When they do not, serving several languages out of one order is a
+     * decision, and one nobody makes deliberately is one nobody knows was made.
+     * @param supportedLocales - The locales the application declares.
+     * @throws When two of them order text differently and `textOrder` says nothing.
+     */
+    private requireOneTextOrder(supportedLocales: LocaleCode[]): void {
+        if (this.options.textOrder != undefined) {
+            return;
+        }
+        const disagreeing: [LocaleCode, LocaleCode] | undefined = this.firstDisagreementOnTextOrder(supportedLocales);
+        if (!disagreeing) {
+            return;
+        }
+        throw new InternalError([
+            `The supported locales "${disagreeing[0]}" and "${disagreeing[1]}" order text differently, and one order is`,
+            `stored: every text is ordered by the default locale "${this.options.defaultLocale}", wherever it is stored.`,
+            'Set `textOrder: \'defaultLocale\'` on ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS to say that is what you want.',
+            'Ordering per request is not available - the collation would have to be named by every statement, which takes'
+            + ' ordered reads off their index.'
+        ]);
+    }
+
+    /**
+     * The first two of the given locales that do not order text the same way.
+     *
+     * Read by ordering {@link TEXT_ORDER_PROBE} with each of them rather than out of the collation
+     * tables, which no runtime api exposes: locales that put every text in it in the same order are
+     * taken to agree. That can only miss a disagreement, never invent one - and missing one leaves
+     * the order text is stored in exactly as it would have been anyway.
+     * @param locales - The locales to compare.
+     * @returns The first two that disagree, or undefined when they all agree.
+     */
+    private firstDisagreementOnTextOrder(locales: LocaleCode[]): [LocaleCode, LocaleCode] | undefined {
+        const [first, ...rest]: LocaleCode[] = locales;
+        if (first == undefined) {
+            return undefined;
+        }
+        const order: string = this.textOrderOf(first);
+        for (const locale of rest) {
+            if (this.textOrderOf(locale) !== order) {
+                return [first, locale];
+            }
+        }
+        return undefined;
+    }
+
+    /**
+     * The probe in the order one locale puts it in.
+     * @param locale - The locale to order by.
+     * @returns The ordered probe, as one text to hold against another locale's.
+     */
+    private textOrderOf(locale: LocaleCode): string {
+        const collator: Intl.Collator = new Intl.Collator(locale, TEXT_COLLATOR_OPTIONS);
+        return [...TEXT_ORDER_PROBE].sort((a, b) => collator.compare(a, b)).join(' ');
+    }
+
+    /**
+     * The collator every text is ordered by, built once.
+     * @returns The collator of the default locale.
+     */
+    private get textCollator(): Intl.Collator {
+        this.textCollatorOfDefaultLocale ??= new Intl.Collator(this.options.defaultLocale, TEXT_COLLATOR_OPTIONS);
+        return this.textCollatorOfDefaultLocale;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -165,14 +284,16 @@ export class LocalizeService implements LocalizeServiceInterface, OnAppInit {
         const parts: RegExpMatchArray | null = acceptLanguage.match(acceptLanguageRegex);
         const resolvedDefinitions: AcceptLanguageDefinition[] = (parts ?? []).map(m => {
             const bits: string[] = m.split(';');
-            const ietf: string[] = bits[0].split('-');
+            const ietf: string[] = (bits[0] ?? '').split('-');
             const hasScript: boolean = ietf.length === 3;
+            // the regex only matches a parameter written as `;q=`, so a second bit always has one
+            const quality: string | undefined = bits[1]?.split('=')[1];
 
             return {
-                language: ietf[0],
+                language: ietf[0] ?? '',
                 script: hasScript ? ietf[1] : undefined,
                 region: hasScript ? ietf[2] : ietf[1],
-                quality: bits[1] ? Number.parseFloat(bits[1].split('=')[1]) : 1
+                quality: quality == undefined ? 1 : Number.parseFloat(quality)
             };
         }).sort((a, b) => b.quality - a.quality);
 
@@ -204,7 +325,7 @@ export class LocalizeService implements LocalizeServiceInterface, OnAppInit {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    formatPrice(price: number | bigint | BigNumber, options: FormatPriceOptions): string {
+    formatPrice(price: AnyNumber, options: FormatPriceOptions): string {
         options.locale ??= this.resolveSupportedLocale();
         options.currency ??= this.resolveCurrencyCodeForLocale(options.locale);
 
@@ -225,12 +346,13 @@ export class LocalizeService implements LocalizeServiceInterface, OnAppInit {
         options: FormatDateOptions = {}
     ): string {
         options.locale ??= this.resolveSupportedLocale();
+        options.timezone ??= this.options.defaultTimezone;
 
         const formatString: DateFormatString<S> = format === 'date' || format === 'date-time' || format === 'time'
             ? this.resolveDateFormatForLocale(options.locale, format as DateFormatShortcut)
             : format;
 
-        return formatDate(date, formatString, options.locale);
+        return formatDate(date, formatString, options.locale, options.timezone);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

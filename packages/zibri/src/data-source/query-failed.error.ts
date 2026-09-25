@@ -50,10 +50,10 @@ function buildErrorMessage(error: TOQueryFailedError): string {
         // Example: "Key (id)=(a1b2c3d4-...) is still referenced from table "user_groups_group"."
         const keyMatch: RegExpMatchArray | null = detail.match(/Key \((.+?)\)=\((.+?)\)/);
         const tableMatch: RegExpMatchArray | null = detail.match(/table "(.+?)"/);
-        if (keyMatch && tableMatch) {
-            const key: string = keyMatch[1];
-            const value: string = keyMatch[2];
-            const referencingTable: string = tableMatch[1];
+        const key: string | undefined = keyMatch?.[1];
+        const value: string | undefined = keyMatch?.[2];
+        const referencingTable: string | undefined = tableMatch?.[1];
+        if (key != undefined && value != undefined && referencingTable != undefined) {
             message = message.replace(
                 'violates foreign key constraint',
                 [

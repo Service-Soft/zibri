@@ -1,7 +1,8 @@
+import { projectValue } from './access-shape';
 import { ClientInstanceEntry, CompiledComponent, createServerRuntime, isClientPropMarker, renderChild,
     RenderServerRuntime } from './server-runtime';
 import { CLIENT_HOOK_SOURCES, HookData, substituteHookPlaceholders } from '../codegen/client/hooks';
-import { vendorFileName } from '../semantics/client-packages';
+import { vendorFileName } from '../vendor-file-name';
 
 /**
  * A compiled page ready to render. Alias of {@link CompiledComponent} — a page is just the root
@@ -190,14 +191,15 @@ function serializeInstanceProps(props: Record<string, unknown>): string {
  * @returns A single-element array, or an empty one.
  */
 function pageEntry(page: CompiledPage, props: Record<string, unknown>): ClientInstanceEntry[] {
-    const { code, setupName, referencedProps, referencedHooks, referencedTranslations } = page.client;
+    const { code, setupName, referencedProps, propShapes, referencedHooks, referencedTranslations } = page.client;
     if (!code || !setupName) {
         return [];
     }
     const selected: Record<string, unknown> = {};
     for (const name of referencedProps) {
         if (name in props && typeof props[name] !== 'function') {
-            selected[name] = props[name];
+            // only what the client reads from the prop reaches the page
+            selected[name] = projectValue(props[name], propShapes?.[name] ?? 'whole');
         }
     }
     // The page renders first, so it owns instance 0 - the id `createServerRuntime` starts out with.

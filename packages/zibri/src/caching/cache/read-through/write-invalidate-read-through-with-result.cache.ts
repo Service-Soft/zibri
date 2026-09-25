@@ -54,9 +54,9 @@ export abstract class WriteInvalidateReadThroughWithResultCache<K, V, N extends 
                             this.metrics.deletes.increase({ cache: this.name });
                             await this.updateSizeGauge();
                         })
-                        .catch(async (error) => {
+                        .catch((error) => {
                             this.metrics.errors.increase({ cache: this.name, operation: 'delete' });
-                            await this.logger.warn(
+                            this.logger.warn(
                                 'Cache invalidation (delete) failed after successful source write',
                                 { error }
                             );
@@ -79,7 +79,7 @@ export abstract class WriteInvalidateReadThroughWithResultCache<K, V, N extends 
         }
         catch (error) {
             this.metrics.errors.increase({ cache: this.name, operation: 'delete' });
-            await this.logger.warn('Cache invalidation (delete) failed in setDirect', { error });
+            this.logger.warn('Cache invalidation (delete) failed in setDirect', { error });
         }
     }
 }

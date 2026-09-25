@@ -53,6 +53,14 @@ function getUpdatedImportStatement(existingImport: string, imp: TsImportDefiniti
     if (existingImport.includes('{')) {
         return existingImport.replace('import {', `import { ${imp.element},`);
     }
-    const defaultElement: string = existingImport.replace('import ', '').split(' from ')[0];
+    // the line reached here by containing `import ` and the path, which also matches a side effect
+    // import and a comment. Neither has a default element to put the named one beside, and rewriting
+    // one silently returns it unchanged - so the import is missing from a file nobody looks at until
+    // it fails to compile.
+    const fromIndex: number = existingImport.indexOf(' from ');
+    if (fromIndex === -1) {
+        throw new InternalError(`Cannot add the import "${imp.element}" to "${existingImport.trim()}", which has no "from" clause`);
+    }
+    const defaultElement: string = existingImport.slice(0, fromIndex).replace('import ', '');
     return existingImport.replace(`import ${defaultElement} from `, `import ${defaultElement}, { ${imp.element} } from `);
 }

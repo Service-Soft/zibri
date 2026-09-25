@@ -9,5 +9,5 @@ import { BaseHttpDecoratorInput } from './http-decorator-option-input.model';
  * @param options - Additional options, like eg. The supported versions.
  */
 export function Get(path: Route = '/', options: BaseHttpDecoratorInput = {}): MethodDecorator {
-    return createHttpDecorator(HttpMethod.GET, path, options.versions);
+    return createHttpDecorator(HttpMethod.GET, path, options);
 }

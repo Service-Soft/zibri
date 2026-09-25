@@ -1,11 +1,13 @@
+import assert from 'node:assert';
+
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { PeppolConformanceService } from './peppol-conformance.service';
 import { createTestDataSource, defaultTestServerEntities } from '../../../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../../../../__testing__/test-server/start-test-server.function';
-import { PostgresDataSource } from '../../../../../data-source/data-sources/postgres-typeorm-data-source.model';
-import { Repository } from '../../../../../data-source/repository';
+import { PostgresDataSource } from '../../../../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
+import { Repository } from '../../../../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../../../../di/decorators/inject-repository.decorator';
 import { inject } from '../../../../../di/inject.function';
 import { defineProvider } from '../../../../../di/models/di-provider.model';
@@ -154,7 +156,7 @@ describe('EN16931ConformanceService (base class error branches, exercised via Pe
             companyInfo: { ...baseInvoicingOptions.companyInfo, ceo: undefined as unknown as string }
         });
         const invoice: Invoice = await repo.create(createValidInvoiceData());
-        await expect(conformanceService.generateXml(invoice)).rejects.toThrow(/No trade contact has been provided/);
+        await expect(conformanceService.generateXml(invoice, 'UTC')).rejects.toThrow(/No trade contact has been provided/);
     }, 15000);
 
     it('rejects when the iban is missing', async () => {
@@ -163,7 +165,7 @@ describe('EN16931ConformanceService (base class error branches, exercised via Pe
             companyInfo: { ...baseInvoicingOptions.companyInfo, iban: undefined as unknown as string }
         });
         const invoice: Invoice = await repo.create(createValidInvoiceData());
-        await expect(conformanceService.generateXml(invoice)).rejects.toThrow(/iban and bic need to be provided/);
+        await expect(conformanceService.generateXml(invoice, 'UTC')).rejects.toThrow(/iban and bic need to be provided/);
     }, 15000);
 
     it('rejects when the bic is missing', async () => {
@@ -172,15 +174,17 @@ describe('EN16931ConformanceService (base class error branches, exercised via Pe
             companyInfo: { ...baseInvoicingOptions.companyInfo, bic: undefined as unknown as string }
         });
         const invoice: Invoice = await repo.create(createValidInvoiceData());
-        await expect(conformanceService.generateXml(invoice)).rejects.toThrow(/iban and bic need to be provided/);
+        await expect(conformanceService.generateXml(invoice, 'UTC')).rejects.toThrow(/iban and bic need to be provided/);
     }, 15000);
 
     it('rejects when a tax-exempt item has no exemption reason', async () => {
         await reInitWithOptions(baseInvoicingOptions);
         const data: OmitStrict<Invoice, 'id'> = createValidInvoiceData();
-        data.items[0].vat.exemptionReason = undefined;
+        const [item] = data.items;
+        assert(item, 'the invoice fixture carries no items');
+        item.vat.exemptionReason = undefined;
         const invoice: Invoice = await repo.create(data);
-        await expect(conformanceService.generateXml(invoice)).rejects.toThrow(/No exemption reason has been provided/);
+        await expect(conformanceService.generateXml(invoice, 'UTC')).rejects.toThrow(/No exemption reason has been provided/);
     }, 15000);
 
     it('rejects when the customer email is missing', async () => {
@@ -188,7 +192,7 @@ describe('EN16931ConformanceService (base class error branches, exercised via Pe
         const data: OmitStrict<Invoice, 'id'> = createValidInvoiceData();
         data.customerAddressData.email = undefined;
         const invoice: Invoice = await repo.create(data);
-        await expect(conformanceService.generateXml(invoice)).rejects.toThrow(/No customer email has been provided/);
+        await expect(conformanceService.generateXml(invoice, 'UTC')).rejects.toThrow(/No customer email has been provided/);
     }, 15000);
 
     it('rejects when the company tax number is missing', async () => {
@@ -197,6 +201,6 @@ describe('EN16931ConformanceService (base class error branches, exercised via Pe
             companyInfo: { ...baseInvoicingOptions.companyInfo, taxNumber: undefined as unknown as string }
         });
         const invoice: Invoice = await repo.create(createValidInvoiceData());
-        await expect(conformanceService.generateXml(invoice)).rejects.toThrow(/No tax number has been provided/);
+        await expect(conformanceService.generateXml(invoice, 'UTC')).rejects.toThrow(/No tax number has been provided/);
     }, 15000);
 });

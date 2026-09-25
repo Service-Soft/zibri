@@ -3,6 +3,10 @@
  */
 type PackageJsonLike = {
     /**
+     * Who the package is attributed to.
+     */
+    author?: string,
+    /**
      * The runtime dependencies of the package.
      */
     dependencies?: Record<string, string>,
@@ -11,6 +15,11 @@ type PackageJsonLike = {
      */
     devDependencies?: Record<string, string>
 };
+
+/**
+ * The keys holding the dependencies of a package.
+ */
+type DependencyKey = 'dependencies' | 'devDependencies';
 
 /**
  * The lower (inclusive) and upper (exclusive) version a range allows.
@@ -45,14 +54,22 @@ type NormalizedPackageJsonPair = {
     sandbox: Buffer
 };
 
-const DEPENDENCY_KEYS: (keyof PackageJsonLike)[] = ['dependencies', 'devDependencies'];
+const DEPENDENCY_KEYS: DependencyKey[] = ['dependencies', 'devDependencies'];
+
+/**
+ * Stands in for the author on both sides.
+ * "zi new" fills the field the way npm does, off the git configuration of the machine it runs on, so
+ * what it writes is whoever ran the test. There is no value packages/sandbox could hold that would
+ * equal that anywhere but on one developer's machine.
+ */
+const AUTHOR_PLACEHOLDER: string = '<whoever generated it>';
 
 /**
  * The zibri packages the local dev flow rewrites to a "file:" link pointing at the workspace build.
  * That link contains the temp directory the test generated the app in, so it can never match what
  * packages/sandbox declares.
  */
-const LOCALLY_LINKED_DEPENDENCIES: string[] = ['zibri', 'zibri-tsx'];
+const LOCALLY_LINKED_DEPENDENCIES: string[] = ['zibri', 'zibri-testing', 'zibri-tsx'];
 
 const LOCAL_LINK_PLACEHOLDER: string = '<locally linked>';
 
@@ -149,6 +166,22 @@ function alignDependency(
     }
 }
 
+// eslint-disable-next-line jsdoc/require-jsdoc
+function withDependenciesLast(packageJson: PackageJsonLike): PackageJsonLike {
+    // rest carries every key this function does not name - "name", "scripts", ... - in the order the
+    // file declares them. That order is the author's and stays as it is; only the two blocks npm
+    // writes on its own are put in a fixed place.
+    const { dependencies, devDependencies, ...rest }: PackageJsonLike = packageJson;
+    const reordered: PackageJsonLike = { ...rest };
+    if (dependencies != undefined) {
+        reordered.dependencies = dependencies;
+    }
+    if (devDependencies != undefined) {
+        reordered.devDependencies = devDependencies;
+    }
+    return reordered;
+}
+
 /**
  * Normalizes both package.json files so that only meaningful drift remains in their diff.
  * "zi new" installs through a real "npm install", so it writes whatever npm resolved on the day the
@@ -156,6 +189,8 @@ function alignDependency(
  * the test red every time an upstream package publishes a release, so a generated version is
  * aligned with the sandbox one whenever the two ranges still overlap. Ranges that no longer overlap
  * mean the sandbox really has fallen behind (or ahead) and stay visible in the diff.
+ * The author and the order of the two dependency blocks are dropped for the same reason: both say
+ * something about the run rather than about the two projects.
  * @param generated - The package.json produced by the cli generator.
  * @param sandbox - The package.json inside packages/sandbox.
  * @returns Both contents, normalized for comparison.
@@ -164,6 +199,13 @@ export function normalizePackageJson(generated: Buffer, sandbox: Buffer): Normal
     // JSON.parse is untyped, so the shape has to be stated here.
     const parsedGenerated: PackageJsonLike = JSON.parse(generated.toString('utf8')) as PackageJsonLike;
     const parsedSandbox: PackageJsonLike = JSON.parse(sandbox.toString('utf8')) as PackageJsonLike;
+
+    if (parsedGenerated.author != undefined) {
+        parsedGenerated.author = AUTHOR_PLACEHOLDER;
+    }
+    if (parsedSandbox.author != undefined) {
+        parsedSandbox.author = AUTHOR_PLACEHOLDER;
+    }
 
     for (const key of DEPENDENCY_KEYS) {
         const generatedDependencies: Record<string, string> | undefined = parsedGenerated[key];
@@ -178,7 +220,7 @@ export function normalizePackageJson(generated: Buffer, sandbox: Buffer): Normal
     }
 
     return {
-        generated: Buffer.from(`${JSON.stringify(parsedGenerated, undefined, 4)}\n`),
-        sandbox: Buffer.from(`${JSON.stringify(parsedSandbox, undefined, 4)}\n`)
+        generated: Buffer.from(`${JSON.stringify(withDependenciesLast(parsedGenerated), undefined, 4)}\n`),
+        sandbox: Buffer.from(`${JSON.stringify(withDependenciesLast(parsedSandbox), undefined, 4)}\n`)
     };
 }

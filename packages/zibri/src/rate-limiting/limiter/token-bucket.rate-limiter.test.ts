@@ -3,8 +3,11 @@ import assert from 'node:assert';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 import { TokenBucketRateLimiter, TokenBucketState } from './token-bucket.rate-limiter';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { initDiContainer } from '../../di/init-di-container.function';
+import { inject } from '../../di/inject.function';
 import { GlobalRegistry } from '../../global/global-registry';
+import { type LoggerInterface } from '../../logging/logger.interface';
 import { Ms } from '../../utilities/ms';
 import { RateLimitResult } from '../rate-limit-result.model';
 import { RateLimitCountProvider, RateLimitKeyProvider } from '../rate-limit-wrap-options.model';
@@ -211,6 +214,105 @@ describe('InMemoryRateLimiterStore', () => {
             store.atomicUpdate('a', () => ({ value: 1, reservations: [], expiresAtMs: NOW + 1000 }));
             store.atomicUpdate('b', () => ({ value: 2, reservations: [], expiresAtMs: NOW + 1000 }));
             expect(store.keys().sort()).toEqual(['a', 'b']);
+        });
+    });
+
+    describe('deleteExpired', () => {
+        it('removes what has expired and keeps the rest', () => {
+            store.atomicUpdate('alive', () => ({ value: 1, reservations: [], expiresAtMs: NOW + 1000 }));
+            store.atomicUpdate('expired', () => ({ value: 2, reservations: [], expiresAtMs: NOW - 1 }));
+            store.atomicUpdate('just-now', () => ({ value: 3, reservations: [], expiresAtMs: NOW }));
+
+            store.deleteExpired(NOW);
+
+            // reading an expired key already answered undefined - this is about it no longer taking
+            // up room, which only the key list can show
+            expect(store.keys()).toEqual(['alive']);
+            expect(store.size()).toBe(1);
+        });
+    });
+
+    describe('keysWithExpiredReservations', () => {
+        function reservation(expiresAtMs: number): RateLimitReservation {
+            return { id: `r-${expiresAtMs}`, key: 'k', count: 1, readyAtMs: NOW, expiresAtMs };
+        }
+
+        it('names only the keys holding a reservation nobody came back for', () => {
+            store.atomicUpdate('none', () => ({ value: 1, reservations: [], expiresAtMs: NOW + 1000 }));
+            store.atomicUpdate('pending', () => ({ value: 2, reservations: [reservation(NOW + 500)], expiresAtMs: NOW + 1000 }));
+            store.atomicUpdate('abandoned', () => ({ value: 3, reservations: [reservation(NOW - 1)], expiresAtMs: NOW + 1000 }));
+            store.atomicUpdate('mixed', () => ({
+                value: 4,
+                reservations: [reservation(NOW + 500), reservation(NOW - 1)],
+                expiresAtMs: NOW + 1000
+            }));
+
+            expect(store.keysWithExpiredReservations(NOW).sort()).toEqual(['abandoned', 'mixed']);
+        });
+
+        it('returns nothing while every reservation is still open', () => {
+            store.atomicUpdate('pending', () => ({ value: 1, reservations: [reservation(NOW + 500)], expiresAtMs: NOW + 1000 }));
+
+            // the point of the method: on a healthy limiter cleanup has no per key work to do at all
+            expect(store.keysWithExpiredReservations(NOW)).toEqual([]);
+        });
+    });
+
+    describe('maxKeys', () => {
+        let error: jest.SpiedFunction<LoggerInterface['error']>;
+        let small: InMemoryRateLimiterStore<TestState>;
+
+        function state(value: number, expiresAtMs: number = NOW + 1000): TestState {
+            return { value, reservations: [], expiresAtMs };
+        }
+
+        beforeEach(() => {
+            error = jest.spyOn(inject(ZIBRI_DI_TOKENS.LOGGER), 'error').mockReturnValue();
+            small = new InMemoryRateLimiterStore<TestState>({ maxKeys: 2 });
+            small.atomicUpdate('a', () => state(1));
+            small.atomicUpdate('b', () => state(2));
+        });
+
+        afterEach(() => {
+            error.mockRestore();
+        });
+
+        it('refuses a key it has never seen once it is full', () => {
+            expect(() => small.atomicUpdate('c', () => state(3))).toThrow();
+
+            // refusing rather than evicting, because evicting would hand the caller who filled the
+            // store a way to reset everybody else's counter
+            expect(small.keys().sort()).toEqual(['a', 'b']);
+            expect(error).toHaveBeenCalledTimes(1);
+        });
+
+        it('keeps counting the keys it already holds', () => {
+            expect(() => small.atomicUpdate('c', () => state(3))).toThrow();
+
+            // what a full store costs is the callers it has never seen, not the ones it is limiting
+            const res: RateLimiterStoreUpdateResult<TestState> = small.atomicUpdate('a', () => state(42));
+            expect(res.value.value).toBe(42);
+            expect(small.get('a')?.value).toBe(42);
+        });
+
+        it('says so once rather than once per refused call', () => {
+            const full: InMemoryRateLimiterStore<TestState> = small;
+            for (const key of ['new-1', 'new-2', 'new-3']) {
+                expect(() => full.atomicUpdate(key, () => state(9))).toThrow();
+            }
+
+            expect(error).toHaveBeenCalledTimes(1);
+        });
+
+        it('takes the slot of a key that has expired instead of refusing', () => {
+            jest.setSystemTime(NOW + 2000);
+
+            // both existing keys are past their expiry now, so the store is full of nothing
+            const res: RateLimiterStoreUpdateResult<TestState> = small.atomicUpdate('c', () => state(3, NOW + 5000));
+
+            expect(res.sizeChanged).toBe(true);
+            expect(small.keys()).toEqual(['c']);
+            expect(error).not.toHaveBeenCalled();
         });
     });
 });

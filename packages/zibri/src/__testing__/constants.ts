@@ -4,7 +4,19 @@ export const testFileFolder: FsPath = FsUtilities.getPath(__dirname, 'file-outpu
 
 export const testAssetsFolder: FsPath = FsUtilities.getPath(__dirname, 'mocks', 'assets');
 
-export const POSTGRES_TEST_IMAGE: string = 'postgres:17.6';
+/**
+ * The recorded route history this repository's own test servers share.
+ *
+ * Created by the global test setup rather than by the application that reads it: the folder is
+ * something a project checks in, so an application refuses to start when it is missing instead of
+ * taking the version it is on for the first one that ever existed.
+ */
+export const testVersionsFolder: FsPath = FsUtilities.getPath(testFileFolder, 'versions-default');
+
+// TODO: every suite repeats the same jest timeouts by hand - 15000 wherever a server or a container
+// is started or stopped, jest's own 5000 everywhere else. They belong here as named constants, so
+// that a timeout above the default reads as a deliberate decision about that one test rather than
+// disappearing among 200 copies of the same number.
 
 export const noOp: () => void = () => {};
 

@@ -19,18 +19,54 @@ jobs:
                 ref: release
             - uses: actions/setup-node@v4
               with:
-                node-version: '22'
+                node-version: '24'
                 registry-url: 'https://registry.npmjs.org'
             # Ensure npm 11.5.1 or later is installed
             - run: npm install -g npm@latest
-            - run: npm i
+            - run: npm ci
+
+            # Everything that can refuse the release happens before anything is published. A publish
+            # is the one step here that cannot be taken back - npm allows an unpublish for 72 hours
+            # and then never again - so a half published release is not something to recover from,
+            # it is something to not start. The packages name each other by version, so the
+            # half of a release that did go out is one consumers can install and cannot resolve.
+            # `zi new` installs zibri and zibri-testing at the cli's own version, so one left behind
+            # is a release where every generated project fails to install.
+            - name: read the version this release publishes
+              id: version
+              run: node .github/scripts/release-version.mjs >> "$GITHUB_OUTPUT"
+            - name: refuse a version the registry already has
+              run: |
+                for package in zibri-tsx zibri zibri-testing zibri-cli; do
+                  if npm view "$package@${{ steps.version.outputs.version }}" version > /dev/null 2>&1; then
+                    echo "$package@${{ steps.version.outputs.version }} is already published - bump every package or none"
+                    exit 1
+                  fi
+                done
+
+            # every build before any publish: a build failing after a publish is the likeliest way
+            # to lose a release halfway, and ordering alone removes it.
             # zibri-tsx first: zibri type checks against its built dist and depends on it as a peer.
+            # zibri-testing after zibri, which it peer depends on and type checks against.
             - run: npm run build -w zibri-tsx
-            - run: npm publish -w zibri-tsx
             - run: npm run build:prod -w zibri
-            - run: npm publish -w zibri
-            - run: npm run build -w cli
-            - run: npm publish -w cli
+            - run: npm run build -w zibri-testing
+            - run: npm run build -w zibri-cli
+
+            # and a rehearsal of each, because npm refuses a package for reasons a build never
+            # sees - a file the packer cannot read, a name this account may not publish under
+            - run: npm publish -w zibri-tsx --provenance --dry-run
+            - run: npm publish -w zibri --provenance --dry-run
+            - run: npm publish -w zibri-testing --provenance --dry-run
+            - run: npm publish -w zibri-cli --provenance --dry-run
+
+            # --provenance on each publish, because `id-token: write` above is granted for it. Asking
+            # for the permission and never producing the attestation left consumers with no
+            # supply-chain provenance while the setup implied there was some.
+            - run: npm publish -w zibri-tsx --provenance
+            - run: npm publish -w zibri --provenance
+            - run: npm publish -w zibri-testing --provenance
+            - run: npm publish -w zibri-cli --provenance
 
     updateDocs:
         if: github.event.pull_request.merged
@@ -42,7 +78,7 @@ jobs:
                 ref: release
             - uses: actions/setup-node@v4
               with:
-                node-version: '22'
+                node-version: '24'
             - run: npm ci
             - run: npm run build -w zibri-tsx
             - run: npm run build:prod -w zibri

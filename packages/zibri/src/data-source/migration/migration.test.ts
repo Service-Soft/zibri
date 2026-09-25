@@ -3,10 +3,10 @@ import { randomBytes } from 'node:crypto';
 import { beforeAll, afterAll, describe, it, expect } from '@jest/globals';
 import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { Table, TableColumn } from 'typeorm';
+import { POSTGRES_TEST_IMAGE } from 'zibri-testing';
 
 import { MigrationEntity } from './migration-entity.model';
 import { Migration } from './migration.model';
-import { POSTGRES_TEST_IMAGE } from '../../__testing__/constants';
 import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
 import { AesGcmEncryptionStrategy } from '../../auth/encryption/strategies/aes-gcm.encryption-strategy';
 import { InjectRepository } from '../../di/decorators/inject-repository.decorator';
@@ -21,10 +21,11 @@ import { Property } from '../../entity/decorators/property.decorator';
 import { GlobalRegistry } from '../../global/global-registry';
 import { Newable } from '../../types/newable.type';
 import { OmitStrict } from '../../types/omit-strict.type';
-import { SemVerVersion } from '../../utilities/sem-ver.utilities';
-import { PostgresDataSource, PostgresOptions } from '../data-sources/postgres-typeorm-data-source.model';
+import { SemVerVersion } from '../../versioning/sem-ver.utilities';
+import { PostgresDataSource, PostgresOptions } from '../data-sources/postgres/postgres-typeorm-data-source.model';
 import { DataSource } from '../decorators/data-source.decorator';
-import { Repository } from '../repository';
+import { SchemaManagement } from '../models/schema-management.model';
+import { Repository } from '../repository/repository';
 import { Transaction } from '../transaction/transaction.model';
 
 @Entity({ tableName: 'item' })
@@ -35,14 +36,15 @@ class LegacyItem {
 
 @DataSource()
 class LegacyDbDataSource extends PostgresDataSource {
-    options: OmitStrict<PostgresOptions, 'type'> = {
+    override options: OmitStrict<PostgresOptions, 'type'> = {
         host: 'localhost',
         username: 'postgres',
         password: 'password',
-        database: 'db',
-        synchronize: true
+        database: 'db'
     };
     entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, LegacyItem];
+    // stands in for the database as it was before the migration, so it is created from the classes
+    schemaManagement: SchemaManagement = 'synchronize';
 }
 
 @Entity({ tableName: 'item' })
@@ -56,15 +58,16 @@ class Item {
 
 @DataSource()
 class DbDataSource extends PostgresDataSource {
-    options: OmitStrict<PostgresOptions, 'type'> = {
+    override options: OmitStrict<PostgresOptions, 'type'> = {
         host: 'localhost',
         username: 'postgres',
         password: 'password',
-        database: 'db',
-        synchronize: true
+        database: 'db'
     };
     entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, Item];
-    migrations: Newable<Migration>[] = [AddTestValueMigration];
+    override migrations: Newable<Migration>[] = [AddTestValueMigration];
+    // the framework entities still need their tables, and the migration is what this asserts about
+    schemaManagement: SchemaManagement = 'synchronize';
 }
 
 @Injectable()
@@ -149,6 +152,9 @@ describe('AddTestValueMigration', () => {
         expect(res).not.toBeNull();
     });
     afterAll(async () => {
-        await container.stop();
+        // optional, because a beforeAll that timed out never assigned it - and stopping a container
+        // that was never started threw a TypeError that replaced the timeout in the report with
+        // "Test suite failed to run", which says nothing about what actually went wrong.
+        await container?.stop();
     }, 15000);
 });

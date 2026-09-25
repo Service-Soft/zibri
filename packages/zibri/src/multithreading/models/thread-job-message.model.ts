@@ -1,4 +1,5 @@
 import { ThreadJobStatus } from './thread-job-status.enum';
+import { LoggedError } from '../../logging/logged-error.model';
 import { Percentage } from '../../types/percentage.type';
 
 /**
@@ -33,15 +34,30 @@ type StatusMessage = {
 /**
  * A message to indicate that the thread job has failed.
  */
-type ErrorMessage<ErrorType extends Error = Error> = {
+type ErrorMessage = {
     /**
      * The type of the message.
      */
     type: 'error',
     /**
      * The error that the thread job failed with.
+     *
+     * A `LoggedError` because it crosses a thread boundary and then goes into a column, and an
+     * `Error` survives neither: its message, stack and cause are non-enumerable. It was typed
+     * `Error` while carrying a flat object that was not one, so `instanceof Error` answered no
+     * for a value the type promised was yes.
      */
-    error: ErrorType
+    error: LoggedError,
+    /**
+     * Whether the worker is ending itself because of this.
+     *
+     * Set when the error reached the worker's `uncaughtException` or `unhandledRejection` handler,
+     * which leaves it in a state nothing can reason about - so it reports and exits. The parent
+     * needs to be told, because the job failing and the worker being reusable are otherwise the same
+     * message: without this the worker goes back on the idle list for the moment it has left, and
+     * the next job is posted to a thread that is already on its way out.
+     */
+    fatal: boolean
 };
 
 /**

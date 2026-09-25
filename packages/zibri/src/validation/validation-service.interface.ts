@@ -1,4 +1,4 @@
-import { BodyMetadata } from '../routing/decorators/body.decorator';
+import { BodyMetadata } from '../routing/decorators/body-metadata.model';
 import { HeaderParamMetadata, PathParamMetadata, QueryParamMetadata } from '../routing/decorators/param.decorator';
 
 /**

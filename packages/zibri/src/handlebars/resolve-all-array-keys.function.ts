@@ -46,36 +46,45 @@ function resolveArrayKeysForBlockStatement(element: AstBlockStatement, parentKey
             res.push(...resolveAllArrayKeys(element.program, key));
             break;
         }
+        case 'with': {
+            res.push(...resolveAllArrayKeys(element.program, getArrayKeyFromArrayParams(element.params, parentKey)));
+            break;
+        }
+        // if, unless, log and any helper the application registers render their block in the context
+        // they are used in
         case 'if':
         case 'unless':
-        case 'with':
-        case 'log': {
+        case 'log':
+        default: {
             res.push(...resolveAllArrayKeys(element.program, parentKey));
             break;
         }
-        default: {
-            throw new InternalError(`Unknown AST path.original "${element.path.original}"`);
-        }
+    }
+    // the else branch of every block renders in the context the block is used in
+    if (element.inverse != undefined) {
+        res.push(...resolveAllArrayKeys(element.inverse, parentKey));
     }
     return res;
 }
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 function getArrayKeyFromArrayParams(params: AstExpression[], parentKey: string | undefined): string {
-    if (params.length !== 1) {
+    const param: AstExpression | undefined = params[0];
+    if (params.length !== 1 || param == undefined) {
         throw new InternalError(`Got more than 1 param ${JsonUtilities.stringify(params)}`);
     }
 
-    switch (params[0].type) {
+    switch (param.type) {
         case 'PathExpression': {
-            return resolveKeyForPathExpression(params[0], parentKey);
+            return resolveKeyForPathExpression(param, parentKey);
         }
         case 'SubExpression': {
-            if (params[0].params.length < 1) {
+            const first: AstExpression | undefined = param.params[0];
+            if (first == undefined) {
                 throw new InternalError('SubExpression has no params');
             }
             // recursively pick the first param of the sub‐expression
-            return getArrayKeyFromArrayParams([params[0].params[0]], parentKey);
+            return getArrayKeyFromArrayParams([first], parentKey);
         }
         case 'StringLiteral':
         case 'NumberLiteral':
@@ -83,7 +92,7 @@ function getArrayKeyFromArrayParams(params: AstExpression[], parentKey: string |
         case 'UndefinedLiteral':
         case 'NullLiteral':
         default: {
-            throw new InternalError(`Unknown AST param for each block "${params[0].type}"`);
+            throw new InternalError(`Unknown AST param for each block "${param.type}"`);
         }
 
     }

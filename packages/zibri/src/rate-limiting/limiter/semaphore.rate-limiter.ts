@@ -1,5 +1,5 @@
 import { BaseRateLimiter } from './base-rate-limiter.model';
-import { RateLimiterConfigInput } from './rate-limiter-config.model';
+import { RateLimiterConfigInput, RateLimitStoreFailurePolicy } from './rate-limiter-config.model';
 import { TooManyRequestsError } from '../../error-handling/errors/too-many-requests.error';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { $ts } from '../../localization/translate.function';
@@ -62,6 +62,7 @@ export class SemaphoreRateLimiter extends BaseRateLimiter<SemaphoreState> {
     protected constructor(config: SemaphoreConfigInput) {
         super({
             reservationGracePeriodMs: (waitMs) => Math.max(5000, waitMs),
+            onStoreFailure: RateLimitStoreFailurePolicy.REJECT,
             maxReservationCount: config.capacity,
             ...config,
             // A semaphore can't estimate when a held permit will be released, so a
@@ -112,12 +113,11 @@ export class SemaphoreRateLimiter extends BaseRateLimiter<SemaphoreState> {
      * {@link checkAdditionalReservationLimits}.
      * @returns Always `true`.
      */
-    protected isWithinReservationHorizon(): boolean {
+    protected override isWithinReservationHorizon(): boolean {
         return true;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    protected checkAdditionalReservationLimits(
+    protected override checkAdditionalReservationLimits(
         _state: SemaphoreState,
         pending: RateLimitReservation[]
     ): RateLimitReservationRejectionReason | undefined {
@@ -203,13 +203,12 @@ export class SemaphoreRateLimiter extends BaseRateLimiter<SemaphoreState> {
         void this.updateActiveKeysGauge();
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    wrap<TArgs extends unknown[], V, TOptions extends RateLimitWrapOptions<TArgs> | undefined>(
+    override wrap<TArgs extends unknown[], V, TOptions extends RateLimitWrapOptions<TArgs> | undefined>(
         fn: (...args: TArgs) => V | Promise<V>,
         options?: TOptions
     ): (...args: TArgs) => RateLimitWrapResult<V, TOptions> {
         return async (...args: TArgs): Promise<V> => {
-            const key: string = options?.keyFn ? await options.keyFn(...args) : 'global';
+            const key: string = await this.resolveKey(options, args);
             const count: number = options?.countFn ? await options.countFn(...args) : 1;
 
             if (count === 0) {
@@ -266,17 +265,17 @@ export class SemaphoreRateLimiter extends BaseRateLimiter<SemaphoreState> {
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    async commitReservation(reservationInput: RateLimitReservation): Promise<void> {
+    override async commitReservation(reservationInput: RateLimitReservation): Promise<void> {
         await this.config.store.atomicUpdate(reservationInput.key, (current) => {
             if (!current) {
                 throw new RateLimitReservationNotFoundError(reservationInput.key, reservationInput.id);
             }
             const index: number = current.reservations.findIndex(r => r.id === reservationInput.id);
-            if (index === -1) {
+            // reservations[-1] is undefined, so this covers the missing reservation too
+            const reservation: RateLimitReservation | undefined = current.reservations[index];
+            if (reservation == undefined) {
                 throw new RateLimitReservationNotFoundError(reservationInput.key, reservationInput.id);
             }
-            const reservation: RateLimitReservation = current.reservations[index];
             if (current.current + reservation.count > this.config.capacity) {
                 throw new InternalError(
                     `Reservation "${reservationInput.id}" for rate limiter "${this.config.name}", key: "${reservationInput.key}" `
@@ -294,17 +293,17 @@ export class SemaphoreRateLimiter extends BaseRateLimiter<SemaphoreState> {
         this.recordReservationClosed();
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    async cancelReservation(reservationInput: RateLimitReservation): Promise<void> {
+    override async cancelReservation(reservationInput: RateLimitReservation): Promise<void> {
         await this.config.store.atomicUpdate(reservationInput.key, (current) => {
             if (!current) {
                 throw new RateLimitReservationNotFoundError(reservationInput.key, reservationInput.id);
             }
             const index: number = current.reservations.findIndex(r => r.id === reservationInput.id);
-            if (index === -1) {
+            // reservations[-1] is undefined, so this covers the missing reservation too
+            const reservation: RateLimitReservation | undefined = current.reservations[index];
+            if (reservation == undefined) {
                 throw new RateLimitReservationNotFoundError(reservationInput.key, reservationInput.id);
             }
-            const reservation: RateLimitReservation = current.reservations[index];
             // Refund reservedCount
             return this.recomputeReadyTimes(
                 {
@@ -318,8 +317,7 @@ export class SemaphoreRateLimiter extends BaseRateLimiter<SemaphoreState> {
         this.recordReservationClosed();
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    protected async doReserve(key: string, count: number): Promise<RateLimitReservationResult> {
+    protected override async doReserve(key: string, count: number): Promise<RateLimitReservationResult> {
         const result: RateLimitReservationResult = await super.doReserve(key, count);
         if (result.allowed) {
             result.reservation.expiresAtMs = Date.now() + this.idleTtlMs;

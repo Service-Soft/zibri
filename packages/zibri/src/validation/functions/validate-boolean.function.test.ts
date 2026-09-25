@@ -13,6 +13,8 @@ function meta(overrides: Partial<BooleanPropertyMetadata> = {}): BooleanProperty
         default: undefined,
         exclude: false,
         excludeFromChangeSets: false,
+        index: false,
+        optimisticLocking: false,
         ...overrides
     };
 }
@@ -37,7 +39,7 @@ describe('validateBoolean', () => {
         const problems: ValidationProblem[] = await validateBoolean('flag', undefined, meta({ required: true }), undefined, undefined);
         expect(problems).toHaveLength(1);
         expect(problems[0]).toBeInstanceOf(IsRequiredValidationProblem);
-        expect(problems[0].key).toBe('flag');
+        expect(problems[0]?.key).toBe('flag');
     });
 
     it('returns no problems when not required and missing', async () => {
@@ -77,6 +79,6 @@ describe('validateBoolean', () => {
 
     it('prefixes the key with the parent key when nested', async () => {
         const problems: ValidationProblem[] = await validateBoolean('flag', undefined, meta({ required: true }), 'parent', undefined);
-        expect(problems[0].key).toBe('parent.flag');
+        expect(problems[0]?.key).toBe('parent.flag');
     });
 });

@@ -1,4 +1,4 @@
-import { ShutdownSignal, ZibriApplication } from '../application';
+import { ShutdownSignal, ZibriApplication } from '../application/application';
 import { InternalError } from '../error-handling/internal-error.model';
 
 /**

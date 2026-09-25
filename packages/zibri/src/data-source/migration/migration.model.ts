@@ -2,9 +2,9 @@ import { MigrationEntity } from './migration-entity.model';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { inject } from '../../di/inject.function';
 import { Newable } from '../../types/newable.type';
-import { SemVerVersion } from '../../utilities/sem-ver.utilities';
+import { SemVerVersion } from '../../versioning/sem-ver.utilities';
 import { DataSourceInterface } from '../data-sources/data-source.interface';
-import { Repository } from '../repository';
+import { Repository } from '../repository/repository';
 import { Transaction } from '../transaction/transaction.model';
 
 /**
@@ -23,7 +23,7 @@ export abstract class Migration {
 
     constructor(dataSourceClass: Newable<DataSourceInterface>) {
         this.dataSource = inject(dataSourceClass);
-        this.migrationRepository = inject(repositoryTokenFor(MigrationEntity));
+        this.migrationRepository = inject(repositoryTokenFor(MigrationEntity, dataSourceClass));
     }
 
     /**
@@ -56,7 +56,10 @@ export abstract class Migration {
         const transaction: Transaction = await this.dataSource.startTransaction();
         try {
             await this.down(transaction);
-            await this.migrationRepository.deleteAll({ version: this.version }, { transaction });
+            // by name, the same thing runUp records it under. Deleting by version took every other
+            // change of the same release with it, so reverting one of them told the database that
+            // none of them had ever been applied
+            await this.migrationRepository.deleteAll({ name: this.constructor.name }, { transaction });
             await transaction.commit();
         }
         catch (error) {

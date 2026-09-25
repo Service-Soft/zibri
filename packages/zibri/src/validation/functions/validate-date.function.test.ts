@@ -15,6 +15,8 @@ function meta(overrides: Partial<DatePropertyMetadata> = {}): DatePropertyMetada
         default: undefined,
         exclude: false,
         excludeFromChangeSets: false,
+        index: false,
+        optimisticLocking: false,
         ...overrides
     };
 }
@@ -57,7 +59,7 @@ describe('validateDate', () => {
             const boundary: Date = new Date('2024-01-01T00:00:00.000Z');
             const problems: ValidationProblem[] = await validateDate('when', boundary, meta({ before: boundary }), undefined, undefined);
             expect(problems).toHaveLength(1);
-            expect(problems[0].key).toBe('when');
+            expect(problems[0]?.key).toBe('when');
         });
 
         it('accepts a value strictly before "before"', async () => {

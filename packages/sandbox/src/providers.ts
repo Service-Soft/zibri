@@ -1,5 +1,6 @@
-import { AesGcmEncryptionStrategy, defineDateFormat, defineProvider, DiProvider, EmailConfigInput, LoggerTransport, LogLevel, ZIBRI_DI_TOKENS, ZIBRI_INVOICING_PLUGIN_DI_TOKENS, ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from 'zibri';
+import { AesGcmEncryptionStrategy, defineDateFormat, defineProvider, DiProvider, EmailConfigInput, JwtAuthOptionsInput, LoggerTransport, LogLevel, SmtpEmailTransport, ZIBRI_DI_TOKENS, ZIBRI_INVOICING_PLUGIN_DI_TOKENS, ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from 'zibri';
 
+import { optionalEnv, requireEnv } from './env';
 import { MailingListBaseEmail } from './templates/email-components/mailing-list-base-email';
 import { MailingListSubscribeConfirmationEmail } from './templates/emails/mailing-list-subscribe-confirmation';
 import { PasswordResetEmail } from './templates/emails/password-reset';
@@ -23,7 +24,7 @@ export const providers: DiProvider<unknown>[] = [
             currentMasterStrategy: new AesGcmEncryptionStrategy(),
             currentMasterKey: {
                 id: 'k1',
-                value: '42'
+                value: requireEnv('MASTER_KEY')
             }
         }
     }),
@@ -32,31 +33,35 @@ export const providers: DiProvider<unknown>[] = [
         useFactory: () => PasswordResetEmail
     }),
     defineProvider({
-        token: ZIBRI_DI_TOKENS.JWT_ACCESS_TOKEN_SECRET,
-        useFactory: () => 'test'
-    }),
-    defineProvider({
-        token: ZIBRI_DI_TOKENS.JWT_REFRESH_TOKEN_SECRET,
-        useFactory: () => 'test'
+        token: ZIBRI_DI_TOKENS.JWT_AUTH_OPTIONS_INPUT,
+        useFactory: (): JwtAuthOptionsInput => ({
+            accessTokenSecret: requireEnv('JWT_ACCESS_SECRET'),
+            refreshTokenSecret: requireEnv('JWT_REFRESH_SECRET')
+        })
     }),
     defineProvider({
         token: ZIBRI_DI_TOKENS.EMAIL_CONFIG,
         useFactory: (): EmailConfigInput => {
             return {
                 maxEmailsPerHour: 0,
-                defaultSender: 'Max Mustermann',
-                host: '',
-                port: 0,
-                auth: {
-                    user: '',
-                    pass: ''
-                }
+                defaultSender: optionalEnv('EMAIL_DEFAULT_SENDER')
             };
         }
     }),
     defineProvider({
+        token: ZIBRI_DI_TOKENS.EMAIL_TRANSPORT,
+        useFactory: () => new SmtpEmailTransport({
+            host: optionalEnv('SMTP_HOST'),
+            port: Number(optionalEnv('SMTP_PORT')),
+            auth: {
+                user: optionalEnv('SMTP_USER'),
+                pass: optionalEnv('SMTP_PASSWORD')
+            }
+        })
+    }),
+    defineProvider({
         token: ZIBRI_DI_TOKENS.CONFIRM_PASSWORD_RESET_URL,
-        useFactory: () => 'http://localhost:4200/confirm-password-reset'
+        useFactory: () => requireEnv('CONFIRM_PASSWORD_RESET_URL')
     }),
     defineProvider({
         token: ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS.PREFERENCES_PAGE_TEMPLATE,

@@ -1,124 +1,90 @@
+import { BodyMetadata, BodyMetadataInput, BodyShapeMetadata, OneOfBodyMetadataInput, StreamBodyMetadataInput } from './body-metadata.model';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
-import { BasePropertyMetadata } from '../../entity/models/base-property-metadata.model';
 import { FileSize, fileSizeToBytes } from '../../entity/models/file-property-metadata.model';
 import { Relation } from '../../entity/models/relation.enum';
 import { MimeType } from '../../http/mime-type.enum';
+import { ExcludeStrict } from '../../types/exclude-strict.type';
 import { Newable } from '../../types/newable.type';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { Ms } from '../../utilities/ms';
-import { BigNumber } from '../../utilities/number.utilities';
-
-/**
- * Base metadata shared by all possible http request body properties.
- */
-type BaseBodyMetadata = OmitStrict<BasePropertyMetadata, 'excludeFromChangeSets' | 'exclude'> & {
-    /**
-     * The class that defines the structure of the body.
-     */
-    modelClass: Newable<unknown>,
-    /**
-     * Whether or not the body is a single modelClass or an array of them.
-     */
-    isArray: boolean,
-    /**
-     * Whether or not additional properties are allowed on the body.
-     */
-    allowAdditionalProperties: boolean,
-    /**
-     * The index at which the body parameter is provided in the controller method.
-     */
-    index: number,
-    /**
-     * The maximum size of the body.
-     * Is calculated by adding the base max size and any sizes of file or file array properties on the body model.
-     */
-    maxSize: BigNumber
-};
-
-/**
- * Metadata of json http request body properties.
- */
-export type JsonBodyMetadata = BaseBodyMetadata & {
-    /**
-     * The type of the request body (json).
-     */
-    type: MimeType.JSON
-};
-
-/**
- * Metadata of form data http request body properties.
- */
-export type FormDataBodyMetadata = BaseBodyMetadata & {
-    /**
-     * The type of the request body (form data).
-     */
-    type: MimeType.FORM_DATA,
-    /**
-     * The amount of ms after which the temporary file should be deleted from the file system.
-     */
-    cleanupAfterMs: number
-};
-
-/**
- * Metadata for http request body properties.
- */
-export type BodyMetadata = JsonBodyMetadata | FormDataBodyMetadata;
-
-/**
- * Metadata Input for http request body properties.
- */
-export type BodyMetadataInput = Partial<OmitStrict<BodyMetadata, 'modelClass' | 'index' | 'maxSize'>> & {
-    /**
-     * The base maximum size of the body.
-     *
-     * This is IN ADDITION to any file properties on the request body.
-     */
-    baseMaxSize?: FileSize
-};
+import { BigNumber, NumberUtilities } from '../../utilities/number.utilities';
+import { ObjectUtilities } from '../../utilities/object.utilities';
+import { resolveBodyMetadata } from '../resolve-body-metadata.function';
 
 /**
  * Defines a http request body property with the given data.
  * @param modelClass - The model class that defines the body properties structure.
  * @param options - Additional options, like the type.
  */
-export function Body(modelClass: Newable<unknown>, options: BodyMetadataInput = {}): ParameterDecorator {
+export function Body(
+    modelClass: Newable<unknown>,
+    options: ExcludeStrict<BodyMetadataInput, StreamBodyMetadataInput> = {}
+): ParameterDecorator {
     return (target, propertyKey, index) => {
-        const fullMetadata: BodyMetadata = {
-            index,
-            modelClass,
-            isArray: false,
-            required: true,
-            description: undefined,
-            type: MimeType.JSON,
-            cleanupAfterMs: Ms.DAY,
-            maxSize: resolveMaxBodySize(modelClass, options.baseMaxSize),
-            allowAdditionalProperties: false,
-            ...options
-        };
-        if ('baseMaxSize' in fullMetadata) {
-            delete fullMetadata.baseMaxSize;
-        }
-        const ctor: Function = target.constructor;
-        // eslint-disable-next-line unicorn/error-message
-        const stack: string = new Error().stack ?? '';
-        MetadataUtilities.setFilePath(ctor, stack);
-        const key: string = propertyKey?.toString() ?? '';
-        MetadataUtilities.setRouteBody(ctor, fullMetadata, key);
+        setRouteBody(target, propertyKey, resolveBodyMetadata({ ...options, modelClass }, index));
     };
 }
 
+/**
+ * Bundles the other ways of defining a http request body.
+ */
+// eslint-disable-next-line typescript/no-namespace
+export namespace Body {
+    /**
+     * Defines a http request body property that is one of several shapes.
+     * @param data - The shapes, and additional options like the type.
+     */
+    export function oneOf(data: OneOfBodyMetadataInput): ParameterDecorator {
+        // resolved before the decorator is applied, so that a declaration that cannot work is refused
+        // where it is written
+        const withoutIndex: BodyMetadata = resolveBodyMetadata(data, 0);
+        return (target, propertyKey, index) => {
+            setRouteBody(target, propertyKey, { ...withoutIndex, index });
+        };
+    }
+
+    /**
+     *
+     * @param data
+     */
+    export function stream(data: OmitStrict<StreamBodyMetadataInput, 'type'>): ParameterDecorator {
+        const withoutIndex: BodyMetadata = resolveBodyMetadata({ ...data, type: MimeType.OCTET_STREAM }, 0);
+        return (target, propertyKey, index) => {
+            setRouteBody(target, propertyKey, { ...withoutIndex, index });
+        };
+    }
+}
+
 // eslint-disable-next-line jsdoc/require-jsdoc
-export function resolveMaxBodySize(modelClass: Newable<unknown>, baseMaxSize: FileSize = '100kb'): BigNumber {
-    const bytes: BigNumber = fileSizeToBytes(baseMaxSize);
-    const properties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(modelClass);
-    return resolveMaxSize(bytes, properties);
+function setRouteBody(target: Object, propertyKey: string | symbol | undefined, metadata: BodyMetadata): void {
+    const ctor: Function = target.constructor;
+    // eslint-disable-next-line unicorn/error-message
+    const stack: string = new Error().stack ?? '';
+    MetadataUtilities.setFilePath(ctor, stack);
+    const key: string = propertyKey?.toString() ?? '';
+    MetadataUtilities.setRouteBody(ctor, metadata, key);
+}
+
+// eslint-disable-next-line jsdoc/require-jsdoc
+export function resolveMaxBodySize(shape: BodyShapeMetadata, baseMaxSize: FileSize = '100kb'): BigNumber {
+    if (shape.type === 'anyOf') {
+        return fileSizeToBytes(baseMaxSize).plus(largestOf(shape.shapes));
+    }
+    return resolveMaxSize(fileSizeToBytes(baseMaxSize), { body: shape });
+}
+
+/**
+ * What the largest of several shapes adds to a body, since a value is only ever one of them.
+ * @param shapes - The shapes.
+ * @returns The most any one of them adds.
+ */
+function largestOf(shapes: PropertyMetadata[]): BigNumber {
+    return BigNumber.max(...shapes.map(shape => resolveMaxSize(NumberUtilities.new(0), { shape })));
 }
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 function resolveMaxSize(bytes: BigNumber, properties: Record<string, PropertyMetadata>): BigNumber {
-    for (const key in properties) {
-        const property: PropertyMetadata = properties[key];
+    for (const property of ObjectUtilities.values(properties)) {
         switch (property.type) {
             case 'file': {
                 bytes = bytes.plus(fileSizeToBytes(property.maxSize));
@@ -131,8 +97,14 @@ function resolveMaxSize(bytes: BigNumber, properties: Record<string, PropertyMet
                 break;
             }
             case 'object': {
+                // what the class adds, counted from nothing - counted from `bytes` it added the
+                // size so far to itself once for every class the body names
                 const objectProperties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(property.cls());
-                bytes = bytes.plus(resolveMaxSize(bytes, objectProperties));
+                bytes = bytes.plus(resolveMaxSize(NumberUtilities.new(0), objectProperties));
+                break;
+            }
+            case 'oneOf': {
+                bytes = bytes.plus(largestOf(ObjectUtilities.values(property.shapes)));
                 break;
             }
             case Relation.HAS_ONE:

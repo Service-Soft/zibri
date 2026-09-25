@@ -163,8 +163,6 @@ module.exports = {
                 use: 'source-map-loader',
                 exclude: [
                     /node_modules[\/\\]node-cron/,
-                    /node_modules\/xmlbuilder2/,
-                    /node_modules\/@oozcitak/,
                     /node_modules\/@jridgewell/
                 ]
             },
@@ -220,10 +218,6 @@ module.exports = {
                 {
                     from: path.resolve(__dirname, 'src', 'templates'),
                     to: path.resolve(__dirname, 'dist', 'assets', 'templates')
-                },
-                {
-                    from: path.resolve(__dirname, 'versions'),
-                    to: path.resolve(__dirname, 'dist', 'versions')
                 },
                 {
                     from: path.resolve(__dirname, 'translations'),

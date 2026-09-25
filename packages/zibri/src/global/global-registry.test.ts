@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from '@jest/globals';
 
 import { AppState } from './app-state.enum';
 import { GlobalRegistry } from './global-registry';
-import { ZibriApplicationOptions } from '../application-options.model';
+import { ZibriApplicationOptions } from '../application/application-options.model';
 
 function resetToOffline(): void {
     GlobalRegistry['appData'].state = AppState.OFFLINE;
@@ -27,7 +27,7 @@ describe('GlobalRegistry', () => {
     });
 
     describe('the full valid transition sequence', () => {
-        it('moves offline -> created -> initialized -> started -> shutting down', () => {
+        it('moves offline -> created -> initialized -> started -> shutting down -> offline', () => {
             expect(() => GlobalRegistry.markAppAsCreated()).not.toThrow();
             expect(GlobalRegistry.isAppCreated()).toBe(true);
 
@@ -39,6 +39,19 @@ describe('GlobalRegistry', () => {
 
             expect(() => GlobalRegistry.markAppAsShuttingDown()).not.toThrow();
             expect(GlobalRegistry.isAppShuttingDown()).toBe(true);
+
+            expect(() => GlobalRegistry.markAppAsOffline()).not.toThrow();
+            expect(GlobalRegistry.isAppOffline()).toBe(true);
+        });
+
+        it('accepts a second application once the first has reached offline', () => {
+            GlobalRegistry.markAppAsCreated();
+            GlobalRegistry.markAppAsInitialized();
+            GlobalRegistry.markAppAsStarted();
+            GlobalRegistry.markAppAsShuttingDown();
+            GlobalRegistry.markAppAsOffline();
+
+            expect(() => GlobalRegistry.markAppAsCreated()).not.toThrow();
         });
     });
 
@@ -136,6 +149,37 @@ describe('GlobalRegistry', () => {
             GlobalRegistry.markAppAsStarted();
             GlobalRegistry.markAppAsShuttingDown();
             expect(() => GlobalRegistry.markAppAsShuttingDown()).toThrow(/already been marked as "shutting down"/);
+        });
+    });
+
+    describe('markAppAsOffline', () => {
+        it('throws when the app has not been marked as shutting down yet', () => {
+            GlobalRegistry.markAppAsCreated();
+            GlobalRegistry.markAppAsInitialized();
+            GlobalRegistry.markAppAsStarted();
+
+            // skipping straight to offline would skip every shutdown hook
+            expect(() => GlobalRegistry.markAppAsOffline()).toThrow(/has not been marked as "shutting down" yet/);
+        });
+
+        it('throws when already offline', () => {
+            expect(() => GlobalRegistry.markAppAsOffline()).toThrow(/already been marked as "offline"/);
+        });
+
+        it('forgets the application it was holding data for', () => {
+            GlobalRegistry.setAppData({
+                name: 'my-app',
+                version: '1.2.3',
+                baseUrl: 'http://localhost:3000'
+            } as unknown as ZibriApplicationOptions);
+            GlobalRegistry.markAppAsCreated();
+            GlobalRegistry.markAppAsShuttingDown();
+
+            GlobalRegistry.markAppAsOffline();
+
+            expect(GlobalRegistry.getAppData('name')).toBeUndefined();
+            expect(GlobalRegistry.getAppData('version')).toBeUndefined();
+            expect(GlobalRegistry.getAppData('baseUrl')).toBeUndefined();
         });
     });
 

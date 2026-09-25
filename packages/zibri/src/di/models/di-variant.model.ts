@@ -33,5 +33,6 @@ export const DiVariants = {
     CONTROLLER: new DiVariant('controller'),
     WEBSOCKET_CONTROLLER: new DiVariant('websocket-controller'),
     BACKUP_RESOURCE: new DiVariant('backup-resource'),
+    BACKUP_TRANSPORT: new DiVariant('backup-transport'),
     BODY_PARSER: new DiVariant('body-parser')
 } as const satisfies Record<string, DiVariant>;

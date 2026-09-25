@@ -2,7 +2,7 @@ import { HashOptions, HashServiceInterface } from './hash-service.interface';
 import { HashContent, HashString, HashUtilities } from './hash.utilities';
 import { HashStrategyEntity, HashStrategyEntityCreateData, HashStrategyStatus } from './strategies/hash-strategy-entity.model';
 import { HashStrategyInterface } from './strategies/hash-strategy.interface';
-import { Repository } from '../../data-source/repository';
+import { Repository } from '../../data-source/repository/repository';
 import { InjectRepository } from '../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../di/decorators/inject.decorator';
 import { Injectable } from '../../di/decorators/injectable.decorator';
@@ -99,9 +99,34 @@ export class HashService implements HashServiceInterface, OnAppInit {
     // eslint-disable-next-line jsdoc/require-jsdoc
     async needsRehash(hash: HashString): Promise<boolean> {
         const strategy: HashStrategyInterface<Record<string, unknown>> = this.findStrategyForHash(hash);
-        return (await this.hashStrategyRepository.findOne(
+        const deprecated: boolean = (await this.hashStrategyRepository.findOne(
             { where: { name: strategy.name, version: strategy.version } }
         )).status === HashStrategyStatus.DEPRECATED;
+        // either reason counts: the whole strategy was retired, or this particular hash was made
+        // before the cost was raised. The second is the common one - nobody retires scrypt, they
+        // just stop being willing to pay 2014 prices for it.
+        return deprecated || (strategy.needsRehash?.(hash) ?? false);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    isHash(value: string): boolean {
+        // not hashToContent, which throws: this is asked about arbitrary input, where "not a hash" is
+        // the ordinary answer rather than a fault
+        const [strategyName, version, ...hashedValueParts] = value.split('.');
+        const hashedValue: string = hashedValueParts.join('.');
+        if (!strategyName || !version || !hashedValue) {
+            return false;
+        }
+
+        const strategy: HashStrategyInterface<Record<string, unknown>> | undefined = this.strategies.find(
+            s => s.name === strategyName && s.version === version
+        );
+        if (!strategy) {
+            return false;
+        }
+        // a strategy that cannot identify its own output is taken at its word, which is the weaker
+        // answer but never a wrong one for a value this application actually produced
+        return strategy.isHashedValue?.(hashedValue) ?? true;
     }
 
     private findStrategy(name: string, version: string): HashStrategyInterface<Record<string, unknown>> {
@@ -116,12 +141,24 @@ export class HashService implements HashServiceInterface, OnAppInit {
 
     private async findDefaultStrategy(): Promise<HashStrategyInterface<Record<string, unknown>>> {
         const entity: HashStrategyEntity | undefined = await this.hashStrategyRepository.findOne(
-            { where: { status: HashStrategyStatus.DEFAULT } },
-            false
+            { where: { status: HashStrategyStatus.DEFAULT }, required: false }
         );
-        return entity
+        const strategy: HashStrategyInterface<Record<string, unknown>> | undefined = entity
             ? this.findStrategy(entity.name, entity.version)
-            : this.strategies[0];
+            : this.strategies.find(s => !s.deterministic);
+
+        // the default strategy is what every unqualified hash goes through, which in practice means
+        // passwords. A deterministic strategy is unsalted by definition, so letting one become the
+        // default - by being registered first, or by a row in the strategy table - would silently
+        // turn every stored password into a rainbow table lookup.
+        if (!strategy || strategy.deterministic) {
+            throw new InternalError(
+                strategy
+                    ? `The hash strategy "${strategy.name}" is deterministic and cannot be the default strategy.`
+                    : 'No non-deterministic hash strategy was provided to use as the default.'
+            );
+        }
+        return strategy;
     }
 
     private findStrategyForHash(hash: HashString): HashStrategyInterface<Record<string, unknown>> {

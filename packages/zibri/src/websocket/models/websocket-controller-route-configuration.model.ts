@@ -1,3 +1,4 @@
+import { HandlerTimeout } from '../../http/handler-timeout.type';
 import { SupportedVersionsOptions } from '../../versioning/supported-versions-options.model';
 
 /**
@@ -16,5 +17,9 @@ export type WebsocketControllerRouteConfiguration = {
      * The supported versions of this route.
      * Defaults to '^latest'.
      */
-    versions: SupportedVersionsOptions | undefined
+    versions: SupportedVersionsOptions | undefined,
+    /**
+     * How long the handler has to produce a result. Defaults to what the controller says.
+     */
+    timeoutInMs: HandlerTimeout | undefined
 };

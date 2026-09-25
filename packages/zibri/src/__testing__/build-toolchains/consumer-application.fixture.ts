@@ -1,0 +1,196 @@
+import { BaseEntity, BigNumber, Controller, Entity, Get, Inject, Injectable, MetadataUtilities, Param, Property, inject, initDiContainer } from 'zibri';
+
+/**
+ * What an application declares, written the way a consumer writes it.
+ *
+ * This file is compiled by the test beside it with one toolchain after another and loaded in a
+ * process of its own, so every decorator here is read off whatever that toolchain emitted rather
+ * than off the one the framework happens to be built with. It imports the framework by its own name
+ * for the same reason: a consumer gets the published package, and the question is what their
+ * compiler does to their code.
+ *
+ * Everything is named with `@Inject`, which is the style that needs no type metadata. The one place
+ * that does is declared inside a function further down, so a build carrying the metadata can reach
+ * it without a build that does not failing to load at all.
+ */
+
+/**
+ * Something to inject, so that resolving a dependency is a real resolution.
+ */
+@Injectable()
+export class GreetingService {
+
+    /**
+     * Hands back the greeting, so a caller that got the right instance can say so.
+     * @returns The greeting.
+     */
+    greet(): string {
+        return 'hello';
+    }
+}
+
+/**
+ * A service that names what it wants, which is the style every toolchain supports.
+ */
+@Injectable()
+export class TaggedService {
+    constructor(@Inject(GreetingService) private readonly greeting: GreetingService) {}
+
+    /**
+     * Passes the injected greeting through, so an assertion reaches the instance the container built.
+     * @returns The greeting.
+     */
+    greet(): string {
+        return this.greeting.greet();
+    }
+}
+
+/**
+ * A service that lets the compiler say what it wants, which is the style that needs the metadata.
+ */
+@Injectable()
+export class UntaggedService {
+    constructor(private readonly greeting: GreetingService) {}
+
+    /**
+     * Passes the injected greeting through.
+     * @returns The greeting.
+     */
+    greet(): string {
+        return this.greeting.greet();
+    }
+}
+
+/**
+ * An entity, so that the decorators which write their own metadata are covered too.
+ */
+@Entity({ allowOrphan: true })
+export class Invoice extends BaseEntity {
+
+    /**
+     * What the invoice is called.
+     */
+    @Property.string()
+    reference!: string;
+
+    /**
+     * What it comes to, held exactly.
+     */
+    @Property.number({ format: 'bignumber' })
+    total!: BigNumber;
+}
+
+/**
+ * A controller, whose routes and route parameters are decorators of a third and fourth shape.
+ */
+@Controller('/invoices')
+export class InvoiceController {
+    constructor(@Inject(GreetingService) private readonly greeting: GreetingService) {}
+
+    /**
+     * Reads one invoice.
+     * @param reference - Which invoice to read.
+     * @returns The reference, and the greeting the injected service hands over.
+     */
+    @Get('/:reference')
+    read(
+        @Param.path('reference', { type: 'string' })
+        reference: string
+    ): { reference: string, greeting: string } {
+        return { reference, greeting: this.greeting.greet() };
+    }
+}
+
+/**
+ * Declares a property whose type contradicts the format it names.
+ *
+ * Inside a function because the contradiction is refused at declaration time, and a build that
+ * carries type metadata would therefore refuse this module as it loads. Calling it is what asks the
+ * question.
+ * @throws When the toolchain wrote down the declared type and it is the wrong one.
+ */
+export function declareContradictedNumber(): void {
+    /**
+     * An amount held exactly, declared as something that cannot hold it.
+     */
+    @Entity({ allowOrphan: true })
+    class ContradictedInvoice extends BaseEntity {
+
+        /**
+         * What it comes to.
+         */
+        @Property.number({ format: 'bignumber' })
+        total!: number;
+    }
+    // referenced so that nothing can drop the declaration as unused
+    if (ContradictedInvoice.name === '') {
+        throw new Error('unreachable');
+    }
+}
+
+/**
+ * What the loaded application can be asked about itself.
+ */
+export type ProbeResult = {
+    /**
+     * What a service resolved through a named token answered.
+     */
+    tagged: string,
+    /**
+     * What resolving a service that named nothing did.
+     */
+    untagged: { name: string, message: string } | { name: 'it resolved', message: string },
+    /**
+     * The properties the entity's metadata carries.
+     */
+    entityProperties: string[],
+    /**
+     * The routes the controller registered, as method and path.
+     */
+    routes: string[],
+    /**
+     * What the controller's own route answered when called through the resolved instance.
+     */
+    handler: { reference: string, greeting: string },
+    /**
+     * What declaring a number property against the wrong type did.
+     */
+    contradictedFormat: string
+};
+
+/**
+ * Asks the loaded application everything the toolchain could have changed.
+ * @returns The answers, in a shape the test can compare across toolchains.
+ */
+export function probe(): ProbeResult {
+    initDiContainer();
+
+    let untagged: ProbeResult['untagged'] = { name: 'it resolved', message: '' };
+    try {
+        untagged = { name: 'it resolved', message: inject(UntaggedService).greet() };
+    }
+    catch (error) {
+        const failure: Error = error as Error;
+        untagged = { name: failure.name, message: failure.message };
+    }
+
+    let contradictedFormat: string = 'it was accepted';
+    try {
+        declareContradictedNumber();
+    }
+    catch (error) {
+        contradictedFormat = (error as Error).message;
+    }
+
+    const controller: InvoiceController = inject(InvoiceController);
+
+    return {
+        tagged: inject(TaggedService).greet(),
+        untagged: untagged,
+        entityProperties: Object.keys(MetadataUtilities.getModelProperties(Invoice)),
+        routes: MetadataUtilities.getControllerRoutes(InvoiceController)
+            .map(route => `${route.httpMethod} ${route.route}`),
+        handler: controller.read('inv-1'),
+        contradictedFormat: contradictedFormat
+    };
+}

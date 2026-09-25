@@ -307,4 +307,55 @@ describe('LocalizeService', () => {
         setSupportedLocales(...supportedLocales);
         expect(localizeService.resolveSupportedLocaleFromAcceptLanguageString(header)).toBe(expected);
     });
+
+    it('starts an application that has no translations', async () => {
+        setSupportedLocales(localizeService['options'].defaultLocale);
+
+        // the translations folder belongs to the application, and an application that localizes
+        // nothing has none - so reading source.xlf unconditionally made having nothing to translate
+        // a boot failure, reported as a bare ENOENT naming a path inside node_modules. It is also
+        // why the test harness had to replace this method with an empty one, which meant the
+        // startup path of a shipped service was run by nothing.
+        await expect(localizeService.onAppInit()).resolves.toBeUndefined();
+    });
+
+    // one order is stored, so an application serving languages that order text differently is making
+    // a decision - and one nobody makes deliberately is one nobody knows was made
+    describe('supported locales that order text differently', () => {
+        it('refuses to start, naming the option that says one order is wanted', async () => {
+            // Swedish sorts "ä" after "z" where German sorts it with "a"
+            setSupportedLocales(localizeService['options'].defaultLocale, 'sv-SE', 'de-DE');
+
+            await expect(localizeService.onAppInit()).rejects.toThrow('order text differently');
+        });
+
+        it('starts once the application says so', async () => {
+            setSupportedLocales(localizeService['options'].defaultLocale, 'sv-SE', 'de-DE');
+            const options: LocalizeOptions = localizeService['options'];
+            Object.assign(options, { textOrder: 'defaultLocale' });
+
+            await expect(localizeService.onAppInit()).resolves.toBeUndefined();
+
+            Object.assign(options, { textOrder: undefined });
+        });
+
+        it('asks nothing of an application whose locales agree', async () => {
+            setSupportedLocales(localizeService['options'].defaultLocale, 'en-GB');
+
+            await expect(localizeService.onAppInit()).resolves.toBeUndefined();
+        });
+    });
+
+    describe('ordering text', () => {
+        it('orders alphabetically rather than by the bytes text is written with', () => {
+            // 'B' is the lower byte and the later letter
+            expect(localizeService.compareText('Bravo', 'alpha')).toBeGreaterThan(0);
+            expect(localizeService.compareText('alpha', 'Bravo')).toBeLessThan(0);
+        });
+
+        it('lets case decide only between two texts that are otherwise the same', () => {
+            expect(localizeService.compareText('alpha', 'Alpha')).toBeLessThan(0);
+            expect(localizeService.compareText('alpha', 'alpha')).toBe(0);
+        });
+    });
 });

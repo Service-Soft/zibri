@@ -25,5 +25,6 @@
         "useDefineForClassFields": true,
         "useUnknownInCatchVariables": true
     },
+    "exclude": ["src/__testing__/file-output"],
     "include": ["src", "jest.config.mjs"]
 }

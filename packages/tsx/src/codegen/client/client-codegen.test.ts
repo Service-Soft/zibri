@@ -4,27 +4,24 @@ import { describe, expect, it } from '@jest/globals';
 
 import { ClientScript, compileClientScript } from './client-codegen';
 import { collectHandlerSites } from './handlers';
+import { parseTemplateOk } from '../../__testing__/parse.helper';
 import { renderComponentResult, renderWithComponents } from '../../__testing__/server-render.helper';
-import { Program } from '../../parser/ast';
-import { parse } from '../../parser/parser';
 import { collectClientGlobalAliasesFromSource } from '../../semantics/client-packages';
 import { ComponentFunction, ComponentInfo, findComponents } from '../../semantics/component';
+import { eraseTypes } from '../erase-types';
 
 function componentOf(source: string): ComponentFunction {
     return infoOf(source).fn;
 }
 
 function infoOf(source: string): ComponentInfo {
-    const program: Program | undefined = parse(source).program;
-    if (!program) {
-        throw new Error('parse failed');
-    }
-    return findComponents(program)[0];
+    return findComponents(parseTemplateOk(source))[0];
 }
 
 function clientOf(source: string): ClientScript {
     const info: ComponentInfo = infoOf(source);
-    return compileClientScript(info.fn, info.name, collectClientGlobalAliasesFromSource(source));
+    const client: ClientScript = compileClientScript(info.fn, info.name, collectClientGlobalAliasesFromSource(source));
+    return { ...client, code: client.code === undefined ? undefined : eraseTypes(client.code) };
 }
 
 // --- minimal DOM stub -------------------------------------------------------
@@ -140,8 +137,8 @@ describe('compileClientScript', () => {
 
     it('emits a named setup function that inlines onClient and includes the body', () => {
         const script: ClientScript = clientOf('const A = () => { onClient(() => { setup(); }); return <div/>; };');
-        expect(script.setupName).toBe('A$$setup');
-        expect(script.code).toContain('function A$$setup(__unusedProps, __ssr)');
+        expect(script.setupName).toMatch(/^A\$\$setup\$[\da-f]{12}$/);
+        expect(script.code).toContain(`function ${script.setupName}(__unusedProps, __ssr)`);
         expect(script.code).toContain('const onClient = (fn) => { fn(); };');
         expect(script.code).toContain('onClient(() =>');
         expect(script.code).not.toContain('return $ssr');

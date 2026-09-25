@@ -5,6 +5,7 @@ import { MetricsServiceInterface } from '../../metrics/metrics-service.interface
 import { OmitStrict } from '../../types/omit-strict.type';
 import { CacheMetrics } from '../cache-metrics.model';
 import { CacheServiceInterface } from '../cache-service.interface';
+import { CacheSingleFlight } from '../cache-single-flight.model';
 import { CacheTagMatcher } from '../cache-tag-matchers';
 import { CacheOperation } from './cache-operation.enum';
 import { CacheKeyProvider, CacheSetDirectOptions, CacheTagsProvider, CacheTtlProvider, CacheWrapDeleteOptions, CacheWrapInvalidateOptions, OnInvalidationFailure, ResultCacheTagsProvider, ResultCacheTtlProvider } from './cache-options.model';
@@ -18,7 +19,7 @@ import { CachedValue } from '../store/cached-value.model';
 export abstract class BaseCache<K, V, CacheTag extends string, WriteResultAvailable extends boolean, N extends string>
 implements OmitStrict<CacheInterface<K, V, CacheTag, WriteResultAvailable, N>, 'wrap' | 'wrapWrite'> {
 
-    private readonly inFlight: Map<K, Promise<V>> = new Map();
+    private readonly inFlight: CacheSingleFlight<V> = new CacheSingleFlight();
 
     private _metrics: CacheMetrics | undefined;
 
@@ -74,9 +75,9 @@ implements OmitStrict<CacheInterface<K, V, CacheTag, WriteResultAvailable, N>, '
                             this.metrics.deletes.increase({ cache: this.name });
                             await this.updateSizeGauge();
                         })
-                        .catch(async (error) => {
+                        .catch((error) => {
                             this.metrics.errors.increase({ cache: this.name, operation: 'delete' });
-                            await this.logger.warn(
+                            this.logger.warn(
                                 'Cache deletion failed after successful source delete',
                                 { error }
                             );
@@ -123,7 +124,6 @@ implements OmitStrict<CacheInterface<K, V, CacheTag, WriteResultAvailable, N>, '
             deletes: this.metricsService.getCounter('cache_deletes_total', label),
             invalidations: this.metricsService.getCounter('cache_invalidations_total', label),
             invalidationFailures: this.metricsService.getCounter('cache_invalidation_failures_total', label),
-            expiredEvictions: this.metricsService.getCounter('cache_expired_evictions_total', label),
             errors: this.metricsService.getCounter('cache_errors_total', labelWithOp),
             inFlight: this.metricsService.getGauge('cache_in_flight', label),
             size: this.metricsService.getGauge('cache_size', label),
@@ -155,24 +155,12 @@ implements OmitStrict<CacheInterface<K, V, CacheTag, WriteResultAvailable, N>, '
      * @returns The resolving promise.
      */
     protected async runSingleFlight(key: K, factory: () => Promise<V>): Promise<V> {
-        const existing: Promise<V> | undefined = this.inFlight.get(key);
-        if (existing !== undefined) {
-            return existing;
+        try {
+            return await this.inFlight.run(key, factory);
         }
-
-        const promise: Promise<V> = (async () => {
-            try {
-                return await factory();
-            }
-            finally {
-                this.inFlight.delete(key);
-                this.metrics.inFlight.set({ cache: this.name }, this.inFlight.size);
-            }
-        })();
-
-        this.inFlight.set(key, promise);
-        this.metrics.inFlight.set({ cache: this.name }, this.inFlight.size);
-        return promise;
+        finally {
+            this.metrics.inFlight.set({ cache: this.name }, this.inFlight.size);
+        }
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -218,7 +206,7 @@ implements OmitStrict<CacheInterface<K, V, CacheTag, WriteResultAvailable, N>, '
                 throw error;
             }
             else {
-                await this.logger.warn(
+                this.logger.warn(
                     'Cache invalidation failed, stale data may be served',
                     { error }
                 );

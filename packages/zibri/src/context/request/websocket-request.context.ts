@@ -11,6 +11,14 @@ export class WebsocketRequestContext extends BaseContext<'websocket-request'> {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly type: 'websocket-request' = 'websocket-request';
 
+    /**
+     * Whether the client this message came from has gone.
+     *
+     * Read where a response would otherwise be written: a message whose socket has closed has
+     * nowhere to be answered, which a failed http request always does.
+     */
+    clientGone: boolean = false;
+
     constructor(
         readonly request: WebsocketRequest,
         readonly connection: BaseWebsocketConnection | undefined,

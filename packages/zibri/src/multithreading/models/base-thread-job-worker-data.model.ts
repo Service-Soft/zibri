@@ -14,11 +14,19 @@ export type BaseThreadJobWorkerData = {
 /**
  * The data to run a function in the thread worker.
  *
- * **IMPORTANT**: This uses "eval" in the thread worker, so make sure that the data passed is not malicious.
+ * Only reachable through `run`, which keeps the job in this process. A queued job is written to a
+ * row and read back to be requeued, so a function there would have to be stored as source and turned
+ * back into code to run a second time - and write access to that table would then be enough to run
+ * code in a worker. `queueThreadJob` refuses it for that reason; work that has to survive a restart
+ * lives in a file.
  */
 export type BaseFunctionThreadJobWorkerData<I> = {
     /**
      * A stringified function to call in the worker.
+     *
+     * Built back into a function with its arguments and the worker's globals in scope and nothing
+     * else, so a variable captured from around it is a `ReferenceError` when it runs. Everything it
+     * needs goes through `input`.
      */
     func: string,
     /**

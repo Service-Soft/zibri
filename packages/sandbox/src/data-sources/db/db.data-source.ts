@@ -1,52 +1,24 @@
-import { PostgresDataSource, PostgresOptions, BaseEntity, DataSource, Newable, MigrationEntity, JwtRefreshToken, JwtCredentials, PasswordResetToken, MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken, Log, Change, ChangeSet, Entity, OmitClass, OtpCredentials, BackupResourceEntity, BackupEntity, Invoice, NumberInvoices, Email, CronJobEntity, ThreadJobEntity, WebsocketChannel, WebsocketMessage, Event, EventSubscriberRun, HashStrategyEntity, EncryptionStrategyEntity, EncryptionKey, OmitStrict } from 'zibri';
+import { BaseEntity, DataSource, Newable, OmitStrict, PostgresDataSource, PostgresOptions, SchemaManagement } from 'zibri';
 
-import { Company, Test, User } from '../../models';
-
-@Entity()
-class Test2 extends OmitClass(MigrationEntity, ['ranAt']) {}
+import { entities } from './entities';
+import { requireEnv } from '../../env';
 
 @DataSource()
 export class DbDataSource extends PostgresDataSource {
     rootPw: string = 'password';
     rootUsername: string = 'postgres';
+    // the framework alters the database to match these classes on every boot, which is what a
+    // model that is still moving wants and the wrong thing once anything is stored: a renamed
+    // property takes the old column and its contents with it. Switch to 'migrations' before
+    // this application holds data anyone would miss. See the data source docs.
+    schemaManagement: SchemaManagement = 'synchronize';
 
     options: OmitStrict<PostgresOptions, 'type' | 'entities'> = {
-        host: 'localhost',
-        port: 5432,
-        username: 'postgres',
-        password: 'password',
-        database: 'db',
-        synchronize: true
+        host: requireEnv('DB_HOST'),
+        port: Number(requireEnv('DB_PORT')),
+        username: requireEnv('DB_USERNAME'),
+        password: requireEnv('DB_PASSWORD'),
+        database: requireEnv('DB_DATABASE')
     };
-    entities: Newable<BaseEntity>[] = [
-        MigrationEntity,
-        Test,
-        User,
-        Test2,
-        JwtRefreshToken,
-        JwtCredentials,
-        PasswordResetToken,
-        Company,
-        MailingList,
-        MailingListSubscriber,
-        MailingListSubscriptionConfirmationToken,
-        Log,
-        Change,
-        ChangeSet,
-        Invoice,
-        NumberInvoices,
-        OtpCredentials,
-        BackupEntity,
-        BackupResourceEntity,
-        Email,
-        CronJobEntity,
-        ThreadJobEntity,
-        WebsocketChannel,
-        WebsocketMessage,
-        Event,
-        EventSubscriberRun,
-        HashStrategyEntity,
-        EncryptionStrategyEntity,
-        EncryptionKey
-    ];
+    entities: Newable<BaseEntity>[] = entities;
 }

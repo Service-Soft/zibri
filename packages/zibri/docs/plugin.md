@@ -17,17 +17,21 @@ Zibri ships with a few built-in plugins for common concerns (invoicing, mailing 
 
 ## Usage
 ### Registering a plugin
-Plugins are passed to the `plugins` option of the `ZibriApplication`:
+Plugins are listed in the `plugins` option your application is built from:
 
 ```ts
-import { ZibriApplication, ZibriInvoicingPlugin, ZibriMailingListPlugin } from 'zibri';
+// src/application-options.base.ts
+import { MailingListController, OmitStrict, ZibriApplicationOptions, ZibriInvoicingPlugin, ZibriMailingListPlugin } from 'zibri';
 
-const app: ZibriApplication = new ZibriApplication({
+export const baseApplicationOptions: OmitStrict<ZibriApplicationOptions, 'dataSources'> = {
     name: 'My Api',
     baseUrl: 'http://localhost:3000',
+    version: '1.0.0',
     plugins: [new ZibriInvoicingPlugin(), new ZibriMailingListPlugin()],
-    //...
-});
+    controllers: [],
+    websocketControllers: [],
+    defaultAuth: 'public'
+};
 ```
 
 Any providers, controllers, cron jobs, body parsers and auth strategies contributed by a plugin are automatically merged into your application.
@@ -65,13 +69,12 @@ It requires you to provide the email/page templates it uses (eg. `SUBSCRIBE_CONF
 Unlike the other built-in plugins it does not register its own controller, so you need to add the `MailingListController` to your application's `controllers` yourself:
 
 ```ts
-import { MailingListController, ZibriApplication, ZibriMailingListPlugin } from 'zibri';
-
-const app: ZibriApplication = new ZibriApplication({
-    //...
+// src/application-options.base.ts
+export const withMailingList: OmitStrict<ZibriApplicationOptions, 'dataSources'> = {
+    ...baseApplicationOptions,
     plugins: [new ZibriMailingListPlugin()],
-    controllers: [MailingListController]
-});
+    controllers: [...baseApplicationOptions.controllers, MailingListController]
+};
 ```
 
 #### ZibriPaymentPlugin

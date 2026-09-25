@@ -1,9 +1,10 @@
-import { capturedVariables, isEventHandlerName, isPropPassThrough, PropScope, propScope, scopeFrameFor } from './handlers';
+import * as ts from 'typescript';
+
+import { attributeExpression, attributesOf, CapturedVariable, capturedVariables, isEventHandlerName, isPropPassThrough, JsxElementLike, PropScope, propScope, ScopeFrame, scopeFrameFor } from './handlers';
 import { SETUP_RUNTIME_PARAM } from './reattach';
-import { Expression, JSXElement, JSXName, Statement } from '../../parser/ast';
+import { AccessShape } from '../../runtime/access-shape';
 import { ComponentFunction } from '../../semantics/component';
-import { childrenOf, walk, WalkNode } from '../../semantics/walk';
-import { printExpression } from '../server/print';
+import { childrenOf, unwrapTypeSyntax, walk } from '../../semantics/walk';
 
 /**
  * A function passed as a plain (non event-handler) prop to a nested component, e.g.
@@ -25,12 +26,16 @@ export type ClientPropSite = {
     /**
      * The prop value expression (the function itself).
      */
-    value: Expression,
+    value: ts.Expression,
     /**
      * Names bound by enclosing nested scopes (e.g. `.map` params) that the function references and
      * must therefore be captured per instance at render time.
      */
-    captureVars: string[]
+    captureVars: string[],
+    /**
+     * What the function reads from each captured value, in the order of {@link ClientPropSite.captureVars}.
+     */
+    captureShapes: AccessShape[]
 };
 
 /**
@@ -45,7 +50,7 @@ export type ClientPropCollection = {
     /**
      * Lookup from value expression node to its site.
      */
-    byNode: Map<Expression, ClientPropSite>
+    byNode: Map<ts.Expression, ClientPropSite>
 };
 
 /**
@@ -57,7 +62,7 @@ export const CLIENT_PROP_VALUES: string = '__clientPropValues';
 /**
  * Name of the build-time table of client-prop factories inside a setup.
  */
-const CLIENT_PROP_FACTORIES: string = '__clientProps';
+export const CLIENT_PROP_FACTORIES: string = '__clientProps';
 
 /**
  * Builds this instance's function props from the build-time factories, applying the values captured
@@ -74,27 +79,26 @@ export const CLIENT_PROPS_RUNTIME: string = `(function () {
 })();`;
 
 /**
- * Emits the build-time table of client-prop factories: one factory per site, parameterized by the
- * variables that site captures from enclosing scopes.
- * @param sites - The component's client-prop sites.
- * @returns The table source (empty when there are no sites).
- */
-export function clientPropFactories(sites: ClientPropSite[]): string {
-    if (sites.length === 0) {
-        return '';
-    }
-    const entries: string[] = sites.map(site => `${site.id}: (${site.captureVars.join(', ')}) => (${printExpression(site.value)})`);
-    return `const ${CLIENT_PROP_FACTORIES} = {\n${entries.join(',\n')}\n};`;
-}
-
-/**
  * Whether a JSX name refers to a component rather than a host element. Only components receive
  * function props; on a host element a function cannot be rendered and is dropped as an attribute.
  * @param name - The JSX tag name.
  * @returns True for capitalized or dotted tags.
  */
-function isComponentName(name: JSXName): boolean {
-    return name.kind !== 'JSXIdentifier' || (!!name.name && !name.name.startsWith(name.name[0].toLowerCase()));
+export function isComponentName(name: ts.JsxTagNameExpression): boolean {
+    if (ts.isPropertyAccessExpression(name)) {
+        return true;
+    }
+    const written: string = ts.isIdentifier(name) ? name.text : name.getText();
+    return !!written && !written.startsWith(written[0].toLowerCase());
+}
+
+/**
+ * The tag name of a JSX element.
+ * @param element - The element.
+ * @returns Its tag name expression.
+ */
+export function tagNameOf(element: JsxElementLike): ts.JsxTagNameExpression {
+    return ts.isJsxElement(element) ? element.openingElement.tagName : element.tagName;
 }
 
 /**
@@ -105,10 +109,10 @@ function isComponentName(name: JSXName): boolean {
  */
 function localFunctionNames(fn: ComponentFunction): Set<string> {
     const names: Set<string> = new Set<string>();
-    if (fn.body.kind !== 'BlockStatement') {
+    if (fn.body == undefined || !ts.isBlock(fn.body)) {
         return names;
     }
-    for (const statement of fn.body.body) {
+    for (const statement of fn.body.statements) {
         addFunctionName(statement, names);
     }
     return names;
@@ -119,19 +123,21 @@ function localFunctionNames(fn: ComponentFunction): Set<string> {
  * @param statement - The statement to inspect.
  * @param names - The accumulator to add to.
  */
-function addFunctionName(statement: Statement, names: Set<string>): void {
-    if (statement.kind === 'FunctionDeclaration') {
-        names.add(statement.id);
+function addFunctionName(statement: ts.Statement, names: Set<string>): void {
+    if (ts.isFunctionDeclaration(statement)) {
+        names.add(statement.name?.text ?? '');
         return;
     }
-    if (statement.kind !== 'VariableDeclaration') {
+    if (!ts.isVariableStatement(statement)) {
         return;
     }
-    for (const declarator of statement.declarations) {
-        const isFunction: boolean = declarator.init?.kind === 'ArrowFunctionExpression'
-            || declarator.init?.kind === 'FunctionExpression';
-        if (isFunction && declarator.id.kind === 'IdentifierPattern') {
-            names.add(declarator.id.name);
+    for (const declaration of statement.declarationList.declarations) {
+        const init: ts.Expression | undefined = declaration.initializer == undefined
+            ? undefined
+            : unwrapTypeSyntax(declaration.initializer);
+        const isFunction: boolean = init != undefined && (ts.isArrowFunction(init) || ts.isFunctionExpression(init));
+        if (isFunction && ts.isIdentifier(declaration.name)) {
+            names.add(declaration.name.text);
         }
     }
 }
@@ -144,17 +150,23 @@ function addFunctionName(statement: Statement, names: Set<string>): void {
  * The nested case matters because serializing such a value silently drops the function - the object
  * arrives in the browser with the key simply missing. Building the whole value on the client instead
  * keeps it intact.
+ *
+ * JSX is not looked into: markup is rendered on the server, and a handler inside it is a handler site of
+ * its own.
  * @param value - The prop value expression.
  * @param locals - The component's locally declared function names.
  * @returns True when the value carries a function.
  */
-function isClientFunction(value: Expression, locals: Set<string>): boolean {
-    if (value.kind === 'Identifier') {
-        return locals.has(value.name);
+function isClientFunction(value: ts.Expression, locals: Set<string>): boolean {
+    if (ts.isIdentifier(value)) {
+        return locals.has(value.text);
     }
     let found: boolean = false;
     walk(value, node => {
-        if (node.kind === 'ArrowFunctionExpression' || node.kind === 'FunctionExpression') {
+        if (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node) || ts.isJsxFragment(node)) {
+            return false;
+        }
+        if (ts.isArrowFunction(node) || ts.isFunctionExpression(node) || ts.isMethodDeclaration(node)) {
             found = true;
         }
         return !found;
@@ -170,23 +182,25 @@ function isClientFunction(value: Expression, locals: Set<string>): boolean {
  */
 export function collectClientPropSites(fn: ComponentFunction): ClientPropCollection {
     const sites: ClientPropSite[] = [];
-    const byNode: Map<Expression, ClientPropSite> = new Map<Expression, ClientPropSite>();
+    const byNode: Map<ts.Expression, ClientPropSite> = new Map<ts.Expression, ClientPropSite>();
     const props: PropScope = propScope(fn);
     const locals: Set<string> = localFunctionNames(fn);
     let counter: number = 0;
 
-    const visit: (node: WalkNode, frames: Set<string>[]) => void = (node: WalkNode, frames: Set<string>[]): void => {
-        if (node.kind === 'JSXElement' && isComponentName(node.name)) {
+    const visit: (node: ts.Node, frames: ScopeFrame[]) => void = (node: ts.Node, frames: ScopeFrame[]): void => {
+        if ((ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node)) && isComponentName(tagNameOf(node))) {
             collectElementProps(node, frames, props, locals, sites, byNode, () => `p${counter++}`);
         }
-        const pushed: Set<string> | undefined = scopeFrameFor(node);
-        const childFrames: Set<string>[] = pushed ? [...frames, pushed] : frames;
+        const pushed: ScopeFrame | undefined = scopeFrameFor(node);
+        const childFrames: ScopeFrame[] = pushed ? [...frames, pushed] : frames;
         for (const child of childrenOf(node)) {
             visit(child, childFrames);
         }
     };
 
-    visit(fn.body, []);
+    if (fn.body != undefined) {
+        visit(fn.body, []);
+    }
     return { sites, byNode };
 }
 
@@ -201,30 +215,29 @@ export function collectClientPropSites(fn: ComponentFunction): ClientPropCollect
  * @param nextId - Allocates the next site id.
  */
 function collectElementProps(
-    element: JSXElement,
-    frames: Set<string>[],
+    element: JsxElementLike,
+    frames: ScopeFrame[],
     props: PropScope,
     locals: Set<string>,
     sites: ClientPropSite[],
-    byNode: Map<Expression, ClientPropSite>,
+    byNode: Map<ts.Expression, ClientPropSite>,
     nextId: () => string
 ): void {
-    for (const attribute of element.attributes) {
-        if (attribute.kind !== 'JSXAttribute' || isEventHandlerName(attribute.name)) {
+    for (const attribute of attributesOf(element)) {
+        if (!ts.isJsxAttribute(attribute) || isEventHandlerName(attribute.name.getText())) {
             continue;
         }
-        if (!attribute.value || attribute.value.kind !== 'JSXExpressionContainer' || !attribute.value.expression) {
+        const value: ts.Expression | undefined = attributeExpression(attribute);
+        if (value === undefined || !isClientFunction(value, locals) || isPropPassThrough(value, props)) {
             continue;
         }
-        const value: Expression = attribute.value.expression;
-        if (!isClientFunction(value, locals) || isPropPassThrough(value, props)) {
-            continue;
-        }
+        const captured: CapturedVariable[] = capturedVariables(value, frames);
         const site: ClientPropSite = {
             id: nextId(),
-            name: attribute.name,
+            name: attribute.name.getText(),
             value,
-            captureVars: capturedVariables(value, frames)
+            captureVars: captured.map(variable => variable.name),
+            captureShapes: captured.map(variable => variable.shape)
         };
         sites.push(site);
         byNode.set(value, site);

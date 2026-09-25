@@ -5,6 +5,7 @@ import { normalizePackageJson } from './normalize-package-json.function';
 
 type PackageJsonInput = {
     version?: string,
+    author?: string,
     dependencies?: Record<string, string>,
     devDependencies?: Record<string, string>
 };
@@ -53,6 +54,33 @@ describe('normalizePackageJson', () => {
         // the sandbox not declaring zibri-tsx at all is real drift too.
         expect(changed).toContain('zibri-tsx');
         expect(changed).toContain('version');
+    });
+
+    it('reports nothing when the two files only order their blocks differently', () => {
+        const changed: string = changedLines(
+            {
+                devDependencies: { typescript: '^5.8.3' },
+                dependencies: { 'pg-query-stream': '^4.10.3' }
+            },
+            {
+                dependencies: { 'pg-query-stream': '^4.10.3' },
+                devDependencies: { typescript: '^5.8.3' }
+            }
+        );
+
+        // npm writes a top level key when the first install that needs it runs, so "zi new" - which
+        // installs its dev dependencies first - ends up with the two blocks the other way round from
+        // packages/sandbox. Nothing about a package.json depends on that order, but a text diff
+        // reads it as a moved block and reports every line in it, including the ones both files
+        // agree on: a dependency added to both sides showed up as two differences.
+        expect(changed).toEqual('');
+    });
+
+    it('reports nothing when only the author differs', () => {
+        // "zi new" fills the author in from the git configuration of the machine it runs on, the way
+        // npm does, so what it writes is whoever ran the test. Nothing packages/sandbox could hold
+        // would match that anywhere but on one developer's machine.
+        expect(changedLines({ author: 'ci <ci@example.com>' }, { author: 'Tim Fabian' })).toEqual('');
     });
 
     it('respects caret semantics for 0.x versions', () => {

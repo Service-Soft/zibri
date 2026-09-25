@@ -10,9 +10,9 @@ import { IsLoggedInMetadata } from '../../auth/models/is-logged-in-metadata.mode
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { InternalError } from '../../error-handling/internal-error.model';
-import { KnownHeader } from '../../http/known-header.enum';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { RouteRegistry } from '../../global/route-registry/route.registry';
+import { TraceContextUtilities } from '../../tracing/trace-context.utilities';
+import { TraceSpanContext } from '../../tracing/trace-span-context.model';
 
 const allRequestContextTokenKeys: Set<string> = new Set();
 
@@ -48,12 +48,17 @@ export const ZIBRI_REQUEST_CONTEXT_TOKENS = {
         'nonce',
         () => randomBytes(16).toString('base64')
     ),
-    CORRELATION_ID: new RequestContextToken<string>(
-        'correlation_id',
-        ctx => {
-            const correlationIdHeader: string = inject(ZIBRI_DI_TOKENS.CORRELATION_ID_HEADER);
-            return ctx.request.headers?.[correlationIdHeader as KnownHeader] ?? UUIDUtilities.generate();
-        }
+    /**
+     * The trace this request belongs to.
+     *
+     * Read off the headers, where the trace context middleware wrote the resolved context - so a
+     * trace this application started reads the same as one it was handed. A websocket request has
+     * none: the trace it belongs to is established around the handler rather than carried per
+     * message, and `TracingUtilities.getCurrentTraceContext()` is what reads it there.
+     */
+    TRACE_CONTEXT: new RequestContextToken<TraceSpanContext | undefined>(
+        'trace_context',
+        ctx => TraceContextUtilities.findSpanContext(ctx.request.headers ?? {})
     ),
     CURRENT_USER: new RequestContextToken(
         'current_user',
@@ -63,10 +68,10 @@ export const ZIBRI_REQUEST_CONTEXT_TOKENS = {
                 return await authService.getCurrentUser(ctx, authService.strategies, false);
             }
 
-            const currentUserMetadata: CurrentUserMetadata | undefined = MetadataUtilities.getRouteCurrentUser(
+            const currentUserMetadata: CurrentUserMetadata | undefined = RouteRegistry.get(
                 ctx.controllerClass,
                 ctx.controllerMethod
-            );
+            ).params.currentUser;
 
             return await authService.getCurrentUser(
                 ctx,
@@ -83,10 +88,10 @@ export const ZIBRI_REQUEST_CONTEXT_TOKENS = {
                 return await authService.isLoggedIn(ctx, authService.strategies);
             }
 
-            const isLoggedInMetadata: IsLoggedInMetadata | undefined = await authService.resolveIsLoggedInMetadata(
+            const isLoggedInMetadata: IsLoggedInMetadata | undefined = RouteRegistry.get(
                 ctx.controllerClass,
                 ctx.controllerMethod
-            );
+            ).auth.metadata.isLoggedIn;
             return await authService.isLoggedIn(
                 ctx,
                 isLoggedInMetadata?.allowedStrategies ?? authService.strategies
@@ -97,10 +102,9 @@ export const ZIBRI_REQUEST_CONTEXT_TOKENS = {
         'has_2fa',
         async (ctx): Promise<boolean> => {
             const twoFactorService: TwoFactorServiceInterface = inject(ZIBRI_DI_TOKENS.TWO_FACTOR_SERVICE);
-            if (!ctx.controllerClass || !ctx.controllerMethod) {
-                return false;
-            }
-
+            // no route is consulted, unlike the two tokens above: whether a second factor was
+            // presented is a fact about the request and the user, and a route that accepts only
+            // some of the methods states so with `@Auth.require2fa`, which checks them itself.
             const user: BaseUser<string> | undefined = await ctx.get(ZIBRI_REQUEST_CONTEXT_TOKENS.CURRENT_USER);
             if (!user) {
                 return false;

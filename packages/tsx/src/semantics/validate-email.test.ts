@@ -222,13 +222,13 @@ describe('email nesting: diagnostic', () => {
 
 describe('client code in an email (ZTSX005)', () => {
     it('rejects an onClient block', () => {
-        expect(codesOf(email('export const E = () => { onClient(() => { go(); }); return <MjBody></MjBody>; };')))
+        expect(codesOf(email('export const E = () => { onClient(() => { console.log(); }); return <MjBody></MjBody>; };')))
             .toContain('ZTSX005');
     });
 
     it('rejects an event handler', () => {
         expect(codesOf(email('export const E = () => <MjBody><MjSection></MjSection></MjBody>;'
-            .replace('<MjSection></MjSection>', '<MjSection onClick={() => go()}></MjSection>'))))
+            .replace('<MjSection></MjSection>', '<MjSection onClick={() => console.log()}></MjSection>'))))
             .toContain('ZTSX005');
     });
 
@@ -240,6 +240,6 @@ describe('client code in an email (ZTSX005)', () => {
     });
 
     it('leaves a page template with client code alone', () => {
-        expect(codesOf('export const P = () => { onClient(() => { go(); }); return <div></div>; };')).toEqual([]);
+        expect(codesOf('export const P = () => { onClient(() => { console.log(); }); return <div></div>; };')).toEqual([]);
     });
 });

@@ -1,6 +1,7 @@
 import { generateXlf } from './generate-xlf.function';
 import { ExtractedTranslationString, SourceTranslationOrigin, TransformResult, transformSourceTranslationOriginTokens } from './transform-source-translation-tokens.function';
 import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
+import { optionalPeer } from '../../utilities/optional-peer.function';
 
 /**
  * Generates the source xlf, consisting of all the translation tokens of the codebase.
@@ -9,6 +10,9 @@ import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
 export async function generateSourceXlf(
     origins: SourceTranslationOrigin[]
 ): Promise<void> {
+    // before the sources are read rather than once they have been: that part is the slow one. The
+    // document written from them is checked with saxes, like every document generateFrom writes
+    optionalPeer('saxes', 'Extracting source translations');
     const res: Record<string, TransformResult> = await transformSourceTranslationOriginTokens(origins);
 
     const allStrings: ExtractedTranslationString[] = [...Object.values(res).map(v => v.extracted)].flat();

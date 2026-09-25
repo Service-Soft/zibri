@@ -9,3 +9,17 @@ export type JwtRefreshTokenPayload<Role extends string, T extends BaseUser<Role>
      */
     userId: T['id']
 };
+
+/**
+ * Whether a verified token's payload is a refresh token payload.
+ * @param payload - The verified payload.
+ * @returns Whether it can be read as a refresh token payload.
+ */
+export function isJwtRefreshTokenPayload<Role extends string>(
+    payload: unknown
+): payload is JwtRefreshTokenPayload<Role, BaseUser<Role>> {
+    if (typeof payload !== 'object' || payload == undefined) {
+        return false;
+    }
+    return 'userId' in payload && typeof payload.userId === 'string';
+}

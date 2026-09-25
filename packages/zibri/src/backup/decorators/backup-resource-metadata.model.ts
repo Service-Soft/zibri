@@ -1,4 +1,5 @@
 import { InjectableOptions } from '../../di/decorators/injectable.decorator';
+import { Newable } from '../../types/newable.type';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { BackupTransportInterface } from '../transports/backup-transport.interface';
 
@@ -11,9 +12,9 @@ export type BackupResourceMetadata = {
      */
     name: string,
     /**
-     * The transport that should be used when backing up this resource.
+     * The transports that should be used when backing up this resource.
      */
-    transports: BackupTransportInterface[]
+    transports: 'all' | Newable<BackupTransportInterface>[]
     // /**
     //  *
     //  */

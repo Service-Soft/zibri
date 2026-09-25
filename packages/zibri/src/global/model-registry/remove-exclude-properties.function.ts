@@ -20,14 +20,21 @@ export async function removeExcludeProperties<Data, EntityClass>(
     }
 
     const descriptor: ExcludeDescriptor<EntityClass> = ModelRegistry.get(entityClass).excludeDescriptor;
-    await removeExcludePropertiesRecursive(data, descriptor);
+    await removeExcludePropertiesRecursive(data, descriptor, new Set());
 }
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 async function removeExcludePropertiesRecursive<Data, EntityClass>(
     data: Data,
-    descriptor: ExcludeDescriptor<EntityClass>
+    descriptor: ExcludeDescriptor<EntityClass>,
+    visited: Set<unknown>
 ): Promise<void> {
+    // relations point both ways, so both the descriptors and the data they walk can be cyclic
+    if (visited.has(data)) {
+        return;
+    }
+    visited.add(data);
+
     for (const [key, excludeValue] of descriptor.keys) {
         const shouldExclude: boolean = typeof excludeValue === 'function'
             ? await excludeValue(data, AlsUtilities.getCurrentRequestContext())
@@ -37,19 +44,8 @@ async function removeExcludePropertiesRecursive<Data, EntityClass>(
         }
     }
 
-    for (const [key, nested] of descriptor.nestedKeys) {
-        const value: unknown = (data as AnyObject)[key];
-        if (value == undefined) {
-            continue;
-        }
-        if (Array.isArray(value)) {
-            for (const item of value) {
-                await removeExcludePropertiesRecursive(item, nested);
-            }
-        }
-        else {
-            await removeExcludePropertiesRecursive(value, nested);
-        }
+    for (const nested of descriptor.nestedValues(data)) {
+        await removeExcludePropertiesRecursive(nested.data, nested.descriptor, visited);
     }
 }
 

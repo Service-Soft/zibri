@@ -2,7 +2,7 @@ import { describe, expect, it } from '@jest/globals';
 
 import { MetadataUtilities } from './metadata.utilities';
 import { PropertyMetadata } from '../entity/decorators/property.decorator';
-import { BodyMetadata } from '../routing/decorators/body.decorator';
+import { BodyMetadata } from '../routing/decorators/body-metadata.model';
 
 describe('MetadataUtilities — Reflect-metadata based inheritance (getRouteBody/setRouteBody)', () => {
     it('returns own metadata directly when set on the class itself', () => {

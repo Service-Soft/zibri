@@ -1,9 +1,9 @@
 import { isUserRepository, UserRepositoryInterface } from './user-repository.interface';
-import { UserServiceInterface } from './user-service.interface';
+import { FindUserOptions, UserServiceInterface } from './user-service.interface';
 import { Inject } from '../../di/decorators/inject.decorator';
 import { Injectable } from '../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { getAllRegisteredTokens } from '../../di/get-all-registered-tokens.function';
+import { getAllInstantiatedValues } from '../../di/get-all-instantiated-values.function';
 import { getDiTokenName } from '../../di/get-di-token-name.function';
 import { getRegisteredProvidersOfVariant } from '../../di/get-registered-providers-of-variant.function';
 import { inject } from '../../di/inject.function';
@@ -52,10 +52,10 @@ export class UserService implements UserServiceInterface, OnAppInit {
     ) {}
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async onAppInit(): Promise<void> {
+    onAppInit(): void {
         const repoProviders: DiProvider<unknown>[] = getRegisteredProvidersOfVariant(DiVariants.USER_REPO);
         if (repoProviders.length) {
-            await this.logger.info(`configures ${repoProviders.length} user ${repoProviders.length > 1 ? 'repositories' : 'repository'}:`);
+            this.logger.info(`configures ${repoProviders.length} user ${repoProviders.length > 1 ? 'repositories' : 'repository'}:`);
         }
 
         for (const provider of repoProviders) {
@@ -66,12 +66,13 @@ export class UserService implements UserServiceInterface, OnAppInit {
                 );
             }
             this.userRepositories.push(repo);
-            await this.logger.info(`  - ${getDiTokenName(provider.token)}`);
+            this.logger.info(`  - ${getDiTokenName(provider.token)}`);
         }
 
+        // among what the application has actually built, rather than everything registered - see
+        // `CacheService.onAppInit` for why the second question is the expensive one
         // eslint-disable-next-line typescript/no-explicit-any
-        const repositories: UserRepositoryInterface<string, BaseUser<string>, any>[] = getAllRegisteredTokens()
-            .map(t => inject(t))
+        const repositories: UserRepositoryInterface<string, BaseUser<string>, any>[] = getAllInstantiatedValues()
             .filter(i => isUserRepository(i));
 
         for (const repository of repositories) {
@@ -84,26 +85,38 @@ export class UserService implements UserServiceInterface, OnAppInit {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async findById<Role extends string, T extends BaseUser<Role>>(id: T['id']): Promise<T> {
+    async findById<Role extends string, T extends BaseUser<Role>, B extends boolean = true>(
+        id: T['id'],
+        options?: FindUserOptions<B>
+    ): Promise<B extends false ? T | undefined : T> {
         try {
             return await Promise.any(this.userRepositories.map(r => r.findById(id))) as unknown as T;
         }
         catch {
             if (!this.userRepositories.length) {
-                await this.logger.error(new NoUserRepositoriesProvidedError());
+                this.logger.error(new NoUserRepositoriesProvidedError());
+            }
+            if (options?.required === false) {
+                return undefined as B extends false ? T | undefined : T;
             }
             throw new NotFoundError($ts`Could not find user with id "${id}".`);
         }
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async findByEmail<Role extends string, T extends BaseUser<Role>>(mail: string): Promise<T> {
+    async findByEmail<Role extends string, T extends BaseUser<Role>, B extends boolean = true>(
+        mail: string,
+        options?: FindUserOptions<B>
+    ): Promise<B extends false ? T | undefined : T> {
         try {
             return await Promise.any(this.userRepositories.map(r => r.findByEmail(mail))) as unknown as T;
         }
         catch {
             if (!this.userRepositories.length) {
-                await this.logger.error(new NoUserRepositoriesProvidedError());
+                this.logger.error(new NoUserRepositoriesProvidedError());
+            }
+            if (options?.required === false) {
+                return undefined as B extends false ? T | undefined : T;
             }
             throw new NotFoundError($ts`Could not find user with email "${mail}".`);
         }
@@ -117,7 +130,7 @@ export class UserService implements UserServiceInterface, OnAppInit {
         }
         catch {
             if (!this.userRepositories.length) {
-                await this.logger.error(new NoUserRepositoriesProvidedError());
+                this.logger.error(new NoUserRepositoriesProvidedError());
             }
             throw new NotFoundError($ts`Could not resolve credentials for user with email "${user.email}".`);
         }

@@ -1,0 +1,217 @@
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
+
+import { beforeAll, describe, expect, it } from '@jest/globals';
+import { transformSync as swcTransform } from '@swc/core';
+import { transformSync as esbuildTransform } from 'esbuild';
+import ts from 'typescript';
+
+// type only on purpose: loading the fixture here would declare its entity and its injectables into
+// this process's registries, which is the one thing running each build in a child avoids
+import type { ProbeResult } from '../__testing__/build-toolchains/consumer-application.fixture';
+
+/**
+ * Which toolchains an application can be built with, checked by building one with each of them.
+ *
+ * The framework's decorators are TypeScript's pre-standard ones, and two separate things come with
+ * that. `experimentalDecorators` is what every decorator here rides on, and every toolchain that
+ * compiles TypeScript at all implements it. `emitDecoratorMetadata` is a second, narrower thing:
+ * the framework reads what it writes in exactly two places - a constructor parameter that names no
+ * token, and the check that a number property's declared type matches the format it names - and
+ * esbuild does not implement it at all, which is what made this a lock-in rather than a preference.
+ *
+ * So the promise is two styles rather than one toolchain, and this file is what makes it a promise:
+ * the same application compiled four ways, asserted to behave identically apart from the two things
+ * that depend on the metadata. A claim about somebody else's compiler is worth nothing written down
+ * in a document, because the day it stops being true nothing says so.
+ *
+ * Needs `npm run build` to have run, like `optional-peer-dependencies.test.ts` beside it: the
+ * fixture imports the framework by name, the way a consumer does, so it loads the built package.
+ */
+
+const packageDir: string = path.resolve(__dirname, '..', '..');
+const fixturePath: string = path.join(packageDir, 'src', '__testing__', 'build-toolchains', 'consumer-application.fixture.ts');
+const outputDir: string = path.join(packageDir, 'src', '__testing__', 'file-output', 'build-toolchains');
+
+/**
+ * A way of turning the application's TypeScript into something node runs.
+ */
+type Toolchain = {
+    /**
+     * What to call it in a test name.
+     */
+    name: string,
+    /**
+     * Turns the fixture's source into CommonJS.
+     */
+    compile: (source: string) => string,
+    /**
+     * Whether this build writes down the type of a constructor parameter and of a property.
+     */
+    carriesTypeMetadata: boolean
+};
+
+/**
+ * Compiles the fixture with TypeScript's own compiler.
+ * @param source - The fixture's source.
+ * @param emitDecoratorMetadata - Whether to write the types down.
+ * @returns The CommonJS output.
+ */
+function withTsc(source: string, emitDecoratorMetadata: boolean): string {
+    return ts.transpileModule(source, {
+        compilerOptions: {
+            module: ts.ModuleKind.CommonJS,
+            target: ts.ScriptTarget.ES2022,
+            experimentalDecorators: true,
+            emitDecoratorMetadata: emitDecoratorMetadata,
+            esModuleInterop: true
+        }
+    }).outputText;
+}
+
+const TOOLCHAINS: Toolchain[] = [
+    {
+        // the control: what a consumer following the generated tsconfig gets today
+        name: 'tsc',
+        compile: source => withTsc(source, true),
+        carriesTypeMetadata: true
+    },
+    {
+        name: 'tsc without emitDecoratorMetadata',
+        compile: source => withTsc(source, false),
+        carriesTypeMetadata: false
+    },
+    {
+        // behind flags rather than on by default, which is the whole of what it asks for
+        name: 'swc',
+        compile: source => swcTransform(source, {
+            filename: 'consumer-application.fixture.ts',
+            jsc: {
+                parser: { syntax: 'typescript', decorators: true },
+                transform: { legacyDecorator: true, decoratorMetadata: true },
+                target: 'es2022'
+            },
+            module: { type: 'commonjs' }
+        }).code,
+        carriesTypeMetadata: true
+    },
+    {
+        // there is no flag to turn on here - esbuild implements the decorators and not the metadata,
+        // so this row is the one the whole promise exists for
+        name: 'esbuild',
+        compile: source => esbuildTransform(source, {
+            loader: 'ts',
+            format: 'cjs',
+            target: 'es2022',
+            tsconfigRaw: { compilerOptions: { experimentalDecorators: true, target: 'ES2022' } }
+        }).code,
+        carriesTypeMetadata: false
+    }
+];
+
+const probes: Map<string, ProbeResult> = new Map();
+
+/**
+ * Builds the application with the given toolchain and asks the result about itself.
+ *
+ * In a process of its own because declaring an entity or an injectable registers it globally, so
+ * four copies of one application in this process would be four generations in the same arrays. Kept
+ * once built, so that each toolchain compiles and boots one time however many things are asked of it.
+ * @param toolchain - How to compile it.
+ * @returns What the loaded application answered.
+ */
+function probeOf(toolchain: Toolchain): ProbeResult {
+    const known: ProbeResult | undefined = probes.get(toolchain.name);
+    if (known != undefined) {
+        return known;
+    }
+
+    const compiledPath: string = path.join(outputDir, `${toolchain.name.replaceAll(' ', '-')}.js`);
+    writeFileSync(compiledPath, toolchain.compile(readFileSync(fixturePath, 'utf8')), 'utf8');
+
+    const output: string = execFileSync(
+        process.execPath,
+        ['-e', `console.log(JSON.stringify(require(${JSON.stringify(compiledPath)}).probe()));`],
+        {
+            // the package, so that `zibri` resolves the way it does for anything else in the repo
+            cwd: packageDir,
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'pipe'],
+            // jest cannot interrupt a synchronous child, so one that never settles would hang the
+            // whole run rather than fail this test
+            timeout: 60_000
+        }
+    );
+    // the last line rather than the whole of it: anything the framework prints while loading comes
+    // first, and the answer is what was printed last
+    const result: ProbeResult = JSON.parse(output.trim().split('\n')
+        .at(-1) ?? '') as ProbeResult;
+    probes.set(toolchain.name, result);
+    return result;
+}
+
+describe('build toolchains', () => {
+
+    beforeAll(() => {
+        // emptied rather than only created, so a killed run cannot leave a stale build behind for
+        // the next one to load
+        rmSync(outputDir, { recursive: true, force: true });
+        mkdirSync(outputDir, { recursive: true });
+    });
+
+    it.each(TOOLCHAINS)('builds an application with $name', toolchain => {
+        const result: ProbeResult = probeOf(toolchain);
+
+        // the whole decorator surface, one shape at a time: a class decorator that registers an
+        // injectable, a parameter decorator that names a token, a property decorator that describes
+        // a column, a method decorator that declares a route, and a parameter decorator on that
+        // route. None of them needs a type written down - they are handed everything they record.
+        expect(result.tagged).toBe('hello');
+        expect(result.entityProperties).toContain('reference');
+        expect(result.entityProperties).toContain('total');
+        expect(result.routes).toEqual(['GET /:reference']);
+        expect(result.handler).toEqual({ reference: 'inv-1', greeting: 'hello' });
+    });
+
+    it.each(TOOLCHAINS)('describes the application the same way as tsc does when built with $name', toolchain => {
+        const control: ProbeResult = probeOf(TOOLCHAINS[0] as Toolchain);
+        const result: ProbeResult = probeOf(toolchain);
+
+        // the two metadata-dependent answers are what the styles differ over, and everything else is
+        // what the promise is about - so this compares the rest as a whole rather than property by
+        // property, which is what catches the thing nobody thought to assert
+        expect({ ...result, untagged: undefined, contradictedFormat: undefined })
+            .toEqual({ ...control, untagged: undefined, contradictedFormat: undefined });
+    });
+
+    it.each(TOOLCHAINS.filter(t => t.carriesTypeMetadata))('injects by declared type with $name', toolchain => {
+        // injection by declared type is what the metadata buys, and it keeps working where it is there
+        expect(probeOf(toolchain).untagged).toEqual({ name: 'it resolved', message: 'hello' });
+    });
+
+    it.each(TOOLCHAINS.filter(t => !t.carriesTypeMetadata))('says what to do about an untagged parameter with $name', toolchain => {
+        const result: ProbeResult = probeOf(toolchain);
+
+        // the error is the whole of the migration story for somebody moving an existing application
+        // onto a toolchain that emits no metadata: it has to name the class and the position, say
+        // that nothing was recorded, and offer naming the token rather than leaving "turn the option
+        // on" as the only advice - which is advice esbuild cannot take.
+        expect(result.untagged.name).toBe('UninjectableParameterError');
+        expect(result.untagged.message).toContain('UntaggedService');
+        expect(result.untagged.message).toContain('@Inject');
+        expect(result.untagged.message).toContain('esbuild');
+    });
+
+    it.each(TOOLCHAINS.filter(t => t.carriesTypeMetadata))('refuses a contradicted number format with $name', toolchain => {
+        expect(probeOf(toolchain).contradictedFormat).toContain('The format "bignumber" is held by BigNumber');
+    });
+
+    it.each(TOOLCHAINS.filter(t => !t.carriesTypeMetadata))('cannot see a contradicted number format with $name', toolchain => {
+        // named rather than worked around, because it is the cost of the second style and the only
+        // one: the check reads the declared type, and a build that records no types has nothing for
+        // it to read. The value is still checked against the format on the way in, so what is lost
+        // is when the contradiction is found, not whether a wrong value can be stored.
+        expect(probeOf(toolchain).contradictedFormat).toBe('it was accepted');
+    });
+});

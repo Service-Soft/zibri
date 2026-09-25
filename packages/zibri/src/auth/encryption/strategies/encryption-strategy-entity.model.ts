@@ -16,7 +16,7 @@ export enum EncryptionStrategyStatus {
 /**
  * The encryption strategy entity that is stored in the db.
  */
-@Entity({ allowOrphan: true })
+@Entity({ allowOrphan: true, uniques: [{ properties: ['name', 'version'] }] })
 export class EncryptionStrategyEntity extends BaseEntity {
     /**
      * The name of the strategy.
@@ -47,6 +47,10 @@ export type EncryptionStrategyEntityCreateData = OmitStrict<EncryptionStrategyEn
     & {
         /**
          * The keys for this strategy.
+         *
+         * Optional, because a strategy's first key is written beside it rather than with it: one
+         * statement cannot insert a row and the rows of a relation, and inserting the strategy is
+         * the half that has to be atomic.
          */
-        keys: EncryptionKeyCreateData[]
+        keys?: EncryptionKeyCreateData[]
     };

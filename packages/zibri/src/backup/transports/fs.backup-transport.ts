@@ -7,7 +7,6 @@ import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { LoggerInterface } from '../../logging/logger.interface';
 import { FsUtilities, FsPath } from '../../utilities/fs.utilities';
-import { JsonUtilities } from '../../utilities/json.utilities';
 import { BackupEntity } from '../backup-entity.model';
 import { BackupResourceEntity } from '../backup-resource-entity.model';
 
@@ -16,49 +15,53 @@ const METADATA_FILENAME: string = 'metadata.json';
 /**
  * A transport that saves the data to the local file system.
  */
-export class FsBackupTransport implements BackupTransportInterface {
+export abstract class BaseFsBackupTransport implements BackupTransportInterface {
+    abstract readonly name: string;
+    protected abstract readonly backupBasePath: FsPath;
 
     private get logger(): LoggerInterface {
         return inject(ZIBRI_DI_TOKENS.LOGGER);
     }
 
-    constructor(readonly name: string, protected readonly backupBasePath: FsPath) {}
-
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async resolveBackups(existingEntities: BackupEntity[]): Promise<BackupEntity[]> {
+    async resolveBackups(existingNames: string[]): Promise<string[]> {
         if (!await FsUtilities.exists(this.backupBasePath)) {
             return [];
         }
 
         const nodes: Dirent<string>[] = await FsUtilities.readdir(this.backupBasePath);
-        const res: BackupEntity[] = (await Promise.all(nodes.map(async node => {
-            if (!node.isDirectory()) {
-                return;
-            }
-            if (existingEntities.map(e => e.name).includes(node.name)) {
+        const res: (string | undefined)[] = await Promise.all(nodes.map(async node => {
+            if (!node.isDirectory() || existingNames.includes(node.name)) {
                 return;
             }
             const p: FsPath = FsUtilities.getPath(node.parentPath, node.name, METADATA_FILENAME);
             if (!await FsUtilities.exists(p)) {
-                await this.logger.warn(`Could not find the metadata file needed to resolve a backup: "${p}"`);
+                // a folder holding data and no record is a backup that was interrupted before it
+                // finished: the record is the last thing written, precisely so that this is what a
+                // half-finished one looks like from here
+                this.logger.warn(`Could not find the metadata file needed to resolve a backup: "${p}"`);
                 return;
             }
-            const json: string = await FsUtilities.readFile(p);
-            return JsonUtilities.parse<BackupEntity>(json);
-        }))).filter(b => b != undefined);
-        return res;
+            return await FsUtilities.readFile(p);
+        }));
+        return res.filter(b => b != undefined);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async storeData(data: Readable, backup: BackupEntity, resource: BackupResourceEntity): Promise<void> {
         const p: FsPath = this.getResourcePath(backup, resource);
         await FsUtilities.mkdir(this.getBackupPath(backup));
-        await FsUtilities.createFile(this.getBackupMetadataPath(backup), JsonUtilities.stringify(backup));
 
         await pipeline(
             data,
             FsUtilities.createWriteStream(p)
         );
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async storeMetadata(backup: BackupEntity, document: string): Promise<void> {
+        await FsUtilities.mkdir(this.getBackupPath(backup));
+        await FsUtilities.createFile(this.getBackupMetadataPath(backup), document);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -71,6 +74,11 @@ export class FsBackupTransport implements BackupTransportInterface {
     async deleteData(backup: BackupEntity, resource: BackupResourceEntity): Promise<void> {
         const p: FsPath = this.getResourcePath(backup, resource);
         await FsUtilities.rm(p);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async deleteMetadata(backup: BackupEntity): Promise<void> {
+        await FsUtilities.rm(this.getBackupMetadataPath(backup));
     }
 
     private getResourcePath(backup: BackupEntity, resource: BackupResourceEntity): FsPath {

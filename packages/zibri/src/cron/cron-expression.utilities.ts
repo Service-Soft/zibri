@@ -93,6 +93,16 @@ function withField(
  * Utility class for creating cron expressions with guardrails.
  */
 export class CronExpression {
+    /**
+     * What a field is set to when the caller named a coarser unit than it.
+     *
+     * "Every five minutes" says nothing about seconds, and a field that says nothing means every
+     * value of it - so without this, naming any unit above seconds builds a schedule that fires once
+     * a second throughout every window it matches. The first of the month rather than a zero for the
+     * day, because that field is one based and `0` matches nothing.
+     */
+    private static readonly fieldFloor: CronFields = ['0', '0', '0', '1', '*', '*'];
+
     private readonly _fields: CronFields;
 
     private constructor(fields: CronFields) {
@@ -107,19 +117,27 @@ export class CronExpression {
 
     /**
      * Runs every N units.
+     *
+     * Everything below the named unit is fixed rather than left open, so this means what it says:
+     * "every five minutes" is twelve runs an hour. A field left open matches every value of itself,
+     * so an expression that only names minutes would run once a second for the whole of every fifth
+     * minute. Chain `at` to move a run within its window - the floor is a default, not a lock.
      * @param value - The interval at which to run.
      * @param unit - The unit, like 'minutes', 'hours', 'days' etc.
      * @example
-     * CronExpression.every(5, 'minutes')  // "* *\/5 * * * *"
-     * CronExpression.every(2, 'hours')    // "* * *\/2 * * *"
+     * CronExpression.every(5, 'minutes')  // "0 *\/5 * * * *"
+     * CronExpression.every(2, 'hours')    // "0 0 *\/2 * * *"
      * @returns A cron expression to either continue working with or building the result string.
      */
     static every<T extends CronUnit>(value: RangeForCronUnit<T>, unit: T): CronExpression {
         const idx: number = UNIT_FIELD_INDEX[unit];
         const field: string = value === 1 ? '*' : `*/${value}`;
-        return new CronExpression(
-            withField(CronExpression.blank()._fields, idx, field)
-        );
+
+        const floored: CronFields = CronExpression.blank()._fields.map(
+            (f, i) => i < idx ? CronExpression.fieldFloor[i] : f
+        ) as CronFields;
+
+        return new CronExpression(withField(floored, idx, field));
     }
 
     /**
@@ -177,7 +195,7 @@ export class CronExpression {
      * @param value - The concrete value.
      * @param unit - The unit, like 'minutes', 'hours', 'days' etc.
      * @example
-     * CronExpression.every(1, 'hours').at(30, 'minutes')  // "* 30 * * * *" (at :30 past every hour)
+     * CronExpression.every(1, 'hours').at(30, 'minutes')  // "0 30 * * * *" (at :30 past every hour)
      * CronExpression.daily().at(9, 'hours')               // "0 0 9 * * *"
      * @returns A cron expression to either continue working with or building the result string.
      */
@@ -192,7 +210,7 @@ export class CronExpression {
      * @param to - The value at which the range ends.
      * @param unit - The unit, like 'minutes', 'hours', 'days' etc.
      * @example
-     * CronExpression.every(1, 'minutes').between(9, 17, 'hours')  // "* * 9-17 * * *" (business hours only)
+     * CronExpression.every(1, 'minutes').between(9, 17, 'hours')  // "0 * 9-17 * * *" (business hours only)
      * @returns A cron expression to either continue working with or building the result string.
      * @throws If the "from" value is smaller than the "to" value.
      */

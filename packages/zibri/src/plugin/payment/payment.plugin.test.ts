@@ -44,7 +44,9 @@ async function startWith(
 ): Promise<StartedTestServer> {
     return startTestServer({
         plugins: [new ZibriPaymentPlugin()],
-        dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Payment] })],
+        // one class per call and this helper runs once per test, so every application here is given
+        // the newest, and the earlier ones stay declared without ever being deployed
+        dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Payment], allowOrphan: true })],
         providers: [
             ...defaultTestServerProviders,
             defineProvider({

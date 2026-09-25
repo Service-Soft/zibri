@@ -1,5 +1,6 @@
 import { parentPort } from 'node:worker_threads';
 
+import { errorToLoggedError } from '../../../logging/error-to-logged-error.function';
 import { Percentage } from '../../../types/percentage.type';
 import { ThreadJobMessage } from '../../models/thread-job-message.model';
 
@@ -30,23 +31,18 @@ export function reportCompletion<T>(result?: T): void {
 /**
  * Reports an error inside a thread job.
  * @param error - The error to report.
+ * @param fatal - Whether the worker is ending itself because of this, so the parent knows not to
+ * hand it another job in the moment it has left.
  */
-export function reportError(error: Error): void {
+export function reportError(error: Error, fatal: boolean = false): void {
     const message: ThreadJobMessage = {
         type: 'error',
         // name/message/stack are non-enumerable on Error instances, so they would be lost once the
-        // reported error is JSON-serialized for persistence.
-        error: toError(error)
+        // reported error is JSON-serialized for persistence. `errorToLoggedError` is what the rest
+        // of the framework stores a failure as, and it follows the `cause` chain, which the flat
+        // shape this used to build dropped.
+        error: errorToLoggedError(error instanceof Error ? error : new Error(`${String(error)}`)),
+        fatal
     };
     parentPort?.postMessage(message);
-}
-
-// eslint-disable-next-line jsdoc/require-jsdoc
-function toError(value: unknown): Error {
-    const error: Error = value instanceof Error ? value : new Error(`${value}`);
-    return {
-        name: error.name,
-        message: error.message,
-        stack: error.stack
-    };
 }

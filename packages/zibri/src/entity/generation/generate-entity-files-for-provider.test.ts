@@ -485,7 +485,7 @@ describe('generateEntityFiles', () => {
         const lines: string[] = fileContent.split(/\r?\n/);
         const propIndex: number = lines.findIndex(l => propNameRegex.test(l));
         expect(propIndex).toBeGreaterThan(0);
-        expect(lines[propIndex - 1].trim()).toBe('');
+        expect(lines[propIndex - 1]?.trim()).toBe('');
     }
 
     it(

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from '@jest/globals';
 
 import { validateEntitiesRegistered } from './validate-entities-registered.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { ZibriApplication } from '../application';
+import { ZibriApplication } from '../application/application';
 import { BaseEntity } from '../entity/base-entity.model';
 import { Entity } from '../entity/decorators/entity.decorator';
 import { AppState } from '../global/app-state.enum';

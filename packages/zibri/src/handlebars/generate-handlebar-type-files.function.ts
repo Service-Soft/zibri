@@ -81,12 +81,10 @@ function generateInterfaceLines(
     currentPath = ''
 ): string[] {
     const lines: string[] = [];
-    const keys: string[] = ObjectUtilities.keys(tree);
+    const entries: [string, PathTree][] = ObjectUtilities.entries(tree);
 
-    for (let i: number = 0; i < keys.length; i++) {
-        const key: string = keys[i];
-        const isLast: boolean = i === keys.length - 1;
-        const subtree: PathTree = tree[key];
+    for (const [i, [key, subtree]] of entries.entries()) {
+        const isLast: boolean = i === entries.length - 1;
         const fullPath: string = currentPath ? `${currentPath}.${key}` : key;
 
         const suffix: string = arrayKeys.includes(fullPath) ? '[]' : '';

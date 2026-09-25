@@ -5,14 +5,24 @@ import { BaseUser } from '../../models/base-user.model';
 /**
  * Interface for a two factor method.
  */
-export interface TwoFactorMethod<TwoFactorRequestRegisterData, TwoFactorConfirmRegisterData> {
+export interface TwoFactorMethod<
+    TwoFactorRequestRegisterData,
+    TwoFactorConfirmRegisterData,
+    TwoFactorRequestRegisterResult = void
+> {
     /**
      * Requests to register the two factor method for the given user.
+     *
+     * What it answers is whatever the user has to be shown to finish enrolling - for an
+     * authenticator app that is the otpauth url behind the qr code, for a method that mails a code
+     * it is nothing at all, which is why this defaults to `void`. It is returned rather than stored:
+     * everything in it is derived from the secret, so keeping a copy at rest would mean a second
+     * plaintext of the thing the row exists to protect.
      */
     requestRegisterForUser: <Role extends string, UserType extends BaseUser<Role>>(
         user: UserType,
         data: TwoFactorRequestRegisterData
-    ) => void | Promise<void>,
+    ) => TwoFactorRequestRegisterResult | Promise<TwoFactorRequestRegisterResult>,
     /**
      * Confirms the registration of the two factor method for the given user.
      */

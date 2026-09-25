@@ -31,10 +31,6 @@ export type CacheMetrics = {
      */
     invalidationFailures: CounterInterface,
     /**
-     * How many times cached values have expired.
-     */
-    expiredEvictions: CounterInterface,
-    /**
      * How many times errors occurred during caching.
      */
     errors: CounterInterface,

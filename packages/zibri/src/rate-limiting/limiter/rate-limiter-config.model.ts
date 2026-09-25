@@ -1,6 +1,27 @@
 import { BaseRateLimitState, RateLimiterStoreInterface } from '../stores/rate-limiter-store.interface';
 
 /**
+ * What a limiter does when it cannot reach its store at all.
+ *
+ * There is no correct answer, only a choice: a limiter that knows nothing about the caller can
+ * neither say yes nor say no truthfully. Which way to be wrong depends on what the limit protects -
+ * a login limit that opens during an outage is worse than a login endpoint that is briefly
+ * unavailable, and a limit that only shapes traffic is the other way around.
+ */
+export enum RateLimitStoreFailurePolicy {
+    /**
+     * Refuse the call with a 503. The default, because a limit that quietly stops applying is a limit
+     * nobody finds out about until it mattered.
+     */
+    REJECT = 'reject',
+    /**
+     * Let the call through and count it as an error. For limits whose job is to shape traffic rather
+     * than to protect something.
+     */
+    ALLOW = 'allow'
+}
+
+/**
  * Configuration for the rate limiter.
  */
 export type RateLimiterConfig<TState extends BaseRateLimitState> = {
@@ -42,7 +63,12 @@ export type RateLimiterConfig<TState extends BaseRateLimitState> = {
      * going to take. Defaults to whichever is larger: 5 seconds, or the
      * reservation's own wait time.
      */
-    readonly reservationGracePeriodMs: number | ((waitMs: number) => number)
+    readonly reservationGracePeriodMs: number | ((waitMs: number) => number),
+    /**
+     * What to do when the store cannot be read or written at all - the data source is down, or the
+     * lock could not be taken. Defaults to refusing the call.
+     */
+    readonly onStoreFailure: RateLimitStoreFailurePolicy
 };
 
 /**

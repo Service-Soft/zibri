@@ -1,7 +1,7 @@
 import assert from 'node:assert';
 
 import { BaseRateLimiter } from './base-rate-limiter.model';
-import { RateLimiterConfigInput } from './rate-limiter-config.model';
+import { RateLimiterConfigInput, RateLimitStoreFailurePolicy } from './rate-limiter-config.model';
 import { NumberUtilities } from '../../utilities/number.utilities';
 import { RateLimitResult } from '../rate-limit-result.model';
 import { RateLimitReservation } from '../reservation/rate-limit-reservation.model';
@@ -58,6 +58,7 @@ export class SlidingWindowCounterRateLimiter extends BaseRateLimiter<SlidingWind
     ) {
         super({
             reservationGracePeriodMs: (waitMs) => Math.max(5000, waitMs),
+            onStoreFailure: RateLimitStoreFailurePolicy.REJECT,
             maxReservationCount: config.capacity,
             ...config
         });

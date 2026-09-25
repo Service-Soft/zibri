@@ -1,0 +1,31 @@
+name: CodeQL
+
+# on a schedule as well as on push, because an advisory is published against code that has not
+# changed - the branch going quiet is not the same as the risk going quiet.
+on:
+    push:
+        branches-ignore: [release]
+    schedule:
+        - cron: '0 3 * * 1'
+
+permissions:
+    contents: read
+
+jobs:
+    analyze:
+        runs-on: ubuntu-latest
+        permissions:
+            security-events: write
+            actions: read
+            contents: read
+        steps:
+            - uses: actions/checkout@v4
+            - uses: github/codeql-action/init@v3
+              with:
+                languages: javascript-typescript
+                # the extended suite rather than the default one: the default is tuned for a low
+                # false positive rate on an application, and what is being scanned here is a
+                # framework, where a taint path that reaches a consumer's request handler is the
+                # whole point of looking.
+                queries: security-extended
+            - uses: github/codeql-action/analyze@v3

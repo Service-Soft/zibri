@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, test } from '@jest/globals';
 import { RequestContextToken } from './request-context-token.model';
 import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { Repository } from '../../data-source/repository';
+import { Repository } from '../../data-source/repository/repository';
 import { InjectRepository } from '../../di/decorators/inject-repository.decorator';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';

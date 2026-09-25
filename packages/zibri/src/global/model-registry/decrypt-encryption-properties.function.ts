@@ -29,19 +29,37 @@ export async function decryptEncryptionProperties<Data, EntityClass>(
 
     const context: HttpRequestContext | WebsocketRequestContext | undefined = AlsUtilities.getCurrentRequestContext();
     const descriptor: EncryptionDescriptor<EntityClass> = ModelRegistry.get(entityClass).encryptionDescriptor;
-    await decryptEncryptionPropertiesRecursive(context, data, descriptor, encryptionService);
+    // taken from the row rather than from a nested value, so an embedded object's properties are
+    // checked against the row that holds them - the same one they were bound to on the way in
+    const rowId: unknown = (data as AnyObject)['id'];
+    await decryptEncryptionPropertiesRecursive(
+        context,
+        data,
+        descriptor,
+        encryptionService,
+        typeof rowId === 'string' ? rowId : undefined,
+        new Set()
+    );
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc, sonar/cognitive-complexity
+// eslint-disable-next-line jsdoc/require-jsdoc
 async function decryptEncryptionPropertiesRecursive<Data, EntityClass>(
     context: HttpRequestContext | WebsocketRequestContext | undefined,
     data: Data,
     descriptor: EncryptionDescriptor<EntityClass>,
-    encryptionService: EncryptionServiceInterface
+    encryptionService: EncryptionServiceInterface,
+    rowId: string | undefined,
+    visited: Set<unknown>
 ): Promise<void> {
     if (data == undefined || typeof data !== 'object') {
         return;
     }
+    // relations point both ways, so both the descriptors and the data they walk can be cyclic. Two
+    // paths reaching the same object also has to decrypt it once rather than twice
+    if (visited.has(data)) {
+        return;
+    }
+    visited.add(data);
 
     for (const [key, encryptionOptions] of descriptor.keys) {
         if (typeof (data as AnyObject)[key] !== 'string') {
@@ -53,26 +71,18 @@ async function decryptEncryptionPropertiesRecursive<Data, EntityClass>(
             continue;
         }
 
+        // the binding goes in whether or not the property asked to be bound: what a value was bound
+        // to is written into the value, so this is what it gets checked against rather than what
+        // decides it. A value that was moved has nothing here that matches
         const decrypted: string = await encryptionService.decrypt(
             (data as AnyObject)[key] as EncryptionString,
-            options === true ? undefined : options
+            { ...options === true ? {} : options, binding: { rowId } }
         );
         (data as AnyObject)[key] = decrypted;
     }
 
-    for (const [key, nested] of descriptor.nestedKeys) {
-        const value: unknown = (data as AnyObject)[key];
-        if (value == undefined) {
-            continue;
-        }
-        if (Array.isArray(value)) {
-            for (const item of value) {
-                await decryptEncryptionPropertiesRecursive(context, item, nested, encryptionService);
-            }
-        }
-        else {
-            await decryptEncryptionPropertiesRecursive(context, value, nested, encryptionService);
-        }
+    for (const nested of descriptor.nestedValues(data)) {
+        await decryptEncryptionPropertiesRecursive(context, nested.data, nested.descriptor, encryptionService, rowId, visited);
     }
 }
 

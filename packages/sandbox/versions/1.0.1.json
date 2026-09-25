@@ -2,167 +2,167 @@
     "routes": [
         {
             "key": "GET /favicon.ico",
-            "versions": "all"
+            "versions": { "shape": "All", "value": "all" }
         },
         {
             "key": "GET /explorer/spec/:version",
-            "versions": "all"
+            "versions": { "shape": "All", "value": "all" }
         },
         {
             "key": "GET /explorer/swagger-ui.css",
-            "versions": "all"
+            "versions": { "shape": "All", "value": "all" }
         },
         {
             "key": "GET /explorer/swagger-ui-bundle.js",
-            "versions": "all"
+            "versions": { "shape": "All", "value": "all" }
         },
         {
             "key": "GET /explorer/swagger-ui-standalone-preset.js",
-            "versions": "all"
+            "versions": { "shape": "All", "value": "all" }
         },
         {
             "key": "GET /explorer/swagger-ui-init.js",
-            "versions": "all"
+            "versions": { "shape": "All", "value": "all" }
         },
         {
             "key": "GET /explorer/custom.js",
-            "versions": "all"
+            "versions": { "shape": "All", "value": "all" }
         },
         {
             "key": "GET /explorer",
-            "versions": "all"
+            "versions": { "shape": "All", "value": "all" }
         },
         {
             "key": "GET /tests/",
-            "versions": "all"
+            "versions": { "shape": "All", "value": "all" }
         },
         {
             "key": "GET /tests/:id",
-            "versions": "all"
+            "versions": { "shape": "All", "value": "all" }
         },
         {
             "key": "POST /tests/",
-            "versions": "all"
+            "versions": { "shape": "All", "value": "all" }
         },
         {
             "key": "PATCH /tests/:id",
-            "versions": "all"
+            "versions": { "shape": "All", "value": "all" }
         },
         {
             "key": "DELETE /tests/:id",
-            "versions": "all"
+            "versions": { "shape": "All", "value": "all" }
         },
         {
             "key": "POST /files/",
-            "versions": "all"
+            "versions": { "shape": "All", "value": "all" }
         },
         {
             "key": "GET /files/stream",
-            "versions": "all"
+            "versions": { "shape": "All", "value": "all" }
         },
         {
             "key": "GET /templates/socket",
-            "versions": "all"
+            "versions": { "shape": "All", "value": "all" }
         },
         {
             "key": "GET /templates/password-reset-mail",
-            "versions": "all"
+            "versions": { "shape": "All", "value": "all" }
         },
         {
             "key": "GET /templates/log",
-            "versions": "all"
+            "versions": { "shape": "All", "value": "all" }
         },
         {
             "key": "GET /cron/",
-            "versions": "all"
+            "versions": { "shape": "All", "value": "all" }
         },
         {
             "key": "POST /cron/enable-status",
-            "versions": "all"
+            "versions": { "shape": "All", "value": "all" }
         },
         {
             "key": "POST /cron/disable-status",
-            "versions": "all"
+            "versions": { "shape": "All", "value": "all" }
         },
         {
             "key": "POST /auth/login",
-            "versions": "all"
+            "versions": { "shape": "All", "value": "all" }
         },
         {
             "key": "POST /auth/refresh-login",
-            "versions": "all"
+            "versions": { "shape": "All", "value": "all" }
         },
         {
             "key": "POST /auth/request-password-reset",
-            "versions": "all"
+            "versions": { "shape": "All", "value": "all" }
         },
         {
             "key": "POST /auth/verify-password-reset-token",
-            "versions": "all"
+            "versions": { "shape": "All", "value": "all" }
         },
         {
             "key": "POST /auth/confirm-password-reset",
-            "versions": "all"
+            "versions": { "shape": "All", "value": "all" }
         },
         {
             "key": "POST /auth/logout",
-            "versions": "all"
+            "versions": { "shape": "All", "value": "all" }
         },
         {
             "key": "GET /metrics/",
-            "versions": "all"
+            "versions": { "shape": "All", "value": "all" }
         },
         {
             "key": "GET /metrics/dashboard",
-            "versions": "all"
+            "versions": { "shape": "All", "value": "all" }
         },
         {
             "key": "POST /tests-crud/",
-            "versions": "all"
+            "versions": { "shape": "All", "value": "all" }
         },
         {
             "key": "GET /tests-crud/",
-            "versions": "all"
+            "versions": { "shape": "All", "value": "all" }
         },
         {
             "key": "GET /tests-crud/:id",
-            "versions": "all"
+            "versions": { "shape": "All", "value": "all" }
         },
         {
             "key": "PATCH /tests-crud/:id",
-            "versions": "all"
+            "versions": { "shape": "All", "value": "all" }
         },
         {
             "key": "GET /tests-crud/password-reset-mail",
-            "versions": "all"
+            "versions": { "shape": "All", "value": "all" }
         },
         {
             "key": "GET /",
-            "versions": "all"
+            "versions": { "shape": "All", "value": "all" }
         },
         {
             "key": "GET /assets",
-            "versions": "all"
+            "versions": { "shape": "All", "value": "all" }
         },
         {
             "key": "GET /mailing-lists/:id/subscribe/:token",
-            "versions": "all"
+            "versions": { "shape": "All", "value": "all" }
         },
         {
             "key": "GET /mailing-lists/:id/unsubscribe",
-            "versions": "all"
+            "versions": { "shape": "All", "value": "all" }
         },
         {
             "key": "GET /mailing-lists/preferences",
-            "versions": "all"
+            "versions": { "shape": "All", "value": "all" }
         },
         {
             "key": "PATCH /mailing-lists/preferences",
-            "versions": "all"
+            "versions": { "shape": "All", "value": "all" }
         },
         {
             "key": "chat message",
-            "versions": "all"
+            "versions": { "shape": "All", "value": "all" }
         }
     ],
     "startsAt": "2026-05-27T08:19:29.305Z",

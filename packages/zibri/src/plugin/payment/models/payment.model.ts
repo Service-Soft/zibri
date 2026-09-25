@@ -5,6 +5,7 @@ import { BaseEntity } from '../../../entity/base-entity.model';
 import { Entity } from '../../../entity/decorators/entity.decorator';
 import { Property } from '../../../entity/decorators/property.decorator';
 import { type CurrencyCode } from '../../../localization/models/currency-code.model';
+import { LoggedError } from '../../../logging/logged-error.model';
 
 /**
  * Entity for an payment that has been made.
@@ -48,7 +49,11 @@ export class Payment<M extends PaymentMethod, Data extends AnyObject> extends Ba
     data?: Data | null;
     /**
      * An error that the payment failed with.
+     *
+     * A `LoggedError` rather than an `Error`, because an `Error` keeps its message, stack and cause
+     * on non-enumerable fields - a column storing one keeps `{}`, which is the only record a failed
+     * charge leaves behind.
      */
     @Property.unknown({ required: false })
-    error?: Error | null;
+    error?: LoggedError | null;
 }

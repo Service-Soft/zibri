@@ -2,7 +2,7 @@ import { CookieAuthRefreshSession } from './cookie-auth-refresh-session.model';
 import { CookieAuthSession } from './cookie-auth-session.model';
 import { CronExpression } from '../../../cron/cron-expression.utilities';
 import { CronJob, InitialCronConfig } from '../../../cron/cron-job.model';
-import { Repository } from '../../../data-source/repository';
+import { Repository } from '../../../data-source/repository/repository';
 import { InjectRepository } from '../../../di/decorators/inject-repository.decorator';
 
 /**

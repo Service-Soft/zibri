@@ -8,7 +8,7 @@ import { NumberInvoices } from './models/number-invoices.model';
 import { InvoiceCalcService } from './services/invoice-calc.service';
 import { InvoiceNumberService } from './services/invoice-number.service';
 import { InvoicePdfService } from './services/invoice-pdf.service';
-import { ZibriApplication } from '../../application';
+import { ZibriApplication } from '../../application/application';
 import { NoProviderError } from '../../di/errors/no-provider.error';
 import { inject } from '../../di/inject.function';
 import { DiProvider } from '../../di/models/di-provider.model';
@@ -79,8 +79,7 @@ export class ZibriInvoicingPlugin extends ZibriPlugin {
 
     };
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    providers: DiProvider<unknown>[] = providersFromTokenRecord(ZIBRI_INVOICING_PLUGIN_DI_TOKENS, this.defaultDiProviders);
+    override providers: DiProvider<unknown>[] = providersFromTokenRecord(ZIBRI_INVOICING_PLUGIN_DI_TOKENS, this.defaultDiProviders);
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     validate(app: ZibriApplication): void {

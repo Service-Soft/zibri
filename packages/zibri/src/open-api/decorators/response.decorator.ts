@@ -4,8 +4,8 @@ import { ExcludeStrict } from '../../types/exclude-strict.type';
 import { Newable } from '../../types/newable.type';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { JsonOpenApiResponse, ErrorOpenApiResponse, FileOpenApiResponse, OpenApiResponse, HtmlOpenApiResponse } from '../open-api.model';
-import { PaginationResultClass } from '../pagination-result.model';
+import { JsonOpenApiResponse, EmptyOpenApiResponse, ErrorOpenApiResponse, FileOpenApiResponse, OpenApiResponse, HtmlOpenApiResponse } from '../open-api.model';
+import { KeysetPageClass, PaginationResultClass } from '../pagination-result.model';
 
 /**
  * Bundles decorators for http responses.
@@ -14,9 +14,10 @@ import { PaginationResultClass } from '../pagination-result.model';
 export namespace Response {
 
     /**
-     * A single object json response.
+     * A single object response, json by default. With `mimeTypes`, it can also be written as xml, picked by the
+     * request's `Accept` header.
      * @param entityClass - The class that defines the response objects structure.
-     * @param data - Additional configuration, like status or description.
+     * @param data - Additional configuration, like status, description or the formats it can be written in.
      */
     export function object(
         entityClass: Newable<unknown>,
@@ -47,7 +48,7 @@ export namespace Response {
      */
     export function array(
         entityClass: Newable<unknown>,
-        data?: OmitStrict<JsonOpenApiResponse, 'isArray' | 'type' | 'cls'>
+        data?: OmitStrict<JsonOpenApiResponse, 'isArray' | 'type' | 'cls' | 'mimeTypes'>
     ): MethodDecorator {
         return (target, propertyKey) => {
             const ctor: Function = target.constructor;
@@ -67,9 +68,10 @@ export namespace Response {
     }
 
     /**
-     * A paginated result json response.
+     * A paginated result response, json by default. With `mimeTypes`, it can also be written as xml, picked by the
+     * request's `Accept` header.
      * @param entityClass - The class that defines the paginated items response structure.
-     * @param data - Additional configuration, like status or description.
+     * @param data - Additional configuration, like status, description or the formats it can be written in.
      */
     export function paginated(
         entityClass: Newable<unknown>,
@@ -95,13 +97,14 @@ export namespace Response {
     }
 
     /**
-     * An empty response where nothing is returned.
-     * @param status - The status of the response, defaults to 200.
-     * @param data - Additional configuration, like description.
+     * A response of one page of a keyset read, and the cursor the next page is read with. Json by default; with
+     * `mimeTypes`, it can also be written as xml, picked by the request's `Accept` header.
+     * @param entityClass - The class that defines the paginated items response structure.
+     * @param data - Additional configuration, like status, description or the formats it can be written in.
      */
-    export function empty(
-        status: HttpStatus = HttpStatus.OK,
-        data?: OmitStrict<JsonOpenApiResponse, 'isArray' | 'type' | 'status' | 'cls'>
+    export function keysetPage(
+        entityClass: Newable<unknown>,
+        data?: OmitStrict<JsonOpenApiResponse, 'isArray' | 'type' | 'cls'>
     ): MethodDecorator {
         return (target, propertyKey) => {
             const ctor: Function = target.constructor;
@@ -111,11 +114,36 @@ export namespace Response {
 
             const responses: OpenApiResponse[] = MetadataUtilities.getRouteResponses(ctor, propertyKey.toString());
             responses.push({
+                description: `one page of ${entityClass.name} entities, and the cursor for the next`,
+                status: HttpStatus.OK,
                 ...data,
-                cls: undefined,
-                isArray: undefined,
-                type: 'json',
-                status
+                isArray: false,
+                cls: KeysetPageClass(entityClass),
+                type: 'json'
+            });
+            MetadataUtilities.setRouteResponses(ctor, responses, propertyKey.toString());
+        };
+    }
+
+    /**
+     * An empty response where nothing is returned. It has no body in any format, so it goes with json and xml by
+     * default; next to a response written in json alone, say `mimeTypes: [MimeType.JSON]`.
+     * @param data - Additional configuration, like description or the formats the route answers in.
+     */
+    export function empty(
+        data?: OmitStrict<EmptyOpenApiResponse, 'type'>
+    ): MethodDecorator {
+        return (target, propertyKey) => {
+            const ctor: Function = target.constructor;
+            // eslint-disable-next-line unicorn/error-message
+            const stack: string = new Error().stack ?? '';
+            MetadataUtilities.setFilePath(ctor, stack);
+
+            const responses: OpenApiResponse[] = MetadataUtilities.getRouteResponses(ctor, propertyKey.toString());
+            responses.push({
+                status: HttpStatus.NO_CONTENT,
+                ...data,
+                type: 'empty'
             });
             MetadataUtilities.setRouteResponses(ctor, responses, propertyKey.toString());
         };
@@ -180,9 +208,7 @@ export namespace Response {
             const responses: OpenApiResponse[] = MetadataUtilities.getRouteResponses(ctor, propertyKey.toString());
             responses.push({
                 ...data,
-                type: 'json',
-                cls: undefined,
-                isArray: undefined,
+                type: 'error',
                 status
             });
             MetadataUtilities.setRouteResponses(ctor, responses, propertyKey.toString());

@@ -1,3 +1,5 @@
+import assert from 'node:assert';
+
 import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from '@jest/globals';
 
 import { LogLevel } from './log-level.enum';
@@ -6,8 +8,9 @@ import { Logger } from './logger';
 import { LoggerInterface } from './logger.interface';
 import { BaseLoggerTransportConfig, LoggerTransport } from './transport/logger-transport.model';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { Repository } from '../data-source/repository';
+import { Repository } from '../data-source/repository/repository';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { initDiContainer } from '../di/init-di-container.function';
 import { inject } from '../di/inject.function';
 import { InternalError } from '../error-handling/internal-error.model';
@@ -17,10 +20,25 @@ import { Controller } from '../routing/decorators/controller.decorator';
 import { Get } from '../routing/decorators/get.decorator';
 import { Ms } from '../utilities/ms';
 
+/**
+ * The first entry of the first batch a transport was handed.
+ * @param send - The transport's send mock.
+ * @returns The entry.
+ */
+function firstLogHandedTo(
+    send: jest.Mock<(logs: Log[], config: BaseLoggerTransportConfig) => void | Promise<void>>
+): Log {
+    const [firstCall] = send.mock.calls;
+    assert(firstCall, 'the transport was never called');
+    const [log] = firstCall[0];
+    assert(log, 'the transport was called with an empty batch');
+    return log;
+}
+
 describe('Logger', () => {
     let logger: LoggerInterface;
-    let infoTransportSend: jest.Mock<(log: Log, config: BaseLoggerTransportConfig) => void | Promise<void>>;
-    let warnTransportSend: jest.Mock<(log: Log, config: BaseLoggerTransportConfig) => void | Promise<void>>;
+    let infoTransportSend: jest.Mock<(logs: Log[], config: BaseLoggerTransportConfig) => void | Promise<void>>;
+    let warnTransportSend: jest.Mock<(logs: Log[], config: BaseLoggerTransportConfig) => void | Promise<void>>;
 
     beforeAll(() => {
         initDiContainer();
@@ -33,11 +51,11 @@ describe('Logger', () => {
         const warnConfig: BaseLoggerTransportConfig = { name: 'WarnTransport', level: LogLevel.WARN, register: 'directly' };
         const infoTransport: LoggerTransport<BaseLoggerTransportConfig> = LoggerTransport.create(
             infoConfig,
-            infoTransportSend as unknown as (log: Log, config: BaseLoggerTransportConfig) => void
+            infoTransportSend as unknown as (logs: Log[], config: BaseLoggerTransportConfig) => void
         );
         const warnTransport: LoggerTransport<BaseLoggerTransportConfig> = LoggerTransport.create(
             warnConfig,
-            warnTransportSend as unknown as (log: Log, config: BaseLoggerTransportConfig) => void
+            warnTransportSend as unknown as (logs: Log[], config: BaseLoggerTransportConfig) => void
         );
 
         logger = new Logger([infoTransport, warnTransport], {
@@ -46,7 +64,7 @@ describe('Logger', () => {
             [LogLevel.WARN]: Ms.WEEK,
             [LogLevel.ERROR]: Ms.WEEK,
             [LogLevel.CRITICAL]: Ms.WEEK
-        });
+        }, 1000, 100);
     });
 
     afterAll(() => {
@@ -58,31 +76,37 @@ describe('Logger', () => {
         warnTransportSend.mockClear();
     });
 
+    // flushed rather than asserted straight away: entries gather for a moment before they are
+    // written, which is what makes a batch a batch. See logger.batching.test.ts.
     it('only calls transports whose configured level is at or below the log level', async () => {
-        await logger.debug('a debug message');
+        logger.debug('a debug message');
+        await logger.flush();
 
         expect(infoTransportSend).not.toHaveBeenCalled();
         expect(warnTransportSend).not.toHaveBeenCalled();
     });
 
     it('calls transports at or below the log level, skipping the ones above it', async () => {
-        await logger.info('an info message');
+        logger.info('an info message');
+        await logger.flush();
 
         expect(infoTransportSend).toHaveBeenCalledTimes(1);
         expect(warnTransportSend).not.toHaveBeenCalled();
     });
 
     it('calls both transports for a warn message', async () => {
-        await logger.warn('a warn message');
+        logger.warn('a warn message');
+        await logger.flush();
 
         expect(infoTransportSend).toHaveBeenCalledTimes(1);
         expect(warnTransportSend).toHaveBeenCalledTimes(1);
     });
 
     it('builds a log record with the given message and level', async () => {
-        await logger.info('hello world');
+        logger.info('hello world');
+        await logger.flush();
 
-        const log: Log = infoTransportSend.mock.calls[0][0];
+        const log: Log = firstLogHandedTo(infoTransportSend);
         expect(log.message).toBe('hello world');
         expect(log.level).toBe(LogLevel.INFO);
         expect(log.context.origin).toEqual(expect.any(String));
@@ -90,9 +114,10 @@ describe('Logger', () => {
 
     it('attaches the error and message from error()', async () => {
         const error: Error = new Error('boom');
-        await logger.error(error);
+        logger.error(error);
+        await logger.flush();
 
-        const log: Log = warnTransportSend.mock.calls[0][0];
+        const log: Log = firstLogHandedTo(warnTransportSend);
         expect(log.level).toBe(LogLevel.ERROR);
         expect(log.message).toBe('boom');
         expect(log.context.error?.name).toBe('Error');
@@ -101,18 +126,20 @@ describe('Logger', () => {
 
     it('attaches the error and message from critical()', async () => {
         const error: Error = new Error('critical boom');
-        await logger.critical(error);
+        logger.critical(error);
+        await logger.flush();
 
-        const log: Log = warnTransportSend.mock.calls[0][0];
+        const log: Log = firstLogHandedTo(warnTransportSend);
         expect(log.level).toBe(LogLevel.CRITICAL);
         expect(log.message).toBe('critical boom');
         expect(log.context.error?.paragraphs).toContain('critical boom');
     });
 
     it('passes through additional context metadata', async () => {
-        await logger.info('with metadata', { metadata: { userId: 'abc' } });
+        logger.info('with metadata', { metadata: { userId: 'abc' } });
+        await logger.flush();
 
-        const log: Log = infoTransportSend.mock.calls[0][0];
+        const log: Log = firstLogHandedTo(infoTransportSend);
         expect(log.context.metadata).toEqual({ userId: 'abc' });
     });
 
@@ -120,7 +147,13 @@ describe('Logger', () => {
         const consoleErrorSpy: jest.SpiedFunction<typeof console.error> = jest.spyOn(console, 'error').mockImplementation(() => undefined);
         warnTransportSend.mockImplementationOnce(() => Promise.reject(new Error('transport failed')));
 
-        await expect(logger.warn('should not throw')).resolves.toBeUndefined();
+        // returns immediately now - the entry is queued rather than written, so nothing here could
+        // throw even if the transport does
+        expect(() => logger.warn('should not throw')).not.toThrow();
+
+        // the failure happens while draining, so it has to be waited for. That the caller never sees
+        // it is the point: a broken transport must not surface at whatever line happened to log
+        await logger.flush();
         expect(consoleErrorSpy).toHaveBeenCalled();
 
         consoleErrorSpy.mockRestore();
@@ -161,16 +194,22 @@ describe('Logger — real error logged end to end through a request', () => {
         expect(res.status).toBe(500);
         await res.json();
 
+        // the response does not wait for the log to be written, and should not - logging is queued
+        // so a request never pays for a slow transport. The row exists once the queue has drained.
+        await inject(ZIBRI_DI_TOKENS.LOGGER).flush();
+
         const logs: Log[] = await logRepository.findAll({ where: { level: LogLevel.ERROR } });
         const relevant: Log | undefined = logs.find(
             l => l.context.error?.paragraphs.some(p => p.includes('something broke in the controller')) ?? false
         );
 
         expect(relevant).toBeDefined();
-        expect(relevant?.context.error?.name).toBe('GlobalError');
-        expect(relevant?.context.error?.paragraphs.some(p => p.includes('caused by InternalError:'))).toBe(true);
-        // the top-level GlobalError's own stack is intentionally cleared by the error handler, but the
-        // cause's stack trace (the actual controller frame) is preserved inside the paragraphs
+
+        // the error the controller threw, not a wrapper around it. Both of these fields used to
+        // describe a GlobalError instead - one name for every 5xx in the application, and a stack the
+        // handler had blanked - which is what an aggregator groups and fingerprints on
+        expect(relevant?.context.error?.name).toBe('InternalError');
+        expect(relevant?.context.error?.stackTrace.some(l => l.includes('LoggerIntegrationController.boom'))).toBe(true);
         expect(relevant?.context.error?.paragraphs.some(p => p.includes('LoggerIntegrationController.boom'))).toBe(true);
         expect(relevant?.context.origin).toEqual(expect.any(String));
         expect(relevant?.context.request?.method).toBe(HttpMethod.GET);

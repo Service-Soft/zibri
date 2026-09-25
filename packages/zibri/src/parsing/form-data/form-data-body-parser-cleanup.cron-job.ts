@@ -15,7 +15,10 @@ export class FormDataBodyParserCleanupCronJob extends CronJob {
     initialConfig: InitialCronConfig = {
         name: 'FormDataBodyParser Cleanup',
         cron: CronExpression.daily().build(),
-        runOnInit: false
+        runOnInit: false,
+        // the temp folder is on this instance's own filesystem and no other instance can see it,
+        // so electing one would leave every other instance's uploads to fill its disk
+        distributed: false
     };
 
     constructor(
@@ -27,45 +30,56 @@ export class FormDataBodyParserCleanupCronJob extends CronJob {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async onTick(): Promise<void> {
-        await this.logger.info(`cleans up temp folder ${this.tempPath}`);
+        this.logger.info(`cleans up temp folder ${this.tempPath}`);
 
         try {
             const folders: Dirent[] = await FsUtilities.readdir(this.tempPath);
 
-            let foldersToPreserve: number = 0;
+            let removed: number = 0;
             for (const folder of folders) {
                 try {
-                    const folderPath: FsPath = FsUtilities.getPath(this.tempPath, folder.parentPath, folder.name);
-                    const shouldBePreserved: boolean = await this.hasRecentlyBeenCreated(folderPath);
+                    // the name alone: readdir already reports parentPath as this.tempPath, so
+                    // joining both built a path that cannot exist. Removing it then did nothing at
+                    // all - silently, because rm treats a missing path as already gone - while the
+                    // line below reported every folder as removed.
+                    const folderPath: FsPath = FsUtilities.getPath(this.tempPath, folder.name);
 
-                    if (!shouldBePreserved) {
-                        await FsUtilities.rm(folderPath);
+                    if (!await this.hasExpired(folderPath)) {
+                        continue;
                     }
-                    else {
-                        foldersToPreserve++;
-                    }
+                    await FsUtilities.rm(folderPath);
+                    removed++;
                 }
                 catch {
                     // Do nothing
                 }
             }
 
-            await this.logger.info(`removed ${folders.length - foldersToPreserve} out of ${folders.length} folders`);
+            this.logger.info(`removed ${removed} out of ${folders.length} folders`);
         }
         catch {
             // Do nothing
         }
     }
 
-    private async hasRecentlyBeenCreated(folderPath: FsPath): Promise<boolean> {
+    /**
+     * Whether the folder has outlived the time it asked to be kept for.
+     *
+     * Named for what it answers. It used to be called hasRecentlyBeenCreated while returning the
+     * opposite, and the caller read it as "preserve this" - so an expired folder was kept forever
+     * and a live one was deleted.
+     * @param folderPath - The upload folder to check.
+     * @returns True once the folder's cleanup time has passed.
+     */
+    private async hasExpired(folderPath: FsPath): Promise<boolean> {
         const cleanupAtPath: FsPath = FsUtilities.getPath(folderPath, CLEANUP_AT_FILE_NAME);
         try {
-            // Check if the file/folder has been modified within the last 24 hours
             const cleanupAtMs: number = Number(await FsUtilities.readFile(cleanupAtPath));
             return Date.now() > cleanupAtMs;
         }
         catch {
-            // Handle error if the file/folder doesn't exist or there was an issue accessing it
+            // no readable cleanup time, which is what an upload still being written looks like.
+            // Keeping it costs a folder until the next run; removing it deletes a live upload.
             return false;
         }
     }

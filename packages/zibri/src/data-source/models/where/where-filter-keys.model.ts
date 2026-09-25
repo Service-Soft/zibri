@@ -89,3 +89,19 @@ const whereFilterKeySet: Set<WhereFilterKeys> = new Set<WhereFilterKeys>(ObjectU
 export function isWhereFilterKey(key: unknown): key is WhereFilterKeys {
     return whereFilterKeySet.has(key as WhereFilterKeys);
 }
+
+const allOfWhereFilterKeys: Set<WhereFilterKeys> = new Set<WhereFilterKeys>(['like', 'iLike', 'fuzzyLike']);
+
+/**
+ * Checks if the given key takes several values, all of which have to hold.
+ *
+ * The patterns, and only them: "starts with rent" and "ends with 2026" is neither of the two and is
+ * not a third pattern either, so both are kept. Every other key either holds a list already or
+ * combines into a single value - two bounds are the narrower one, since the application orders text
+ * as well as numbers and dates.
+ * @param key - The key to check.
+ * @returns Whether a list under that key means every one of its values.
+ */
+export function isAllOfWhereFilterKey(key: WhereFilterKeys): boolean {
+    return allOfWhereFilterKeys.has(key);
+}

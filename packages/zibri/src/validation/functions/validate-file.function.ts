@@ -3,7 +3,7 @@ import { WebsocketRequestContext } from '../../context/request/websocket-request
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
-import { fileSizeToBytes } from '../../entity/models/file-property-metadata.model';
+import { FilePropertyMetadata, fileSizeToBytes } from '../../entity/models/file-property-metadata.model';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { MimeType } from '../../http/mime-type.enum';
 import { File } from '../../parsing/form-data/file.model';
@@ -36,6 +36,21 @@ export async function validateFile(
         const isRequired: boolean = typeof metadata.required === 'boolean' ? metadata.required : await metadata.required(entity, context);
         return isRequired ? [new IsRequiredValidationProblem(fullKey)] : [];
     }
+    return fileValueProblems(fullKey, property, metadata);
+}
+
+/**
+ * The problems of a file value, judged by the value alone.
+ *
+ * Everything about a file except whether it may be left out, which can depend on the request.
+ * What decides which of several shapes a value is uses exactly this, so it cannot disagree with
+ * validation about any rule it looks at.
+ * @param fullKey - The key the problems are reported under.
+ * @param property - The value.
+ * @param metadata - What the file is declared as.
+ * @returns All validation problems found.
+ */
+export function fileValueProblems(fullKey: string, property: unknown, metadata: FilePropertyMetadata): ValidationProblem[] {
     if (!(property instanceof File)) {
         return [new TypeMismatchValidationProblem(fullKey, 'file')];
     }

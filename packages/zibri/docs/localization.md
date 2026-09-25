@@ -21,13 +21,16 @@ Zibri also comes with a localize service that handles things like [formatting](#
 | `ZIBRI_DI_TOKENS.LOCALIZE_SERVICE` | DI token | Injects `LocalizeServiceInterface` |
 | `LocalizeServiceInterface` | interface | Contract for `formatPrice`, `formatPercent` and `formatDate` |
 | `LocaleCode` | type | Type of a supported locale code (eg. `'en-US'`, `'de'`) |
+| `Timezone` | type | Type of an IANA time zone name (eg. `'UTC'`, `'Europe/Berlin'`) |
 
 ## Usage
 ### Marking strings for translation
 To mark a string for translation you can use `$t`:
 
 ```ts
-import { $t } from 'zibri';
+import { $t, defineProvider, FsUtilities, TranslationToken, ZIBRI_DI_TOKENS } from 'zibri';
+
+import { customer, formatPrice, order, user } from './example-data';
 
 const exampleToken: TranslationToken = $t`Example token`;
 const englishTokenTranslation: string = exampleToken.getValue('en-US');
@@ -47,16 +50,14 @@ const automaticTokenTranslation: string = $ts`Example token`;
 Template parameters are supported and automatically named from the expression they contain:
 
 ```ts
-import { $t } from 'zibri';
-
-const token: TranslationToken = $t`Hello ${user.firstName} ${user.lastName}`;
+const greeting: TranslationToken = $t`Hello ${user.firstName} ${user.lastName}`;
 // source → 'Hello {user.firstName} {user.lastName}'
 ```
 
 For complex expressions, the full expression text is used as the placeholder name:
 
 ```ts
-const token: TranslationToken = $t`Total: ${formatPrice(order.total)} for ${order.items.length} items`;
+const total: TranslationToken = $t`Total: ${formatPrice(order.total)} for ${order.items.length} items`;
 // source → 'Total: {formatPrice(order.total)} for {order.items.length} items'
 ```
 
@@ -132,6 +133,18 @@ Translation files are located at `src/translations/locale.xlf`. Zibri will warn 
 The `<source>` element and `<note>` are informational, only the `<target>` is read at runtime.
 Standard XLIFF editors can open these files directly.
 
+An application whose `translations` folder holds no `source.xlf` starts without it and serves every
+string as it is written in the code. Zibri says so once, on startup.
+
+Point the folder Zibri reads them from somewhere else with the `TRANSLATIONS_PATH` token:
+
+```ts
+defineProvider({
+    token: ZIBRI_DI_TOKENS.TRANSLATIONS_PATH,
+    useFactory: () => FsUtilities.getPath('/var/lib/my-app/translations')
+})
+```
+
 ### Automatically resolve locales
 In a lot of cases, you want to use a locale based on the requesting user.
 
@@ -153,7 +166,7 @@ class ExampleService {
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOCALIZE_SERVICE)
         private localizeService: LocalizeServiceInterface
-    )
+    ) {}
 
     formatExamples(locale: LocaleCode): void {
         // Format a price using the locale's configured currency
@@ -188,7 +201,64 @@ class ExampleService {
 }
 ```
 
+### Which zone a date is read in
+A `Date` is an instant. Which calendar day and hour that instant falls on is a separate question, and only a time zone answers it — the same moment is `2024-01-01 02:30` in UTC and `2023-12-31 21:30` in New York.
+
+`formatDate` reads the instant in the `defaultTimezone` of the localize options, which is `'UTC'`:
+
+```ts
+defineProvider({
+    token: ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS_INPUT,
+    useValue: { defaultTimezone: 'Europe/Berlin' }
+})
+```
+
+The default is UTC rather than the machine's zone, so that one instant reads the same wherever the code runs. A machine zone is part of the environment, which makes the same timestamp one day on a laptop and another in production, and moves it by an hour twice a year anywhere observing daylight saving.
+
+State a zone per call to override it:
+
+```ts
+export function formatPaidAt(localizeService: LocalizeServiceInterface, locale: LocaleCode): void {
+    // the deployment's zone
+    localizeService.formatDate(order.paidAt, 'date-time', { locale });
+
+    // the customer's zone, for something addressed to them
+    localizeService.formatDate(order.paidAt, 'date-time', { locale, timezone: customer.timezone });
+}
+```
+
+`Timezone` is a union of the IANA zone names, so a typo is a compile error.
+
+The zone is a formatting argument, the same as the locale: it belongs to the moment of rendering, so one instant can read as the customer's local time in an email and as the issuer's time on the document that has to say the same thing to everyone.
+
+### Which order text is in
+Which text sorts after which is a question about a language — Swedish sorts `ä` after `z` where German sorts it with `a`. `defaultLocale` answers it for the whole application, and every data source is held to that answer — a postgres text column is created with the matching collation, and anything comparing text in process uses the same rule. An `order`, a page of a keyset walk and an `after` filter therefore agree wherever they run, and text is ordered alphabetically rather than by the bytes it is written with: `alpha` comes before `Bravo`, which is the opposite of what comparing the stored bytes says.
+
+Ordering is per application rather than per request. A column's collation belongs to the schema, so ordering by the requesting locale would mean naming a collation in every statement, which takes ordered reads off their index.
+
+An application whose supported locales order text differently has a decision to make, and it refuses to start until it does:
+
+```ts
+defineProvider({
+    token: ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS_INPUT,
+    // serving both, and storing one order: the default locale's
+    useValue: { defaultLocale: 'de-DE', textOrder: 'defaultLocale' }
+})
+```
+
+`compareText` is what orders text, wherever the framework does it itself:
+
+```ts
+export function sortTitles(localizeService: LocalizeServiceInterface, titles: string[]): string[] {
+    return [...titles].sort((a, b) => localizeService.compareText(a, b));
+}
+```
+
+Postgres needs a server built with ICU, which is where its collation for a locale comes from. One without it is refused at startup, naming the collation it does not have.
+
 ## See also
 - [Request context](./request-context.md) — reading the resolved locale (`CURRENT_LOCALE`) from the current request
 - [Templating](./templating.md) — the `$t`/`$ts`/`$f` hooks available in tsx components
+- [Cron](./cron.md) — `defaultTimezone` as the zone a schedule is read in
+- [Data source](./data-source.md) — ordering and filtering the text that order applies to
 

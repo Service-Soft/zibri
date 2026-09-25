@@ -1,20 +1,21 @@
-import { FileSize } from '../../entity/models/file-property-metadata.model';
-import { MimeType } from '../../http/mime-type.enum';
-import { JsonBodyMetadata, resolveMaxBodySize } from '../../routing/decorators/body.decorator';
+import { JsonBodyMetadata, JsonBodyMetadataInput, JsonBodyShapeMetadataInput, XmlBodyMetadata, XmlBodyMetadataInput } from '../../routing/decorators/body-metadata.model';
+import { resolveStructuredBodyMetadata } from '../../routing/resolve-body-metadata.function';
 import { Newable } from '../../types/newable.type';
-import { OmitStrict } from '../../types/omit-strict.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 
 /**
- * Metadata Input for websocket request bodies.
+ * Metadata Input for websocket request bodies, which are json (the default) or xml.
  */
-export type WebsocketBodyMetadataInput = Partial<OmitStrict<JsonBodyMetadata, 'modelClass' | 'index' | 'type' | 'maxSize'>> & {
+export type WebsocketBodyMetadataInput = JsonBodyMetadataInput | XmlBodyMetadataInput;
+
+/**
+ * Metadata Input for websocket request bodies that are one of several shapes.
+ */
+export type OneOfWebsocketBodyMetadataInput = WebsocketBodyMetadataInput & {
     /**
-     * The base maximum size of the body.
-     *
-     * This is IN ADDITION to any file properties on the request body.
+     * The shapes the body can be. It becomes the first, in this order, that it fits.
      */
-    baseMaxSize?: FileSize
+    shapes: JsonBodyShapeMetadataInput[]
 };
 
 /**
@@ -27,22 +28,33 @@ export function WebsocketBody(
     options: WebsocketBodyMetadataInput = {}
 ): ParameterDecorator {
     return (target, propertyKey, index) => {
-        const fullMetadata: JsonBodyMetadata = {
-            index,
-            modelClass,
-            isArray: false,
-            allowAdditionalProperties: false,
-            required: true,
-            description: undefined,
-            type: MimeType.JSON,
-            maxSize: resolveMaxBodySize(modelClass, options.baseMaxSize),
-            ...options
-        };
-        const ctor: Function = target.constructor;
-        // eslint-disable-next-line unicorn/error-message
-        const stack: string = new Error().stack ?? '';
-        MetadataUtilities.setFilePath(ctor, stack);
-        const key: string = propertyKey?.toString() ?? '';
-        MetadataUtilities.setRouteBody(ctor, fullMetadata, key);
+        setRouteBody(target, propertyKey, resolveStructuredBodyMetadata({ ...options, modelClass }, index));
     };
+}
+
+/**
+ * Bundles the other ways of defining a websocket request body.
+ */
+// eslint-disable-next-line typescript/no-namespace
+export namespace WebsocketBody {
+    /**
+     * Defines a websocket request body property that is one of several shapes.
+     * @param data - The shapes, and additional options like whether it is required.
+     */
+    export function oneOf(data: OneOfWebsocketBodyMetadataInput): ParameterDecorator {
+        const withoutIndex: JsonBodyMetadata | XmlBodyMetadata = resolveStructuredBodyMetadata(data, 0);
+        return (target, propertyKey, index) => {
+            setRouteBody(target, propertyKey, { ...withoutIndex, index });
+        };
+    }
+}
+
+// eslint-disable-next-line jsdoc/require-jsdoc
+function setRouteBody(target: Object, propertyKey: string | symbol | undefined, metadata: JsonBodyMetadata | XmlBodyMetadata): void {
+    const ctor: Function = target.constructor;
+    // eslint-disable-next-line unicorn/error-message
+    const stack: string = new Error().stack ?? '';
+    MetadataUtilities.setFilePath(ctor, stack);
+    const key: string = propertyKey?.toString() ?? '';
+    MetadataUtilities.setRouteBody(ctor, metadata, key);
 }

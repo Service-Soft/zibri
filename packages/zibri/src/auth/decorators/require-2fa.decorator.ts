@@ -19,9 +19,12 @@ export interface Require2faFn {
  */
 export const require2faDecorator: Require2faFn
     = (allowedMethods?: TwoFactorMethods) => {
-        const fullMetadata: Require2faMetadata = {
-            allowedMethods: allowedMethods ?? []
-        };
+        // left undefined rather than defaulted to an empty array, which is not the same thing:
+        // undefined means "whichever methods the app configured", an empty list means "none of
+        // them". Filling it in here turned @Auth.require2fa() with no argument - the way it is meant
+        // to be used - into a route nobody could ever satisfy, because validating against no methods
+        // cannot succeed.
+        const fullMetadata: Require2faMetadata = { allowedMethods };
 
         const decorator: MethodDecorator & ClassDecorator = (
             target: Object,

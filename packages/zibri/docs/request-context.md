@@ -29,8 +29,9 @@ function currentLocalePrefix(): string {
 
 `HttpRequestContext` and `WebsocketRequestContext` share the same shape:
 - `request` — the raw `HttpRequest` (HTTP) or `WebsocketRequest` (websocket).
-- `controllerClass` / `controllerMethod` — the matched route, or `undefined` if routing hasn't resolved yet.
+- `controllerClass` / `controllerMethod` — the matched route, or `undefined` if routing hasn't resolved yet. A http request is routed after its context exists — the version that decides which handler runs is read off the context first — so both are filled in once the route is known and before any check or handler runs. Anything reading them from a service called by a handler sees the route; a middleware that runs before routing does not.
 - `.get(token)` / `.has(token)` — read a `RequestContextToken`'s value.
+- `signal` — an `AbortSignal` that fires when the request is no longer worth working on. A http request fires it when its handler runs out of the time the route allows (see [creating endpoints](./creating-endpoints.md#deadlines)); a websocket request has nothing that bounds it, so its signal does not fire. Pass it on to whatever a handler is waiting for. `AlsUtilities.findCurrentRequestSignal()` is the same signal reached without the context, which is what the http client, the lease service and the thread job wait read.
 
 `HttpRequestContext` additionally carries `response: HttpResponse`. `WebsocketRequestContext` additionally carries `connection: BaseWebsocketConnection | undefined`. Both expose a `type` discriminant (`'http-request'` or `'websocket-request'`) so you can narrow which one you got:
 
@@ -49,10 +50,10 @@ Pass one of `ZIBRI_REQUEST_CONTEXT_TOKENS` to `.get()`/`.has()`. Each token's va
 | Token | Returns | Notes |
 |---|---|---|
 | `NONCE` | `string` | Random per-request base64 nonce, used for CSP |
-| `CORRELATION_ID` | `string` | Read from the correlation-id header, or generated if missing |
-| `CURRENT_USER` | resolved user or `undefined` | Runs the route's configured auth strategies |
+| `TRACE_CONTEXT` | `TraceSpanContext` or `undefined` | The trace this request belongs to, read from its `traceparent`. See [tracing](./tracing.md) |
+| `CURRENT_USER` | resolved user or `undefined` | Runs the route's configured auth strategies, and throws when the route requires a user it cannot resolve |
 | `IS_LOGGED_IN` | `boolean` | Runs the route's configured auth strategies |
-| `HAS_2FA` | `boolean` | `false` if there's no matched route or no current user |
+| `HAS_2FA` | `boolean` | Whether this request presented a valid second factor for the current user; `false` when there is no current user |
 | `CURRENT_VERSION` | `Version` | Resolved via `VERSIONING_SERVICE` |
 | `CURRENT_LOCALE` | `LocaleCode` | Resolved via `LOCALIZE_SERVICE` |
 
@@ -75,7 +76,11 @@ While a `Cache` decorator (see [caching](./caching.md)) is executing, `ZIBRI_DI_
 
 ```ts
 // src/logging/logger.ts
-const cacheContext: CacheContext[] | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_CACHE_CONTEXT);
+import { CacheContext } from 'zibri';
+
+export function currentCacheContext(): CacheContext[] | undefined {
+    return inject(ZIBRI_DI_TOKENS.CURRENT_CACHE_CONTEXT);
+}
 ```
 
 ## Configuration

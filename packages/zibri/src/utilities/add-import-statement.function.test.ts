@@ -53,6 +53,16 @@ describe('addImportStatement', () => {
         expect(lines[0]).toBe('import Foo, { Named } from \'./foo\';');
     });
 
+    it('refuses a side effect import rather than silently leaving the element unimported', () => {
+        const lines: string[] = ['import \'./foo\';'];
+
+        // the line is picked up by containing `import ` and the path, but has no default element to
+        // put the named one beside. The rewrite it used to attempt matched nothing and returned the
+        // line unchanged, so the import was simply missing from generated code that needed it
+        expect(() => addImportStatement(lines, { element: 'Named', path: './foo', defaultImport: false }))
+            .toThrow(/no "from" clause/);
+    });
+
     it('only touches the matching import line, leaving unrelated lines untouched', () => {
         const lines: string[] = ['import { Other } from \'./other\';', 'import { Foo } from \'./foo\';', 'const x = 1;'];
         addImportStatement(lines, { element: 'Bar', path: './foo', defaultImport: false });

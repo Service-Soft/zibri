@@ -31,22 +31,61 @@ export type EventSubscriptionInterface = {
 };
 
 /**
+ * What this application emits, as event type to payload.
+ *
+ * Empty here. An application fills it in through declaration merging, once, wherever it likes.
+ *
+ * ```ts
+ * declare module 'zibri' {
+ *     interface ZibriEventMap {
+ *         userCreated: { userId: string }
+ *     }
+ * }
+ * ```
+ *
+ * An interface rather than a type parameter on the service, because a DI token carries one type and
+ * hands every consumer that same type. A parameter has to be instantiated at the token, which can
+ * only name the widest map there is, so every consumer gets that one and none of them can narrow it
+ * back. Declaring the map in one place is what lets `emit` refuse an event nobody declared, and
+ * `subscribe` hand a hook the payload belonging to the type it named.
+ */
+// eslint-disable-next-line typescript/no-empty-interface
+export interface ZibriEventMap {}
+
+/**
  * Interface for an event service.
  */
-export interface EventServiceInterface<TEvents extends Record<string, unknown>> {
+export interface EventServiceInterface {
+    /**
+     * Hands every unfinished event back to this instance's subscribers so they can try to claim it.
+     *
+     * What makes an event survive the instance that emitted it: emitting only reaches subscribers
+     * in the emitting process, so an event whose instance died would otherwise never be picked up.
+     */
+    dispatchPending: () => Promise<void>,
+    /**
+     * Records that this instance's subscribers still exist, and clears registrations that have
+     * lapsed.
+     *
+     * Emitting and finishing both have to know which subscribers exist across the whole deployment
+     * rather than in one process, which means the set has to be written down somewhere every
+     * instance can read. This is what keeps that current: a subscriber stops counting only once no
+     * instance hosting it is left to say otherwise.
+     */
+    refreshSubscriberRegistrations: () => Promise<void>,
     /**
      * Emits an event of the given type and data.
      */
-    emit: <K extends keyof TEvents>(type: K, data: TEvents[K], cleanupAfterMs?: number) => void | Promise<void>,
+    emit: <K extends keyof ZibriEventMap>(type: K, data: ZibriEventMap[K], cleanupAfterMs?: number) => void | Promise<void>,
     /**
      * Subscribes to events of the given type with the given hook.
      *
      * Additional options can be provided, like eg. Retries or the id of the subscriber.
      * This needs to be unique.
      */
-    subscribe: <K extends keyof TEvents>(
+    subscribe: <K extends keyof ZibriEventMap>(
         type: K,
-        hook: (value: Event<TEvents[K]>) => void | Promise<void>,
+        hook: (value: Event<ZibriEventMap[K]>) => void | Promise<void>,
         options: EventSubscribeOptions
     ) => EventSubscriptionInterface | Promise<EventSubscriptionInterface>,
     /**
@@ -56,7 +95,7 @@ export interface EventServiceInterface<TEvents extends Record<string, unknown>> 
      * This needs to be unique.
      */
     subscribeAll: (
-        hook: (value: Event<TEvents[keyof TEvents]>) => void | Promise<void>,
+        hook: (value: Event<ZibriEventMap[keyof ZibriEventMap]>) => void | Promise<void>,
         options: EventSubscribeOptions
     ) => EventSubscriptionInterface | Promise<EventSubscriptionInterface>
 }

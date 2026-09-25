@@ -15,7 +15,7 @@ class SmallBody {
 class JsonBodyController {
     @Post('/small')
     small(
-        @Body(SmallBody, { baseMaxSize: '20b' })
+        @Body(SmallBody, { maxSize: '20b' })
         body: SmallBody
     ): SmallBody {
         return body;

@@ -1,19 +1,20 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 import { CronExpression, CronExpressionString } from './cron-expression.utilities';
-import { CronJobEntity, CreateCronJobEntityData } from './cron-job-entity.model';
+import { CronJobEntity, CreateCronJobEntityData, CronJobState } from './cron-job-entity.model';
 import { CronJob, InitialCronConfig } from './cron-job.model';
 import { CronService } from './cron.service';
 import { noOp } from '../__testing__/constants';
 import { createTestDataSource, defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { startTestServer, StartedTestServer } from '../__testing__/test-server/start-test-server.function';
-import { ZibriApplication } from '../application';
-import { Repository } from '../data-source/repository';
+import { ZibriApplication } from '../application/application';
+import { Repository } from '../data-source/repository/repository';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { defineProvider } from '../di/models/di-provider.model';
+import { Ms } from '../utilities/ms';
 
 // ---------- Helpers ----------
 
@@ -36,6 +37,28 @@ function makeCronJob(config: Partial<InitialCronConfig> & { onTickImpl?: () => v
     return new TestCronJob();
 }
 
+// Backdates a job's last run, which is the only way to stage an outage without waiting for one.
+// Reaches for the entity rather than the repository because the job holds it in memory and reads it
+// from there; writing only the row would leave the two disagreeing.
+function backdateLastRun(job: CronJob, lastRun: Date): void {
+    const entity: CronJobEntity | undefined = job['entity'];
+    if (!entity) {
+        throw new Error('the job has to be scheduled before its last run can be staged');
+    }
+    entity.lastRun = lastRun;
+}
+
+// Declares nothing but the two required values, so what it ends up with is what a job gets by
+// default. makeCronJob cannot answer that: it fills both flags in its own base config.
+class BarelyConfiguredCronJob extends CronJob {
+    readonly initialConfig: InitialCronConfig = {
+        name: 'barely-configured',
+        cron: CronExpression.every(1, 'minutes').build()
+    };
+
+    override onTick(): void {}
+}
+
 // Every other test in this file boots with `cronJobs: []` and calls cronService.schedule() directly,
 // which never exercises afterAppInit's own auto-registration loop (the one driven by
 // ZibriApplicationOptions.cronJobs) — used by the last nested describe below, via reInit().
@@ -53,8 +76,7 @@ class AutoRegisteredCronJob extends CronJob {
 
 // Every describe below needs the real server/DI state set up here — wrapped in one outer describe so
 // these hooks are scoped to it (Jest cascades beforeEach/beforeAll to nested describes, not to sibling
-// ones declared elsewhere in the file), keeping the unrelated, server-free CronExpression tests below
-// completely unaffected by any of it — including by afterAppInit's reInit() call further down, which
+// ones declared elsewhere in the file), including afterAppInit's reInit() call further down, which
 // invalidates every previously-injected reference.
 describe('CronService / CronJob — real server', () => {
     let server: StartedTestServer;
@@ -69,7 +91,12 @@ describe('CronService / CronJob — real server', () => {
                 })
             ],
             controllers: [],
-            cronJobs: []
+            cronJobs: [],
+            // the shared providers replace CRON_SERVICE with an inert stub, and these tests drive a
+            // real service by hand - scheduling jobs and calling afterAppStart() themselves. Naming
+            // it here is what builds one and runs its own hooks: without it the class is resolved on
+            // first use, which is a service that never initialized and cannot say so.
+            additionalLifecycleServices: [CronService]
         });
         await server.start();
         cronService = inject(CronService);
@@ -96,20 +123,206 @@ describe('CronService / CronJob — real server', () => {
             const job: CronJob = makeCronJob({ name: 'init-test', syncToDataSource: true, runOnInit: false });
             await cronService.schedule(job);
 
-            const entity: CronJobEntity | undefined = await cronJobRepo.findOne({ where: { name: 'init-test' } }, false);
+            const entity: CronJobEntity | undefined = await cronJobRepo.findOne({ where: { name: 'init-test' }, required: false });
             expect(entity).toBeDefined();
             expect(entity?.name).toBe('init-test');
-            expect(entity?.active).toBe(true);
+            expect(entity?.state).toBe(CronJobState.ACTIVE);
+        });
+
+        it('defaults to neither running at startup nor stopping on an error', () => {
+            const job: CronJob = new BarelyConfiguredCronJob();
+
+            // both defaults used to be the dangerous one: every replica fired every job on every
+            // boot, and one transient failure took a job off the schedule for good
+            expect(job['fullInitialConfig'].runOnInit).toBe(false);
+            expect(job['fullInitialConfig'].stopOnError).toBe(false);
+        });
+
+        it('takes runOnInit and stopOnError from the class rather than from the stored row', async () => {
+            // the row is a copy of what the class declares about how the job behaves, not the truth
+            // about it - otherwise editing the declaration changes nothing in any deployment that has
+            // booted once, which is every deployment that has been running longest
+            await cronJobRepo.create({
+                name: 'declaration-wins',
+                cron: CronExpression.every(1, 'minutes').build(),
+                timezone: 'UTC',
+                state: CronJobState.ACTIVE,
+                previousState: undefined,
+                runOnInit: true,
+                stopOnError: true,
+                lastRun: undefined,
+                errorMessage: undefined
+            });
+
+            const job: CronJob = makeCronJob({
+                name: 'declaration-wins',
+                syncToDataSource: true,
+                runOnInit: false,
+                stopOnError: false
+            });
+            await cronService.schedule(job);
+
+            const entity: CronJobEntity | undefined = await cronJobRepo.findOne({
+                where: { name: 'declaration-wins' },
+                required: false
+            });
+            expect(entity?.runOnInit).toBe(false);
+            expect(entity?.stopOnError).toBe(false);
+        });
+
+        it('reads the expression in the deployment default zone when the job names none', async () => {
+            const job: CronJob = makeCronJob({ name: 'default-zone', syncToDataSource: true, runOnInit: false });
+            await cronService.schedule(job);
+
+            const entity: CronJobEntity | undefined = await cronJobRepo.findOne({
+                where: { name: 'default-zone' },
+                required: false
+            });
+            // UTC rather than whatever the machine is set to, so a schedule means the same moment on
+            // a laptop as in production and does not move twice a year
+            expect(entity?.timezone).toBe('UTC');
+        });
+
+        it('lets a job name its own zone, which is what makes per tenant schedules expressible', async () => {
+            const job: CronJob = makeCronJob({
+                name: 'own-zone',
+                timezone: 'Europe/Berlin',
+                syncToDataSource: true,
+                runOnInit: false
+            });
+            await cronService.schedule(job);
+
+            const entity: CronJobEntity | undefined = await cronJobRepo.findOne({
+                where: { name: 'own-zone' },
+                required: false
+            });
+            expect(entity?.timezone).toBe('Europe/Berlin');
+        });
+
+        it('runs a job once for a slot that passed while nothing was up to run it', async () => {
+            // eslint-disable-next-line typescript/typedef
+            const onTickImpl = jest.fn(noOp);
+            const job: CronJob = makeCronJob({
+                name: 'catches-up',
+                cron: CronExpression.every(1, 'seconds').build(),
+                catchUpWithinMs: Ms.MINUTE,
+                distributed: false,
+                syncToDataSource: true,
+                onTickImpl
+            });
+
+            await cronService.schedule(job);
+            // a run half a minute ago, with a schedule that has named a slot every second since
+            backdateLastRun(job, new Date(Date.now() - (Ms.SECOND * 30)));
+
+            await cronService.afterAppStart();
+
+            // one make-up run for the most recent missed slot, not one per slot the gap covered
+            expect(onTickImpl).toHaveBeenCalledTimes(1);
+        });
+
+        it('leaves a job alone when nothing was missed', async () => {
+            // eslint-disable-next-line typescript/typedef
+            const onTickImpl = jest.fn(noOp);
+            const job: CronJob = makeCronJob({
+                name: 'nothing-missed',
+                cron: CronExpression.daily().build(),
+                catchUpWithinMs: Ms.MINUTE,
+                distributed: false,
+                syncToDataSource: true,
+                onTickImpl
+            });
+
+            await cronService.schedule(job);
+            backdateLastRun(job, new Date());
+
+            await cronService.afterAppStart();
+
+            expect(onTickImpl).not.toHaveBeenCalled();
+        });
+
+        it('does not catch up a job that never asked to be caught up', async () => {
+            // eslint-disable-next-line typescript/typedef
+            const onTickImpl = jest.fn(noOp);
+            const job: CronJob = makeCronJob({
+                name: 'no-catch-up',
+                cron: CronExpression.every(1, 'seconds').build(),
+                distributed: false,
+                syncToDataSource: true,
+                onTickImpl
+            });
+
+            await cronService.schedule(job);
+            backdateLastRun(job, new Date(Date.now() - Ms.MINUTE));
+
+            await cronService.afterAppStart();
+
+            // a missed collection of this minute's metrics is not worth doing at all, which is why
+            // this is something a job asks for rather than something it gets
+            expect(onTickImpl).not.toHaveBeenCalled();
+        });
+
+        it('does not catch up a job that has never run', async () => {
+            // eslint-disable-next-line typescript/typedef
+            const onTickImpl = jest.fn(noOp);
+            const job: CronJob = makeCronJob({
+                name: 'never-ran',
+                cron: CronExpression.every(1, 'seconds').build(),
+                catchUpWithinMs: Ms.MINUTE,
+                distributed: false,
+                syncToDataSource: true,
+                onTickImpl
+            });
+
+            await cronService.schedule(job);
+
+            await cronService.afterAppStart();
+
+            // there is no point to measure "since" from, and treating the whole schedule as
+            // outstanding would fire every job on the first boot of every new environment
+            expect(onTickImpl).not.toHaveBeenCalled();
+        });
+
+        it('keeps the schedule an operator changed at runtime', async () => {
+            // the other half of the same rule: `cron` is theirs, so a boot must not take it back
+            const operatorSchedule: CronExpressionString = CronExpression.every(5, 'minutes').build();
+            await cronJobRepo.create({
+                name: 'schedule-is-theirs',
+                cron: operatorSchedule,
+                timezone: 'UTC',
+                state: CronJobState.ACTIVE,
+                previousState: undefined,
+                runOnInit: false,
+                stopOnError: false,
+                lastRun: undefined,
+                errorMessage: undefined
+            });
+
+            const job: CronJob = makeCronJob({
+                name: 'schedule-is-theirs',
+                cron: CronExpression.every(1, 'minutes').build(),
+                syncToDataSource: true,
+                runOnInit: false
+            });
+            await cronService.schedule(job);
+
+            const entity: CronJobEntity | undefined = await cronJobRepo.findOne({
+                where: { name: 'schedule-is-theirs' },
+                required: false
+            });
+            expect(entity?.cron).toBe(operatorSchedule);
         });
 
         it('reuses an existing entity from the DB', async () => {
-            // Pre-create entity with active: false
+            // Pre-create entity that an operator has turned off
             await cronJobRepo.create({
                 name: 'reuse-test',
                 cron: CronExpression.every(1, 'minutes').build(),
-                active: false,
+                timezone: 'UTC',
+                state: CronJobState.INACTIVE,
+                previousState: undefined,
                 runOnInit: false,
-                stopOnError: true,
+                stopOnError: false,
                 lastRun: undefined,
                 errorMessage: undefined
             });
@@ -143,6 +356,71 @@ describe('CronService / CronJob — real server', () => {
             expect(onTickImpl).not.toHaveBeenCalled();
         });
 
+        it('does not call onTick on init when nothing asked it to', async () => {
+            const job: CronJob = new BarelyConfiguredCronJob();
+            // eslint-disable-next-line typescript/typedef
+            const onTick = jest.spyOn(job, 'onTick');
+            await cronService.schedule(job);
+
+            // the default used to be the other way, so every pod restart, scale-out and rolling
+            // deploy fired every job off-schedule - once per replica
+            expect(onTick).not.toHaveBeenCalled();
+        });
+
+        it('runs the startup run once across instances rather than once per instance', async () => {
+            // two jobs of the same name are two replicas of the same deployment as far as the
+            // election is concerned: both boot, both want the startup run, and the claim decides.
+            // `task.execute()` used to run whatever it was given without asking anybody, so opting
+            // in meant one execution per replica no matter what `distributed` said.
+            // eslint-disable-next-line typescript/typedef
+            const onTickImpl = jest.fn(noOp);
+            const first: CronJob = makeCronJob({
+                name: 'startup-elected',
+                runOnInit: true,
+                distributed: true,
+                syncToDataSource: true,
+                onTickImpl
+            });
+            const second: CronJob = makeCronJob({
+                name: 'startup-elected',
+                runOnInit: true,
+                distributed: true,
+                syncToDataSource: true,
+                onTickImpl
+            });
+
+            await cronService.schedule(first);
+            await cronService.schedule(second);
+
+            expect(onTickImpl).toHaveBeenCalledTimes(1);
+        });
+
+        it('runs the startup run on every instance for a job each instance owes for itself', async () => {
+            // the opposite case, and the reason the election is not unconditional: collecting this
+            // process's metrics or clearing this container's temp folder has to happen everywhere
+            // eslint-disable-next-line typescript/typedef
+            const onTickImpl = jest.fn(noOp);
+            const first: CronJob = makeCronJob({
+                name: 'startup-per-instance',
+                runOnInit: true,
+                distributed: false,
+                syncToDataSource: true,
+                onTickImpl
+            });
+            const second: CronJob = makeCronJob({
+                name: 'startup-per-instance',
+                runOnInit: true,
+                distributed: false,
+                syncToDataSource: true,
+                onTickImpl
+            });
+
+            await cronService.schedule(first);
+            await cronService.schedule(second);
+
+            expect(onTickImpl).toHaveBeenCalledTimes(2);
+        });
+
         it('throws if initialized twice', async () => {
             const job: CronJob = makeCronJob({ name: 'double-init', syncToDataSource: false, runOnInit: false });
             await cronService.schedule(job);
@@ -172,7 +450,7 @@ describe('CronService / CronJob — real server', () => {
 
             await job.runOnTick();
 
-            const entity: CronJobEntity | undefined = await cronJobRepo.findOne({ where: { name: 'tick-persist' } }, false);
+            const entity: CronJobEntity | undefined = await cronJobRepo.findOne({ where: { name: 'tick-persist' }, required: false });
             expect(entity?.lastRun).toBeInstanceOf(Date);
         });
 
@@ -183,7 +461,7 @@ describe('CronService / CronJob — real server', () => {
             await job.runOnTick();
 
             // No entity should exist in the DB
-            const entity: CronJobEntity | undefined = await cronJobRepo.findOne({ where: { name: 'tick-no-persist' } }, false);
+            const entity: CronJobEntity | undefined = await cronJobRepo.findOne({ where: { name: 'tick-no-persist' }, required: false });
             expect(entity).toBeUndefined();
         });
     });
@@ -221,6 +499,78 @@ describe('CronService / CronJob — real server', () => {
             await job.runOnTick();
 
             expect(job.active).toBe(false);
+            expect(job.state).toBe(CronJobState.STOPPED_ON_ERROR);
+        });
+
+        it('records where to put the job back, so a stop is told apart from a deliberate disable', async () => {
+            const job: CronJob = makeCronJob({
+                name: 'stop-records-previous',
+                syncToDataSource: true,
+                runOnInit: false,
+                stopOnError: true,
+                onTickImpl: () => {
+                    throw new Error('fatal');
+                }
+            });
+            await cronService.schedule(job);
+
+            await job.runOnTick();
+
+            const entity: CronJobEntity | undefined = await cronJobRepo.findOne({
+                where: { name: 'stop-records-previous' },
+                required: false
+            });
+            expect(entity?.state).toBe(CronJobState.STOPPED_ON_ERROR);
+            expect(entity?.previousState).toBe(CronJobState.ACTIVE);
+        });
+
+        it('puts a job the framework stopped back on the schedule at the next start', async () => {
+            // the restart is the retry: whatever made this boot happen - a deploy, a failover, a
+            // configuration change - is the same class of event that would have fixed the failure
+            await cronJobRepo.create({
+                name: 'recovers-on-boot',
+                cron: CronExpression.every(1, 'minutes').build(),
+                timezone: 'UTC',
+                state: CronJobState.STOPPED_ON_ERROR,
+                previousState: CronJobState.ACTIVE,
+                runOnInit: false,
+                stopOnError: true,
+                lastRun: undefined,
+                errorMessage: 'the failure that stopped it'
+            });
+
+            const job: CronJob = makeCronJob({ name: 'recovers-on-boot', syncToDataSource: true, runOnInit: false, stopOnError: true });
+            await cronService.schedule(job);
+
+            expect(job.state).toBe(CronJobState.ACTIVE);
+
+            const entity: CronJobEntity | undefined = await cronJobRepo.findOne({
+                where: { name: 'recovers-on-boot' },
+                required: false
+            });
+            expect(entity?.state).toBe(CronJobState.ACTIVE);
+            expect(entity?.previousState).toBeFalsy();
+            // what happened stays readable, which is the whole reason to recover rather than to forget
+            expect(entity?.errorMessage).toBe('the failure that stopped it');
+        });
+
+        it('leaves a job somebody turned off turned off', async () => {
+            await cronJobRepo.create({
+                name: 'stays-disabled',
+                cron: CronExpression.every(1, 'minutes').build(),
+                timezone: 'UTC',
+                state: CronJobState.INACTIVE,
+                previousState: undefined,
+                runOnInit: false,
+                stopOnError: false,
+                lastRun: undefined,
+                errorMessage: undefined
+            });
+
+            const job: CronJob = makeCronJob({ name: 'stays-disabled', syncToDataSource: true, runOnInit: false, stopOnError: false });
+            await cronService.schedule(job);
+
+            expect(job.state).toBe(CronJobState.INACTIVE);
         });
 
         it('does not disable the job when stopOnError is false and onTick throws', async () => {
@@ -254,7 +604,7 @@ describe('CronService / CronJob — real server', () => {
 
             await job.runOnTick();
 
-            const entity: CronJobEntity | undefined = await cronJobRepo.findOne({ where: { name: 'error-persist' } }, false);
+            const entity: CronJobEntity | undefined = await cronJobRepo.findOne({ where: { name: 'error-persist' }, required: false });
             expect(entity?.errorMessage).toContain('db-error');
         });
     });
@@ -285,8 +635,8 @@ describe('CronService / CronJob — real server', () => {
 
             await job.disable();
 
-            const entity: CronJobEntity | undefined = await cronJobRepo.findOne({ where: { name: 'disable-persist' } }, false);
-            expect(entity?.active).toBe(false);
+            const entity: CronJobEntity | undefined = await cronJobRepo.findOne({ where: { name: 'disable-persist' }, required: false });
+            expect(entity?.state).toBe(CronJobState.INACTIVE);
         });
 
         it('persists active state to DB on enable', async () => {
@@ -296,8 +646,8 @@ describe('CronService / CronJob — real server', () => {
             await job.disable();
             await job.enable();
 
-            const entity: CronJobEntity | undefined = await cronJobRepo.findOne({ where: { name: 'enable-persist' } }, false);
-            expect(entity?.active).toBe(true);
+            const entity: CronJobEntity | undefined = await cronJobRepo.findOne({ where: { name: 'enable-persist' }, required: false });
+            expect(entity?.state).toBe(CronJobState.ACTIVE);
         });
     });
 
@@ -349,7 +699,7 @@ describe('CronService / CronJob — real server', () => {
             const newCron: CronExpressionString = CronExpression.every(10, 'minutes').build();
             await cronService.changeCron('change-cron', newCron);
 
-            const entity: CronJobEntity | undefined = await cronJobRepo.findOne({ where: { name: 'change-cron' } }, false);
+            const entity: CronJobEntity | undefined = await cronJobRepo.findOne({ where: { name: 'change-cron' }, required: false });
             expect(entity?.cron).toBe(newCron);
         });
 
@@ -363,7 +713,7 @@ describe('CronService / CronJob — real server', () => {
 
             await cronService.update('update-test', { runOnInit: false, stopOnError: false });
 
-            const entity: CronJobEntity | undefined = await cronJobRepo.findOne({ where: { name: 'update-test' } }, false);
+            const entity: CronJobEntity | undefined = await cronJobRepo.findOne({ where: { name: 'update-test' }, required: false });
             expect(entity?.stopOnError).toBe(false);
         });
 
@@ -415,7 +765,7 @@ describe('CronService / CronJob — real server', () => {
             expect(injected.active).toBe(true);
 
             const autoCronJobRepo: Repository<CronJobEntity, CreateCronJobEntityData> = inject(repositoryTokenFor(CronJobEntity));
-            const entity: CronJobEntity | undefined = await autoCronJobRepo.findOne({ where: { name: 'auto-registered-job' } }, false);
+            const entity: CronJobEntity | undefined = await autoCronJobRepo.findOne({ where: { name: 'auto-registered-job' }, required: false });
             expect(entity).toBeDefined();
 
             // afterAppInit only reads `options.cronJobs` off the passed app — a minimal fixture is enough to
@@ -423,71 +773,5 @@ describe('CronService / CronJob — real server', () => {
             const fakeApp: ZibriApplication = { options: { cronJobs: [] } } as unknown as ZibriApplication;
             await expect(autoCronService.afterAppInit(fakeApp)).rejects.toThrow('already been initialized');
         }, 15000);
-    });
-});
-
-describe('CronExpression', () => {
-    it('every(5, minutes) produces correct expression', () => {
-        expect(CronExpression.every(5, 'minutes').build()).toBe('* */5 * * * *');
-    });
-
-    it('every(1, minutes) produces wildcard, not */1', () => {
-        expect(CronExpression.every(1, 'minutes').build()).toBe('* * * * * *');
-    });
-
-    it('daily() defaults to midnight', () => {
-        expect(CronExpression.daily().build()).toBe('0 0 0 * * *');
-    });
-
-    it('daily().at(9, hours) produces correct expression', () => {
-        expect(CronExpression.daily().at(9, 'hours')
-            .build()).toBe('0 0 9 * * *');
-    });
-
-    it('daily().at(9, hours).at(30, minutes) produces correct expression', () => {
-        expect(CronExpression.daily().at(9, 'hours')
-            .at(30, 'minutes')
-            .build()).toBe('0 30 9 * * *');
-    });
-
-    it('weekly() defaults to Sunday midnight', () => {
-        expect(CronExpression.weekly().build()).toBe('0 0 0 * * 0');
-    });
-
-    it('weekly().on(Monday) produces correct expression', () => {
-        expect(CronExpression.weekly().on('Monday')
-            .build()).toBe('0 0 0 * * 1');
-    });
-
-    it('daily().on(Monday, Wednesday, Friday) produces correct expression', () => {
-        expect(CronExpression.daily().on('Monday', 'Wednesday', 'Friday')
-            .build()).toBe('0 0 0 * * 1,3,5');
-    });
-
-    it('monthly() defaults to 1st at midnight', () => {
-        expect(CronExpression.monthly().build()).toBe('0 0 0 1 * *');
-    });
-
-    it('monthly().in(March, June) produces correct expression', () => {
-        expect(CronExpression.monthly().in('March', 'June')
-            .build()).toBe('0 0 0 1 3,6 *');
-    });
-
-    it('between() restricts to a range', () => {
-        expect(CronExpression.every(1, 'minutes').between(9, 17, 'hours')
-            .build()).toBe('* * 9-17 * * *');
-    });
-
-    it('between() throws when from >= to', () => {
-        expect(() => CronExpression.every(1, 'minutes').between(17, 9, 'hours')).toThrow(RangeError);
-    });
-
-    it('fromString() round-trips a valid expression', () => {
-        const expr: string = '0 30 9 * * 1';
-        expect(CronExpression.fromString(expr)).toBe(expr);
-    });
-
-    it('fromString() throws for wrong field count', () => {
-        expect(() => CronExpression.fromString('* * * *')).toThrow('Expected 6 fields');
     });
 });

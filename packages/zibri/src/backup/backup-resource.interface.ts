@@ -23,9 +23,9 @@ export interface BackupResourceInterface {
 }
 
 /**
- * Checks whether or not the given value is a user repository.
+ * Checks whether or not the given value is a backup resource.
  * @param value - The value to check.
- * @returns True if the value has all the keys of UserRepositoryInterface, false otherwise.
+ * @returns True if the value has all the keys of BackupResourceInterface, false otherwise.
  */
 export function isBackupResource(value: unknown): value is BackupResourceInterface {
     const keys: (keyof BackupResourceInterface)[] = [

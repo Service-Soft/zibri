@@ -2,7 +2,7 @@ import { randomBytes } from 'crypto';
 
 import { MailingListSubscriberCreateData, MailingListQueueEmailData, MailingListServiceInterface } from './mailing-list-service.interface';
 import { type AssetServiceInterface } from '../../../assets/asset-service.interface';
-import { Repository } from '../../../data-source/repository';
+import { Repository } from '../../../data-source/repository/repository';
 import { InjectRepository } from '../../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../../di/decorators/inject.decorator';
 import { Injectable } from '../../../di/decorators/injectable.decorator';
@@ -125,8 +125,7 @@ export class MailingListService implements MailingListServiceInterface, OnAppIni
     ): Promise<void> {
 
         const foundSubscriber: MailingListSubscriber | undefined = await this.subscriberRepository.findOne(
-            { where: { email: subscriber.email }, relations: ['mailingLists'] },
-            false
+            { where: { email: subscriber.email }, relations: ['mailingLists'], required: false }
         );
         const list: MailingList = await this.mailingListRepository.findById(listId);
         if (foundSubscriber) {
@@ -161,8 +160,7 @@ export class MailingListService implements MailingListServiceInterface, OnAppIni
         );
         const mailingList: MailingList = await this.mailingListRepository.findById(foundToken.listId);
         const foundSubscriber: MailingListSubscriber | undefined = await this.subscriberRepository.findOne(
-            { where: { email: foundToken.email }, relations: ['mailingLists'] },
-            false
+            { where: { email: foundToken.email }, relations: ['mailingLists'], required: false }
         );
         if (!foundSubscriber) {
             return await this.subscriberRepository.create({ email: foundToken.email, name: foundToken.name, mailingLists: [mailingList] });

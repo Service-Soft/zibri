@@ -12,9 +12,9 @@ import { OmitStrict } from '../../types/omit-strict.type';
  */
 export type EncryptOptions<TKey, TEncryptOptions extends BaseEncryptOptions<TKey>> = {
     /**
-     * The strategy to use.
+     * The strategy to use, or undefined for the default one.
      */
-    strategy: Newable<EncryptionStrategyInterface<TKey, TEncryptOptions>>,
+    strategy?: Newable<EncryptionStrategyInterface<TKey, TEncryptOptions>>,
     /**
      * Additional options for that strategy.
      */
@@ -81,7 +81,20 @@ export interface EncryptionServiceInterface {
         encryptedKey: EncryptionString
     ) => Promise<TKey>,
     /**
-     * Checks whether or not the given encryption string should be re-encrypted.
+     * Retires a key, so that everything encrypted with it is rewritten under the current one.
+     *
+     * The rewriting is what `EncryptionRotationCronJob` does, in the background, a bounded number of
+     * rows at a time. Once it has nothing left to do the key can be deleted. Deprecating the default
+     * key is refused: something has to be the key new values are written with.
      */
-    needsReEncryption: (encrypted: EncryptionString) => boolean | Promise<boolean>
+    deprecateKey: (keyId: string, options?: BaseRepositoryOptions) => void | Promise<void>,
+    /**
+     * Checks whether or not the given encryption string should be re-encrypted.
+     *
+     * True when it was written with a strategy or a key that has since been deprecated, and - when
+     * the caller says the value should be bound to its row - when it carries no such binding. The
+     * second is not something the value can answer on its own: a property may have asked not to be
+     * bound, and sweeping those would never finish.
+     */
+    needsReEncryption: (encrypted: EncryptionString, shouldBeBoundToRow?: boolean) => boolean | Promise<boolean>
 }

@@ -1,4 +1,5 @@
 import { BasePropertyMetadata, WithDefaultMetadata } from './base-property-metadata.model';
+import { UniqueDeclaration } from './unique-declaration.model';
 import { EncryptOptions } from '../../auth/encryption/encryption-service.interface';
 import { BaseDecryptOptions, BaseEncryptOptions, EncryptionStrategyInterface } from '../../auth/encryption/strategies/encryption-strategy.interface';
 import { HashOptions } from '../../auth/hash/hash-service.interface';
@@ -19,9 +20,26 @@ export type EncryptAndDecryptOptions<
     TDecryptOptions extends BaseDecryptOptions<TKey>
 > = {
     /**
-     * The encryption strategy that should be used.
+     * The encryption strategy that should be used, or undefined for the default one.
      */
-    strategy: Newable<EncryptionStrategyInterface<TKey, TEncryptOptions, TDecryptOptions>>,
+    strategy?: Newable<EncryptionStrategyInterface<TKey, TEncryptOptions, TDecryptOptions>>,
+    /**
+     * Whether the encrypted value is bound to the row it is stored in, so that it only decrypts
+     * there. Defaults to true.
+     *
+     * Encryption protects a value that was *read*; it does not protect one that was *moved*.
+     * Everything needed to decrypt lives in the stored value, so anyone who gains a write to the
+     * database - a sql injection, an over-permissive admin screen, a broken import - can copy one
+     * row's encrypted value into another row and have the application decrypt it for the wrong
+     * subject. Binding puts the row id inside the authentication tag, so a value that was moved
+     * refuses to decrypt at all.
+     *
+     * What it costs is bulk writes of this property: a bound value has to be encrypted for the row it
+     * lands in, so `updateAll` cannot write one to many rows in a single statement and has to read
+     * the rows it matched instead. Turn it off for a value that is meant to be the same across rows,
+     * or where that cost outweighs the guarantee.
+     */
+    bindToRow?: boolean,
     /**
      * The encrypt options.
      */
@@ -98,6 +116,9 @@ export type StringPropertyMetadata<
     /**
      * Whether or not the property is a primary key.
      * Enabling this also turns on 'uuid' as the format and sets 'unique' to true.
+     *
+     * A primary key names at most one row through an index of its own, so declaring 'unique' or
+     * 'index' beside it is refused.
      */
     primary: boolean,
     /**
@@ -105,9 +126,41 @@ export type StringPropertyMetadata<
      */
     format: StringFormat | undefined,
     /**
-     * Whether or not the property should be unique.
+     * Whether or not the property should be unique, and among which rows.
+     *
+     * `true` is unique across the whole table. Naming a `where` narrows it to the rows that match,
+     * which is how a value stays free for the rows the filter excludes - a soft deleted row no longer
+     * occupying the address it was registered with, say. Use `whereFor` to type the filter against
+     * the entity.
      */
-    unique: boolean,
+    unique: UniqueDeclaration,
+    /**
+     * Whether or not the property should be indexed.
+     *
+     * A unique property is indexed by the constraint that enforces it, so declaring both is refused.
+     */
+    index: boolean,
+    /**
+     * Whether the property can be searched with `fuzzyLike`.
+     *
+     * On by default, and kept that way by an index over the trigrams of its values, so a search for
+     * something similar to a value reads that index rather than the table. Declaring it false takes
+     * both away: the index is not kept, and a `fuzzyLike` naming the property is refused. That is the
+     * declaration for a column written far more often than it is searched.
+     *
+     * A value that is a uuid, one of an enum, hashed or encrypted is not similar to anything, so
+     * those are refused whatever this says.
+     */
+    fuzzySearchable: boolean,
+    /**
+     * Whether writing this property requires saying what it was.
+     *
+     * Last write wins everywhere by default, which is right for most properties and silent data loss
+     * for the ones two people edit at once. Declaring this refuses an update that names the property
+     * unless the filter names it too, so the write becomes a compare and set: it lands only if the
+     * value is still the one the caller acted on.
+     */
+    optimisticLocking: boolean,
     /**
      * The minimum length of the property, or undefined if not limited.
      */

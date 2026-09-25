@@ -1,4 +1,5 @@
 import { PdfDocument, PdfDocumentDefinition } from '../../../../document/pdf.utilities';
+import { Timezone } from '../../../../localization/models/timezone.model';
 import { Invoice as BaseInvoice } from '../../models/invoice.model';
 
 /**
@@ -17,8 +18,14 @@ export interface InvoiceConformanceServiceInterface<Invoice extends BaseInvoice>
     readonly name: InvoiceConformance,
     /**
      * Updates the given pdf document definition.
+     * Takes the time zone the invoice's dates are read in, so that the conforming output states the
+     * same calendar days as the pdf it belongs to.
      */
-    updateDocumentDefinition: (invoice: Invoice, definition: PdfDocumentDefinition) => void | Promise<void>,
+    updateDocumentDefinition: (
+        invoice: Invoice,
+        definition: PdfDocumentDefinition,
+        timezone: Timezone
+    ) => void | Promise<void>,
     /**
      * Updates the given finished pdf document.
      */

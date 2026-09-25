@@ -1,3 +1,5 @@
+import assert from 'node:assert';
+
 import { beforeAll, afterAll, describe, it, expect, jest } from '@jest/globals';
 
 import { BackupEntity } from './backup-entity.model';
@@ -5,12 +7,13 @@ import { BackupResourceEntity } from './backup-resource-entity.model';
 import { BackupService } from './backup.service';
 import { testFileFolder } from '../__testing__/constants';
 import { Backup } from './decorators/backup-resource.decorator';
-import { FsBackupTransport } from './transports/fs.backup-transport';
+import { BaseFsBackupTransport } from './transports/fs.backup-transport';
 import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { PostgresDataSource, PostgresOptions } from '../data-source/data-sources/postgres-typeorm-data-source.model';
+import { PostgresDataSource, PostgresOptions } from '../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
 import { DataSource } from '../data-source/decorators/data-source.decorator';
-import { Repository } from '../data-source/repository';
+import { SchemaManagement } from '../data-source/models/schema-management.model';
+import { Repository } from '../data-source/repository/repository';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
@@ -21,6 +24,7 @@ import { LoggerInterface } from '../logging/logger.interface';
 import { Newable } from '../types/newable.type';
 import { OmitStrict } from '../types/omit-strict.type';
 import { FsUtilities, FsPath } from '../utilities/fs.utilities';
+import { BackupTransport } from './decorators/backup-transport.decorator';
 
 const backupFsFolder: FsPath = FsUtilities.getPath(testFileFolder, 'backups');
 
@@ -33,26 +37,27 @@ class Item {
     value!: string;
 }
 
+@BackupTransport()
+class FsBackupTransport extends BaseFsBackupTransport {
+    override readonly name: string = 'fs-backup-transport';
+    protected override readonly backupBasePath: FsPath = backupFsFolder;
+}
+
 @DataSource()
 @Backup({
-    transports: [
-        new FsBackupTransport(
-            'fs-backup-transport',
-            backupFsFolder
-        )
-    ]
+    transports: [FsBackupTransport]
 })
 class DbDataSource extends PostgresDataSource {
-    rootPw: string = 'password';
-    rootUsername: string = 'postgres';
-    options: OmitStrict<PostgresOptions, 'type'> = {
+    override rootPw: string = 'password';
+    override rootUsername: string = 'postgres';
+    override options: OmitStrict<PostgresOptions, 'type'> = {
         host: 'localhost',
         username: 'postgres',
         password: 'password',
-        database: 'db',
-        synchronize: true
+        database: 'db'
     };
     entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, Item, BackupResourceEntity, BackupEntity];
+    schemaManagement: SchemaManagement = 'synchronize';
 }
 
 describe('Create and restore postgres backup', () => {
@@ -86,24 +91,45 @@ describe('Create and restore postgres backup', () => {
         expect((await backupRepository.findAll()).length).toEqual(0);
         await backupService.syncBackupEntities();
         expect((await backupRepository.findAll()).length).toEqual(1);
-        const backup: BackupEntity = (await backupRepository.findAll({ relations: ['resources'] }))[0];
+        const [backup]: BackupEntity[] = await backupRepository.findAll({ relations: ['resources'] });
+        assert(backup, 'no backup was synced');
         await backupService.restore(backup);
         expect((await itemRepository.findAll()).length).toEqual(1);
     }, 15000);
 
     it('deletes the stored resource file for a given backup', async () => {
         await backupService.createBackup({ name: 'delete-test-backup' });
-        const backup: BackupEntity = (await backupRepository.findAll({
+        const [backup]: BackupEntity[] = await backupRepository.findAll({
             where: { name: 'delete-test-backup' },
             relations: ['resources']
-        }))[0];
-        const resource: BackupResourceEntity = backup.resources[0];
+        });
+        assert(backup, 'the backup was not created');
+        const [resource]: BackupResourceEntity[] = backup.resources;
+        assert(resource, 'the backup holds no resources');
         const resourcePath: FsPath = FsUtilities.getPath(backupFsFolder, backup.name, resource.name);
         expect(await FsUtilities.exists(resourcePath)).toBe(true);
 
         await backupService.delete(backup);
 
         expect(await FsUtilities.exists(resourcePath)).toBe(false);
+    }, 15000);
+
+    it('deletes the whole backup, so that syncing does not bring it back', async () => {
+        const backupResourceRepository: Repository<BackupResourceEntity> = inject(repositoryTokenFor(BackupResourceEntity));
+        await backupService.createBackup({ name: 'deleted-for-good' });
+        const [backup]: BackupEntity[] = await backupRepository.findAll({
+            where: { name: 'deleted-for-good' },
+            relations: ['resources']
+        });
+        assert(backup, 'the backup was not created');
+
+        await backupService.delete(backup);
+
+        expect(await FsUtilities.exists(FsUtilities.getPath(backupFsFolder, backup.name, 'metadata.json'))).toBe(false);
+        expect(await backupRepository.findAll({ where: { name: 'deleted-for-good' } })).toEqual([]);
+        expect(await backupResourceRepository.findAll({ where: { backupId: backup.id } })).toEqual([]);
+        await backupService.syncBackupEntities();
+        expect(await backupRepository.findAll({ where: { name: 'deleted-for-good' } })).toEqual([]);
     }, 15000);
 
     it('warns and skips a backup directory that is missing its metadata file', async () => {

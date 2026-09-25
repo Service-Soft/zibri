@@ -1,10 +1,20 @@
+import { CiiCrossIndustryInvoice } from './cii/cii-cross-industry-invoice.model';
+import { CiiDateTime } from './cii/cii-date-time.model';
+import { CiiHeaderTradeSettlement } from './cii/cii-header-trade-settlement.model';
+import { CiiTaxRegistration } from './cii/cii-tax-registration.model';
+import { CiiTradeLineItem } from './cii/cii-trade-line-item.model';
+import { CiiTradeParty } from './cii/cii-trade-party.model';
+import { CiiTradeTax } from './cii/cii-trade-tax.model';
 import { Inject } from '../../../../../di/decorators/inject.decorator';
 import { PdfDocumentDefinition, PdfAttachmentDefinition, PdfDocument } from '../../../../../document/pdf.utilities';
-import { XML, XmlUtilities } from '../../../../../document/xml.utilities';
+import { XmlString } from '../../../../../document/xml-string.type';
+import { XmlUtilities } from '../../../../../document/xml.utilities';
 import { InternalError } from '../../../../../error-handling/internal-error.model';
 import { MimeType } from '../../../../../http/mime-type.enum';
+import { getZonedDate, ZonedDate } from '../../../../../localization/format-date.function';
+import { type Timezone } from '../../../../../localization/models/timezone.model';
+import { optionalPeer } from '../../../../../utilities/optional-peer.function';
 import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../../../invoicing.tokens';
-import { InvoiceItem } from '../../../models/invoice-item.model';
 import { Invoice } from '../../../models/invoice.model';
 import { type InvoicingOptions } from '../../../models/invoicing-options.model';
 import { Vat } from '../../../models/vat.model';
@@ -31,15 +41,18 @@ export abstract class EN16931ConformanceService implements InvoiceConformanceSer
         protected readonly options: InvoicingOptions,
         @Inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.INVOICE_CALC_SERVICE)
         private readonly invoiceCalcService: InvoiceCalcServiceInterface<Invoice>
-    ) {}
+    ) {
+        // at startup rather than at the first invoice, like pdfmake in the invoice pdf service. The
+        // document is checked with saxes, like every document generateFrom writes
+        optionalPeer('saxes', 'Invoices conforming to EN16931');
+    }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async updateDocumentDefinition(invoice: Invoice, definition: PdfDocumentDefinition): Promise<void> {
+    async updateDocumentDefinition(invoice: Invoice, definition: PdfDocumentDefinition, timezone: Timezone): Promise<void> {
         const now: Date = new Date();
-        const xml: XML = await this.generateXml(invoice);
-        const xmlString: string = xml.end({ prettyPrint: true });
+        const xml: XmlString = await this.generateXml(invoice, timezone);
         const attachment: PdfAttachmentDefinition = {
-            src: Buffer.from(xmlString),
+            src: Buffer.from(xml),
             options: {
                 name: 'invoice.xml',
                 creationDate: now,
@@ -51,211 +64,177 @@ export abstract class EN16931ConformanceService implements InvoiceConformanceSer
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc, unusedImports/no-unused-vars
-    updateDocument(doc: PdfDocument): void {
+    updateDocument(_doc: PdfDocument): void {
         // do nothing.
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    async generateXml(invoice: Invoice): Promise<XML> {
-        const xml: XML = await this.createCrossIndustryInvoiceXml(invoice, undefined, this.documentContextId);
-        return xml;
+    /**
+     * Writes the invoice as the Cross Industry Invoice document EN16931 exchanges it as.
+     * @param invoice - The invoice.
+     * @param timezone - The invoice's time zone, deciding which calendar day each of its dates falls on.
+     * @returns The document, indented.
+     */
+    async generateXml(invoice: Invoice, timezone: Timezone): Promise<XmlString> {
+        const document: CiiCrossIndustryInvoice = await this.resolveCrossIndustryInvoice(
+            invoice,
+            timezone,
+            undefined,
+            this.documentContextId
+        );
+        return await XmlUtilities.generateFrom(CiiCrossIndustryInvoice, document, { indent: true });
     }
 
-    private async createCrossIndustryInvoiceXml(
+    private async resolveCrossIndustryInvoice(
         invoice: Invoice,
+        timezone: Timezone,
         tradeContact: string | undefined = this.options.companyInfo.ceo,
         documentContextId: EN16931DocumentContextId
         // urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0
-    ): Promise<XML> {
+    ): Promise<CiiCrossIndustryInvoice> {
         if (!tradeContact) {
             throw new InternalError('No trade contact has been provided. (This defaults to companyInfo.CEO)');
         }
-        const root: XML = XmlUtilities.create({
-            version: '1.0',
-            encoding: 'utf8'
-        }).ele(
-            'rsm:CrossIndustryInvoice', {
-                'xmlns:rsm': 'urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100',
-                'xmlns:qdt': 'urn:un:unece:uncefact:data:standard:QualifiedDataType:100',
-                'xmlns:ram': 'urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100',
-                'xmlns:xs': 'http://www.w3.org/2001/XMLSchema',
-                'xmlns:udt': 'urn:un:unece:uncefact:data:standard:UnqualifiedDataType:100'
+        return {
+            exchangedDocumentContext: {
+                businessProcess: { id: 'urn:fdc:peppol.eu:2017:poacc:billing:01:1.0' },
+                guideline: { id: documentContextId }
+            },
+            exchangedDocument: {
+                id: invoice.number,
+                typeCode: '380', // 380 = Commercial invoice
+                issueDateTime: this.resolveDateTime(invoice.date, timezone)
+            },
+            supplyChainTradeTransaction: {
+                lineItems: await this.resolveTradeLineItems(invoice),
+                agreement: {
+                    buyerReference: '999',
+                    seller: this.resolveSellerParty(tradeContact),
+                    buyer: this.resolveBuyerParty(invoice)
+                },
+                delivery: { event: { occurrence: this.resolveDateTime(invoice.performanceDate, timezone) } },
+                settlement: await this.resolveTradeSettlement(invoice, timezone)
             }
-        );
+        };
+    }
 
-        const documentContext: XML = root.ele('rsm:ExchangedDocumentContext');
-        documentContext.ele('ram:BusinessProcessSpecifiedDocumentContextParameter')
-            .ele('ram:ID')
-            .txt('urn:fdc:peppol.eu:2017:poacc:billing:01:1.0');
-        documentContext.ele('ram:GuidelineSpecifiedDocumentContextParameter')
-            .ele('ram:ID')
-            .txt(documentContextId);
-
-        const exchangedDocument: XML = root.ele('rsm:ExchangedDocument');
-        exchangedDocument.ele('ram:ID').txt(invoice.number);
-        // eslint-disable-next-line sonar/no-duplicate-string
-        exchangedDocument.ele('ram:TypeCode').txt('380'); // 380 = Commercial invoice
-        exchangedDocument.ele('ram:IssueDateTime')
-        // eslint-disable-next-line sonar/no-duplicate-string
-            .ele('udt:DateTimeString', { format: '102' })
-            .txt(this.dateTo102(invoice.date));
-
-        const tradeTransaction: XML = root.ele('rsm:SupplyChainTradeTransaction');
-
-        await this.buildTradeLineItems(invoice, tradeTransaction);
-
-        const tradeAgreement: XML = tradeTransaction.ele('ram:ApplicableHeaderTradeAgreement');
-        tradeAgreement.ele('ram:BuyerReference').txt('999');
-        this.buildSellerParty(tradeAgreement, tradeContact);
-        this.buildBuyerParty(tradeAgreement, invoice);
-
-        tradeTransaction.ele('ram:ApplicableHeaderTradeDelivery')
-            .ele('ram:ActualDeliverySupplyChainEvent')
-            .ele('ram:OccurrenceDateTime')
-            .ele('udt:DateTimeString', { format: '102' })
-            .txt(this.dateTo102(invoice.performanceDate));
-
-        const tradeSettlement: XML = tradeTransaction.ele('ram:ApplicableHeaderTradeSettlement');
-        tradeSettlement.ele('ram:InvoiceCurrencyCode').txt(invoice.currency);
-
+    private async resolveTradeSettlement(invoice: Invoice, timezone: Timezone): Promise<CiiHeaderTradeSettlement> {
         // payment options
-        const paymentMeans: XML = tradeSettlement.ele('ram:SpecifiedTradeSettlementPaymentMeans');
-        paymentMeans.ele('ram:TypeCode').txt('58');
         if (!this.options.companyInfo.iban || !this.options.companyInfo.bic) {
             throw new InternalError('At least the iban and bic need to be provided for payment information.');
         }
-        paymentMeans.ele('ram:PayeePartyCreditorFinancialAccount').ele('ram:IBANID')
-            .txt(this.options.companyInfo.iban);
-        paymentMeans.ele('ram:PayeeSpecifiedCreditorFinancialInstitution').ele('ram:BICID')
-            .txt(this.options.companyInfo.bic);
+        const paymentMeans: CiiHeaderTradeSettlement['paymentMeans'] = {
+            typeCode: '58',
+            account: { iban: this.options.companyInfo.iban },
+            institution: { bic: this.options.companyInfo.bic }
+        };
 
         // taxes
-        const taxGroups: Vat[] = this.getTaxGroups(invoice);
-        for (const taxGroup of taxGroups) {
-            const tax: XML = tradeSettlement.ele('ram:ApplicableTradeTax');
-            const totalTaxForTaxGroup: string = (await this.invoiceCalcService.getTotalTaxForTaxGroup(invoice, taxGroup, false)).toString();
-            // eslint-disable-next-line stylistic/max-len
-            const totalBeforeTaxForTaxGroup: string = (await this.invoiceCalcService.getTotalBeforeTaxForTaxGroup(invoice, taxGroup, false)).toString();
-            tax.ele('ram:CalculatedAmount').txt(totalTaxForTaxGroup);
-            tax.ele('ram:TypeCode').txt('VAT');
-            if (taxGroup.categoryCode === 'E') {
-                if (!taxGroup.exemptionReason) {
-                    throw new InternalError('No exemption reason has been provided.');
-                }
-                tax.ele('ram:ExemptionReason').txt(taxGroup.exemptionReason);
+        const taxes: CiiTradeTax[] = [];
+        for (const taxGroup of this.getTaxGroups(invoice)) {
+            if (taxGroup.categoryCode === 'E' && !taxGroup.exemptionReason) {
+                throw new InternalError('No exemption reason has been provided.');
             }
-            tax.ele('ram:BasisAmount').txt(totalBeforeTaxForTaxGroup);
-            tax.ele('ram:CategoryCode').txt(taxGroup.categoryCode);
-            tax.ele('ram:RateApplicablePercent').txt(taxGroup.rate.toString());
+            taxes.push({
+                calculatedAmount: (await this.invoiceCalcService.getTotalTaxForTaxGroup(invoice, taxGroup, false)).toString(),
+                typeCode: 'VAT',
+                exemptionReason: taxGroup.categoryCode === 'E' ? taxGroup.exemptionReason ?? undefined : undefined,
+                basisAmount: (await this.invoiceCalcService.getTotalBeforeTaxForTaxGroup(invoice, taxGroup, false)).toString(),
+                categoryCode: taxGroup.categoryCode,
+                rateApplicablePercent: taxGroup.rate.toString()
+            });
         }
-        // payment terms
-        tradeSettlement.ele('ram:SpecifiedTradePaymentTerms')
-            .ele('ram:DueDateDateTime')
-            .ele('udt:DateTimeString', { format: '102' })
-            .txt(this.dateTo102(invoice.dueDate));
+
         // summary
         const totalBeforeTax: string = (await this.invoiceCalcService.getTotalBeforeTax(invoice)).toString();
-        const summary: XML = tradeSettlement.ele('ram:SpecifiedTradeSettlementHeaderMonetarySummation');
-        summary.ele('ram:LineTotalAmount').txt(totalBeforeTax);
-        // ChargeTotalAmount
-        // AllowanceTotalAmount
         const totalAfterTax: string = (await this.invoiceCalcService.getTotalAfterTax(invoice)).toString();
         const totalTax: string = (await this.invoiceCalcService.getTotalTax(invoice)).toString();
-        summary.ele('ram:TaxBasisTotalAmount').txt(totalBeforeTax);
-        summary.ele('ram:TaxTotalAmount').txt(totalTax)
-            .att('currencyID', invoice.currency);
-        summary.ele('ram:GrandTotalAmount').txt(totalAfterTax);
-        // TotalPrepaidAmount
-        summary.ele('ram:DuePayableAmount').txt(totalAfterTax);
-        return root;
+        return {
+            currency: invoice.currency,
+            paymentMeans,
+            taxes,
+            // payment terms
+            paymentTerms: { dueDate: this.resolveDateTime(invoice.dueDate, timezone) },
+            summation: {
+                lineTotalAmount: totalBeforeTax,
+                // ChargeTotalAmount
+                // AllowanceTotalAmount
+                taxBasisTotalAmount: totalBeforeTax,
+                taxTotalAmount: { currency: invoice.currency, value: totalTax },
+                grandTotalAmount: totalAfterTax,
+                // TotalPrepaidAmount
+                duePayableAmount: totalAfterTax
+            }
+        };
     }
 
-    private buildBuyerParty(tradeAgreement: XML, invoice: Invoice): void {
-        const buyerParty: XML = tradeAgreement.ele('ram:BuyerTradeParty');
-        buyerParty.ele('ram:Name').txt(this.getCustomerName(invoice));
+    private resolveBuyerParty(invoice: Invoice): CiiTradeParty {
         if (!invoice.customerAddressData.email) {
             throw new InternalError('No customer email has been provided (invoice.customerAddressData.email).');
         }
-        const buyerPostalTradeAddress: XML = buyerParty.ele('ram:PostalTradeAddress');
-        buyerPostalTradeAddress.ele('ram:PostcodeCode').txt(invoice.customerAddressData.postcode);
-        buyerPostalTradeAddress.ele('ram:LineOne').txt(`${invoice.customerAddressData.street} ${invoice.customerAddressData.number}`);
-        buyerPostalTradeAddress.ele('ram:CityName').txt(invoice.customerAddressData.city);
-        buyerPostalTradeAddress.ele('ram:CountryID').txt(invoice.customerAddressData.countryId);
-
-        buyerParty.ele('ram:URIUniversalCommunication')
-            .ele('ram:URIID', { schemeID: 'EM' })
-            .txt(invoice.customerAddressData.email);
+        return {
+            name: this.getCustomerName(invoice),
+            address: {
+                postcode: invoice.customerAddressData.postcode,
+                lineOne: `${invoice.customerAddressData.street} ${invoice.customerAddressData.number}`,
+                city: invoice.customerAddressData.city,
+                countryId: invoice.customerAddressData.countryId
+            },
+            communication: { uriId: { schemeId: 'EM', value: invoice.customerAddressData.email } }
+        };
     }
 
-    private buildSellerParty(tradeAgreement: XML, tradeContact: string): void {
-        const sellerParty: XML = tradeAgreement.ele('ram:SellerTradeParty');
-        sellerParty.ele('ram:Name').txt(this.options.companyInfo.fullName);
+    private resolveSellerParty(tradeContact: string): CiiTradeParty {
         if (!this.options.companyInfo.taxNumber) {
             throw new InternalError('No tax number has been provided.');
         }
-        sellerParty.ele('ram:SpecifiedLegalOrganization')
-            .ele('ram:ID')
-            .txt(this.options.companyInfo.taxNumber);
-
-        const sellerContact: XML = sellerParty.ele('ram:DefinedTradeContact');
-        sellerContact.ele('ram:PersonName').txt(tradeContact);
-        sellerContact.ele('ram:TelephoneUniversalCommunication')
-            .ele('ram:CompleteNumber')
-            .txt(this.options.companyInfo.phone);
-        sellerContact.ele('ram:EmailURIUniversalCommunication')
-            .ele('ram:URIID')
-            .txt(this.options.companyInfo.email);
-
-        const sellerPostalTradeAddress: XML = sellerParty.ele('ram:PostalTradeAddress');
-        sellerPostalTradeAddress.ele('ram:PostcodeCode').txt(this.options.companyInfo.address.postcode);
-        sellerPostalTradeAddress.ele('ram:LineOne').txt(
-            `${this.options.companyInfo.address.street} ${this.options.companyInfo.address.number}`
-        );
-        sellerPostalTradeAddress.ele('ram:CityName').txt(this.options.companyInfo.address.city);
-        sellerPostalTradeAddress.ele('ram:CountryID').txt(this.options.companyInfo.address.countryId);
-        sellerParty.ele('ram:URIUniversalCommunication')
-            .ele('ram:URIID', { schemeID: 'EM' })
-            .txt(this.options.companyInfo.email);
-
+        const taxRegistrations: CiiTaxRegistration[] = [];
         if (this.options.companyInfo.vatNumber) {
-            sellerParty.ele('ram:SpecifiedTaxRegistration')
-                .ele('ram:ID', { schemeID: 'VA' })
-                .txt(this.options.companyInfo.vatNumber);
+            taxRegistrations.push({ id: { schemeId: 'VA', value: this.options.companyInfo.vatNumber } });
         }
-        sellerParty
-            .ele('ram:SpecifiedTaxRegistration')
-            .ele('ram:ID', { schemeID: 'FC' })
-            .txt(this.options.companyInfo.taxNumber);
+        taxRegistrations.push({ id: { schemeId: 'FC', value: this.options.companyInfo.taxNumber } });
+
+        return {
+            name: this.options.companyInfo.fullName,
+            legalOrganization: { id: this.options.companyInfo.taxNumber },
+            contact: {
+                personName: tradeContact,
+                telephone: { completeNumber: this.options.companyInfo.phone },
+                email: { uriId: { value: this.options.companyInfo.email } }
+            },
+            address: {
+                postcode: this.options.companyInfo.address.postcode,
+                lineOne: `${this.options.companyInfo.address.street} ${this.options.companyInfo.address.number}`,
+                city: this.options.companyInfo.address.city,
+                countryId: this.options.companyInfo.address.countryId
+            },
+            communication: { uriId: { schemeId: 'EM', value: this.options.companyInfo.email } },
+            taxRegistrations
+        };
     }
 
-    private async buildTradeLineItems(invoice: Invoice, tradeTransaction: XML): Promise<void> {
-        for (let i: number = 0; i < invoice.items.length; i++) {
-            const invoiceItem: InvoiceItem = invoice.items[i];
-            const lineItem: XML = tradeTransaction.ele('ram:IncludedSupplyChainTradeLineItem');
-            lineItem.ele('ram:AssociatedDocumentLineDocument')
-                .ele('ram:LineID')
-                .txt((i + 1).toString());
-            lineItem.ele('ram:SpecifiedTradeProduct')
-                .ele('ram:Name')
-                .txt(invoiceItem.name);
-            lineItem.ele('ram:SpecifiedLineTradeAgreement')
-                .ele('ram:NetPriceProductTradePrice')
-                .ele('ram:ChargeAmount')
-                .txt(invoiceItem.price.toString());
-            lineItem.ele('ram:SpecifiedLineTradeDelivery')
-                .ele('ram:BilledQuantity', { unitCode: invoiceItem.amountUnit.code })
-                .txt(invoiceItem.amount.toString());
-
-            const tradeSettlement: XML = lineItem.ele('ram:SpecifiedLineTradeSettlement');
-            const tradeTax: XML = tradeSettlement.ele('ram:ApplicableTradeTax');
-            tradeTax.ele('ram:TypeCode').txt('VAT');
-            tradeTax.ele('ram:CategoryCode').txt(invoiceItem.vat.categoryCode);
-            tradeTax.ele('ram:RateApplicablePercent').txt(invoiceItem.vat.rate.toString());
-            const itemTotalPriceBeforeTax: string = (await this.invoiceCalcService.getItemTotalPriceBeforeTax(invoiceItem)).toString();
-            tradeSettlement.ele('ram:SpecifiedTradeSettlementLineMonetarySummation')
-                .ele('ram:LineTotalAmount')
-                .txt(itemTotalPriceBeforeTax);
+    private async resolveTradeLineItems(invoice: Invoice): Promise<CiiTradeLineItem[]> {
+        const lineItems: CiiTradeLineItem[] = [];
+        for (const [i, invoiceItem] of invoice.items.entries()) {
+            lineItems.push({
+                associatedDocument: { lineId: (i + 1).toString() },
+                product: { name: invoiceItem.name },
+                agreement: { netPrice: { chargeAmount: invoiceItem.price.toString() } },
+                delivery: { billedQuantity: { unitCode: invoiceItem.amountUnit.code, value: invoiceItem.amount.toString() } },
+                settlement: {
+                    tax: {
+                        typeCode: 'VAT',
+                        categoryCode: invoiceItem.vat.categoryCode,
+                        rateApplicablePercent: invoiceItem.vat.rate.toString()
+                    },
+                    summation: { lineTotalAmount: (await this.invoiceCalcService.getItemTotalPriceBeforeTax(invoiceItem)).toString() }
+                }
+            });
         }
+        return lineItems;
+    }
+
+    private resolveDateTime(value: Date, timezone: Timezone): CiiDateTime {
+        return { dateTimeString: { format: '102', value: this.dateTo102(value, timezone) } };
     }
 
     private getCustomerName(invoice: Invoice): string {
@@ -265,12 +244,21 @@ export abstract class EN16931ConformanceService implements InvoiceConformanceSer
         return `${invoice.customerAddressData.firstName} ${invoice.customerAddressData.lastName}`;
     }
 
-    private dateTo102(value: Date): string {
-        const date: Date = new Date(value);
-        const year: number = date.getFullYear();
-        const month: number = date.getMonth() + 1;
-        const day: number = date.getDate();
-        return `${year}${month.toString().padStart(2, '0')}${day.toString().padStart(2, '0')}`;
+    /**
+     * Renders a date as EN16931 format 102 (CCYYMMDD).
+     *
+     * Reads the instant in the invoice's own zone rather than the machine's, so that the day in the
+     * xml is the day the issuer put on the invoice - and stays that day on a server anywhere else.
+     * No locale is involved: format 102 is a machine representation and has none.
+     * @param value - The date to render.
+     * @param timezone - The invoice's time zone, deciding which calendar day the instant falls on.
+     * @returns The date as a CCYYMMDD string.
+     */
+    private dateTo102(value: Date, timezone: Timezone): string {
+        const date: ZonedDate = getZonedDate(value, timezone);
+        const month: string = (date.month + 1).toString().padStart(2, '0');
+        const day: string = date.day.toString().padStart(2, '0');
+        return `${date.year}${month}${day}`;
     }
 
     /**

@@ -171,10 +171,9 @@ describe('renderPage', () => {
         const out: string = renderPage(compilePage(page, { Chart: chart }));
         const body: string = scriptBodyOf(out);
 
-        expect(body).toContain('function Chart$$setup');
         expect(body.match(/function Chart\$\$setup/g)).toHaveLength(1);
-        expect(body).toContain('Chart$$setup({"canvasId":"a"}, {"handlers":[],"props":[]});');
-        expect(body).toContain('Chart$$setup({"canvasId":"b"}, {"handlers":[],"props":[]});');
+        expect(body).toMatch(/Chart\$\$setup\$[\da-f]{12}\({"canvasId":"a"}, {"handlers":\[],"props":\[]}\);/);
+        expect(body).toMatch(/Chart\$\$setup\$[\da-f]{12}\({"canvasId":"b"}, {"handlers":\[],"props":\[]}\);/);
 
         const initialized: string[] = [];
         runScript(body, [], { init: (v: string) => initialized.push(v) });
@@ -356,5 +355,20 @@ describe('renderPage', () => {
         runScript(scriptBodyOf(out), elements, { picked: (v: string) => picked.push(v) });
         elements[1].fire('change');
         expect(picked).toEqual(['toggle']);
+    });
+
+    it('keeps two different components apart that share a name', () => {
+        // Two files each declaring a `Card`, imported under different names by the page.
+        const billingCard: string = 'const Card = () => <button onClick={() => picked(\'billing\')}>x</button>;';
+        const profileCard: string = 'const Card = () => <button onClick={() => picked(\'profile\')}>x</button>;';
+        const page: string = 'const Page = () => <div><BillingCard/><ProfileCard/></div>;';
+        const out: string = renderPage(compilePage(page, { BillingCard: billingCard, ProfileCard: profileCard }));
+        const picked: string[] = [];
+        const elements: FakeElement[] = elementsFrom(out);
+
+        runScript(scriptBodyOf(out), elements, { picked: (v: string) => picked.push(v) });
+        elements[0].fire('click');
+        elements[1].fire('click');
+        expect(picked).toEqual(['billing', 'profile']);
     });
 });

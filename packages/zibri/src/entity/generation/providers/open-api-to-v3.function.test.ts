@@ -42,7 +42,7 @@ describe('openApiToV3', () => {
         expect(res.openapi).toBe('3.1.0');
         expect(res.info).toEqual({ title: 'legacy', version: '1.0' });
         expect(res.paths?.['/pets']?.get).toBeDefined();
-        expect(res.components?.schemas?.Pet).toBeDefined();
+        expect(res.components?.schemas?.['Pet']).toBeDefined();
     });
 
     it('passes an openapi 3.1 document through unchanged', async () => {

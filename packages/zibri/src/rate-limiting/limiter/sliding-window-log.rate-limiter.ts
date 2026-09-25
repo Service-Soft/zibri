@@ -2,7 +2,7 @@ import assert from 'node:assert';
 
 import { BaseRateLimiter } from './base-rate-limiter.model';
 import { RateLimitResult } from '../rate-limit-result.model';
-import { RateLimiterConfigInput } from './rate-limiter-config.model';
+import { RateLimiterConfigInput, RateLimitStoreFailurePolicy } from './rate-limiter-config.model';
 import { RateLimitReservation } from '../reservation/rate-limit-reservation.model';
 import { BaseRateLimitState } from '../stores/rate-limiter-store.interface';
 
@@ -31,6 +31,7 @@ export class SlidingWindowLogRateLimiter extends BaseRateLimiter<SlidingWindowLo
     ) {
         super({
             reservationGracePeriodMs: (waitMs) => Math.max(5000, waitMs),
+            onStoreFailure: RateLimitStoreFailurePolicy.REJECT,
             maxReservationCount: config.capacity,
             ...config
         });
@@ -113,8 +114,17 @@ export class SlidingWindowLogRateLimiter extends BaseRateLimiter<SlidingWindowLo
         const needToExpire: number = relevant.length + count - this.config.capacity;
         // The timestamps array is sorted ascending.
         // The needToExpire‑th entry (1‑based) will expire at timestamp + interval.
-        const expireTime: number = relevant[needToExpire - 1] + this.intervalInMs;
-        return Math.max(now, expireTime);
+        const oldestToExpire: number | undefined = relevant[needToExpire - 1];
+        if (oldestToExpire == undefined) {
+            // more slots are wanted than the window is holding - reserved ones count towards the
+            // ask but are not timestamps, so there is no entry whose expiry frees the last of them.
+            // A full interval from now is when everything currently in the window has gone, which
+            // is the earliest time worth coming back at and what consume() reports for this case.
+            // Reading the missing entry made this NaN, and NaN loses every comparison it is put in:
+            // the horizon check refused the reservation and reported a wait of NaN.
+            return now + this.intervalInMs;
+        }
+        return Math.max(now, oldestToExpire + this.intervalInMs);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -148,20 +158,19 @@ export class SlidingWindowLogRateLimiter extends BaseRateLimiter<SlidingWindowLo
                         remaining = Math.max(0, availableSlots);
                     }
 
-                    if (timestamps.length) {
-                        resetsAtMs = timestamps[0] + this.intervalInMs;
+                    const oldest: number | undefined = timestamps[0];
+                    if (oldest != undefined) {
+                        resetsAtMs = oldest + this.intervalInMs;
                     }
 
                     if (!allowed) {
                         const activeCount: number = timestamps.length + current.reservedSlots;
                         const needToExpire: number = activeCount + count - this.config.capacity;
-                        if (needToExpire > 0 && needToExpire <= timestamps.length) {
-                            const sorted: number[] = [...timestamps].sort((a, b) => a - b);
-                            retryAtMs = sorted[needToExpire - 1] + this.intervalInMs;
-                        }
-                        else {
-                            retryAtMs = now + this.intervalInMs;
-                        }
+                        const sorted: number[] = [...timestamps].sort((a, b) => a - b);
+                        const oldestToExpire: number | undefined = sorted[needToExpire - 1];
+                        retryAtMs = needToExpire > 0 && oldestToExpire != undefined
+                            ? oldestToExpire + this.intervalInMs
+                            : now + this.intervalInMs;
                     }
 
                     const newExpiresAtMs: number = Math.max(

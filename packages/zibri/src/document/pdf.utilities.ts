@@ -1,5 +1,7 @@
-import PdfPrinter from 'pdfmake';
-import { TDocumentDefinitions, Column, Content, Size, ImageDefinition, BufferOptions } from 'pdfmake/interfaces';
+import type PdfPrinter from 'pdfmake';
+import type { TDocumentDefinitions, Column, Content, Size, ImageDefinition, BufferOptions } from 'pdfmake/interfaces';
+
+import { optionalPeer } from '../utilities/optional-peer.function';
 
 /**
  * Complete definition of a PDF document.
@@ -70,15 +72,30 @@ const ROBOTO_ITALIC_BASE64: string = 'AAEAAAAWAQAABABgR0RFRjVnaqEAAAiMAAAEfUdQT1
  * Provides functionality around dealing with pdf files.
  */
 export abstract class PdfUtilities {
-    private static readonly printer: PdfPrinter = new PdfPrinter({
-        Roboto: {
-            normal: Buffer.from(ROBOTO_BASE64, 'base64'),
-            bold: Buffer.from(ROBOTO_BASE64, 'base64'),
-            italics: Buffer.from(ROBOTO_ITALIC_BASE64, 'base64'),
-            // eslint-disable-next-line cspell/spellchecker
-            bolditalics: Buffer.from(ROBOTO_ITALIC_BASE64, 'base64')
-        }
-    });
+    private static printerInstance: PdfPrinter | undefined;
+
+    /**
+     * The printer, built the first time a document is made.
+     *
+     * Not a field, because a field is built when this class is evaluated - which is when the barrel
+     * that re-exports it is loaded, so an application that never makes a pdf would still need the
+     * optional peer dependency behind it. Kept afterwards because the fonts it embeds are megabytes.
+     * @returns The printer.
+     */
+    private static get printer(): PdfPrinter {
+        // the module is the constructor - pdfmake sets `module.exports` to it, so there is no
+        // `default` to reach through the way an esm style import would suggest
+        this.printerInstance ??= new (optionalPeer<typeof PdfPrinter>('pdfmake', 'Creating a pdf'))({
+            Roboto: {
+                normal: Buffer.from(ROBOTO_BASE64, 'base64'),
+                bold: Buffer.from(ROBOTO_BASE64, 'base64'),
+                italics: Buffer.from(ROBOTO_ITALIC_BASE64, 'base64'),
+                // eslint-disable-next-line cspell/spellchecker
+                bolditalics: Buffer.from(ROBOTO_ITALIC_BASE64, 'base64')
+            }
+        });
+        return this.printerInstance;
+    }
     /**
      * Creates a pdf from the provided definition.
      * @param documentDefinition - The definition to create the pdf from.

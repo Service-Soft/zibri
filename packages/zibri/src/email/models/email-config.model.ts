@@ -2,6 +2,10 @@ import { OmitStrict } from '../../types/omit-strict.type';
 
 /**
  * Configuration for emails.
+ *
+ * What the mail *subsystem* does, rather than how a mail reaches its provider. How to reach the
+ * provider belongs to the transport registered under `ZIBRI_DI_TOKENS.EMAIL_TRANSPORT` - see
+ * `SmtpEmailTransportOptions` for the one Zibri ships.
  */
 export type EmailConfig = {
     /**
@@ -14,35 +18,32 @@ export type EmailConfig = {
      */
     defaultSender: string,
     /**
-     * The host of the email server.
+     * How long one instance may hold a queued mail while sending it, in milliseconds.
+     *
+     * Renewed for as long as the send is actually running, so this is not a limit on how slow a send
+     * may be - it only decides how long a mail waits before another instance takes it over when the
+     * one sending it stops existing.
+     * Defaults to one minute.
      */
-    host: string,
+    sendLeaseInMs: number,
     /**
-     * The port of the email server.
-     * Eg. 465.
+     * How many mails one pass of the queue sends at most.
+     *
+     * The knob for how hard the queue is drained: the cron job keeps calling until a pass comes back
+     * empty, so this decides how many mails are in flight at once and how many rows one pass reads.
+     * Raise it to drain a backlog faster, lower it for a provider that dislikes bursts.
+     *
+     * Priorities cannot starve each other regardless of what it is set to. Each priority may take at
+     * most this many slots less one per priority below it, so a permanent flood of HIGH still leaves
+     * a slot for NORMAL and one for LOW every pass.
+     * Defaults to 10.
      */
-    port: number,
-    /**
-     * Whether or not to use a pool of connections instead of reconnecting to the mail server every time a new email should be sent.
-     * Defaults to true.
-     */
-    pool: boolean,
-    /**
-     * Auth data for the email server.
-     */
-    auth: {
-        /**
-         * The username of the account which should sent the emails.
-         */
-        user: string,
-        /**
-         * The password of the account which should sent the emails.
-         */
-        pass: string
-    }
+    sendBatchSize: number
 };
 
 /**
  * The configuration for sending emails.
  */
-export type EmailConfigInput = OmitStrict<EmailConfig, 'pool'> & Pick<Partial<EmailConfig>, 'pool'>;
+export type EmailConfigInput
+    = OmitStrict<EmailConfig, 'sendLeaseInMs' | 'sendBatchSize'>
+        & Pick<Partial<EmailConfig>, 'sendLeaseInMs' | 'sendBatchSize'>;

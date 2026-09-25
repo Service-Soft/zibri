@@ -33,7 +33,18 @@ export interface HashServiceInterface {
      */
     equal: (value: string, hash: HashString) => boolean | Promise<boolean>,
     /**
-     * Checks if the given hash should  be rehashed.
+     * Checks if the given hash should be rehashed.
+     *
+     * True when the strategy that produced it is marked deprecated, or when the strategy itself says
+     * the hash was made more cheaply than it now would be. Acting on it needs the plaintext, so the
+     * only moment it can be answered is a successful login.
      */
-    needsRehash: (hash: HashString) => boolean | Promise<boolean>
+    needsRehash: (hash: HashString) => boolean | Promise<boolean>,
+    /**
+     * Whether the given string is already a hash produced by one of the registered strategies.
+     *
+     * Used to catch a value being hashed twice. A read-modify-write that loads an entity and saves
+     * it back would otherwise hash the stored hash, which cannot be undone and locks the account.
+     */
+    isHash: (value: string) => boolean
 }

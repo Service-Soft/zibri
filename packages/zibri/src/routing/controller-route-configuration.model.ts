@@ -1,3 +1,4 @@
+import { HandlerTimeout } from '../http/handler-timeout.type';
 import { HttpMethod } from '../http/http-method.enum';
 import { SupportedVersionsOptions } from '../versioning/supported-versions-options.model';
 
@@ -26,5 +27,9 @@ export type ControllerRouteConfiguration = {
     /**
      * Configuration on what versions are supported. Defaults to '^latest'.
      */
-    versions: SupportedVersionsOptions | undefined
+    versions: SupportedVersionsOptions | undefined,
+    /**
+     * How long the handler has to produce a result. Defaults to what the controller says.
+     */
+    timeoutInMs: HandlerTimeout | undefined
 };

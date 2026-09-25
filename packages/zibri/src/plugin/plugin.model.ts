@@ -1,8 +1,8 @@
-import { ZibriApplication } from '../application';
+import { ZibriApplication } from '../application/application';
 import { AuthStrategies } from '../auth/strategies/auth-strategies.model';
 import { CronJob } from '../cron/cron-job.model';
 import { DiProvider } from '../di/models/di-provider.model';
-import { BodyParserInterface } from '../parsing/body-parser.interface';
+import { AnyBodyParser } from '../parsing/body-parser.interface';
 import { Newable } from '../types/newable.type';
 
 /**
@@ -26,7 +26,7 @@ export abstract class ZibriPlugin {
      *
      * If nothing is provided, the Zibri default parsers will be used.
      */
-    bodyParsers: Newable<BodyParserInterface>[] = [];
+    bodyParsers: Newable<AnyBodyParser>[] = [];
     /**
      * The auth strategies to register.
      *

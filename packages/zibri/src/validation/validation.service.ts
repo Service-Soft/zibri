@@ -1,8 +1,9 @@
-import { IsRequiredValidationProblem, RelationsNotAllowedValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from './validation-problem.model';
+import { IsRequiredValidationProblem, NoShapeFitsValidationProblem, RelationsNotAllowedValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from './validation-problem.model';
 import { ValidationServiceInterface } from './validation-service.interface';
 import { HttpRequestContext } from '../context/request/http-request.context';
 import { WebsocketRequestContext } from '../context/request/websocket-request.context';
 import { BaseEntity } from '../entity/base-entity.model';
+import { namedShapeOf, NamedShape } from './functions/shape-problems.function';
 import { validateBoolean } from './functions/validate-boolean.function';
 import { validateDate } from './functions/validate-date.function';
 import { validateFile } from './functions/validate-file.function';
@@ -11,19 +12,19 @@ import { validateString } from './functions/validate-string.function';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
-import { PropertyMetadata, Property, RelationMetadata } from '../entity/decorators/property.decorator';
+import { PropertyMetadata, RelationMetadata } from '../entity/decorators/property.decorator';
+import { BasePropertyMetadata } from '../entity/models/base-property-metadata.model';
+import { AnyOfShapesMetadata } from '../entity/models/one-of-property-metadata.model';
 import { Relation } from '../entity/models/relation.enum';
 import { ValidationError } from '../error-handling/errors/validation.error';
 import { InternalError } from '../error-handling/internal-error.model';
 import { MimeType } from '../http/mime-type.enum';
 import { $ts } from '../localization/translate.function';
-import { FormData } from '../parsing/form-data/form-data.model';
-import { BodyMetadata } from '../routing/decorators/body.decorator';
+import { chooseShape, ShapeChoice } from '../parsing/functions/parse-one-of.function';
+import { BodyMetadata, BodyShapeMetadata } from '../routing/decorators/body-metadata.model';
 import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from '../routing/decorators/param.decorator';
 import { ExcludeStrict } from '../types/exclude-strict.type';
 import { Newable } from '../types/newable.type';
-import { OmitStrict } from '../types/omit-strict.type';
-import { type FsPath } from '../utilities/fs.utilities';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
 import { WebsocketRequest } from '../websocket/models/websocket-request.model';
@@ -79,7 +80,8 @@ export class ValidationService implements ValidationServiceInterface {
         string: (param, meta, parentKey, entity) => validateString(meta.name, param, meta, parentKey, entity),
         number: (param, meta, parentKey, entity) => validateNumber(meta.name, param, meta, parentKey, entity),
         boolean: (param, meta, parentKey, entity) => validateBoolean(meta.name, param, meta, parentKey, entity),
-        date: (param, meta, parentKey, entity) => validateDate(meta.name, param, meta, parentKey, entity)
+        date: (param, meta, parentKey, entity) => validateDate(meta.name, param, meta, parentKey, entity),
+        oneOf: (param, meta, parentKey, entity) => this.validateAnyOfParam(param, meta, parentKey, entity)
     };
 
     private readonly queryParamValidationFunctions: Record<QueryParamMetadata['type'], QueryParamValidationFunction> = {
@@ -88,7 +90,8 @@ export class ValidationService implements ValidationServiceInterface {
         boolean: (param, meta, parentKey, entity) => validateBoolean(meta.name, param, meta, parentKey, entity),
         date: (param, meta, parentKey, entity) => validateDate(meta.name, param, meta, parentKey, entity),
         object: (param, meta, parentKey, entity) => this.validateObjectProperty(meta.name, param, meta, parentKey, entity),
-        array: (param, meta, parentKey, entity) => this.validateArrayProperty(meta.name, param, meta, parentKey, entity)
+        array: (param, meta, parentKey, entity) => this.validateArrayProperty(meta.name, param, meta, parentKey, entity),
+        oneOf: (param, meta, parentKey, entity) => this.validateAnyOfParam(param, meta, parentKey, entity)
     };
 
     private readonly headerParamValidationFunctions: Record<HeaderParamMetadata['type'], HeaderParamValidationFunction> = {
@@ -97,7 +100,8 @@ export class ValidationService implements ValidationServiceInterface {
         boolean: (param, meta, parentKey, entity) => validateBoolean(meta.name, param, meta, parentKey, entity),
         date: (param, meta, parentKey, entity) => validateDate(meta.name, param, meta, parentKey, entity),
         object: (param, meta, parentKey, entity) => this.validateObjectProperty(meta.name, param, meta, parentKey, entity),
-        array: (param, meta, parentKey, entity) => this.validateArrayProperty(meta.name, param, meta, parentKey, entity)
+        array: (param, meta, parentKey, entity) => this.validateArrayProperty(meta.name, param, meta, parentKey, entity),
+        oneOf: (param, meta, parentKey, entity) => this.validateAnyOfParam(param, meta, parentKey, entity)
     };
 
     // eslint-disable-next-line stylistic/max-len
@@ -109,7 +113,8 @@ export class ValidationService implements ValidationServiceInterface {
         date: validateDate,
         boolean: validateBoolean,
         file: validateFile,
-        unknown: () => []
+        unknown: () => [],
+        oneOf: this.validateOneOfProperty.bind(this)
     };
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -164,29 +169,40 @@ export class ValidationService implements ValidationServiceInterface {
             return isRequired ? [new IsRequiredValidationProblem('body')] : [];
         }
 
-        // eslint-disable-next-line jsdoc/require-jsdoc
-        class Temp implements OmitStrict<FormData<typeof meta.modelClass>, 'cleanup'> {
-            // eslint-disable-next-line jsdoc/require-jsdoc
-            @Property.object({ cls: () => meta.modelClass, description: 'the actual data from the request body' })
-            value!: typeof meta.modelClass;
-            // eslint-disable-next-line jsdoc/require-jsdoc
-            @Property.string({ description: 'the path to the temporary folder where uploaded files are cached' })
-            tempFolder!: FsPath;
-        }
-
-        const cls: Newable<unknown> = meta.type === MimeType.FORM_DATA ? Temp : meta.modelClass;
-        if (meta.isArray) {
-            if (!Array.isArray(body)) {
-                return [new TypeMismatchValidationProblem('body', 'array')];
+        switch (meta.type) {
+            case MimeType.JSON:
+            case MimeType.XML: {
+                return this.problemsOfBodyItself(await this.validateBodyShape(body, meta.shape));
             }
-            const res: ValidationProblem[] = [];
-            await Promise.all(body.map(async (v, i) => {
-                res.push(...await this.validateModel(v, cls, `[${i}]`, meta.allowAdditionalProperties));
-            }));
-            return res;
+            case MimeType.FORM_DATA: {
+                // a form is read into a value and a folder its files were written to. The folder is ours rather
+                // than the caller's, so only the value is reported the way the caller sent it
+                if (typeof body !== 'object' || body === null || !('tempFolder' in body) || typeof body.tempFolder !== 'string') {
+                    return [new IsRequiredValidationProblem('tempFolder')];
+                }
+                const value: unknown = 'value' in body ? body.value : undefined;
+                return this.problemsOfBodyItself(await this.validateBodyShape(value, meta.shape));
+            }
+            case MimeType.OCTET_STREAM: {
+                // The parsed stream enforces maxSize as it is consumed, which means there is nothing left here.
+                return [];
+            }
         }
+    }
 
-        return await this.validateModel(body, cls, undefined, meta.allowAdditionalProperties);
+    private async validateBodyShape(body: unknown, shape: BodyShapeMetadata): Promise<ValidationProblem[]> {
+        return shape.type === 'anyOf'
+            ? await this.validateAnyOf('', body, { shapes: shape.shapes, required: true }, undefined, body)
+            : await this.validateProperty('', body, shape, undefined, body);
+    }
+
+    /**
+     * Names the body in a problem that is about the body as a whole rather than something inside it.
+     * @param problems - The problems, with the body itself under an empty key.
+     * @returns The same problems, with the body itself under `body`.
+     */
+    private problemsOfBodyItself(problems: ValidationProblem[]): ValidationProblem[] {
+        return problems.map(problem => problem.key === '' ? { key: 'body', message: problem.message } : problem);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -216,9 +232,9 @@ export class ValidationService implements ValidationServiceInterface {
             }
         }
         await Promise.all(
-            keysOfModel.map(async k => {
+            ObjectUtilities.entries(modelProperties).map(async ([k, metadata]) => {
                 const property: unknown = (body as Record<string, unknown>)[k];
-                const errors: ValidationProblem[] = await this.validateProperty(k, property, modelProperties[k], parentKey, body);
+                const errors: ValidationProblem[] = await this.validateProperty(k, property, metadata, parentKey, body);
                 res.push(...errors);
             })
         );
@@ -278,18 +294,106 @@ export class ValidationService implements ValidationServiceInterface {
         }
 
         const res: ValidationProblem[] = [];
-        await Promise.all(property.map(async (v, i) => {
+        await Promise.all(property.map(async (_, i) => {
             const item: unknown = property[i];
             const errors: ValidationProblem[] = await this.validateProperty(
                 String(i),
                 item,
                 metadata.items as PropertyMetadata,
-                key,
+                fullKey || undefined,
                 entity
             );
             res.push(...errors);
         }));
         return res;
+    }
+
+    /**
+     * Validates a property that holds one of several named shapes, as the shape it names.
+     * @param key - The key of the property.
+     * @param property - The value.
+     * @param metadata - The metadata of the property.
+     * @param parentKey - The key of the parent, if it exists.
+     * @param entity - The entity the value belongs to.
+     * @returns All validation problems found.
+     */
+    private async validateOneOfProperty(
+        key: string,
+        property: unknown,
+        metadata: PropertyMetadata,
+        parentKey: string | undefined,
+        entity: unknown | undefined
+    ): Promise<ValidationProblem[]> {
+        if (metadata.type !== 'oneOf') {
+            throw new InternalError('Tried to validate one of several shapes on a value declared as something else.');
+        }
+        const fullKey: string = parentKey ? `${parentKey}.${key}` : key;
+
+        if (property == undefined) {
+            return await this.problemsOfMissingValue(fullKey, metadata.required, entity);
+        }
+
+        const named: NamedShape = namedShapeOf(fullKey, property, metadata);
+        if (named.shape == undefined) {
+            return named.problems;
+        }
+        return [...named.problems, ...await this.validateProperty('value', named.value, named.shape, fullKey || undefined, entity)];
+    }
+
+    /**
+     * Validates a value that is the first of several shapes it fits.
+     *
+     * The shape is chosen the way parsing chose it - judged by the value alone - and then validated
+     * completely, which is where a requirement decided by the request is asked. The value is already
+     * parsed by then, and choosing again on a parsed value lands on the same shape.
+     * @param key - The key of the value.
+     * @param value - The value.
+     * @param metadata - The shapes, and whether the value is required.
+     * @param parentKey - The key of the parent, if it exists.
+     * @param entity - The entity the value belongs to.
+     * @returns All validation problems found.
+     */
+    private async validateAnyOf(
+        key: string,
+        value: unknown,
+        metadata: Pick<AnyOfShapesMetadata, 'shapes'> & Pick<BasePropertyMetadata, 'required'>,
+        parentKey: string | undefined,
+        entity: unknown | undefined
+    ): Promise<ValidationProblem[]> {
+        const fullKey: string = parentKey ? `${parentKey}.${key}` : key;
+
+        if (value == undefined) {
+            return await this.problemsOfMissingValue(fullKey, metadata.required, entity);
+        }
+
+        const choice: ShapeChoice = chooseShape(value, metadata);
+        if (!choice.fits) {
+            return [new NoShapeFitsValidationProblem(fullKey, choice.attempts)];
+        }
+        return await this.validateProperty(key, value, choice.shape, parentKey, entity);
+    }
+
+    private async validateAnyOfParam(
+        param: unknown,
+        meta: PathParamMetadata | QueryParamMetadata | HeaderParamMetadata,
+        parentKey: string | undefined,
+        entity: unknown | undefined
+    ): Promise<ValidationProblem[]> {
+        if (meta.type !== 'oneOf') {
+            throw new InternalError('Tried to validate one of several shapes on a parameter declared as something else.');
+        }
+        return await this.validateAnyOf(meta.name, param, meta, parentKey, entity);
+    }
+
+    private async problemsOfMissingValue(
+        fullKey: string,
+        required: BasePropertyMetadata['required'],
+        entity: unknown | undefined
+    ): Promise<ValidationProblem[]> {
+        const isRequired: boolean = typeof required === 'boolean'
+            ? required
+            : await required(entity, inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT));
+        return isRequired ? [new IsRequiredValidationProblem(fullKey)] : [];
     }
 
     private async validateObjectProperty(
@@ -327,17 +431,15 @@ export class ValidationService implements ValidationServiceInterface {
             const unknownKeys: string[] = keysOfBody.filter(k => !keysOfModel.includes(k));
 
             for (const k of unknownKeys) {
-                res.push({ key: k, message: $ts`this key is unknown` });
-            }
-            if (res.length) {
-                throw new ValidationError('body', undefined, res);
+                res.push({ key: fullKey ? `${fullKey}.${k}` : k, message: $ts`this key is unknown` });
             }
         }
 
         await Promise.all(
             ObjectUtilities.entries(objectProperties).map(async ([propertyKey, m]) => {
                 const childProperty: unknown = (property as Record<string, unknown>)[propertyKey];
-                const errors: ValidationProblem[] = await this.validateProperty(propertyKey, childProperty, m, key, entity);
+                const errors: ValidationProblem[]
+                    = await this.validateProperty(propertyKey, childProperty, m, fullKey || undefined, entity);
                 res.push(...errors);
             })
         );

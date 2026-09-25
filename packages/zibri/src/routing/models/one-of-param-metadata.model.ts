@@ -1,0 +1,70 @@
+import { BaseParamMetadata } from './base-param-metadata.model';
+import { ArrayPropertyMetadataInput } from '../../entity/models/array-property-metadata.model';
+import { BasePropertyMetadata } from '../../entity/models/base-property-metadata.model';
+import { BooleanPropertyMetadataInput } from '../../entity/models/boolean-property-metadata.model';
+import { DatePropertyMetadataInput } from '../../entity/models/date-property-metadata.model';
+import { NumberPropertyMetadataInput } from '../../entity/models/number-property-metadata.model';
+import { ObjectPropertyMetadataInput } from '../../entity/models/object-property-metadata.model';
+import { AnyOfShapesMetadata } from '../../entity/models/one-of-property-metadata.model';
+import { StringPropertyMetadataInput } from '../../entity/models/string-property-metadata.model';
+import { OmitStrict } from '../../types/omit-strict.type';
+
+/**
+ * Metadata of a parameter that is the first of several shapes it fits.
+ */
+export type OneOfParamMetadata = BaseParamMetadata & Pick<BasePropertyMetadata, 'required' | 'description'> & {
+    /**
+     * The type of the parameter.
+     */
+    type: 'oneOf',
+    /**
+     * What the parameter can be, in the order they are tried.
+     */
+    shapes: AnyOfShapesMetadata['shapes']
+};
+
+/**
+ * A shape a path parameter can be one of. A path segment is one piece of text, so it is text, a number,
+ * a boolean or a date.
+ */
+// eslint-disable-next-line typescript/no-explicit-any, jsdoc/require-jsdoc
+export type PathParamShapeMetadataInput = StringPropertyMetadataInput<any, any, any, any, any> & { type: 'string' }
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    | NumberPropertyMetadataInput & { type: 'number' }
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    | BooleanPropertyMetadataInput & { type: 'boolean' }
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    | DatePropertyMetadataInput & { type: 'date' };
+
+/**
+ * A shape a query or header parameter can be one of.
+ */
+export type QueryParamShapeMetadataInput = PathParamShapeMetadataInput
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    | ObjectPropertyMetadataInput & { type: 'object' }
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    | ArrayPropertyMetadataInput & { type: 'array' };
+
+/**
+ * Metadata Input of a path parameter that is one of several shapes.
+ */
+export type OneOfPathParamMetadataInput = Partial<OmitStrict<OneOfParamMetadata, 'name' | 'type' | 'shapes'>> & {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    type: 'oneOf',
+    /**
+     * The shapes the parameter can be. It becomes the first, in this order, that it fits.
+     */
+    shapes: PathParamShapeMetadataInput[]
+};
+
+/**
+ * Metadata Input of a query or header parameter that is one of several shapes.
+ */
+export type OneOfQueryParamMetadataInput = Partial<OmitStrict<OneOfParamMetadata, 'name' | 'type' | 'shapes'>> & {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    type: 'oneOf',
+    /**
+     * The shapes the parameter can be. It becomes the first, in this order, that it fits.
+     */
+    shapes: QueryParamShapeMetadataInput[]
+};

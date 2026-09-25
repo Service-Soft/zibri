@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, Repository, InjectRepository, Auth, Response, KnownHeader, TokenBucketRateLimiter, RateLimiter, InMemoryRateLimiterStore, Ms, RateLimited, TokenBucketState } from 'zibri';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Repository, InjectRepository, Auth, Response, KnownHeader, TokenBucketRateLimiter, RateLimiter, InMemoryRateLimiterStore, Ms, RateLimited, TokenBucketState, MimeType } from 'zibri';
 
 import { Roles, Test, TestCreateDTO, User } from '../models';
 import { UserRepository } from '../repositories';
@@ -48,7 +48,7 @@ export class TestController {
     @Response.object(Test)
     @Post()
     async create(
-        @Body(TestCreateDTO)
+        @Body(TestCreateDTO, { type: MimeType.FORM_DATA })
         test: TestCreateDTO
     ): Promise<Test> {
         return await this.testRepository.create(test);

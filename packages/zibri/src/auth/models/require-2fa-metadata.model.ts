@@ -1,4 +1,4 @@
-import { SkipAuthMetadata } from './skip-auth-metadata.model';
+import { SkipMetadata } from './skip-auth-metadata.model';
 import { TwoFactorMethods } from '../2fa/two-factor-methods.model';
 
 /**
@@ -14,4 +14,4 @@ export type Require2faMetadata = {
 /**
  * Metadata for the \@Auth.require2fa.skip decorator.
  */
-export type SkipRequire2faMetadata = SkipAuthMetadata;
+export type SkipRequire2faMetadata = SkipMetadata;

@@ -3,58 +3,30 @@ import { Dirent } from 'node:fs';
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 
-import { RouteWithVersionData } from './route-with-version-data.model';
+import { SemVerVersion } from './sem-ver.utilities';
+import { StoredRoute } from './stored-route.model';
 import { Version, VersionFile } from './version.model';
-import { type VersioningServiceInterface } from './versioning-service.interface';
-import { VersioningService } from './versioning.service';
 import { testFileFolder } from '../__testing__/constants';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { startTestServer, StartedTestServer } from '../__testing__/test-server/start-test-server.function';
 import { HttpRequestContext } from '../context/request/http-request.context';
 import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../context/request/request-context-token.model';
 import { WebsocketRequestContext } from '../context/request/websocket-request.context';
-import { Inject } from '../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
-import { type Header } from '../http/header.type';
 import { Controller } from '../routing/decorators/controller.decorator';
 import { Get } from '../routing/decorators/get.decorator';
-import { type RouterInterface } from '../routing/router.interface';
 import { Newable } from '../types/newable.type';
 import { FsPath, FsUtilities } from '../utilities/fs.utilities';
 import { JsonUtilities } from '../utilities/json.utilities';
-import { SemVerVersion } from '../utilities/sem-ver.utilities';
 
 const testVersionsDir: FsPath = FsUtilities.getPath(testFileFolder, 'versions');
-
-// ---------------------------------------------------------------
-// Custom versioning service that writes to a temporary directory
-// ---------------------------------------------------------------
-class TestVersioningService extends VersioningService {
-    constructor(
-        @Inject(ZIBRI_DI_TOKENS.VERSION_HEADER)
-        versionHeader: Header,
-        @Inject(ZIBRI_DI_TOKENS.VERSION_QUERY_PARAM)
-        versionQueryParam: Header,
-        @Inject(ZIBRI_DI_TOKENS.ROUTER)
-        router: RouterInterface
-    ) {
-        super(versionHeader, versionQueryParam, router);
-        // eslint-disable-next-line typescript/no-unsafe-member-access, typescript/no-explicit-any
-        (this as any).versionsPath = testVersionsDir;
-    }
-}
 
 // ---------------------------------------------------------------
 // Test controller that exposes the versioning service via HTTP
 // ---------------------------------------------------------------
 @Controller('/version-test', { allowOrphan: true, versions: 'all' })
 class VersionTestController {
-    constructor(
-        @Inject(ZIBRI_DI_TOKENS.VERSIONING_SERVICE)
-        private readonly versioningService: VersioningServiceInterface
-    ) {}
-
     @Get('/resolve')
     async resolveVersion(): Promise<Version> {
         const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
@@ -113,19 +85,34 @@ async function readVersionFile(version: string): Promise<VersionFile> {
 // Reset state before each test: clear temp dir and stop/restart?
 // Since version files are read only during afterAppInit, which runs once at startup,
 // we need to restart the server for each test scenario. We'll use a helper.
-async function restartServer(options: { version?: SemVerVersion, controllers?: Newable<unknown>[] } = {}): Promise<void> {
-    await server.reInit(options);
+// the path is named on every restart rather than inherited, so that the one test pointing the
+// application at a folder that is not there cannot leak that folder into whatever runs next
+async function restartServer(
+    options: { version?: SemVerVersion, controllers?: Newable<unknown>[], versionsPath?: FsPath } = {}
+): Promise<void> {
+    const { versionsPath, ...applicationOptions } = options;
+    await server.reInit({
+        ...applicationOptions,
+        providers: [
+            ...defaultTestServerProviders,
+            { token: ZIBRI_DI_TOKENS.VERSIONS_PATH, useValue: versionsPath ?? testVersionsDir }
+        ]
+    });
     baseUrl = await server.start();
 }
 
 beforeAll(async () => {
     await FsUtilities.rm(testVersionsDir);
+    // empty rather than absent: a project that has not versioned anything yet still has the folder,
+    // because that is what the application takes as permission to write the first snapshot
+    await FsUtilities.mkdir(testVersionsDir);
     // Start the server with our custom versioning service and a test controller
     server = await startTestServer({
         version: '1.0.0', // default version, we'll change per test
         providers: [
             ...defaultTestServerProviders,
-            { token: ZIBRI_DI_TOKENS.VERSIONING_SERVICE, useClass: TestVersioningService }
+            // the real service, writing where this file can seed and read what it wrote
+            { token: ZIBRI_DI_TOKENS.VERSIONS_PATH, useValue: testVersionsDir }
         ],
         controllers: [VersionTestController, ValidatedController]
     });
@@ -137,6 +124,22 @@ afterAll(async () => {
 }, 15000);
 
 describe('VersioningService integration', () => {
+    describe('A deployment that did not bring its versions folder', () => {
+        it('refuses to start instead of recording a fresh baseline', async () => {
+            const missing: FsPath = FsUtilities.getPath(testFileFolder, 'versions-not-shipped');
+            await FsUtilities.rm(missing);
+
+            await expect(restartServer({ versionsPath: missing })).rejects.toThrow('There is no versions folder');
+
+            // and nothing was put there on the way past. An absent folder answered by creating one is
+            // the whole failure: the application would come up healthy, having quietly agreed that
+            // this version is the first one that ever existed
+            expect(await FsUtilities.exists(missing)).toBe(false);
+
+            await restartServer();
+        }, 15000);
+    });
+
     describe('First startup', () => {
         it('creates the initial version file with routes', async () => {
             const file: VersionFile = await readVersionFile('1.0.0');
@@ -144,10 +147,40 @@ describe('VersioningService integration', () => {
             expect(file.endsAt).toBeUndefined();
             expect(file.routes.length).toBeGreaterThan(0);
 
-            const validatedRoute: RouteWithVersionData | undefined = file.routes.find(r => r.key === 'GET /validated/endpoint');
+            const validatedRoute: StoredRoute | undefined = file.routes.find(r => r.key === 'GET /validated/endpoint');
             expect(validatedRoute).toBeDefined();
-            expect(validatedRoute?.versions).toEqual(['1.0.0']);
+            expect(validatedRoute?.versions).toEqual({ shape: 'Matchers', value: ['1.0.0'] });
+            const openRoute: StoredRoute | undefined = file.routes.find(r => r.key === 'GET /version-test/resolve');
+            expect(openRoute?.versions).toEqual({ shape: 'All', value: 'all' });
         });
+    });
+
+    describe('A version file that holds versions without the name of their shape', () => {
+        it('refuses to start, naming the file and how to rewrite it', async () => {
+            await FsUtilities.rm(testVersionsDir);
+            await FsUtilities.mkdir(testVersionsDir);
+            await FsUtilities.upsertFile(
+                FsUtilities.getPath(testVersionsDir, '1.0.0.json'),
+                JsonUtilities.stringify({
+                    value: '1.0.0',
+                    startsAt: new Date(),
+                    routes: [
+                        { key: 'GET /validated/endpoint', versions: ['1.0.0'] },
+                        { key: 'GET /version-test/resolve', versions: 'all' }
+                    ]
+                })
+            );
+
+            const start: Promise<void> = restartServer({ version: '1.0.0', controllers: [VersionTestController, ValidatedController] });
+
+            await expect(start).rejects.toThrow('"1.0.0.json" on route "GET /validated/endpoint"');
+            await expect(start).rejects.toThrow('"1.0.0.json" on route "GET /version-test/resolve"');
+            await expect(start).rejects.toThrow('{ "shape": "All", "value": "all" }');
+            await expect(start).rejects.toThrow('{ "shape": "Matchers", "value": [...] }');
+            await FsUtilities.rm(testVersionsDir);
+            await FsUtilities.mkdir(testVersionsDir);
+            await restartServer();
+        }, 15000);
     });
 
     describe('Already at latest version (no-op)', () => {
@@ -167,6 +200,10 @@ describe('VersioningService integration', () => {
 
         beforeEach(async () => {
             await FsUtilities.rm(testVersionsDir);
+            // the only reset here that boots straight into the application rather than seeding a
+            // history first, so it is the only one that has to leave the empty folder behind:
+            // `writeVersionFile` creates it for every other case
+            await FsUtilities.mkdir(testVersionsDir);
             await restartServer({
                 version: oldVersion,
                 controllers: [ValidatedController]
@@ -189,6 +226,15 @@ describe('VersioningService integration', () => {
             // Routes in new file reflect current in-code routes (e.g., still include the validated endpoint)
             expect(newFile.routes).toEqual(expect.arrayContaining([expect.objectContaining({ key: 'GET /validated/endpoint' })]));
         });
+
+        it('lists the deprecated version with its dates in the explorer', async () => {
+            const res: globalThis.Response = await fetch(`${baseUrl}/explorer/swagger-ui-init.js`);
+            const js: string = await res.text();
+
+            expect(res.status).toBe(200);
+            expect(js).toContain('/explorer/spec/1.0.0');
+            expect(js).toMatch(/"name":"1\.0\.0 \(.+ - .+\)"/);
+        });
     });
 
     describe('Crash recovery: zero active versions', () => {
@@ -201,7 +247,7 @@ describe('VersioningService integration', () => {
                 value: oldVersion,
                 startsAt: new Date('2024-01-01'),
                 endsAt: new Date('2024-02-01'),
-                routes: [{ key: 'GET /validated/endpoint', versions: [oldVersion] }]
+                routes: [{ key: 'GET /validated/endpoint', versions: { shape: 'Matchers', value: [oldVersion] } }]
             });
             // New version does NOT exist
             await restartServer({ version: newVersion });
@@ -228,7 +274,7 @@ describe('VersioningService integration', () => {
             await writeVersionFile({
                 value: v1,
                 startsAt: new Date('2024-01-01'),
-                routes: [{ key: 'GET /validated/endpoint', versions: [v1] }]
+                routes: [{ key: 'GET /validated/endpoint', versions: { shape: 'Matchers', value: [v1] } }]
             });
             // Prematurely created new version file with stale routes
             await writeVersionFile({
@@ -256,8 +302,8 @@ describe('VersioningService integration', () => {
                 value: '1.0.0',
                 startsAt: new Date(),
                 routes: [
-                    { key: 'GET /validated/endpoint', versions: ['1.0.0'] },
-                    { key: 'POST /delete-me', versions: ['1.0.0'] }
+                    { key: 'GET /validated/endpoint', versions: { shape: 'Matchers', value: ['1.0.0'] } },
+                    { key: 'POST /delete-me', versions: { shape: 'Matchers', value: ['1.0.0'] } }
                 ]
             });
 
@@ -285,7 +331,7 @@ describe('VersioningService integration', () => {
             await writeVersionFile({
                 value: '1.0.0',
                 startsAt: new Date(),
-                routes: [{ key: 'GET /validated/endpoint', versions: ['2.0.0'] }]
+                routes: [{ key: 'GET /validated/endpoint', versions: { shape: 'Matchers', value: ['2.0.0'] } }]
             });
 
             await expect(
@@ -302,7 +348,7 @@ describe('VersioningService integration', () => {
             await writeVersionFile({
                 value: '1.0.0',
                 startsAt: new Date(),
-                routes: [{ key: 'GET /validated/endpoint', versions: ['1.0.0'] }]
+                routes: [{ key: 'GET /validated/endpoint', versions: { shape: 'Matchers', value: ['1.0.0'] } }]
             });
 
             await expect(
@@ -314,7 +360,7 @@ describe('VersioningService integration', () => {
             await writeVersionFile({
                 value: '1.0.0',
                 startsAt: new Date(),
-                routes: [{ key: 'GET /validated/endpoint', versions: ['1.0.0'] }]
+                routes: [{ key: 'GET /validated/endpoint', versions: { shape: 'Matchers', value: ['1.0.0'] } }]
             });
 
             await expect(

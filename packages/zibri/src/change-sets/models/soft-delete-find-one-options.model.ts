@@ -6,7 +6,10 @@ import { OmitStrict } from '../../types/omit-strict.type';
 /**
  * Options for finding a single entity.
  */
-export type SoftDeleteFindOneOptions<T extends SoftDeleteEntity> = OmitStrict<FindOneOptions<T>, 'where'> & {
+export type SoftDeleteFindOneOptions<T extends SoftDeleteEntity, Required extends boolean = true> = OmitStrict<
+    FindOneOptions<T, Required>,
+    'where'
+> & {
     /**
      * The where filter to find the options by.
      */

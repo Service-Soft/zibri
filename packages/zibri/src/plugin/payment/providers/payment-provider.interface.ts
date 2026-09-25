@@ -73,10 +73,14 @@ export interface AnyPaymentProviderInterface {
  */
 export interface PaymentProviderInterface<
     SupportedMethods extends readonly PaymentMethod[],
+    // `object` rather than AnyObject: the latter carries an index signature, which a type alias
+    // satisfies implicitly and a class never does. Requiring it here would have meant payment data
+    // could only ever be a type - and a type cannot carry the @Property metadata that validation and
+    // OpenAPI generation read, so no provider's payment data could be accepted in a @Body.
     // eslint-disable-next-line jsdoc/require-jsdoc
-    PaymentDataForMethod extends Record<SupportedMethods[number], AnyObject & { transactionId: string }>,
+    PaymentDataForMethod extends Record<SupportedMethods[number], object & { transactionId: string }>,
     // eslint-disable-next-line jsdoc/require-jsdoc
-    ValidatedPaymentDataForMethod extends Record<SupportedMethods[number], AnyObject & { transactionId: string }>,
+    ValidatedPaymentDataForMethod extends Record<SupportedMethods[number], object & { transactionId: string }>,
     ProviderPaymentDataForMethod extends Record<SupportedMethods[number], AnyObject>,
     ProviderReservationPaymentDataForMethod extends Record<SupportedMethods[number], AnyObject>,
     CancellationSupport extends Record<SupportedMethods[number], boolean>,

@@ -65,7 +65,7 @@ export class TemplateController {
             }
         };
 
-        const html: string = TsxUtilities.renderEmail(LogEmail, { log });
+        const html: string = TsxUtilities.renderEmail(LogEmail, { logs: [log] });
         return HtmlResponse.fromString(html);
     }
 }

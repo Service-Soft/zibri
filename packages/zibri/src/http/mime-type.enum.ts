@@ -29,6 +29,7 @@ export enum MimeType {
     TXT = 'text/plain',
     JAVASCRIPT = 'text/javascript',
     YAML = 'text/yaml',
+    TEXT_XML = 'text/xml',
     EVENT_STREAM = 'text/event-stream',
     // Image
     PNG = 'image/png',

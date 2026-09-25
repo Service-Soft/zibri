@@ -3,7 +3,6 @@
     "version": "3.0.0",
     "main": "./dist/cjs/index.js",
     "types": "./dist/cjs/index.d.ts",
-    "module": "./dist/esm/index.mjs",
     "repository": {
         "url": "https://github.com/Service-Soft/zibri",
         "directory": "packages/zibri"
@@ -11,38 +10,41 @@
     "exports": {
         ".": {
             "types": "./dist/cjs/index.d.ts",
-            "require": "./dist/cjs/index.js",
-            "import": "./dist/esm/index.mjs"
+            "default": "./dist/cjs/index.js"
         },
         "./package.json": "./package.json"
     },
     "files": [
         "./src",
+        "!src/__testing__/**",
+        "!src/**/test/**",
+        "!src/**/*.test.ts",
+        "!src/**/*.test.worker.*",
         "./dist",
         "./README.md",
-        "./CONTRIBUTING.md",
+        "../../CONTRIBUTING.md",
         "./LICENSE"
     ],
     "engines": {
-        "node": ">=22"
+        "node": ">=24"
     },
     "scripts": {
-        "test": "npm run test:normal && npm run test:heavy",
+        "test": "npm run test:normal && npm run test:heavy && npm run test:evaluation && npm run test:cluster",
         "test:ci": "npm run test:coverage",
         "test:heavy": "jest --runInBand --testPathPatterns='(multithreading\\.service\\.performance\\.test\\.ts|pay-pal\\.payment-provider\\.test\\.ts)'",
-        "test:normal": "jest --testPathPatterns='^(?!.*(multithreading\\.service\\.performance\\.test\\.ts|pay-pal\\.payment-provider\\.test\\.ts)).*'",
+        "test:normal": "jest --testPathPatterns='^(?!.*(multithreading\\.service\\.performance\\.test\\.ts|pay-pal\\.payment-provider\\.test\\.ts|\\.evaluation\\.test\\.ts|\\.cluster\\.test\\.ts)).*'",
+        "test:evaluation": "jest --testPathPatterns='\\.evaluation\\.test\\.ts$'",
+        "test:cluster": "jest --runInBand --testPathPatterns='\\.cluster\\.test\\.ts$'",
         "test:coverage": "npm run test:coverage:normal && npm run test:coverage:heavy && npm run test:coverage:merge",
         "test:coverage:normal": "npm run test:normal -- --coverage --coverageDirectory=__testing__/coverage/raw/normal --coverageReporters=json",
         "test:coverage:heavy": "npm run test:heavy -- --coverage --coverageDirectory=__testing__/coverage/raw/heavy --coverageReporters=json",
         "test:coverage:merge": "mkdir -p src/__testing__/coverage/merge-input && cp src/__testing__/coverage/raw/normal/coverage-final.json src/__testing__/coverage/merge-input/normal.json && cp src/__testing__/coverage/raw/heavy/coverage-final.json src/__testing__/coverage/merge-input/heavy.json && nyc merge src/__testing__/coverage/merge-input src/__testing__/coverage/coverage-final.json && nyc report --temp-dir=src/__testing__/coverage --report-dir=src/__testing__/coverage/report --reporter=lcov --reporter=text-summary --reporter=json-summary",
-        "start": "npm-run-all -p watch:cjs watch:esm",
+        "start": "npm run watch:cjs",
         "watch:cjs": "tsc -p tsconfig.cjs.json --watch",
-        "watch:esm": "tsc -p tsconfig.esm.json --watch",
         "build:prod": "npm run build && typedoc",
         "build:cjs": "tsc -p tsconfig.cjs.json",
-        "build:esm": "tsc -p tsconfig.esm.json",
-        "build:post": "node post-build.mjs",
-        "build": "npm run build:cjs && npm run build:esm && npm run build:post",
+        "build:clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+        "build": "npm run build:clean && npm run build:cjs",
         "lint": "eslint . --max-warnings=0",
         "lint:fix": "eslint . --max-warnings=0 --fix"
     },
@@ -55,22 +57,74 @@
     "license": "MIT",
     "description": "TS Backend Framework",
     "peerDependencies": {
+        "@opentelemetry/api": "^1.9.1",
+        "@opentelemetry/exporter-trace-otlp-http": "^0.222.0",
+        "@opentelemetry/resources": "^2.11.0",
+        "@opentelemetry/sdk-trace-node": "^2.11.0",
         "bcryptjs": "^3.0.3",
         "bignumber.js": "^11.1.1",
         "handlebars": "^4.7.9",
-        "hi-base32": "^0.5.1",
         "jsonwebtoken": "^9.0.3",
         "otpauth": "^9.5.1",
         "pdfmake": "^0.2.23",
         "pg": "^8.21.0",
+        "pg-query-stream": "^4.10.3",
+        "@valkey/valkey-glide": "^2.5.0",
         "rxjs": "^7.8.2",
         "socket.io": "^4.8.3",
+        "socket.io-adapter": "^2.5.5",
         "ts-node": "^10.9.2",
-        "xmlbuilder2": "^4.0.3",
+        "typescript": "^5.9.2",
+        "saxes": "^6.0.0",
         "zibri-tsx": "^3.0.0"
     },
     "peerDependenciesMeta": {
+        "@opentelemetry/api": {
+            "optional": true
+        },
+        "@opentelemetry/exporter-trace-otlp-http": {
+            "optional": true
+        },
+        "@opentelemetry/resources": {
+            "optional": true
+        },
+        "@opentelemetry/sdk-trace-node": {
+            "optional": true
+        },
         "bcryptjs": {
+            "optional": true
+        },
+        "pg": {
+            "optional": true
+        },
+        "pg-query-stream": {
+            "optional": true
+        },
+        "@valkey/valkey-glide": {
+            "optional": true
+        },
+        "handlebars": {
+            "optional": true
+        },
+        "ts-node": {
+            "optional": true
+        },
+        "otpauth": {
+            "optional": true
+        },
+        "pdfmake": {
+            "optional": true
+        },
+        "socket.io": {
+            "optional": true
+        },
+        "socket.io-adapter": {
+            "optional": true
+        },
+        "typescript": {
+            "optional": true
+        },
+        "saxes": {
             "optional": true
         }
     },
@@ -86,8 +140,12 @@
         "typeorm": "^0.3.29"
     },
     "devDependencies": {
-        "@faker-js/faker": "^9.9.0",
+        "@faker-js/faker": "^10.6.0",
         "@jest/globals": "^30.4.1",
+        "@opentelemetry/api": "^1.9.1",
+        "@opentelemetry/exporter-trace-otlp-http": "^0.222.0",
+        "@opentelemetry/resources": "^2.11.0",
+        "@opentelemetry/sdk-trace-node": "^2.11.0",
         "@swc/core": "^1.15.40",
         "@testcontainers/postgresql": "^12.0.0",
         "@types/express": "^5.0.6",
@@ -97,6 +155,7 @@
         "@types/pdfmake": "^0.2.11",
         "@types/swagger2openapi": "^7.0.4",
         "bcryptjs": "^3.0.3",
+        "esbuild": "^0.25.12",
         "eslint": "^9.36.0",
         "eslint-config-service-soft": "^2.1.6",
         "form-data": "^4.0.6",
@@ -109,6 +168,16 @@
         "testcontainers": "^12.0.0",
         "ts-jest": "^29.4.11",
         "typedoc": "^0.28.19",
-        "typescript": "^5.9.2"
+        "typescript": "^5.9.2",
+        "zibri-testing": "^3.0.0",
+        "pg": "^8.21.0",
+        "pg-query-stream": "^4.10.3",
+        "@valkey/valkey-glide": "^2.5.0",
+        "handlebars": "^4.7.9",
+        "otpauth": "^9.5.1",
+        "pdfmake": "^0.2.23",
+        "socket.io": "^4.8.3",
+        "ts-node": "^10.9.2",
+        "saxes": "^6.0.0"
     }
 }

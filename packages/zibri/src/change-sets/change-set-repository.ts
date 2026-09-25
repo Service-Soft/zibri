@@ -1,7 +1,5 @@
 import { isDeepStrictEqual } from 'node:util';
 
-import { Repository as TORepository } from 'typeorm';
-
 import { AuthServiceInterface } from '../auth/auth-service.interface';
 import { ChangeSetEntity } from './models/change-set-entity.model';
 import { ChangeSetType } from './models/change-set-type.enum';
@@ -12,6 +10,7 @@ import { AlsUtilities } from '../context/als.utilities';
 import { HttpRequestContext } from '../context/request/http-request.context';
 import { WebsocketRequestContext } from '../context/request/websocket-request.context';
 import { DataSourceInterface } from '../data-source/data-sources/data-source.interface';
+import { RepositoryDriverInterface } from '../data-source/driver/repository-driver.interface';
 import { BeforeReturnHook } from '../data-source/hooks/before-return';
 import { BeforeSaveHook } from '../data-source/hooks/before-save';
 import { BaseRepositoryOptions } from '../data-source/models/options/base-repository-options.model';
@@ -20,9 +19,10 @@ import { CreateOptions } from '../data-source/models/options/create-options.mode
 import { UpdateAllOptions } from '../data-source/models/options/update-all-options.model';
 import { UpdateByIdOptions } from '../data-source/models/options/update-by-id-options.model';
 import { Where } from '../data-source/models/where/where-filter.model';
-import { Repository } from '../data-source/repository';
+import { Repository, WrittenUpdate } from '../data-source/repository/repository';
 import { PropertyMetadata } from '../entity/decorators/property.decorator';
 import { BadRequestError } from '../error-handling/errors/bad-request.error';
+import { InternalError } from '../error-handling/internal-error.model';
 import { removeExcludeProperties } from '../global/model-registry/remove-exclude-properties.function';
 import { restoreExcludeProperties } from '../global/model-registry/restore-exclude-properties.function';
 import { $ts } from '../localization/translate.function';
@@ -65,7 +65,7 @@ export class ChangeSetRepository<
 
     constructor(
         entityClass: Newable<T>,
-        repo: TORepository<T> | Repository<T>,
+        repo: RepositoryDriverInterface<T> | Repository<T>,
         logger: LoggerInterface,
         dataSource: DataSourceInterface,
         beforeSave: BeforeSaveHook<T, CreateData, UpdateData>,
@@ -85,30 +85,80 @@ export class ChangeSetRepository<
         }
     }
 
-    override async create(data: CreateData, options?: CreateOptions): Promise<T> {
-        const res: T = await super.create(data, options);
-        await this.createChangeSet(res, res, ChangeSetType.CREATE, options);
-        return res;
+    override async create(data: CreateData, options?: CreateOptions<T>): Promise<T> {
+        // one transaction over the write and the change set describing it, for the reason `updateAll`
+        // takes one: written apart, a failure in between leaves either a mutation nothing recorded or
+        // a record of a mutation that was rolled back. A trail with a hole in it is worse than no
+        // trail, because it reads as complete. `inTransaction` uses the caller's when they passed one
+        return await this.inTransaction(options, async transaction => {
+            const inTransaction: CreateOptions<T> = { ...options, transaction };
+            const res: T = await super.create(data, inTransaction);
+            await this.createChangeSet(res, res, ChangeSetType.CREATE, inTransaction);
+            return res;
+        });
     }
 
-    override async createAll(data: CreateData[], options?: CreateAllOptions): Promise<T[]> {
-        const res: T[] = await super.createAll(data, options);
-        await this.createAllChangeSets(res, res, ChangeSetType.CREATE, options);
-        return res;
+    override async createAll(data: CreateData[], options?: CreateAllOptions<T>): Promise<T[]> {
+        return await this.inTransaction(options, async transaction => {
+            const inTransaction: CreateAllOptions<T> = { ...options, transaction };
+            const res: T[] = await super.createAll(data, inTransaction);
+            await this.createAllChangeSets(res, res, ChangeSetType.CREATE, inTransaction);
+            return res;
+        });
     }
 
-    override async updateById(id: T['id'], data: UpdateData, options?: UpdateByIdOptions): Promise<T> {
-        const original: T = await this.findById(id, options);
-        const res: T = await super.updateById(id, data, options);
-        await this.createChangeSet(original, data, ChangeSetType.UPDATE, options);
-        return res;
+    override async updateById(id: T['id'], data: UpdateData, options?: UpdateByIdOptions<T>): Promise<T> {
+        // this read is the existence check too, so it calls saveUpdate rather than super.updateById -
+        // the base would otherwise read the same row again purely to prove it is there. Without the
+        // caller's condition for the same reason the base leaves it out: the before state of a row is
+        // what it holds, not what the write is about to require of it
+        return await this.inTransaction(options, async transaction => {
+            const inTransaction: UpdateByIdOptions<T> = { ...options, transaction };
+            // `where: undefined` drops the caller's compare and set condition for the read only -
+            // `unscoped` and everything else the caller asked for is carried through, and the
+            // entity's own scope is applied inside `findById` rather than passed to it
+            const original: T = await this.findById(id, { ...inTransaction, where: undefined });
+            // `written` rather than `data`: a change set records what happened, and what happened is
+            // the caller's change plus whatever the save hooks put on it - a `default` among them.
+            // Reading the row back instead would be worse than either: it also carries every column
+            // nobody touched, and anything another writer changed in between, which this would then
+            // claim.
+            const { entity, written }: WrittenUpdate<T> = await this.saveUpdate(id, data, inTransaction);
+            await this.createChangeSet(original, written, ChangeSetType.UPDATE, inTransaction);
+            return entity;
+        });
     }
 
-    override async updateAll(where: Where<T>, data: UpdateData, options?: UpdateAllOptions): Promise<T[]> {
-        const original: T[] = await this.findAll({ where, ...options });
-        const res: T[] = await super.updateAll(where, data, options);
-        await this.createAllChangeSets(original, original.map(() => data), ChangeSetType.UPDATE, options);
-        return res;
+    override async updateAll<R extends boolean = false>(
+        where: Where<T>,
+        data: UpdateData,
+        options?: UpdateAllOptions<T, R>
+    ): Promise<R extends true ? T[] : number> {
+        // one transaction over the read, the update and the change sets. Taken here rather than left
+        // to the base, so that the change sets commit or roll back with the update they describe -
+        // otherwise an update that succeeded could be left with no record of who made it.
+        return await this.inTransaction(options, async transaction => {
+            const inTransaction: UpdateAllOptions<T, boolean> = { ...options, transaction };
+            // before the write, because this is the before state: read afterwards it would be the
+            // rows as the update left them, every column would compare equal to itself, and every
+            // change set would come out empty
+            // every matching row, because the update below writes every matching row - the two have
+            // to cover the same set or the change sets describe a different update than the one that
+            // happened. That a bulk update reads its rows at all is 01-data-layer M3
+            const original: T[] = await this.findAll({ where, ...inTransaction, take: 'all' });
+            const originalById: Map<T['id'], T> = new Map(original.map(row => [row.id, row]));
+
+            const updates: WrittenUpdate<T>[] = await this.saveUpdateAll(where, data, inTransaction);
+            await this.createAllChangeSets(
+                updates.map(u => originalById.get(u.entity.id) ?? u.entity),
+                updates.map(u => u.written),
+                ChangeSetType.UPDATE,
+                inTransaction
+            );
+            // the entities were read either way, because a change set cannot be written without
+            // them. What the caller asked for still decides what they are handed.
+            return (options?.returnUpdated === true ? updates.map(u => u.entity) : updates.length) as R extends true ? T[] : number;
+        });
     }
 
     /**
@@ -119,7 +169,7 @@ export class ChangeSetRepository<
      * @returns
      * A promise that will be resolve if the operation succeeded or will be rejected if the entity was not found.
      */
-    async updateByIdWithoutChangeSet(id: T['id'], data: UpdateData, options?: UpdateByIdOptions): Promise<T> {
+    async updateByIdWithoutChangeSet(id: T['id'], data: UpdateData, options?: UpdateByIdOptions<T>): Promise<T> {
         return await super.updateById(id, data, options);
     }
 
@@ -128,9 +178,14 @@ export class ChangeSetRepository<
      * @param where - The where filter to find the entities that should be updated.
      * @param data - The data to update the entities with.
      * @param options - Additional options, like a transaction.
-     * @returns An array of all the updated entities.
+     * @returns How many entities were updated, or the entities themselves when `returnUpdated` asked
+     * for them.
      */
-    async updateAllWithoutChangeSet(where: Where<T>, data: UpdateData, options?: UpdateAllOptions): Promise<T[]> {
+    async updateAllWithoutChangeSet<R extends boolean = false>(
+        where: Where<T>,
+        data: UpdateData,
+        options?: UpdateAllOptions<T, R>
+    ): Promise<R extends true ? T[] : number> {
         return await super.updateAll(where, data, options);
     }
 
@@ -153,27 +208,43 @@ export class ChangeSetRepository<
         preserveCreateChangeSet: boolean = true,
         options?: BaseRepositoryOptions
     ): Promise<ResetChangeSetResult<T>> {
-        const changeSet: ChangeSet = await this.changeSetRepository.findById(changeSetId, { relations: ['changes'], ...options });
-        if (changeSet.changeSetEntityId !== entity.id) {
-            throw new BadRequestError(
-                $ts`Could not reset the changes from the change set: The changeSet doesn\'t belong to the entity with the given id.`
+        // three writes - the row, the change set recording the reset, and the deletion of the change
+        // set being undone - so all the more reason for them to land together. A reset that wrote the
+        // row and then failed to delete the change set it undid would offer that change set to be
+        // undone a second time
+        return await this.inTransaction(options, async transaction => {
+            const inTransaction: BaseRepositoryOptions = { ...options, transaction };
+            const changeSet: ChangeSet = await this.changeSetRepository.findById(
+                changeSetId,
+                { relations: ['changes'], ...inTransaction }
             );
-        }
-        const data: DeepPartial<T> = {} as DeepPartial<T>;
-        for (const change of changeSet.changes) {
-            const key: keyof DeepPartial<T> = change.key as keyof DeepPartial<T>;
-            data[key] = preserveCreateChangeSet && changeSet.type === ChangeSetType.CREATE
-                ? change.newValue as DeepPartial<T>[keyof DeepPartial<T>]
-                : change.previousValue as DeepPartial<T>[keyof DeepPartial<T>];
-        }
-        await this.updateByIdWithoutChangeSet(entity.id, data as UpdateData, options);
-        if (createChangeSet) {
-            await this.createChangeSet(entity, data, ChangeSetType.RESET, options);
-        }
-        if (!preserveCreateChangeSet || changeSet.type !== ChangeSetType.CREATE) {
-            await this.changeSetRepository.deleteById(changeSet.id, options);
-        }
-        return { entity: await this.findById(entity.id, options), changedValues: data };
+            if (changeSet.changeSetEntityId !== entity.id) {
+                throw new BadRequestError(
+                    $ts`Could not reset the changes from the change set: The changeSet doesn\'t belong to the entity with the given id.`
+                );
+            }
+            const data: DeepPartial<T> = {} as DeepPartial<T>;
+            for (const change of changeSet.changes) {
+                const key: keyof DeepPartial<T> = change.key as keyof DeepPartial<T>;
+                data[key] = preserveCreateChangeSet && changeSet.type === ChangeSetType.CREATE
+                    ? change.newValue as DeepPartial<T>[keyof DeepPartial<T>]
+                    : change.previousValue as DeepPartial<T>[keyof DeepPartial<T>];
+            }
+            // `saveUpdate` rather than `updateByIdWithoutChangeSet`, for the written change: a reset
+            // is a write like any other, so the hooks add to it, and the change set recording the
+            // reset has to say what the reset actually did. The existence check the public method
+            // performs is redundant here - the row was passed in.
+            const { written }: WrittenUpdate<T> = await this.saveUpdate(entity.id, data as UpdateData, inTransaction);
+            if (createChangeSet) {
+                await this.createChangeSet(entity, written, ChangeSetType.RESET, inTransaction);
+            }
+            if (!preserveCreateChangeSet || changeSet.type !== ChangeSetType.CREATE) {
+                await this.changeSetRepository.deleteById(changeSet.id, inTransaction);
+            }
+            // the written change rather than the one assembled from the stored values, so a caller
+            // aggregating several resets - the method below does - aggregates what landed
+            return { entity: await this.findById(entity.id, inTransaction), changedValues: written };
+        });
     }
 
     /**
@@ -271,25 +342,35 @@ export class ChangeSetRepository<
         preserveCreateChangeSet: boolean = true,
         options?: BaseRepositoryOptions
     ): Promise<T> {
-        const changeSets: ChangeSet[] = await this.changeSetRepository.findAll({
-            where: { changeSetEntityId: entity.id, createdAt: { greaterThan: timestampInNs } },
-            relations: ['changes']
+        // one transaction over every reset this walks through, so a rollback that fails partway does
+        // not leave the row at a state it was never in - between two of the change sets it is
+        // undoing, which is not a state anything recorded
+        return await this.inTransaction(options, async transaction => {
+            const inTransaction: BaseRepositoryOptions = { ...options, transaction };
+            const changeSets: ChangeSet[] = await this.changeSetRepository.findAll({
+                // every change since the timestamp, because a rollback that skipped some would land
+                // the row somewhere it never was
+                take: 'all',
+                where: { changeSetEntityId: entity.id, createdAt: { greaterThan: timestampInNs } },
+                relations: ['changes'],
+                ...inTransaction
+            });
+            let data: DeepPartial<T> = {} as DeepPartial<T>;
+            for (const changeSet of changeSets) {
+                const changedValues: DeepPartial<T> = (await this.resetSingleChangeSet(
+                    entity,
+                    changeSet.id,
+                    false,
+                    preserveCreateChangeSet,
+                    inTransaction
+                )).changedValues;
+                data = { ...data, ...changedValues };
+            }
+            if (createChangeSet) {
+                await this.createChangeSet(entity, data, ChangeSetType.RESET, inTransaction);
+            }
+            return await this.findById(entity.id, inTransaction);
         });
-        let data: DeepPartial<T> = {} as DeepPartial<T>;
-        for (const changeSet of changeSets) {
-            const changedValues: DeepPartial<T> = (await this.resetSingleChangeSet(
-                entity,
-                changeSet.id,
-                false,
-                preserveCreateChangeSet,
-                options
-            )).changedValues;
-            data = { ...data, ...changedValues };
-        }
-        if (createChangeSet) {
-            await this.createChangeSet(entity, data, ChangeSetType.RESET, options);
-        }
-        return await this.findById(entity.id, options);
     }
 
     /**
@@ -334,12 +415,19 @@ export class ChangeSetRepository<
         preserveCreateChangeSet: boolean = true,
         options?: BaseRepositoryOptions
     ): Promise<number> {
-        const entitiesToRollback: T[] = await this.findAll({ where: where, ...options });
-        await PromiseUtilities.allChunked(
-            entitiesToRollback,
-            e => this.rollbackToTimestamp(e, timestampInNs, createChangeSet, preserveCreateChangeSet, options)
-        );
-        return entitiesToRollback.length;
+        // one transaction over all of them, for the same reason the singular version takes one over
+        // its own resets: rolling back half the rows the filter matched is not a rollback of that
+        // filter, and nothing afterwards says which half it got to
+        return await this.inTransaction(options, async transaction => {
+            const inTransaction: BaseRepositoryOptions = { ...options, transaction };
+            // a rollback covers everything the filter matches or it is not a rollback of that filter
+            const entitiesToRollback: T[] = await this.findAll({ where: where, ...inTransaction, take: 'all' });
+            await PromiseUtilities.allChunked(
+                entitiesToRollback,
+                e => this.rollbackToTimestamp(e, timestampInNs, createChangeSet, preserveCreateChangeSet, inTransaction)
+            );
+            return entitiesToRollback.length;
+        });
     }
 
     /**
@@ -348,14 +436,16 @@ export class ChangeSetRepository<
      * @param entityPriorChanges - The entity for which the change set gets created.
      * @param data - The data of the operation eg. The update body.
      * @param type - Whether the change set is for create, update or delete.
-     * @param options - Additional options (e.g. Transaction etc.).
+     * @param options - The transaction the change set is written in, which is the only part of the
+     * caller's options that belongs to it: everything else says something about the entity being
+     * changed rather than about the row recording the change.
      * @param force - Whether or not the creation of a change set without changes should be forced.
      */
     protected async createChangeSet(
         entityPriorChanges: T,
         data: CreateData | UpdateData | DeepPartial<T>,
         type: ChangeSetType,
-        options?: CreateOptions,
+        options?: BaseRepositoryOptions,
         force: boolean = false
     ): Promise<void> {
         restoreExcludeProperties(entityPriorChanges, this.entityClass);
@@ -377,7 +467,7 @@ export class ChangeSetRepository<
             createdBy: await this.getCreatedBy(),
             changes
         };
-        await this.changeSetRepository.create(changeSetData, options);
+        await this.changeSetRepository.create(changeSetData, { transaction: options?.transaction });
     }
 
     /**
@@ -386,42 +476,53 @@ export class ChangeSetRepository<
      * @param entitiesPriorChanges - The entities to create the change sets for.
      * @param data - The data of the operation eg. The update bodies.
      * @param type - Whether the change set is for create, update or delete.
-     * @param options - Additional options (e.g. Transaction etc.).
+     * @param options - The transaction the change sets are written in, which is the only part of
+     * the caller's options that belongs to them.
      * @param force - Whether or not the creation of a change set without changes should be forced.
      */
     protected async createAllChangeSets(
         entitiesPriorChanges: T[],
         data: (CreateData | UpdateData | DeepPartial<T>)[],
         type: ChangeSetType,
-        options?: CreateOptions,
+        options?: BaseRepositoryOptions,
         force: boolean = false
     ): Promise<void> {
         const userId: string | undefined = await this.getCreatedBy();
 
-        let changeSetData: CreateChangeSetData[] = await Promise.all(entitiesPriorChanges.map(async (e, i) => {
-            restoreExcludeProperties(e, this.entityClass);
-            restoreExcludeProperties(data[i], this.entityClass);
-            const changes: NewChange[] = this.getChangesFromData(e, data[i], type);
-            await Promise.all([
-                removeExcludeProperties(e, this.entityClass),
-                removeExcludeProperties(data[i], this.entityClass)
-            ]);
+        // the return type is stated so that the literal below is checked against it. Inferred, an
+        // extra key is not an error - which is how `createdByUserId` came to be written here for a
+        // field the entity calls `createdBy`, leaving every bulk change set with no actor on it
+        let changeSetData: CreateChangeSetData[] = await Promise.all(
+            entitiesPriorChanges.map(async (e, i): Promise<CreateChangeSetData> => {
+                // one per entity, in the same order - the caller pairs them up
+                const entityData: CreateData | UpdateData | DeepPartial<T> | undefined = data[i];
+                if (entityData == undefined) {
+                    throw new InternalError(`No data was given for the change set of "${this.entityClass.name}" at position ${i}.`);
+                }
+                restoreExcludeProperties(e, this.entityClass);
+                restoreExcludeProperties(entityData, this.entityClass);
+                const changes: NewChange[] = this.getChangesFromData(e, entityData, type);
+                await Promise.all([
+                    removeExcludeProperties(e, this.entityClass),
+                    removeExcludeProperties(entityData, this.entityClass)
+                ]);
 
-            return {
-                changeSetEntityId: e.id,
-                type,
-                createdAt: nowInNs(),
-                createdByUserId: userId,
-                changes
-            };
-        }));
+                return {
+                    changeSetEntityId: e.id,
+                    type,
+                    createdAt: nowInNs(),
+                    createdBy: userId,
+                    changes
+                };
+            })
+        );
         if (!force) {
             changeSetData = changeSetData.filter(d => d.changes.length);
         }
         if (!force && !changeSetData.length) {
             return;
         }
-        await this.changeSetRepository.createAll(changeSetData, options);
+        await this.changeSetRepository.createAll(changeSetData, { transaction: options?.transaction });
     }
 
     /**

@@ -12,10 +12,11 @@ export function toCamelCase(input: string): string {
         .replaceAll(/[._\-]+/g, ' ')
         .trim();
     const parts: string[] = normalized.split(/\s+/);
-    if (parts.length === 0) {
+    const [firstPart] = parts;
+    if (firstPart == undefined) {
         return '';
     }
-    const first: string = parts[0].toLowerCase();
+    const first: string = firstPart.toLowerCase();
     const rest: string = parts
         .slice(1)
         .map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase())

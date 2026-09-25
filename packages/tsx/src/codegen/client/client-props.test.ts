@@ -1,16 +1,11 @@
 import { describe, expect, it } from '@jest/globals';
 
 import { ClientPropSite, collectClientPropSites } from './client-props';
-import { Program } from '../../parser/ast';
-import { parse } from '../../parser/parser';
+import { parseTemplateOk } from '../../__testing__/parse.helper';
 import { ComponentFunction, findComponents } from '../../semantics/component';
 
 function componentOf(source: string): ComponentFunction {
-    const program: Program | undefined = parse(source).program;
-    if (!program) {
-        throw new Error('parse failed');
-    }
-    return findComponents(program)[0].fn;
+    return findComponents(parseTemplateOk(source))[0].fn;
 }
 
 function sitesOf(source: string): ClientPropSite[] {

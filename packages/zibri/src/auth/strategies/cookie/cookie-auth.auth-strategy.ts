@@ -1,57 +1,77 @@
-import { randomBytes } from 'node:crypto';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 
 import { CookieAuthConfirmPasswordResetData } from './cookie-auth-confirm-password-reset-data.model';
+import { CookieAuthCredentials, CookieAuthCredentialsData } from './cookie-auth-credentials.model';
+import { CookieAuthData } from './cookie-auth-data.model';
+import { CookieAuthLogoutData } from './cookie-auth-logout-data.model';
 import { CookieAuthRefreshLoginData } from './cookie-auth-refresh-login-data.model';
 import { CookieAuthRefreshSession, CookieAuthRefreshSessionCreateData } from './cookie-auth-refresh-session.model';
 import { CookieAuthRequestPasswordResetData } from './cookie-auth-request-password-reset-data.model';
 import { CookieAuthSessionCleanupCronJob } from './cookie-auth-session-cleanup.cron-job';
 import { CookieAuthSession, CookieAuthSessionCreateData } from './cookie-auth-session.model';
-import { ZibriApplication } from '../../../application';
+import { ZibriApplication } from '../../../application/application';
 import { HttpRequestContext } from '../../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../../context/request/websocket-request.context';
-import { RepositoryTypeForEntity } from '../../../data-source/data-sources/data-source.interface';
-import { Repository } from '../../../data-source/repository';
+import { Repository } from '../../../data-source/repository/repository';
 import { Transaction } from '../../../data-source/transaction/transaction.model';
-import { InjectRepository, repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
+import { InjectRepository } from '../../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { NoProviderError } from '../../../di/errors/no-provider.error';
 import { inject } from '../../../di/inject.function';
 import { type EmailServiceInterface } from '../../../email/email-service.interface';
 import { EmailPriority } from '../../../email/models/email-priority.enum';
-import { BaseEntity } from '../../../entity/base-entity.model';
-import { TooManyRequestsError } from '../../../error-handling/errors/too-many-requests.error';
+import { CredentialReusedError } from '../../../error-handling/errors/credential-reused.error';
+import { HttpError } from '../../../error-handling/errors/http.error';
+import { NotFoundError } from '../../../error-handling/errors/not-found.error';
 import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.error';
-import { InternalError } from '../../../error-handling/internal-error.model';
+import { type CookieOptions } from '../../../http/cookie-options.model';
 import { HttpMethod } from '../../../http/http-method.enum';
 import { KnownHeader } from '../../../http/known-header.enum';
 import { $ts } from '../../../localization/translate.function';
 import { OpenApiSecuritySchemeObject } from '../../../open-api/open-api.model';
 import { TsxUtilities } from '../../../tsx/tsx.utilities';
-import { Newable } from '../../../types/newable.type';
 import { type OmitStrict } from '../../../types/omit-strict.type';
 import { Ms } from '../../../utilities/ms';
 import { UUIDUtilities } from '../../../utilities/uuid.utilities';
 import { type HashServiceInterface } from '../../hash/hash-service.interface';
+import type { HashString } from '../../hash/hash.utilities';
+import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy';
 import { BaseUser } from '../../models/base-user.model';
+import { PasswordResetToken, PasswordResetTokenCreateData } from '../../models/password-reset-token.model';
 import { type UserServiceInterface } from '../../user/user-service.interface';
 import { AuthStrategyInterface } from '../auth-strategy.interface';
-import { CookieAuthCredentials, CookieAuthCredentialsData } from './cookie-auth-credentials.model';
-import { CookieAuthData } from './cookie-auth-data.model';
-import { CookieAuthLogoutData } from './cookie-auth-logout-data.model';
-import { type CookieOptions } from '../../../http/cookie-options.model';
-import { PasswordResetToken, PasswordResetTokenCreateData } from '../../models/password-reset-token.model';
 import { PasswordResetEmailTemplate } from '../jwt/jwt-auth.controller';
 
 /**
  * Options input for any cookie session.
+ *
+ * `secure` is the one worth a note. Left unset it is derived per request from whether the connection
+ * actually was https, which is right for a deployment that serves both. Set to `true` it is always
+ * sent - say that when the api is https only, so that a `security.trustProxy` that is wrong, or
+ * missing, cannot quietly downgrade a session cookie to one the browser will send in the clear.
+ * Setting it to `false` turns the flag off outright and is only sensible in local development.
  */
-export type CookieAuthSessionOptionsInput = OmitStrict<CookieOptions, 'maxAge' | 'expires' | 'signed' | 'httpOnly' | 'secure'>;
+export type CookieAuthSessionOptionsInput = OmitStrict<CookieOptions, 'maxAge' | 'expires' | 'signed' | 'httpOnly'>;
+
+/**
+ * The pair minted by one rotation.
+ */
+type RotatedSessions = {
+    /**
+     * The new session.
+     */
+    session: CookieAuthSession,
+    /**
+     * The new refresh session, which is what carries the new csrf token.
+     */
+    refreshSession: CookieAuthRefreshSession
+};
 
 /**
  * Full options for any cookie session.
  */
-type CookieAuthSessionOptions = OmitStrict<CookieOptions, 'secure'>
+type CookieAuthSessionOptions = CookieOptions
     & Required<Pick<CookieOptions, 'maxAge' | 'httpOnly' | 'signed' | 'sameSite'>>;
 
 /**
@@ -77,6 +97,7 @@ export class CookieAuthStrategy<
 
     private readonly confirmPasswordResetUrl: string;
     private readonly PasswordResetEmail: PasswordResetEmailTemplate<RoleType, UserType>;
+    private dummyPasswordHashPromise: Promise<HashString> | undefined;
     private readonly sessionOptions: CookieAuthSessionOptions;
     private readonly refreshSessionOptions: CookieAuthSessionOptions;
 
@@ -157,6 +178,25 @@ export class CookieAuthStrategy<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
+    hasCredential(context: HttpRequestContext | WebsocketRequestContext): boolean {
+        // either cookie, though resolving needs both: a request carrying only the refresh cookie is
+        // still addressing this strategy - its session has lapsed and is about to be rotated - and
+        // must not read as carrying no cookie credential at all.
+        //
+        // Presence rather than validity on purpose. Whether the session behind it is any good is
+        // what resolving decides; answering false for an expired one would let a request pairing a
+        // stale cookie with someone else's token quietly resolve as that token.
+        if (!(context instanceof HttpRequestContext)) {
+            // cookies are an http thing, and resolveSession says the same
+            return false;
+        }
+        return [this.sessionOptions.name, this.refreshSessionOptions.name].some(
+            // eslint-disable-next-line typescript/no-unsafe-member-access
+            name => context.request.signedCookies?.[name] != undefined
+        );
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async resolveUser(context: HttpRequestContext | WebsocketRequestContext): Promise<UserType | undefined> {
         const session: CookieAuthSession | undefined = await this.resolveAndValidateSession(context, undefined);
         if (!session) {
@@ -166,15 +206,76 @@ export class CookieAuthStrategy<
         return await this.userService.findById<RoleType, UserType>(session.userId);
     }
 
+    /**
+     * The stored password for a user, or undefined when there is none to compare against.
+     *
+     * A user can exist without credentials, and that has to answer the same as a wrong password
+     * rather than as an error.
+     * @param user - The user to look up.
+     * @returns The stored hash, or undefined when the user has no credentials.
+     */
+    private async findStoredPassword(user: UserType): Promise<HashString | undefined> {
+        try {
+            const credentials: CookieAuthCredentials = await this.userService.resolveCredentialsFor(user);
+            return credentials.password;
+        }
+        catch {
+            return undefined;
+        }
+    }
+
+    /**
+     * Re-hashes a password that was just proven correct, if the stored hash is out of date.
+     *
+     * See the same method on the jwt strategy for why it lives here rather than in `AuthService`.
+     * @param user - The user that just logged in.
+     * @param password - The plaintext they logged in with.
+     * @param storedPassword - The hash it was compared against.
+     */
+    private async upgradeStoredPassword(user: UserType, password: string, storedPassword: HashString): Promise<void> {
+        try {
+            if (!await this.hashService.needsRehash(storedPassword)) {
+                return;
+            }
+            await this.credentialsRepository.updateAll({ userId: user.id }, { password });
+        }
+        catch (error) {
+            inject(ZIBRI_DI_TOKENS.LOGGER).warn(
+                `Could not upgrade the stored password hash for user ${user.id}: ${String(error)}`
+            );
+        }
+    }
+
+    /**
+     * Something to compare a password against when there is nothing real to compare it against.
+     *
+     * Hashed from a value nobody holds, with the default strategy, so a comparison against it costs
+     * what a comparison against a real password costs. Computed once and reused.
+     * @returns The stand-in hash.
+     */
+    private async dummyPasswordHash(): Promise<HashString> {
+        this.dummyPasswordHashPromise ??= Promise.resolve(this.hashService.hash(randomBytes(32).toString('hex')));
+        return await this.dummyPasswordHashPromise;
+    }
+
     // eslint-disable-next-line jsdoc/require-jsdoc
     async login(credentials: CookieAuthCredentialsData): Promise<CookieAuthData<RoleType>> {
         try {
-            const foundUser: UserType = await this.userService.findByEmail(credentials.email);
-            const credentialsFound: CookieAuthCredentials = await this.userService.resolveCredentialsFor(foundUser);
-            const passwordMatched: boolean = await this.hashService.equal(credentials.password, credentialsFound.password);
-            if (!passwordMatched) {
+            const foundUser: UserType | undefined = await this.userService.findByEmail(credentials.email, { required: false });
+            const storedPassword: HashString | undefined = foundUser == undefined
+                ? undefined
+                : await this.findStoredPassword(foundUser);
+
+            // one comparison on every path - see the same note on the jwt strategy. Without it the
+            // response time says whether the address is registered.
+            const passwordMatched: boolean = await this.hashService.equal(
+                credentials.password,
+                storedPassword ?? await this.dummyPasswordHash()
+            );
+            if (foundUser == undefined || storedPassword == undefined || !passwordMatched) {
                 throw new UnauthorizedError($ts`Invalid email or password.`);
             }
+            await this.upgradeStoredPassword(foundUser, credentials.password, storedPassword);
 
             const refreshSession: CookieAuthRefreshSession = await this.createRefreshSession(
                 foundUser.id,
@@ -194,7 +295,12 @@ export class CookieAuthStrategy<
                 refreshSessionExpirationDate: refreshSession.expirationDate
             };
         }
-        catch {
+        catch (error) {
+            // see the same note on the jwt strategy: every way of being *refused* answers alike, but
+            // a fault is not one of them and must not be dressed as one
+            if (!(error instanceof HttpError)) {
+                throw error;
+            }
             throw new UnauthorizedError($ts`Invalid email or password.`);
         }
     }
@@ -203,8 +309,7 @@ export class CookieAuthStrategy<
     async logout(data: CookieAuthLogoutData): Promise<void> {
         try {
             const refreshSession: CookieAuthRefreshSession | undefined = await this.refreshSessionRepository.findOne(
-                { where: { id: data.refreshSessionId }, transaction: data.transaction },
-                false
+                { where: { id: data.refreshSessionId }, transaction: data.transaction, required: false }
             );
             await this.refreshSessionRepository.deleteAll({ id: data.refreshSessionId }, { transaction: data.transaction });
             if (refreshSession) {
@@ -233,7 +338,14 @@ export class CookieAuthStrategy<
             this.clearCookies();
             throw new UnauthorizedError($ts`No valid refresh session`);
         }
-        if (new Date(currentRefreshSession.expirationDate).getTime() <= Date.now() || currentRefreshSession.blacklisted) {
+        if (currentRefreshSession.blacklisted) {
+            await this.logout({ clearCookies: true, refreshSessionId: currentRefreshSession.id, transaction: data.transaction });
+            // split out from the expiry check below only so that the trail can tell them apart. The
+            // answer is identical - same status, same message - because whoever presented a spent
+            // session is the last party who should learn that it was noticed.
+            throw new CredentialReusedError($ts`No valid refresh session`);
+        }
+        if (new Date(currentRefreshSession.expirationDate).getTime() <= Date.now()) {
             await this.logout({ clearCookies: true, refreshSessionId: currentRefreshSession.id, transaction: data.transaction });
             throw new UnauthorizedError($ts`No valid refresh session`);
         }
@@ -254,38 +366,76 @@ export class CookieAuthStrategy<
             };
         }
 
-        const newSession: CookieAuthSession = await this.rotateSessions(currentRefreshSession, data.transaction);
+        const { session: newSession, refreshSession: newRefresh } = await this.rotateSessions(
+            currentRefreshSession,
+            data.transaction
+        );
         const user: UserType = await this.userService.findById(newSession.userId);
 
         return {
             userId: newSession.userId,
             roles: user.roles,
-            csrfToken: currentRefreshSession.csrfToken,
+            // the new one. Rotation mints a fresh csrf token, so answering with the token that was
+            // just retired would hand the client something already refused.
+            csrfToken: newRefresh.csrfToken,
             sessionExpirationDate: newSession.expirationDate,
-            refreshSessionExpirationDate: new Date(Date.now() + this.refreshSessionExpiresInMs + (Ms.MINUTE * 5))
+            refreshSessionExpirationDate: newRefresh.expirationDate
         };
     }
 
+    /**
+     * Replaces a spent refresh session and the session hanging off it.
+     *
+     * Returns both, because the caller needs the new csrf token and only the refresh session carries
+     * it.
+     * @param currentRefreshSession - The refresh session being spent.
+     * @param transaction - The transaction to run in, if any.
+     * @returns The freshly minted pair.
+     */
     private async rotateSessions(
         currentRefreshSession: CookieAuthRefreshSession,
         transaction: Transaction | undefined
-    ): Promise<CookieAuthSession> {
+    ): Promise<RotatedSessions> {
         if (currentRefreshSession.blacklisted) {
+            // ends here. This used to log out and then carry on to mint a new refresh session and a
+            // new access session in the same family, handing the presenter of a spent credential a
+            // working session - the opposite of what detecting reuse is for. Both callers happen to
+            // check `blacklisted` before getting here, so nothing could reach it, but that made it
+            // untested code on the critical path rather than code that was correct.
             await this.logout({ clearCookies: true, refreshSessionId: currentRefreshSession.id, transaction });
+            throw new CredentialReusedError($ts`The given refresh session has already been used.`);
         }
-        // 1. invalidate old refresh (reuse detection)
-        await this.refreshSessionRepository.updateById(
-            currentRefreshSession.id,
-            { blacklisted: true },
-            { transaction }
-        );
+        // 1. claim the old refresh, only while it is still usable (reuse detection). Reading it took
+        // no lock, so two requests carrying the same cookie both reach this - the condition on the
+        // write is what decides between them.
+        try {
+            await this.refreshSessionRepository.updateById(
+                currentRefreshSession.id,
+                { blacklisted: true },
+                { transaction, where: { blacklisted: false } }
+            );
+        }
+        catch (error) {
+            if (!(error instanceof NotFoundError)) {
+                throw error;
+            }
+            // only reachable by a session that was *not* blacklisted when it was read and then lost
+            // the claim to a concurrent request, because the branch above returns for one that was.
+            // So: a client with two requests in flight, not reuse. No logout, since ending the family
+            // would turn its own retry into an attack on itself, and deliberately not a
+            // CredentialReusedError - that retry would otherwise read as a stolen credential in the
+            // audit trail.
+            throw new UnauthorizedError($ts`The given refresh session has already been used.`);
+        }
 
-        // 2. create new refresh (same family + SAME csrf)
+        // 2. create new refresh (same family, new csrf). Carrying the old token over meant one csrf
+        // token stayed valid for the whole life of the family - thirty days by default - and was
+        // never replaced by anything, including re-authentication.
         const newRefresh: CookieAuthRefreshSession = await this.createRefreshSession(
             currentRefreshSession.userId,
             currentRefreshSession.familyId,
             transaction,
-            currentRefreshSession.csrfToken
+            randomBytes(32).toString('base64url')
         );
 
         // 3. create new access session
@@ -294,79 +444,54 @@ export class CookieAuthStrategy<
         // 4. set cookies (important: use current context)
         this.setSessionCookie(newSession);
         this.setRefreshSessionCookie(newRefresh);
+        this.setCsrfTokenHeader(newRefresh.csrfToken);
 
-        return newSession;
+        return { session: newSession, refreshSession: newRefresh };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    async isLoggedIn(context: HttpRequestContext | WebsocketRequestContext): Promise<boolean> {
-        return await this.resolveUser(context) !== undefined;
-    }
-
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    async hasRole(
-        context: HttpRequestContext | WebsocketRequestContext,
-        allowedRoles: RoleType[]
-    ): Promise<boolean> {
-        const user: UserType | undefined = await this.resolveUser(context);
-        if (!user) {
-            return false;
+    /**
+     * Hands the caller the csrf token that goes with the session it was just given.
+     *
+     * A response body is not always available. A session renews itself in the middle of whatever
+     * request happened to notice it had expired, and that response belongs to the route, not to the
+     * auth system - so without a header the client's token would go stale silently and its next
+     * unsafe request would be refused. Login and refresh-login still return it in their bodies too.
+     *
+     * A browser on another origin can only read this if the header is listed in
+     * `security.cors.exposedHeaders`.
+     * @param csrfToken - The token that is now the valid one.
+     */
+    private setCsrfTokenHeader(csrfToken: string): void {
+        const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
+        if (!(context instanceof HttpRequestContext)) {
+            return;
         }
-
-        return user.roles.some(r => allowedRoles.includes(r));
-    }
-
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    async belongsTo<TargetEntity extends Newable<BaseEntity>>(
-        context: HttpRequestContext | WebsocketRequestContext,
-        targetEntity: TargetEntity,
-        targetUserIdKey: keyof InstanceType<TargetEntity>,
-        targetIdParamKey: string
-    ): Promise<boolean> {
-        const session: CookieAuthSession | undefined = await this.resolveAndValidateSession(context, undefined);
-        if (!session) {
-            return false;
-        }
-
-        try {
-            const repo: RepositoryTypeForEntity<InstanceType<TargetEntity>> = inject(repositoryTokenFor(targetEntity));
-            const targetId: string | undefined = context.request.params?.[targetIdParamKey];
-            if (targetId == undefined) {
-                throw new InternalError(`Could not find the target id specified as path param "${targetIdParamKey}"`);
-            }
-            const foundTarget: InstanceType<TargetEntity> = await repo.findById(targetId) as InstanceType<TargetEntity>;
-            const userIdProperty: unknown = foundTarget[targetUserIdKey];
-            if (Array.isArray(userIdProperty)) {
-                return userIdProperty.includes(session.userId);
-            }
-            return userIdProperty === session.userId;
-        }
-        catch {
-            return false;
-        }
+        context.response.setHeader(this.csrfTokenHeader as KnownHeader, csrfToken);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async requestPasswordReset(data: CookieAuthRequestPasswordResetData<RoleType, UserType>): Promise<void> {
         if (await this.activePasswordResetTokenAlreadyExists(data.user, data.transaction)) {
-            throw new TooManyRequestsError($ts`A password reset has already been requested for this account.`);
+            // silently, for the same reason as in the jwt strategy: a different answer here named an
+            // address that exists and had recently been asked about
+            return;
         }
 
+        // kept here rather than read back off the entity - the property is hashed on the way in, so
+        // this is the only moment the token itself exists. See the same note in the jwt strategy.
+        const tokenValue: string = randomBytes(16).toString('hex');
         const resetTokenData: PasswordResetTokenCreateData = {
-            value: randomBytes(16).toString('hex'),
+            value: tokenValue,
             userId: data.user.id,
             expirationDate: new Date(Date.now() + this.passwordResetTokenExpiresInMs)
         };
-        const resetToken: PasswordResetToken = await this.passwordResetTokenRepository.create(
-            resetTokenData,
-            { transaction: data.transaction }
-        );
+        await this.passwordResetTokenRepository.create(resetTokenData, { transaction: data.transaction });
 
         const html: string = TsxUtilities.renderEmail(
             this.PasswordResetEmail,
             {
                 user: data.user,
-                confirmPasswordResetLink: `${data.emailData?.confirmPasswordResetUrl ?? this.confirmPasswordResetUrl}/${resetToken.value}`
+                confirmPasswordResetLink: `${data.emailData?.confirmPasswordResetUrl ?? this.confirmPasswordResetUrl}/${tokenValue}`
             }
         );
 
@@ -375,7 +500,10 @@ export class CookieAuthStrategy<
             subject: 'Password Reset',
             html,
             priority: EmailPriority.HIGH,
-            ...data.emailData
+            ...data.emailData,
+            // after the spread, so an application cannot ask for this one to be kept - see the same
+            // note in the jwt strategy
+            persist: false
         });
     }
 
@@ -383,10 +511,11 @@ export class CookieAuthStrategy<
     async confirmPasswordReset(data: CookieAuthConfirmPasswordResetData): Promise<void> {
         const resetToken: PasswordResetToken | undefined = await this.passwordResetTokenRepository.findOne(
             {
-                where: { value: data.resetToken },
-                transaction: data.transaction
-            },
-            false
+                // hashed to be searched for, because that is how it is stored
+                where: { value: await this.hashService.hash(data.resetToken, { strategy: Sha256HashStrategy }) },
+                transaction: data.transaction,
+                required: false
+            }
         );
         if (!resetToken) {
             throw new UnauthorizedError($ts`Link invalid`);
@@ -407,8 +536,7 @@ export class CookieAuthStrategy<
 
     private async activePasswordResetTokenAlreadyExists(user: BaseUser<RoleType>, transaction: Transaction | undefined): Promise<boolean> {
         const existingToken: PasswordResetToken | undefined = await this.passwordResetTokenRepository.findOne(
-            { where: { userId: user.id }, transaction },
-            false
+            { where: { userId: user.id }, transaction, required: false }
         );
         if (existingToken) {
             if (new Date(existingToken.expirationDate).getTime() > Date.now()) {
@@ -431,7 +559,7 @@ export class CookieAuthStrategy<
         if (!currentSessionId) {
             return undefined;
         }
-        return await this.sessionRepository.findOne({ where: { id: currentSessionId }, transaction }, false);
+        return await this.sessionRepository.findOne({ where: { id: currentSessionId }, transaction, required: false });
     }
 
     private async resolveAndValidateSession(
@@ -457,7 +585,9 @@ export class CookieAuthStrategy<
             return undefined;
         }
         if (new Date(session.expirationDate).getTime() <= Date.now()) {
-            return await this.rotateSessions(refreshSession, transaction);
+            // the new csrf token reaches this caller through the response header, since this renewal
+            // happens inside somebody else's request and there is no body of ours to put it in
+            return (await this.rotateSessions(refreshSession, transaction)).session;
         }
 
         if (session.familyId !== refreshSession.familyId || session.userId !== refreshSession.userId) {
@@ -480,7 +610,19 @@ export class CookieAuthStrategy<
             return true;
         }
         const csrfToken: string | undefined = this.resolveCsrfTokenFromHeader(context);
-        return csrfToken === refreshSession.csrfToken;
+        if (csrfToken == undefined) {
+            return false;
+        }
+        // constant time, like the framework's own cookie signature check already is. `===` returns as soon
+        // as two bytes differ, which leaks the shared prefix of a token an attacker is guessing.
+        // Compared as bytes, with the length checked first because timingSafeEqual throws on a
+        // mismatch - the length itself is not a secret.
+        const provided: Buffer = Buffer.from(csrfToken);
+        const expected: Buffer = Buffer.from(refreshSession.csrfToken);
+        if (provided.length !== expected.length) {
+            return false;
+        }
+        return timingSafeEqual(provided, expected);
     }
 
     private async resolveRefreshSession(
@@ -496,8 +638,7 @@ export class CookieAuthStrategy<
             return undefined;
         }
         return await this.refreshSessionRepository.findOne(
-            { where: { id: currentRefreshSessionId }, transaction },
-            false
+            { where: { id: currentRefreshSessionId }, transaction, required: false }
         );
     }
 
@@ -540,8 +681,15 @@ export class CookieAuthStrategy<
         if (!(context instanceof HttpRequestContext)) {
             return;
         }
-        context.response.clearCookie(this.sessionOptions.name, this.sessionOptions);
-        context.response.clearCookie(this.refreshSessionOptions.name, this.refreshSessionOptions);
+        // same attributes the cookie was written with, so that clearing it matches it
+        context.response.clearCookie(this.sessionOptions.name, {
+            ...this.sessionOptions,
+            secure: this.isSecure(this.sessionOptions, context)
+        });
+        context.response.clearCookie(this.refreshSessionOptions.name, {
+            ...this.refreshSessionOptions,
+            secure: this.isSecure(this.refreshSessionOptions, context)
+        });
     }
 
     private setSessionCookie(session: CookieAuthSession): void {
@@ -549,8 +697,11 @@ export class CookieAuthStrategy<
         if (!(context instanceof HttpRequestContext)) {
             return;
         }
-        const secure: boolean = context.request.secure || context.request.headers[KnownHeader.X_FORWARDED_PROTO] === 'https';
-        context.response.cookie(this.sessionOptions.name, session.id, { ...this.sessionOptions, secure });
+        context.response.cookie(
+            this.sessionOptions.name,
+            session.id,
+            { ...this.sessionOptions, secure: this.isSecure(this.sessionOptions, context) }
+        );
     }
 
     private setRefreshSessionCookie(session: CookieAuthRefreshSession): void {
@@ -558,7 +709,26 @@ export class CookieAuthStrategy<
         if (!(context instanceof HttpRequestContext)) {
             return;
         }
-        const secure: boolean = context.request.secure || context.request.headers[KnownHeader.X_FORWARDED_PROTO] === 'https';
-        context.response.cookie(this.refreshSessionOptions.name, session.id, { ...this.refreshSessionOptions, secure });
+        context.response.cookie(
+            this.refreshSessionOptions.name,
+            session.id,
+            { ...this.refreshSessionOptions, secure: this.isSecure(this.refreshSessionOptions, context) }
+        );
+    }
+
+    /**
+     * Whether this cookie goes out with the `Secure` flag.
+     *
+     * An application that says so outright wins - it knows whether it is https only, and saying it
+     * cannot be undone by a proxy that forgot to be declared in `security.trustProxy`. Otherwise it
+     * follows `req.secure`, which honours the forwarded protocol for as many hops as trustProxy
+     * allows. Never the `X-Forwarded-Proto` header directly: reading that believed whoever sent the
+     * request, so a caller could both ask for a Secure cookie and, worse, decline one.
+     * @param options - The options for the cookie being written.
+     * @param context - The request the cookie is a response to.
+     * @returns Whether to set the flag.
+     */
+    private isSecure(options: CookieAuthSessionOptions, context: HttpRequestContext): boolean {
+        return options.secure ?? context.request.secure;
     }
 }

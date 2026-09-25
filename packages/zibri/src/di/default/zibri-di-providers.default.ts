@@ -4,14 +4,17 @@ import os from 'node:os';
 import { inject } from '../inject.function';
 import { ZIBRI_DI_TOKENS } from './zibri-di-tokens.default';
 import { AssetService } from '../../assets/asset.service';
-import { resolveZibriRoot } from '../../assets/resolve-zibri-root.function';
 import { TwoFactorService } from '../../auth/2fa/two-factor.service';
+import { AuthRateLimiter } from '../../auth/auth.rate-limiter';
 import { AuthService } from '../../auth/auth.service';
 import { EncryptionKeyCache } from '../../auth/encryption/encryption-key.cache';
 import { EncryptionService } from '../../auth/encryption/encryption.service';
 import { AesGcmEncryptionStrategy } from '../../auth/encryption/strategies/aes-gcm.encryption-strategy';
 import { HashService } from '../../auth/hash/hash.service';
-import { ScryptHashStrategy } from '../../auth/hash/strategies/scrypt.hash-strategy';
+import { defaultScryptCost, ScryptHashStrategy } from '../../auth/hash/strategies/scrypt.hash-strategy';
+import { Sha256HashStrategy } from '../../auth/hash/strategies/sha256.hash-strategy';
+import { RouteAuthConfiguration } from '../../auth/models/route-auth-configuration.model';
+import { JwtAuthOptionsInput } from '../../auth/strategies/jwt/jwt-auth-options.model';
 import { UserService } from '../../auth/user/user.service';
 import { BackupService } from '../../backup/backup.service';
 import { CacheService } from '../../caching/cache.service';
@@ -25,8 +28,12 @@ import { EmailRateLimiter } from '../../email/email.rate-limiter';
 import { EmailService } from '../../email/email.service';
 import { errorHandler } from '../../error-handling/error-handler';
 import { EventService } from '../../event/event.service';
+import { CompressionOptions } from '../../http/compression.middleware';
+import { HttpServerTimeouts } from '../../http/http-server-timeouts.model';
 import { KnownHeader } from '../../http/known-header.enum';
 import { HttpClient } from '../../http-client/http-client';
+import { HttpClientOptionsInput } from '../../http-client/http-client-options.model';
+import { LeaseService } from '../../leases/lease.service';
 import { defineDateFormat } from '../../localization/define-date-format.function';
 import { LocalizeService } from '../../localization/localize.service';
 import { LocalizeOptionsInput } from '../../localization/models/localize-options.model';
@@ -40,10 +47,15 @@ import { CspSource } from '../../parsing/html/csp-options.model';
 import { Parser } from '../../parsing/parser';
 import { RateLimitingService } from '../../rate-limiting/rate-limiting.service';
 import { Router } from '../../routing/router';
+import { InMemoryTraceBuffer } from '../../tracing/in-memory.trace-buffer';
+import { OpenTelemetryTracer } from '../../tracing/open-telemetry/open-telemetry.tracer';
 import { FsUtilities } from '../../utilities/fs.utilities';
 import { Ms } from '../../utilities/ms';
+import { resolveAppRoot } from '../../utilities/resolve-app-root.function';
+import { resolveZibriRoot } from '../../utilities/resolve-zibri-root.function';
 import { ValidationService } from '../../validation/validation.service';
 import { VersioningService } from '../../versioning/versioning.service';
+import { WebsocketOptions } from '../../websocket/models/websocket-options.model';
 import { WebsocketService } from '../../websocket/services/websocket.service';
 import { DiTokenProviderRecord } from '../models/di-token.model';
 import { DiVariants } from '../models/di-variant.model';
@@ -51,7 +63,7 @@ import { DiVariants } from '../models/di-variant.model';
 const allThreads: number = os.availableParallelism();
 
 const reserveThreadsMain: number = 1;
-const reserveThreadsLibUv: number = Number(process.env.UV_THREADPOOL_SIZE ?? '4');
+const reserveThreadsLibUv: number = Number(process.env['UV_THREADPOOL_SIZE'] ?? '4');
 
 const availableThreads: number = allThreads - reserveThreadsLibUv - reserveThreadsMain;
 
@@ -68,6 +80,16 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
             LoggerTransport.db(LogLevel.INFO)
         ]
     },
+    LOGGER_BUFFER_CAPACITY: { useFactory: () => 10000 },
+    // how long entries are allowed to gather before they are written, so that entries logged near
+    // each other share one write. Zero writes each entry on its own, which is what the batching
+    // exists to replace - a request that logs one line would be one INSERT again.
+    // Long enough that an application logging a line per request writes once for many of them, and
+    // short enough that a crash loses at most a second of entries. Anything shorter stops batching
+    // the traffic that made batching worth doing: a service handling a few requests a second is
+    // quiet on a 100ms window, so each line would still be written on its own.
+    LOGGER_FLUSH_INTERVAL_MS: { useFactory: () => Ms.SECOND },
+    ACCESS_LOG: { useFactory: () => false },
     LOGGER_CLEANUP_AFTER_MS: {
         useFactory: () => ({
             [LogLevel.DEBUG]: Ms.WEEK * 2,
@@ -83,24 +105,99 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
     GLOBAL_ERROR_HANDLER: { useFactory: () => errorHandler },
     ERROR_PAGE_TEMPLATE: { useFactory: () => undefined },
     OPEN_API_SERVICE: { useClass: OpenApiService },
+    // the explorer, its scripts and the spec, public rather than behind `defaultAuth`. A browser
+    // reaches the explorer by navigating to it, and a navigation carries no Authorization header, so
+    // inheriting a login requirement would leave a bearer token application with an explorer nobody
+    // can open rather than one only its callers can. An api whose endpoint map is not for everyone
+    // says so here - `{}` puts it behind the application's default, and any other route auth
+    // configuration behind exactly what it names.
+    OPEN_API_AUTH: { useFactory: (): RouteAuthConfiguration => ({ skip: true }) },
     PARSER: { useClass: Parser },
     VALIDATION_SERVICE: { useClass: ValidationService },
     DATA_SOURCE_SERVICE: { useClass: DataSourceService },
+    SCHEMA_LOCK_TIMEOUT_IN_MS: { useFactory: () => Ms.MINUTE },
+    SCHEMA_LOCK_HOLD_IN_MS: { useFactory: () => Ms.SECOND * 30 },
+    VAL_KEY_TRANSACTION_LOCK_TIMEOUT_IN_MS: { useFactory: () => Ms.SECOND * 10 },
+    VAL_KEY_TRANSACTION_LOCK_HOLD_IN_MS: { useFactory: () => Ms.SECOND * 30 },
+    // how long open requests get to finish before the rest of the shutdown goes ahead without them.
+    // Everything else waits behind this, so it has to leave room inside the orchestrator's own grace
+    // period rather than use all of it.
+    HTTP_DRAIN_TIMEOUT_IN_MS: { useFactory: () => Ms.SECOND * 10 },
+    // narrower than node's own five minutes and one minute, because both of those are shaped for a
+    // server on a network somebody trusts. keepAlive is node's default and is here to be raised: only
+    // the deployment knows what sits in front of the application.
+    // a kilobyte, because below it the encoding header is most of what the client would receive. On
+    // rather than off: a client that cannot read an encoding never asks for one, so an application
+    // already behind something that compresses only ever finds this doing nothing.
+    COMPRESSION_OPTIONS: { useFactory: (): CompressionOptions => ({ enabled: true, thresholdInBytes: 1024 }) },
+    // handlerInMs bounds the other side of the same request: the three above are all satisfied the
+    // moment it has arrived, and nothing after that stops the handler it reached. Thirty seconds
+    // because it is long enough that no ordinary endpoint reaches it and short enough that a client
+    // still has an answer before it gives up on its own.
+    HTTP_SERVER_TIMEOUTS: {
+        useFactory: (): HttpServerTimeouts => ({
+            requestInMs: Ms.SECOND * 60,
+            headersInMs: Ms.SECOND * 15,
+            keepAliveInMs: Ms.SECOND * 5,
+            handlerInMs: Ms.SECOND * 30
+        })
+    },
+    LEASE_SERVICE: { useClass: LeaseService },
+    // how long a shutting down instance waits for work it holds a lease on before taking the lease
+    // away. Comfortably inside the shutdown timeout, or the hook is cut off before it can release.
+    LEASE_DRAIN_TIMEOUT_IN_MS: { useFactory: () => Ms.SECOND * 10 },
     AUTH_SERVICE: { useClass: AuthService },
+    REVALIDATE_USER_ON_AUTH_CHECK: { useFactory: () => true },
+    AUTH_RATE_LIMITER: { useClass: AuthRateLimiter, variants: [DiVariants.RATE_LIMITER] },
+    AUTH_RATE_LIMIT_OPTIONS: { useFactory: () => ({ maxAttempts: 20, windowInMs: Ms.MINUTE * 10 }) },
     TWO_FACTOR_SERVICE: { useClass: TwoFactorService },
     OTP_HEADER: { useFactory: () => 'x-authorization-otp' },
+    OTP_VALIDATION_WINDOW_IN_MS: { useFactory: () => 30_000 },
     OTP_LENGTH: { useFactory: () => 6 },
     USER_SERVICE: { useClass: UserService },
-    JWT_ACCESS_TOKEN_SECRET: { useFactory: () => undefined },
-    JWT_REFRESH_TOKEN_SECRET: { useFactory: () => undefined },
     PASSWORD_RESET_EMAIL_TEMPLATE: { useFactory: () => undefined },
-    JWT_ACCESS_TOKEN_EXPIRES_IN_MS: { useFactory: () => Ms.HOUR },
-    JWT_REFRESH_TOKEN_EXPIRES_IN_MS: { useFactory: () => 100 * Ms.DAY },
+    JWT_AUTH_OPTIONS_INPUT: { useFactory: () => ({}) },
+    JWT_AUTH_OPTIONS: {
+        useFactory: () => {
+            const input: JwtAuthOptionsInput = inject(ZIBRI_DI_TOKENS.JWT_AUTH_OPTIONS_INPUT);
+            return {
+                accessTokenSecret: undefined,
+                previousAccessTokenSecrets: [],
+                accessTokenExpiresInMs: Ms.HOUR,
+                refreshTokenSecret: undefined,
+                previousRefreshTokenSecrets: [],
+                // a refresh token is a live login for as long as it lasts, so this is how long a
+                // stolen one is worth stealing. 30 days is the usual "stay signed in" window; 100
+                // was a third of a year.
+                refreshTokenExpiresInMs: 30 * Ms.DAY,
+                ...input
+            };
+        }
+    },
     CRON_SERVICE: { useClass: CronService },
+    CRON_EXECUTION_LEASE_IN_MS: { useFactory: () => Ms.MINUTE * 5 },
+    CRON_REGISTRATION_LEASE_IN_MS: { useFactory: () => Ms.SECOND * 30 },
     EMAIL_SERVICE: { useClass: EmailService },
     EMAIL_RATE_LIMITER: { useClass: EmailRateLimiter, variants: [DiVariants.RATE_LIMITER] },
     EMAIL_CONFIG: { useFactory: () => undefined },
-    FILE_UPLOAD_TEMP_FOLDER: { useFactory: () => FsUtilities.getPath(__dirname, 'temp') },
+    // no default, the same way EMAIL_CONFIG has none: every transport needs something only the
+    // deployment knows - an smtp host and credentials, or an api key - so there is nothing to
+    // default to. EmailService names SmtpEmailTransport when it finds none.
+    EMAIL_TRANSPORT: { useFactory: () => undefined },
+    FILE_UPLOAD_TEMP_FOLDER: { useFactory: () => FsUtilities.getPath(resolveAppRoot(), '.zibri', 'uploads') },
+    // where a backup is written on its way to a transport and read on its way back. On this
+    // instance's own disk rather than on shared storage: what lives here is one instance's work in
+    // progress, and it needs room for the largest archive being written or restored at a time
+    BACKUP_TEMP_FOLDER: { useFactory: () => FsUtilities.getPath(resolveAppRoot(), '.zibri', 'backups') },
+    // the route history belongs to the deployment, so it is resolved from the application's root:
+    // an installed copy of the framework is the one place it must not land, and that is where
+    // resolving it from this file put it for an application that does not bundle.
+    VERSIONS_PATH: { useFactory: () => FsUtilities.getPath(resolveAppRoot(), 'versions') },
+    // beside the bundle rather than at the application's root, which is where a build copies them
+    // to. The two differ on purpose: a version file is written at runtime and read by the next
+    // deployment, while a translation is built once and shipped with what reads it.
+    TRANSLATIONS_PATH: { useFactory: () => FsUtilities.getPath(__dirname, 'translations') },
+    FORM_DATA_LIMITS: { useFactory: () => ({ maxFiles: 20, maxParts: 1000, maxFields: 500 }) },
     PASSWORD_RESET_TOKEN_EXPIRES_IN_MS: { useFactory: () => 300000 },
     CONFIRM_PASSWORD_RESET_URL: { useFactory: () => undefined },
     MULTITHREADING_OPTIONS: {
@@ -108,15 +205,50 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
             maxThreads,
             maxPriorityThreads,
             defaultTimeoutMs: Ms.HOUR,
-            defaultTimeoutPriorityMs: Ms.MINUTE * 5
+            defaultTimeoutPriorityMs: Ms.MINUTE * 5,
+            jobClaimInMs: Ms.SECOND * 30,
+            enableTsWorkerFiles: true
         })
     },
     MULTITHREADING_SERVICE: { useClass: MultithreadingService },
     WEBSOCKET_SERVICE: { useClass: WebsocketService },
-    WEBSOCKET_OPTIONS: { useFactory: () => ({ timeoutInMs: Ms.SECOND * 5, isAllowedToConnect: () => true }) },
+    // handlerInMs bounds this server's own code, the way the http one does. Thirty seconds for the
+    // same reason: long enough that no ordinary event reaches it, short enough that a client hears
+    // something before it gives up
+    WEBSOCKET_OPTIONS: {
+        useFactory: (): WebsocketOptions => ({
+            timeoutInMs: Ms.SECOND * 5,
+            handlerInMs: Ms.SECOND * 30,
+            isAllowedToConnect: () => true
+        })
+    },
     HTTP_CLIENT: { useClass: HttpClient },
+    HTTP_CLIENT_OPTIONS_INPUT: { useFactory: () => ({}) },
+    HTTP_CLIENT_OPTIONS: {
+        useFactory: () => {
+            const input: HttpClientOptionsInput = inject(ZIBRI_DI_TOKENS.HTTP_CLIENT_OPTIONS_INPUT);
+            return {
+                defaultTimeoutMs: Ms.SECOND * 5,
+                defaultMaxResponseSize: '10mb',
+                ...input
+            };
+        }
+    },
     EVENT_SERVICE: { useClass: EventService },
-    CORRELATION_ID_HEADER: { useValue: 'x-correlation-id' },
+    EVENT_EXECUTION_LEASE_IN_MS: { useFactory: () => Ms.MINUTE },
+    EVENT_SUBSCRIBER_REGISTRATION_TTL_IN_MS: { useFactory: () => Ms.MINUTE },
+    // the same as the execution lease on purpose: a failed attempt keeps its grant until that
+    // lapses, so a shorter delay here would be a number that never decides anything
+    EVENT_RETRY_DELAY_IN_MS: { useFactory: () => Ms.MINUTE },
+    // the same number PromiseUtilities chunks by, because it answers the same question: how much of
+    // a backlog one instance takes on at once
+    EVENT_MAX_CONCURRENT_HOOKS: { useFactory: () => 50 },
+    TRACER: { useClass: OpenTelemetryTracer },
+    TRACE_BUFFER: { useFactory: () => new InMemoryTraceBuffer() },
+    // nothing, which is what keeps tracing free of anything outside this process until an
+    // application says otherwise. A default of "send to localhost" would have every deployment
+    // that never configured a collector making a request every few seconds that nothing answers
+    TRACE_EXPORTER: { useFactory: () => undefined },
     CSRF_TOKEN_HEADER: { useValue: 'x-csrf-token' },
     COOKIE_AUTH_SESSION_OPTIONS: {
         useValue: {
@@ -134,14 +266,23 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
     },
     COOKIE_SIGN_SECRET: { useValue: undefined },
     COOKIE_AUTH_SESSION_EXPIRES_IN_MS: { useValue: Ms.DAY },
-    COOKIE_AUTH_REFRESH_SESSION_EXPIRES_IN_MS: { useValue: Ms.DAY * 100 },
+    // the cookie equivalent of the refresh token above, and the same reasoning
+    COOKIE_AUTH_REFRESH_SESSION_EXPIRES_IN_MS: { useValue: Ms.DAY * 30 },
     HASH_SERVICE: { useClass: HashService },
-    HASH_STRATEGIES: { useValue: [ScryptHashStrategy] },
+    // scrypt first, and it is the one an unqualified hash uses. Sha256HashStrategy is here so that a
+    // property can ask for it by name - it is deterministic, so the service refuses it as the
+    // default whatever order this array is in.
+    HASH_STRATEGIES: { useValue: [ScryptHashStrategy, Sha256HashStrategy] },
+    // what one password derivation costs. Roughly 128MB and a few hundred ms each, which is the
+    // point - and the reason it is a provider: it is the one security parameter whose right value
+    // depends on the host rather than on the framework.
+    SCRYPT_COST: { useValue: defaultScryptCost },
     ENCRYPTION_SERVICE: { useClass: EncryptionService },
     ENCRYPTION_STRATEGIES: { useValue: [AesGcmEncryptionStrategy] },
     ENCRYPTION_MASTER_OPTIONS: { useValue: undefined },
     ENCRYPTION_KEY_CACHE: { useClass: EncryptionKeyCache, variants: [DiVariants.CACHE] },
     CACHE_SERVICE: { useClass: CacheService },
+    CACHE_INVALIDATION_RETENTION_IN_MS: { useFactory: () => Ms.MINUTE },
     VERSIONING_SERVICE: { useClass: VersioningService },
     VERSION_HEADER: { useValue: KnownHeader.X_VERSION },
     VERSION_QUERY_PARAM: { useValue: 'version' },
@@ -161,6 +302,7 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
                     }
                 },
                 localeQueryParam: 'locale',
+                defaultTimezone: 'UTC',
                 ...input
             };
         }
@@ -170,7 +312,7 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
     // dynamic
     CURRENT_REQUEST_CONTEXT: {
         useFactory: () => AlsUtilities.getCurrentRequestContext(),
-        cache: false
+        scope: 'transient'
     },
     DEFAULT_CSP_OPTIONS: {
         useFactory: () => {
@@ -195,10 +337,10 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
                 styleSrc: []
             };
         },
-        cache: false
+        scope: 'transient'
     },
     CURRENT_CACHE_CONTEXT: {
         useFactory: () => AlsUtilities.getCurrentCacheContext(),
-        cache: false
+        scope: 'transient'
     }
 };

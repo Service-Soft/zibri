@@ -8,10 +8,11 @@ import { BaseEntity } from '../entity/base-entity.model';
 import { Property } from '../entity/decorators/property.decorator';
 import { ValidationError } from '../error-handling/errors/validation.error';
 import { MimeType } from '../http/mime-type.enum';
-import { BodyMetadata } from '../routing/decorators/body.decorator';
+import { BodyMetadata, FormDataBodyMetadataInput, JsonBodyMetadataInput } from '../routing/decorators/body-metadata.model';
 import { HeaderParamMetadata, PathParamMetadata, QueryParamMetadata } from '../routing/decorators/param.decorator';
 import { createHeaderParamMetadata, createPathParamMetadata, createQueryParamMetadata } from '../routing/param-metdata.helpers';
-import { NumberUtilities } from '../utilities/number.utilities';
+import { resolveBodyMetadata } from '../routing/resolve-body-metadata.function';
+import { Newable } from '../types/newable.type';
 
 class Nested {
     @Property.string()
@@ -49,19 +50,11 @@ class WithNested {
     nested: Nested | undefined;
 }
 
-// eslint-disable-next-line typescript/no-explicit-any
-function bodyMeta(overrides: Record<string, any> = {}): BodyMetadata {
-    return {
-        modelClass: SimpleModel,
-        type: MimeType.JSON,
-        isArray: false,
-        allowAdditionalProperties: false,
-        required: true,
-        description: undefined,
-        index: 0,
-        maxSize: NumberUtilities.new(100),
-        ...overrides
-    };
+// a json body names no type, a form data body has to
+type BodyMetaOverrides = (JsonBodyMetadataInput & { modelClass?: Newable<unknown> }) | FormDataBodyMetadataInput;
+
+function bodyMeta(declaration: BodyMetaOverrides = {}): BodyMetadata {
+    return resolveBodyMetadata({ modelClass: SimpleModel, ...declaration }, 0);
 }
 
 describe('ValidationService', () => {

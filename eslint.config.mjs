@@ -8,5 +8,8 @@ export default [
         rules: {
             'jsdoc/require-description': 'off'
         }
+    },
+    {
+        ignores: ['.zibri/uploads']
     }
 ];

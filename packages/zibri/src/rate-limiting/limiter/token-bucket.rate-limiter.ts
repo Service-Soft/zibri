@@ -2,7 +2,7 @@
 import { NumberUtilities } from '../../utilities/number.utilities';
 import { RateLimitResult } from '../rate-limit-result.model';
 import { BaseRateLimiter } from './base-rate-limiter.model';
-import { RateLimiterConfigInput } from './rate-limiter-config.model';
+import { RateLimiterConfigInput, RateLimitStoreFailurePolicy } from './rate-limiter-config.model';
 import { RateLimitReservation } from '../reservation/rate-limit-reservation.model';
 import { BaseRateLimitState } from '../stores/rate-limiter-store.interface';
 
@@ -47,6 +47,7 @@ export class TokenBucketRateLimiter extends BaseRateLimiter<TokenBucketState> {
     ) {
         super({
             reservationGracePeriodMs: (waitMs) => Math.max(5000, waitMs),
+            onStoreFailure: RateLimitStoreFailurePolicy.REJECT,
             maxReservationCount: config.capacity,
             ...config
         });

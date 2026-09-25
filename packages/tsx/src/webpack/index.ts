@@ -1,7 +1,7 @@
 import { collectClientPackagesFromFiles, findTemplateFiles } from '../build/templates';
 import { generateVendorBundles } from '../build/vendor';
 import { compile, CompileResult, ModuleFormat } from '../codegen/compile';
-import { Diagnostic, offsetToLineColumn } from '../diagnostics/diagnostic.model';
+import { resolveCompileError } from '../diagnostics/diagnostic.model';
 
 /**
  * The subset of webpack's loader context this loader uses. Typed structurally so the package needs
@@ -54,21 +54,6 @@ export type CompilerLike = {
 };
 
 /**
- * Formats diagnostics into a single readable error for the bundler.
- * @param diagnostics - The diagnostics to format.
- * @param source - The source they refer to.
- * @param file - The file path, for context.
- * @returns The error to report.
- */
-function toError(diagnostics: Diagnostic[], source: string, file: string): Error {
-    const lines: string[] = diagnostics.map(diagnostic => {
-        const { line, column } = offsetToLineColumn(source, diagnostic.span.start);
-        return `${file}:${line}:${column} ${diagnostic.code} ${diagnostic.message}`;
-    });
-    return new Error(`zibri-tsx failed to compile:\n${lines.join('\n')}`);
-}
-
-/**
  * A webpack loader that compiles a `.tsx` template into a compiled-component module.
  *
  * Register it for your template files, like this.
@@ -83,7 +68,7 @@ export default function zibriTsxLoader(this: LoaderContext, source: string): str
     const format: ModuleFormat = this.getOptions?.().module ?? 'cjs';
     const result: CompileResult = compile(source, { module: format });
     if (!result.code) {
-        this.emitError(toError(result.diagnostics, source, this.resourcePath));
+        this.emitError(resolveCompileError(result.diagnostics, source, this.resourcePath));
         return format === 'cjs' ? 'module.exports = undefined;' : 'export default undefined;';
     }
     return result.code;

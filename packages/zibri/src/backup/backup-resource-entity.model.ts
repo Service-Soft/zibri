@@ -15,12 +15,21 @@ export class BackupResourceEntity extends BaseEntity {
     @Property.string()
     name!: string;
     /**
-     * The size of the resource in bytes.
+     * The size of the resource in bytes, as every transport received it.
      */
-    @Property.number({ required: false })
+    @Property.number({ format: 'integer', required: false })
     size: number | undefined | null;
     /**
-     * Whether or not the backup of this resource has been completed.
+     * The sha256 of the data, as every transport received it.
+     *
+     * What a restore checks its copy against: an archive that has been truncated or damaged where it
+     * is stored reads back as valid in every other respect, since a backup is opaque bytes and its
+     * own name says nothing about what is inside it.
+     */
+    @Property.string({ required: false })
+    checksum: string | undefined | null;
+    /**
+     * Whether every transport took the whole resource.
      */
     @Property.boolean({ default: false })
     completed!: boolean;
@@ -44,4 +53,7 @@ export class BackupResourceEntity extends BaseEntity {
 /**
  * The data required to create a new backup resource.
  */
-export type BackupResourceEntityCreateData = OmitStrict<BackupResourceEntity, 'id' | 'completed' | 'backup' | 'backupId' | 'size'>;
+export type BackupResourceEntityCreateData = OmitStrict<
+    BackupResourceEntity,
+    'id' | 'completed' | 'backup' | 'backupId' | 'size' | 'checksum'
+>;

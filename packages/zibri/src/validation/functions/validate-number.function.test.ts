@@ -2,7 +2,9 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { validateNumber } from './validate-number.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { NumberPropertyMetadata } from '../../entity/models/number-property-metadata.model';
+import { NumberFormat, NumberPropertyMetadata } from '../../entity/models/number-property-metadata.model';
+import { NumberUtilities } from '../../utilities/number.utilities';
+import { ObjectUtilities } from '../../utilities/object.utilities';
 import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from '../validation-problem.model';
 
 enum Size {
@@ -21,9 +23,11 @@ function meta(overrides: Partial<NumberPropertyMetadata> = {}): NumberPropertyMe
         max: undefined,
         default: undefined,
         excludeFromChangeSets: false,
+        index: false,
+        optimisticLocking: false,
         exclude: false,
         enum: undefined,
-        format: undefined,
+        format: 'number',
         ...overrides
     };
 }
@@ -67,11 +71,68 @@ describe('validateNumber', () => {
             expect(problems).toEqual([]);
         });
 
-        it('rejects a plain number with a BigIntString type mismatch, not a generic number mismatch', async () => {
+        it('rejects a plain number by naming the type the format holds', async () => {
             const problems: ValidationProblem[] = await validateNumber('big', 42, meta({ format: 'bigint' }), undefined, undefined);
             expect(problems).toHaveLength(1);
             expect(problems[0]).toBeInstanceOf(TypeMismatchValidationProblem);
-            expect(problems[0].message).toContain('BigIntString');
+            expect(problems[0]?.message).toContain('bigint');
+        });
+    });
+
+    describe('the value has to be what the format holds', () => {
+        // the half no check at declaration time reaches: a property typed `number | null` compiles
+        // to Object, so for those this is the only thing that can tell the two apart. Every pairing
+        // rather than the interesting ones, because "which of these is refused" is the whole rule
+        const values: [string, unknown][] = [
+            ['a number', 7],
+            ['a bigint', 7n],
+            ['a BigNumber', NumberUtilities.new(7)],
+            ['a string', '7']
+        ];
+        const accepted: Record<NumberFormat, string> = {
+            number: 'a number',
+            integer: 'a number',
+            bigint: 'a bigint',
+            bignumber: 'a BigNumber'
+        };
+
+        for (const format of ObjectUtilities.keys(accepted)) {
+            for (const [name, value] of values) {
+                const verb: string = accepted[format] === name ? 'accepts' : 'refuses';
+                it(`${verb} ${name} for format "${format}"`, async () => {
+                    const problems: ValidationProblem[] = await validateNumber('v', value, meta({ format }), undefined, undefined);
+
+                    expect(problems).toHaveLength(accepted[format] === name ? 0 : 1);
+                });
+            }
+        }
+    });
+
+    describe('bignumber format', () => {
+        it('compares a bound against the number it holds rather than against the object', async () => {
+            // a BigNumber is an object, so `property < meta.min` would compare what it stringifies
+            // to - and a bound it is under would pass
+            const problems: ValidationProblem[] = await validateNumber(
+                'price',
+                NumberUtilities.new(5),
+                meta({ format: 'bignumber', min: 10 }),
+                undefined,
+                undefined
+            );
+
+            expect(problems).toHaveLength(1);
+        });
+
+        it('accepts a value exactly on the bound', async () => {
+            const problems: ValidationProblem[] = await validateNumber(
+                'price',
+                NumberUtilities.new(10),
+                meta({ format: 'bignumber', min: 10 }),
+                undefined,
+                undefined
+            );
+
+            expect(problems).toEqual([]);
         });
     });
 

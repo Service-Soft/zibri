@@ -12,7 +12,8 @@ export type AstPathExpression = OmitStrict<
 };
 
 export type AstBlockPathExpression = OmitStrict<AstPathExpression, 'original'> & {
-    original: 'if' | 'each' | 'unless' | 'with' | 'log',
+    // a built in block, or any helper the application registers
+    original: 'if' | 'each' | 'unless' | 'with' | 'log' | (string & {}),
     parts: string[]
 };
 

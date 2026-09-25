@@ -1,22 +1,28 @@
+import { Readable } from 'node:stream';
+
 import { NextFunction } from 'express';
 
 import { Route } from './controller-route-configuration.model';
+import { RouteAuthConfiguration } from '../auth/models/route-auth-configuration.model';
 import { ArrayPropertyItemMetadataInput, ArrayPropertyItemMetadata } from '../entity/models/array-property-metadata.model';
+import { DeclaredBodyShape, DeclaredShape, ShapeType } from '../entity/models/shape-type.model';
+import { HandlerTimeout } from '../http/handler-timeout.type';
 import { HttpMethod } from '../http/http-method.enum';
 import { HttpRequest } from '../http/http-request.model';
 import { HttpResponse } from '../http/http-response.model';
 import { OpenApiResponse } from '../open-api/open-api.model';
-import { Newable } from '../types/newable.type';
 import { OmitStrict } from '../types/omit-strict.type';
-import { BodyMetadataInput, BodyMetadata } from './decorators/body.decorator';
 import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata, PathParamMetadataInput, QueryParamMetadataInput, HeaderParamMetadataInput } from './decorators/param.decorator';
 import { ArrayParamMetadataInput, ArrayParamMetadata } from './models/array-param-metadata.model';
 import { BooleanParamMetadataInput, BooleanParamMetadata } from './models/boolean-param-metadata.model';
 import { DateParamMetadataInput, DateParamMetadata } from './models/date-param-metadata.model';
 import { NumberParamMetadataInput, NumberParamMetadata } from './models/number-param-metadata.model';
 import { ObjectParamMetadataInput, ObjectParamMetadata } from './models/object-param-metadata.model';
+import { OneOfParamMetadata } from './models/one-of-param-metadata.model';
 import { StringParamMetadataInput, StringParamMetadata } from './models/string-param-metadata.model';
 import { SupportedVersionsOptions } from '../versioning/supported-versions-options.model';
+import { BodyMetadata, DeclaredBodyInput } from './decorators/body-metadata.model';
+import { MimeType } from '../http/mime-type.enum';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 type PathMetaObjectToParamsObject<PathMetaObject extends Record<string, PathParamMetadata>> = {
@@ -34,9 +40,10 @@ export type HeaderMetaObjectToParamsObject<HeaderMetaObject extends Record<strin
 };
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-type BodyMetaInputObjectToMetaObject<BodyMetaInputObject extends BodyMetadataInput & { modelClass: Newable<unknown> }>
+type BodyMetaInputObjectToMetaObject<I extends DeclaredBodyInput> = I extends { type: MimeType.OCTET_STREAM }
+    ? MergeRequired<I, BodyMetadata>
     // eslint-disable-next-line jsdoc/require-jsdoc
-    = MergeRequired<BodyMetaInputObject, BodyMetadata & { modelClass: BodyMetaInputObject['modelClass'] }>;
+    : MergeRequired<I, BodyMetadata & { shape: DeclaredBodyShape<I> }>;
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 type PathMetaInputObjectToMetaObject<PathMetaInputObject extends Record<string, PathParamMetadataInput>> = {
@@ -78,7 +85,11 @@ type ParamMetadataInputToMeta<M extends (PathParamMetadataInput | QueryParamMeta
                         ? ObjectParamMetadata
                         : M extends ArrayParamMetadataInput
                             ? ArrayParamMetadata
-                            : never;
+                            // eslint-disable-next-line jsdoc/require-jsdoc
+                            : M extends { type: 'oneOf', shapes: (infer S)[] }
+                                // eslint-disable-next-line jsdoc/require-jsdoc
+                                ? OneOfParamMetadata & { shapes: DeclaredShape<S>[] }
+                                : never;
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 type MergeRequired<I, M> = I extends { required: false } ? M & { required: false } : M & { required: true };
@@ -101,7 +112,10 @@ type RawParamMetadataToType<M extends (
                         ? InstanceType<ReturnType<M['cls']>>
                         : M extends ArrayParamMetadata
                             ? ParamMetadataToType<M['items']>[]
-                            : never;
+                            // eslint-disable-next-line jsdoc/require-jsdoc
+                            : M extends OneOfParamMetadata & { shapes: (infer S)[] }
+                                ? ShapeType<S>
+                                : never;
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 type ParamMetadataToType<M extends (
@@ -114,10 +128,11 @@ type ParamMetadataToType<M extends (
         : RawParamMetadataToType<M>;
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-type InferModel<T>
+type InferModel<T extends BodyMetadata> = T extends { shape: infer S }
+    ? ShapeType<S>
     // eslint-disable-next-line jsdoc/require-jsdoc
-    = T extends { modelClass: Newable<infer U> }
-        ? U
+    : T extends { type: MimeType.OCTET_STREAM }
+        ? Readable
         : never;
 
 /**
@@ -212,15 +227,28 @@ export type RouteConfiguration<
     /**
      * Configuration on what versions are supported.
      */
-    versions: SupportedVersionsOptions
+    versions: SupportedVersionsOptions,
+    /**
+     * What this route says about who may reach it.
+     *
+     * Undefined is a statement too: it is the same thing a controller route carrying no \@Auth
+     * decorator says, so the application's `defaultAuth` decides.
+     */
+    auth: RouteAuthConfiguration | undefined,
+    /**
+     * How long the handler has to produce a result.
+     *
+     * Undefined leaves it to the application's `handlerInMs`, which is what a controller route
+     * declaring nothing does.
+     */
+    timeoutInMs: HandlerTimeout | undefined
 };
 
 /**
  * The input to create a new route configuration.
  */
 export type RouteConfigurationInput<
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    BodyMetaInputObject extends BodyMetadataInput & { modelClass: Newable<unknown> },
+    BodyMetaInputObject extends DeclaredBodyInput,
     PathMetaInputObject extends Record<string, PathParamMetadataInput>,
     QueryMetaInputObject extends Record<string, QueryParamMetadataInput>,
     HeaderMetaInputObject extends Record<string, HeaderParamMetadataInput>
@@ -231,8 +259,22 @@ export type RouteConfigurationInput<
         QueryMetaInputObjectToMetaObject<QueryMetaInputObject>,
         HeaderMetaInputObjectToMetaObject<HeaderMetaInputObject>
     >,
-    'bodyMetadata' | 'pathParams' | 'queryParams' | 'headerParams' | 'openApi' | 'versions'
+    'bodyMetadata' | 'pathParams' | 'queryParams' | 'headerParams' | 'openApi' | 'versions' | 'auth' | 'timeoutInMs'
 > & {
+    /**
+     * What this route says about who may reach it.
+     *
+     * Leave it out to let the application's `defaultAuth` decide, which is what a controller route
+     * carrying no \@Auth decorator does.
+     */
+    auth?: RouteAuthConfiguration,
+    /**
+     * How long the handler has to produce a result.
+     *
+     * Leave it out to let the application's `handlerInMs` decide. Use `'none'` for a route that
+     * legitimately runs for as long as it takes.
+     */
+    timeoutInMs?: HandlerTimeout,
     /**
      * The input metadata for the request body.
      */

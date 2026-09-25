@@ -11,14 +11,23 @@ import { LocaleCode } from '../localization/models/locale-code.model';
 import { TranslationRegistry } from '../localization/translation.registry';
 
 /**
+ * Globals the pages these templates stand for provide, so client code in the tests can call something
+ * without each test declaring it.
+ */
+const PAGE_GLOBALS: string = 'declare const track: (...values: unknown[]) => void;\n'
+    + 'declare const show: (...values: unknown[]) => void;\n'
+    + 'declare const pick: () => string;\n'
+    + 'declare const chose: () => void;\n';
+
+/**
  * Compiled templates are objects, while templates declare themselves as functions. Rendering goes
  * through the declared type, so tests hand over the compiled component the same way a controller
  * hands over its imported template.
- * @param source - The template source to compile.
+ * @param source - The template source to compile, for a page that provides {@link PAGE_GLOBALS}.
  * @returns The compiled component, typed as the template author sees it.
  */
 function templateOf<T>(source: string): TsxComponent<T> {
-    const compiled: CompiledPage = compileTsxTemplate(source);
+    const compiled: CompiledPage = compileTsxTemplate(`${PAGE_GLOBALS}${source}`);
     return compiled as unknown as TsxComponent<T>;
 }
 

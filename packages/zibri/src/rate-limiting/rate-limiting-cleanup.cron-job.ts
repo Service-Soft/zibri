@@ -12,7 +12,12 @@ export class RateLimitingCleanupCronJob extends CronJob {
     readonly initialConfig: InitialCronConfig = {
         name: 'RateLimitingCleanupCronJob',
         cron: CronExpression.every(10, 'seconds').build(),
-        runOnInit: false
+        runOnInit: false,
+        // the default limiter store is in memory, so each instance has counters only it can expire.
+        // Stays correct for a shared store too - cleanup is idempotent, it just runs more often, and
+        // a run against one costs two operations plus one per key actually holding an abandoned
+        // reservation. Running it everywhere is cheap enough not to need a mechanism to run it once.
+        distributed: false
     };
 
     constructor(

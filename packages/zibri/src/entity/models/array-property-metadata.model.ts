@@ -6,6 +6,7 @@ import { DatePropertyMetadataInput } from './date-property-metadata.model';
 import { FilePropertyMetadataInput, FileSize } from './file-property-metadata.model';
 import { NumberPropertyMetadataInput } from './number-property-metadata.model';
 import { ObjectPropertyMetadataInput } from './object-property-metadata.model';
+import { type OneOfPropertyMetadataInput } from './one-of-property-metadata.model';
 import { StringPropertyMetadataInput } from './string-property-metadata.model';
 import { UnknownPropertyMetadataInput } from './unknown-property-metadata.model';
 import { PropertyMetadata, RelationMetadata } from '../decorators/property.decorator';
@@ -51,7 +52,9 @@ export type ArrayPropertyItemMetadataInput = StringPropertyMetadataInput<any, an
     // eslint-disable-next-line jsdoc/require-jsdoc
     | UnknownPropertyMetadataInput & { type: 'unknown' }
     // eslint-disable-next-line jsdoc/require-jsdoc
-    | FilePropertyMetadataInput & { type: 'file' };
+    | FilePropertyMetadataInput & { type: 'file' }
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    | OneOfPropertyMetadataInput & { type: 'oneOf' };
 
 /**
  * Input Metadata for array properties.

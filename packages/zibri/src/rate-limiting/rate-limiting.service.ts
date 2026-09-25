@@ -1,20 +1,20 @@
 import { isRateLimiter, RateLimiterInterface } from './limiter/rate-limiter.interface';
-import { RateLimitingServiceInterface } from './rate-limiting-service.interface';
-import { ZibriApplication } from '../application';
 import { RateLimitingCleanupCronJob } from './rate-limiting-cleanup.cron-job';
+import { RateLimitingServiceInterface } from './rate-limiting-service.interface';
+import { ZibriApplication } from '../application/application';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { getAllRegisteredTokens } from '../di/get-all-registered-tokens.function';
+import { getAllInstantiatedValues } from '../di/get-all-instantiated-values.function';
 import { getDiTokenName } from '../di/get-di-token-name.function';
 import { getRegisteredProvidersOfVariant } from '../di/get-registered-providers-of-variant.function';
 import { inject } from '../di/inject.function';
+import { BaseRateLimitState } from './stores/rate-limiter-store.interface';
 import { DiProvider } from '../di/models/di-provider.model';
 import { DiVariants } from '../di/models/di-variant.model';
 import { InternalError } from '../error-handling/internal-error.model';
 import { OnAppInit } from '../global/on-app-init.interface';
 import { type LoggerInterface } from '../logging/logger.interface';
-import { BaseRateLimitState } from './stores/rate-limiter-store.interface';
 
 /**
  * An error to throw during rate limiting service initialization.
@@ -42,10 +42,10 @@ export class RateLimitingService implements RateLimitingServiceInterface, OnAppI
     ) {}
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async onAppInit(app: ZibriApplication): Promise<void> {
+    onAppInit(app: ZibriApplication): void {
         const providers: DiProvider<unknown>[] = getRegisteredProvidersOfVariant(DiVariants.RATE_LIMITER);
         if (providers.length) {
-            await this.logger.info(`configures ${providers.length} ${providers.length > 1 ? 'rate limiters' : 'rate limiter'}:`);
+            this.logger.info(`configures ${providers.length} ${providers.length > 1 ? 'rate limiters' : 'rate limiter'}:`);
         }
 
         for (const provider of providers) {
@@ -55,12 +55,13 @@ export class RateLimitingService implements RateLimitingServiceInterface, OnAppI
                     `Invalid class marked with @RateLimiter: ${getDiTokenName(provider.token)} needs to implement RateLimiterInterface`
                 );
             }
-            await this.logger.info(`  - ${limiter.config.name}`);
+            this.logger.info(`  - ${limiter.config.name}`);
             this.limiters.push(limiter);
         }
 
-        const limiters: RateLimiterInterface<BaseRateLimitState>[] = getAllRegisteredTokens()
-            .map(t => inject(t))
+        // among what the application has actually built, rather than everything registered - see
+        // `CacheService.onAppInit` for why the second question is the expensive one
+        const limiters: RateLimiterInterface<BaseRateLimitState>[] = getAllInstantiatedValues()
             .filter(i => isRateLimiter(i));
         for (const limiter of limiters) {
             if (!this.limiters.find(l => l.config.name === limiter.config.name)) {

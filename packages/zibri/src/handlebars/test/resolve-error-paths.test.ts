@@ -14,19 +14,6 @@ describe('resolveAllKeys — InternalError paths', () => {
         expect(() => resolveAllKeys(parse('{{* dec}}'), undefined)).toThrow('Unknown AST Element');
     });
 
-    it('throws "Not implemented yet" for a "with" block', () => {
-        expect(() => resolveAllKeys(parse('{{#with x}}{{y}}{{/with}}'), undefined)).toThrow('Not implemented yet "with"');
-    });
-
-    it('throws "Not implemented yet" for a "log" block', () => {
-        expect(() => resolveAllKeys(parse('{{#log x}}{{y}}{{/log}}'), undefined)).toThrow('Not implemented yet "log"');
-    });
-
-    it('throws for a block helper it does not recognize', () => {
-        expect(() => resolveAllKeys(parse('{{#unknownHelper x}}{{y}}{{/unknownHelper}}'), undefined))
-            .toThrow('Unknown AST path.original "unknownHelper"');
-    });
-
     it('throws when "each" is given more than one param', () => {
         expect(() => resolveAllKeys(parse('{{#each a b}}{{/each}}'), undefined)).toThrow('Got more than 1 param');
     });
@@ -43,27 +30,18 @@ describe('resolveAllKeys — InternalError paths', () => {
         expect(() => resolveAllKeys(parse('{{#if a b}}{{/if}}'), undefined)).toThrow('Got more than 1 param');
     });
 
-    it('throws when "if" is given a literal param', () => {
-        expect(() => resolveAllKeys(parse('{{#if "lit"}}{{/if}}'), undefined)).toThrow('Unknown AST param for if block "StringLiteral"');
-    });
-
     it('"unless" delegates to the same param validation as "if"', () => {
         expect(() => resolveAllKeys(parse('{{#unless a b}}{{/unless}}'), undefined)).toThrow('Got more than 1 param');
     });
 
     it('propagates through the public resolveTree entry point', () => {
-        expect(() => resolveTree(parse('{{#with x}}{{y}}{{/with}}'), [])).toThrow('Not implemented yet "with"');
+        expect(() => resolveTree(parse('{{#each a b}}{{/each}}'), [])).toThrow('Got more than 1 param');
     });
 });
 
 describe('resolveAllArrayKeys — InternalError paths', () => {
     it('throws for an AST element type it does not know how to handle (decorator statement)', () => {
         expect(() => resolveAllArrayKeys(parse('{{* dec}}'), undefined)).toThrow('Unknown AST Element');
-    });
-
-    it('throws for a block helper it does not recognize', () => {
-        expect(() => resolveAllArrayKeys(parse('{{#unknownHelper x}}{{y}}{{/unknownHelper}}'), undefined))
-            .toThrow('Unknown AST path.original "unknownHelper"');
     });
 
     it('throws when "each" is given more than one param', () => {

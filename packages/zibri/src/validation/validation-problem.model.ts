@@ -5,11 +5,13 @@ import { FileSize } from '../entity/models/file-property-metadata.model';
 import { HasOnePropertyMetadata } from '../entity/models/has-one-property-metadata.model';
 import { ManyToManyPropertyMetadata } from '../entity/models/many-to-many-property-metadata.model';
 import { ManyToOnePropertyMetadata } from '../entity/models/many-to-one-property-metadata.model';
+import { type OneOfShapeMetadata } from '../entity/models/one-of-property-metadata.model';
 import { OneToManyPropertyMetadata } from '../entity/models/one-to-many-property-metadata.model';
 import { Relation } from '../entity/models/relation.enum';
 import { MimeType } from '../http/mime-type.enum';
 import { TranslatedString } from '../localization/models/translated-string.model';
 import { $ts } from '../localization/translate.function';
+import { type ShapeAttempt } from '../parsing/functions/parse-one-of.function';
 
 /**
  * A validation problem, consisting of the key where the problem is located and a description of the problem.
@@ -67,6 +69,49 @@ export class MimeTypeMismatchValidationProblem implements ValidationProblem {
             ? $ts`the file type needs to be one of: ${allowedMimeTypes.join(', ')}`
             : $ts`the file type needs to be ${allowedMimeTypes[0]}`;
     }
+}
+
+/**
+ * The validation problem that a value fits none of the shapes its property can hold.
+ *
+ * One problem rather than one per shape, because the value is wrong once. It names every shape in
+ * the order they were tried, with what kept the value from each, so the caller can see which one
+ * they meant and what it still needs.
+ */
+export class NoShapeFitsValidationProblem implements ValidationProblem {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly message: TranslatedString;
+    constructor(readonly key: string, attempts: ShapeAttempt[]) {
+        this.message = [
+            $ts`fits none of its shapes:`,
+            ...attempts.map(attempt => {
+                const reasons: string = attempt.problems
+                    .map(problem => problem.key ? `${problem.key} ${problem.message}` : problem.message)
+                    .join(', ');
+                return `- ${shapeName(attempt.shape)}: ${reasons}`;
+            })
+        ].join('\n') as TranslatedString;
+    }
+}
+
+/**
+ * The validation problem that a value of several named shapes names none of them.
+ */
+export class UnknownShapeValidationProblem implements ValidationProblem {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly message: TranslatedString;
+    constructor(readonly key: string, names: string[]) {
+        this.message = $ts`has to be one of: ${names.join(', ')}`;
+    }
+}
+
+/**
+ * What a shape is called in a message: its class for an object, its kind for anything else.
+ * @param shape - The shape.
+ * @returns The name to show.
+ */
+function shapeName(shape: OneOfShapeMetadata): string {
+    return shape.type === 'object' ? shape.cls().name : shape.type;
 }
 
 /**

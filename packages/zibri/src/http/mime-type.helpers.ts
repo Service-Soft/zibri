@@ -24,6 +24,7 @@ const mimeTypeToExtensions = {
     [MimeType.DOCX]: ['.docx'],
     [MimeType.TXT]: ['.txt'],
     [MimeType.XML]: ['.xml'],
+    [MimeType.TEXT_XML]: ['.xml'],
     [MimeType.GZIP]: ['.gz', '.gzip'],
     [MimeType.TAR]: ['.tar'],
     [MimeType.WASM]: ['.wasm'],
@@ -142,4 +143,58 @@ export function resolveFileExtension(type: LooseFileMimeType): FileExtension | u
  */
 export function isMimeType(value: string): value is MimeType {
     return ObjectUtilities.values(MimeType).includes(value as MimeType);
+}
+
+/**
+ * Checks if the given value is one of the generic media types of xml: `application/xml` or `text/xml`.
+ * @param value - The media type to check, without parameters.
+ * @returns True when content of that type is plain xml.
+ */
+export function isXmlMimeType(value: string): boolean {
+    // only the generic two: a `+xml` type (svg, soap, atom) is a format of its own that happens to be
+    // written in xml, and reading one as plain xml is something a route would have to ask for
+    return value === MimeType.XML || value === MimeType.TEXT_XML;
+}
+
+/**
+ * The types a response body is worth encoding for.
+ *
+ * Everything here is text or is stored as text. What is missing is missing on purpose: an image, a
+ * video, a font and an office document are containers that are already compressed, so encoding one
+ * spends cpu to add a few bytes. `EVENT_STREAM` is the exception that is neither - it compresses
+ * well and must not be encoded anyway, because an encoder holds bytes back until it has enough of
+ * them to be worth writing, and an event nobody receives until the next one arrives is the one thing
+ * a stream of events must not do.
+ */
+const compressibleMimeTypes: Set<MimeType> = new Set([
+    MimeType.JSON,
+    MimeType.JSON_LD,
+    MimeType.NDJSON,
+    MimeType.XML,
+    MimeType.TEXT_XML,
+    MimeType.FORM_URL_ENCODED,
+    MimeType.WASM,
+    MimeType.HTML,
+    MimeType.CSS,
+    MimeType.CSV,
+    MimeType.TXT,
+    MimeType.JAVASCRIPT,
+    MimeType.YAML,
+    MimeType.SVG,
+    MimeType.TTF,
+    MimeType.OTF
+]);
+
+/**
+ * Whether a body of this content type is worth encoding on the way out.
+ *
+ * A type this does not know answers no. Being wrong the other way costs a client its body, since
+ * whatever produced an unknown type may well have compressed it already.
+ * @param contentType - A content type header, parameters and all.
+ * @returns True when compressing a body of that type saves more than it costs.
+ */
+export function isCompressibleMimeType(contentType: string): boolean {
+    const type: string = (contentType.split(';')[0] ?? contentType).trim()
+        .toLowerCase();
+    return isMimeType(type) && compressibleMimeTypes.has(type);
 }

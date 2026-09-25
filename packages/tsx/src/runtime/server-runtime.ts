@@ -1,4 +1,5 @@
-import { TranslationSources } from '../semantics/translation-sources';
+import { AccessShape, projectValue } from './access-shape';
+import type { TranslationSources } from '../semantics/translation-sources';
 
 /**
  * A pre-rendered, trusted HTML fragment. Wrapping lowered JSX in this marker lets
@@ -464,6 +465,10 @@ export type ComponentClientMeta = {
      */
     referencedProps: string[],
     /**
+     * What the client setup reads from each referenced prop; a prop without an entry is serialized whole.
+     */
+    propShapes?: Record<string, AccessShape>,
+    /**
      * Render-data hook names the client setup references.
      */
     referencedHooks: string[],
@@ -594,6 +599,10 @@ export type RenderServerRuntime = ServerRuntime & {
      * Creates a client-prop reference for a function passed as a plain prop to a nested component.
      */
     markProp: (site: string, captured: unknown[]) => ClientPropMarker,
+    /**
+     * Narrows a captured value to what client code reads from it, before it is written into the page.
+     */
+    project: (value: unknown, shape: AccessShape) => unknown,
     /**
      * Renders a nested compiled component, registering a client instance when it has client
      * behavior so the runtime can call its setup once per instance.
@@ -763,6 +772,7 @@ export function createServerRuntime(): RenderServerRuntime {
         on,
         mark,
         markProp,
+        project: projectValue,
         handlers,
         instances,
         vendorPackages,
@@ -785,7 +795,7 @@ export function createServerRuntime(): RenderServerRuntime {
                     vendorPackages.push(packageName);
                 }
             }
-            const { code, setupName, referencedProps, referencedHooks, referencedTranslations } = compiled.client;
+            const { code, setupName, referencedProps, propShapes, referencedHooks, referencedTranslations } = compiled.client;
             const owner: number = ++ownerCounter;
             if (code && setupName) {
                 instances.push({
@@ -798,7 +808,7 @@ export function createServerRuntime(): RenderServerRuntime {
                     // Deliberately the original props: reading the lazy children here would render
                     // them before the component runs, which is exactly what they are lazy to avoid.
                     // Rendered markup never reaches the page as a prop anyway.
-                    props: pickSerializable(props, referencedProps)
+                    props: pickSerializable(props, referencedProps, propShapes ?? {})
                 });
             }
             // Handlers and client props declared while this component renders belong to this instance.
@@ -825,19 +835,21 @@ export function createServerRuntime(): RenderServerRuntime {
  * handler markers so nothing unintended (or unserializable) reaches the browser.
  *
  * A client-prop reference is kept: it is not the function itself but the pointer the page uses to
- * pick up the one the declaring parent's setup builds.
+ * pick up the one the declaring parent's setup builds. Every other value is narrowed to what the client
+ * reads from it.
  * @param props - All props passed to the component.
  * @param names - The prop names the client references.
+ * @param shapes - What the client reads from each prop.
  * @returns The serializable subset.
  */
-function pickSerializable(props: Record<string, unknown>, names: string[]): Record<string, unknown> {
+function pickSerializable(props: Record<string, unknown>, names: string[], shapes: Record<string, AccessShape>): Record<string, unknown> {
     const selected: Record<string, unknown> = {};
     for (const name of names) {
         const value: unknown = props[name];
         if (!(name in props) || typeof value === 'function' || isRaw(value) || isMarker(value)) {
             continue;
         }
-        selected[name] = value;
+        selected[name] = isClientPropMarker(value) ? value : projectValue(value, shapes[name] ?? 'whole');
     }
     return selected;
 }

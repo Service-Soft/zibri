@@ -19,12 +19,13 @@ export interface TwoFactorServiceInterface {
         Role extends string,
         UserType extends BaseUser<Role>,
         TwoFactorRequestRegisterData,
-        TwoFactorConfirmRegisterData
+        TwoFactorConfirmRegisterData,
+        TwoFactorRequestRegisterResult
     >(
         user: UserType,
-        method: TwoFactorMethod<TwoFactorRequestRegisterData, TwoFactorConfirmRegisterData>,
+        method: TwoFactorMethod<TwoFactorRequestRegisterData, TwoFactorConfirmRegisterData, TwoFactorRequestRegisterResult>,
         data: TwoFactorRequestRegisterData
-    ) => Promise<void>,
+    ) => Promise<TwoFactorRequestRegisterResult>,
     /**
      * Confirms the registration of the given two factor method for the given user.
      */
@@ -35,7 +36,7 @@ export interface TwoFactorServiceInterface {
         TwoFactorConfirmRegisterData
     >(
         user: UserType,
-        method: TwoFactorMethod<TwoFactorRequestRegisterData, TwoFactorConfirmRegisterData>,
+        method: TwoFactorMethod<TwoFactorRequestRegisterData, TwoFactorConfirmRegisterData, unknown>,
         data: TwoFactorConfirmRegisterData
     ) => Promise<void>,
     /**
@@ -46,7 +47,7 @@ export interface TwoFactorServiceInterface {
         UserType extends BaseUser<Role>,
         TwoFactorRequestRegisterData,
         TwoFactorConfirmRegisterData
-    >(user: UserType, method: TwoFactorMethod<TwoFactorRequestRegisterData, TwoFactorConfirmRegisterData>) => Promise<void>,
+    >(user: UserType, method: TwoFactorMethod<TwoFactorRequestRegisterData, TwoFactorConfirmRegisterData, unknown>) => Promise<void>,
     /**
      * Checks if the incoming request has some second factor.
      */

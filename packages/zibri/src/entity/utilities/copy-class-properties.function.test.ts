@@ -2,9 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { inject } from '../../di/inject.function';
-import { MimeType } from '../../http/mime-type.enum';
-import { BodyMetadata } from '../../routing/decorators/body.decorator';
-import { NumberUtilities } from '../../utilities/number.utilities';
+import { BodyMetadata } from '../../routing/decorators/body-metadata.model';
+import { resolveBodyMetadata } from '../../routing/resolve-body-metadata.function';
 import { ValidationProblem } from '../../validation/validation-problem.model';
 import { ValidationService } from '../../validation/validation.service';
 import { Property } from '../decorators/property.decorator';
@@ -36,16 +35,7 @@ class OtherBase {
 
 // eslint-disable-next-line typescript/no-explicit-any
 function bodyMeta(modelClass: new (...args: any[]) => unknown, allowAdditionalProperties: boolean = false): BodyMetadata {
-    return {
-        modelClass,
-        type: MimeType.JSON,
-        isArray: false,
-        allowAdditionalProperties,
-        required: true,
-        description: undefined,
-        index: 0,
-        maxSize: NumberUtilities.new(100)
-    };
+    return resolveBodyMetadata({ modelClass, allowAdditionalProperties }, 0);
 }
 
 describe('copyClassProperties (via OmitClass/PickClass/PartialClass/IntersectionClass)', () => {

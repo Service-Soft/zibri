@@ -86,12 +86,14 @@ export function generateEntityFile(
         }
 
         lines.push('', ...decoratorLines, `    '${propName}'${optional}: ${getEntityName(provider.prefix, type)};`);
+        const itemType: string = type.split('[]')[0] ?? type;
+        const entityFileName: string = getEntityFileName(provider.prefix, itemType);
         addImportStatement(
             lines,
             {
                 defaultImport: false,
-                element: getEntityName(provider.prefix, type.split('[]')[0]),
-                path: `./${getEntityFileName(provider.prefix, type.split('[]')[0]).split('.ts')[0]}`
+                element: getEntityName(provider.prefix, itemType),
+                path: `./${entityFileName.split('.ts')[0] ?? entityFileName}`
             }
         );
     }
@@ -203,7 +205,7 @@ function mapSchemaToDecoratorLines(
                 return [`    @Property.array({ ${!isRequired ? 'required: false, ' : ''}items: { type: 'unknown' } })`];
             }
             const { type: t, isRef } = mapSchemaToTsType(schema.items, propName);
-            const itemsType: string = isRef ? `'object', cls: () => ${getEntityName(prefix, type.split('[]')[0])}` : `'${t}'`;
+            const itemsType: string = isRef ? `'object', cls: () => ${getEntityName(prefix, type.split('[]')[0] ?? type)}` : `'${t}'`;
             if (itemsType.startsWith('\'\'')) {
                 return [`    @Property.array({ ${!isRequired ? 'required: false, ' : ''}items: { type: 'string' } })`];
             }

@@ -1,4 +1,4 @@
-import { ZibriApplication } from '../application';
+import { ZibriApplication } from '../application/application';
 import { DataSourceInterface } from '../data-source/data-sources/data-source.interface';
 import { inject } from '../di/inject.function';
 import type { BaseEntity } from '../entity/base-entity.model';

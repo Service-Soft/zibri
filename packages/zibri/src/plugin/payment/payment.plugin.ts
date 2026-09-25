@@ -3,7 +3,7 @@ import { PaymentPluginOptionsInput } from './models/payment-plugin-options-input
 import { PaymentPluginOptions } from './models/payment-plugin-options.model';
 import { Payment } from './models/payment.model';
 import { DefaultPaymentProviderArray, ZIBRI_PAYMENT_PLUGIN_DI_TOKENS } from './payment.tokens';
-import { ZibriApplication } from '../../application';
+import { ZibriApplication } from '../../application/application';
 import { NoProviderError } from '../../di/errors/no-provider.error';
 import { inject } from '../../di/inject.function';
 import { DiProvider } from '../../di/models/di-provider.model';
@@ -41,8 +41,7 @@ export class ZibriPaymentPlugin extends ZibriPlugin {
         }
     };
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    providers: DiProvider<unknown>[] = providersFromTokenRecord(ZIBRI_PAYMENT_PLUGIN_DI_TOKENS, this.defaultDiProviders);
+    override providers: DiProvider<unknown>[] = providersFromTokenRecord(ZIBRI_PAYMENT_PLUGIN_DI_TOKENS, this.defaultDiProviders);
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     validate(app: ZibriApplication): void {

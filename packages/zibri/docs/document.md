@@ -1,5 +1,5 @@
 # Document generation
-Zibri wraps [pdfmake](https://pdfmake.github.io/docs/) and [xmlbuilder2](https://oozcitak.github.io/xmlbuilder2/) so PDF and XML documents can be built without pulling in and configuring those libraries yourself. Both wrappers are general-purpose — they aren't tied to invoicing, even though the invoicing plugin is currently the only built-in consumer (PDF invoices and XRechnung/Peppol XML).
+Zibri wraps [pdfmake](https://pdfmake.github.io/docs/) so PDF documents can be built without pulling in and configuring it yourself. The wrapper is general-purpose — it isn't tied to invoicing, even though the invoicing plugin is currently the only built-in consumer. XML documents are written from models, see [XML](./xml.md).
 
 ## Key exports
 | Export | Kind | Purpose |
@@ -14,8 +14,6 @@ Zibri wraps [pdfmake](https://pdfmake.github.io/docs/) and [xmlbuilder2](https:/
 | `PdfContentSize` | type | Width of a column/table cell (`number`, `'50%'`, `'auto'`, `'*'`) |
 | `PdfImageDefinition` | type | Definition of an image embedded into the document |
 | `PdfBufferOptions` | type | Options passed through to pdfmake's PDF buffer generation |
-| `XmlUtilities` | class | Creates and parses XML documents |
-| `XML` | type | An XML node returned by `XmlUtilities.create`/`.ele()` (an `XMLBuilder`) |
 
 ## Usage
 ### Generating a PDF
@@ -88,36 +86,6 @@ const definition: PdfDocumentDefinition = {
 };
 ```
 
-### Building an XML document
-`XmlUtilities.create` returns the root `XML` node. Build the tree with `.ele()` (add a child element), `.att()` (set an attribute) and `.txt()` (set text content) — all chainable, matching xmlbuilder2's own API:
-
-```ts
-// src/reports/report-xml.function.ts
-import { XML, XmlUtilities } from 'zibri';
-
-export function createReportXml(): string {
-    const root: XML = XmlUtilities.create().ele('report', { version: '1.0' });
-
-    const item: XML = root.ele('item');
-    item.ele('name').txt('Widgets');
-    item.ele('total').txt('42').att('currency', 'EUR');
-
-    return root.end({ prettyPrint: true });
-}
-```
-
-`create` defaults to `{ version: '1.0', encoding: 'utf8' }` for the XML declaration; pass a `XMLBuilderCreateOptions` object to override it.
-
-### Parsing XML
-`XmlUtilities.parse<T>` parses an XML string into a plain object:
-
-```ts
-import { XmlUtilities } from 'zibri';
-
-type ReportXml = { report: { item: { name: string, total: string } } };
-
-const parsed: ReportXml = XmlUtilities.parse<ReportXml>(xmlString);
-```
-
 ## See also
-- [Creating endpoints](./creating-endpoints.md) — returning a generated PDF/XML file from a controller via `FileResponse`
+- [XML](./xml.md) — writing and reading xml documents with `XmlUtilities.generateFrom` and `XmlUtilities.parseFrom`
+- [Creating endpoints](./creating-endpoints.md) — returning a generated PDF file from a controller via `FileResponse`

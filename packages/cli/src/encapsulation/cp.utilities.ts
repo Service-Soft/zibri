@@ -38,4 +38,27 @@ export abstract class CPUtilities {
             await exitGracefully(1);
         }
     }
+
+    /**
+     * Executes a command and reads what it wrote to stdout.
+     * A command that fails is an answer here rather than a reason to stop, which is the difference
+     * to exec: this reads configuration a machine is allowed not to have.
+     * @param command - The command to run.
+     * @returns The output with surrounding whitespace removed, or undefined when it wrote none.
+     */
+    static output(command: string): string | undefined {
+        try {
+            const stdout: string = execSync(command, {
+                // stderr is dropped rather than inherited: a command that is expected to fail should
+                // not print anything to a user who never asked for it.
+                stdio: ['ignore', 'pipe', 'ignore'],
+                cwd: this.cwd
+            }).toString()
+                .trim();
+            return stdout === '' ? undefined : stdout;
+        }
+        catch {
+            return undefined;
+        }
+    }
 }

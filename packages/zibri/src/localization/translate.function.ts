@@ -47,16 +47,20 @@ export function $t(
     const params: Record<string, unknown> = {};
     let source: string = '';
 
-    for (let i: number = 0; i < strings.length; i++) {
-        source += strings[i].replaceAll('{', '{{').replaceAll('}', '}}');
+    for (const [i, part] of strings.entries()) {
+        source += part.replaceAll('{', '{{').replaceAll('}', '}}');
 
         if (i < values.length) {
             const value: unknown = values[i];
             let key: string;
 
-            if (isSingleKeyObject(value)) {
+            // the one entry isSingleKeyObject just established
+            const entry: [string, unknown] | undefined = isSingleKeyObject(value)
+                ? ObjectUtilities.entries(value)[0]
+                : undefined;
+            if (entry != undefined) {
                 // Transform ran — use the named key
-                const [name, val] = ObjectUtilities.entries(value)[0];
+                const [name, val] = entry;
                 key = name;
                 params[key] = val;
             }

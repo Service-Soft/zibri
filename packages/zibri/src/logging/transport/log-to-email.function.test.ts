@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { EmailLoggerTransportConfig, logToEmail } from './log-to-email.function';
-import { LogEmailTemplate } from './logger-transport.model';
+import { createLogToEmail, EmailLoggerTransportConfig } from './log-to-email.function';
+import { LogEmailTemplate, LoggerTransportSend } from './logger-transport.model';
 import { compileTsxTemplate } from '../../__testing__/compile-tsx-template.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { Repository } from '../../data-source/repository';
+import { Repository } from '../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { inject } from '../../di/inject.function';
 import { EmailPriority } from '../../email/models/email-priority.enum';
@@ -14,8 +14,16 @@ import { LogLevel } from '../log-level.enum';
 import { Log } from '../log.model';
 
 const template: LogEmailTemplate = compileTsxTemplate<LogEmailTemplate>(
-    'export const Email = ({ log }) => <div>{log.message}</div>;'
+    'export const Email = ({ logs }) => <div>{logs.map(l => <p>{l.message}</p>)}</div>;'
 );
+
+/**
+ * A send with throttle state of its own, so one test's email cannot suppress the next one's.
+ * @returns The send function.
+ */
+function sendFor(): LoggerTransportSend<EmailLoggerTransportConfig> {
+    return createLogToEmail();
+}
 
 function createLog(overrides: Partial<Log> = {}): Log {
     return {
@@ -52,13 +60,13 @@ describe('logToEmail', () => {
             emailTemplate: template
         };
 
-        await logToEmail(log, config);
+        await sendFor()([log], config);
 
         const emails: Email[] = await emailRepository.findAll({ where: { recipients: { includes: ['recipient@example.com'] } } });
         expect(emails.length).toBe(1);
-        expect(emails[0].subject).toBe('Error in test');
-        expect(emails[0].html).toContain('the log message');
-        expect(emails[0].priority).toBe(EmailPriority.HIGH);
+        expect(emails[0]?.subject).toBe('Error in test');
+        expect(emails[0]?.html).toContain('the log message');
+        expect(emails[0]?.priority).toBe(EmailPriority.HIGH);
     });
 
     it('uses a custom subject function when provided', async () => {
@@ -72,11 +80,11 @@ describe('logToEmail', () => {
             subject: () => 'my custom subject'
         };
 
-        await logToEmail(log, config);
+        await sendFor()([log], config);
 
         const emails: Email[] = await emailRepository.findAll({ where: { recipients: { includes: ['custom-subject@example.com'] } } });
         expect(emails.length).toBe(1);
-        expect(emails[0].subject).toBe('my custom subject');
+        expect(emails[0]?.subject).toBe('my custom subject');
     });
 
     it('passes through priority, cc, bcc, persist and sender overrides', async () => {
@@ -94,14 +102,14 @@ describe('logToEmail', () => {
             sender: () => 'custom-sender@example.com'
         };
 
-        await logToEmail(log, config);
+        await sendFor()([log], config);
 
         const emails: Email[] = await emailRepository.findAll({ where: { recipients: { includes: ['overrides@example.com'] } } });
         expect(emails.length).toBe(1);
-        expect(emails[0].priority).toBe(EmailPriority.LOW);
-        expect(emails[0].cc).toEqual(['cc@example.com']);
-        expect(emails[0].bcc).toEqual(['bcc@example.com']);
-        expect(emails[0].persist).toBe(false);
-        expect(emails[0].sender).toBe('custom-sender@example.com');
+        expect(emails[0]?.priority).toBe(EmailPriority.LOW);
+        expect(emails[0]?.cc).toEqual(['cc@example.com']);
+        expect(emails[0]?.bcc).toEqual(['bcc@example.com']);
+        expect(emails[0]?.persist).toBe(false);
+        expect(emails[0]?.sender).toBe('custom-sender@example.com');
     });
 });

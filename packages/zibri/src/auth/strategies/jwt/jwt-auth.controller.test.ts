@@ -2,13 +2,35 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/glo
 
 import { JwtAuthController } from './jwt-auth.controller';
 import { JwtCredentials, JwtCredentialsCreateData } from './jwt-credentials.model';
+import { JwtAuthStrategy } from './jwt.auth-strategy';
+import { JwtUtilities } from './jwt.utilities';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../__testing__/mocks/entities/roles.enum';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
-import { Repository } from '../../../data-source/repository';
+import { Repository } from '../../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
 import { inject } from '../../../di/inject.function';
+import { Email } from '../../../email/models/email.model';
+import { GlobalRegistry } from '../../../global/global-registry';
+import { Controller } from '../../../routing/decorators/controller.decorator';
+import { Get } from '../../../routing/decorators/get.decorator';
+import { Auth } from '../../decorators/auth.decorator';
 import { PasswordResetToken } from '../../models/password-reset-token.model';
+
+/**
+ * Something to present an access token to.
+ *
+ * The auth routes verify refresh tokens; this is the only way to drive the access token path, which
+ * is the one every authenticated request in an application takes.
+ */
+@Controller('/jwt-test')
+class JwtProtectedController {
+    @Get('/me')
+    @Auth.isLoggedIn([JwtAuthStrategy])
+    me(): { ok: boolean } {
+        return { ok: true };
+    }
+}
 
 type LoginResponseBody = {
     userId: string,
@@ -23,16 +45,35 @@ describe('JwtAuthController — real HTTP flow', () => {
     let userRepo: Repository<JwtUser>;
     let credentialsRepo: Repository<JwtCredentials, JwtCredentialsCreateData>;
     let resetTokenRepo: Repository<PasswordResetToken>;
+    let emailRepo: Repository<Email>;
 
     const email: string = 'jwt-auth-test@example.com';
     const password: string = 'secure123';
 
+    /**
+     * The reset token as the user gets it: out of the link in the email.
+     *
+     * The stored value is hashed, so the database no longer holds anything that can be presented
+     * back to the api - which is the whole point of hashing it, and the reason this cannot take the
+     * shortcut through the repository it used to.
+     * @returns The token from the most recently queued password reset email.
+     */
+    async function resetTokenFromEmail(): Promise<string> {
+        const emails: Email[] = await emailRepo.findAll({ where: { recipients: { includes: [email] } } });
+        const link: RegExpExecArray | null = /confirm-password-reset\/([\da-f]+)/.exec(emails.at(-1)?.html ?? '');
+        if (!link?.[1]) {
+            throw new Error('no password reset link was mailed');
+        }
+        return link[1];
+    }
+
     beforeAll(async () => {
-        server = await startTestServer({ controllers: [JwtAuthController] });
+        server = await startTestServer({ controllers: [JwtAuthController, JwtProtectedController] });
         baseUrl = await server.start();
         userRepo = inject(repositoryTokenFor(JwtUser));
         credentialsRepo = inject(repositoryTokenFor(JwtCredentials));
         resetTokenRepo = inject(repositoryTokenFor(PasswordResetToken));
+        emailRepo = inject(repositoryTokenFor(Email));
     }, 20000);
 
     afterAll(async () => {
@@ -40,6 +81,7 @@ describe('JwtAuthController — real HTTP flow', () => {
     }, 15000);
 
     beforeEach(async () => {
+        await emailRepo.deleteAll({});
         await resetTokenRepo.deleteAll({});
         await credentialsRepo.deleteAll({});
         await userRepo.deleteAll({});
@@ -87,6 +129,82 @@ describe('JwtAuthController — real HTTP flow', () => {
         });
     });
 
+    describe('storing a password', () => {
+        it('refuses to hash a value that is already a hash', async () => {
+            const stored: JwtCredentials = await credentialsRepo.findOne({ where: { email } });
+
+            // exactly what a read-modify-write does: load the entity, hand it back. Hashing the hash
+            // cannot be undone, and the value it would replace is the only thing that could ever
+            // verify this password again - so the write is refused rather than quietly accepted.
+            await expect(
+                credentialsRepo.updateById(stored.id, { password: stored.password })
+            ).rejects.toThrow(/already hashed/);
+
+            // and the account still works
+            const res: Response = await fetch(`${baseUrl}/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+            expect(res.status).toBe(200);
+        });
+
+        it('accepts a new plaintext password', async () => {
+            const stored: JwtCredentials = await credentialsRepo.findOne({ where: { email } });
+            await credentialsRepo.updateById(stored.id, { password: 'a-new-password' });
+
+            const res: Response = await fetch(`${baseUrl}/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password: 'a-new-password' })
+            });
+            expect(res.status).toBe(200);
+        });
+    });
+
+    describe('what a token has to prove', () => {
+        const accessTokenSecret: string = 'test-access-token-secret';
+
+        async function callMeWith(token: string): Promise<number> {
+            const res: Response = await fetch(`${baseUrl}/jwt-test/me`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            return res.status;
+        }
+
+        it('accepts a token this application issued', async () => {
+            const { accessToken } = await login();
+            expect(await callMeWith(accessToken.value)).toBe(200);
+        });
+
+        it('refuses a correctly signed token that names a different issuer', async () => {
+            // the shape of two services sharing a secret: the signature checks out, so nothing but
+            // the issuer separates one service's tokens from the other's
+            const foreign: string = await JwtUtilities.sign(
+                { id: 'someone', email: 'someone@example.com', roles: [Roles.USER] },
+                accessTokenSecret,
+                { expiresIn: 3600, issuer: 'a-different-application' }
+            );
+            expect(await callMeWith(foreign)).toBe(401);
+        });
+
+        it('refuses a correctly signed token whose payload is not an access token', async () => {
+            // verification proves the token came from here, not that what is inside it is what the
+            // code about to read it expects. `id` and `roles` were read off whatever came back.
+            const wrongShape: string = await JwtUtilities.sign(
+                { something: 'else' },
+                accessTokenSecret,
+                { expiresIn: 3600, issuer: GlobalRegistry.getAppData('name') ?? '' }
+            );
+            expect(await callMeWith(wrongShape)).toBe(401);
+        });
+
+        it('refuses a refresh token presented as an access token', async () => {
+            const { refreshToken } = await login();
+            expect(await callMeWith(refreshToken.value)).toBe(401);
+        });
+    });
+
     describe('refresh-login', () => {
         it('returns a fresh access token for a valid refresh token', async () => {
             const { refreshToken } = await login();
@@ -120,7 +238,7 @@ describe('JwtAuthController — real HTTP flow', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ refreshToken: refreshToken.value })
             });
-            expect(logoutRes.status).toBe(200);
+            expect(logoutRes.status).toBe(204);
 
             const refreshRes: Response = await fetch(`${baseUrl}/auth/refresh-login`, {
                 method: 'POST',
@@ -138,16 +256,21 @@ describe('JwtAuthController — real HTTP flow', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email })
             });
-            expect(requestRes.status).toBe(200);
+            expect(requestRes.status).toBe(204);
 
             const user: JwtUser = await userRepo.findOne({ where: { email } });
             const tokens: PasswordResetToken[] = await resetTokenRepo.findAll({ where: { userId: user.id } });
             expect(tokens).toHaveLength(1);
 
+            // from the mail rather than from the row: the stored value is a hash, so this is the only
+            // place the token exists. Reading it off the entity is what let the stored value and the
+            // mailed one drift apart without a single test noticing.
+            const resetToken: string = await resetTokenFromEmail();
+
             const verifyRes: Response = await fetch(`${baseUrl}/auth/verify-password-reset-token`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ resetToken: tokens[0].value })
+                body: JSON.stringify({ resetToken })
             });
             // eslint-disable-next-line typescript/no-unsafe-assignment, typescript/typedef
             const verifyBody = await verifyRes.json();
@@ -157,9 +280,9 @@ describe('JwtAuthController — real HTTP flow', () => {
             const confirmRes: Response = await fetch(`${baseUrl}/auth/confirm-password-reset`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ resetToken: tokens[0].value, newPassword: 'newPass456' })
+                body: JSON.stringify({ resetToken, newPassword: 'newPass456' })
             });
-            expect(confirmRes.status).toBe(200);
+            expect(confirmRes.status).toBe(204);
 
             const oldLoginRes: Response = await fetch(`${baseUrl}/auth/login`, {
                 method: 'POST',
@@ -190,8 +313,10 @@ describe('JwtAuthController — real HTTP flow', () => {
 
         it('verify-password-reset-token returns isValid: false and deletes an expired token', async () => {
             const user: JwtUser = await userRepo.findOne({ where: { email } });
+            // kept, not read back: the row holds the hash of this, so the entity cannot hand it back
+            const tokenValue: string = 'expired-token-value';
             const expired: PasswordResetToken = await resetTokenRepo.create({
-                value: 'expired-token-value',
+                value: tokenValue,
                 userId: user.id,
                 expirationDate: new Date(Date.now() - 1000)
             });
@@ -199,13 +324,13 @@ describe('JwtAuthController — real HTTP flow', () => {
             const res: Response = await fetch(`${baseUrl}/auth/verify-password-reset-token`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ resetToken: expired.value })
+                body: JSON.stringify({ resetToken: tokenValue })
             });
             // eslint-disable-next-line typescript/no-unsafe-assignment, typescript/typedef
             const body = await res.json();
             // eslint-disable-next-line typescript/no-unsafe-member-access
             expect(body.isValid).toBe(false);
-            expect(await resetTokenRepo.findOne({ where: { id: expired.id } }, false)).toBeUndefined();
+            expect(await resetTokenRepo.findOne({ where: { id: expired.id }, required: false })).toBeUndefined();
         });
 
         it('confirm-password-reset rejects an unknown token', async () => {
@@ -217,20 +342,25 @@ describe('JwtAuthController — real HTTP flow', () => {
             expect(res.status).toBeGreaterThanOrEqual(400);
         });
 
-        it('rejects a second request while a reset token is already active', async () => {
+        it('ignores a second request while a reset token is already active', async () => {
             const firstRes: Response = await fetch(`${baseUrl}/auth/request-password-reset`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email })
             });
-            expect(firstRes.status).toBe(200);
+            expect(firstRes.status).toBe(204);
 
             const secondRes: Response = await fetch(`${baseUrl}/auth/request-password-reset`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email })
             });
-            expect(secondRes.status).toBe(429);
+
+            // this used to answer 429, which told an unauthenticated caller both that the address
+            // exists and that somebody had recently asked about it. One live token is still the
+            // rule - the difference is that refusing is now silent.
+            expect(secondRes.status).toBe(204);
+            expect(await resetTokenRepo.findAll({})).toHaveLength(1);
         });
     });
 });

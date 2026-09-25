@@ -55,5 +55,17 @@ export interface CacheStoreInterface<K, V> {
     /**
      * The number of elements in the store.
      */
-    size: () => number | Promise<number>
+    size: () => number | Promise<number>,
+    /**
+     * Removes every entry whose time to live has run out and reports how many expired.
+     *
+     * The number covers every entry that left the store for having expired since this was last
+     * called, including the ones a read removed on the way past - a store cannot tell the two apart
+     * afterwards, and whoever asked wants to know how much of what it held had gone stale rather
+     * than which call happened to notice.
+     *
+     * Driven by CacheExpiryCleanupCronJob, so that an entry nobody reads again stops taking up room
+     * that live entries would otherwise be evicted to make.
+     */
+    removeExpired: () => number | Promise<number>
 }

@@ -1,4 +1,4 @@
-import { ZibriApplication } from '../application';
+import { ZibriApplication } from '../application/application';
 
 // eslint-disable-next-line jsdoc/require-returns
 /**

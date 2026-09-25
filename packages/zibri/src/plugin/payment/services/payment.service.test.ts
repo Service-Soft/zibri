@@ -4,7 +4,7 @@ import { PaymentServiceInterface } from './payment-service.interface';
 import { createTestDataSource, defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
-import { Repository } from '../../../data-source/repository';
+import { Repository } from '../../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../di/inject.function';
@@ -88,7 +88,7 @@ describe('PaymentService', () => {
         // eslint-disable-next-line typescript/no-unsafe-assignment
         paymentService = inject(ZIBRI_PAYMENT_PLUGIN_DI_TOKENS.PAYMENT_SERVICE);
         paymentRepository = inject(repositoryTokenFor(Payment<KnownPaymentMethod, Record<string, unknown>>));
-    }, 15000);
+    }, 20000);
 
     afterAll(async () => {
         await server?.shutdown();

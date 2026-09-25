@@ -1,7 +1,7 @@
 import { NumberUtilities } from '../../utilities/number.utilities';
 import { RateLimitResult } from '../rate-limit-result.model';
 import { BaseRateLimiter } from './base-rate-limiter.model';
-import { RateLimiterConfigInput } from './rate-limiter-config.model';
+import { RateLimiterConfigInput, RateLimitStoreFailurePolicy } from './rate-limiter-config.model';
 import { RateLimitReservationNotFoundError } from '../reservation/rate-limit-reservation-not-found.error';
 import { RateLimitReservation } from '../reservation/rate-limit-reservation.model';
 import { BaseRateLimitState } from '../stores/rate-limiter-store.interface';
@@ -41,6 +41,7 @@ export class GcraRateLimiter extends BaseRateLimiter<GcraState> {
     ) {
         super({
             reservationGracePeriodMs: (waitMs) => Math.max(5000, waitMs),
+            onStoreFailure: RateLimitStoreFailurePolicy.REJECT,
             maxReservationCount: config.capacity,
             ...config
         });
@@ -122,17 +123,17 @@ export class GcraRateLimiter extends BaseRateLimiter<GcraState> {
         return { ...state, reservations: updatedReservations };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    async commitReservation(reservationInput: RateLimitReservation): Promise<void> {
+    override async commitReservation(reservationInput: RateLimitReservation): Promise<void> {
         await this.config.store.atomicUpdate(reservationInput.key, (current) => {
             if (!current) {
                 throw new RateLimitReservationNotFoundError(reservationInput.key, reservationInput.id);
             }
             const index: number = current.reservations.findIndex(r => r.id === reservationInput.id);
-            if (index === -1) {
+            // reservations[-1] is undefined, so this covers the missing reservation too
+            const r: RateLimitReservation | undefined = current.reservations[index];
+            if (r == undefined) {
                 throw new RateLimitReservationNotFoundError(reservationInput.key, reservationInput.id);
             }
-            const r: RateLimitReservation = current.reservations[index];
 
             // Charge the reservation: advance TAT by its emission interval
             const now: number = Date.now();
@@ -152,17 +153,17 @@ export class GcraRateLimiter extends BaseRateLimiter<GcraState> {
         this.recordReservationClosed();
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    async cancelReservation(reservationInput: RateLimitReservation): Promise<void> {
+    override async cancelReservation(reservationInput: RateLimitReservation): Promise<void> {
         await this.config.store.atomicUpdate(reservationInput.key, (current) => {
             if (!current) {
                 throw new RateLimitReservationNotFoundError(reservationInput.key, reservationInput.id);
             }
             const index: number = current.reservations.findIndex(r => r.id === reservationInput.id);
-            if (index === -1) {
+            // reservations[-1] is undefined, so this covers the missing reservation too
+            const r: RateLimitReservation | undefined = current.reservations[index];
+            if (r == undefined) {
                 throw new RateLimitReservationNotFoundError(reservationInput.key, reservationInput.id);
             }
-            const r: RateLimitReservation = current.reservations[index];
 
             const updated: GcraState = this.creditCapacity(current, r.count); // refund reservedCount
             const afterRemove: GcraState = {

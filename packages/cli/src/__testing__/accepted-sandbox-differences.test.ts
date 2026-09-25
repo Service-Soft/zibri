@@ -1,30 +1,30 @@
+import { existsSync } from 'node:fs';
+import path from 'node:path';
+
 import { describe, expect, it } from '@jest/globals';
 
 import { acceptedSandboxDifferences } from './accepted-sandbox-differences';
-import recordedSandboxDiffs from './recorded-sandbox-diffs.json';
+import { SANDBOX_DIR } from './generated-file-paths';
 
-/**
- * The diffs the sandbox parity test recorded during its last run, keyed by the file's path
- * relative to the generated app root. The heavy test rewrites this file on every run.
- */
-const recordedDifferences: Record<string, string> = recordedSandboxDiffs;
-
-/**
- * Guards acceptedSandboxDifferences against the mistake it invites: its entries have to be the
- * byte-exact output of diffFileContents(), but the obvious way to fill them - copying a diff out
- * of a failing test report - silently drops trailing whitespace and turns newlines into line
- * breaks the terminal chose. Checking the entries against the recorded run catches that in
- * milliseconds instead of after the several minutes the heavy test spends on "npm install".
- */
 describe('acceptedSandboxDifferences', () => {
-    it.each(Object.keys(recordedDifferences))('holds the exact recorded diff for %s', relativePath => {
-        expect(acceptedSandboxDifferences[relativePath]).toBe(recordedDifferences[relativePath]);
+    it('describes only files the sandbox still has', () => {
+        const missing: string[] = Object.keys(acceptedSandboxDifferences)
+            .filter(p => !existsSync(path.join(SANDBOX_DIR, p)));
+
+        // an entry outlives the file it was written for silently: the parity check only consults
+        // this list for paths it is comparing, so a stale entry is never read and never fails. What
+        // it does do is sit there looking reviewed, so the next person to see that path diverge
+        // finds an entry already permitting it
+        expect(missing).toEqual([]);
     });
 
-    it('does not accept differences for files that actually match', () => {
-        const acceptedButNotDiffering: string[] = Object.keys(acceptedSandboxDifferences)
-            .filter((relativePath: string) => recordedDifferences[relativePath] == undefined);
+    it('says something for every path it lists', () => {
+        const empty: string[] = Object.entries(acceptedSandboxDifferences)
+            .filter(([, diff]) => diff.trim() === '')
+            .map(([p]) => p);
 
-        expect(acceptedButNotDiffering).toEqual([]);
+        // an entry has to be the diff it accepts, so an empty one accepts anything that path does -
+        // which is the whole list's purpose inverted
+        expect(empty).toEqual([]);
     });
 });

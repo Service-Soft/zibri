@@ -15,7 +15,7 @@ export type StringParamMetadata<
     THashOptions extends AnyObject
 > = BaseParamMetadata & OmitStrict<
     StringPropertyMetadata<Data, TKey, TEncryptOptions, TDecryptOptions, THashOptions>,
-    'primary' | 'default' | 'exclude' | 'excludeFromChangeSets'
+    'primary' | 'default' | 'exclude' | 'excludeFromChangeSets' | 'index' | 'fuzzySearchable' | 'optimisticLocking'
 >;
 
 /**

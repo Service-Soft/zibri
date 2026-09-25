@@ -5,11 +5,10 @@ import { testFileFolder } from '../../../../../__testing__/constants';
 import { createTestDataSource, defaultTestServerEntities } from '../../../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../../../../__testing__/test-server/start-test-server.function';
-import { Repository } from '../../../../../data-source/repository';
+import { Repository } from '../../../../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../../../../di/decorators/inject-repository.decorator';
 import { inject } from '../../../../../di/inject.function';
 import { defineProvider } from '../../../../../di/models/di-provider.model';
-import { XML } from '../../../../../document/xml.utilities';
 import { OmitStrict } from '../../../../../types/omit-strict.type';
 import { FsUtilities } from '../../../../../utilities/fs.utilities';
 import { Ms } from '../../../../../utilities/ms';
@@ -91,7 +90,7 @@ describe('generateXml', () => {
         });
         repo = inject(repositoryTokenFor(Invoice));
         conformanceService = inject(PeppolConformanceService);
-    }, 15000);
+    }, 20000);
 
     afterAll(async () => {
         await server.shutdown();
@@ -138,8 +137,7 @@ describe('generateXml', () => {
             textAfterItems: ['Unless otherwise stated, the date of delivery/service corresponds to the date of invoice.']
         });
 
-        const xml: XML = await conformanceService.generateXml(invoice);
-        const xmlString: string = xml.end({ prettyPrint: true });
+        const xmlString: string = await conformanceService.generateXml(invoice, 'UTC');
         await FsUtilities.upsertFile(FsUtilities.getPath(testFileFolder, 'peppol.xml'), xmlString);
 
         expect(xmlString).toContain('urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0');

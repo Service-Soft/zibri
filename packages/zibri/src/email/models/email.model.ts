@@ -24,9 +24,23 @@ export class Email extends BaseEntity {
 
     /**
      * Whether or not the email should be stored in the db, even after it has been sent.
+     *
+     * Only decides what happens to a mail that was **sent**. One that failed is kept either way -
+     * the row is the only record that it was ever owed, and throwing it away leaves nothing to answer
+     * "did the password reset go out" with.
      */
     @Property.boolean()
     persist!: boolean;
+
+    /**
+     * The addresses the mail server refused, or undefined if it refused none.
+     *
+     * What makes a failed row a trail rather than a tombstone: a mail server routinely accepts some
+     * recipients of one message and rejects others, so "this failed" is not an answer on its own -
+     * the useful part is which address it failed for.
+     */
+    @Property.array({ items: { type: 'string', format: 'email' }, required: false })
+    rejectedRecipients?: string[] | null;
 
     /**
      * The html content of the email.

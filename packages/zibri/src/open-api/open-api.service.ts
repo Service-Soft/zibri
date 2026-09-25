@@ -1,51 +1,59 @@
 import { Readable } from 'node:stream';
 
-import { ZibriApplication } from '../application';
 import { OpenApiServiceInterface } from './open-api-service.interface';
-import { OpenApiDefinition, OpenApiTagObject, OpenApiSecuritySchemeObject, OpenApiPaths, OpenApiResponse, OpenApiOperation, OpenApiResponsesObject, OpenApiResponseObject, OpenApiContentObject, OpenApiSchemaObject, OpenApiSecurityRequirementObject, OpenApiRequestBodyObject, OpenApiParameterLocation, OpenApiParameter } from './open-api.model';
+import { OpenApiDefinition, OpenApiTagObject, OpenApiSecuritySchemeObject, OpenApiPaths, OpenApiResponse, OpenApiOperation, OpenApiResponsesObject, OpenApiResponseObject, OpenApiContentObject, OpenApiSchemaObject, OpenApiSecurityRequirementObject, OpenApiRequestBodyObject, OpenApiParameterLocation, OpenApiParameter, OpenApiReferenceObject, isOpenApiReferenceObject, JsonOpenApiResponse, OpenApiXmlObject } from './open-api.model';
+import { ZibriApplication } from '../application/application';
 import { type AssetServiceInterface } from '../assets/asset-service.interface';
 import { type AuthServiceInterface } from '../auth/auth-service.interface';
-import { BelongsToMetadata } from '../auth/models/belongs-to-metadata.model';
 import { HasRoleMetadata } from '../auth/models/has-role-metadata.model';
-import { IsLoggedInMetadata } from '../auth/models/is-logged-in-metadata.model';
+import { type RouteAuthConfiguration } from '../auth/models/route-auth-configuration.model';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { BaseEntity } from '../entity/base-entity.model';
+import { EntityMetadata } from '../entity/decorators/entity.decorator';
 import { PropertyMetadata } from '../entity/decorators/property.decorator';
+import { ArrayPropertyItemMetadata } from '../entity/models/array-property-metadata.model';
 import { BelongsToOnePropertyMetadata } from '../entity/models/belongs-to-one-property-metadata.model';
 import { HasOnePropertyMetadata } from '../entity/models/has-one-property-metadata.model';
 import { ManyToManyPropertyMetadata } from '../entity/models/many-to-many-property-metadata.model';
 import { ManyToOnePropertyMetadata } from '../entity/models/many-to-one-property-metadata.model';
+import { NumberFormat } from '../entity/models/number-property-metadata.model';
+import { AnyOfShapesMetadata, OneOfShapeMetadata } from '../entity/models/one-of-property-metadata.model';
 import { OneToManyPropertyMetadata } from '../entity/models/one-to-many-property-metadata.model';
 import { Relation } from '../entity/models/relation.enum';
 import { OmitClass } from '../entity/omit-class.model';
 import { NotFoundError } from '../error-handling/errors/not-found.error';
 import { InternalError } from '../error-handling/internal-error.model';
+import { AfterAppInit } from '../global/after-app-init.interface';
 import { GlobalRegistry } from '../global/global-registry';
-import { OnAppInit } from '../global/on-app-init.interface';
-import { HttpMethod } from '../http/http-method.enum';
+import { OnAppStart } from '../global/on-app-start.interface';
+import { RouteRegistry } from '../global/route-registry/route.registry';
+import { HttpMethod, httpMethodKey } from '../http/http-method.enum';
 import { HttpStatus } from '../http/http-status.enum';
 import { KnownHeader } from '../http/known-header.enum';
 import { MimeType } from '../http/mime-type.enum';
 import { $f } from '../localization/format.function';
-import { type LocalizeServiceInterface } from '../localization/localize-service.interface';
 import { $ts } from '../localization/translate.function';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { FileResponse } from '../parsing/form-data/file-response.model';
 import { HtmlResponse } from '../parsing/html/html-response.model';
+import { XmlModelUtilities } from '../parsing/xml/xml-model.utilities';
+import { XmlPropertyMetadata } from '../parsing/xml/xml-property-metadata.model';
+import { XmlRootMetadata } from '../parsing/xml/xml-root-metadata.model';
 import { Route, ControllerRouteConfiguration } from '../routing/controller-route-configuration.model';
-import { BodyMetadata } from '../routing/decorators/body.decorator';
+import { BodyMetadata } from '../routing/decorators/body-metadata.model';
 import { ControllerData } from '../routing/decorators/controller.decorator';
 import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from '../routing/decorators/param.decorator';
 import { MissingBaseRouteError } from '../routing/missing-base-route.error';
+import { ArrayParamItemMetadata } from '../routing/models/array-param-metadata.model';
 import { type RouterInterface } from '../routing/router.interface';
 import { Newable } from '../types/newable.type';
 import { FsUtilities, FsPath } from '../utilities/fs.utilities';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
-import { SemVerUtilities } from '../utilities/sem-ver.utilities';
+import { SemVerUtilities } from '../versioning/sem-ver.utilities';
 import { SupportedVersionsOptions } from '../versioning/supported-versions-options.model';
 import { Version, VersionFile } from '../versioning/version.model';
 import { type VersioningServiceInterface } from '../versioning/versioning-service.interface';
@@ -78,6 +86,7 @@ const defaultDescriptionForHttpStatus: Record<HttpStatus | 'default', string> = 
     [HttpStatus.PAYMENT_REQUIRED]: '',
     [HttpStatus.METHOD_NOT_ALLOWED]: '',
     [HttpStatus.NOT_ACCEPTABLE]: '',
+    [HttpStatus.REQUEST_TIMEOUT]: '',
     [HttpStatus.CONFLICT]: '',
     [HttpStatus.GONE]: '',
     [HttpStatus.CONTENT_TOO_LARGE]: '',
@@ -92,12 +101,50 @@ const defaultDescriptionForHttpStatus: Record<HttpStatus | 'default', string> = 
 };
 
 /**
+ * One version of the api, paired with the open api document describing it.
+ */
+type VersionWithDefinition = {
+    /**
+     * The version file the definition was built from.
+     */
+    version: VersionFile,
+    /**
+     * The open api document for that version.
+     */
+    definition: OpenApiDefinition
+};
+
+/**
+ * How one kind of number is described in an open api document.
+ */
+type OpenApiNumberType = {
+    /**
+     * The json type a value of it arrives and leaves as.
+     */
+    type: 'number' | 'integer' | 'string',
+    /**
+     * What that json type is carrying, in open api's own vocabulary.
+     */
+    format: string
+};
+
+/**
  * Default open api service implementation of Zibri.
  */
 @Injectable({ register: 'onUse' })
-export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
+export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, OnAppStart {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly openApiRoute: Route = '/explorer';
+
+    /**
+     * The document per version, built once the application is fully initialized.
+     *
+     * Not built in `afterAppInit` beside the routes below, because the two hooks it would need to sit
+     * between run in the same phase and cannot both be first: it reads the versions VersioningService
+     * loads in its own `afterAppInit`, and VersioningService snapshots the routes this one registers.
+     * Building it on start resolves that - every init hook has run by then, whatever order they ran in.
+     */
+    private definitions: VersionWithDefinition[] = [];
 
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
@@ -110,56 +157,68 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
         private readonly router: RouterInterface,
         @Inject(ZIBRI_DI_TOKENS.VERSIONING_SERVICE)
         private readonly versioningService: VersioningServiceInterface,
-        @Inject(ZIBRI_DI_TOKENS.LOCALIZE_SERVICE)
-        private readonly localizeService: LocalizeServiceInterface
+        @Inject(ZIBRI_DI_TOKENS.OPEN_API_AUTH)
+        private readonly auth: RouteAuthConfiguration
     ) { }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async onAppInit(app: ZibriApplication): Promise<void> {
-        await this.router.registerRoute({
+    async onAppStart(app: ZibriApplication): Promise<void> {
+        this.definitions = await Promise.all(
+            this.versioningService.getVersions().map(
+                async v => ({ version: v, definition: await this.createOpenApiDefinition(app, v) })
+            )
+        );
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    afterAppInit(): void {
+        this.router.registerRoute({
             httpMethod: HttpMethod.GET,
             route: `${this.openApiRoute}/spec/:version`,
             versions: 'all',
             openApi: { useInOpenApi: false },
+            auth: this.auth,
             pathParams: { version: { type: 'string' } },
-            handler: async (req) => {
+            handler: (req) => {
                 const versionValue: string = req.params['version'];
-                const versions: VersionFile[] = this.versioningService.getVersions();
-                const version: VersionFile | undefined = versions.find(v => v.value === versionValue);
+                const version: VersionWithDefinition | undefined = this.definitions.find(v => v.version.value === versionValue);
                 if (!version) {
                     throw new NotFoundError($ts`Version "${versionValue}" not found`);
                 }
-                return await this.createOpenApiDefinition(app, version);
+                return version.definition;
             }
         });
 
-        await this.logger.info(`registers the OpenAPI Explorer at ${this.openApiRoute}`);
+        this.logger.info(`registers the OpenAPI Explorer at ${this.openApiRoute}`);
 
-        await this.router.registerRoute({
+        this.router.registerRoute({
             httpMethod: HttpMethod.GET,
             route: `${this.openApiRoute}/swagger-ui.css`,
             versions: 'all',
             openApi: { useInOpenApi: false },
+            auth: this.auth,
             handler: () => {
                 const filePath: FsPath = FsUtilities.getPath(this.assetService.publicAssetsPath, 'open-api', 'swagger-ui.css');
                 return FileResponse.fromPath(filePath);
             }
         });
-        await this.router.registerRoute({
+        this.router.registerRoute({
             httpMethod: HttpMethod.GET,
             route: `${this.openApiRoute}/swagger-ui-bundle.js`,
             versions: 'all',
             openApi: { useInOpenApi: false },
+            auth: this.auth,
             handler: () => {
                 const filePath: FsPath = FsUtilities.getPath(this.assetService.publicAssetsPath, 'open-api', 'swagger-ui-bundle.js');
                 return FileResponse.fromPath(filePath);
             }
         });
-        await this.router.registerRoute({
+        this.router.registerRoute({
             httpMethod: HttpMethod.GET,
             route: `${this.openApiRoute}/swagger-ui-standalone-preset.js`,
             versions: 'all',
             openApi: { useInOpenApi: false },
+            auth: this.auth,
             handler: () => {
                 const filePath: FsPath = FsUtilities.getPath(
                     this.assetService.publicAssetsPath,
@@ -169,11 +228,12 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
                 return FileResponse.fromPath(filePath);
             }
         });
-        await this.router.registerRoute({
+        this.router.registerRoute({
             httpMethod: HttpMethod.GET,
             route: `${this.openApiRoute}/swagger-ui-init.js`,
             versions: 'all',
             openApi: { useInOpenApi: false },
+            auth: this.auth,
             handler: () => {
                 const versions: VersionFile[] = this.versioningService
                     .getVersions()
@@ -208,7 +268,8 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
                             `            req.headers['${KnownHeader.CONTENT_TYPE}'] = \'application/json\'`,
                             '            return req;',
                             '        },',
-                            '        defaultModelRendering: \'model\'',
+                            '        defaultModelRendering: \'model\',',
+                            '        persistAuthorization: true',
                             '    });',
                             '};'
                         ].join('\n')
@@ -217,11 +278,12 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
             }
         });
 
-        await this.router.registerRoute({
+        this.router.registerRoute({
             httpMethod: HttpMethod.GET,
             route: `${this.openApiRoute}/custom.js`,
             versions: 'all',
             openApi: { useInOpenApi: false },
+            auth: this.auth,
             handler: () => {
                 return FileResponse.fromStream({
                     filename: 'custom.js',
@@ -368,11 +430,12 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
             }
         });
 
-        await this.router.registerRoute({
+        this.router.registerRoute({
             httpMethod: HttpMethod.GET,
             route: this.openApiRoute,
             versions: 'all',
             openApi: { useInOpenApi: false },
+            auth: this.auth,
             handler: () => {
                 return HtmlResponse.fromString(
                     `<!DOCTYPE html>
@@ -469,12 +532,13 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
 
                 const responses: OpenApiResponse[] = MetadataUtilities.getRouteResponses(controllerClass, route.controllerMethod);
 
-                const hasRoleMetadata: HasRoleMetadata | undefined = await this.authService.resolveHasRoleMetadata(
+                const hasRoleMetadata: HasRoleMetadata | undefined = RouteRegistry.get(
                     controllerClass,
                     route.controllerMethod
-                );
+                ).auth.metadata.hasRole;
 
                 const operation: OpenApiOperation = {
+                    description: this.describeScopes(responses),
                     responses: this.buildResponses(responses),
                     tags: [controllerClass.name],
                     parameters: [
@@ -486,7 +550,7 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
                     security: await this.resolveOperationSecurity(controllerClass, route.controllerMethod),
                     ['x-roles']: hasRoleMetadata?.allowedRoles
                 };
-                res[fullPath][route.httpMethod] = operation;
+                res[fullPath][httpMethodKey(route.httpMethod)] = operation;
             }
         }
 
@@ -510,11 +574,14 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
                     ...this.buildParameters(route.queryParams, 'query'),
                     ...this.buildParameters(route.headerParams, 'header')
                 ],
-                requestBody: this.buildOpenApiBody(route.bodyMetadata)
-                // security: this.resolveOperationSecurity(controllerClass, route.controllerMethod),
-                // ['x-roles']: hasRoleMetadata?.allowedRoles
+                requestBody: this.buildOpenApiBody(route.bodyMetadata),
+                // a manually registered route had no posture to document, so this was a comment. Now
+                // that it states one - or inherits `defaultAuth` by stating nothing - the spec says
+                // the same thing about it that it says about a controller route
+                security: this.resolveRouteSecurity(route.auth),
+                ['x-roles']: route.auth?.hasRole?.allowedRoles
             };
-            res[fullPath][route.httpMethod] = operation;
+            res[fullPath][httpMethodKey(route.httpMethod)] = operation;
         }
 
         return res;
@@ -525,17 +592,15 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
 
         const groupedResponses: Record<string, OpenApiResponse[]> = {};
         for (const response of responses) {
-            if (groupedResponses[response.status ?? 'default'] != undefined) {
-                groupedResponses[response.status ?? 'default'].push(response);
-            }
-            else {
-                groupedResponses[response.status ?? 'default'] = [response];
-            }
+            const status: string = `${response.status ?? 'default'}`;
+            const group: OpenApiResponse[] = groupedResponses[status] ?? [];
+            group.push(response);
+            groupedResponses[status] = group;
         }
 
-        for (const status in groupedResponses) {
-            const r: OpenApiResponse[] = groupedResponses[status];
-            if (r.length > 1) {
+        for (const [status, r] of ObjectUtilities.entries(groupedResponses)) {
+            const response: OpenApiResponse | undefined = r.length === 1 ? r[0] : undefined;
+            if (response == undefined) {
                 const data: OpenApiResponseObject = {
                     description: '',
                     content: this.buildResponsesContent(r)
@@ -543,7 +608,6 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
                 res[status] = data;
             }
             else {
-                const response: OpenApiResponse = r[0];
                 const data: OpenApiResponseObject = {
                     description: response.description ?? defaultDescriptionForHttpStatus[response.status ?? 'default'],
                     content: this.buildResponseContent(response)
@@ -584,7 +648,11 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
                     return { [MimeType.JSON]: { schema: { type: 'array', items: schema } } };
                 }
 
-                return { [MimeType.JSON]: { schema } };
+                const content: OpenApiContentObject = {};
+                for (const mimeType of response.mimeTypes ?? [MimeType.JSON]) {
+                    content[mimeType] = { schema: mimeType === MimeType.XML ? this.withXmlRoot(schema, response.cls) : schema };
+                }
+                return content;
             }
             case 'html': {
                 const schema: OpenApiSchemaObject = {
@@ -593,6 +661,7 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
                 };
                 return { [MimeType.HTML]: { schema } };
             }
+            case 'empty':
             case 'error': {
                 return undefined;
             }
@@ -605,6 +674,7 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
 
     private buildResponsesContent(responses: OpenApiResponse[]): OpenApiContentObject | undefined {
         const schemas: OpenApiSchemaObject[] = [];
+        const xmlSchemas: OpenApiSchemaObject[] = [];
         for (const response of responses) {
             switch (response.type) {
                 case 'file': {
@@ -616,17 +686,10 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
                     continue;
                 }
                 case 'json': {
-                    if (!response.cls) {
-                        continue;
-                    }
-                    const propMeta: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(response.cls);
-                    const schema: OpenApiSchemaObject = this.buildOpenApiSchemaForProperties(propMeta, response.cls, 'response', new Set());
-                    if (response.isArray === true) {
-                        schemas.push({ type: 'array', items: schema });
-                        continue;
-                    }
-                    schemas.push(schema);
+                    this.addModelSchemas(response, schemas, xmlSchemas);
+                    continue;
                 }
+                case 'empty':
                 case 'error': {
                     continue;
                 }
@@ -637,7 +700,122 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
 
         }
 
-        return { [MimeType.JSON]: { schema: { oneOf: schemas } } };
+        if (!xmlSchemas.length) {
+            return { [MimeType.JSON]: { schema: { oneOf: schemas } } };
+        }
+        return {
+            ...schemas.length ? { [MimeType.JSON]: { schema: { oneOf: schemas } } } : {},
+            [MimeType.XML]: { schema: { oneOf: xmlSchemas } }
+        };
+    }
+
+    /**
+     * Adds the schema of a model response to the formats it can be written in.
+     * @param response - The declared response.
+     * @param schemas - The schemas of the json content, added to.
+     * @param xmlSchemas - The schemas of the xml content, added to.
+     */
+    private addModelSchemas(response: JsonOpenApiResponse, schemas: OpenApiSchemaObject[], xmlSchemas: OpenApiSchemaObject[]): void {
+        if (!response.cls) {
+            return;
+        }
+        const propMeta: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(response.cls);
+        const schema: OpenApiSchemaObject = this.buildOpenApiSchemaForProperties(propMeta, response.cls, 'response', new Set());
+        if (response.isArray === true) {
+            schemas.push({ type: 'array', items: schema });
+            return;
+        }
+        const mimeTypes: MimeType[] = response.mimeTypes ?? [MimeType.JSON];
+        if (mimeTypes.includes(MimeType.JSON)) {
+            schemas.push(schema);
+        }
+        if (mimeTypes.includes(MimeType.XML)) {
+            xmlSchemas.push(this.withXmlRoot(schema, response.cls));
+        }
+    }
+
+    /**
+     * The schema of a model as the root element of an xml document: named, and in the namespace, that `@XmlRoot` gives it.
+     * @param schema - The schema of the model.
+     * @param cls - The model.
+     * @returns The schema, naming its element.
+     */
+    private withXmlRoot(schema: OpenApiSchemaObject, cls: Newable<unknown>): OpenApiSchemaObject {
+        const root: XmlRootMetadata | undefined = MetadataUtilities.findXmlRoot(cls);
+        const prefix: string | undefined = ObjectUtilities.entries(root?.prefixes ?? {})
+            .find(([, namespace]) => namespace === root?.namespace)?.[0];
+        return { ...schema, xml: { name: root?.name ?? cls.name, namespace: root?.namespace, ...prefix == undefined ? {} : { prefix } } };
+    }
+
+    /**
+     * Says how the properties of a model appear in xml, where that is not as a child element of their own name.
+     *
+     * On the schema json uses too, which is safe: json ignores it. The element's own text and mixed content have no
+     * form in this version of OpenAPI, so a property read from either is described like a child element. A model
+     * with a namespace of its own names it on each of its elements; the prefix it is written with is the document's
+     * to choose.
+     * @param properties - The schemas of the model's properties, by property.
+     * @param cls - The model.
+     */
+    private annotateXml(properties: Record<string, OpenApiSchemaObject>, cls: Newable<unknown>): void {
+        const namespace: string | undefined = MetadataUtilities.findXmlNamespace(cls);
+        for (const [key, property] of ObjectUtilities.entries(properties)) {
+            const xml: XmlPropertyMetadata = XmlModelUtilities.getXmlProperty(cls, key);
+            switch (xml.kind) {
+                case 'attribute': {
+                    properties[key] = { ...property, xml: { name: xml.name, attribute: true } };
+                    break;
+                }
+                case 'element': {
+                    // a property without a decorator is its element already, unless its model moves it
+                    // into a namespace
+                    if (!Object.hasOwn(MetadataUtilities.getXmlProperties(cls), key) && namespace == undefined) {
+                        break;
+                    }
+                    const element: OpenApiXmlObject = { name: xml.name, ...namespace == undefined ? {} : { namespace } };
+                    // a list is its element repeated rather than wrapped, so the name belongs to its items
+                    properties[key] = property.items != undefined && !isOpenApiReferenceObject(property.items)
+                        ? { ...property, items: { ...property.items, xml: element } }
+                        : { ...property, xml: element };
+                    break;
+                }
+                case 'text':
+                case 'mixed': {
+                    break;
+                }
+            }
+        }
+    }
+
+    /**
+     * Says that the route only answers with part of what it returns, when its entity is scoped.
+     *
+     * Read off the entity the route declares it returns, because that is where the restriction is
+     * declared - it is enforced by the repository rather than by anything on the route, so there is
+     * nothing on the route itself to read it from. What the restriction *is* cannot be published: it
+     * is a function of the request, so only its existence is knowable here. That is still worth
+     * saying, because consumers read the spec instead of the code and a list quietly holding back
+     * rows is not something to discover from traffic.
+     * @param responses - What the route declares it can answer with.
+     * @returns The description, or undefined when nothing it returns is scoped.
+     */
+    private describeScopes(responses: OpenApiResponse[]): string | undefined {
+        const scoped: string[] = [];
+        for (const response of responses) {
+            if (response.type !== 'json' || response.cls == undefined) {
+                continue;
+            }
+            const metadata: EntityMetadata | undefined = MetadataUtilities.getEntityMetadata(response.cls as Newable<BaseEntity>);
+            if (metadata?.scope?.restrictedTo != undefined && !scoped.includes(response.cls.name)) {
+                scoped.push(response.cls.name);
+            }
+        }
+
+        if (!scoped.length) {
+            return undefined;
+        }
+        return `Restricted to what the caller is allowed to see. A ${scoped.join(' or ')} outside that is absent `
+            + 'from a list and answered with a 404 when named directly.';
     }
 
     private async resolveOperationSecurity(
@@ -645,20 +823,12 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
         controllerMethod: string
     ): Promise<OpenApiSecurityRequirementObject[] | undefined> {
         const res: OpenApiSecurityRequirementObject[] = [];
-        const isLoggedInMetadata: IsLoggedInMetadata | undefined = await this.authService.resolveIsLoggedInMetadata(
-            controllerClass,
-            controllerMethod
-        );
-        const hasRoleMetadata: HasRoleMetadata | undefined = await this.authService.resolveHasRoleMetadata(
-            controllerClass,
-            controllerMethod
-        );
-        const belongsToMetadata: BelongsToMetadata<Newable<BaseEntity>> | undefined = await this.authService.resolveBelongsToMetadata(
-            controllerClass,
-            controllerMethod
-        );
 
-        if (!isLoggedInMetadata && !hasRoleMetadata && !belongsToMetadata) {
+        // asked of the auth service rather than derived from the decorators here: a route requires a
+        // login under `defaultAuth: 'requireLogin'` without carrying a single one of them, and
+        // reading the decorators alone documented every such route as public - the spec is what
+        // consumers read instead of the code, so it said the opposite of what the route does.
+        if (!await this.authService.requiresAuthentication(controllerClass, controllerMethod)) {
             return undefined;
         }
 
@@ -668,17 +838,74 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
         return res;
     }
 
+    /**
+     * The security requirements of a manually registered route.
+     * @param auth - What the route declared, if anything.
+     * @returns One requirement per strategy, or undefined when the route answers anonymous callers.
+     */
+    private resolveRouteSecurity(auth: RouteAuthConfiguration | undefined): OpenApiSecurityRequirementObject[] | undefined {
+        if (!this.authService.requiresRouteAuthentication(auth)) {
+            return undefined;
+        }
+        return this.authService.strategies.map(s => ({ [inject(s).name]: [] }));
+    }
+
     private buildOpenApiBody(metadata: BodyMetadata | undefined): OpenApiRequestBodyObject | undefined {
         if (!metadata) {
             return undefined;
         }
-        const propMeta: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(metadata.modelClass);
-        const schema: OpenApiSchemaObject = this.buildOpenApiSchemaForProperties(propMeta, metadata.modelClass, 'request', new Set());
+
+        const schema: OpenApiSchemaObject | OpenApiReferenceObject = metadata.type === MimeType.OCTET_STREAM
+            ? {
+                type: 'string',
+                format: 'binary'
+            }
+            : this.buildShapeSchema(metadata.shape, 'request');
+        // an xml body of one model is that model's document, whose root element it names
+        const rooted: OpenApiSchemaObject | OpenApiReferenceObject = metadata.type === MimeType.XML
+            && metadata.shape.type === 'object'
+            && !isOpenApiReferenceObject(schema)
+            ? this.withXmlRoot(schema, metadata.shape.cls())
+            : schema;
         return {
             required: typeof metadata.required === 'boolean' ? metadata.required : undefined,
             description: metadata.description,
-            content: { [metadata.type]: { schema } }
+            content: { [metadata.type]: { schema: rooted } }
         };
+    }
+
+    /**
+     * The schema of a value of one shape, on its own rather than as a property of a model.
+     * @param shape - The shape.
+     * @param context - Whether the value is sent or answered with.
+     * @returns Its schema.
+     */
+    private buildShapeSchema(
+        shape: ArrayPropertyItemMetadata | AnyOfShapesMetadata,
+        context: 'request' | 'response'
+    ): OpenApiSchemaObject | OpenApiReferenceObject {
+        if (shape.type === 'anyOf') {
+            return this.buildAnyOfSchema(shape.shapes, undefined, context);
+        }
+        return this.buildOpenApiSchemaForProperties({ shape }, class {}, context, new Set()).properties?.['shape'] ?? {};
+    }
+
+    /**
+     * The schema of a value that is the first of several shapes it fits.
+     *
+     * AnyOf rather than oneOf: oneOf says exactly one shape matches, and a value is read as the first
+     * shape it fits even where a later one would match too - a date is also text.
+     * @param shapes - The shapes, in order.
+     * @param description - What the value is.
+     * @param context - Whether the value is sent or answered with.
+     * @returns Its schema.
+     */
+    private buildAnyOfSchema(
+        shapes: OneOfShapeMetadata[],
+        description: string | undefined,
+        context: 'request' | 'response'
+    ): OpenApiSchemaObject {
+        return { description, anyOf: shapes.map(shape => this.buildShapeSchema(shape, context)) };
     }
 
     // eslint-disable-next-line sonar/cognitive-complexity
@@ -724,6 +951,7 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
                 case 'number': {
                     properties[key] = {
                         ...meta,
+                        ...this.openApiNumberType(meta.format),
                         required: undefined,
                         minimum: meta.min,
                         maximum: meta.max,
@@ -812,11 +1040,32 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
                     };
                     continue;
                 }
+                case 'oneOf': {
+                    // exactly one matches, since a value names its shape. Built one shape at a time
+                    // through the same fresh-class route arrays take, see there
+                    properties[key] = {
+                        description: meta.description,
+                        oneOf: ObjectUtilities.entries(meta.shapes).map(([name, shape]) => ({
+                            type: 'object',
+                            properties: {
+                                shape: { type: 'string', enum: [name] },
+                                value: this.buildOpenApiSchemaForProperties({ shape }, class {}, context, visited)
+                                    .properties?.['shape'] ?? {}
+                            },
+                            required: ['shape', 'value']
+                        })),
+                        discriminator: { propertyName: 'shape' }
+                    };
+                    continue;
+                }
                 default: {
                     throw new InternalError(`Unknown property type "${(meta as PropertyMetadata).type}"`);
                 }
             }
         }
+        // only the classes above this one make a cycle - a sibling property may describe the same class again
+        visited.delete(entity);
+        this.annotateXml(properties, entity);
 
         return {
             type: 'object',
@@ -838,8 +1087,7 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
 
         const excludeKeys: (keyof Newable<unknown>)[] = [];
         const properties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(fullTargetClass);
-        for (const key in properties) {
-            const property: PropertyMetadata = properties[key];
+        for (const [key, property] of ObjectUtilities.entries(properties)) {
             if (
                 property.type !== Relation.BELONGS_TO_ONE
                 && property.type !== Relation.HAS_ONE
@@ -878,7 +1126,17 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
         }));
     }
 
-    private paramToSchema(meta: QueryParamMetadata | PathParamMetadata | HeaderParamMetadata): OpenApiSchemaObject {
+    /**
+     * The schema of a single parameter, or of the items inside an array one.
+     *
+     * Takes the item metadata as well as the parameter metadata, which is what an array recurses on.
+     * The two differ only in that an item has no name of its own, and nothing here reads one.
+     * @param meta - The parameter, or the items of an array parameter.
+     * @returns Its schema.
+     */
+    private paramToSchema(
+        meta: QueryParamMetadata | PathParamMetadata | HeaderParamMetadata | ArrayParamItemMetadata
+    ): OpenApiSchemaObject {
         switch (meta.type) {
             case 'boolean': {
                 return { ...meta, required: undefined };
@@ -886,6 +1144,7 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
             case 'number': {
                 return {
                     ...meta,
+                    ...this.openApiNumberType(meta.format),
                     required: undefined,
                     minimum: meta.min,
                     maximum: meta.max,
@@ -918,8 +1177,30 @@ export class OpenApiService implements OpenApiServiceInterface, OnAppInit {
                 return {
                     type: 'array',
                     description: meta.description,
-                    items: this.paramToSchema(meta)
+                    // the items, not the array itself. Recursing on `meta` never reached a leaf and
+                    // ran until the stack gave out
+                    items: this.paramToSchema(meta.items)
                 };
+            }
+            case 'oneOf': {
+                return this.buildAnyOfSchema(meta.shapes, meta.description, 'request');
+            }
+        }
+    }
+
+    private openApiNumberType(format: NumberFormat): OpenApiNumberType {
+        switch (format) {
+            case 'number': {
+                return { type: 'number', format: 'double' };
+            }
+            case 'integer': {
+                return { type: 'integer', format: 'int32' };
+            }
+            case 'bigint': {
+                return { type: 'string', format: 'int64' };
+            }
+            case 'bignumber': {
+                return { type: 'string', format: 'decimal' };
             }
         }
     }

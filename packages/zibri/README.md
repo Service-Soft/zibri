@@ -13,7 +13,7 @@ Zibri is an opiniated typescript backend framework based on express. It's heavil
 What differentiates it from such frameworks can be found in our [goals section](#-goals).
 
 # 🚀 Quick start
-Requires Node.js >= 22.
+Requires Node.js >= 24.
 
 ```sh
 npm i -g zibri-cli
@@ -87,7 +87,7 @@ With Zibri you can rely on a strong foundation of battle tested libraries that h
 - node-cron for cron jobs
 
 ### 🧪 Extensive Test Suite
-We have ~1600 tests running in our pipeline and strive to be as close to a production environment as possible. This includes:
+We have more than 2500 tests running in our pipeline and strive to be as close to a production environment as possible. This includes:
 - initializing actual zibri servers with real database testcontainers
 - working with real files for everything related to the file system
 - mocking the least amount of things possible
@@ -107,7 +107,7 @@ It includes source maps and handles even complex cases like giving you the speci
 In a lot of cases it also directly gives you a possible fix.
 
 # 🤝 Contributing
-Contributions are welcome! See [CONTRIBUTING.md](./CONTRIBUTING.md) for how to get started.
+Contributions are welcome! See [CONTRIBUTING.md](../../CONTRIBUTING.md) for how to get started.
 
 # 📄 License
 Zibri is [MIT licensed](./LICENSE).

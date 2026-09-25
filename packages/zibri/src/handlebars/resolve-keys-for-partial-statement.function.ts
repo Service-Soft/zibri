@@ -32,12 +32,9 @@ export function resolveKeysForExpression(
         }
 
         case 'SubExpression': {
-            // unwrap first param, then the rest of its params & its hash
+            // unwrap its params & its hash
             const out: string[] = [];
-            if (param.params.length) {
-                out.push(...resolveKeysForExpression(param.params[0], parentKey));
-            }
-            for (const p of param.params.slice(1)) {
+            for (const p of param.params) {
                 out.push(...resolveKeysForExpression(p, parentKey));
             }
             for (const pair of param.hash?.pairs ?? []) {

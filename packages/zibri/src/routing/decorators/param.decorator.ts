@@ -5,6 +5,7 @@ import { BooleanParamMetadata, BooleanParamMetadataInput } from '../models/boole
 import { DateParamMetadata, DateParamMetadataInput } from '../models/date-param-metadata.model';
 import { NumberParamMetadata, NumberParamMetadataInput } from '../models/number-param-metadata.model';
 import { ObjectParamMetadata, ObjectParamMetadataInput } from '../models/object-param-metadata.model';
+import { OneOfParamMetadata, OneOfPathParamMetadataInput, OneOfQueryParamMetadataInput } from '../models/one-of-param-metadata.model';
 import { StringParamMetadata, StringParamMetadataInput } from '../models/string-param-metadata.model';
 import { createHeaderParamMetadata, createPathParamMetadata, createQueryParamMetadata } from '../param-metdata.helpers';
 
@@ -15,7 +16,8 @@ import { createHeaderParamMetadata, createPathParamMetadata, createQueryParamMet
 export type PathParamMetadata = StringParamMetadata<any, any, any, any, any>
     | NumberParamMetadata
     | BooleanParamMetadata
-    | DateParamMetadata;
+    | DateParamMetadata
+    | OneOfParamMetadata;
 
 /**
  * Metadata Input of path parameters.
@@ -24,7 +26,8 @@ export type PathParamMetadata = StringParamMetadata<any, any, any, any, any>
 export type PathParamMetadataInput = StringParamMetadataInput<any, any, any, any, any>
     | NumberParamMetadataInput
     | BooleanParamMetadataInput
-    | DateParamMetadataInput;
+    | DateParamMetadataInput
+    | OneOfPathParamMetadataInput;
 
 /**
  * Metadata of query parameters.
@@ -35,7 +38,8 @@ export type QueryParamMetadata = StringParamMetadata<any, any, any, any, any>
     | BooleanParamMetadata
     | DateParamMetadata
     | ObjectParamMetadata
-    | ArrayParamMetadata;
+    | ArrayParamMetadata
+    | OneOfParamMetadata;
 
 /**
  * Metadata Input of query parameters.
@@ -46,7 +50,8 @@ export type QueryParamMetadataInput = StringParamMetadataInput<any, any, any, an
     | BooleanParamMetadataInput
     | DateParamMetadataInput
     | ObjectParamMetadataInput
-    | ArrayParamMetadataInput;
+    | ArrayParamMetadataInput
+    | OneOfQueryParamMetadataInput;
 
 /**
  * Metadata of header parameters.
@@ -59,6 +64,7 @@ export type HeaderParamMetadata = (
     | DateParamMetadata
     | ObjectParamMetadata
     | ArrayParamMetadata
+    | OneOfParamMetadata
 ) & {
     /**
      * The name of the header.
@@ -75,7 +81,8 @@ export type HeaderParamMetadataInput = StringParamMetadataInput<any, any, any, a
     | BooleanParamMetadataInput
     | DateParamMetadataInput
     | ObjectParamMetadataInput
-    | ArrayParamMetadataInput;
+    | ArrayParamMetadataInput
+    | OneOfQueryParamMetadataInput;
 
 /**
  * Bundles decorators for injecting path, query and header parameters.

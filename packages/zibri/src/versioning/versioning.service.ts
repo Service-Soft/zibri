@@ -1,10 +1,12 @@
 import { Dirent } from 'node:fs';
 
+import { RouteWithVersionData } from './route-with-version-data.model';
+import { SemVerUtilities, SemVerVersion } from './sem-ver.utilities';
+import { StoredRoute } from './stored-route.model';
+import { SemVerMatcher, SupportedVersionsOptions, VersionMatcher } from './supported-versions-options.model';
 import { Version, VersionFile } from './version.model';
 import { VersioningServiceInterface } from './versioning-service.interface';
-import { ZibriApplication } from '../application';
-import { RouteWithVersionData } from './route-with-version-data.model';
-import { SemVerMatcher, SupportedVersionsOptions, VersionMatcher } from './supported-versions-options.model';
+import { ZibriApplication } from '../application/application';
 import { HttpRequestContext } from '../context/request/http-request.context';
 import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../context/request/request-context-token.model';
 import { WebsocketRequestContext } from '../context/request/websocket-request.context';
@@ -17,15 +19,16 @@ import { AfterAppInit } from '../global/after-app-init.interface';
 import { type Header } from '../http/header.type';
 import { $f } from '../localization/format.function';
 import { $ts } from '../localization/translate.function';
+import { parseObject } from '../parsing/functions/parse-object.function';
+import { isNamedValue } from '../parsing/functions/parse-one-of.function';
 import { ControllerRouteConfiguration } from '../routing/controller-route-configuration.model';
 import { ControllerData } from '../routing/decorators/controller.decorator';
 import { type RouterInterface } from '../routing/router.interface';
 import { OmitStrict } from '../types/omit-strict.type';
-import { FsPath, FsUtilities } from '../utilities/fs.utilities';
+import { type FsPath, FsUtilities } from '../utilities/fs.utilities';
 import { isDate } from '../utilities/is-date.function';
 import { JsonUtilities } from '../utilities/json.utilities';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
-import { SemVerUtilities, SemVerVersion } from '../utilities/sem-ver.utilities';
 import { WebsocketControllerData } from '../websocket/decorators/websocket-controller.decorator';
 import { WebsocketControllerRouteConfiguration } from '../websocket/models/websocket-controller-route-configuration.model';
 
@@ -59,7 +62,6 @@ class InitVersioningServiceError extends InternalError {
 @Injectable({ register: 'onUse' })
 export class VersioningService implements VersioningServiceInterface, AfterAppInit {
 
-    private readonly versionsPath: FsPath = FsUtilities.getPath(__dirname, '..', 'versions');
     private versionFiles: VersionFile[] = [];
 
     constructor(
@@ -68,12 +70,26 @@ export class VersioningService implements VersioningServiceInterface, AfterAppIn
         @Inject(ZIBRI_DI_TOKENS.VERSION_QUERY_PARAM)
         private readonly versionQueryParam: string,
         @Inject(ZIBRI_DI_TOKENS.ROUTER)
-        private readonly router: RouterInterface
+        private readonly router: RouterInterface,
+        @Inject(ZIBRI_DI_TOKENS.VERSIONS_PATH)
+        private readonly versionsPath: FsPath
     ) {}
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async afterAppInit(app: ZibriApplication): Promise<void> {
-        await FsUtilities.mkdir(this.versionsPath);
+        // the folder belongs to the project rather than to a run: `zi new` creates it and git carries
+        // it from there. Creating it here would make a deployment that failed to bring it look
+        // exactly like a project that has never versioned anything, and those want opposite answers
+        // - the second legitimately records a first snapshot, while the first would silently start
+        // over and drop every guarantee the stored routes exist to give, with nothing to say so
+        if (!await FsUtilities.exists(this.versionsPath)) {
+            throw new InitVersioningServiceError([
+                `There is no versions folder at "${this.versionsPath}".`,
+                'It holds the routes each released version served, which is what a version bump is checked against,',
+                'so it travels with the application: commit it, and copy it into whatever a deployment runs from.',
+                'Create it empty to start recording versions from this one.'
+            ]);
+        }
         this.versionFiles = await this.loadAllVersionFiles();
         const currentLatestVersions: VersionFile[] = this.versionFiles.filter(v => v.endsAt == undefined);
 
@@ -86,7 +102,7 @@ export class VersioningService implements VersioningServiceInterface, AfterAppIn
             await this.createVersionFile({
                 startsAt: new Date(),
                 value: app.options.version,
-                routes: this.getAllRoutes(app)
+                routes: this.getAllRoutes(app).map(r => this.toStoredRoute(r))
             });
             this.versionFiles = await this.loadAllVersionFiles();
             return;
@@ -94,7 +110,7 @@ export class VersioningService implements VersioningServiceInterface, AfterAppIn
 
         const currentLatest: VersionFile | undefined = this.resolveCurrentLatest(currentLatestVersions, app);
         const inCodeRoutes: RouteWithVersionData[] = this.getAllRoutes(app);
-        const storedRoutes: RouteWithVersionData[] = currentLatest ? currentLatest.routes : [];
+        const storedRoutes: RouteWithVersionData[] = currentLatest ? currentLatest.routes.map(r => this.fromStoredRoute(r)) : [];
 
         this.validateNoDowngrade(app);
         this.validateRouteVersionSnapshot(inCodeRoutes, storedRoutes, this.versionFiles, currentLatest?.value, app.options.version);
@@ -112,15 +128,14 @@ export class VersioningService implements VersioningServiceInterface, AfterAppIn
                 .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
 
             // Chain the end dates: each old version ends when the next one starts
-            for (let i: number = 0; i < oldActives.length; i++) {
-                const nextStart: Date = i < oldActives.length - 1
-                    ? new Date(oldActives[i + 1].startsAt)
-                    : new Date(newVersion.startsAt);
-                await this.updateVersionFile(oldActives[i], { endsAt: nextStart });
+            for (const [i, oldActive] of oldActives.entries()) {
+                const next: VersionFile | undefined = oldActives[i + 1];
+                const nextStart: Date = new Date(next?.startsAt ?? newVersion.startsAt);
+                await this.updateVersionFile(oldActive, { endsAt: nextStart });
             }
 
             // Ensure the new file’s routes are up to date
-            await this.updateVersionFile(newVersion, { routes: inCodeRoutes });
+            await this.updateVersionFile(newVersion, { routes: inCodeRoutes.map(r => this.toStoredRoute(r)) });
             this.versionFiles = await this.loadAllVersionFiles();
             return;
         }
@@ -128,7 +143,7 @@ export class VersioningService implements VersioningServiceInterface, AfterAppIn
         await this.createVersionFile({
             value: app.options.version,
             startsAt: transitionTime,
-            routes: inCodeRoutes
+            routes: inCodeRoutes.map(r => this.toStoredRoute(r))
         });
 
         for (const active of currentLatestVersions) {
@@ -178,9 +193,40 @@ export class VersioningService implements VersioningServiceInterface, AfterAppIn
                 return undefined;
             }
             const raw: string = await FsUtilities.readFile(FsUtilities.getPath(e.parentPath, e.name));
-            return JsonUtilities.parse(raw);
+            return parseObject(raw, VersionFile) as VersionFile;
         }));
-        return res.filter(Boolean) as VersionFile[];
+        const files: VersionFile[] = res.filter(Boolean) as VersionFile[];
+        this.validateVersionsAreNamed(files);
+        return files;
+    }
+
+    private validateVersionsAreNamed(files: VersionFile[]): void {
+        const unnamed: string[] = files.flatMap(file => file.routes
+            .filter(route => {
+                const versions: unknown = route.versions;
+                return !isNamedValue(versions) || (versions.shape !== 'All' && versions.shape !== 'Matchers');
+            })
+            .map(route => `- "${file.value}.json" on route "${route.key}"`));
+        if (!unnamed.length) {
+            return;
+        }
+        throw new InitVersioningServiceError([
+            'These routes in the versions folder hold their versions without the name of their shape:',
+            ...unnamed,
+            'Rewrite "versions": "all" as "versions": { "shape": "All", "value": "all" },',
+            'and "versions": [...] as "versions": { "shape": "Matchers", "value": [...] }.'
+        ]);
+    }
+
+    private toStoredRoute(route: RouteWithVersionData): StoredRoute {
+        return {
+            key: route.key,
+            versions: route.versions === 'all' ? { shape: 'All', value: 'all' } : { shape: 'Matchers', value: route.versions }
+        };
+    }
+
+    private fromStoredRoute(route: StoredRoute): RouteWithVersionData {
+        return { key: route.key, versions: route.versions.value };
     }
 
     private async createVersionFile(data: VersionFile): Promise<void> {
@@ -302,7 +348,7 @@ export class VersioningService implements VersioningServiceInterface, AfterAppIn
 
         for (const file of versionFiles) {
             for (const route of file.routes) {
-                validateRoute(route, file.value, `in version file "${file.value}.json" on route "${route.key}"`);
+                validateRoute(this.fromStoredRoute(route), file.value, `in version file "${file.value}.json" on route "${route.key}"`);
             }
         }
 
@@ -333,7 +379,7 @@ export class VersioningService implements VersioningServiceInterface, AfterAppIn
 
         const previousLatest: VersionFile = previousCandidates.reduce((max, v) => new Date(v.startsAt) > new Date(max.startsAt) ? v : max);
         const previousRoutesByKey: Map<string, RouteWithVersionData> = new Map(
-            previousLatest.routes.map(route => [route.key, route])
+            previousLatest.routes.map(route => [route.key, this.fromStoredRoute(route)])
         );
 
         const routesThatNeedUpdate: RouteWithVersionData[] = inCodeRoutes.filter(r => {
@@ -497,7 +543,7 @@ export class VersioningService implements VersioningServiceInterface, AfterAppIn
 
     private getAllRoutes(app: ZibriApplication): RouteWithVersionData[] {
         const allRoutes: RouteWithVersionData[] = [
-            ...this.router.manuallyRegisteredRoutes.map(r => ({ key: `${r.httpMethod.toUpperCase()} ${r.route}`, versions: r.versions })),
+            ...this.router.manuallyRegisteredRoutes.map(r => ({ key: `${r.httpMethod} ${r.route}`, versions: r.versions })),
             ...app.options.controllers.flatMap(c => {
                 const controllerData: ControllerData | undefined = MetadataUtilities.getControllerData(c);
                 if (!controllerData) {
@@ -507,8 +553,8 @@ export class VersioningService implements VersioningServiceInterface, AfterAppIn
                 return routes.map(r => ({
                     versions: r.versions ?? controllerData.versions,
                     key: controllerData.baseRoute === '/'
-                        ? `${r.httpMethod.toUpperCase()} ${r.route}`
-                        : `${r.httpMethod.toUpperCase()} ${controllerData.baseRoute}${r.route}`
+                        ? `${r.httpMethod} ${r.route}`
+                        : `${r.httpMethod} ${controllerData.baseRoute}${r.route}`
                 }));
             }),
             ...app.options.websocketControllers.flatMap(c => {

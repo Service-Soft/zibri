@@ -4,12 +4,12 @@ import { join } from 'node:path';
 import { describe, expect, it } from '@jest/globals';
 
 import { validate, ValidationCode } from './validate';
-import { parseOk } from '../__testing__/parse.helper';
+import { parseTemplateOk } from '../__testing__/parse.helper';
 import { collectTsxFiles } from '../__testing__/sandbox.helper';
 import { Diagnostic } from '../diagnostics/diagnostic.model';
 
 function diagnose(source: string): Diagnostic[] {
-    return validate(parseOk(source));
+    return validate(parseTemplateOk(source));
 }
 
 describe('validate', () => {
@@ -42,7 +42,7 @@ describe('validate against real sandbox templates', () => {
     it.each(files.map(f => [f.split('/templates/')[1], f] as const))(
         'reports no errors for %s',
         (_name, file) => {
-            const diagnostics: Diagnostic[] = validate(parseOk(readFileSync(file, 'utf8')));
+            const diagnostics: Diagnostic[] = validate(parseTemplateOk(readFileSync(file, 'utf8')));
             expect(diagnostics).toEqual([]);
         }
     );

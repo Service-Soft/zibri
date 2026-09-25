@@ -64,9 +64,9 @@ export abstract class WriteBehindReadThroughCache<K, V, N extends string, CacheT
                         await this.updateSizeGauge();
                     })
                     // eslint-disable-next-line promise/prefer-await-to-then, promise/prefer-await-to-callbacks
-                    .catch(async (error) => {
+                    .catch((error) => {
                         this.metrics.errors.increase({ cache: this.name, operation: 'SET' });
-                        await this.logger.warn(
+                        this.logger.warn(
                             'Background cache write failed',
                             { error }
                         );
@@ -91,9 +91,9 @@ export abstract class WriteBehindReadThroughCache<K, V, N extends string, CacheT
                 await this.updateSizeGauge();
             })
             // eslint-disable-next-line promise/prefer-await-to-then, promise/prefer-await-to-callbacks
-            .catch(async (error) => {
+            .catch((error) => {
                 this.metrics.errors.increase({ cache: this.name, operation: 'SET' });
-                await this.logger.warn('Background cache write failed in setDirect', { error });
+                this.logger.warn('Background cache write failed in setDirect', { error });
             });
     }
 }

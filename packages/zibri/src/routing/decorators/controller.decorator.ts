@@ -1,5 +1,6 @@
 import { Injectable, InjectableOptions } from '../../di/decorators/injectable.decorator';
 import { DiVariants } from '../../di/models/di-variant.model';
+import { HandlerTimeout } from '../../http/handler-timeout.type';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { SupportedVersionsOptions } from '../../versioning/supported-versions-options.model';
@@ -20,7 +21,14 @@ export type ControllerData = {
     /**
      * Whether or not this controller is allowed to exist without being registered in the application.
      */
-    allowOrphan: boolean
+    allowOrphan: boolean,
+    /**
+     * How long the handlers of this controller's routes have to produce a result.
+     *
+     * Overrides the application's `handlerInMs` for every route on it, and a route overrides this
+     * with its own `timeoutInMs`.
+     */
+    timeoutInMs: HandlerTimeout | undefined
 };
 
 /**
@@ -34,13 +42,14 @@ export type ControllerInputData<T> = OmitStrict<InjectableOptions<T>, 'variant'>
  * @param options - Additional options for the controller.
  */
 export function Controller<T>(baseRoute: Route, options: ControllerInputData<T> = {}): ClassDecorator {
-    const { allowOrphan = false, versions = ['^latest'] } = options;
+    const { allowOrphan = false, versions = ['^latest'], timeoutInMs } = options;
     return target => {
         Injectable({ ...options, variant: DiVariants.CONTROLLER })(target);
         MetadataUtilities.setControllerData(target, {
             baseRoute,
             allowOrphan,
-            versions
+            versions,
+            timeoutInMs
         });
     };
 }

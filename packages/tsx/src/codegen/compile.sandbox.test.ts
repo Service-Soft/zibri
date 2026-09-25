@@ -5,8 +5,8 @@ import { describe, expect, it } from '@jest/globals';
 
 import { compile, CompileResult } from './compile';
 import { collectTsxFiles } from '../__testing__/sandbox.helper';
-import { parse } from '../parser/parser';
 import { collectClientGlobalAliasesFromSource } from '../semantics/client-packages';
+import { parseTemplate, syntaxErrorsOf } from '../semantics/symbols';
 
 const templatesDir: string = join(__dirname, '..', '..', '..', 'sandbox', 'src', 'templates');
 
@@ -21,7 +21,7 @@ describe('compile against real sandbox templates', () => {
             expect(result.code).toBeDefined();
             expect(result.componentName).toBeTruthy();
             // Re-parsing the emitted module with our own parser validates its syntax.
-            expect(parse(result.code ?? '').diagnostics).toEqual([]);
+            expect(syntaxErrorsOf(parseTemplate(result.code ?? ''))).toEqual([]);
             // `?client` packages must never appear as server imports.
             expect(result.code).not.toContain('?client');
         }

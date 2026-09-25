@@ -2,6 +2,7 @@ import { parseBoolean } from './parse-boolean.function';
 import { parseDate } from './parse-date.function';
 import { parseNumber } from './parse-number.function';
 import { parseObject } from './parse-object.function';
+import { parseOneOf } from './parse-one-of.function';
 import { parseString } from './parse-string.function';
 import { ArrayPropertyItemMetadata } from '../../entity/models/array-property-metadata.model';
 import { ArrayParamItemMetadata } from '../../routing/models/array-param-metadata.model';
@@ -37,7 +38,7 @@ export function parseArray(
                 break;
             }
             case 'number': {
-                simpleParsedValue[i] = parseNumber(simpleParsedValue[i]);
+                simpleParsedValue[i] = parseNumber(simpleParsedValue[i], itemMetadata.format);
                 break;
             }
             case 'boolean': {
@@ -54,6 +55,10 @@ export function parseArray(
             }
             case 'date': {
                 simpleParsedValue[i] = parseDate(simpleParsedValue[i]);
+                break;
+            }
+            case 'oneOf': {
+                simpleParsedValue[i] = parseOneOf(simpleParsedValue[i], itemMetadata);
                 break;
             }
             case 'file':

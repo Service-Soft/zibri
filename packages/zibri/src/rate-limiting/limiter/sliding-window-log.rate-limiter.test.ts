@@ -166,6 +166,21 @@ describe('SlidingWindowLogRateLimiter', () => {
             expect(res.reservation.readyAtMs).toBe(NOW + 1000);
         });
 
+        it('queues a reservation that needs more slots than the window is holding', async () => {
+            // two reservations that together exceed capacity, with nothing consumed yet - so there
+            // are fewer timestamps to wait for than slots to free
+            const first: RateLimitReservationResult = await limiter.reserve('k', 3);
+            expect(first.allowed).toBe(true);
+            const res: RateLimitReservationResult = await limiter.reserve('k', 3);
+
+            // the ready time was read off the (count - capacity)-th oldest timestamp without
+            // checking there is one, so it came back NaN. Every comparison against NaN is false,
+            // including the horizon check - so a wait of one interval, well inside the five second
+            // horizon, was refused as QUEUE_TOO_LONG with an estimated wait of NaN
+            assert(res.allowed);
+            expect(res.reservation.readyAtMs).toBe(NOW + INTERVAL);
+        });
+
         it('expired reservations are cleaned up and capacity refunded', async () => {
             const res: RateLimitReservationResult = await limiter.reserve('k', 5);
             expect(res.allowed).toBe(true);

@@ -8,8 +8,28 @@ import { OmitClass } from '../entity/omit-class.model';
  * The status a event can have.
  */
 export enum EventStatus {
+    /**
+     * At least one subscriber that was registered at emit time still owes it a run.
+     *
+     * Either it has never run, or its last attempt failed and another one is due. This is the only
+     * status the dispatch poll hands back out.
+     */
     CREATED = 'CREATED',
-    FINISHED = 'FINISHED'
+    /**
+     * Every subscriber that was registered at emit time handled it successfully.
+     *
+     * The only status the cleanup job deletes, because it is the only one where the row has nothing
+     * left to say.
+     */
+    FINISHED = 'FINISHED',
+    /**
+     * Nobody owes it a run any more, and at least one subscriber gave up.
+     *
+     * Terminal and kept: the event and the runs under it are the record of work that was owed and
+     * never done, which is worth more than the space it costs. See the retention note in the event
+     * docs.
+     */
+    FAILED = 'FAILED'
 }
 
 /**

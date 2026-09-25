@@ -1,7 +1,7 @@
 import { Log } from './log.model';
 import { CronExpression } from '../cron/cron-expression.utilities';
 import { CronJob, InitialCronConfig } from '../cron/cron-job.model';
-import { Repository } from '../data-source/repository';
+import { Repository } from '../data-source/repository/repository';
 import { InjectRepository } from '../di/decorators/inject-repository.decorator';
 
 /**
@@ -24,7 +24,7 @@ export class LogCleanupCronJob extends CronJob {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async onTick(): Promise<void> {
-        await this.logger.info('cleans up expired logs');
+        this.logger.info('cleans up expired logs');
         await this.logRepository.deleteAll({ cleanupAt: { before: new Date() } });
     }
 }

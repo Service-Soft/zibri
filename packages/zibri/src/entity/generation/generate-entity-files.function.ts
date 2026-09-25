@@ -1,10 +1,9 @@
-import { register as tsNodeRegister } from 'ts-node';
-
 import { FileToGenerate, generateEntityFilesForProvider, GenerateEntityFilesForProviderResult } from './generate-entity-files-for-provider.function';
 import { EntityGenerationProvider } from './providers/entity-generation-provider.interface';
 import { initDiContainer } from '../../di/init-di-container.function';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { FsUtilities, FsPath } from '../../utilities/fs.utilities';
+import { registerTsNode } from '../../utilities/register-ts-node.function';
 
 /**
  * Resolves providers from the src/models/generated/providers.ts file and generates entities from them.
@@ -15,11 +14,16 @@ export async function generateEntityFiles(): Promise<void> {
     const cwd: string = process.cwd();
     const providersPath: FsPath = await resolveProvidersPath(cwd);
     const ext: string = FsUtilities.extensionName(providersPath).toLowerCase();
+    // what this generates is TypeScript source, into the source tree. Resolving to any other
+    // extension means the providers file being looked at is build output, where the entities this
+    // would generate already exist - so there is nothing to do rather than something to refuse.
     if (ext !== '.ts') {
         return;
     }
-    // Register ts-node so the dynamically required providers file can be loaded when it is authored in TypeScript.
-    tsNodeRegister({ transpileOnly: true });
+    // Register ts-node so the dynamically required providers file can be loaded when it is authored
+    // in TypeScript. Below the guard above rather than at the top of the file, so an application
+    // that only ever imports `zibri` never resolves a compiler it has no use for.
+    registerTsNode(`The providers file ${providersPath}`);
     // eslint-disable-next-line typescript/no-explicit-any, typescript/no-unsafe-assignment, typescript/no-require-imports, typescript/no-var-requires
     const imported: any = require(providersPath);
     // eslint-disable-next-line typescript/no-unsafe-member-access

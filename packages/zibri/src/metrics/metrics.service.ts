@@ -3,14 +3,14 @@ import os from 'node:os';
 import { Registry, Counter, Histogram, collectDefaultMetrics, Gauge, MetricObjectWithValues, MetricValue } from 'prom-client';
 import si from 'systeminformation';
 
-import { CounterMetricName, GaugeMetricName, HistogramMetricName, MetricsServiceInterface, MetricsSnapshot } from './metrics-service.interface';
-import { ZibriApplication } from '../application';
 import { CollectMetricsCronJob } from './collect-metrics.cron-job';
 import { CounterInterface } from './counter.interface';
 import { GaugeInterface } from './gauge.interface';
 import { HistogramInterface } from './histogram.interface';
 import { MetricType } from './metric-type.enum';
 import { Metric } from './metric.model';
+import { CounterMetricName, GaugeMetricName, HistogramMetricName, MetricsServiceInterface, MetricsSnapshot } from './metrics-service.interface';
+import { ZibriApplication } from '../application/application';
 import { type AssetServiceInterface } from '../assets/asset-service.interface';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
@@ -18,6 +18,8 @@ import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { OnAppInit } from '../global/on-app-init.interface';
 import { HttpRequest } from '../http/http-request.model';
 import { HttpResponse } from '../http/http-response.model';
+import { MiddlewarePhase } from '../http/middleware-phase.enum';
+import { RouteLabelUtilities } from '../http/route-label.utilities';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 class PromCounter implements CounterInterface {
@@ -91,38 +93,34 @@ export class PrometheusMetricsService implements MetricsServiceInterface, OnAppI
         }
         app.use((req, res, next) => {
             const start: number = performance.now();
-            res.on('finish', () => {
+            // 'close' rather than 'finish': finish only fires once a response has been written in
+            // full, so a client that hung up and a request that died halfway were never counted at
+            // all - invisible in the very metric that is supposed to show them. close fires for both,
+            // and exactly once either way
+            res.on('close', () => {
                 const durationInMs: number = performance.now() - start;
                 this.measureFinishedRequest(req as HttpRequest, res, durationInMs);
             });
             next();
-        });
+        }, MiddlewarePhase.OBSERVABILITY);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     measureFinishedRequest(req: HttpRequest, res: HttpResponse, durationInMs: number): void {
-        // eslint-disable-next-line typescript/no-unsafe-member-access
-        const route: string = req.originalUrl ?? req.route?.path ?? req.path;
-
-        if (route.startsWith(this.assetService.assetsRoute)) {
+        if (req.path.startsWith(this.assetService.assetsRoute)) {
             return;
         }
 
+        const route: string = RouteLabelUtilities.resolveRouteLabel(req);
+
         // Prometheus/HTTP metrics convention expects the canonical uppercase method token, unlike our
         // lowercase HttpMethod enum values (same reasoning as HttpClient.buildRequestInit()).
-        const method: string = req.method.toUpperCase();
+        const method: string = req.method;
+        const statusCode: string = String(RouteLabelUtilities.resolveStatusCode(res));
 
-        this.getCounter('http_requests_total').increase({
-            method,
-            route,
-            status_code: String(res.statusCode)
-        });
+        this.getCounter('http_requests_total').increase({ method, route, status_code: statusCode });
 
-        this.getHistogram('http_request_duration_ms').observe({
-            method,
-            route,
-            status_code: String(res.statusCode)
-        }, durationInMs);
+        this.getHistogram('http_request_duration_ms').observe({ method, route, status_code: statusCode }, durationInMs);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -154,8 +152,9 @@ export class PrometheusMetricsService implements MetricsServiceInterface, OnAppI
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async collect(): Promise<void> {
+        // one entry per interface, and there can be none: a container with no interface of its own,
+        // or a probe the host would not answer
         const stats: si.Systeminformation.NetworkStatsData[] = await si.networkStats();
-        const { rx_bytes, tx_bytes } = stats[0];
 
         const json: MetricObjectWithValues<MetricValue<string>>[] = await this.registry.getMetricsAsJSON();
         const metrics: Metric[] = json.flatMap(m => m.values.map(s => ({
@@ -164,20 +163,25 @@ export class PrometheusMetricsService implements MetricsServiceInterface, OnAppI
             value: s.value,
             labels: s.labels
         })));
-        metrics.push(
-            {
-                name: 'network_bytes_received_total',
-                labels: {},
-                type: MetricType.COUNTER,
-                value: rx_bytes
-            },
-            {
-                name: 'network_bytes_transmitted_total',
-                labels: {},
-                type: MetricType.COUNTER,
-                value: tx_bytes
-            }
-        );
+        // labelled by interface, so the answer to "how much traffic" is the query's to decide. One
+        // unlabelled pair had to pick an interface to be about, and whichever one the probe happens
+        // to enumerate first is a machine's loopback about as often as it is its uplink
+        for (const network of stats) {
+            metrics.push(
+                {
+                    name: 'network_bytes_received_total',
+                    labels: { interface: network.iface },
+                    type: MetricType.COUNTER,
+                    value: network.rx_bytes
+                },
+                {
+                    name: 'network_bytes_transmitted_total',
+                    labels: { interface: network.iface },
+                    type: MetricType.COUNTER,
+                    value: network.tx_bytes
+                }
+            );
+        }
         this.metricSnapshots.push({
             metrics,
             timestamp: new Date(Math.floor(Date.now() / 1000) * 1000)

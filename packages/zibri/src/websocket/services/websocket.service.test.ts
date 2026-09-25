@@ -2,8 +2,11 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from '@jes
 import { io, Socket } from 'socket.io-client';
 
 import { type WebsocketServiceInterface } from './websocket-service.interface';
+import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { Repository } from '../../data-source/repository';
+import { JwtAuthController } from '../../auth/strategies/jwt/jwt-auth.controller';
+import { JwtCredentials, JwtCredentialsCreateData } from '../../auth/strategies/jwt/jwt-credentials.model';
+import { Repository } from '../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
@@ -14,6 +17,8 @@ import { SocketIOWebsocketConnection } from '../models/connection/socket-io-webs
 import { WebsocketChannel } from '../models/websocket-channel.model';
 import { WebsocketEvent } from '../models/websocket-event.enum';
 import { WebsocketMessage } from '../models/websocket-message.model';
+
+type LoginResponseBody = { accessToken: { value: string } };
 
 @WebsocketController({ allowOrphan: true, eventPrefix: 'ws:' })
 class TestWsController {
@@ -30,9 +35,13 @@ let channelRepo: Repository<WebsocketChannel>;
 const clients: Socket[] = [];
 
 // eslint-disable-next-line typescript/promise-function-async
-function connectClient(url: string): Promise<Socket> {
+function connectClient(url: string, accessToken?: string): Promise<Socket> {
     return new Promise((resolve, reject) => {
-        const socket: Socket = io(url, { auth: { offset: 0 } });
+        // the handshake headers are what the auth middleware reads, exactly as it would on http
+        const socket: Socket = io(url, {
+            auth: { offset: 0 },
+            extraHeaders: accessToken == undefined ? {} : { authorization: `Bearer ${accessToken}` }
+        });
         clients.push(socket);
         socket.once('connect', () => resolve(socket));
         socket.once('connect_error', reject);
@@ -87,7 +96,11 @@ function successMessage(data: unknown): { ok: true, data: unknown, senderUserId:
 
 describe('WebsocketService', () => {
     beforeAll(async () => {
-        server = await startTestServer({ websocketControllers: [TestWsController] });
+        server = await startTestServer({
+            websocketControllers: [TestWsController],
+            // for /auth/login, so a socket can be opened as a real user rather than anonymously
+            controllers: [JwtAuthController]
+        });
         baseUrl = await server.start();
         // eslint-disable-next-line typescript/no-unsafe-assignment
         wsService = inject(ZIBRI_DI_TOKENS.WEBSOCKET_SERVICE);
@@ -204,6 +217,48 @@ describe('WebsocketService', () => {
 
             await new Promise(resolve => setTimeout(resolve, 100));
             expect(received).toHaveLength(0);
+        });
+
+        it('puts a reconnecting user back into the channels they already belong to', async () => {
+            const email: string = `restore-${Date.now()}@example.com`;
+            const password: string = 'secure123';
+            const user: JwtUser = await inject<Repository<JwtUser>>(repositoryTokenFor(JwtUser))
+                .create({ email, roles: [] });
+            await inject<Repository<JwtCredentials, JwtCredentialsCreateData>>(repositoryTokenFor(JwtCredentials))
+                .create({ email, password, userId: user.id });
+
+            const loginRes: Response = await fetch(`${baseUrl}/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+            expect(loginRes.status).toBe(200);
+            const token: string = (await loginRes.json() as LoginResponseBody).accessToken.value;
+
+            const channel: WebsocketChannel = await channelRepo.create({ name: `restore-${Date.now()}`, userIds: [] });
+
+            // the first connection joins, which is what records the membership on the channel row
+            const first: Socket = await connectClient(baseUrl, token);
+            await new Promise(resolve => setTimeout(resolve, 50));
+            await wsService.joinChannel(await findConnection(first.id as string), channel.id);
+            first.close();
+
+            // the second never asks to join. Membership is in the data source, but the room it is
+            // delivered through only ever existed on the socket that has just gone away - which is
+            // the same position a client is in after reconnecting to a different instance.
+            const second: Socket = await connectClient(baseUrl, token);
+            await new Promise(resolve => setTimeout(resolve, 50));
+            const received: Promise<WebsocketMessage> = waitForEvent(second, 'restored-event');
+
+            await wsService.sendToChannel({
+                channelId: channel.id,
+                event: 'restored-event',
+                message: successMessage({ hello: true }),
+                expectResponse: false,
+                persist: false
+            });
+
+            await expect(received).resolves.toMatchObject({ data: { hello: true } });
         });
 
         it('sendToChannel (fire-and-forget) broadcasts to every connection that joined the channel', async () => {

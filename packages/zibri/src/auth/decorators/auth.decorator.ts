@@ -1,9 +1,9 @@
-import { belongsToDecorator, BelongsToFn } from './belongs-to.decorator';
 import { hasRoleDecorator, HasRoleFn } from './has-role.decorator';
 import { isLoggedInDecorator, IsLoggedInFn } from './is-logged-in.decorator';
 import { isNotLoggedInDecorator, IsNotLoggedInFn } from './is-not-logged-in.decorator';
 import { require2faDecorator, Require2faFn } from './require-2fa.decorator';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { SkipAuthMetadata } from '../models/skip-auth-metadata.model';
 
 /**
  * Bundles decorators for marking controller endpoints for authentication and authorization.
@@ -27,25 +27,30 @@ export namespace Auth {
      */
     export const hasRole: HasRoleFn = hasRoleDecorator;
     /**
-     * Marks an endpoint to be only reachable when the logged in user belongs to the requested resource somehow.
-     * @param targetEntity - The target entity that needs to be checked to belong to the user.
-     * @param targetIdParamKey - The key of the id path parameter in the endpoint.
-     * @param targetUserIdKey - The key on the target, that defines to which user it belongs.
-     * @param allowedStrategies - The auth strategies that are allowed to be used to check that.
-     */
-    export const belongsTo: BelongsToFn = belongsToDecorator;
-    /**
      * Marks an endpoint to be only reachable when the logged in user provides a second factor somehow.
      * @param allowedMethods - The allowed two factor methods to use.
      */
     export const require2fa: Require2faFn = require2faDecorator;
 
     /**
-     * Skips all auth related validation.
+     * Skips all auth related validation, on a single route or on a whole controller.
+     *
+     * This is also how a route opts out of an application wide `defaultAuth` of `'requireLogin'`,
+     * which is what makes it the one place a public endpoint is declared rather than merely left
+     * undecorated.
+     * @param options - Additional options for the skip.
+     * @returns The decorator, usable on a route or on a controller.
      */
-    export function skip(): MethodDecorator {
-        return (target, propertyKey) => {
-            MetadataUtilities.setRouteSkipAuth(target.constructor, {}, propertyKey as string);
-        };
+    export function skip(options: Partial<SkipAuthMetadata> = {}): MethodDecorator & ClassDecorator {
+        const fullMetadata: SkipAuthMetadata = { allowRedundant: false, ...options };
+
+        return ((target: Object, propertyKey?: string | symbol) => {
+            if (propertyKey !== undefined) {
+                MetadataUtilities.setRouteSkipAuth(target.constructor, fullMetadata, propertyKey as string);
+            }
+            else {
+                MetadataUtilities.setControllerSkipAuth(target as Function, fullMetadata);
+            }
+        }) as MethodDecorator & ClassDecorator;
     }
 }

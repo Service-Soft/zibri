@@ -1,5 +1,7 @@
 import { createServer, Server } from 'http';
 import { AddressInfo } from 'net';
+import { Readable } from 'node:stream';
+import { text } from 'node:stream/consumers';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import express from 'express';
@@ -19,6 +21,7 @@ import { FormDataBodyParser } from '../parsing/form-data/form-data.body-parser';
 import { FormData } from '../parsing/form-data/form-data.model';
 import { JsonBodyParser } from '../parsing/json/json.body-parser';
 import { Parser } from '../parsing/parser';
+import { StreamBodyParser } from '../parsing/stream/stream.body-parser';
 import { JsonUtilities } from '../utilities/json.utilities';
 
 class Item {
@@ -86,7 +89,7 @@ describe('post', () => {
         baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 
         const parser: Parser = inject(ZIBRI_DI_TOKENS.PARSER) as Parser;
-        parser['bodyParsers'].push(inject(JsonBodyParser), inject(FormDataBodyParser));
+        parser['bodyParsers'].push(inject(JsonBodyParser), inject(FormDataBodyParser), inject(StreamBodyParser));
         http = inject(ZIBRI_DI_TOKENS.HTTP_CLIENT);
     });
 
@@ -152,7 +155,7 @@ describe('get / put / patch / delete / headers / query params / error handling',
         });
         app.get('/query-echo', (req, res) => {
             // eslint-disable-next-line typescript/no-base-to-string
-            res.json({ name: String(req.query.search ?? ''), value: Number(req.query.limit ?? 0) });
+            res.json({ name: String(req.query['search'] ?? ''), value: Number(req.query['limit'] ?? 0) });
         });
         app.get('/headers-echo', (req, res) => {
             res.setHeader('x-response-token', `echo:${req.headers['x-request-token'] as string}`);
@@ -168,6 +171,10 @@ describe('get / put / patch / delete / headers / query params / error handling',
         app.post('/no-content', (_req, res) => {
             res.status(204).end();
         });
+        // what an object store answers for an object stored without a type
+        app.get('/stream/labelled', (_req, res) => {
+            res.type('binary/octet-stream').send(Buffer.from('raw bytes'));
+        });
 
         server = createServer(app);
         await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -177,7 +184,7 @@ describe('get / put / patch / delete / headers / query params / error handling',
         // its registered body parsers) is already set up — registering them again would duplicate them.
         const parser: Parser = inject(ZIBRI_DI_TOKENS.PARSER) as Parser;
         if (!parser['bodyParsers'].length) {
-            parser['bodyParsers'].push(inject(JsonBodyParser), inject(FormDataBodyParser));
+            parser['bodyParsers'].push(inject(JsonBodyParser), inject(FormDataBodyParser), inject(StreamBodyParser));
         }
         http = inject(ZIBRI_DI_TOKENS.HTTP_CLIENT);
     });
@@ -193,7 +200,7 @@ describe('get / put / patch / delete / headers / query params / error handling',
     });
 
     it('get() without a responseBody returns the raw response without a parsed body', async () => {
-        const res: HttpClientResponse<Item> = await http.get(`${baseUrl}/valid`);
+        const res: HttpClientResponse = await http.get(`${baseUrl}/valid`);
         expect(res.status).toBe(200);
         expect(res.body).toBeUndefined();
         expect(res.rawBody).toEqual({ name: 'ok', value: 42 });
@@ -218,9 +225,16 @@ describe('get / put / patch / delete / headers / query params / error handling',
     });
 
     it('does not throw when a successful response has an empty body (eg. 204 No Content)', async () => {
-        const res: HttpClientResponse<Item> = await http.post(`${baseUrl}/no-content`, {});
+        const res: HttpClientResponse = await http.post(`${baseUrl}/no-content`, {});
         expect(res.status).toBe(204);
         expect(res.rawBody).toBeUndefined();
+    });
+
+    it('hands over a response declared as a stream whatever type the service names for it', async () => {
+        const res: HttpClientResponse<Readable> = await http.get(`${baseUrl}/stream/labelled`, {
+            responseBody: { type: MimeType.OCTET_STREAM }
+        });
+        expect(await text(res.body)).toBe('raw bytes');
     });
 
     it('forwards options.query as a query string, dropping undefined values', async () => {

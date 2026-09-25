@@ -15,8 +15,8 @@ import { compileTsxTemplate } from '../../__testing__/compile-tsx-template.funct
 import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { PostgresDataSource } from '../../data-source/data-sources/postgres-typeorm-data-source.model';
-import { Repository } from '../../data-source/repository';
+import { PostgresDataSource } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
+import { Repository } from '../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { inject } from '../../di/inject.function';
 import { defineProvider, DiProvider } from '../../di/models/di-provider.model';
@@ -163,7 +163,10 @@ describe('MailingListController', () => {
                 headers: { 'content-type': 'application/json' },
                 body: JSON.stringify({ mailingListIds: [otherList.id] })
             });
-            expect(res.status).toBe(200);
+            // the handler declares @Response.empty() and returns void, and a handler with nothing to
+            // send answers 204 rather than a 200 with an empty body (router.ts). The assertion below
+            // is what says the change landed, which is all this endpoint was ever going to report.
+            expect(res.status).toBe(204);
 
             const updated: MailingListSubscriber = await subscriberRepository.findById(subscriber.id, { relations: ['mailingLists'] });
             expect(updated.mailingLists.map(l => l.id)).toEqual([otherList.id]);

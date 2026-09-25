@@ -7,25 +7,44 @@ permissions:
     contents: read
 
 jobs:
+    # the matrix every job below runs on, read off node's own release schedule rather than written
+    # down here. `engines` is a promise about versions that do not exist yet, and a hand-written
+    # list keeps that promise only for as long as somebody remembers to widen it.
+    node-versions:
+        runs-on: ubuntu-latest
+        outputs:
+            majors: ${{ steps.resolve.outputs.majors }}
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                node-version: '24'
+            - id: resolve
+              run: node .github/scripts/supported-node-majors.mjs >> "$GITHUB_OUTPUT"
     lint:
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
             - uses: actions/setup-node@v4
               with:
-                node-version: '22'
+                node-version: '24'
             - run: npm ci
             - run: npm run build -w zibri-tsx
             - run: npm run build:prod -w zibri
-            - run: npm run build -w cli
+            - run: npm run build -w zibri-cli
             - run: npm run lint
     test:
+        needs: node-versions
+        strategy:
+            fail-fast: false
+            matrix:
+                node: ${{ fromJSON(needs.node-versions.outputs.majors) }}
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
             - uses: actions/setup-node@v4
               with:
-                node-version: '22'
+                node-version: ${{ matrix.node }}
             - name: install PostgreSQL 17
               run: |
                 sudo apt-get update
@@ -38,9 +57,50 @@ jobs:
             - run: npm run build:prod -w zibri
             - run: npm run test:ci -w zibri
             - run: npm run test -w zibri-tsx
-            - run: npm run test -w zibri-cli
+            # the cli's whole suite in one in-band run, which is what lets it report coverage without
+            # merging two of them: its heavy tests need --runInBand anyway
+            - run: npm run test:ci -w zibri-cli
             - uses: codecov/codecov-action@v5
               with:
                 token: ${{ secrets.CODECOV_TOKEN }}
-                files: packages/zibri/src/__testing__/coverage/report/lcov.info
+                files: packages/zibri/src/__testing__/coverage/report/lcov.info,packages/cli/src/__testing__/coverage/lcov.info
                 fail_ci_if_error: true
+    # everything that writes files rather than talking to one, on the operating systems the job
+    # above cannot speak for. The suites here are the ones that need no container - which is also
+    # why they are the right ones: the tsx compiler and the cli spend their whole runtime in the
+    # filesystem, and that is where the three platforms disagree. The container-backed suites
+    # cannot join them, and no amount of effort changes that: a github hosted macos runner has no
+    # docker daemon, and windows cannot run linux images.
+    portability:
+        needs: node-versions
+        strategy:
+            fail-fast: false
+            matrix:
+                os: [windows-latest, macos-latest]
+                node: ${{ fromJSON(needs.node-versions.outputs.majors) }}
+        runs-on: ${{ matrix.os }}
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                node-version: ${{ matrix.node }}
+            - run: npm ci
+            - run: npm run build -w zibri-tsx
+            - run: npm run build -w zibri
+            - run: npm run build -w zibri-cli
+            - run: npm run test -w zibri-tsx
+            # the fast suite only, because the cli's heavy ones build and run container images - which
+            # is the same reason the container-backed suites above cannot join this job
+            - run: npm run test:normal -w zibri-cli
+    # what the framework installs on a consumer's behalf, which is most of what it installs.
+    # Production only: a high advisory in a build tool is worth knowing and is not worth failing
+    # every branch over, while one in the tree a consumer receives is the framework's own.
+    audit:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                node-version: '24'
+            - run: npm ci
+            - run: npm audit --omit=dev --audit-level=high

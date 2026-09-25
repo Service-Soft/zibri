@@ -1,6 +1,6 @@
 import { RouteConfiguration, RouteConfigurationInput } from './route-configuration.model';
 import { Newable } from '../types/newable.type';
-import { BodyMetadataInput, BodyMetadata } from './decorators/body.decorator';
+import { BodyMetadata, DeclaredBodyInput } from './decorators/body-metadata.model';
 import { PathParamMetadataInput, QueryParamMetadataInput, HeaderParamMetadataInput, PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from './decorators/param.decorator';
 
 /**
@@ -11,14 +11,13 @@ export interface RouterInterface {
      * Register a controller.
      */
     // eslint-disable-next-line typescript/no-explicit-any
-    registerController: (controllerClass: Newable<unknown>, ...params: any[]) => void | Promise<void>,
+    registerController: (controllerClass: Newable<unknown>, ...params: any[]) => void,
 
     /**
      * Register a route.
      */
     registerRoute: <
-        // eslint-disable-next-line jsdoc/require-jsdoc
-        BodyMetaInputObject extends BodyMetadataInput & { modelClass: Newable<unknown> },
+        BodyMetaInputObject extends DeclaredBodyInput,
         PathMetaInputObject extends Record<string, PathParamMetadataInput>,
         QueryMetaInputObject extends Record<string, QueryParamMetadataInput>,
         HeaderMetaInputObject extends Record<string, HeaderParamMetadataInput>
@@ -26,7 +25,7 @@ export interface RouterInterface {
         route: RouteConfigurationInput<BodyMetaInputObject, PathMetaInputObject, QueryMetaInputObject, HeaderMetaInputObject>,
         // eslint-disable-next-line typescript/no-explicit-any
         ...params: any[]
-    ) => void | Promise<void>,
+    ) => void,
 
     /**
      * All routes that have been manually registered by calling the .register method.

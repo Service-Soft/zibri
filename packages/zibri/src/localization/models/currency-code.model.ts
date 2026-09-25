@@ -1,10 +1,11 @@
+import { AnyEnum } from '../../types/any-enum.type';
 
 /**
  * ISO 4217 alphabetic currency codes.
  * Snapshot of the active list (List One).
  */
 // eslint-disable-next-line typescript/typedef
-export const currencyCodes = [
+const currencyCodes = [
     'AED',
     'AFN',
     'ALL',
@@ -189,3 +190,11 @@ export const currencyCodes = [
  * Codes for the different currencies of the world (ISO 4217).
  */
 export type CurrencyCode = (typeof currencyCodes)[number];
+
+/**
+ * The same codes as an enum shaped object.
+ *
+ * `@Property.string({ enum })` validates against the *values* of an object, which an array is not,
+ * so a property that has to accept only real currency codes needs this rather than `currencyCodes`.
+ */
+export const currencyCodeEnum: AnyEnum<string> = Object.fromEntries(currencyCodes.map(c => [c, c]));

@@ -58,7 +58,7 @@ export abstract class WriteThroughReadAsideCache<K, V, N extends string, CacheTa
                 }
                 catch (error) {
                     this.metrics.errors.increase({ cache: this.name, operation: 'SET' });
-                    await this.logger.warn(
+                    this.logger.warn(
                         'Cache store failed after successful source write, source write was not rolled back',
                         { error }
                     );
@@ -80,7 +80,7 @@ export abstract class WriteThroughReadAsideCache<K, V, N extends string, CacheTa
         }
         catch (error) {
             this.metrics.errors.increase({ cache: this.name, operation: 'SET' });
-            await this.logger.warn('Cache store failed in setDirect', { error });
+            this.logger.warn('Cache store failed in setDirect', { error });
         }
     }
 }

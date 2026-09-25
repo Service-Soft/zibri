@@ -2,6 +2,7 @@ import { describe, expect, it } from '@jest/globals';
 
 import { CachedValue } from './cached-value.model';
 import { InMemoryCacheStore } from './in-memory.cache-store';
+import { Bytes } from '../../utilities/bytes';
 
 function createCachedValue<V>(value: V, tags: string[]): CachedValue<V> {
     return {
@@ -11,12 +12,90 @@ function createCachedValue<V>(value: V, tags: string[]): CachedValue<V> {
     };
 }
 
+/**
+ * A cached value whose time to live has already run out.
+ * @param value - The value to cache.
+ * @returns The cached value, expired a second ago.
+ */
+function createExpiredValue<V>(value: V): CachedValue<V> {
+    return {
+        value,
+        tags: [],
+        createdAt: new Date(Date.now() - 2000),
+        expiresAt: new Date(Date.now() - 1000)
+    };
+}
+
 describe('InMemoryCacheStore', () => {
+    it('holds enough by default to be worth having', () => {
+        const store: InMemoryCacheStore<string, number> = new InMemoryCacheStore();
+
+        // the old defaults were 500 entries and 750 KB, which a single page of any real response
+        // fills - so the cache evicted what it had just written and the hit rate never left the floor
+        expect(store.config.maxEntries).toBe(5000);
+        expect(store.config.maxBytes).toBe(Bytes.MB * 25);
+    });
+
     it('returns undefined for missing keys', () => {
         const store: InMemoryCacheStore<string, number> = new InMemoryCacheStore();
 
         expect(store.get('missing')).toBeUndefined();
         expect(store.has('missing')).toBe(false);
+    });
+
+    describe('object keys', () => {
+        /**
+         * What a key provider returning an object produces: a new object per call, equal to the last
+         * one and never the same reference.
+         */
+        type UserKey = {
+            /** Who the value belongs to. */
+            userId: string,
+            /** Which tenant they were read for. */
+            tenantId: string
+        };
+
+        it('finds a value stored under an equal key rather than the identical one', () => {
+            const store: InMemoryCacheStore<UserKey, number> = new InMemoryCacheStore();
+
+            store.set({ userId: 'u1', tenantId: 't1' }, createCachedValue(1, []));
+
+            // keyed by reference this misses every time, so the cache silently never hits - and the
+            // valkey store, which resolves the key to a string, hits normally on the same declaration
+            expect(store.get({ userId: 'u1', tenantId: 't1' })?.value).toBe(1);
+            expect(store.has({ userId: 'u1', tenantId: 't1' })).toBe(true);
+        });
+
+        it('keeps different keys apart', () => {
+            const store: InMemoryCacheStore<UserKey, number> = new InMemoryCacheStore();
+
+            store.set({ userId: 'u1', tenantId: 't1' }, createCachedValue(1, []));
+            store.set({ userId: 'u2', tenantId: 't1' }, createCachedValue(2, []));
+
+            expect(store.get({ userId: 'u1', tenantId: 't1' })?.value).toBe(1);
+            expect(store.get({ userId: 'u2', tenantId: 't1' })?.value).toBe(2);
+            expect(store.size()).toBe(2);
+        });
+
+        it('overwrites rather than duplicating when the same key is stored twice', () => {
+            const store: InMemoryCacheStore<UserKey, number> = new InMemoryCacheStore();
+
+            store.set({ userId: 'u1', tenantId: 't1' }, createCachedValue(1, []));
+            store.set({ userId: 'u1', tenantId: 't1' }, createCachedValue(2, []));
+
+            expect(store.size()).toBe(1);
+            expect(store.get({ userId: 'u1', tenantId: 't1' })?.value).toBe(2);
+        });
+
+        it('deletes by an equal key', () => {
+            const store: InMemoryCacheStore<UserKey, number> = new InMemoryCacheStore();
+
+            store.set({ userId: 'u1', tenantId: 't1' }, createCachedValue(1, []));
+            store.delete({ userId: 'u1', tenantId: 't1' });
+
+            expect(store.has({ userId: 'u1', tenantId: 't1' })).toBe(false);
+            expect(store.size()).toBe(0);
+        });
     });
 
     it('stores and retrieves values', () => {
@@ -248,6 +327,112 @@ describe('InMemoryCacheStore', () => {
 
             expect(() => store.set('circular', createCachedValue(circular, []))).not.toThrow();
             expect(store.get('circular')?.value).toBe(circular);
+        });
+    });
+
+    describe('expiry', () => {
+        it('reports a miss for an entry whose time to live has run out', () => {
+            const store: InMemoryCacheStore<string, number> = new InMemoryCacheStore();
+
+            store.set('a', createExpiredValue(1));
+
+            expect(store.get('a')).toBeUndefined();
+            expect(store.has('a')).toBe(false);
+        });
+
+        it('takes an expired entry out of the store rather than leaving it in the budget', () => {
+            const store: InMemoryCacheStore<string, number> = new InMemoryCacheStore();
+
+            store.set('a', createExpiredValue(1));
+            store.get('a');
+
+            expect(store.size()).toBe(0);
+        });
+
+        it('does not promote an expired entry over a live one on the read that finds it', () => {
+            const store: InMemoryCacheStore<string, number> = new InMemoryCacheStore({
+                maxEntries: 2,
+                removeOnOverflow: 'leastRecentlyUsed'
+            });
+
+            store.set('dead', createExpiredValue(1));
+            store.set('live', createCachedValue(2, []));
+
+            // reading it is what used to keep it: recordAccess ran before anyone discovered the
+            // entry was expired, so the dead entry became the most recently used one
+            store.get('dead');
+            store.get('dead');
+
+            store.set('new', createCachedValue(3, []));
+
+            expect(store.has('live')).toBe(true);
+            expect(store.has('new')).toBe(true);
+            expect(store.has('dead')).toBe(false);
+        });
+
+        it('frees the room an expired entry held for the next write', () => {
+            const store: InMemoryCacheStore<string, number> = new InMemoryCacheStore({
+                maxEntries: 2,
+                removeOnOverflow: 'leastRecentlyUsed'
+            });
+
+            store.set('dead', createExpiredValue(1));
+            store.set('live', createCachedValue(2, []));
+            store.removeExpired();
+            store.set('new', createCachedValue(3, []));
+
+            // nothing live was evicted to make room, because the room was already there
+            expect(store.has('live')).toBe(true);
+            expect(store.has('new')).toBe(true);
+        });
+
+        describe('removeExpired', () => {
+            it('removes every entry whose time to live has run out', () => {
+                const store: InMemoryCacheStore<string, number> = new InMemoryCacheStore();
+
+                store.set('a', createExpiredValue(1));
+                store.set('b', createCachedValue(2, []));
+                store.set('c', createExpiredValue(3));
+
+                expect(store.removeExpired()).toBe(2);
+                expect(store.size()).toBe(1);
+                expect(store.get('b')?.value).toBe(2);
+            });
+
+            it('leaves an entry that has not expired yet alone', () => {
+                const store: InMemoryCacheStore<string, number> = new InMemoryCacheStore();
+
+                store.set('a', {
+                    value: 1,
+                    tags: [],
+                    createdAt: new Date(),
+                    expiresAt: new Date(Date.now() + 60000)
+                });
+
+                expect(store.removeExpired()).toBe(0);
+                expect(store.get('a')?.value).toBe(1);
+            });
+
+            it('counts the expired entries a read removed before it ran', () => {
+                const store: InMemoryCacheStore<string, number> = new InMemoryCacheStore();
+
+                store.set('a', createExpiredValue(1));
+                store.get('a');
+
+                // whichever of the two finds an expired entry first, it left the store for the same
+                // reason - so the number reported is how many expired, not how many this call swept
+                expect(store.removeExpired()).toBe(1);
+            });
+
+            it('reports each expired entry once', () => {
+                const store: InMemoryCacheStore<string, number> = new InMemoryCacheStore();
+
+                store.set('a', createExpiredValue(1));
+                store.get('a');
+                store.removeExpired();
+
+                expect(store.removeExpired()).toBe(0);
+            });
         });
     });
 

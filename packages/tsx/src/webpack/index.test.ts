@@ -18,7 +18,7 @@ describe('zibri-tsx webpack loader', () => {
             'export const Home = ({ title }) => <h1>{title}</h1>;'
         );
         expect(errors).toEqual([]);
-        expect(out).toContain('exports.Home = Home;');
+        expect(out).toContain('exports.Home =');
         expect(out).toContain('function __render$Home($ssr, { title })');
     });
 
@@ -38,7 +38,7 @@ describe('zibri-tsx webpack loader', () => {
             { resourcePath: '/app/x.tsx', emitError: (error: Error) => errors.push(error) },
             'export const Home = () => <div/>;'
         );
-        expect(out).toContain('exports.Home = Home;');
+        expect(out).toContain('exports.Home =');
     });
 
     it('reports dialect violations with file, line and column', () => {

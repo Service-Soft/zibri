@@ -53,6 +53,44 @@ describe('cookieMiddleware', () => {
         expect(req.cookies).toEqual({ foo: 'bar', baz: 'qux' });
     });
 
+    it('keeps the first of two cookies sent under the same name', () => {
+        // a name can appear twice because one cookie was set on the host and one on a parent
+        // domain, and the more specific one comes first. Keeping the last would let anything able
+        // to write a cookie for the parent domain shadow the session cookie of a sibling host.
+        const req: Request = invoke('secret', 'sessionId=host; sessionId=parent-domain');
+        expect(req.cookies).toEqual({ sessionId: 'host' });
+    });
+
+    it('keeps the first even when the shadowing cookie is a validly signed one', () => {
+        // the attacker's own session is legitimately signed, so the hmac check cannot be what
+        // rejects it - only the ordering can.
+        const victim: string = sign('victim-session', 'my-secret');
+        const attacker: string = sign('attacker-session', 'my-secret');
+        const req: Request = invoke('my-secret', `session=s:${victim}; session=s:${attacker}`);
+        expect(req.signedCookies).toEqual({ session: 'victim-session' });
+    });
+
+    it('hands back the raw value rather than throwing on invalid percent encoding', () => {
+        // `Cookie: broken=%` used to raise a URIError out of an unauthenticated request, which the
+        // global error handler logs to the database - a write per request, from anyone.
+        const req: Request = invoke('secret', 'broken=%; %=also-broken; fine=value');
+        expect(req.cookies).toEqual({ broken: '%', '%': 'also-broken', fine: 'value' });
+    });
+
+    it('parses pairs separated without a space', () => {
+        const req: Request = invoke('secret', 'foo=bar;baz=qux');
+        expect(req.cookies).toEqual({ foo: 'bar', baz: 'qux' });
+    });
+
+    it('does not let a cookie named __proto__ reach the prototype', () => {
+        const req: Request = invoke('secret', '__proto__=polluted; foo=bar');
+        // not expressible as an object literal: `{ __proto__: x }` is prototype syntax rather than
+        // a property, which is the whole reason the name is dangerous to assign.
+        expect(Object.getOwnPropertyDescriptor(req.cookies, '__proto__')?.value).toBe('polluted');
+        expect(Object.getPrototypeOf(req.cookies)).toBe(Object.prototype);
+        expect(req.cookies).toHaveProperty('foo', 'bar');
+    });
+
     it('unsigns a validly signed cookie into signedCookies', () => {
         const signed: string = sign('the-value', 'my-secret');
         const req: Request = invoke('my-secret', `session=s:${signed}`);

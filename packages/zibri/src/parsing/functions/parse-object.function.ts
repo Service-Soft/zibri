@@ -2,6 +2,7 @@ import { parseArray } from './parse-array.function';
 import { parseBoolean } from './parse-boolean.function';
 import { parseDate } from './parse-date.function';
 import { parseNumber } from './parse-number.function';
+import { parseOneOf } from './parse-one-of.function';
 import { parseString } from './parse-string.function';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { Relation } from '../../entity/models/relation.enum';
@@ -37,13 +38,21 @@ export function parseObject(
     const properties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(cls);
 
     for (const [propertyKey, m] of ObjectUtilities.entries(properties)) {
+        // only what the payload carries, decided on the key being there rather than on what it
+        // holds - so a value set to null or written out as undefined still comes through. Assigning
+        // every declared property gave a partial body a key for each one the caller left out, and a
+        // key that exists cannot be told from one that was sent: anything asking which columns a
+        // change touches was told it touches all of them.
+        if (!(propertyKey in res)) {
+            continue;
+        }
         switch (m.type) {
             case 'string': {
                 res[propertyKey] = parseString(res[propertyKey]);
                 break;
             }
             case 'number': {
-                res[propertyKey] = parseNumber(res[propertyKey]);
+                res[propertyKey] = parseNumber(res[propertyKey], m.format);
                 break;
             }
             case 'boolean': {
@@ -59,7 +68,11 @@ export function parseObject(
                 break;
             }
             case 'array': {
-                res[propertyKey] = parseArray(res[propertyKey], m);
+                res[propertyKey] = parseArray(res[propertyKey], m.items);
+                break;
+            }
+            case 'oneOf': {
+                res[propertyKey] = parseOneOf(res[propertyKey], m);
                 break;
             }
             case Relation.HAS_ONE:

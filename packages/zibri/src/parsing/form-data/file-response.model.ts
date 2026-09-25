@@ -2,12 +2,14 @@ import { Readable } from 'stream';
 
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
+import { Property } from '../../entity/decorators/property.decorator';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { LooseFileMimeType, MimeType } from '../../http/mime-type.enum';
 import { resolveMimeType } from '../../http/mime-type.helpers';
 import { LoggerInterface } from '../../logging/logger.interface';
 import { DeepPartial } from '../../types/deep-partial.type';
 import { OmitStrict } from '../../types/omit-strict.type';
+import { SelfDescribing } from '../../types/self-describing.type';
 import { FsUtilities, FsPath } from '../../utilities/fs.utilities';
 import { buildCspOptions, CspOptions } from '../html/csp-options.model';
 
@@ -63,7 +65,20 @@ type StreamFileResponseData = BaseFileResponseData & {
 /**
  * A file response.
  */
-export class FileResponse {
+export class FileResponse implements SelfDescribing {
+
+    /**
+     * What this is, written down rather than left to the prototype.
+     *
+     * Whatever decides that a handler returned a file has to keep deciding it after the value has
+     * been somewhere that json is the only thing it could be. A class is exactly what does not
+     * survive that trip: the values come back and the prototype does not, so `instanceof` answers no
+     * for a response that is one. This does survive, because it is a value.
+     *
+     * Excluded, so that it stays wiring: it is not part of what a caller is answered with.
+     */
+    @Property.string({ exclude: true })
+    readonly className: 'FileResponse' = 'FileResponse';
 
     private constructor(
         readonly data: Readable | string,
@@ -89,7 +104,7 @@ export class FileResponse {
         }
         if (!fileName.includes('.') && options?.mimeType == undefined) {
             const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
-            await logger.warn('the file name does not include a extension and no mimetype was provided.');
+            logger.warn('the file name does not include a extension and no mimetype was provided.');
         }
 
         const size: number = options?.size ?? (await FsUtilities.stat(fullPath)).size;
@@ -115,4 +130,17 @@ export class FileResponse {
         }
         return false;
     }
+}
+
+/**
+ * Whether the given value is a file response.
+ *
+ * By what it says it is rather than by `instanceof`, so that a response that has been through json
+ * and back is still recognized as one. The prototype does not survive that trip and the value does.
+ * @param value - The value to judge.
+ * @returns True when the value is a file response.
+ */
+export function isFileResponse(value: unknown): value is FileResponse {
+    return typeof value === 'object' && value != undefined
+        && (value as Partial<FileResponse>).className === 'FileResponse';
 }

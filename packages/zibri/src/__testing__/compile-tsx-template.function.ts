@@ -1,4 +1,5 @@
-import { compile, CompiledPage, CompileResult } from 'zibri-tsx';
+import { CompiledPage } from 'zibri-tsx';
+import { compile, CompileResult } from 'zibri-tsx/compiler';
 
 import { InternalError } from '../error-handling/internal-error.model';
 import { $f } from '../localization/format.function';

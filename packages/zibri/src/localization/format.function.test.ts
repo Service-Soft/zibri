@@ -41,8 +41,8 @@ describe('$f', () => {
             GlobalRegistry.markAppAsCreated();
         });
 
-        it('formats a date using the default locale', () => {
-            const result: string = $f.date(new Date(2024, 0, 15));
+        it('formats a date using the default locale and time zone', () => {
+            const result: string = $f.date(new Date(Date.UTC(2024, 0, 15, 12)));
             expect(result).toBe('01/15/2024');
         });
 

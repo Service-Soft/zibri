@@ -1,0 +1,25 @@
+import { describe, expect, it } from '@jest/globals';
+
+import { SemVerUtilities } from './sem-ver.utilities';
+import { zibriVersion } from './zibri-version.function';
+import { FsUtilities } from '../utilities/fs.utilities';
+import { JsonUtilities } from '../utilities/json.utilities';
+
+describe('zibriVersion', () => {
+    it('reads the version off the package that is running', () => {
+        const { version } = JsonUtilities.parse<{ version: string }>(
+            FsUtilities.readFileSync(FsUtilities.getPath(__dirname, '..', '..', 'package.json'))
+        );
+
+        // not just "some semver": the one npm publishes, since a version read from anywhere else is
+        // a second place a version is written
+        expect(zibriVersion()).toBe(version);
+        expect(SemVerUtilities.isSemVerVersion(zibriVersion())).toBe(true);
+    });
+
+    it('answers the same thing every time it is asked', () => {
+        // read once and kept, because it cannot change while the process runs - and a backup asks
+        // for it on every write
+        expect(zibriVersion()).toBe(zibriVersion());
+    });
+});

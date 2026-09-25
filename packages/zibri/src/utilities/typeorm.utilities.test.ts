@@ -6,7 +6,7 @@ import { TypeOrmUtilities } from './typeorm.utilities';
 import { createTestDataSource, defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { DataSourceInterface } from '../data-source/data-sources/data-source.interface';
-import { PostgresDataSource } from '../data-source/data-sources/postgres-typeorm-data-source.model';
+import { PostgresDataSource } from '../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
 import { Transaction } from '../data-source/transaction/transaction.model';
 import { inject } from '../di/inject.function';
 import { BaseEntity } from '../entity/base-entity.model';
@@ -69,7 +69,7 @@ describe('TypeOrmUtilities', () => {
         it('delegates to the real driver to normalize a column type', async () => {
             const transaction: Transaction = await dataSource.startTransaction();
             const normalized: string = TypeOrmUtilities.normalizeColumnType(
-                transaction.queryRunner.connection,
+                TypeOrmUtilities.toTypeOrmTransaction(transaction).queryRunner.connection,
                 { type: 'varchar' }
             );
 

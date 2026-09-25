@@ -1,11 +1,14 @@
+import * as ts from 'typescript';
+
 import { ClientScript, compileClientScript } from '../codegen/client/client-codegen';
+import { eraseTypes } from '../codegen/erase-types';
 import { compileServerRender, ServerRenderCode } from '../codegen/server/render-codegen';
-import { parse, ParseResult } from '../parser/parser';
 import { CompiledPage } from '../runtime/render-page';
 import { SERVER_HOOKS } from '../runtime/server-hooks';
 import { ClientInstanceEntry, CompiledComponent, createContext, createServerRuntime, HandlerRegistryEntry, Raw, renderChild, RenderServerRuntime } from '../runtime/server-runtime';
-import { collectClientGlobalAliasesFromSource, collectClientPackagesFromSource } from '../semantics/client-packages';
+import { collectClientGlobalAliasesFromSource, collectClientPackagesFromSource, parseCompilableTemplate } from '../semantics/client-packages';
 import { findComponents, ComponentInfo } from '../semantics/component';
+import { parseTemplate, syntaxErrorsOf } from '../semantics/symbols';
 
 /**
  * The result of rendering a component: the HTML plus the registries collected during the render.
@@ -38,11 +41,11 @@ type ServerRenderFn = (ssr: RenderServerRuntime, props: Record<string, unknown>)
  * @throws When the source cannot be parsed or contains no component.
  */
 function firstComponent(source: string): ComponentInfo {
-    const result: ParseResult = parse(source);
-    if (!result.program) {
-        throw new Error(`Parse error: ${result.diagnostics[0]?.message ?? 'no program'}`);
+    const file: ts.SourceFile | undefined = parseCompilableTemplate(source);
+    if (file === undefined) {
+        throw new Error(`Parse error: ${syntaxErrorsOf(parseTemplate(source))[0]?.message ?? 'no program'}`);
     }
-    const components: ComponentInfo[] = findComponents(result.program);
+    const components: ComponentInfo[] = findComponents(file);
     if (components.length === 0) {
         throw new Error('No component found in source.');
     }
@@ -59,7 +62,11 @@ function firstComponent(source: string): ComponentInfo {
 export function compileComponent(source: string, deps: Record<string, CompiledComponent> = {}): CompiledComponent {
     const info: ComponentInfo = firstComponent(source);
     const server: ServerRenderCode = compileServerRender(info);
-    const client: ClientScript = compileClientScript(info.fn, info.name, collectClientGlobalAliasesFromSource(source));
+    const compiledClient: ClientScript = compileClientScript(info.fn, info.name, collectClientGlobalAliasesFromSource(source));
+    const client: ClientScript = {
+        ...compiledClient,
+        code: compiledClient.code === undefined ? undefined : eraseTypes(compiledClient.code)
+    };
     const depNames: string[] = Object.keys(deps);
 
     // eslint-disable-next-line typescript/no-implied-eval
@@ -68,7 +75,7 @@ export function compileComponent(source: string, deps: Record<string, CompiledCo
         'onServer',
         'createContext',
         ...depNames,
-        `${server.code}\nreturn ${server.componentName};`
+        `${eraseTypes(server.code)}\nreturn ${server.componentName};`
     ) as (...args: unknown[]) => ServerRenderFn;
 
     const fn: ServerRenderFn = factory(
@@ -158,5 +165,5 @@ export function renderWithComponents(
  * @returns The generated JavaScript.
  */
 export function serverRenderCode(source: string): string {
-    return compileServerRender(firstComponent(source)).code;
+    return eraseTypes(compileServerRender(firstComponent(source)).code);
 }

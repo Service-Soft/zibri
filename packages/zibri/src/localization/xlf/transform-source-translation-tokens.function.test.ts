@@ -1,3 +1,5 @@
+import assert from 'node:assert';
+
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { ExtractedTranslationString,
@@ -20,7 +22,8 @@ async function transformFixture(code: string): Promise<{ result: TransformResult
         originLocale: 'en-US'
     };
     const results: Record<string, TransformResult> = await transformSourceTranslationOriginTokens([origin]);
-    const result: TransformResult = results[file];
+    const result: TransformResult | undefined = results[file];
+    assert(result, `nothing was transformed for "${file}"`);
     return { result, extracted: result.extracted };
 }
 
@@ -44,49 +47,49 @@ describe('transformSourceTranslationOriginTokens', () => {
         const { extracted } = await transformFixture('const x = $ts`Hello world`;');
 
         expect(extracted).toHaveLength(1);
-        expect(extracted[0].source).toBe('Hello world');
+        expect(extracted[0]?.source).toBe('Hello world');
     });
 
     it('uses the member access chain as the placeholder key for property access expressions', async () => {
         const { extracted } = await transformFixture('const x = $t`Hello ${user.firstName}`;');
 
-        expect(extracted[0].source).toBe('Hello {user.firstName}');
+        expect(extracted[0]?.source).toBe('Hello {user.firstName}');
     });
 
     it('uses a plain identifier as the placeholder key', async () => {
         const { extracted } = await transformFixture('const name = "a"; const x = $t`Hello ${name}`;');
 
-        expect(extracted[0].source).toBe('Hello {name}');
+        expect(extracted[0]?.source).toBe('Hello {name}');
     });
 
     it('falls back to a positional key for a complex expression without braces', async () => {
         const { extracted } = await transformFixture('const x = $t`Total: ${1 + 1}`;');
 
-        expect(extracted[0].source).toBe('Total: {1 + 1}');
+        expect(extracted[0]?.source).toBe('Total: {1 + 1}');
     });
 
     it('falls back to a purely positional $N key when the expression source contains a brace', async () => {
         const { extracted } = await transformFixture('const x = $t`Val: ${({ a: 1 }).a}`;');
 
-        expect(extracted[0].source).toBe('Val: {$1}');
+        expect(extracted[0]?.source).toBe('Val: {$1}');
     });
 
     it('leaves an already-wrapped object literal expression alone and uses its key', async () => {
         const { extracted } = await transformFixture('const x = $t`Hello ${{ "custom.key": 5 }}`;');
 
-        expect(extracted[0].source).toBe('Hello {custom.key}');
+        expect(extracted[0]?.source).toBe('Hello {custom.key}');
     });
 
     it('escapes literal braces in the surrounding text as doubled braces', async () => {
         const { extracted } = await transformFixture('const x = $t`literal {brace} text`;');
 
-        expect(extracted[0].source).toBe('literal {{brace}} text');
+        expect(extracted[0]?.source).toBe('literal {{brace}} text');
     });
 
     it('records the correct 1-indexed line number', async () => {
         const { extracted } = await transformFixture('\n\nconst x = $t`on line three`;');
 
-        expect(extracted[0].line).toBe(3);
+        expect(extracted[0]?.line).toBe(3);
     });
 
     it('extracts multiple tagged templates from the same file', async () => {

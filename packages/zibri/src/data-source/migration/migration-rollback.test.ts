@@ -10,9 +10,9 @@ import { inject } from '../../di/inject.function';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { Newable } from '../../types/newable.type';
-import { SemVerVersion } from '../../utilities/sem-ver.utilities';
-import { PostgresDataSource } from '../data-sources/postgres-typeorm-data-source.model';
-import { Repository } from '../repository';
+import { SemVerVersion } from '../../versioning/sem-ver.utilities';
+import { PostgresDataSource } from '../data-sources/postgres/postgres-typeorm-data-source.model';
+import { Repository } from '../repository/repository';
 import { Transaction } from '../transaction/transaction.model';
 
 @Entity()
@@ -32,8 +32,6 @@ const dataSourceClass: Newable<PostgresDataSource> = createTestDataSource({
 class SucceedingMigration extends Migration {
     version: SemVerVersion = '0.1.0';
 
-    private createdId: string | undefined;
-
     constructor(
         @InjectRepository(MigrationRollbackItem)
         private readonly itemRepository: Repository<MigrationRollbackItem>
@@ -42,13 +40,11 @@ class SucceedingMigration extends Migration {
     }
 
     override async up(transaction: Transaction): Promise<void> {
-        const item: MigrationRollbackItem = await this.itemRepository.create({ value: 'seeded' }, { transaction });
-        this.createdId = item.id;
+        await this.itemRepository.create({ value: 'seeded' }, { transaction });
     }
 
     override async down(transaction: Transaction): Promise<void> {
         await this.itemRepository.deleteAll({ value: 'seeded' }, { transaction });
-        this.createdId = undefined;
     }
 }
 

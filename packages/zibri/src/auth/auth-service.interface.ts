@@ -1,11 +1,11 @@
-import { BaseEntity } from '../entity/base-entity.model';
 import { Newable } from '../types/newable.type';
 import { BaseUser } from './models/base-user.model';
-import { BelongsToMetadata } from './models/belongs-to-metadata.model';
 import { HasRoleMetadata } from './models/has-role-metadata.model';
 import { IsLoggedInMetadata } from './models/is-logged-in-metadata.model';
 import { IsNotLoggedInMetadata } from './models/is-not-logged-in-metadata.model';
 import { Require2faMetadata } from './models/require-2fa-metadata.model';
+import { ResolvedRouteAuth } from './models/resolved-auth-metadata.model';
+import { RouteAuthConfiguration } from './models/route-auth-configuration.model';
 import { AuthStrategies } from './strategies/auth-strategies.model';
 import { AuthStrategyInterface } from './strategies/auth-strategy.interface';
 import { HttpRequestContext } from '../context/request/http-request.context';
@@ -28,6 +28,17 @@ export interface AuthServiceInterface {
         context: HttpRequestContext | WebsocketRequestContext
     ) => Promise<void>,
     /**
+     * Checks whether a manually registered route can be accessed by the current user.
+     *
+     * The same checks {@link AuthServiceInterface.checkAccess} runs, for a route that states its
+     * posture as data because it has no class or method to decorate. A route that states nothing is
+     * the same as a controller route carrying no decorators: the application's `defaultAuth` decides.
+     */
+    checkRouteAccess: (
+        auth: RouteAuthConfiguration | undefined,
+        context: HttpRequestContext | WebsocketRequestContext
+    ) => Promise<void>,
+    /**
      * Checks whether there is a currently logged in user.
      */
     isLoggedIn: (
@@ -43,15 +54,32 @@ export interface AuthServiceInterface {
         allowedRoles: string[]
     ) => Promise<boolean>,
     /**
-     * Checks whether the currently logged in user belongs to the target entity.
+     * Checks whether reaching the provided method on the provided controller requires an
+     * authenticated caller - including when it requires one only because the application declared
+     * `defaultAuth: 'requireLogin'` and the route says nothing itself.
      */
-    belongsTo: <TargetEntity extends Newable<BaseEntity>>(
-        context: HttpRequestContext | WebsocketRequestContext,
-        allowedStrategies: AuthStrategies,
-        targetEntity: TargetEntity,
-        targetUserIdKey: keyof InstanceType<TargetEntity>,
-        targetIdParamKey: string
-    ) => Promise<boolean>,
+    requiresAuthentication: (
+        controllerClass: Newable<unknown>,
+        controllerMethod: string
+    ) => boolean | Promise<boolean>,
+    /**
+     * Checks whether reaching a manually registered route requires an authenticated caller -
+     * including when it requires one only because the application declared
+     * `defaultAuth: 'requireLogin'` and the route states nothing itself.
+     */
+    requiresRouteAuthentication: (auth: RouteAuthConfiguration | undefined) => boolean,
+    /**
+     * Resolves everything the \@Auth decorators of the provided controller method and its controller
+     * mean for a caller, the application wide default included.
+     *
+     * Called while the route is registered - resolving a declaration is where an impossible one is
+     * refused and where the "Useless @Auth.skip" warnings come from, and both belong to booting.
+     * Whoever serves a request reads the answer back out of the route registry instead.
+     */
+    resolveRouteAuth: (
+        controllerClass: Newable<unknown>,
+        controllerMethod: string
+    ) => ResolvedRouteAuth,
     /**
      * Resolves the is logged in metadata for the provided controller method.
      * (Whether it's required to be logged in, etc.).
@@ -76,14 +104,6 @@ export interface AuthServiceInterface {
         controllerClass: Newable<unknown>,
         controllerMethod: string
     ) => HasRoleMetadata | undefined | Promise<HasRoleMetadata | undefined>,
-    /**
-     * Resolves the belongs to metadata for the provided controller method.
-     * (Whether it's required for the user to somehow belong to the requested entity, etc.).
-     */
-    resolveBelongsToMetadata: (
-        controllerClass: Newable<unknown>,
-        controllerMethod: string
-    ) => BelongsToMetadata<Newable<BaseEntity>> | undefined | Promise<BelongsToMetadata<Newable<BaseEntity>> | undefined>,
     /**
      * Resolves the require 2fa metadata for the provided controller method.
      */
