@@ -18,11 +18,5 @@ export type StartTestServerOptions = Partial<ZibriApplicationOptions> & {
      * What neither this nor the call names is the harness's own default, which is what a test with
      * no application to point at runs on.
      */
-    application?: ZibriApplicationOptions,
-    /**
-     * Where the application serves its static assets from.
-     *
-     * Left out by anything that does not serve assets, which is most tests.
-     */
-    assetsPath?: string
+    application?: ZibriApplicationOptions
 };

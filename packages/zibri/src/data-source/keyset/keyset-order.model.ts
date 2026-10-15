@@ -4,6 +4,7 @@ import { BaseEntity } from '../../entity/base-entity.model';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { Newable } from '../../types/newable.type';
+import { JsonUtilities } from '../../utilities/json.utilities';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { FindAllOptions } from '../models/options/find-all-options.model';
 import { Where } from '../models/where/where-filter.model';
@@ -127,7 +128,7 @@ function stableString(value: unknown): string {
         return `[${value.map(v => stableString(v)).join(',')}]`;
     }
     if (typeof value !== 'object') {
-        return JSON.stringify(value) ?? 'null';
+        return JsonUtilities.stringify(value) ?? 'null';
     }
     return `{${Object.entries(value)
         .sort(([a], [b]) => a < b ? -1 : 1)

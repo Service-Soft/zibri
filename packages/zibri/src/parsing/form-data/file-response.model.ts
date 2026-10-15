@@ -7,11 +7,10 @@ import { InternalError } from '../../error-handling/internal-error.model';
 import { LooseFileMimeType, MimeType } from '../../http/mime-type.enum';
 import { resolveMimeType } from '../../http/mime-type.helpers';
 import { LoggerInterface } from '../../logging/logger.interface';
-import { DeepPartial } from '../../types/deep-partial.type';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { SelfDescribing } from '../../types/self-describing.type';
 import { FsUtilities, FsPath } from '../../utilities/fs.utilities';
-import { buildCspOptions, CspOptions } from '../html/csp-options.model';
+import { buildCspOptions, CspOptions, CspOptionsInput } from '../html/csp-options.model';
 
 /**
  * Data shared by all FileResponses.
@@ -30,7 +29,7 @@ type BaseFileResponseData = {
      * The configuration for CSP headers.
      * Can either be false to not set any, true to set the default CSP headers or a custom configuration.
      */
-    csp?: boolean | DeepPartial<CspOptions>
+    csp?: boolean | CspOptionsInput
 };
 
 /**

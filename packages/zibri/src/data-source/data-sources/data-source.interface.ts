@@ -4,12 +4,16 @@ import { ChangeSetEntity } from '../../change-sets/models/change-set-entity.mode
 import { SoftDeleteEntity } from '../../change-sets/models/soft-delete-entity.model';
 import { SoftDeleteRepository } from '../../change-sets/soft-delete-repository';
 import { BaseEntity } from '../../entity/base-entity.model';
-import { PropertyMetadataInput, PropertyMetadata, RelationMetadata } from '../../entity/decorators/property.decorator';
-import { FilePropertyMetadata } from '../../entity/models/file-property-metadata.model';
-import { ExcludeStrict } from '../../types/exclude-strict.type';
 import { Newable } from '../../types/newable.type';
 import { SemVerVersion } from '../../versioning/sem-ver.utilities';
 import { Migration } from '../migration/migration.model';
+import { AddPropertyToEntityInput } from '../models/add-property-to-entity-input.model';
+import { ChangePropertyOfEntityInput } from '../models/change-property-of-entity-input.model';
+import { CreateEntityInput } from '../models/create-entity-input.model';
+import { MergeEntityInput } from '../models/merge-entity-input.model';
+import { MigrationPropertyMetadata } from '../models/migration-property-metadata.model';
+import { RemovePropertyFromEntityInput } from '../models/remove-property-from-entity-input.model';
+import { RenameEntityInput } from '../models/rename-entity-input.model';
 import { Repository } from '../repository/repository';
 import { Transaction } from '../transaction/transaction.model';
 
@@ -17,7 +21,6 @@ import { Transaction } from '../transaction/transaction.model';
  * The isolation level of any data source calls made inside a transaction.
  */
 export enum IsolationLevel {
-    READ_UNCOMMITTED = 'READ UNCOMMITTED',
     READ_COMMITTED = 'READ COMMITTED',
     REPEATABLE_READ = 'REPEATABLE READ',
     SERIALIZABLE = 'SERIALIZABLE'
@@ -83,6 +86,11 @@ export interface DataSourceInterface extends BackupResourceInterface {
 
     /**
      * Initializes the data source.
+     *
+     * Runs the migrations, and then makes the indexes and uniques the data source keeps match what
+     * its entities declare: it creates every declared one that is missing, over the entities already
+     * stored, and removes every one no entity declares anymore. Fails when stored entities break a
+     * declared unique, naming the values they share.
      */
     init: () => Promise<void>,
 
@@ -128,38 +136,46 @@ export interface DataSourceInterface extends BackupResourceInterface {
     revertMigrationsAfter: (targetVersion: SemVerVersion) => Promise<void>,
 
     /**
-     * Adds a new property to the given entity.
-     *
-     * Mostly needed in the context of migrations.
+     * Adds a property to every stored entity, empty in the ones that already exist.
      */
-    addPropertyToEntity: <T extends BaseEntity>(
-        entity: Newable<T>,
-        key: keyof T,
-        transaction: Transaction
+    addPropertyToEntity: <T extends BaseEntity>(input: AddPropertyToEntityInput<T>) => Promise<void>,
+
+    /**
+     * Changes how a property is stored - its name, its type, or both - keeping or converting what
+     * each stored entity holds.
+     */
+    changePropertyOfEntity: <T extends BaseEntity, C extends MigrationPropertyMetadata, M extends MigrationPropertyMetadata>(
+        input: ChangePropertyOfEntityInput<T, C, M>
     ) => Promise<void>,
 
     /**
-     * Changes the given oldProperty to the newProperty on the given entity.
+     * Removes a property, and what it holds, from every stored entity.
      */
-    changePropertyOfEntity: <T extends BaseEntity>(
-        entity: Newable<T>,
-        oldProperty: keyof T | string & {},
-        newProperty: PropertyMetadataInput & {
-            /**
-             * The name of the new column.
-             *
-             * A name the entity no longer carries as well, which is what a migration going back
-             * needs: the `down` of a rename puts the old name back, and the old name is precisely
-             * the one the class has stopped declaring.
-             */
-            name?: keyof T | string & {},
-            /**
-             * The type of the new column.
-             */
-            type: ExcludeStrict<PropertyMetadata, RelationMetadata<BaseEntity> | FilePropertyMetadata>['type']
-        },
-        transaction: Transaction
-    ) => Promise<void>
+    removePropertyFromEntity: <T extends BaseEntity>(input: RemovePropertyFromEntityInput<T>) => Promise<void>,
+
+    /**
+     * Moves every stored entity from the table name it is stored under to the one the entity declares,
+     * along with its indexes and uniques.
+     * @throws When something is stored under the declared table name already, or when the entity is
+     * part of a many to many relation.
+     */
+    renameEntity: <T extends BaseEntity>(input: RenameEntityInput<T>) => Promise<void>,
+
+    /**
+     * Moves every entity stored under another table name to the entity, next to the ones it stores,
+     * along with their many to many relations.
+     *
+     * An entity holding what a stored one holds under a unique the entity declares, its id included,
+     * is left out. Nothing is stored under the other table name afterwards.
+     */
+    mergeEntity: <T extends BaseEntity>(input: MergeEntityInput<T>) => Promise<void>,
+
+    /**
+     * Creates what an entity is stored in.
+     *
+     * A migration that manages the schema creates every entity it introduces with this.
+     */
+    createEntity: <T extends BaseEntity>(input: CreateEntityInput<T>) => Promise<void>
 }
 
 /**
@@ -178,6 +194,10 @@ export function isDataSource(value: unknown): value is DataSourceInterface {
     const keys: (keyof DataSourceInterface)[] = [
         'addPropertyToEntity',
         'changePropertyOfEntity',
+        'createEntity',
+        'removePropertyFromEntity',
+        'renameEntity',
+        'mergeEntity',
         'createBackupData',
         'entities',
         'getRepository',

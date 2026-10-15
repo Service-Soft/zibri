@@ -1,9 +1,9 @@
 import { BaseEntity, Entity, Property } from 'zibri';
 
-import { User } from './user.model';
-
-@Entity({ defaultOrder: { workers: 'ASC' } })
+// the tenants of this application: a company's id is the tenant id of everything it holds. Shared,
+// because the companies are what every request picks its tenant from
+@Entity({ tenant: 'shared', defaultOrder: { name: 'ASC' } })
 export class Company extends BaseEntity {
-    @Property.oneToMany({ target: () => User, inverseSide: 'company' })
-    workers!: User[];
+    @Property.string({ unique: true })
+    name!: string;
 }

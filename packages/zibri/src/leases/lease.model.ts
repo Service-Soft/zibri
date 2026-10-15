@@ -19,7 +19,7 @@ import { OmitStrict } from '../types/omit-strict.type';
  * could hold the same key in different stores and neither would see the other, which is the failure
  * this exists to prevent.
  */
-@Entity()
+@Entity({ tenant: 'shared', allowOrphan: true })
 export class Lease extends BaseEntity {
     /**
      * Names the one thing being held.

@@ -35,7 +35,7 @@ describe('soft delete key declarations', () => {
     it('refuses a property that says only "unique"', () => {
         expectRefusal(
             () => {
-                @Entity({ allowOrphan: true })
+                @Entity({ tenant: 'shared', allowOrphan: true })
                 class Account extends SoftDeleteEntity {
                     @Property.string({ unique: true })
                     email!: string;
@@ -51,7 +51,7 @@ describe('soft delete key declarations', () => {
     it('refuses a group that says only which columns', () => {
         expectRefusal(
             () => {
-                @Entity({ allowOrphan: true, uniques: [['tenantId', 'email']] })
+                @Entity({ tenant: 'shared', allowOrphan: true, uniques: [['tenantId', 'email']] })
                 class TenantAccount extends SoftDeleteEntity {
                     @Property.string()
                     tenantId!: string;
@@ -67,7 +67,7 @@ describe('soft delete key declarations', () => {
     });
 
     it('accepts a property that names the rows it covers, and keeps the filter', () => {
-        @Entity({ allowOrphan: true })
+        @Entity({ tenant: 'shared', allowOrphan: true })
         class LiveAccount extends SoftDeleteEntity {
             @Property.string({ unique: { where: whereFor<LiveAccount>({ deleted: false }) } })
             email!: string;
@@ -79,7 +79,7 @@ describe('soft delete key declarations', () => {
     });
 
     it('accepts an empty filter as the way to say every row', () => {
-        @Entity({ allowOrphan: true })
+        @Entity({ tenant: 'shared', allowOrphan: true })
         class BurnedAccount extends SoftDeleteEntity {
             @Property.string({ unique: { where: whereFor<BurnedAccount>({}) } })
             email!: string;
@@ -91,7 +91,7 @@ describe('soft delete key declarations', () => {
     });
 
     it('leaves an entity that cannot be soft deleted alone', () => {
-        @Entity({ allowOrphan: true })
+        @Entity({ tenant: 'shared', allowOrphan: true })
         class Widget extends BaseEntity {
             @Property.string({ unique: true })
             serial!: string;
@@ -105,7 +105,7 @@ describe('soft delete key declarations', () => {
     it('still refuses a group built around a column that is unique over every row', () => {
         expectRefusal(
             () => {
-                @Entity({ allowOrphan: true, uniques: [['serial', 'batch']] })
+                @Entity({ tenant: 'shared', allowOrphan: true, uniques: [['serial', 'batch']] })
                 class Part extends BaseEntity {
                     @Property.string({ unique: true })
                     serial!: string;
@@ -121,6 +121,7 @@ describe('soft delete key declarations', () => {
 
     it('allows a group beside a column that is unique among only some rows', () => {
         @Entity({
+            tenant: 'shared',
             allowOrphan: true,
             uniques: [{ properties: ['email', 'tenantId'], where: whereFor<Membership>({}) }]
         })

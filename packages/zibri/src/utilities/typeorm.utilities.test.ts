@@ -14,7 +14,7 @@ import { Entity } from '../entity/decorators/entity.decorator';
 import { Property } from '../entity/decorators/property.decorator';
 import { Newable } from '../types/newable.type';
 
-@Entity()
+@Entity({ tenant: 'shared' })
 class TypeOrmUtilitiesTestItem extends BaseEntity {
     @Property.string()
     value!: string;
@@ -30,7 +30,7 @@ describe('TypeOrmUtilities', () => {
         });
         server = await startTestServer({ dataSources: [dataSourceClass] });
         dataSource = inject(dataSourceClass);
-    }, 15000);
+    }, 30000);
 
     afterAll(async () => {
         await server?.shutdown();

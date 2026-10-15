@@ -35,7 +35,7 @@ Three separate failures:
   (`src/routing/router.ts:320-324` branches on it explicitly). Registering one silently never fires.
 
 > **Closed.** `corsMiddleware(options)` is now built from `security.cors` on
-> `ZibriApplicationOptions`, exported, and documented in the new `docs/security.md` - CORS appeared
+> `ZibriApplicationOptions`, exported, and documented in the new `docs/app-settings.md` - CORS appeared
 > in zero documentation files before. Origins are `'*'` or a list, typed as `` `http://${string}` ``
 > / `` `https://${string}` `` so a bare hostname, which can never match what a browser sends, is a
 > compile error rather than a silent mismatch. `Vary: origin` is set whenever the answer depends on
@@ -77,6 +77,12 @@ Three separate failures:
 > Also found while checking: **there is no `@Put` decorator either** (`src/routing/router.ts:326`
 > branches on `HttpMethod.PUT`, and `HttpClient` can send one). A Zibri server cannot expose a `PUT`
 > endpoint. A separate gap, and a much more surprising one than `@Options`.
+>
+> **Closed (2026-09-28).** `@Put` exists, shaped like `@Patch`. Nothing else had to change: the
+> router, the OpenAPI document and CORS already treated `PUT` like every other method, so the
+> decorator was the whole gap. `router.test.ts` dispatches one with a path parameter and a body.
+> `docs/creating-endpoints.md` lists it, along with `@Patch` and `@Delete`, which its table of
+> exports had left out.
 
 ### C2. Prometheus label cardinality explosion → guaranteed OOM — ~~CRITICAL~~ **FIXED** **[verified]**
 
@@ -123,7 +129,7 @@ to show them.
 > Proven in `metrics.service.test.ts` by reading the labels back off the registry, which is why this
 > needed no scrape endpoint — the reason the evaluation test for it had stayed a todo.
 
-### C3. No in-flight request draining, no readiness signal, no shutdown timeout — **partly fixed**
+### C3. No in-flight request draining, no readiness signal, no shutdown timeout — ~~partly fixed~~ **FIXED, the readiness half WITHDRAWN**
 
 `src/application.ts:363-378`
 
@@ -159,7 +165,8 @@ private async shutdownHttpServer(): Promise<void> {
   threw~~ **Fixed.** Each hook still swallows its own error, because they are independent and one
   broken teardown must not strand the rest — but it now sets `shutdownFailed`, and the process exits
   `1` when anything failed. Without that an orchestrator reads a clean exit and a rolling deploy
-  carries on as though the teardown had gone fine.
+  carries on as though the teardown had gone fine. Held by `application.shutdown.test.ts`, which
+  also holds that a shutdown by a call - not a signal - leaves the process running.
 
   The second half of that bullet — *"does not flush pending async log-transport writes"* — was
   **overstated**. Every logger call on the shutdown path is awaited, including the ones inside the
@@ -807,6 +814,12 @@ provide.
 > `websocket.service.ts` built its own `GlobalError` and blanked its stack the same way. Finding it
 > took reading for `GlobalError` rather than for the finding — a wrapper defect is per-call-site, and
 > this codebase has two entry points into user code.
+>
+> And reading for `GlobalError` still missed one. A message that reached its route and failed there is
+> caught in the route's own handler, not in the `onAny` catch that was fixed, and that handler built a
+> plain `new Error('Global Error')`, so no search for the class name found it. Closed 2026-10-14: it logs the
+> error that was thrown now, and `websocket-failed-message.test.ts` reads the logged row back for its
+> message and its stack.
 >
 > **The 4xx half did not close the way the finding asked, and the finding was wrong to ask.** Logging
 > every client error would put "this might be a concern" on a missing favicon. It split three ways
@@ -1578,19 +1591,250 @@ the client accepts to choose between a JSON body and a rendered HTML page, so th
 Neither is exploitable and neither loses data. Both are what an API gateway, a conformance suite or a
 generated client notices first.
 
+### M15. The OpenAPI document cannot say that a property is an xml element's text — MINOR, **open (waiting on Swagger UI)**
+
+*Filed by this work; moved here from 11 on 2026-10-01.*
+
+The document is written as OpenAPI 3.1, which has no way to say that a property is an xml element's
+own text: `@XmlText` is described as if it were a child element, so the published xml schema is wrong
+for every model using it. 3.2's `xml.nodeType` (`element`, `attribute`, `text`, `cdata`, `none`) says
+exactly that and replaces `attribute`/`wrapped` with one field. The installed `openapi3-ts` already
+ships `oas32`, so the switch is the version string, the imports in `open-api.model.ts`, `annotateXml`
+writing `nodeType`, and checking what the doc UI renders. 3.2 also has `itemSchema` for streamed
+responses and the `QUERY` method, neither needed today.
+
+**Waiting on Swagger UI (checked 2026-09-25).** The bundled copy only renders `3.0.x`/`3.1.x`, so a
+`3.2.0` document shows "Unable to render this definition". 5.33.0 renders 3.2, but it builds its xml
+examples from `xml.attribute` alone, and so does `master`. `nodeType` is read nowhere, and 3.2
+forbids writing both, so the explorer would show every attribute as a child element. **Decided:
+switch once a Swagger UI release reads `nodeType`.**
+
+What the switch then needs: replace the vendored `assets/public/open-api` copies in the cli and the
+sandbox (a project created earlier keeps its own copy and has to replace it too); make
+`openApiToV3` in entity generation accept `3.2`, since it refuses anything but `3.0`/`3.1` and would
+refuse zibri's own documents; and handle `oas32.SchemaObject` also being a `boolean`. The 3.2
+defaults that make a `$ref` or an array produce no element of its own do not matter here, because
+every schema is written inline. Mixed content becomes an array of `none` parts: the text shape is a
+`text` node and each model shape an element named like the shape, with `shape` and `value` both
+`none`.
+
+### M16. A connection keeps a tenant's channels after its user stops being a member there — ~~MAJOR~~ **FIXED**
+
+*Filed on the re-check of 2026-10-15.*
+
+> **Closed 2026-10-15, together with [M20](#m20-a-closed-connection-is-never-taken-out-of-the-channels-it-joined--minor-fixed).**
+> `updateTenantRooms` moves the user's connections out of every channel room of the tenant along with
+> its tenant room, and back into the ones the user is in once they are a member again, the way a
+> reconnect would join them. The user stays in `WebsocketChannel.userIds`: a membership that is
+> deactivated and reactivated should not cost them their channels. Both go through the room of the
+> user, so they reach the connections on every instance. The per-instance `websocketChannels` list
+> is gone: `sendToChannel({ expectResponse: true })` asks the connections in the channel's room, so a
+> connection moved out of it is not asked any more either. Held by *takes a connection out of the
+> channels of a tenant once its user stops being a member there, and back once they are one again* in
+> `websocket.service.tenancy.test.ts`, red first.
+
+A membership that ends takes the user's connections out of the tenant's room and nothing else.
+`updateTenantRooms` (`src/websocket/services/websocket.service.ts:873-890`) calls `socketsLeave` on
+`zibri.tenant:<id>` only. The channel rooms the connection joined while it was a member
+(`joinChannel`, `:835-851`, `rejoinChannels`, `:470-479`) are left as they are, the user stays in
+`WebsocketChannel.userIds`, and the connection stays in `websocketChannels[channel.id]`.
+
+So a member removed from a tenant, or deactivated there, keeps receiving every `sendToChannel` of that
+tenant's channels on every connection that is open, and `sendToChannel({ expectResponse: true })`
+still asks them for an answer. Only a reconnect ends it, because `recoverConnection` (`:507-510`)
+reads the channels through the user's current memberships. `docs/websocket.md` says a connection
+"stops receiving" a tenant's broadcasts once the membership is deleted, which holds for `sendToAll`
+and not for channels.
+
+`websocket.service.tenancy.test.ts` covers the tenant room in both directions and no channel. The
+tenancy evaluation holds one websocket case, and it is about a message *sent*, not one received.
+
+### M17. A socket receives as whoever it connected as, after that login has ended — ~~MAJOR~~ **FIXED**
+
+*Filed on the re-check of 2026-10-15.*
+
+> **Closed 2026-10-15. A socket receives for as long as a request with its credential would be
+> accepted, and no longer.** The user chose disconnecting on each way a login ends over checking every
+> socket on an interval. What is done on an ending is not "close the user's sockets" but "ask each
+> socket of the user again": the handshake's credential is resolved the way a request's is, and the
+> socket is closed when it no longer names its user. So a logout closes the socket of the login that
+> logged out and leaves the user's other devices connected, and under `ACCESS_TOKEN_REVOCATION:
+> 'onExpiry'` a logged-out access token keeps its socket exactly as long as it keeps working over
+> http.
+>
+> - **Where logins end:** `AuthService.endLogins` (deactivation, password reset, any strategy),
+>   `revokeApiKey(s)`, and inside `JwtAuthStrategy` logout, `endFederatedLogins`, `revokeToken` and
+>   refresh-token reuse; `ClientAccessTokenAuthStrategy.revokeToken`. Each calls
+>   `WebsocketServiceInterface.disconnectEndedLogins(userIds, transaction)`, which waits for the
+>   commit and tells the other instances through the adapter (`serverSideEmit`), since only the
+>   instance holding a socket can ask it again. The cookie strategy has no call: cookies never
+>   authenticate a socket (`hasCredential` is false for a websocket context).
+> - **Expiry:** `AuthStrategyInterface.resolveExpiresAt` is new and required, and every shipped
+>   strategy answers it (`ProviderToken` gained `expiresAt` for it). A socket is asked again when its
+>   credential expires, so a session extended in the meantime keeps it.
+> - **Why re-resolving the handshake is safe:** it reads and writes nothing a request would not. DPoP
+>   proofs are never checked for a websocket context, so nothing is spent twice, and no cookie
+>   session can be rotated from a socket.
+>
+> A custom login strategy ending logins itself has to call `disconnectEndedLogins` too; docs/auth.md
+> says so. Held by `websocket.service.ended-logins.test.ts` (nine cases, red first, the three
+> strategy-internal endings mutation-checked) and, across instances, by the M17 case in
+> `cluster/websocket.cluster.test.ts`.
+
+Who a connection is gets decided once, in the handshake middleware
+(`src/websocket/services/websocket.service.ts:275-323`), and is never asked again for anything the
+connection *receives*. `recoverConnection` then joins `zibri.user:<id>`, the tenant rooms of every
+membership and the rooms of every channel the user is in (`:505-512`).
+
+Messages the client sends are checked one by one, each with its own `authorization`. Messages sent
+to it are not. A logout, a revoked session ([03 §A3](./03-auth-and-security.md)), a deactivated user,
+a changed password and an access token that expired an hour ago all leave the socket where it is,
+receiving everything addressed to that user, their tenants and their channels until the client
+disconnects on its own. The one place the framework closes a socket is a message of its own answered
+with 401 (`:1082-1084`), and a client that only listens never sends one.
+
+A deleted user is the one case that does end, through the memberships the deletion removes, and
+only for the tenant rooms (see M16 for the channels).
+
+### M18. A connection that sends no `auth.offset` joins none of its rooms — MAJOR, **open**
+
+*Filed on the re-check of 2026-10-15.*
+
+`SocketIOWebsocketConnection.offset` (`src/websocket/models/connection/socket-io-websocket-connection.model.ts:21-26`)
+throws when `handshake.auth.offset` is not a number, and `recoverConnection` reads it
+(`src/websocket/services/websocket.service.ts:499`) after loading the memberships and **before**
+`connection.join(...)` (`:505`). The connection has already been pushed into `connections` and its
+`onAny` listener registered (`:354-360`), so it stays open and answers messages, while the error is
+logged as `Could not handle a new websocket connection` by the `connection` listener (`:326-329`).
+
+What a client gets for leaving it out: no user room, no tenant rooms, no channel rejoin and no
+replay. `sendToAll` inside a tenant never reaches it, and nothing tells it so. Every test passes
+`auth: { offset: 0 }`; `docs/websocket.md` never mentions the field, and has no client example to
+show it in. A socket.io client connecting the way socket.io documents it is this case, and each such
+connection writes an error line.
+
+### M19. Websocket messages are kept forever, and a client picks how far back its replay reads — MAJOR, **FIXED**
+
+*Filed on the re-check of 2026-10-15.*
+
+> **Closed 2026-10-15.** Four decisions, each taken by the user:
+>
+> - **Retention is required.** `messageRetentionInMs` has no default: how long a client may be away
+>   and still catch up is the application's call. The options moved behind
+>   `WEBSOCKET_OPTIONS_INPUT` (undefined by default), and `WEBSOCKET_OPTIONS` is built from it and
+>   throws when it is missing - read by the service only once the application declares websockets,
+>   so an application without them starts as before and one with them fails on the way up. The
+>   service now reads its options lazily for that reason. `WebsocketMessageCleanupCronJob`, hourly,
+>   deletes every message up to the newest expired one, so what is kept is always a suffix.
+> - **The replay is bounded, and all or nothing.** `maxReplayedMessages` (default 1000) caps the read
+>   at one row more than it sends. A client that missed more, or whose offset lies before the oldest
+>   kept message, is sent none of them and one `ws:replay-incomplete` carrying the newest seq instead,
+>   so a partial history never looks complete.
+> - **No acks during the replay.** socket.io keeps order on one connection and the client tracks the
+>   seq, so the replay emits without waiting; a silent client neither holds it nor ends it.
+> - **seq comes from a counter row.** Found on the way, filed nowhere: `getNewSeqNumber` read the
+>   newest seq and added one, so concurrent sends (or two instances) shared a seq and a client keeping
+>   its offset skipped one of them - twenty sends at once all got the same number. A new
+>   `WebsocketMessageSequence` entity holds one row, drawn from by the atomic `upsert` increment the
+>   invoice numbers use; the service creates it at boot from the newest kept message, so stored
+>   messages keep their numbers.
+>
+> Held by `websocket.service.replay.test.ts` (six cases, in memory). Four red first: the replay
+> stopped at the first unanswered message with "operation has timed out", 20 concurrent sends shared
+> seq 10, and there was no cleanup. The other two - continuing from kept messages, refusing to start
+> without a retention - were mutation-checked by removing the boot-time sequence and the refusal.
+> **Breaking:** applications with websockets provide `WEBSOCKET_OPTIONS_INPUT` and declare
+> `WebsocketMessageSequence`.
+
+`send`, `sendToChannel` and `sendToAll` persist by default (`persist ?? true`,
+`src/websocket/services/websocket.service.ts:646`), and nothing ever deletes a `WebsocketMessage`:
+there is no cleanup cron and no retention setting, unlike `Log`, `Event` and `Lease`. Every broadcast
+an application has ever sent is a row.
+
+`recoverConnection` replays everything above `connection.offset` with `take: 'all'` (`:530-535`),
+and the offset is whatever the client put into its handshake. `offset: 0` - which is what every test
+in this repository sends - reads the whole history the connection can see into memory, and an
+anonymous connection can see every broadcast sent outside a tenant. `isAllowedToConnect` admits
+everyone by default, the handshake is not rate limited, so this is an unbounded read any client can
+ask for once per connection.
+
+The replay then sends each row with `expectResponse: true`, one after the other (`:537-546`), so a
+client that does not acknowledge holds the loop for `timeoutInMs` per message, and the first timeout
+throws out of `recoverConnection` and ends the replay there.
+
+### M20. A closed connection is never taken out of the channels it joined — MINOR, **FIXED**
+
+*Filed on the re-check of 2026-10-15.*
+
+> **Closed 2026-10-15, with M16.** The list it describes no longer exists: who is in a channel is
+> read off socket.io's room, which a closed socket leaves. Held by *forgets a closed connection in
+> the channels it joined* in `websocket.service.tenancy.test.ts`, red first: the closed socket was
+> asked, waited for until the timeout, and reported as an answer.
+
+`onDisconnect` (`src/websocket/services/websocket.service.ts:549-558`) removes the connection from
+`connections` and leaves it in every `websocketChannels[channel.id]` list. A reconnect gets a new
+socket id and is pushed as another entry (`:475-476`), so the lists grow by one per reconnect of every
+channel member for as long as the instance runs, each entry holding the closed `Socket`.
+`sendToChannel({ expectResponse: true })` (`:741-760`) iterates the list and waits `timeoutInMs` for
+each closed socket before reporting it as an error.
+
+### M21. Reading an xml body takes time quadratic in how many sibling elements share a name — MAJOR, **FIXED**
+
+*Filed on the re-check of 2026-10-15.*
+
+> **Closed 2026-10-15.** `groupByName` pushes onto the group it finds instead of copying it with the
+> element added. Held by *reads many elements of one name in time linear in how many there are* in
+> `document/xml.utilities.test.ts`: 50,000 undeclared `<a/>` through `XmlUtilities.parseFrom`, refused
+> by validation within a second - red first at 11.5 s. The body parser and `parseFrom` share the
+> reader, so the one case covers both. The same copy-on-add grouping is in a few other places, none of
+> them reachable with input of this size: two test helpers, the tsx compiler's own bookkeeping, a SCIM
+> member's groups, the valkey upsert's candidates (grouped by unique values, so a group is one row),
+> and the valkey driver's nested save (`val-key.repository-driver.ts`, the children of each owner),
+> which a single save of thousands of children makes quadratic - filed as
+> [01 §M43](./01-data-layer.md), with a case for it in `large-batches.cases.ts`.
+
+`XmlReaderUtilities.groupByName` (`src/document/xml-reader.utilities.ts:235-241`) builds each group
+with `[...res.get(element.name) ?? [], element]`, copying the group for every element added to it.
+`readObject` and `readUntyped` call it for every element they read, and an element the model does
+not declare is grouped like any other before validation refuses it.
+
+Measured on the loop alone: 20,000 siblings take 1.5 s, 25,000 take 2.5 s, 50,000 take 13 s. A
+body's default limit is `100kb` (`src/routing/resolve-body-metadata.function.ts:14`), which fits about
+25,000 `<a/>`, so one request to any route taking an xml body blocks the event loop for seconds, the
+parse running after the route's access check. `XmlUtilities.parseFrom`
+(`src/document/xml.utilities.ts:51-67`) reads documents the same way and takes a string of any length.
+
 ---
 
 ## MINOR
 
-- **Every log line captures a V8 stack trace** — `src/logging/logger.ts:73-75` does
+- ~~**Every log line captures a V8 stack trace**~~ — **FIXED** (re-checked 2026-09-28): `resolveOrigin`
+  swaps `prepareStackTrace` for one handing back the call sites, so no frame is rendered to text, and
+  finds the caller by file name rather than by a fixed index — `Error.stackTraceLimit = 0` answers
+  `'unknown'` instead of throwing. The original entry: `src/logging/logger.ts:73-75` does
   `(new Error().stack ?? '').split('\n')[3]` plus two regexes, on every enabled log call, just to
   derive an `origin` string. The frame index `[3]` is hardcoded, so any wrapper gives a wrong
   origin — and with `Error.stackTraceLimit = 0` (a routine production tuning) `line` is
   `undefined` and `line.match` throws on **every** log call.
-- **Validation regexes are recompiled per request** —
-  `src/validation/functions/validate-string.function.ts:66` calls `new RegExp(meta.regex)` per
-  field, per request, on decorator metadata fixed at startup. No ReDoS guard or timeout on
-  attacker-controlled input.
+- ~~**Validation regexes are recompiled per request**~~ — **FIXED 2026-10-02, with re2 by the
+  user's choice.** The original entry: `src/validation/functions/validate-string.function.ts:66`
+  calls `new RegExp(meta.regex)` per field, per request, on decorator metadata fixed at startup. No
+  ReDoS guard or timeout on attacker-controlled input. A `maxLength` is no guard, because `(a+)+$`
+  takes seconds on 27 characters. Weighed: refusing nested quantifiers at startup (misses
+  overlapping alternation and polynomial cases), a time limit per match through a vm context, and
+  documenting it. Taken: every declared pattern runs through `re2`, a linear-time engine, as a new
+  optional peer. `RegexUtilities.resolveLinear` compiles each declared pattern once and strips `g`
+  and `y`, because a shared pattern with either flag would carry `lastIndex` from one request to the
+  next. `RegexUtilities.validateLinear` runs at every place a pattern can be declared:
+  `@Property.string`, array items and oneOf shapes, path, query and header params, and array param
+  items. A pattern re2 cannot run (a lookaround or backreference) is refused there, naming the key.
+  Found on the way: an invalid pattern string used to throw a SyntaxError at the first request that
+  reached it, which answered with a 500. It is refused at the declaration now. re2's errors come from
+  a native addon and are not the `SyntaxError` of jest's realm, so the refusal is told apart by where
+  it is thrown, not by its class. Held by `regex.utilities.test.ts` (every declaration site),
+  `optional-peer-dependencies.test.ts` (optional, not needed to load, named when missing), and a
+  MINOR block in `http-and-observability.evaluation.test.ts`. Documented in models, getting started
+  and the upgrade guide.
 - ~~**`req.method` is mutated to lowercase**~~ — **FIXED, and it was not a MINOR.** The finding
   filed it as a courtesy problem for *third-party* middleware. It was breaking express itself, in two
   places, on every request the framework routed:
@@ -1618,13 +1862,23 @@ generated client notices first.
 
   Held by *answers a conditional request with a 304* and *answers a HEAD with the headers of the
   answer and none of its body* in `http-and-observability.evaluation.test.ts`.
-- **`InitRouterError` is thrown at request time** — `src/routing/router.ts:611, 617, 623`.
-  Operators debugging a 500 see an initialization error for a runtime type mismatch.
+- ~~**`InitRouterError` is thrown at request time**~~ — **FIXED (2026-09-28)**, and it had been
+  recorded as fixed in a working note without being so: `validateResultType` still threw it. A
+  handler returning a kind of value none of its responses declare now raises
+  `UndeclaredResultError`, naming the route (`Controller.method`, or method and path for a route not
+  on a controller) and what it returned against what it declares. `router.test.ts` had a case for
+  this route that asserted only the 500, which is why the wrong error never showed; it now asserts
+  the logged error (red first), and the suite boots on the in-memory data source since routing
+  touches no rows. The original entry: `src/routing/router.ts:611, 617, 623`. Operators debugging a
+  500 see an initialization error for a runtime type mismatch.
 - ~~**`CORRELATION_ID` accepts unvalidated client input**~~ — **FIXED** by M7, which replaced the
   token with `TRACE_CONTEXT`. What a caller sends now has a fixed shape, so it is read through a
   pattern that pins the length, the charset and the number of fields; a header that arrived twice
   takes the first value, because a proxy chain prepends; and anything that does not parse is treated
   as though nothing arrived, which is what the standard asks for. Held by
   `src/tracing/trace-context.utilities.test.ts`.
-- **Build artifacts committed to source** — `src/di/default/temp/`, 382 directories, 5.8 MB, and
+- ~~**Build artifacts committed to source**~~ — **FIXED** (re-checked 2026-09-28): `src/di/default/temp/`
+  no longer exists and nothing under it is tracked. Shipping `src/` is kept on purpose, so that
+  following a framework method lands on what it does; `files` carves test material out with `!`
+  entries. The original entry: `src/di/default/temp/`, 382 directories, 5.8 MB, and
   `files: ["./src", ...]` ships the entire `src/` tree to npm.

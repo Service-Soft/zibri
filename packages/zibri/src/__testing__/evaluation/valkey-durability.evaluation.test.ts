@@ -38,7 +38,7 @@ import { StartedTestServer, startTestServer } from '../test-server/start-test-se
  * by breaking the accepted one. See ./README.md for the convention.
  */
 
-@Entity({ allowOrphan: true })
+@Entity({ tenant: 'shared', allowOrphan: true })
 class ValKeyDoc extends BaseEntity {
     @Property.string({ required: false })
     title: string | undefined | null;
@@ -50,7 +50,7 @@ class ValKeyDoc extends BaseEntity {
 /**
  * The single property form of a unique declaration.
  */
-@Entity({ allowOrphan: true })
+@Entity({ tenant: 'shared', allowOrphan: true })
 class ValKeyAccount extends BaseEntity {
     @Property.string({ unique: true })
     email!: string;
@@ -63,7 +63,7 @@ class ValKeyAccount extends BaseEntity {
  * The multi property form, which is a different declaration rather than the same one repeated: only
  * the combination names at most one row, so either half on its own may repeat.
  */
-@Entity({ allowOrphan: true, uniques: [['tenant', 'name']] })
+@Entity({ tenant: 'shared', allowOrphan: true, uniques: [['tenant', 'name']] })
 class ValKeyProject extends BaseEntity {
     @Property.string()
     tenant!: string;
@@ -177,9 +177,14 @@ describe('evaluation/01-data-layer M17 - a transaction must not apply part of it
     it('renames a property when the migration commits', async () => {
         // a control: it establishes that the rename works, so the red below is about the rollback
         const created: ValKeyDoc = await docRepository.create({ title: 'the original value' });
-        const transaction: Transaction = await dataSource.startTransaction();
+        const transaction: Transaction = dataSource.startTransaction();
 
-        await dataSource.changePropertyOfEntity(ValKeyDoc, 'title', { name: 'heading', type: 'string' }, transaction);
+        await dataSource.changePropertyOfEntity({
+            entity: ValKeyDoc,
+            currentProperty: { name: 'title', type: 'string', required: false },
+            property: { name: 'heading', type: 'string', required: false },
+            transaction
+        });
         await transaction.commit();
 
         const stored: ValKeyDoc = await docRepository.findById(created.id);
@@ -188,9 +193,14 @@ describe('evaluation/01-data-layer M17 - a transaction must not apply part of it
 
     it('keeps the old property when the migration is rolled back', async () => {
         const created: ValKeyDoc = await docRepository.create({ title: 'the original value' });
-        const transaction: Transaction = await dataSource.startTransaction();
+        const transaction: Transaction = dataSource.startTransaction();
 
-        await dataSource.changePropertyOfEntity(ValKeyDoc, 'title', { name: 'heading', type: 'string' }, transaction);
+        await dataSource.changePropertyOfEntity({
+            entity: ValKeyDoc,
+            currentProperty: { name: 'title', type: 'string', required: false },
+            property: { name: 'heading', type: 'string', required: false },
+            transaction
+        });
         await transaction.rollback();
 
         // the write of the new field is buffered and discarded with the rollback, but the removal of
@@ -294,7 +304,8 @@ describe('evaluation/01-data-layer M22 - a unique declaration means the same on 
         // insert has no row yet to carry a version.
         const unlocked: RepositoryRateLimiterStore<BaseRateLimitState> = new RepositoryRateLimiterStore(
             rateLimitRepository,
-            { withLock: async (_key, run) => await run() }
+            { withLock: async (_key, run) => await run() },
+            'unlocked-rate-limits'
         );
         const expiresAtMs: number = Date.now() + 60000;
 

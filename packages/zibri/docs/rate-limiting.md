@@ -60,11 +60,14 @@ Every algorithm class takes an `intervalInMs` (or similar rate-defining argument
 ```ts
 new RepositoryRateLimiterStore<TokenBucketState>(
     inject(repositoryTokenFor(RateLimitStateEntity, CacheDbDataSource)),
-    new ValKeyRateLimiterLock(inject(CacheDbDataSource))
+    new ValKeyRateLimiterLock(inject(CacheDbDataSource)),
+    'TestRateLimiter'
 )
 ```
 
 Add `RateLimitStateEntity` to the `entities` of the data source that should hold the limits. It is marked `allowDuplicate`, so several data sources can hold their own limits — name the one you mean when injecting the repository.
+
+The third argument is the namespace, which keeps the state of each store apart from every other one in the same table — use the name of the limiter. A second store with a namespace that is already taken in the running application is refused.
 
 The second argument is the lock. Reading the state, running the algorithm and writing the result are separate operations, so without a lock two concurrent updates read the same state and one of them is silently lost:
 
@@ -201,6 +204,8 @@ import { inject, RateLimitingServiceInterface, ZIBRI_DI_TOKENS } from 'zibri';
 const rateLimitingService: RateLimitingServiceInterface = inject(ZIBRI_DI_TOKENS.RATE_LIMITING_SERVICE);
 const limiterNames: string[] = rateLimitingService.limiters.map(l => l.config.name);
 ```
+
+A limiter built while the application starts, by a feature only some applications use, is added with `addLimiter`, so the cleanup below reaches it too.
 
 Each limiter also reports metrics (allowed/blocked counts, active keys, active reservations, decision duration, store duration) through the [metrics](./metrics.md) system automatically.
 

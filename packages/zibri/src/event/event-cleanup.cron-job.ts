@@ -28,10 +28,10 @@ export class EventCleanupCronJob extends CronJob {
         this.logger.info('cleans up past events');
 
         try {
-            const removed: number = await this.repository.deleteAll({
-                status: EventStatus.FINISHED,
-                cleanupAt: { before: new Date() }
-            });
+            const removed: number = await this.repository.deleteAll(
+                { status: EventStatus.FINISHED, cleanupAt: { before: new Date() } },
+                { acrossTenants: true }
+            );
             this.logger.info(`removed ${removed} events`);
         }
         catch {

@@ -1,9 +1,11 @@
 import assert from 'node:assert';
 import { Readable } from 'stream';
 
-import { NextFunction, RequestHandler, Router as ExpressRouter } from 'express';
+import { NextFunction, Request, RequestHandler, Response, Router as ExpressRouter } from 'express';
+import { match } from 'path-to-regexp';
 
 import { ControllerRouteConfiguration } from './controller-route-configuration.model';
+import { AcceptCrossSitePostsOptions } from './decorators/accept-cross-site-posts-options.model';
 import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata, PathParamMetadataInput, QueryParamMetadataInput, HeaderParamMetadataInput } from './decorators/param.decorator';
 import { MissingBaseRouteError } from './missing-base-route.error';
 import { createHeaderParamMetadata, createPathParamMetadata, createQueryParamMetadata } from './param-metdata.helpers';
@@ -11,11 +13,13 @@ import { resolveBodyMetadata } from './resolve-body-metadata.function';
 import { resolveRouteParams } from './resolve-route-params.function';
 import { OpenApiRouteConfiguration, RouteConfiguration, RouteConfigurationInput } from './route-configuration.model';
 import { RouterInterface } from './router.interface';
+import { UndeclaredResultError } from './undeclared-result.error';
 import { ZibriApplication } from '../application/application';
 import type { AuthServiceInterface } from '../auth/auth-service.interface';
 import { AlsUtilities } from '../context/als.utilities';
 import { HttpRequestContext } from '../context/request/http-request.context';
 import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../context/request/request-context-token.model';
+import { type WebsocketRequestContext } from '../context/request/websocket-request.context';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
@@ -39,17 +43,23 @@ import { HttpMethod, httpMethodKey } from '../http/http-method.enum';
 import { HttpRequest } from '../http/http-request.model';
 import { HttpResponse } from '../http/http-response.model';
 import { HttpStatus } from '../http/http-status.enum';
+import { JsonMimeType } from '../http/json-mime-type.type';
+import { isJsonResponse } from '../http/json-response.model';
 import { KnownHeader } from '../http/known-header.enum';
 import { MiddlewarePhase } from '../http/middleware-phase.enum';
 import { MimeType } from '../http/mime-type.enum';
+import { isRedirectResponse } from '../http/redirect-response.model';
 import { RequestDeadlineUtilities } from '../http/request-deadline.utilities';
 import { $ts } from '../localization/translate.function';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { EmptyOpenApiResponse, JsonOpenApiResponse, OpenApiResponse } from '../open-api/open-api.model';
+import { resolveResponseClass } from '../open-api/resolve-response-class.function';
 import { FileResponse, isFileResponse } from '../parsing/form-data/file-response.model';
 import { buildCspHeaders, CspOptions, CspSource } from '../parsing/html/csp-options.model';
 import { HtmlResponse, isHtmlResponse } from '../parsing/html/html-response.model';
 import type { ParserInterface } from '../parsing/parser.interface';
+import { type TenantServiceInterface } from '../tenancy/tenant-service.interface';
+import { validateRequestTenant } from '../tenancy/validate-request-tenant.function';
 import { isNewable, Newable } from '../types/newable.type';
 import { JsonUtilities } from '../utilities/json.utilities';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
@@ -66,6 +76,20 @@ import { BodyMetadata, DeclaredBodyInput } from './decorators/body-metadata.mode
  * A declared response whose format is negotiated.
  */
 type NegotiatedOpenApiResponse = JsonOpenApiResponse | EmptyOpenApiResponse;
+
+/**
+ * The format a result is written in.
+ */
+type ResponseFormat = {
+    /**
+     * The type it is written as.
+     */
+    mimeType: JsonMimeType | MimeType.XML,
+    /**
+     * The model it is written as xml with, if the declaration names one.
+     */
+    cls: Newable<unknown> | undefined
+};
 
 /**
  * Handler for a specific route and version.
@@ -94,6 +118,15 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
      */
     private readonly methodRouter: ExpressRouter = ExpressRouter();
     /**
+     * Holds the routes that accept requests with cookies from pages on other origins, so the check
+     * refusing those, which runs before any route, matches a path exactly the way the routes do.
+     */
+    private readonly crossSitePostRouter: ExpressRouter = ExpressRouter();
+    /**
+     * What the route a request matched on the router above accepts, for as long as the request lives.
+     */
+    private readonly acceptedCrossSiteOrigins: WeakMap<Request, string[]> = new WeakMap();
+    /**
      * The paths that already have an entry on the router above, so each one gets exactly one.
      */
     private readonly routesAnsweringAllow: Set<string> = new Set();
@@ -113,11 +146,17 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
         // eslint-disable-next-line jsdoc/require-jsdoc
         finalRoute: string,
         // eslint-disable-next-line jsdoc/require-jsdoc
-        entries: { versions: SupportedVersionsOptions, innerHandler: ControllerInnerHandler }[]
+        entries: { versions: SupportedVersionsOptions, innerHandler: ControllerInnerHandler }[],
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        acceptCrossSitePosts: (AcceptCrossSitePostsOptions | undefined)[]
     }> = new Map();
 
     private get versioningService(): VersioningServiceInterface {
         return inject(ZIBRI_DI_TOKENS.VERSIONING_SERVICE);
+    }
+
+    private get tenantService(): TenantServiceInterface {
+        return inject(ZIBRI_DI_TOKENS.TENANT_SERVICE);
     }
 
     /**
@@ -159,8 +198,83 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
         }
         for (const group of this.pendingRouteGroups.values()) {
             this.answerAllowFor(group.finalRoute);
+            this.registerCrossSitePosts(group.httpMethod, group.finalRoute, group.acceptCrossSitePosts);
         }
         this.initComplete = true;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async resolveAcceptedCrossSiteOrigins(request: Request, response: Response): Promise<string[]> {
+        return await new Promise<string[]>((resolve, reject) => {
+            this.crossSitePostRouter(request, response, (error?: unknown) => {
+                // `'router'` is how a matched route leaves the router once it has answered
+                if (error != undefined && error !== 'router') {
+                    reject(error);
+                    return;
+                }
+                resolve(this.acceptedCrossSiteOrigins.get(request) ?? []);
+            });
+        });
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    findMethods(path: string): HttpMethod[] {
+        // matched the way express matches a request, whose router is built on the same library
+        const matching: HttpMethod[] = [...this.pendingRouteGroups.values()]
+            .filter(group => match(group.finalRoute)(path) !== false)
+            .map(group => group.httpMethod);
+        return Object.values(HttpMethod).filter(m => matching.includes(m));
+    }
+
+    /**
+     * Puts a route that accepts requests with cookies from pages on other origins where the check
+     * refusing those finds it.
+     * @param httpMethod - The method of the route.
+     * @param finalRoute - Its path.
+     * @param declared - What each version of it declared, undefined for one that declared nothing.
+     * @throws When it changes nothing, or its versions do not all declare the same.
+     */
+    private registerCrossSitePosts(
+        httpMethod: HttpMethod,
+        finalRoute: string,
+        declared: (AcceptCrossSitePostsOptions | undefined)[]
+    ): void {
+        const [options] = declared;
+        if (options == undefined && declared.every(d => d == undefined)) {
+            return;
+        }
+        // the check runs before the route, where nothing says yet which version a request is for, so
+        // every version of a route has to accept the same
+        if (options == undefined || declared.some(d => d !== options)) {
+            throw new InitRouterError(
+                `Every version of the route "${httpMethod} ${finalRoute}" has to declare the same @AcceptCrossSitePosts.`
+            );
+        }
+        if (httpMethod === HttpMethod.GET || httpMethod === HttpMethod.HEAD || httpMethod === HttpMethod.OPTIONS) {
+            throw new InitRouterError(
+                `@AcceptCrossSitePosts on "${httpMethod} ${finalRoute}", which changes nothing and is never refused.`
+            );
+        }
+        this.crossSitePostRouter[httpMethodKey(httpMethod)](finalRoute, async (request, _, next) => {
+            try {
+                this.acceptedCrossSiteOrigins.set(request, await this.resolveOrigins(options, request.params));
+            }
+            catch (error) {
+                next(error);
+                return;
+            }
+            next('router');
+        });
+    }
+
+    private async resolveOrigins(options: AcceptCrossSitePostsOptions, pathParams: Request['params']): Promise<string[]> {
+        if (typeof options.acceptedOrigins !== 'function') {
+            return options.acceptedOrigins;
+        }
+        // a wildcard segment arrives as its parts, which are one value of the path to the route
+        return await options.acceptedOrigins(Object.fromEntries(Object.entries(pathParams).map(
+            ([name, value]): [string, string] => [name, Array.isArray(value) ? value.join('/') : value]
+        )));
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -222,6 +336,10 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
             case 'html': {
                 return [MimeType.HTML];
             }
+            case 'redirect': {
+                // no body, so nothing a caller accepts can rule it out
+                return undefined;
+            }
             case 'file': {
                 // a route that will answer with whatever the file turns out to be cannot refuse
                 // anything in advance, and neither can one that did not say
@@ -282,7 +400,7 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
         if (response.type === 'empty') {
             return `empty (${status})`;
         }
-        return `${response.cls?.name ?? 'json'}${response.isArray === true ? '[]' : ''} (${status})`;
+        return `${resolveResponseClass(response)?.name ?? 'json'}${response.isArray === true ? '[]' : ''} (${status})`;
     }
 
     /**
@@ -463,14 +581,17 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
         const innerHandler: ControllerInnerHandler = this.createManualRouteInnerHandler(route);
         // eslint-disable-next-line typescript/typedef
         const existing = this.pendingRouteGroups.get(key);
+        // a route registered here takes no decorators, so it accepts nothing from other origins
         if (existing) {
             existing.entries.push({ versions, innerHandler });
+            existing.acceptCrossSitePosts.push(undefined);
         }
         else {
             this.pendingRouteGroups.set(key, {
                 httpMethod: input.httpMethod,
                 finalRoute: input.route,
-                entries: [{ versions, innerHandler }]
+                entries: [{ versions, innerHandler }],
+                acceptCrossSitePosts: [undefined]
             });
         }
 
@@ -530,7 +651,7 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
                     // eslint-disable-next-line typescript/no-explicit-any
                     async () => await route.handler(context.request as HttpRequest<any, any, any, any>, context.response, next)
                 );
-                await this.returnResult(context.request, context.response, result, next, []);
+                await this.returnResult(context.request, context.response, result, next, [], `${route.httpMethod} ${route.route}`);
             }
             catch (error) {
                 next(error);
@@ -653,15 +774,19 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
             );
             // eslint-disable-next-line typescript/typedef
             const existing = this.pendingRouteGroups.get(key);
+            const acceptCrossSitePosts: AcceptCrossSitePostsOptions | undefined = MetadataUtilities
+                .getRouteAcceptCrossSitePosts(controllerClass, route.controllerMethod);
             if (existing) {
                 existing.entries.push({ versions, innerHandler });
+                existing.acceptCrossSitePosts.push(acceptCrossSitePosts);
                 continue;
             }
 
             this.pendingRouteGroups.set(key, {
                 httpMethod: route.httpMethod,
                 finalRoute,
-                entries: [{ versions, innerHandler }]
+                entries: [{ versions, innerHandler }],
+                acceptCrossSitePosts: [acceptCrossSitePosts]
             });
         }
     }
@@ -705,13 +830,23 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
             const context: HttpRequestContext = new HttpRequestContext(request, res);
             await AlsUtilities.runWithHttpRequestContext(context, async () => {
                 try {
-                    const version: Version = await context.get(ZIBRI_REQUEST_CONTEXT_TOKENS.CURRENT_VERSION);
-                    // eslint-disable-next-line typescript/typedef
-                    const match = entries.find(e => this.versioningService.matchesVersion(e.versions, version));
-                    if (!match) {
-                        throw new NotFoundError($ts`Could not find route "${request.url}" for version "${version.value}"`);
-                    }
-                    await match.innerHandler(context, next);
+                    // around everything the route does, its access checks included: who may call it
+                    // depends on the tenant the request is for
+                    const named: string | undefined = await this.tenantService.resolveTenant(request);
+                    validateRequestTenant(named);
+                    // a credential bound to a tenant says it for a client that cannot, such as an
+                    // identity provider calling with nothing but a url and a token
+                    const tenantId: string | undefined = named ?? await this.authService.resolveCredentialTenant(context);
+                    const dispatch: () => Promise<void> = async () => {
+                        const version: Version = await context.get(ZIBRI_REQUEST_CONTEXT_TOKENS.CURRENT_VERSION);
+                        // eslint-disable-next-line typescript/typedef
+                        const match = entries.find(e => this.versioningService.matchesVersion(e.versions, version));
+                        if (!match) {
+                            throw new NotFoundError($ts`Could not find route "${request.url}" for version "${version.value}"`);
+                        }
+                        await match.innerHandler(context, next);
+                    };
+                    await (tenantId == undefined ? dispatch() : this.tenantService.runAs(tenantId, dispatch));
                 }
                 catch (error) {
                     next(error);
@@ -759,7 +894,14 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
                     // eslint-disable-next-line typescript/no-unsafe-call, typescript/no-explicit-any, typescript/no-unsafe-member-access
                     async (): Promise<unknown> => await ((controller as any)[route.controllerMethod] as Function)(...params)
                 );
-                await this.returnResult(context.request, context.response, result, next, responses);
+                await this.returnResult(
+                    context.request,
+                    context.response,
+                    result,
+                    next,
+                    responses,
+                    `${controllerClass.name}.${route.controllerMethod}`
+                );
             }
             catch (error) {
                 next(error);
@@ -772,9 +914,22 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
         res: HttpResponse,
         result: unknown,
         next: NextFunction,
-        responses: OpenApiResponse[]
+        responses: OpenApiResponse[],
+        route: string
     ): Promise<void> {
         if (res.headersSent) {
+            return;
+        }
+
+        // its headers, and then its body answered like any other. An etag set here is the one express
+        // keeps, and judges an If-None-Match by
+        if (isJsonResponse(result)) {
+            for (const [name, value] of ObjectUtilities.entries(result.headers)) {
+                if (value != undefined) {
+                    res.set(name, value);
+                }
+            }
+            await this.returnResult(req, res, result.body, next, responses, route);
             return;
         }
 
@@ -788,7 +943,7 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
             return;
         }
 
-        this.validateResultType(responses, result);
+        this.validateResultType(responses, result, route);
 
         if (isFileResponse(result)) {
             this.returnFileResult(res, result, next);
@@ -800,20 +955,26 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
             return;
         }
 
-        const cls: Newable<unknown> | undefined = this.resolveXmlClass(req, res, responses, result);
-        if (cls != undefined) {
-            res.type(MimeType.XML).send(await XmlWriterUtilities.write(cls, result));
+        if (isRedirectResponse(result)) {
+            res.setHeader(KnownHeader.LOCATION, result.url);
+            res.end();
+            return;
+        }
+
+        const format: ResponseFormat = this.resolveResponseFormat(req, res, responses, result);
+        if (format.mimeType === MimeType.XML && format.cls != undefined) {
+            res.type(MimeType.XML).send(await XmlWriterUtilities.write(format.cls, result));
             return;
         }
 
         // serialized once and written. res.json would serialize whatever it is handed, so handing it
         // a parsed copy of a string the framework had already produced meant three passes over the
         // whole graph - and the middle one allocated a second copy of it to throw away.
-        res.type(MimeType.JSON).send(JsonUtilities.stringify(result));
+        res.type(format.mimeType === MimeType.XML ? MimeType.JSON : format.mimeType).send(JsonUtilities.stringify(result));
     }
 
     /**
-     * The model a result is written as xml with, when the request is answered with xml.
+     * The format a result is written in.
      *
      * Decided by the declaration that answers for the result, the same one its status comes from, and by
      * the formats that declaration names: the request's `Accept` picks among them, and the first is taken
@@ -822,18 +983,18 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
      * @param res - The response, which is told that it varies by what the request accepts.
      * @param responses - What the route declares it can answer with.
      * @param result - What the handler returned.
-     * @returns The model, or undefined when the result is written as json.
+     * @returns The format, and the model xml is written with. Plain json when nothing names another.
      */
-    private resolveXmlClass(
+    private resolveResponseFormat(
         req: HttpRequest,
         res: HttpResponse,
         responses: OpenApiResponse[],
         result: unknown
-    ): Newable<unknown> | undefined {
+    ): ResponseFormat {
         const candidates: OpenApiResponse[] = responses.filter(r => this.canAnswerWith(r, result));
         const response: OpenApiResponse | undefined = candidates.length === 1 ? candidates[0] : undefined;
-        if (response?.type !== 'json' || response.mimeTypes == undefined || response.cls == undefined) {
-            return undefined;
+        if (response?.type !== 'json' || response.mimeTypes == undefined) {
+            return { mimeType: MimeType.JSON, cls: undefined };
         }
         if (response.mimeTypes.length > 1) {
             // a cache in front of this has to keep the formats apart, or one client gets the other's
@@ -841,8 +1002,10 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
         }
         // the 406 before the handler ran made sure the request accepts one of what the route declares
         const accepted: string | false = req.accepts(response.mimeTypes);
-        const mimeType: MimeType | undefined = accepted === false ? response.mimeTypes[0] : response.mimeTypes.find(m => m === accepted);
-        return mimeType === MimeType.XML ? response.cls : undefined;
+        const mimeType: JsonMimeType | MimeType.XML = response.mimeTypes.find(m => m === accepted)
+            ?? response.mimeTypes[0]
+            ?? MimeType.JSON;
+        return { mimeType, cls: resolveResponseClass(response) };
     }
 
     private returnFileResult(res: HttpResponse, result: FileResponse, next: NextFunction): void {
@@ -851,23 +1014,10 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
         if (result.size != undefined) {
             res.setHeader(KnownHeader.CONTENT_LENGTH, result.size);
         }
-        if (result.csp !== false) {
-            if (result.mimeType === MimeType.SVG) {
-                this.logger.warn('Useless CSP headers found on a file that is not of type svg');
-            }
-            const csp: CspOptions = result.csp === true ? inject(ZIBRI_DI_TOKENS.DEFAULT_CSP_OPTIONS) : result.csp;
-            res.setHeader(KnownHeader.CONTENT_SECURITY_POLICY, buildCspHeaders(csp));
-            const ancestor: CspSource | undefined = csp.frameAncestors.length === 1 ? csp.frameAncestors[0] : undefined;
-            if (ancestor != undefined) {
-                if (ancestor === '\'none\'') {
-                    res.setHeader(KnownHeader.X_FRAME_OPTIONS, 'DENY');
-                }
-                else if (ancestor === '\'self\'') {
-                    // eslint-disable-next-line cspell/spellchecker
-                    res.setHeader(KnownHeader.X_FRAME_OPTIONS, 'SAMEORIGIN');
-                }
-            }
+        if (result.csp !== false && result.mimeType !== MimeType.SVG) {
+            this.logger.warn('Useless CSP headers found on a file that is not of type svg');
         }
+        this.writeCsp(res, result.csp, this.resolveResponseNonce());
 
         // send file from disk
         if (typeof result.data === 'string') {
@@ -883,6 +1033,38 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
             KnownHeader.CONTENT_DISPOSITION,
             KnownHeader.CONTENT_SECURITY_POLICY
         ])).pipe(res);
+    }
+
+    /**
+     * Sets the content security policy a response declares, allowing this response's nonce in
+     * `script-src`.
+     * @param res - The response being written.
+     * @param declared - The policy, true for the application's default, or false for none.
+     * @param nonce - The nonce of this response.
+     */
+    private writeCsp(res: HttpResponse, declared: boolean | CspOptions, nonce: string | undefined): void {
+        if (declared === false) {
+            return;
+        }
+        const csp: CspOptions = declared === true ? inject(ZIBRI_DI_TOKENS.DEFAULT_CSP_OPTIONS) : declared;
+        res.setHeader(KnownHeader.CONTENT_SECURITY_POLICY, buildCspHeaders(csp, nonce));
+        const ancestor: CspSource | undefined = csp.frameAncestors.length === 1 ? csp.frameAncestors[0] : undefined;
+        if (ancestor === '\'none\'') {
+            res.setHeader(KnownHeader.X_FRAME_OPTIONS, 'DENY');
+        }
+        else if (ancestor === '\'self\'') {
+            // eslint-disable-next-line cspell/spellchecker
+            res.setHeader(KnownHeader.X_FRAME_OPTIONS, 'SAMEORIGIN');
+        }
+    }
+
+    /**
+     * Resolves the csp nonce of the response being written.
+     * @returns The nonce, or undefined outside a request.
+     */
+    private resolveResponseNonce(): string | undefined {
+        const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
+        return context?.get(ZIBRI_REQUEST_CONTEXT_TOKENS.NONCE);
     }
 
     /**
@@ -922,23 +1104,18 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
 
     private returnHtmlResult(res: HttpResponse, result: HtmlResponse, next: NextFunction): void {
         res.setHeader(KnownHeader.CONTENT_TYPE, MimeType.HTML);
-        if (result.csp !== false) {
-            const csp: CspOptions = result.csp === true ? inject(ZIBRI_DI_TOKENS.DEFAULT_CSP_OPTIONS) : result.csp;
-            res.setHeader(KnownHeader.CONTENT_SECURITY_POLICY, buildCspHeaders(csp));
-            const ancestor: CspSource | undefined = csp.frameAncestors.length === 1 ? csp.frameAncestors[0] : undefined;
-            if (ancestor != undefined) {
-                if (ancestor === '\'none\'') {
-                    res.setHeader(KnownHeader.X_FRAME_OPTIONS, 'DENY');
-                }
-                else if (ancestor === '\'self\'') {
-                    // eslint-disable-next-line cspell/spellchecker
-                    res.setHeader(KnownHeader.X_FRAME_OPTIONS, 'SAMEORIGIN');
-                }
-            }
-        }
+        const nonce: string | undefined = this.resolveResponseNonce();
+        this.writeCsp(res, result.csp, nonce);
         // send html as string
         if (typeof result.data === 'string') {
-            res.type('.html').send(result.data);
+            // a nonce is only worth something while nobody could have seen it before, and html that
+            // outlived the request it was rendered in - a cached page - carries that request's. So
+            // its tags are given this response's, the one the header above allows. A stream is
+            // written by the request that created it, so its tags already carry the right one
+            const html: string = result.nonce != undefined && nonce != undefined && result.nonce !== nonce
+                ? result.data.replaceAll(`nonce="${result.nonce}"`, `nonce="${nonce}"`)
+                : result.data;
+            res.type('.html').send(html);
             return;
         }
         // send html as stream
@@ -962,9 +1139,10 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
         // an instance of a declared class picks that declaration outright, which is what tells the
         // two successful outcomes of a rate limited route apart - the reserved one is a class of its
         // own, while a normal handler usually returns a plain object matching nothing exactly
-        const exact: OpenApiResponse[] = responses.filter(
-            r => r.type === 'json' && r.isArray !== true && r.cls != undefined && result instanceof r.cls
-        );
+        const exact: OpenApiResponse[] = responses.filter(r => {
+            const cls: Newable<unknown> | undefined = r.type === 'json' && r.isArray !== true ? resolveResponseClass(r) : undefined;
+            return cls != undefined && result instanceof cls;
+        });
         const exactMatch: OpenApiResponse | undefined = exact.length === 1 ? exact[0] : undefined;
         if (exactMatch != undefined) {
             return exactMatch.status;
@@ -1003,6 +1181,9 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
             case 'html': {
                 return isHtmlResponse(result);
             }
+            case 'redirect': {
+                return isRedirectResponse(result);
+            }
             case 'empty': {
                 // describes nothing being returned, and only that
                 return result == undefined;
@@ -1016,26 +1197,37 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
         }
     }
 
-    private validateResultType(responses: OpenApiResponse[], result: {}): void {
+    // a request-time failure, so not an InitRouterError: that one reads as the application failing to
+    // start, and whoever debugs this 500 needs the route and what it returned instead
+    private validateResultType(responses: OpenApiResponse[], result: {}, route: string): void {
         // what a returned value is checked against: an empty response never describes one, and neither
         // does an error response
         const bodies: OpenApiResponse[] = responses.filter(r => r.type !== 'error' && r.type !== 'empty');
         if (bodies.some(r => r.type === 'json') // all responses with a body are json responses
             && bodies.length === bodies.filter(r => r.type === 'json').length
-            && (isFileResponse(result) || isHtmlResponse(result))) {
-            throw new InitRouterError('Invalid return value, json cannot be FileResponse or HtmlResponse');
+            && (isFileResponse(result) || isHtmlResponse(result) || isRedirectResponse(result))) {
+            const returned: string = isFileResponse(result)
+                ? 'a FileResponse'
+                : isHtmlResponse(result) ? 'an HtmlResponse' : 'a RedirectResponse';
+            throw new UndeclaredResultError(route, `returned ${returned}, but declares only json responses`);
+        }
+
+        if (bodies.some(r => r.type === 'redirect') // all responses with a body are redirects
+            && bodies.length === bodies.filter(r => r.type === 'redirect').length
+            && !isRedirectResponse(result)) {
+            throw new UndeclaredResultError(route, 'declares only redirect responses, but did not return a RedirectResponse');
         }
 
         if (bodies.some(r => r.type === 'file') // all responses with a body are file responses
             && bodies.length === bodies.filter(r => r.type === 'file').length
             && !isFileResponse(result)) {
-            throw new InitRouterError('Invalid return value, needs to be a FileResponse');
+            throw new UndeclaredResultError(route, 'declares only file responses, but did not return a FileResponse');
         }
 
         if (bodies.some(r => r.type === 'html') // all responses with a body are html responses
             && bodies.length === bodies.filter(r => r.type === 'html').length
             && !isHtmlResponse(result)) {
-            throw new InitRouterError('Invalid return value, needs to be a HtmlResponse');
+            throw new UndeclaredResultError(route, 'declares only html responses, but did not return an HtmlResponse');
         }
     }
 }

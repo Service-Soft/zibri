@@ -11,7 +11,7 @@ A durable pub/sub system for decoupling parts of your app. Unlike a plain event 
 | `Event` | entity | Persisted record of an emitted event |
 | `EventSubscriberRun` | entity | Persisted ledger of one subscriber's attempts at one event: where it stands, how many it has spent, and what the last one failed with |
 | `EventSubscriberRunStatus` | enum | `PENDING_RETRY`, `SUCCEEDED` or `FAILED` — where a subscriber stands with an event |
-| `EventSubscriberRegistration` | entity | Which subscribers exist across the deployment. Must be registered in a data source |
+| `EventSubscriberRegistration` | entity | Which subscribers exist across the deployment |
 | `EventCleanupCronJob` | class | Cron job that deletes `FINISHED` events past their `cleanupAt`, and leaves `FAILED` ones alone |
 | `EventProcessingError` | error | Logged when a subscriber's hook fails after exhausting all attempts |
 | `ZIBRI_DI_TOKENS.EVENT_SERVICE` | DI token | Injects `EventServiceInterface` |
@@ -73,6 +73,8 @@ export async function announceUser(eventService: EventServiceInterface, userId: 
 `emit` persists the event together with the ids of every subscriber currently registered for it, then pushes it onto the internal RxJS subject. Subscribers registered *after* the event was emitted will not receive it.
 <br>
 An optional third argument, `cleanupAfterMs`, controls how long after creation a finished event is kept before `EventCleanupCronJob` deletes it. Defaults to one day (`Ms.DAY`).
+<br>
+An event emitted in a [tenant](./tenancy.md#work-outside-a-request) belongs to it, and every hook runs in that tenant, whichever instance picks the event up.
 
 ### Unsubscribing
 Both `subscribe` and `subscribeAll` resolve to an `EventSubscriptionInterface`:

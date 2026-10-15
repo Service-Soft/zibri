@@ -2,21 +2,25 @@ name: CD
 on:
     pull_request:
         types: [closed]
-        branches: [release]
+        # `release-<major>` is where a fix for an older major would be released from, the day one is
+        branches: [release, 'release-*']
 
 permissions:
     id-token: write  # Required for OIDC
-    contents: read
+    contents: write   # to tag the released commit and create its GitHub release
     pages: write      # to deploy to Pages
 
 jobs:
     deploy:
         if: github.event.pull_request.merged
         runs-on: ubuntu-latest
+        outputs:
+            dist_tag: ${{ steps.version.outputs.dist_tag }}
         steps:
+            # the merge itself rather than the branch, which may have moved on by the time this runs
             - uses: actions/checkout@v4
               with:
-                ref: release
+                ref: ${{ github.event.pull_request.merge_commit_sha }}
             - uses: actions/setup-node@v4
               with:
                 node-version: '24'
@@ -32,6 +36,8 @@ jobs:
             # half of a release that did go out is one consumers can install and cannot resolve.
             # `zi new` installs zibri and zibri-testing at the cli's own version, so one left behind
             # is a release where every generated project fails to install.
+            # and the npm tag it goes out under: `latest` for the newest release, `latest-<major>` for
+            # a fix to an older one, `next` for a prerelease
             - name: read the version this release publishes
               id: version
               run: node .github/scripts/release-version.mjs >> "$GITHUB_OUTPUT"
@@ -43,6 +49,20 @@ jobs:
                     exit 1
                   fi
                 done
+            # the tag and the release are made after the publishes, so what could stop them has to be
+            # asked here: an existing tag would leave four published packages with no release beside them
+            - name: refuse a version that already has a tag
+              run: |
+                if git ls-remote --exit-code --tags origin "refs/tags/v${{ steps.version.outputs.version }}" > /dev/null; then
+                  echo "the tag v${{ steps.version.outputs.version }} already exists"
+                  exit 1
+                fi
+            - name: refuse a release without notes
+              run: node .github/scripts/release-notes.mjs "${{ steps.version.outputs.version }}" > "$RUNNER_TEMP/release-notes.md"
+            # asked again here rather than trusted from the branch's last push: an advisory is published
+            # against code that did not change, and this is the last moment it can still stop the release
+            - name: refuse a release whose consumer tree breaks the license policy or carries a high advisory
+              run: node .github/scripts/check-consumer-tree.mjs
 
             # every build before any publish: a build failing after a publish is the likeliest way
             # to lose a release halfway, and ordering alone removes it.
@@ -55,27 +75,43 @@ jobs:
 
             # and a rehearsal of each, because npm refuses a package for reasons a build never
             # sees - a file the packer cannot read, a name this account may not publish under
-            - run: npm publish -w zibri-tsx --provenance --dry-run
-            - run: npm publish -w zibri --provenance --dry-run
-            - run: npm publish -w zibri-testing --provenance --dry-run
-            - run: npm publish -w zibri-cli --provenance --dry-run
+            - run: npm publish -w zibri-tsx --provenance --tag "${{ steps.version.outputs.dist_tag }}" --dry-run
+            - run: npm publish -w zibri --provenance --tag "${{ steps.version.outputs.dist_tag }}" --dry-run
+            - run: npm publish -w zibri-testing --provenance --tag "${{ steps.version.outputs.dist_tag }}" --dry-run
+            - run: npm publish -w zibri-cli --provenance --tag "${{ steps.version.outputs.dist_tag }}" --dry-run
 
             # --provenance on each publish, because `id-token: write` above is granted for it. Asking
             # for the permission and never producing the attestation left consumers with no
             # supply-chain provenance while the setup implied there was some.
-            - run: npm publish -w zibri-tsx --provenance
-            - run: npm publish -w zibri --provenance
-            - run: npm publish -w zibri-testing --provenance
-            - run: npm publish -w zibri-cli --provenance
+            - run: npm publish -w zibri-tsx --provenance --tag "${{ steps.version.outputs.dist_tag }}"
+            - run: npm publish -w zibri --provenance --tag "${{ steps.version.outputs.dist_tag }}"
+            - run: npm publish -w zibri-testing --provenance --tag "${{ steps.version.outputs.dist_tag }}"
+            - run: npm publish -w zibri-cli --provenance --tag "${{ steps.version.outputs.dist_tag }}"
 
+            # last, because a tag says a version exists - on the commit that produced it, with the
+            # notes written for it. Marked latest only when npm's `latest` is this release too.
+            - name: tag the release
+              env:
+                GH_TOKEN: ${{ github.token }}
+              run: |
+                gh release create "v${{ steps.version.outputs.version }}" \
+                  --target "$(git rev-parse HEAD)" \
+                  --title "v${{ steps.version.outputs.version }}" \
+                  --notes-file "$RUNNER_TEMP/release-notes.md" \
+                  --latest=${{ steps.version.outputs.dist_tag == 'latest' }} \
+                  --prerelease=${{ steps.version.outputs.dist_tag == 'next' }}
+
+    # the site documents the newest release: one from an older major, or a prerelease, would replace
+    # it with pages that no longer match what `npm install` gets
     updateDocs:
-        if: github.event.pull_request.merged
+        needs: deploy
+        if: needs.deploy.outputs.dist_tag == 'latest'
         # Grant GITHUB_TOKEN the permissions required to make a Pages deployment
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
               with:
-                ref: release
+                ref: ${{ github.event.pull_request.merge_commit_sha }}
             - uses: actions/setup-node@v4
               with:
                 node-version: '24'

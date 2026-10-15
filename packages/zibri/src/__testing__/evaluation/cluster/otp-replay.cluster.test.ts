@@ -10,6 +10,7 @@ import { OTP_PERIOD_IN_SECONDS } from '../../../auth/2fa/methods/otp/otp.utiliti
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../di/inject.function';
 import { FsUtilities } from '../../../utilities/fs.utilities';
+import { JsonUtilities } from '../../../utilities/json.utilities';
 
 /**
  * Executable form of evaluation/03-auth-and-security.md C3, the half that only more than one replica
@@ -66,7 +67,7 @@ async function login(instance: ClusterInstance, email: string): Promise<string> 
     const res: Response = await fetch(`${instance.baseUrl}/auth/login`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email, password: otpUserPassword })
+        body: JsonUtilities.stringify({ email, password: otpUserPassword })
     });
     expect(res.status).toBe(200);
     const data: { accessToken: { value: string } } = await res.json() as { accessToken: { value: string } };
@@ -173,14 +174,18 @@ describe('evaluation/03-auth-and-security C3 - otp replay across replicas', () =
             presentCode(second, accessToken, code)
         ]);
 
+        // the loser is refused one of two ways, and both mean the code was accepted once. Codes for
+        // one user are checked one at a time across replicas, so a presentation arriving while the
+        // other is still being checked is answered 429 without being looked at; one arriving just
+        // after finds the code spent and is answered 401. Which of the two is down to timing
         expect(statuses.filter(s => s === 204)).toHaveLength(1);
-        expect(statuses.filter(s => s === 401)).toHaveLength(1);
+        expect(statuses.filter(s => s === 401 || s === 429)).toHaveLength(1);
 
         // one of each is also what a replica that refuses *everything* produces, so the refusal has
         // to be shown to be about the code rather than about the replica. The one that lost gets an
-        // unspent code, and accepting it is what says the 401 above was the claim being taken
-        // elsewhere.
-        const refused: ClusterInstance = statuses[0] === 401 ? first : second;
+        // unspent code, and accepting it is what says the refusal above was the other replica
+        // having the code first.
+        const refused: ClusterInstance = statuses[0] === 204 ? second : first;
         const control: OtpRegistration = await enroll(first, 'simultaneous-control');
         const controlToken: string = await login(first, otpUserEmail('simultaneous-control'));
 

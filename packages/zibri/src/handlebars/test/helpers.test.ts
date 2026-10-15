@@ -29,4 +29,13 @@ describe('the helpers registered for handlebar templates', () => {
             expect(HandlebarUtilities.renderTemplateString('{{#if (and a b)}}yes{{/if}}', { a: 'x', b: true })).toBe('yes');
         });
     });
+
+    describe('mask', () => {
+        it('escapes what it keeps of the value', () => {
+            // a value of three characters or fewer is kept whole, and a longer one keeps its first and its
+            // last two, so `<b>` or a value ending in `<i` would open a tag in the mail
+            expect(HandlebarUtilities.renderTemplateString('{{mask value}}', { value: '<b>' })).toBe('&lt;b&gt;');
+            expect(HandlebarUtilities.renderTemplateString('{{mask value}}', { value: 'secret<i' })).not.toContain('<');
+        });
+    });
 });

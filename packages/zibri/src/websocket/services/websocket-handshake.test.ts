@@ -85,8 +85,9 @@ describe('WebsocketService handshake', () => {
             providers: [
                 ...defaultTestServerProviders,
                 defineProvider({
-                    token: ZIBRI_DI_TOKENS.WEBSOCKET_OPTIONS,
+                    token: ZIBRI_DI_TOKENS.WEBSOCKET_OPTIONS_INPUT,
                     useFactory: () => ({
+                        messageRetentionInMs: Ms.DAY,
                         timeoutInMs: Ms.SECOND * 5,
                         handlerInMs: Ms.SECOND * 30,
                         isAllowedToConnect: () => {

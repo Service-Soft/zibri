@@ -1,6 +1,7 @@
-import { AesGcmEncryptionStrategy, defineDateFormat, defineProvider, DiProvider, EmailConfigInput, JwtAuthOptionsInput, LoggerTransport, LogLevel, SmtpEmailTransport, ZIBRI_DI_TOKENS, ZIBRI_INVOICING_PLUGIN_DI_TOKENS, ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from 'zibri';
+import { AesGcmEncryptionStrategy, CompanyInfo, defineDateFormat, defineProvider, DiProvider, EmailConfigInput, inject, JwtAuthOptionsInput, LoggerTransport, LogLevel, Ms, Repository, repositoryTokenFor, SmtpEmailTransport, ZIBRI_DI_TOKENS, ZIBRI_INVOICING_PLUGIN_DI_TOKENS, ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from 'zibri';
 
 import { optionalEnv, requireEnv } from './env';
+import { Company } from './models';
 import { MailingListBaseEmail } from './templates/email-components/mailing-list-base-email';
 import { MailingListSubscribeConfirmationEmail } from './templates/emails/mailing-list-subscribe-confirmation';
 import { PasswordResetEmail } from './templates/emails/password-reset';
@@ -35,7 +36,7 @@ export const providers: DiProvider<unknown>[] = [
     defineProvider({
         token: ZIBRI_DI_TOKENS.JWT_AUTH_OPTIONS_INPUT,
         useFactory: (): JwtAuthOptionsInput => ({
-            accessTokenSecret: requireEnv('JWT_ACCESS_SECRET'),
+            accessTokenKey: requireEnv('JWT_ACCESS_SECRET'),
             refreshTokenSecret: requireEnv('JWT_REFRESH_SECRET')
         })
     }),
@@ -84,10 +85,12 @@ export const providers: DiProvider<unknown>[] = [
         useFactory: () => SubscribeSuccessPage
     }),
     defineProvider({
-        token: ZIBRI_INVOICING_PLUGIN_DI_TOKENS.OPTIONS_INPUT,
-        useFactory: () => {
-            return {
-                companyInfo: {
+        token: ZIBRI_INVOICING_PLUGIN_DI_TOKENS.COMPANY_INFO_SERVICE,
+        useValue: {
+            // each tenant is a company, so an invoice is issued by the company it was written in
+            resolveCompanyInfo: async (tenantId: string): Promise<CompanyInfo> => {
+                const company: Company = await inject<Repository<Company>>(repositoryTokenFor(Company)).findById(tenantId);
+                return {
                     address: {
                         street: '',
                         number: '',
@@ -95,12 +98,12 @@ export const providers: DiProvider<unknown>[] = [
                         city: '',
                         countryId: ''
                     },
-                    name: '',
-                    fullName: '',
+                    name: company.name,
+                    fullName: company.name,
                     email: '',
                     phone: ''
-                }
-            };
+                };
+            }
         }
     }),
     defineProvider({
@@ -122,5 +125,10 @@ export const providers: DiProvider<unknown>[] = [
                 // }
             }
         }
+    }),
+    defineProvider({
+        token: ZIBRI_DI_TOKENS.WEBSOCKET_OPTIONS_INPUT,
+        // how long a client may be away and still be sent what it missed
+        useValue: { messageRetentionInMs: Ms.DAY }
     })
 ];

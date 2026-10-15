@@ -23,7 +23,9 @@ and the linter disagree, the linter wins and this file is wrong; open an issue.
 # The linter decides most of it
 
 Casing, import order, line length, member ordering and required JSDoc are all rules, not prose.
-Run `npm run lint -w <package>` before you open a pull request.
+Run `npm run lint -w <package>` and `npm run typecheck -w <package>` before you open a pull request.
+The typecheck is the only thing that checks the tests' types: the builds leave tests out, and jest
+only transpiles them.
 
 **Warnings are errors.** Every package runs `eslint --max-warnings=0`, so there is no such thing as a
 warning you can leave behind.
@@ -86,6 +88,15 @@ follow the same idea for their own kinds.
 exports. Put the entry points first and the steps they are built from below as `private static`. A
 standalone `.function.ts` is for something that genuinely belongs to no group — and when a second one
 appears next to it, they become a class.
+
+**A service is a provider behind an interface.** A service the framework ships comes with an
+`XServiceInterface`, and a `ZIBRI_DI_TOKENS` token whose default provider is the class. Everything
+reaches it through the token, never by its class, so an application can replace it.
+
+**Setup at boot goes in `onAppInit`.** Implement `OnAppInit`, and the application calls it while it
+starts; no `init` method that some other class has to remember to call. A default provider with the
+hook is built in every application, so `onAppInit` first finds out whether the application uses the
+feature at all (`TwoFactorService` reads `twoFactorMethods`), and checks nothing when it does not.
 
 **Extend an existing helper rather than adding a sibling.** Search `src/utilities/` and
 `src/__testing__/` for the concept, and read the matching page in `packages/zibri/docs/`, before you
@@ -181,6 +192,7 @@ that is never red is not a suite that is passing. Leave it red and report it.
 | `test:normal` | Everything except the below |
 | `test:evaluation` | `*.evaluation.test.ts`, red by design while their findings are open |
 | `test:cluster` | `*.cluster.test.ts`, in band |
+| `test:benchmark` | `*.benchmark.test.ts`, in band: timings reported against `src/__testing__/benchmark/baseline.json`, never failing |
 | `test:heavy` | Long-running suites, in band |
 
 **Most suites need a container runtime.** `startTestServer()` starts Postgres and ValKey through

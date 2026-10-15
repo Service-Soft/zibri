@@ -6,6 +6,8 @@ import path from 'node:path';
 
 import { describe, expect, it } from '@jest/globals';
 
+import { JsonUtilities } from '../utilities/json.utilities';
+
 /**
  * What a consumer receives, checked against the built package rather than against `src`.
  *
@@ -50,10 +52,7 @@ function packed(): PackedTarball {
         encoding: 'utf8',
         stdio: ['ignore', 'pipe', 'ignore']
     });
-    const parsed: { files: { path: string }[], unpackedSize: number }[] = JSON.parse(output) as {
-        files: { path: string }[],
-        unpackedSize: number
-    }[];
+    const parsed: { files: { path: string }[], unpackedSize: number }[] = JsonUtilities.parse(output);
     // `npm pack --json` reports one entry per tarball, and one tarball was asked for
     const [packed] = parsed;
     assert(packed, 'npm pack reported no tarball');
@@ -75,7 +74,7 @@ function inConsumerProcess<T>(script: string): T {
         encoding: 'utf8',
         stdio: ['ignore', 'pipe', 'pipe']
     });
-    return JSON.parse(output) as T;
+    return JsonUtilities.parse(output);
 }
 
 describe('the published package', () => {
@@ -107,9 +106,9 @@ describe('the published package', () => {
     });
 
     it('builds into an empty directory', () => {
-        const pkg: { scripts?: Record<string, string> } = JSON.parse(
+        const pkg: { scripts?: Record<string, string> } = JsonUtilities.parse(
             readFileSync(path.join(packageDir, 'package.json'), 'utf8')
-        ) as { scripts?: Record<string, string> };
+        );
 
         // `tsc` overwrites what it emits and removes nothing else, while `files` ships the
         // directory rather than the build's output - so every file any earlier build left behind
@@ -129,6 +128,7 @@ describe('the published package', () => {
         // inert here, and each was measured saying so.
         const testMaterial: string[] = files.filter(f => f.includes('__testing__')
             || f.endsWith('.test.ts')
+            || f.endsWith('.cases.ts')
             || f.includes('.test.worker.')
             || f.includes('/test/'));
 
@@ -138,9 +138,20 @@ describe('the published package', () => {
     it('installs at a size a consumer would accept', () => {
         const megabytes: number = packed().unpackedSize / 1024 / 1024;
 
-        // `dist` is 6.5MB and the sources behind it 3.7MB, so anything much past that is something
-        // with no business in a tarball. The number this was written against is 50MB.
-        expect(megabytes).toBeLessThan(15);
+        // `dist` is 7.6MB and the sources behind it 4.5MB, 12.1 all told, and the ceiling sits just above
+        // that: growing past it is a reason to look at what grew, which once found test cases, fonts
+        // twice over and comments in code that runs. The number this was first written against is 50MB.
+        expect(megabytes).toBeLessThan(13);
+    });
+
+    it('ships its comments once in the sources and the declarations, not in the code that runs', () => {
+        const code: string = readFileSync(path.join(packageDir, 'dist', 'cjs', 'application', 'application.js'), 'utf8');
+        const declarations: string = readFileSync(path.join(packageDir, 'dist', 'cjs', 'application', 'application.d.ts'), 'utf8');
+
+        // a third of the JavaScript was comments, which nothing reads: an editor shows the JSDoc of
+        // the declarations, and a source map leads to the sources
+        expect(code).not.toContain('/**');
+        expect(declarations).toContain('/**');
     });
 
     it('advertises no entry point that the build does not produce', () => {

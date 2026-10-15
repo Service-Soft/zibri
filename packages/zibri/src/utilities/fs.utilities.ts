@@ -1,5 +1,6 @@
+import { randomBytes } from 'node:crypto';
 import { createReadStream, createWriteStream, Dirent, existsSync, readFileSync, ReadStream, Stats, WriteStream } from 'node:fs';
-import { access, writeFile, mkdir, readFile, readdir, rm, rename, stat, glob } from 'node:fs/promises';
+import { access, writeFile, mkdir, readFile, readdir, rm, rmdir, rename, stat, glob, link } from 'node:fs/promises';
 import path from 'node:path';
 
 import { InternalError } from '../error-handling/internal-error.model';
@@ -54,10 +55,14 @@ export abstract class FsUtilities {
      * Creates a new read stream on the file at the given path.
      * @param path - The path to read from.
      * @param options - Additional streaming options.
-     * @returns The newly created read stream.
+     * @returns The newly created read stream, handing out the file's bytes unless the options name an
+     * encoding.
      */
     static createReadStream(path: FsPath, options?: Exclude<Parameters<typeof createReadStream>[1], BufferEncoding>): ReadStream {
-        return createReadStream(path, { encoding: 'utf8', ...options });
+        // no encoding by default: this used to decode as utf8, which changes any file that is not
+        // text - a served image, an encrypted backup - and a text file too wherever a character
+        // spans the end of one ranged read and the start of the next
+        return createReadStream(path, options);
     }
 
     /**
@@ -212,15 +217,77 @@ export abstract class FsUtilities {
      * @param recursive - Whether or not to recursively create the file. Defaults to true.
      */
     static async createFile(p: FsPath, data: string | string[], recursive: boolean = true): Promise<void> {
-        if (await this.exists(p)) {
+        if (!await this.createFileIfAbsent(p, data, recursive)) {
             throw new InternalError(`File at ${p} already exists. Did you mean to call "updateFile"?`);
         }
-        data = this.normalizeData(data);
+    }
+
+    /**
+     * Creates a file at the given path, unless there is one already.
+     *
+     * Whole or not at all: when several processes create the same file at once, exactly one of them does,
+     * and nothing reads the file before all of its data is in it.
+     * @param p - The path of the new file to create.
+     * @param data - The data to write into the file. Can be a raw data string or an array of lines, which are joined by \n.
+     * @param recursive - Whether or not to recursively create the file. Defaults to true.
+     * @returns Whether the file was created, false when it existed.
+     */
+    static async createFileIfAbsent(p: FsPath, data: string | string[], recursive: boolean = true): Promise<boolean> {
         const parentDir: FsPath = path.dirname(p) as FsPath;
         if (recursive && !await this.exists(parentDir)) {
             await this.mkdir(parentDir, true);
         }
-        await writeFile(p, data);
+        // written beside it and linked into place: a link fails when the name is taken, and the name
+        // appears with the whole file behind it. Checking first and writing after let two processes
+        // both see no file, and let a third read one that was half written
+        const temporary: string = `${p}.${randomBytes(6).toString('hex')}.tmp`;
+        await writeFile(temporary, this.normalizeData(data));
+        try {
+            await link(temporary, p);
+            return true;
+        }
+        catch (error) {
+            if (this.hasErrorCode(error, 'EEXIST')) {
+                return false;
+            }
+            if (!this.hasErrorCode(error, 'EPERM', 'ENOTSUP', 'EOPNOTSUPP')) {
+                throw error;
+            }
+            // a file system without links, eg. FAT or some network mounts: still exclusive, though a
+            // reader can see the file before it is complete
+            return await this.writeExclusively(p, data);
+        }
+        finally {
+            await rm(temporary, { force: true });
+        }
+    }
+
+    private static async writeExclusively(p: FsPath, data: string | string[]): Promise<boolean> {
+        try {
+            await writeFile(p, this.normalizeData(data), { flag: 'wx' });
+            return true;
+        }
+        catch (error) {
+            if (this.hasErrorCode(error, 'EEXIST')) {
+                return false;
+            }
+            throw error;
+        }
+    }
+
+    /**
+     * Whether an error node raised carries one of the given codes.
+     * @param error - The error.
+     * @param codes - The codes.
+     * @returns True when it carries one of them.
+     */
+    private static hasErrorCode(error: unknown, ...codes: string[]): boolean {
+        // by shape rather than with instanceof: an error node itself raises can come from another realm
+        return typeof error === 'object'
+            && error != undefined
+            && 'code' in error
+            && typeof error.code === 'string'
+            && codes.includes(error.code);
     }
 
     private static normalizeData(data: string | string[]): string {
@@ -323,6 +390,24 @@ export abstract class FsUtilities {
             return;
         }
         await rm(path, { recursive, force: true });
+    }
+
+    /**
+     * Removes a directory if it is empty. Nothing happens when it holds anything or does not exist.
+     * @param path - The path of the directory to remove.
+     */
+    static async rmIfEmpty(path: FsPath): Promise<void> {
+        try {
+            // one call rather than a check followed by a removal, so that something added or removed in
+            // between cannot make the answer wrong
+            await rmdir(path);
+        }
+        catch (error) {
+            if (this.hasErrorCode(error, 'ENOTEMPTY', 'ENOENT')) {
+                return;
+            }
+            throw error;
+        }
     }
 
     /**

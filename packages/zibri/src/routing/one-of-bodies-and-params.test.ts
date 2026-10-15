@@ -1,7 +1,7 @@
 import assert from 'assert';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
-import { createInMemoryDataSource, StartedTestServer, startTestServer } from 'zibri-testing';
+import { createInMemoryDataSource } from 'zibri-testing';
 
 import { Body } from './decorators/body.decorator';
 import { Controller } from './decorators/controller.decorator';
@@ -9,6 +9,8 @@ import { Get } from './decorators/get.decorator';
 import { Param } from './decorators/param.decorator';
 import { Post } from './decorators/post.decorator';
 import { RouterInterface } from './router.interface';
+import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { Property } from '../entity/decorators/property.decorator';
@@ -16,10 +18,12 @@ import { HttpMethod } from '../http/http-method.enum';
 import { MimeType } from '../http/mime-type.enum';
 import { HttpClientResponse } from '../http-client/http-client-response.model';
 import { HttpClientInterface } from '../http-client/http-client.interface';
+import { Response as ZibriResponse } from '../open-api/decorators/response.decorator';
 import { OpenApiDefinition, OpenApiOperation, OpenApiParameter, OpenApiReferenceObject, OpenApiSchemaObject } from '../open-api/open-api.model';
 import { File } from '../parsing/form-data/file.model';
 import { FormData as ZibriFormData } from '../parsing/form-data/form-data.model';
 import { JsonBodyParser } from '../parsing/json/json.body-parser';
+import { JsonUtilities } from '../utilities/json.utilities';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { ValidationProblem } from '../validation/validation-problem.model';
 import { ValidationService } from '../validation/validation.service';
@@ -151,6 +155,18 @@ class ShapesController {
         return body;
     }
 
+    // names a class declared below this one, the way two files importing each other do: it exists
+    // once the module has loaded, not yet while the decorator runs
+    @ZibriResponse.object(() => DeclaredLater)
+    @ZibriResponse.object(Invite)
+    @Post('/declared-later')
+    declaredLater(
+        @Body.oneOf({ shapes: [{ type: 'object', cls: () => DeclaredLater }, { type: 'object', cls: () => Invite }], maxSize: '1kb' })
+        body: DeclaredLater | Invite
+    ): DeclaredLater | Invite {
+        return body;
+    }
+
     @Post('/upload')
     async upload(
         @Body.oneOf({
@@ -197,6 +213,11 @@ class ShapesController {
     }
 }
 
+class DeclaredLater {
+    @Property.string()
+    note!: string;
+}
+
 class WebsocketHandlers {
     handle(
         @WebsocketBody.oneOf({ shapes: [{ type: 'object', cls: () => Signup }, { type: 'object', cls: () => Invite }] })
@@ -224,7 +245,7 @@ describe('bodies and parameters that take one of several shapes', () => {
     beforeAll(async () => {
         server = await startTestServer({
             controllers: [ShapesController],
-            dataSources: [createInMemoryDataSource()],
+            dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities })],
             version: '1.0.0'
         });
         baseUrl = await server.start();
@@ -244,7 +265,7 @@ describe('bodies and parameters that take one of several shapes', () => {
         return await fetch(`${baseUrl}${path}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: body === undefined ? undefined : JSON.stringify(body)
+            body: body === undefined ? undefined : JsonUtilities.stringify(body)
         });
     }
 
@@ -309,6 +330,16 @@ describe('bodies and parameters that take one of several shapes', () => {
             const res: Response = await postJson('/shapes/sized', { middle: { inner: { label: 'x'.repeat(1500) } } });
 
             expect(res.status).toBe(413);
+        });
+
+        it('takes a shape whose class is declared after the route, within the size it was given', async () => {
+            const res: Response = await postJson('/shapes/declared-later', { note: 'hello' });
+            expect(res.status).toBe(200);
+            await expect(res.json()).resolves.toEqual({ note: 'hello' });
+            const invite: Response = await postJson('/shapes/declared-later', { code: 'x', expiresAt: '2026-03-01T10:00:00.000Z' });
+            await expect(invite.json()).resolves.toEqual({ code: 'x', expiresAt: '2026-03-01T10:00:00.000Z' });
+
+            await expect(postJson('/shapes/declared-later', { note: 'x'.repeat(1500) }).then(r => r.status)).resolves.toBe(413);
         });
 
         it('reports an unknown key two classes deep under its whole path, alongside the other problems', async () => {
@@ -521,6 +552,22 @@ describe('bodies and parameters that take one of several shapes', () => {
             expect(bodySchema(op('/shapes/list', 'post'))).toEqual(expect.objectContaining({
                 type: 'array',
                 items: expect.objectContaining({ type: 'object', properties: expect.objectContaining({ email: expect.anything() }) })
+            }));
+        });
+
+        it('describes responses of one status as oneOf, also one whose class is declared after the route', () => {
+            const ok: unknown = op('/shapes/declared-later', 'post').responses?.['default'];
+            expect(ok).toEqual(expect.objectContaining({
+                content: {
+                    [MimeType.JSON]: {
+                        schema: {
+                            oneOf: [
+                                expect.objectContaining({ properties: expect.objectContaining({ code: expect.anything() }) }),
+                                expect.objectContaining({ properties: { note: expect.anything() } })
+                            ]
+                        }
+                    }
+                }
             }));
         });
 

@@ -20,9 +20,13 @@ export type ResolvedAuthMetadata = {
      */
     isNotLoggedIn: IsNotLoggedInMetadata | undefined,
     /**
-     * The resolved \@Auth.hasRole metadata, if the route requires a role.
+     * The resolved \@Auth.hasRole metadata, if the route requires a role in the request's tenant.
      */
     hasRole: HasRoleMetadata | undefined,
+    /**
+     * The resolved \@Auth.hasPlatformRole metadata, if the route requires a role of the user's own.
+     */
+    hasPlatformRole: HasRoleMetadata | undefined,
     /**
      * The resolved \@Auth.require2fa metadata, if the route requires a second factor.
      */

@@ -8,7 +8,7 @@ import { Sha256HashStrategy } from '../hash/strategies/sha256.hash-strategy';
 /**
  * A short lived token used to confirm a password reset.
  */
-@Entity({ allowOrphan: true })
+@Entity({ tenant: 'shared', allowOrphan: true })
 export class PasswordResetToken extends BaseEntity {
     /**
      * The expiration date of the password reset token.

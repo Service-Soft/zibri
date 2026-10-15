@@ -23,10 +23,16 @@ type OmitValues = typeof omitValues[number];
 /**
  * Contains information about an invoice.
  */
-@Entity()
+@Entity({ allowOrphan: true })
 export class ThreadJobEntity<WorkerData extends BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>, ResultType>
     extends BaseEntity
     implements OmitStrict<ThreadJob<WorkerData, ResultType>, OmitValues> {
+
+    /**
+     * The tenant the job was queued in, or null for one queued outside every tenant.
+     */
+    @Property.string({ format: 'uuid', required: false })
+    tenantId?: string | null;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     @Property.number()

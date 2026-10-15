@@ -55,6 +55,20 @@ Every property is required unless it says otherwise. These are the kinds a prope
 | `@Property.manyToMany` | Entities related to this one through a join table |
 
 The relation decorators connect [entities](./data-source.md#defining-entities) to each other.
+Each names its `target` and the `inverseSide`, the property of the target pointing back. The target
+declares that property with `@Property`, or the application refuses to start and names the relation.
+
+A string's `format` is one of:
+
+| `format` | Holds |
+|---|---|
+| `'uuid'` | A uuid |
+| `'email'` | An email address |
+| `'phone'` | A phone number in international format, eg. `+4915112345678` |
+
+A `regex` takes time linear to the value it checks, and needs the `re2` package. It cannot use
+lookarounds or backreferences: a `regex` with one is refused while the application starts, naming the
+property. The same goes for a `regex` on a parameter.
 
 ### What kind of number a property holds
 

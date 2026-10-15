@@ -9,7 +9,13 @@ import { Property } from '../../../entity/decorators/property.decorator';
 @Entity({ allowOrphan: true })
 export class MailingList extends BaseEntity {
     /**
-     * The name of the mailing list.
+     * The tenant the mailing list belongs to.
+     */
+    @Property.string({ format: 'uuid' })
+    tenantId!: string;
+
+    /**
+     * The name of the mailing list, unique among the lists of its tenant.
      */
     @Property.string({ unique: true })
     name!: string;

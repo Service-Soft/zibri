@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
-import { createInMemoryDataSource, InMemoryDataSource, StartedTestServer, startTestServer } from 'zibri-testing';
+import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
 import { EncryptionKey, EncryptionKeyStatus } from './encryption-key.model';
 import { EncryptionService } from './encryption.service';
@@ -7,6 +7,7 @@ import { EncryptionString } from './encryption.utilities';
 import { AesGcmEncryptionStrategy } from './strategies/aes-gcm.encryption-strategy';
 import { EncryptionStrategyEntity } from './strategies/encryption-strategy-entity.model';
 import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';

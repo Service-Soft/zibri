@@ -25,6 +25,6 @@ export class LogCleanupCronJob extends CronJob {
     // eslint-disable-next-line jsdoc/require-jsdoc
     async onTick(): Promise<void> {
         this.logger.info('cleans up expired logs');
-        await this.logRepository.deleteAll({ cleanupAt: { before: new Date() } });
+        await this.logRepository.deleteAll({ cleanupAt: { before: new Date() } }, { acrossTenants: true });
     }
 }

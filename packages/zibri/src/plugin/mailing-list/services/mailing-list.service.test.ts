@@ -5,12 +5,17 @@ import { MailingListService } from './mailing-list.service';
 import { compileTsxTemplate } from '../../../__testing__/compile-tsx-template.function';
 import { createTestDataSource, defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../__testing__/test-server/providers';
+import { startAndStopTestServerWithout } from '../../../__testing__/test-server/start-and-stop-test-server-without.function';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../../data-source/repository/repository';
+import { NoActiveTenantError } from '../../../data-source/tenancy/no-active-tenant.error';
 import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../di/inject.function';
 import { defineProvider } from '../../../di/models/di-provider.model';
 import { Email } from '../../../email/models/email.model';
+import { type TenantServiceInterface } from '../../../tenancy/tenant-service.interface';
+import { UUIDUtilities } from '../../../utilities/uuid.utilities';
 import { ZibriMailingListPlugin } from '../mailing-list.plugin';
 import { ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from '../mailing-list.tokens';
 import { MailingListBaseEmailTemplate } from '../models/mailing-list-base-email-template.model';
@@ -26,6 +31,41 @@ const subscribeConfirmationEmailTemplate: MailingListSubscribeConfirmationEmailT
     = compileTsxTemplate<MailingListSubscribeConfirmationEmailTemplate>(
         'export const Email = ({ confirmEmailLink }) => <a href={confirmEmailLink}></a>;'
     );
+
+/**
+ * The tenant the mailing lists of the tests belong to.
+ */
+const TENANT: string = UUIDUtilities.generate();
+
+/**
+ * Runs the given work in the tenant of the tests.
+ * @param fn - The work.
+ * @returns What the work answered.
+ */
+async function inTenant<T>(fn: () => Promise<T>): Promise<T> {
+    return await inject<TenantServiceInterface>(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(TENANT, fn);
+}
+
+// first, for the reason on startAndStopTestServerWithout
+describe('ZibriMailingListPlugin — starting', () => {
+    it('refuses to start without its entities, and names them', async () => {
+        const start: Promise<void> = startAndStopTestServerWithout([], {
+            plugins: [new ZibriMailingListPlugin()],
+            providers: [
+                ...defaultTestServerProviders,
+                defineProvider({ token: ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS.BASE_EMAIL_TEMPLATE, useValue: baseEmailTemplate }),
+                defineProvider({
+                    token: ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS.SUBSCRIBE_CONFIRMATION_EMAIL_TEMPLATE,
+                    useValue: subscribeConfirmationEmailTemplate
+                })
+            ]
+        });
+
+        await expect(start).rejects.toThrow(
+            /Error initializing ZibriMailingListPlugin[\S\s]*- MailingList\n[\S\s]*- MailingListSubscriber\n[\S\s]*- MailingListSubscriptionConfirmationToken/
+        );
+    }, 30000);
+});
 
 describe('MailingListService', () => {
     let server: StartedTestServer;
@@ -67,16 +107,23 @@ describe('MailingListService', () => {
         return mailingListRepository.create({ name, subscribers: [] });
     }
 
-    describe('getSubscribeConfirmationLink / getUnsubscribeLink / getManagePreferencesLink', () => {
-        it('builds the expected urls', () => {
-            expect(service.getSubscribeConfirmationLink('list1', 'tok')).toBe('http://localhost:3000/mailing-lists/list1/subscribe/tok');
-            expect(service.getUnsubscribeLink('list1', 'sub1')).toBe('http://localhost:3000/mailing-lists/list1/unsubscribe?subscriberId=sub1');
-            expect(service.getManagePreferencesLink('sub1')).toBe('http://localhost:3000/mailing-lists/preferences?subscriberId=sub1');
+    describe('resolveSubscribeConfirmationLink / resolveUnsubscribeLink / resolveManagePreferencesLink', () => {
+        it('builds the expected urls, naming the tenant', async () => await inTenant(async () => {
+            expect(await service.resolveSubscribeConfirmationLink('list1', 'tok'))
+                .toBe(`http://localhost:3000/mailing-lists/list1/subscribe/tok?x-tenant-id=${TENANT}`);
+            expect(await service.resolveUnsubscribeLink('list1', 'sub1'))
+                .toBe(`http://localhost:3000/mailing-lists/list1/unsubscribe?subscriberId=sub1&x-tenant-id=${TENANT}`);
+            expect(await service.resolveManagePreferencesLink('sub1'))
+                .toBe(`http://localhost:3000/mailing-lists/preferences?subscriberId=sub1&x-tenant-id=${TENANT}`);
+        }));
+
+        it('refuses to build one outside every tenant, which the mailing lists belong to', async () => {
+            await expect(service.resolveManagePreferencesLink('sub1')).rejects.toThrow(NoActiveTenantError);
         });
     });
 
     describe('requestSubscribeToList', () => {
-        it('creates a confirmation token and queues a confirmation email for a brand new subscriber', async () => {
+        it('creates a confirmation token and queues a confirmation email for a brand new subscriber', async () => await inTenant(async () => {
             const list: MailingList = await createMailingList('list-new-subscriber');
             const email: string = 'new-subscriber@example.com';
 
@@ -96,9 +143,9 @@ describe('MailingListService', () => {
 
             const subscribers: MailingListSubscriber[] = await subscriberRepository.findAll({ where: { email } });
             expect(subscribers.length).toBe(0);
-        });
+        }));
 
-        it('directly attaches the mailing list when the subscriber already exists, without a new confirmation step', async () => {
+        it('directly attaches the mailing list when the subscriber already exists, without a new confirmation step', async () => await inTenant(async () => {
             const listA: MailingList = await createMailingList('list-existing-a');
             const listB: MailingList = await createMailingList('list-existing-b');
             const email: string = 'existing-subscriber@example.com';
@@ -112,7 +159,7 @@ describe('MailingListService', () => {
 
             const tokens: MailingListSubscriptionConfirmationToken[] = await confirmationTokenRepository.findAll({ where: { email } });
             expect(tokens.length).toBe(0);
-        });
+        }));
     });
 
     describe('confirmSubscribeToList', () => {
@@ -126,7 +173,7 @@ describe('MailingListService', () => {
             });
         }
 
-        it('creates a new subscriber when none exists yet', async () => {
+        it('creates a new subscriber when none exists yet', async () => await inTenant(async () => {
             const list: MailingList = await createMailingList('confirm-new');
             const email: string = 'confirm-new@example.com';
             const token: MailingListSubscriptionConfirmationToken = await createToken(list.id, email);
@@ -136,9 +183,9 @@ describe('MailingListService', () => {
             expect(subscriber.email).toBe(email);
             const persisted: MailingListSubscriber = await subscriberRepository.findById(subscriber.id, { relations: ['mailingLists'] });
             expect(persisted.mailingLists.map(l => l.id)).toEqual([list.id]);
-        });
+        }));
 
-        it('attaches the list to an already existing subscriber', async () => {
+        it('attaches the list to an already existing subscriber', async () => await inTenant(async () => {
             const listA: MailingList = await createMailingList('confirm-existing-a');
             const listB: MailingList = await createMailingList('confirm-existing-b');
             const email: string = 'confirm-existing@example.com';
@@ -150,9 +197,9 @@ describe('MailingListService', () => {
             expect(result.id).toBe(subscriber.id);
             const persisted: MailingListSubscriber = await subscriberRepository.findById(subscriber.id, { relations: ['mailingLists'] });
             expect(persisted.mailingLists.map(l => l.id).sort()).toEqual([listA.id, listB.id].sort());
-        });
+        }));
 
-        it('is idempotent when the subscriber is already subscribed to the list', async () => {
+        it('is idempotent when the subscriber is already subscribed to the list', async () => await inTenant(async () => {
             const list: MailingList = await createMailingList('confirm-idempotent');
             const email: string = 'confirm-idempotent@example.com';
             const subscriber: MailingListSubscriber = await subscriberRepository.create({ email, mailingLists: [list] });
@@ -163,11 +210,11 @@ describe('MailingListService', () => {
             expect(result.id).toBe(subscriber.id);
             const persisted: MailingListSubscriber = await subscriberRepository.findById(subscriber.id, { relations: ['mailingLists'] });
             expect(persisted.mailingLists.map(l => l.id)).toEqual([list.id]);
-        });
+        }));
     });
 
     describe('unsubscribeFromList', () => {
-        it('removes the mailing list from the subscriber', async () => {
+        it('removes the mailing list from the subscriber', async () => await inTenant(async () => {
             const list: MailingList = await createMailingList('unsubscribe-list');
             const subscriber: MailingListSubscriber = await subscriberRepository.create({
                 email: 'unsub@example.com',
@@ -178,9 +225,9 @@ describe('MailingListService', () => {
 
             const persisted: MailingListSubscriber = await subscriberRepository.findById(subscriber.id, { relations: ['mailingLists'] });
             expect(persisted.mailingLists).toEqual([]);
-        });
+        }));
 
-        it('is idempotent when the subscriber is not subscribed to the list', async () => {
+        it('is idempotent when the subscriber is not subscribed to the list', async () => await inTenant(async () => {
             const list: MailingList = await createMailingList('unsubscribe-noop-list');
             const subscriber: MailingListSubscriber = await subscriberRepository.create({
                 email: 'unsub-noop@example.com',
@@ -191,24 +238,32 @@ describe('MailingListService', () => {
 
             const persisted: MailingListSubscriber = await subscriberRepository.findById(subscriber.id, { relations: ['mailingLists'] });
             expect(persisted.mailingLists).toEqual([]);
-        });
+        }));
     });
 
     describe('queueEmailForList', () => {
-        it('queues one email per subscriber of the list', async () => {
+        it('queues one email per subscriber of the list', async () => await inTenant(async () => {
             const list: MailingList = await createMailingList('queue-email-list');
             const subscriberA: MailingListSubscriber = await subscriberRepository.create({ email: 'queue-a@example.com', mailingLists: [list] });
             const subscriberB: MailingListSubscriber = await subscriberRepository.create({ email: 'queue-b@example.com', mailingLists: [list] });
+            const unsubscribeLinks: string[] = [];
 
             await service.queueEmailForList(list.id, {
                 subject: 'Newsletter',
                 template: 'Hello {{name}}',
-                compile: (template, data) => `${template} - ${data.subscriber.email}`
+                compile: (template, data) => {
+                    unsubscribeLinks.push(data.unsubscribeLink);
+                    return `${template} - ${data.subscriber.email}`;
+                }
             });
 
             const emails: Email[] = await emailRepository.findAll({ where: { subject: 'Newsletter' } });
             const recipients: string[] = emails.flatMap(e => e.recipients).sort();
             expect(recipients).toEqual([subscriberA.email, subscriberB.email].sort());
-        });
+            // the links of each subscriber, naming the tenant, ready for the template
+            expect(unsubscribeLinks).toContain(
+                `http://localhost:3000/mailing-lists/${list.id}/unsubscribe?subscriberId=${subscriberA.id}&x-tenant-id=${TENANT}`
+            );
+        }));
     });
 });

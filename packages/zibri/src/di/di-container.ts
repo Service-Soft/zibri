@@ -12,7 +12,12 @@ import { NoProviderError } from './errors/no-provider.error';
 import { OutsideRequestScopeError } from './errors/outside-request-scope.error';
 import { UninjectableParameterError } from './errors/uninjectable-parameter.error';
 import { UnresolvedAsyncProviderError } from './errors/unresolved-async-provider.error';
-import { declaresLifecycleHook } from '../global/declares-lifecycle-hook.function';
+import { implementsAfterAppInit } from '../global/after-app-init.interface';
+import { implementsAfterAppStart } from '../global/after-app-start.interface';
+import { implementsBeforeAppInit } from '../global/before-app-init.interface';
+import { LifecyclePhase } from '../global/lifecycle-phase.enum';
+import { implementsOnAppInit } from '../global/on-app-init.interface';
+import { implementsOnAppStart } from '../global/on-app-start.interface';
 import { DiProvider } from './models/di-provider.model';
 import { DiToken, tokenName } from './models/di-token.model';
 import { DiVariant } from './models/di-variant.model';
@@ -26,6 +31,20 @@ class InvalidProviderError extends InternalError {
         this.name = 'InvalidProviderError';
     }
 }
+
+/**
+ * The constructor a class is built with, and how many parameters it takes.
+ */
+type ConstructorArity = {
+    /**
+     * How many parameters the constructor declares.
+     */
+    count: number,
+    /**
+     * The class declaring the constructor: the class itself, or the ancestor it inherits it from.
+     */
+    declaredOn: Function
+};
 
 /**
  * The types that `design:paramtypes` carries when it carries no class.
@@ -260,18 +279,31 @@ export class DiContainer {
     }
 
     /**
-     * Whether the given class declares lifecycle hooks the application has already gone past.
+     * Whether the given class declares a lifecycle hook whose phase the application has already
+     * finished.
      *
-     * Only while an application is up: outside one there is no lifecycle to have missed, so a class
-     * built by a test or a script is built like any other.
+     * By phase rather than by the application's state. Initializing is several phases, and a class
+     * first built in the middle of them - by another class's constructor, or by a hook reaching for
+     * it - still takes part in every phase that has not finished, because each phase picks up what
+     * was built while it ran. Keyed on being initialized, such a class was built without the phases
+     * it had missed and without being told; and a class declaring only a shutdown hook was refused
+     * after startup, though shutdown reaches everything that exists by then.
+     *
+     * Outside an application no phase has finished, so a class built by a test or a script is built
+     * like any other.
      * @param declaredClass - The class about to be constructed.
-     * @returns True when building it now would skip hooks it declares.
+     * @returns True when building it now would skip a hook it declares.
      */
     private isPastItsLifecycle(declaredClass: Newable<unknown>): boolean {
-        if (!GlobalRegistry.isAppInitialized() && !GlobalRegistry.isAppStarted()) {
-            return false;
-        }
-        return declaresLifecycleHook(declaredClass.prototype);
+        const prototype: unknown = declaredClass.prototype;
+        const declares: Record<LifecyclePhase, boolean> = {
+            [LifecyclePhase.BEFORE_APP_INIT]: implementsBeforeAppInit(prototype),
+            [LifecyclePhase.ON_APP_INIT]: implementsOnAppInit(prototype),
+            [LifecyclePhase.AFTER_APP_INIT]: implementsAfterAppInit(prototype),
+            [LifecyclePhase.ON_APP_START]: implementsOnAppStart(prototype),
+            [LifecyclePhase.AFTER_APP_START]: implementsAfterAppStart(prototype)
+        };
+        return ObjectUtilities.entries(declares).some(([phase, declared]) => declared && GlobalRegistry.isLifecyclePhaseFinished(phase));
     }
 
     /**
@@ -418,7 +450,7 @@ export class DiContainer {
         if (provider?.useClass == undefined) {
             return [];
         }
-        return this.parameterTokensOf(provider.useClass, provider.useClass.length);
+        return this.parameterTokensOf(provider.useClass);
     }
 
     /**
@@ -505,15 +537,15 @@ export class DiContainer {
      * metadata made every parameter of such a class disappear - the class was then constructed with
      * no arguments at all, and the first method to use one of them failed somewhere else entirely.
      * A constructor that gives a parameter a default is counted short by this, which only ever means
-     * fewer refusals; one that is inherited rather than declared reports none of its own.
-     * @param provide - The class or factory whose parameters to read.
-     * @param declaredParameterCount - How many parameters it takes, for a class that declares them.
+     * fewer refusals; one that is inherited is counted where it is declared.
+     * @param provide - The class whose parameters to read.
      * @returns The token for each parameter, in order.
      * @throws An {@link UninjectableParameterError} for a parameter whose type nothing recorded.
      */
-    private parameterTokensOf(provide: Function, declaredParameterCount: number): DiToken<unknown>[] {
+    private parameterTokensOf(provide: Function): DiToken<unknown>[] {
         const explicitTokens: Record<number, DiToken<unknown>> = MetadataUtilities.getInjectParamTokens(provide);
         const paramTypes: unknown[] = MetadataUtilities.getParamTypes(provide);
+        const { count: declaredParameterCount, declaredOn }: ConstructorArity = this.resolveConstructorArity(provide);
 
         // compute max number of parameters to resolve
         const highestExplicitIndex: number = ObjectUtilities.keys(explicitTokens).reduce((acc, k) => {
@@ -538,6 +570,7 @@ export class DiContainer {
                     provide,
                     idx,
                     declaredType as Function | undefined,
+                    declaredOn,
                     this.targetsOfConstructing()
                 );
             }
@@ -547,28 +580,49 @@ export class DiContainer {
         return tokens;
     }
 
+    /**
+     * Finds the constructor a class is built with, and how many parameters it takes.
+     *
+     * A class declaring no constructor of its own runs the one it inherits, and reports an arity of
+     * 0 for it - so read off the class alone, a subclass of a parent nothing records anything about
+     * was built with no arguments, and the parent's constructor received undefined for everything it
+     * asked for. That happens under every toolchain: a build recording types records them only for a
+     * decorated class. Hence the walk to the nearest ancestor declaring parameters.
+     *
+     * Recorded parameter types stop the walk as well, because they are written for the constructor a
+     * class declares itself: a decorated subclass declaring `constructor()` takes nothing, whatever its
+     * parent takes. A build recording no types cannot tell that subclass from one inheriting its
+     * constructor, and refuses it: a refusal names the class, where building it would hand the parent
+     * undefined without a word.
+     * @param cls - The class.
+     * @returns The constructor's arity and the class declaring it.
+     */
+    private resolveConstructorArity(cls: Function): ConstructorArity {
+        let current: unknown = cls;
+        while (typeof current === 'function' && current !== Function.prototype) {
+            if (current.length > 0 || MetadataUtilities.findOwnParamTypes(current) != undefined) {
+                return { count: current.length, declaredOn: current };
+            }
+            current = Object.getPrototypeOf(current);
+        }
+        return { count: 0, declaredOn: cls };
+    }
+
     private createInstanceFromProvider<T>(provider: DiProvider<T>): T {
         if ('useValue' in provider) {
             return provider.useValue as T;
         }
 
-        const provide: Newable<T> | ((...deps: unknown[]) => T) | T | undefined = provider.useClass
-            ?? provider.useFactory;
-
-        if (provide == undefined) {
-            throw new InvalidProviderError(provider.token.toString());
-        }
-
-        // a class has to have every parameter filled, and a sync factory declares none - its type
-        // says `deps?: never`, and what it needs it reaches for with `inject()` from inside its body
-        const deps: unknown[] = this.parameterTokensOf(provide as Function, provider.useClass?.length ?? 0)
-            .map(t => this.inject(t));
-
         if (provider.useClass) {
+            // a class has to have every parameter filled
+            const deps: unknown[] = this.parameterTokensOf(provider.useClass)
+                .map(t => this.inject(t));
             return new provider.useClass(...deps);
         }
+        // a sync factory takes nothing - its type refuses a parameter, and what it needs it reaches
+        // for with `inject()` from inside its body
         if (provider.useFactory != undefined) {
-            return provider.useFactory(...deps);
+            return provider.useFactory();
         }
 
         throw new InvalidProviderError((provider as DiProvider<T>).token.toString());

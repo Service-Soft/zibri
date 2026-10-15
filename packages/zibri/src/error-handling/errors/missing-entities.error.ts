@@ -17,7 +17,7 @@ export class MissingEntitiesError extends InternalError {
         messages.push(
             'Did you forget to add them to your data source entities array?\n',
 
-            `If you don\'t want to use "${context}" you can also provide an undefined value for the injection token of "${context}".`
+            `If you don\'t want to use "${context}" you can also provide a variant of it that does not need these entities.`
         );
         super(messages, options);
         this.name = 'MissingEntitiesError';

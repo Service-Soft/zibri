@@ -2,18 +2,23 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { PeppolConformanceService } from './peppol-conformance.service';
 import { testFileFolder } from '../../../../../__testing__/constants';
+import { companyInfoProvider } from '../../../../../__testing__/mocks/company-info-provider.function';
 import { createTestDataSource, defaultTestServerEntities } from '../../../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../../../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../../../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../../../../di/decorators/inject-repository.decorator';
+import { ZIBRI_DI_TOKENS } from '../../../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../../../di/inject.function';
 import { defineProvider } from '../../../../../di/models/di-provider.model';
+import { type TenantServiceInterface } from '../../../../../tenancy/tenant-service.interface';
 import { OmitStrict } from '../../../../../types/omit-strict.type';
 import { FsUtilities } from '../../../../../utilities/fs.utilities';
 import { Ms } from '../../../../../utilities/ms';
+import { UUIDUtilities } from '../../../../../utilities/uuid.utilities';
 import { ZibriInvoicingPlugin } from '../../../invoicing.plugin';
 import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../../../invoicing.tokens';
+import { CompanyInfo } from '../../../models/company-info.model';
 import { Invoice } from '../../../models/invoice.model';
 import { InvoicingOptions } from '../../../models/invoicing-options.model';
 import { NumberInvoices } from '../../../models/number-invoices.model';
@@ -21,7 +26,6 @@ import { NumberInvoices } from '../../../models/number-invoices.model';
 const invoicingOptions: InvoicingOptions = {
     footerFontSize: 10,
     images: undefined,
-    logo: undefined,
     phoneLabel: 'Phone',
     emailLabel: 'E-Mail',
     headline: 'Invoice',
@@ -50,24 +54,25 @@ const invoicingOptions: InvoicingOptions = {
     numberOfDigits: 4,
     separator: '-',
     numberCompanyAbbreviationCharacters: 6,
-    numberPrivateCustomerAbbreviationCharacters: 3,
-    companyInfo: {
-        name: 'Example Company',
-        fullName: 'Example Company LLC',
-        email: 'info@example-company.com',
-        phone: '12345 67890123',
-        address: {
-            street: 'Example street',
-            number: '1b',
-            postcode: '12345',
-            city: 'Example city',
-            countryId: 'DE'
-        },
-        taxNumber: '123/456/78910',
-        ceo: 'James Smith',
-        iban: 'DE75 5121 0800 1245 1261 99',
-        bic: 'ABCD5F'
+    numberPrivateCustomerAbbreviationCharacters: 3
+};
+
+const companyInfo: CompanyInfo = {
+    name: 'Example Company',
+    fullName: 'Example Company LLC',
+    email: 'info@example-company.com',
+    phone: '12345 67890123',
+    address: {
+        street: 'Example street',
+        number: '1b',
+        postcode: '12345',
+        city: 'Example city',
+        countryId: 'DE'
     },
+    taxNumber: '123/456/78910',
+    ceo: 'James Smith',
+    iban: 'DE75 5121 0800 1245 1261 99',
+    bic: 'ABCD5F',
     bankName: 'Example Bank',
     taxOffice: 'Tax Office Example City'
 };
@@ -75,7 +80,7 @@ const invoicingOptions: InvoicingOptions = {
 let conformanceService: PeppolConformanceService;
 
 let server: StartedTestServer;
-let repo: Repository<Invoice, OmitStrict<Invoice, 'id'>>;
+let repo: Repository<Invoice, OmitStrict<Invoice, 'id' | 'tenantId'>>;
 
 describe('generateXml', () => {
     beforeAll(async () => {
@@ -85,7 +90,8 @@ describe('generateXml', () => {
             dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Invoice, NumberInvoices] })],
             providers: [
                 ...defaultTestServerProviders,
-                defineProvider({ token: ZIBRI_INVOICING_PLUGIN_DI_TOKENS.OPTIONS_INPUT, useValue: invoicingOptions })
+                defineProvider({ token: ZIBRI_INVOICING_PLUGIN_DI_TOKENS.OPTIONS_INPUT, useValue: invoicingOptions }),
+                companyInfoProvider(() => companyInfo)
             ]
         });
         repo = inject(repositoryTokenFor(Invoice));
@@ -97,7 +103,8 @@ describe('generateXml', () => {
     }, 15000);
 
     it('should create the expected result', async () => {
-        const invoice: Invoice = await repo.create({
+        const tenants: TenantServiceInterface = inject(ZIBRI_DI_TOKENS.TENANT_SERVICE);
+        const invoice: Invoice = await tenants.runAs(UUIDUtilities.generate(), async () => await repo.create({
             // eslint-disable-next-line cspell/spellchecker
             number: `${new Date().getFullYear()}-GREATC-0001`,
             currency: 'EUR',
@@ -135,7 +142,7 @@ describe('generateXml', () => {
             },
             textBeforeItems: [''],
             textAfterItems: ['Unless otherwise stated, the date of delivery/service corresponds to the date of invoice.']
-        });
+        }));
 
         const xmlString: string = await conformanceService.generateXml(invoice, 'UTC');
         await FsUtilities.upsertFile(FsUtilities.getPath(testFileFolder, 'peppol.xml'), xmlString);

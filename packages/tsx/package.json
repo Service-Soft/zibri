@@ -65,12 +65,12 @@
     },
     "devDependencies": {
         "@jest/globals": "^30.4.1",
-        "@types/node": "^22.19.17",
-        "eslint": "^9.24.0",
+        "@types/node": "^24.0.0",
+        "eslint": "^9.36.0",
         "eslint-config-service-soft": "^2.1.6",
         "jest": "^30.4.2",
         "mjml": "^5.4.0",
         "ts-jest": "^29.4.11",
-        "typescript": "^5.8.3"
+        "typescript": "^5.9.2"
     }
 }

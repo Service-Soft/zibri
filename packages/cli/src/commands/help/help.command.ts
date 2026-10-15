@@ -12,7 +12,7 @@ export class HelpCommand extends BaseCommand {
         console.log(ChalkUtilities.boldUnderline('Commands:'));
         console.log(this.getCommandLabel(Command.HELP, Command.H), 'opens this help-page');
         console.log(this.getCommandLabel(Command.VERSION, Command.V), 'shows the currently used version');
-        console.log(this.getCommandLabel(Command.NEW, Command.N), 'creates a new Zibri application');
+        console.log(this.getCommandLabel(Command.NEW, Command.N), 'creates a new Zibri application, as "new [name] [github|none]"');
     }
 
     private getCommandLabel(command: Command, shortForm: Command): string {

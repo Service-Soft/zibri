@@ -4,7 +4,7 @@ Caching in Zibri is based on first creating a cache class and then using that cl
 ## Key exports
 | Export | Kind | Purpose |
 |---|---|---|
-| `CacheInvalidation` | entity | How instances tell each other about an invalidation. Must be registered in a data source |
+| `CacheInvalidation` | entity | How instances tell each other about an invalidation |
 | `ZIBRI_DI_TOKENS.CACHE_INVALIDATION_RETENTION_IN_MS` | DI token | How long those rows are kept. Defaults to one minute |
 | `Cache` | decorator | Registers a class as a cache |
 | `Cached` | decorator | Reads from (and fills) a cache around a method |
@@ -16,6 +16,7 @@ Caching in Zibri is based on first creating a cache class and then using that cl
 | `InMemoryCacheStore` | class | In-memory cache store implementation |
 | `ValKeyCacheStore` | class | Cache store shared by every instance of an app |
 | `CacheExpiryCleanupCronJob` | cron job | Gives back the room values whose time to live has run out were holding. Registered for you |
+| `cacheKeyOf` | function | The value a store keys an entry by, holding the active tenant |
 | `CacheServiceInterface` | interface | Service tracking the registered caches |
 | `ZIBRI_DI_TOKENS.CACHE_SERVICE` | DI token | Injects `CacheServiceInterface` |
 | `ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT` | DI token | Injects the current request context, usable eg. for cache keys |
@@ -86,6 +87,9 @@ import { BaseEntity, BigNumber, Entity, Property, SelfDescribing } from 'zibri';
 
 @Entity()
 export class Invoice extends BaseEntity implements SelfDescribing {
+    @Property.string({ format: 'uuid' })
+    tenantId!: string;
+
     @Property.string({ exclude: true })
     readonly className: 'Invoice' = 'Invoice';
 
@@ -139,6 +143,13 @@ order.
 Array order is kept, because it carries meaning: a key holding `['name', 'createdAt']` is a different
 key from one holding `['createdAt', 'name']`, so a cached sort is never served for another one.
 
+A key holds the [tenant](./tenancy.md#work-outside-a-request) active while it is used, so each tenant
+reads and fills its own entries under the same key. A tag invalidates its entries in every tenant.
+To invalidate the entries of one tenant only, put the tenant id in the tag.
+
+A store of your own keys each entry by what `cacheKeyOf(key)` returns, which is how both stores Zibri
+ships compare keys.
+
 #### One call per key at a time
 
 When several callers miss the same key at once, the first one runs the method and the rest wait for
@@ -187,8 +198,6 @@ Invalidating a tag takes effect on **every** instance, not just the one that han
 That matters most for the arrangement multi-tier exists for: a fast in-memory L1 over a shared `ValKeyCacheStore` L2. Invalidating clears the L2 for everybody, but each instance's L1 is in its own memory and no store choice changes that — being local is what L1 *is*. Without a way to tell the other instances, they would keep answering with the old value for the full TTL: a permissions change that does not take effect, a price that stays wrong on two pods out of three.
 
 So `invalidateTags` does two things: it clears this instance's caches immediately, then records a `CacheInvalidation` row that every other instance picks up and applies to its own.
-
-**`CacheInvalidation` must be registered in a data source** whenever your app has any cache, the same as any other entity. If it is missing, startup fails with a `MissingEntitiesError` naming it.
 
 Two consequences worth knowing:
 

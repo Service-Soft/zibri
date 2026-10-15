@@ -40,19 +40,13 @@ export function getDefaultBeforeSaveHook<
         // on every operation, delete included: an excluded property is a non-enumerable getter on a
         // loaded entity, and the driver has to see it to remove the row and hand it back
         restoreExcludeProperties(data, cls);
-        if (operation === SaveOperation.CREATE) {
-            await setDefaultValues(data, cls);
-        }
-        // on a delete too, and that is not redundant: the row was loaded through a find, so
-        // beforeReturn already decrypted it, and the delete result goes through beforeReturn once
-        // more on the way out. Putting the encryption back is what keeps that second pass balanced.
-        await encryptEncryptionProperties(data, cls, inject(ZIBRI_DI_TOKENS.ENCRYPTION_SERVICE));
-
         if (operation === SaveOperation.DELETE) {
-            // hashing is where the symmetry stops. There is no read half to undo it, so what was
-            // loaded is *already* a hash - running it again replaces the only value that could ever
-            // have verified the password, and cannot be undone. Harmless while the row is being
-            // removed, and never right.
+            // the row was loaded through a find, so it arrives decrypted and its password already a
+            // hash - and nothing about it is written, since every store deletes by id. Encrypting it
+            // again only bought the pass handing it back something to decrypt, two key operations per
+            // value on a row about to stop existing; that pass now leaves it as it is. Hashing has no
+            // read half at all, so running it would replace the only value that could have verified
+            // the password.
             //
             // A **soft** delete does not reach this. SoftDeleteRepository only calls through to the
             // hard delete when `hardDelete: true`; otherwise it writes `{ deleted: true }` through
@@ -60,6 +54,10 @@ export function getDefaultBeforeSaveHook<
             // at all.
             return;
         }
+        if (operation === SaveOperation.CREATE) {
+            await setDefaultValues(data, cls);
+        }
+        await encryptEncryptionProperties(data, cls, inject(ZIBRI_DI_TOKENS.ENCRYPTION_SERVICE));
         await hashHashProperties(data, cls, inject(ZIBRI_DI_TOKENS.HASH_SERVICE));
     };
     return res;

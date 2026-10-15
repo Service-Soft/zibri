@@ -64,9 +64,7 @@ export function InjectRepository<T extends BaseEntity>(
     dataSourceClass?: Newable<DataSourceInterface>
 ): ParameterDecorator {
     return (target, _propertyKey, parameterIndex) => {
-        // eslint-disable-next-line unicorn/error-message
-        const stack: string = new Error().stack ?? '';
-        MetadataUtilities.setFilePath(target, stack);
+        MetadataUtilities.setFilePath(target);
         const tokens: Record<number, DiToken<unknown>> = MetadataUtilities.getInjectParamTokens(target);
         tokens[parameterIndex] = repositoryTokenFor(entityClass, dataSourceClass);
         MetadataUtilities.setInjectParamTokens(target, tokens);

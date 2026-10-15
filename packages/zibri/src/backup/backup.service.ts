@@ -2,6 +2,7 @@ import { Readable } from 'node:stream';
 
 import { BehaviorSubject, first, firstValueFrom } from 'rxjs';
 
+import { BackupEncryptionUtilities } from './backup-encryption.utilities';
 import { BackupEntity, BackupEntityCreateData } from './backup-entity.model';
 import { READABLE_BACKUP_FORMAT_VERSIONS } from './backup-format';
 import { BackupResourceEntity, BackupResourceEntityCreateData } from './backup-resource-entity.model';
@@ -21,6 +22,9 @@ import { getDiTokenName } from '../di/get-di-token-name.function';
 import { getRegisteredProvidersOfVariant } from '../di/get-registered-providers-of-variant.function';
 import { inject } from '../di/inject.function';
 import { BackupTransportInterface, isBackupTransport } from './transports/backup-transport.interface';
+import { type EncryptionServiceInterface } from '../auth/encryption/encryption-service.interface';
+import { type EncryptionString } from '../auth/encryption/encryption.utilities';
+import { KeysInUse } from '../auth/encryption/keys-in-use.model';
 import { DiProvider } from '../di/models/di-provider.model';
 import { DiVariants } from '../di/models/di-variant.model';
 import { InternalError } from '../error-handling/internal-error.model';
@@ -101,6 +105,52 @@ class CorruptBackupError extends InternalError {
 }
 
 /**
+ * A resource of a backup being restored, whose data is fetched, checked and waiting on this instance's disk.
+ */
+type StagedResource = {
+    /**
+     * The resource as the backup records it.
+     */
+    entity: BackupResourceEntity,
+    /**
+     * The resource the data is applied to.
+     */
+    resource: BackupResourceInterface,
+    /**
+     * Where its data waits.
+     */
+    path: FsPath,
+    /**
+     * Where what the resource held before the restore is kept until the restore is done.
+     */
+    snapshotPath: FsPath
+};
+
+/**
+ * An error to throw when a restore failed and could not put every resource back the way it was.
+ */
+class RestoreNotUndoneError extends InternalError {
+    /**
+     * Where what the resources that could not be put back held before the restore is kept.
+     */
+    readonly snapshotPaths: FsPath[];
+
+    constructor(backup: BackupEntity, resources: StagedResource[], cause: unknown) {
+        const resourceNames: string = resources.map(r => `"${r.entity.name}"`).join(', ');
+        super(
+            [
+                `Restoring backup "${backup.name}" failed, and ${resourceNames}`
+                + ' could not be put back the way they were.',
+                ...resources.map(r => `What "${r.entity.name}" held before the restore is kept in ${r.snapshotPath}.`)
+            ],
+            { cause }
+        );
+        this.name = 'RestoreNotUndoneError';
+        this.snapshotPaths = resources.map(r => r.snapshotPath);
+    }
+}
+
+/**
  * As much of a stored record as this build can count on reading.
  *
  * Only the one field, because every other field is read in whatever shape this one names - so it is
@@ -130,6 +180,14 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
 
     private get stagingFolder(): FsPath {
         return inject(ZIBRI_DI_TOKENS.BACKUP_TEMP_FOLDER);
+    }
+
+    // a backup's key is encrypted with the master key rather than a key of its own: both would come
+    // from the same place, so whoever can read one can read the other, and a second key would only be
+    // a second thing to rotate. Not a key from the key table either, since that table is restored
+    // with everything else
+    private get encryptionService(): EncryptionServiceInterface {
+        return inject(ZIBRI_DI_TOKENS.ENCRYPTION_SERVICE);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -191,7 +249,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
         // after every service is initialized rather than during: a transport reads through them, and
         // one in a bucket needs the http client's body parsers, which the parser only registers in its
         // own onAppInit - one that may well run after this service's
-        await this.syncBackupEntities();
+        await this.syncBackupEntitiesFrom('skip');
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -204,6 +262,15 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async syncBackupEntities(): Promise<void> {
+        await this.syncBackupEntitiesFrom('throw');
+    }
+
+    /**
+     * Records every backup the transports hold that is not recorded yet.
+     * @param unreachable - What a transport that cannot be read means: the sync fails, or the transport is
+     * skipped with a warning.
+     */
+    private async syncBackupEntitiesFrom(unreachable: 'throw' | 'skip'): Promise<void> {
         if (!this.backupResources.length) {
             return;
         }
@@ -220,7 +287,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
         const existingEntities: BackupEntity[] = await this.backupRepository.findAll({ take: 'all' });
         const existingNames: string[] = existingEntities.map(e => e.name);
         const resolvedEntities: BackupEntity[] = (await Promise.all(allTransports.map(async t => {
-            const documents: string[] = await t.resolveBackups(existingNames);
+            const documents: string[] = await this.resolveDocuments(t, existingNames, unreachable);
             return documents.map(d => this.toBackupEntity(d, t)).filter(e => e != undefined);
         }))).flat();
         const entitiesToSync: BackupEntity[] = resolvedEntities.filter(entity => !existingEntities.map(e => e.id).includes(entity.id));
@@ -228,6 +295,41 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
         const groupedEntities: Record<string, BackupEntity[]> = this.groupEntitiesById(entitiesToSync);
         const mergedEntities: BackupEntity[] = this.mergeEntities(groupedEntities);
         await PromiseUtilities.allChunked(mergedEntities, e => this.backupRepository.create(e, { allowId: true }));
+    }
+
+    /**
+     * Reads the records a transport holds.
+     * @param transport - The transport to read.
+     * @param existingNames - The backups already recorded, which the transport can skip.
+     * @param unreachable - Whether a transport that cannot be read fails the sync or is skipped.
+     * @returns The records, or none when the transport was skipped.
+     */
+    private async resolveDocuments(
+        transport: BackupTransportInterface,
+        existingNames: string[],
+        unreachable: 'throw' | 'skip'
+    ): Promise<string[]> {
+        try {
+            return await transport.resolveBackups(existingNames);
+        }
+        catch (error) {
+            switch (unreachable) {
+                case 'throw': {
+                    throw error;
+                }
+                case 'skip': {
+                    // while the application starts: a backup server that is down or refusing this one must
+                    // not keep the application from starting. Skipping one loses nothing that is recorded,
+                    // since every transport of a backup holds the same record, and what only this one holds
+                    // is recorded by the next sync that reaches it
+                    this.logger.warn(
+                        `Could not read the backups held by the transport "${transport.name}", so any it holds that are not `
+                        + `recorded yet are left out until the next sync: ${error instanceof Error ? error.message : String(error)}`
+                    );
+                    return [];
+                }
+            }
+        }
     }
 
     /**
@@ -282,6 +384,8 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
                 // transports hold as written by whatever happens to be reading them
                 zibriVersion: first.zibriVersion,
                 formatVersion: first.formatVersion,
+                masterKeys: first.masterKeys,
+                dataKeyIds: first.dataKeyIds,
                 resources: entities.reduce<BackupResourceEntity[]>(
                     (prev, curr) => [
                         ...prev,
@@ -313,6 +417,25 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
     }
 
     /**
+     * Resolves the keys a backup taken now will need to be restored.
+     *
+     * Recorded when the backup is taken rather than worked out later, because which keys were in use
+     * then is not something its data says once it is stored.
+     * @returns The master keys and the data keys it will need.
+     */
+    private async resolveKeysNeeded(): Promise<Pick<BackupEntity, 'masterKeys' | 'dataKeyIds'>> {
+        const keys: KeysInUse = await this.encryptionService.resolveKeysInUse();
+        // a backup holding the key table brings its data keys back with it, encrypted under the master
+        // keys of that time. One that does not needs the data keys to still exist, and needs a master
+        // key only for its encrypted resources
+        if (this.backupResources.includes(keys.dataSource)) {
+            return { masterKeys: keys.masterKeys, dataKeyIds: [] };
+        }
+        const encrypts: boolean = this.backupResources.some(r => MetadataUtilities.getBackupResourceMetadata(r)?.encrypt === true);
+        return { masterKeys: encrypts ? [keys.currentMasterKey] : [], dataKeyIds: keys.dataKeyIds };
+    }
+
+    /**
      * Everything taking a backup does.
      * @param data - What the backup was asked for with.
      */
@@ -335,6 +458,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
             }
             const createData: BackupEntityCreateData = {
                 ...data,
+                ...await this.resolveKeysNeeded(),
                 resources: resourceEntities
             };
             const backup: BackupEntity = await this.backupRepository.create(createData);
@@ -357,12 +481,21 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
                 if (!transports.length) {
                     throw new BackupTransportNotFoundError(resource);
                 }
+                const key: Buffer | undefined = metadata.encrypt ? BackupEncryptionUtilities.generateKey() : undefined;
+                // wrapped before the data is produced, so that a master key which cannot be used - a
+                // kms that is down, say - fails the backup before any of it is dumped or uploaded
+                const encryptedKey: EncryptionString | undefined = key
+                    ? await this.encryptionService.masterEncrypt(key.toString('base64'))
+                    : undefined;
                 const data: Readable = await resource.createBackupData(backup);
-                const digest: BackupDigest = await this.storeAndMeasure(data, transports, backup, r);
+                // before staging, so that neither this instance's disk nor any transport ever holds
+                // the data unencrypted
+                const stored: Readable = key ? Readable.from(BackupEncryptionUtilities.encrypt(data, key)) : data;
+                const digest: BackupDigest = await this.storeAndMeasure(stored, transports, backup, r);
                 // only now, and only if every transport took the whole thing. What `completed` is
                 // for is telling a backup that finished from one that stopped halfway, which it can
                 // only do if nothing sets it before the halfway point
-                await this.backupResourceRepository.updateById(r.id, { ...digest, completed: true });
+                await this.backupResourceRepository.updateById(r.id, { ...digest, encryptedKey, completed: true });
             }));
 
             await this.storeMetadata(backup.id);
@@ -389,15 +522,95 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
      */
     private async restoreWithin(backup: BackupEntity): Promise<void> {
         this.isRestoringBackup.next(true);
+        const staged: StagedResource[] = [];
+        let keptSnapshotPaths: FsPath[] = [];
         try {
-            await Promise.all(backup.resources.map(async resource => this.restoreBackupResource(resource, backup)));
+            await FsUtilities.mkdir(this.stagingFolder);
+            // every archive is fetched and checked before any of them is applied: a resource applied
+            // while another one's archive can still turn out unusable is a restore that half happened.
+            // Settled rather than raced, so that nothing is still writing to the staging folder once
+            // this cleans it up
+            const settled: PromiseSettledResult<StagedResource | undefined>[] = await Promise.allSettled(
+                backup.resources.map(async resource => await this.stageResource(resource, backup))
+            );
+            for (const result of settled) {
+                if (result.status === 'fulfilled' && result.value) {
+                    staged.push(result.value);
+                }
+            }
+            const failure: PromiseRejectedResult | undefined = settled.find(r => r.status === 'rejected');
+            if (failure) {
+                throw failure.reason;
+            }
+            // what every resource holds right now, taken before any of them changes, so that one failing
+            // to apply can be undone by putting the others back
+            await Promise.all(staged.map(async s => await stage(await s.resource.createBackupData(backup), s.snapshotPath)));
+            await this.applyStaged(staged, backup);
+        }
+        catch (error) {
+            if (error instanceof RestoreNotUndoneError) {
+                keptSnapshotPaths = error.snapshotPaths;
+            }
+            throw error;
         }
         finally {
+            await Promise.all(staged.flatMap(s => [
+                FsUtilities.rm(s.path),
+                ...keptSnapshotPaths.includes(s.snapshotPath) ? [] : [FsUtilities.rm(s.snapshotPath)]
+            ]));
             this.isRestoringBackup.next(false);
         }
     }
 
-    private async restoreBackupResource(resource: BackupResourceEntity, backup: BackupEntity): Promise<void> {
+    /**
+     * Applies every staged resource, one after another, and puts back what was applied when one fails.
+     *
+     * One after another rather than together, so that a resource failing stops the restore before
+     * anything after it is touched.
+     * @param staged - The resources, each with its data and a snapshot of what it holds now.
+     * @param backup - The backup being restored.
+     * @throws What the failing resource threw, once the others are put back.
+     * @throws {RestoreNotUndoneError} When a resource could not be put back either.
+     */
+    private async applyStaged(staged: StagedResource[], backup: BackupEntity): Promise<void> {
+        const applied: StagedResource[] = [];
+        for (const s of staged) {
+            try {
+                await s.resource.restoreBackup(FsUtilities.createReadStream(s.path));
+                applied.push(s);
+            }
+            catch (error) {
+                // the failing one is put back too: nothing promises that a resource which throws has
+                // applied none of its data, and putting back one that did is the same state again
+                const notUndone: StagedResource[] = [];
+                for (const touched of [s, ...[...applied].reverse()]) {
+                    try {
+                        await touched.resource.restoreBackup(FsUtilities.createReadStream(touched.snapshotPath));
+                    }
+                    catch (undoError) {
+                        this.logger.error(new Error(
+                            `Could not put back the resource "${touched.entity.name}" after restoring backup "${backup.name}" failed.`,
+                            { cause: undoError }
+                        ));
+                        notUndone.push(touched);
+                    }
+                }
+                if (notUndone.length) {
+                    throw new RestoreNotUndoneError(backup, notUndone, error);
+                }
+                throw error;
+            }
+        }
+    }
+
+    /**
+     * Fetches a resource's data to this instance's disk and checks it against what the backup recorded.
+     * @param resource - The resource as the backup records it.
+     * @param backup - The backup being restored.
+     * @returns The staged resource, or undefined when this application does not know the resource.
+     * @throws When the data is not what the backup recorded, or cannot be fetched or decrypted.
+     */
+    private async stageResource(resource: BackupResourceEntity, backup: BackupEntity): Promise<StagedResource | undefined> {
         const r: BackupResourceInterface | undefined = this.resolveBackupResource(resource);
         if (!r) {
             this.logger.warn(
@@ -417,24 +630,39 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
         if (!resource.completed || resource.checksum == undefined || resource.size == undefined) {
             throw new IncompleteBackupError(backup, resource);
         }
+        // before anything is fetched as well: a master key this application no longer holds is the
+        // same kind of answer
+        const key: Buffer | undefined = resource.encryptedKey == undefined
+            ? undefined
+            : Buffer.from(await this.encryptionService.masterDecrypt(resource.encryptedKey), 'base64');
 
         // fetched to this instance's own disk, so the transport is read once however many passes the
         // check and the restore take between them. Checking while restoring would read it once too,
         // but could only say afterwards that what it had already applied was wrong - and a restore
         // recovering from a bad change has a current state worth not destroying over an archive that
-        // turns out to be unusable
+        // turns out to be unusable. Decrypted on the same pass, which is why the chunks authenticating
+        // is enough: nothing reaches the resource until every one of them has
         const p: FsPath = this.stagingPathFor(backup, resource);
-        await FsUtilities.mkdir(this.stagingFolder);
         try {
-            const digest: BackupDigest = await stage(await this.resolveData(transports, resource, backup), p);
+            const digest: BackupDigest = await stage(
+                await this.resolveData(transports, resource, backup),
+                p,
+                key ? source => BackupEncryptionUtilities.decrypt(source, key) : undefined
+            );
             if (digest.checksum !== resource.checksum || digest.size !== resource.size) {
                 throw new CorruptBackupError(backup, resource, digest);
             }
-            await r.restoreBackup(FsUtilities.createReadStream(p));
         }
-        finally {
+        catch (error) {
             await FsUtilities.rm(p);
+            throw error;
         }
+        return {
+            entity: resource,
+            resource: r,
+            path: p,
+            snapshotPath: FsUtilities.getPath(this.stagingFolder, `${backup.id}-${resource.id}-before`)
+        };
     }
 
     /**
@@ -543,6 +771,16 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
             await transaction.rollback();
             throw error;
         }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async resolveRecordedBackups(): Promise<BackupEntity[]> {
+        // an application that backs nothing up is not asked to declare the backup entities, so there
+        // is no table to read
+        if (!this.backupResources.length) {
+            return [];
+        }
+        return await this.backupRepository.findAll({ take: 'all' });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

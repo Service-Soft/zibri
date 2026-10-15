@@ -3,15 +3,20 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { Repository } from '../../data-source/repository/repository';
 import { Transaction } from '../../data-source/transaction/transaction.model';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { defineProvider } from '../../di/models/di-provider.model';
 import { ZibriInvoicingPlugin } from '../../plugin/invoicing/invoicing.plugin';
 import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../../plugin/invoicing/invoicing.tokens';
+import { CompanyInfo } from '../../plugin/invoicing/models/company-info.model';
 import { InvoiceAddress } from '../../plugin/invoicing/models/invoice-address.model';
 import { Invoice } from '../../plugin/invoicing/models/invoice.model';
 import { InvoicingOptions } from '../../plugin/invoicing/models/invoicing-options.model';
 import { NumberInvoices } from '../../plugin/invoicing/models/number-invoices.model';
 import { InvoiceNumberService } from '../../plugin/invoicing/services/invoice-number.service';
+import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface';
+import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { companyInfoProvider } from '../mocks/company-info-provider.function';
 import { createTestDataSource, defaultTestServerEntities } from '../test-server/create-test-data-source.function';
 import { defaultTestServerPlugins } from '../test-server/plugins';
 import { defaultTestServerProviders } from '../test-server/providers';
@@ -46,7 +51,6 @@ import { StartedTestServer, startTestServer } from '../test-server/start-test-se
 const invoicingOptions: InvoicingOptions = {
     footerFontSize: 10,
     images: undefined,
-    logo: undefined,
     phoneLabel: 'Phone',
     emailLabel: 'E-Mail',
     headline: 'Invoice',
@@ -75,27 +79,42 @@ const invoicingOptions: InvoicingOptions = {
     numberOfDigits: 4,
     separator: '-',
     numberCompanyAbbreviationCharacters: 6,
-    numberPrivateCustomerAbbreviationCharacters: 3,
-    companyInfo: {
-        name: 'Example Company',
-        fullName: 'Example Company LLC',
-        email: 'info@example-company.com',
-        phone: '12345 67890123',
-        address: {
-            street: 'Example street',
-            number: '1b',
-            postcode: '12345',
-            city: 'Example city',
-            countryId: 'DE'
-        },
-        taxNumber: '123/456/78910',
-        ceo: 'James Smith',
-        iban: 'DE75 5121 0800 1245 1261 99',
-        bic: 'ABCD5F'
+    numberPrivateCustomerAbbreviationCharacters: 3
+};
+
+const companyInfo: CompanyInfo = {
+    name: 'Example Company',
+    fullName: 'Example Company LLC',
+    email: 'info@example-company.com',
+    phone: '12345 67890123',
+    address: {
+        street: 'Example street',
+        number: '1b',
+        postcode: '12345',
+        city: 'Example city',
+        countryId: 'DE'
     },
+    taxNumber: '123/456/78910',
+    ceo: 'James Smith',
+    iban: 'DE75 5121 0800 1245 1261 99',
+    bic: 'ABCD5F',
     bankName: 'Example Bank',
     taxOffice: 'Tax Office Example City'
 };
+
+/**
+ * The tenant the invoices of the tests are issued in.
+ */
+const TENANT: string = UUIDUtilities.generate();
+
+/**
+ * Runs the given work in the tenant of the tests.
+ * @param fn - The work.
+ * @returns What the work answered.
+ */
+async function inTenant<T>(fn: () => Promise<T>): Promise<T> {
+    return await inject<TenantServiceInterface>(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(TENANT, fn);
+}
 
 const recipient: InvoiceAddress = {
     formOfAddress: '',
@@ -120,7 +139,8 @@ beforeAll(async () => {
         plugins: [...defaultTestServerPlugins, new ZibriInvoicingPlugin()],
         providers: [
             ...defaultTestServerProviders,
-            defineProvider({ token: ZIBRI_INVOICING_PLUGIN_DI_TOKENS.OPTIONS_INPUT, useValue: invoicingOptions })
+            defineProvider({ token: ZIBRI_INVOICING_PLUGIN_DI_TOKENS.OPTIONS_INPUT, useValue: invoicingOptions }),
+            companyInfoProvider(() => companyInfo)
         ]
     });
     invoiceNumberService = inject(InvoiceNumberService);
@@ -134,7 +154,7 @@ afterAll(async () => {
 
 describe('evaluation/04-infrastructure-subsystems 1.11 - invoice numbering', () => {
 
-    it('gives every concurrent caller its own number', async () => {
+    it('gives every concurrent caller its own number', async () => await inTenant(async () => {
         await numberInvoicesRepository.deleteAll({});
 
         // the counter has to already exist, so that both callers take the read-modify-write branch
@@ -151,9 +171,9 @@ describe('evaluation/04-infrastructure-subsystems 1.11 - invoice numbering', () 
         // an invoice number is a legal identifier, and two invoices carrying the same one is not
         // something the recipient can be asked to sort out afterwards
         expect(new Set(numbers).size).toBe(numbers.length);
-    }, 30000);
+    }), 30000);
 
-    it('counts every issued number exactly once', async () => {
+    it('counts every issued number exactly once', async () => await inTenant(async () => {
         await numberInvoicesRepository.deleteAll({});
 
         await Promise.all([
@@ -170,9 +190,9 @@ describe('evaluation/04-infrastructure-subsystems 1.11 - invoice numbering', () 
         // each insert their own counter row and every one of them starts again at 1
         expect(counters).toHaveLength(1);
         expect(counters[0]?.number).toBe(3);
-    }, 30000);
+    }), 30000);
 
-    it('gives every caller its own number when each one runs inside its own transaction', async () => {
+    it('gives every caller its own number when each one runs inside its own transaction', async () => await inTenant(async () => {
         await numberInvoicesRepository.deleteAll({});
         // as above: seed the counter so both callers take the read-modify-write branch
         await invoiceNumberService.generateInvoiceNumber('transactional-recipient', recipient, undefined);
@@ -199,5 +219,5 @@ describe('evaluation/04-infrastructure-subsystems 1.11 - invoice numbering', () 
         // when the caller commits - which happens after. The next caller would take the lock, read
         // the counter the previous one already claimed, and issue the same legal identifier again.
         expect(new Set(numbers).size).toBe(numbers.length);
-    }, 30000);
+    }), 30000);
 });

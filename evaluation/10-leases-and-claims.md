@@ -324,6 +324,30 @@ repository layer, the gap the code comment already names.
 Held red by *gives every caller its own number when each one runs inside its own transaction* in
 `invoicing.evaluation.test.ts`.
 
+### 10.5 The first sign-in lease of a directory ends before the login commits — **open**
+
+*Filed on the re-check of 2026-10-15. The shape of 10.4, in code written after it.*
+
+`BaseLdapAuthenticator.resolveUser` (`src/auth/authenticators/ldap/base-ldap.authenticator.ts:470-497`)
+makes two first sign-ins as one entry wait for each other through
+`withLease({ key: 'ldap-first-sign-in:<name>:<entry>', mode: 'wait' })`. Inside it,
+`resolveFirstSignIn` creates the user and `identityRepository.create(…, { transaction })` links the
+entry, both in the login's transaction. Every login has one: `AuthControllerUtilities.runInTransaction`
+(`src/auth/auth-controller/auth-controller.utilities.ts:129-140`) opens it around `AuthService.login`
+and commits after the strategy has started the session. The lease is released when the callback
+returns, before that commit.
+
+So the second sign-in takes the lease, asks `findIdentity` inside its own transaction, sees nothing
+committed, and calls `resolveFirstSignIn` a second time. Its link then waits on the unique
+`(directory, entryId)` and fails once the first commits, so the second login ends in an error
+instead of finding the user, after the application's hook has run twice. `runInLeaseScope` sees the
+open transaction on release and logs its warning on every first sign-in, not only the contested
+ones.
+
+*links two first sign-ins as the same entry at once to one user* in `base-ldap.authenticator.test.ts`
+is green because the waiting side polls every 100 ms (`ACQUIRE_RETRY_INTERVAL_IN_MS`) and the first
+login usually commits inside that window. 03 §H4 records the lease as what makes the hook run once.
+
 ## Ruled out
 
 Checked and genuinely safe, recorded so the next audit does not repeat the work:
@@ -668,6 +692,18 @@ than a defect.
    - **`upsertAll` was not built.** It has no caller and no described use, and the batch form is real
      work on the sql side (per-row differing increments in one statement). Adding it now would be
      speculative; the singular closes every case this document raised.
+
+     > **Built since (2026-09-28), because it had a caller after all.** `EventService.refreshSubscriberRegistrations`
+     > looped `upsert` over every subscriber an instance hosts, on every dispatch poll - one round trip
+     > each. The driver's `upsert` takes a list now, and the singular call is a batch of one, so each
+     > store keeps one implementation. The per-row increments are one statement on postgres: every
+     > changed column is a `CASE EXCLUDED."id" WHEN … END`, keyed on the id each row was proposed with,
+     > and the rows come back paired by identity because a statement promises no order. Valkey takes
+     > the identity grants sorted, reads every identity at once and saves once. Two rules came with it,
+     > both enforced by the repository for every store: no identity twice in one batch (postgres refuses
+     > that itself and a store applying them in turn would let one row decide the other's change), and
+     > an `onConflict` leaves the identity as it is, since the identity is what the written row is
+     > paired back by.
 
 5. Docs: `withLock` disappears, leases documented once.
 6. ~~`updateAll` becomes atomic~~ — **done**, closing [01 §M20](./01-data-layer.md).

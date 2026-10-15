@@ -30,8 +30,10 @@ export abstract class AlsUtilities {
     private static readonly cacheContext: AsyncLocalStorage<CacheContext[]> = new AsyncLocalStorage<CacheContext[]>();
     private static readonly leaseScope: AsyncLocalStorage<Set<Transaction>> = new AsyncLocalStorage<Set<Transaction>>();
     private static readonly asyncFactory: AsyncLocalStorage<string> = new AsyncLocalStorage<string>();
+    private static readonly migration: AsyncLocalStorage<string> = new AsyncLocalStorage<string>();
     private static readonly span: AsyncLocalStorage<TraceSpanInterface> = new AsyncLocalStorage<TraceSpanInterface>();
     private static readonly traceContext: AsyncLocalStorage<TraceSpanContext> = new AsyncLocalStorage<TraceSpanContext>();
+    private static readonly tenant: AsyncLocalStorage<string> = new AsyncLocalStorage<string>();
 
     /**
      * Resolves the currently active request context from the async local storage.
@@ -115,6 +117,24 @@ export abstract class AlsUtilities {
      */
     static getCurrentAsyncFactory(): string | undefined {
         return this.asyncFactory.getStore();
+    }
+
+    /**
+     * Runs the given function as a step of a migration.
+     * @param name - The name of the migration.
+     * @param fn - The function to run.
+     * @returns What the function resolved to.
+     */
+    static async runInMigration<T>(name: string, fn: () => Promise<T>): Promise<T> {
+        return this.migration.run(name, fn);
+    }
+
+    /**
+     * Resolves the migration running right now.
+     * @returns Its name, or undefined when no migration is running.
+     */
+    static getCurrentMigration(): string | undefined {
+        return this.migration.getStore();
     }
 
     /**
@@ -205,5 +225,26 @@ export abstract class AlsUtilities {
      */
     static getCurrentTraceContext(): TraceSpanContext | undefined {
         return this.traceContext.getStore();
+    }
+
+    /**
+     * Runs the given function with the given tenant active.
+     *
+     * Everything inside it - every await, every repository call - reaches the rows of that tenant and
+     * no other. A tenant set inside another replaces it for as long as the inner function runs.
+     * @param tenantId - The id of the tenant to act in.
+     * @param fn - The function to run.
+     * @returns The result of the function.
+     */
+    static runInTenant<T>(tenantId: string, fn: () => T): T {
+        return this.tenant.run(tenantId, fn);
+    }
+
+    /**
+     * Resolves the tenant the work running here acts in.
+     * @returns The id of the tenant, or undefined when no tenant is active.
+     */
+    static getCurrentTenant(): string | undefined {
+        return this.tenant.getStore();
     }
 }

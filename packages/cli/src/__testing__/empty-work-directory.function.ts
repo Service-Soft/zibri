@@ -10,8 +10,8 @@ import { getPath, Path } from '../utilities';
  * rather than anything about the generator. The suites this matters most to are the ones that take
  * minutes, which are exactly the ones somebody stops halfway.
  *
- * It goes wrong quietly, too: the refusal ends in `exitGracefully`, which never settles under a test
- * runner, so a suite whose directory was dirty spends its whole timeout saying nothing.
+ * It goes wrong badly, too: the refusal ends in `exitGracefully`, which exits the process - under a
+ * test runner, the worker running the suite.
  * @param name - The directory's name under the test output folder, unique to one suite.
  * @returns Its path.
  */

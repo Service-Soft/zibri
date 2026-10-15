@@ -12,6 +12,7 @@ Zibri provides an out of the box email service with with templating, mail queue,
 | `ZIBRI_DI_TOKENS.EMAIL_TRANSPORT` | DI token | Injects `EmailTransportInterface` |
 | `SmtpEmailTransport` | class | The transport Zibri ships, over SMTP |
 | `EmailPriority` | enum | Priority of a queued email (eg. `HIGH`, `NORMAL`) |
+| `Email` | entity | A queued email |
 
 ## Usage
 ### Configuring email
@@ -82,6 +83,8 @@ Two rules decide whether a mail is kept, retried or recorded as failed, so a tra
 Answering where you should have thrown loses the mail silently. Throwing where you should have answered sends the accepted recipients a second copy on the next attempt.
 
 Add `close()` if the transport holds something — a connection pool, a keep-alive agent, an sdk client. It is called when the application shuts down.
+
+A mail queued in a [tenant](./tenancy.md#work-outside-a-request) belongs to it, and the transport sends it in that tenant. The transport reads it in `email.tenantId`, eg. to send it from that tenant's own address.
 
 ### Queueing an email
 Then you can use the email service:

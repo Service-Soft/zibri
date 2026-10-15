@@ -81,6 +81,8 @@ Each file holds the version, its startsAt and endsAt timestamps, and the routes 
 
 An application whose version files hold versions without their shape, like `"versions": "all"` or `"versions": ["^latest"]`, stops at startup and lists every such route with how to rewrite it.
 
+Instances starting at the same time from one versions folder record a new version once, and each of them starts from what was recorded.
+
 ## See also
 - [Deployment](./deployment.md) — where the `versions` folder sits in a deployment, and what carries it there
 - [Data source](./data-source.md) — versioning drives migration handling via `package.json`

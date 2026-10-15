@@ -7,7 +7,9 @@ import { LogLevel } from './log-level.enum';
 import { Log } from './log.model';
 import { LoggerInterface } from './logger.interface';
 import { ZibriApplication } from '../application/application';
+import { logToDb } from './transport/log-to-db.function';
 import { BaseLoggerTransportConfig, LoggerTransport } from './transport/logger-transport.model';
+import { AlsUtilities } from '../context/als.utilities';
 import { HttpRequestContext } from '../context/request/http-request.context';
 import { WebsocketRequestContext } from '../context/request/websocket-request.context';
 import { Inject } from '../di/decorators/inject.decorator';
@@ -25,25 +27,12 @@ import { TraceContextUtilities } from '../tracing/trace-context.utilities';
 import { TraceSpanContext } from '../tracing/trace-span-context.model';
 import { TracingUtilities } from '../tracing/tracing.utilities';
 import { OmitStrict } from '../types/omit-strict.type';
+import { resolveCallSites } from '../utilities/resolve-call-sites.function';
 import { UUIDUtilities } from '../utilities/uuid.utilities';
-
-/**
- * Somewhere for `captureStackTrace` to hang the frames it collects.
- */
-type StackHolder = {
-    /**
-     * The frames, as whatever the current `prepareStackTrace` chose to return for them.
-     */
-    stack?: unknown
-};
+import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function';
 
 /**
  * Finds the file the log call came from.
- *
- * Reading `error.stack` would be the obvious way and is the expensive one: the default
- * `prepareStackTrace` renders every frame into text, and that formatting is most of what makes
- * materializing a stack costly. Swapping it for one that hands back the frames themselves skips it
- * entirely - nothing here needs a string, only one file name.
  *
  * The frame is found by *name* rather than by position. Indexing a fixed depth is what made this
  * throw whenever the depth was anything else, including when `Error.stackTraceLimit` is 0 - which is
@@ -52,22 +41,13 @@ type StackHolder = {
  * @returns The file the call came from, or 'unknown' when the frames do not say.
  */
 function resolveOrigin(): string {
-    const originalPrepareStackTrace: typeof Error.prepareStackTrace = Error.prepareStackTrace;
-    try {
-        Error.prepareStackTrace = (_error, callSites) => callSites;
-        const holder: StackHolder = {};
-        // hides this function and everything it was called from below the logger, so the frames
-        // start at `log` and the first one outside this file is the caller
-        Error.captureStackTrace(holder, resolveOrigin);
-        const callSites: NodeJS.CallSite[] = (holder.stack ?? []) as NodeJS.CallSite[];
-        return callSites
-            .map(callSite => callSite.getFileName())
-            .find(fileName => fileName != undefined && fileName !== __filename)
-            ?? 'unknown';
-    }
-    finally {
-        Error.prepareStackTrace = originalPrepareStackTrace;
-    }
+    // hides this function and everything it was called from below the logger, so the frames
+    // start at `log` and the first one outside this file is the caller
+    const callSites: NodeJS.CallSite[] = resolveCallSites(resolveOrigin);
+    return callSites
+        .map(callSite => callSite.getFileName())
+        .find(fileName => fileName != undefined && fileName !== __filename)
+        ?? 'unknown';
 }
 
 /**
@@ -109,8 +89,13 @@ export class Logger implements LoggerInterface, OnAppInit, OnAppShutdown {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     onAppInit(app: ZibriApplication): void {
-        if (!app.options.cronJobs.includes(LogCleanupCronJob)) {
-            app.options.cronJobs.push(LogCleanupCronJob);
+        // only for the builtin db transport: it is what writes the table, and without it there is
+        // neither a table to require nor anything for the cleanup to remove
+        if (this.transports.some(t => t.send === logToDb)) {
+            validateEntitiesRegistered(Logger.name, app, Log);
+            if (!app.options.cronJobs.includes(LogCleanupCronJob)) {
+                app.options.cronJobs.push(LogCleanupCronJob);
+            }
         }
         if (inject(ZIBRI_DI_TOKENS.ACCESS_LOG)) {
             this.registerAccessLog(app);
@@ -259,6 +244,8 @@ export class Logger implements LoggerInterface, OnAppInit, OnAppShutdown {
         }
         const log: Log = {
             id: UUIDUtilities.generate(),
+            // read now, for the reason the request is: the entry is written later, outside the tenant
+            tenantId: AlsUtilities.getCurrentTenant(),
             createdAt: new Date(),
             cleanupAt: new Date(Date.now() + this.cleanupAfterMs[level]),
             message,

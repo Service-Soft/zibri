@@ -1,5 +1,6 @@
-import { HashDescriptor } from './hash-descriptor';
+import { HashDescriptor, HashSettings } from './hash-descriptor';
 import { ModelRegistry } from './model.registry';
+import { StringValueUtilities } from './string-value.utilities';
 import { HashOptions, HashServiceInterface } from '../../auth/hash/hash-service.interface';
 import { AlsUtilities } from '../../context/als.utilities';
 import { HttpRequestContext } from '../../context/request/http-request.context';
@@ -43,33 +44,53 @@ async function hashHashPropertiesRecursive<Data, EntityClass>(
     }
     visited.add(data);
 
-    for (const [key, hashOptions] of descriptor.keys) {
-        if (typeof (data as AnyObject)[key] !== 'string') {
-            continue;
+    for (const [key, strings] of descriptor.keys) {
+        const value: unknown = (data as AnyObject)[key];
+        const hashed: unknown = await StringValueUtilities.replaceStrings(value, strings, async (text, hashOptions) => {
+            return await hashString(context, data, key, text, hashOptions, hashService);
+        });
+        if (hashed !== value) {
+            (data as AnyObject)[key] = hashed;
         }
-        if (hashService.isHash((data as AnyObject)[key] as string)) {
-            // hashing a hash cannot be undone, and the value it replaces is the only thing that could
-            // ever have verified a password again. Refused rather than skipped: skipping would make a
-            // write that meant to change the password silently not change it.
-            throw new InternalError([
-                `The property "${String(key)}" was given a value that is already hashed.`,
-                'This is what a read-modify-write does - loading an entity and saving it back sends',
-                'the stored hash through hashing a second time, which locks the account out for good.',
-                'Leave the property off the update, or set it to the new plaintext.'
-            ]);
-        }
-        const options: true | HashOptions<AnyObject> = typeof hashOptions === 'function'
-            ? await hashOptions(data, context)
-            : hashOptions;
-
-        const hashed: string = await hashService.hash(
-            (data as AnyObject)[key] as string,
-            options === true ? undefined : options
-        );
-        (data as AnyObject)[key] = hashed;
     }
 
     for (const nested of descriptor.nestedValues(data)) {
         await hashHashPropertiesRecursive(context, nested.data, nested.descriptor, hashService, visited);
     }
+}
+
+/**
+ * Hashes one string of a property.
+ * @param context - The current request context, if any.
+ * @param data - The object holding the property, which the settings may depend on.
+ * @param key - The property, for the message.
+ * @param text - The string.
+ * @param hashOptions - Its declared hash settings.
+ * @param hashService - The service responsible for hashing.
+ * @returns The hash.
+ * @throws When the string is already a hash.
+ */
+async function hashString<Data>(
+    context: HttpRequestContext | WebsocketRequestContext | undefined,
+    data: Data,
+    key: string,
+    text: string,
+    hashOptions: HashSettings,
+    hashService: HashServiceInterface
+): Promise<string> {
+    if (hashService.isHash(text)) {
+        // hashing a hash cannot be undone, and the value it replaces is the only thing that could
+        // ever have verified a password again. Refused rather than skipped: skipping would make a
+        // write that meant to change the password silently not change it.
+        throw new InternalError([
+            `The property "${key}" was given a value that is already hashed.`,
+            'This is what a read-modify-write does - loading an entity and saving it back sends',
+            'the stored hash through hashing a second time, which locks the account out for good.',
+            'Leave the property off the update, or set it to the new plaintext.'
+        ]);
+    }
+    const options: true | HashOptions<AnyObject> = typeof hashOptions === 'function'
+        ? await hashOptions(data, context)
+        : hashOptions;
+    return await hashService.hash(text, options === true ? undefined : options);
 }

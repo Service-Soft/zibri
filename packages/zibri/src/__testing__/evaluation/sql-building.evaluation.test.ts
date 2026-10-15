@@ -48,7 +48,7 @@ class EvalSqlMetadata {
     'line-items'!: EvalSqlLineItem[];
 }
 
-@Entity({ allowOrphan: true })
+@Entity({ tenant: 'shared', allowOrphan: true })
 class EvalSqlOrder extends BaseEntity {
     @Property.string()
     reference!: string;
@@ -60,7 +60,7 @@ class EvalSqlOrder extends BaseEntity {
     shipments!: EvalSqlShipment[];
 }
 
-@Entity({ allowOrphan: true })
+@Entity({ tenant: 'shared', allowOrphan: true })
 class EvalSqlShipment extends BaseEntity {
     @Property.string()
     tracking!: string;
@@ -78,7 +78,8 @@ class EvalSqlDataSource extends PostgresDataSource {
         host: 'localhost',
         username: 'postgres',
         password: 'password',
-        database: 'db'
+        database: 'db',
+        ssl: false
     };
 
     entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, EvalSqlOrder, EvalSqlShipment];

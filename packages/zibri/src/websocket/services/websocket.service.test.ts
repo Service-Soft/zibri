@@ -2,15 +2,17 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from '@jes
 import { io, Socket } from 'socket.io-client';
 
 import { type WebsocketServiceInterface } from './websocket-service.interface';
+import { JwtTestAuthController } from '../../__testing__/mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
+import { startAndStopTestServerWithout } from '../../__testing__/test-server/start-and-stop-test-server-without.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { JwtAuthController } from '../../auth/strategies/jwt/jwt-auth.controller';
-import { JwtCredentials, JwtCredentialsCreateData } from '../../auth/strategies/jwt/jwt-credentials.model';
+import { PasswordCredentials, PasswordCredentialsCreateData } from '../../auth/authenticators/password/password-credentials.model';
 import { Repository } from '../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { type LoggerInterface } from '../../logging/logger.interface';
+import { JsonUtilities } from '../../utilities/json.utilities';
 import { WebsocketController } from '../decorators/websocket-controller.decorator';
 import { WebsocketRoute } from '../decorators/websocket-route.decorator';
 import { SocketIOWebsocketConnection } from '../models/connection/socket-io-websocket-connection.model';
@@ -94,18 +96,35 @@ function successMessage(data: unknown): { ok: true, data: unknown, senderUserId:
     return { ok: true, data, senderUserId: undefined, senderConnectionId: undefined };
 }
 
+// first, for the reason on startAndStopTestServerWithout
+describe('WebsocketService — starting', () => {
+    it('refuses to start a websocket server without its entities, and names both', async () => {
+        const start: Promise<void> = startAndStopTestServerWithout(
+            [WebsocketChannel, WebsocketMessage],
+            { websocketControllers: [TestWsController] }
+        );
+
+        await expect(start).rejects.toThrow('Error initializing WebsocketService');
+        await expect(start).rejects.toThrow(/WebsocketChannel[\S\s]*WebsocketMessage/);
+    }, 30000);
+
+    it('starts without its entities when nothing declares websockets', async () => {
+        await expect(startAndStopTestServerWithout([WebsocketChannel, WebsocketMessage])).resolves.toBeUndefined();
+    }, 30000);
+});
+
 describe('WebsocketService', () => {
     beforeAll(async () => {
         server = await startTestServer({
             websocketControllers: [TestWsController],
             // for /auth/login, so a socket can be opened as a real user rather than anonymously
-            controllers: [JwtAuthController]
+            controllers: [JwtTestAuthController]
         });
         baseUrl = await server.start();
         // eslint-disable-next-line typescript/no-unsafe-assignment
         wsService = inject(ZIBRI_DI_TOKENS.WEBSOCKET_SERVICE);
         channelRepo = inject(repositoryTokenFor(WebsocketChannel));
-    }, 15000);
+    }, 30000);
 
     afterAll(async () => {
         await server?.shutdown();
@@ -224,13 +243,13 @@ describe('WebsocketService', () => {
             const password: string = 'secure123';
             const user: JwtUser = await inject<Repository<JwtUser>>(repositoryTokenFor(JwtUser))
                 .create({ email, roles: [] });
-            await inject<Repository<JwtCredentials, JwtCredentialsCreateData>>(repositoryTokenFor(JwtCredentials))
-                .create({ email, password, userId: user.id });
+            await inject<Repository<PasswordCredentials, PasswordCredentialsCreateData>>(repositoryTokenFor(PasswordCredentials))
+                .create({ password, userId: user.id });
 
             const loginRes: Response = await fetch(`${baseUrl}/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password })
+                body: JsonUtilities.stringify({ email, password })
             });
             expect(loginRes.status).toBe(200);
             const token: string = (await loginRes.json() as LoginResponseBody).accessToken.value;

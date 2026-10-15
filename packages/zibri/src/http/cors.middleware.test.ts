@@ -69,6 +69,7 @@ describe('corsMiddleware', () => {
         expect(allowedHeaders).toContain('x-authorization-otp');
         expect(allowedHeaders).toContain(KnownHeader.TRACEPARENT);
         expect(allowedHeaders).toContain(KnownHeader.TRACESTATE);
+        expect(allowedHeaders).toContain(KnownHeader.DPOP);
 
         // being allowed to send a header is not being allowed to read one back. Nothing was exposed
         // at all, so a page could not see the csrf token the framework reissues when a session
@@ -77,6 +78,7 @@ describe('corsMiddleware', () => {
         const exposedHeaders: string = res.headers.get(KnownHeader.ACCESS_CONTROL_EXPOSE_HEADERS) ?? '';
         expect(exposedHeaders).toContain('x-csrf-token');
         expect(exposedHeaders).toContain(KnownHeader.TRACERESPONSE);
+        expect(exposedHeaders).toContain(KnownHeader.DPOP_NONCE);
     });
 
     it('does not tell a browser that an unlisted origin may read the response', async () => {

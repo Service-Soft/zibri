@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Patch, Delete, Param, Body, Repository, InjectRepository, Auth, Response, KnownHeader, TokenBucketRateLimiter, RateLimiter, InMemoryRateLimiterStore, Ms, RateLimited, TokenBucketState, MimeType } from 'zibri';
 
-import { Roles, Test, TestCreateDTO, User } from '../models';
+import { Roles, Test, TestCreateDTO, TestUpdateDTO, User } from '../models';
 import { UserRepository } from '../repositories';
 
 @RateLimiter()
@@ -44,7 +44,7 @@ export class TestController {
         return await this.testRepository.findById(id);
     }
 
-    @Auth.hasRole([Roles.USER])
+    @Auth.hasPlatformRole([Roles.USER])
     @Response.object(Test)
     @Post()
     async create(
@@ -60,8 +60,8 @@ export class TestController {
         @Param.path('id', { type: 'string', format: 'uuid' })
         id: string,
         @Param.header(KnownHeader.USER_AGENT)
-        @Body(Test)
-        data: Test
+        @Body(TestUpdateDTO)
+        data: TestUpdateDTO
     ): Promise<Test> {
         await this.testRepository.findAll({ where: { value: [{ iLike: '%42', not: '42' }, '43'] } });
         return await this.testRepository.updateById(id, data);

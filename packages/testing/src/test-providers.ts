@@ -55,7 +55,7 @@ export const defaultTestProviders: DiProvider<unknown>[] = [
     defineProvider({
         token: ZIBRI_DI_TOKENS.JWT_AUTH_OPTIONS_INPUT,
         useFactory: (): JwtAuthOptionsInput => ({
-            accessTokenSecret: 'test-access-token-secret',
+            accessTokenKey: 'test-access-token-secret',
             refreshTokenSecret: 'test-refresh-token-secret'
         })
     }),

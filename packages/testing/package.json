@@ -39,24 +39,44 @@
         "prepublishOnly": "npm run build"
     },
     "peerDependencies": {
+        "@peculiar/x509": "^2.1.0",
         "@testcontainers/postgresql": "^12.0.0",
+        "ldapts": "^9.2.0",
         "testcontainers": "^12.0.0",
+        "xml-crypto": "^6.3.3",
+        "xml-encryption": "^3.1.0",
         "zibri": "^3.0.0"
     },
     "peerDependenciesMeta": {
+        "@peculiar/x509": {
+            "optional": true
+        },
         "@testcontainers/postgresql": {
+            "optional": true
+        },
+        "ldapts": {
             "optional": true
         },
         "testcontainers": {
             "optional": true
+        },
+        "xml-crypto": {
+            "optional": true
+        },
+        "xml-encryption": {
+            "optional": true
         }
     },
     "devDependencies": {
+        "@peculiar/x509": "^2.1.0",
         "@testcontainers/postgresql": "^12.0.0",
-        "@types/node": "^25.9.1",
+        "@types/node": "^24.0.0",
         "eslint": "^9.36.0",
         "eslint-config-service-soft": "^2.1.6",
+        "ldapts": "^9.2.0",
         "testcontainers": "^12.0.0",
-        "typescript": "^5.9.2"
+        "typescript": "^5.9.2",
+        "xml-crypto": "^6.3.3",
+        "xml-encryption": "^3.1.0"
     }
 }

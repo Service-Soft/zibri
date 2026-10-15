@@ -17,6 +17,7 @@ import { HttpRequest } from '../../http/http-request.model';
 import { HttpResponse } from '../../http/http-response.model';
 import { ZibriPlugin } from '../../plugin/plugin.model';
 import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
+import { JsonUtilities } from '../../utilities/json.utilities';
 
 /**
  * Executable form of evaluation/05-di-metadata-and-packaging.md and the tooling half of
@@ -48,7 +49,7 @@ const ciWorkflow: FsPath = FsUtilities.getPath(repoRoot, '.github', 'workflows',
 const cdWorkflow: FsPath = FsUtilities.getPath(repoRoot, '.github', 'workflows', 'cd.yml');
 
 async function readPackageJson(): Promise<PackageJson> {
-    return JSON.parse(await FsUtilities.readFile(zibriPackageJson)) as PackageJson;
+    return JsonUtilities.parse(await FsUtilities.readFile(zibriPackageJson));
 }
 
 /**
@@ -69,7 +70,7 @@ async function readPackageJson(): Promise<PackageJson> {
 async function loadsWithout(names: string[]): Promise<boolean> {
     const script: string = `
         import Module from 'node:module';
-        const hidden = ${JSON.stringify(names)};
+        const hidden = ${JsonUtilities.stringify(names)};
         const ownFiles = process.cwd() + '/dist';
         const resolve = Module._resolveFilename;
         Module._resolveFilename = function (request, parent, ...rest) {
@@ -94,7 +95,7 @@ async function loadsWithout(names: string[]): Promise<boolean> {
                 (error, stdout) => error ? reject(error) : resolve(stdout)
             );
         });
-        return (JSON.parse(output) as { loaded: boolean }).loaded;
+        return JsonUtilities.parse<{ loaded: boolean }>(output).loaded;
     }
     catch {
         return false;
@@ -248,6 +249,12 @@ describe('evaluation/05-di-metadata-and-packaging', () => {
             expect(() => inject(EvalUnregisterTarget)).toThrow();
         });
     });
+
+    // M4's residue - no deregistration, and a watch-mode restart importing into arrays that hold the
+    // previous generation - closed on re-check (2026-10-13). Deregistration is D4 above. The watch
+    // mode a project is generated with starts every rebuild in a process of its own and stops the
+    // old one, held by packages/cli/src/commands/new/new.command.test.ts ("restarts the server in
+    // watch mode as a new process, never in the old one").
 
     describe('D5 - a parameter that cannot be resolved must say which one it is', () => {
         it('names the class and the position when the type metadata carries no class', () => {
@@ -419,7 +426,7 @@ describe('evaluation/05-di-metadata-and-packaging - the published artifact', () 
             // from val-key-data-source.model, handlebars from handlebar.utilities. Only `pg` and
             // `ts-node` load the way the manifest says they do.
             expect(await loadsWithout(optional)).toBe(true);
-        });
+        }, 60000);
 
         it('describes a dispatcher itself rather than depending on undici-types for it', async () => {
             const pkg: PackageJson = await readPackageJson();
@@ -451,16 +458,18 @@ describe('evaluation/05-di-metadata-and-packaging - the published artifact', () 
             // `.d.ts`. What has no business shipping is everything under it that is not source -
             // 37MB of gitignored coverage report and 232 tests, which a `files` whitelist ships
             // regardless of every ignore file, and which only a `!` entry in `files` removes.
-            // ../../published-package.test.ts measures the tarball this produces.
+            // ../../published-package.test.ts measures the tarball this produces. The exclusion
+            // matches a __testing__ folder at any depth, because fixtures live beside the code they
+            // serve as well as in the top level one.
             expect(pkg.files ?? []).toContain('./src');
-            expect(pkg.files ?? []).toContain('!src/__testing__/**');
+            expect(pkg.files ?? []).toContain('!src/**/__testing__/**');
             expect(pkg.files ?? []).toContain('!src/**/*.test.ts');
         });
 
         it('publishes the test harness so consumers can test their own app', async () => {
-            const harness: PackageJson & { name?: string } = JSON.parse(
+            const harness: PackageJson & { name?: string } = JsonUtilities.parse(
                 await FsUtilities.readFile(FsUtilities.getPath(packageDir, '..', 'testing', 'package.json'))
-            ) as PackageJson & { name?: string };
+            );
 
             // the finding asked for a `./testing` subpath on this package, and it got a package of
             // its own instead. A subpath would have made `testcontainers` an optional peer of the
@@ -494,10 +503,11 @@ describe('evaluation/05-di-metadata-and-packaging - the published artifact', () 
             expect(DiContainer.getInstance()).not.toBe(before);
         });
 
-        // The readonly casts are what is left of T1: there is still no supported way to point a data
-        // source at another port or an asset service at another folder, so a consumer's harness casts
-        // exactly the way this one does. Asserting that needs a real override to exist first.
-        it.todo('offers a supported way to redirect a data source and the asset service');
+        // The two readonly casts that used to be left of T1 closed differently. The asset folder is
+        // the ASSETS_PATH token, and ./static-assets.evaluation.test.ts serves through it - the cast
+        // it replaced never reached /assets at all. The data source port stays a write past readonly
+        // inside zibri-testing's applyContainerPort, on purpose: a consumer no longer writes it, and
+        // both ways to remove it were declined - see evaluation/06-tooling-ci-and-testing.md.
     });
 });
 

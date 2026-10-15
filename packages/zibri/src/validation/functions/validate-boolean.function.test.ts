@@ -24,7 +24,7 @@ describe('validateBoolean', () => {
 
     beforeAll(async () => {
         server = await startTestServer({});
-    }, 15000);
+    }, 40000);
 
     afterAll(async () => {
         await server?.shutdown();

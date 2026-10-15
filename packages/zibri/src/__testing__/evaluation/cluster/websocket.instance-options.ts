@@ -1,19 +1,34 @@
 import { ClusterMark, clusterInstanceId, defaultClusterProviders, StartTestServerOptions } from 'zibri-testing';
 
+import { type AuthServiceInterface } from '../../../auth/auth-service.interface';
+import { PasswordCredentials, PasswordCredentialsCreateData } from '../../../auth/authenticators/password/password-credentials.model';
+import { PasswordAuthenticator } from '../../../auth/authenticators/password/password.authenticator';
+import { JwtAuthData } from '../../../auth/strategies/jwt/jwt-auth-data.model';
+import { JwtAuthStrategy } from '../../../auth/strategies/jwt/jwt.auth-strategy';
 import { ValKeyDataSource, ValKeyOptions } from '../../../data-source/data-sources/val-key/val-key-data-source.model';
 import { DataSource } from '../../../data-source/decorators/data-source.decorator';
+import { Repository } from '../../../data-source/repository/repository';
+import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../di/inject.function';
 import { defineProvider } from '../../../di/models/di-provider.model';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { Controller } from '../../../routing/decorators/controller.decorator';
+import { Param } from '../../../routing/decorators/param.decorator';
 import { Post } from '../../../routing/decorators/post.decorator';
 import { Newable } from '../../../types/newable.type';
 import { Ms } from '../../../utilities/ms';
+import { UUIDUtilities } from '../../../utilities/uuid.utilities';
 import { SocketIOWebsocketConnection } from '../../../websocket/models/connection/socket-io-websocket-connection.model';
 import { type WebsocketServiceInterface } from '../../../websocket/services/websocket-service.interface';
+import { JwtUser } from '../../mocks/entities/jwt-user.entity';
+import { Roles } from '../../mocks/entities/roles.enum';
 import { createTestDataSource, defaultTestServerEntities } from '../../test-server/create-test-data-source.function';
 import { defaultTestValKeyEntities } from '../../test-server/create-test-val-key-data-source.function';
+// eslint-disable-next-line eslintImport/no-unassigned-import
+import '../../test-server/membership-repository';
+// eslint-disable-next-line eslintImport/no-unassigned-import
+import '../../test-server/user-repository'; // this import is needed so that the DI system can pick up the user repository.
 
 /**
  * What every instance of the websocket cluster boots with.
@@ -29,6 +44,20 @@ import { defaultTestValKeyEntities } from '../../test-server/create-test-val-key
 export const clusterBroadcastEvent: string = 'cluster-broadcast';
 
 /**
+ * A user the parent can connect as.
+ */
+export type ClusterLogin = {
+    /**
+     * The id of the user.
+     */
+    userId: string,
+    /**
+     * Their access token.
+     */
+    accessToken: string
+};
+
+/**
  * The valkey keyspace, fixed so that every instance publishes and subscribes on the same one.
  */
 const valKeyPrefix: string = 'cluster-websocket';
@@ -37,6 +66,7 @@ const valKeyPrefix: string = 'cluster-websocket';
 class ClusterWebsocketValKeyDataSource extends ValKeyDataSource {
     override options: ValKeyOptions = {
         host: 'localhost',
+        useTLS: false,
         keyPrefix: valKeyPrefix
     };
     entities: Newable<BaseEntity>[] = defaultTestValKeyEntities;
@@ -71,10 +101,58 @@ class ClusterWebsocketController {
             persist: false
         });
     }
+
+    /**
+     * Broadcasts values json has no form of its own for.
+     */
+    @Post('/broadcast-values')
+    async broadcastValues(): Promise<void> {
+        // eslint-disable-next-line typescript/no-unsafe-assignment
+        const websocketService: WebsocketServiceInterface<SocketIOWebsocketConnection> = inject(
+            ZIBRI_DI_TOKENS.WEBSOCKET_SERVICE
+        );
+
+        await websocketService.sendToAll({
+            event: clusterBroadcastEvent,
+            message: {
+                ok: true,
+                data: { count: 2n ** 64n, at: new Date('2026-01-02T03:04:05.000Z') },
+                senderUserId: undefined,
+                senderConnectionId: undefined
+            },
+            expectResponse: false,
+            persist: false
+        });
+    }
+
+    /**
+     * Creates a user and logs them in, so a client can connect as them on any instance.
+     * @returns The user and their access token.
+     */
+    @Post('/login')
+    async login(): Promise<ClusterLogin> {
+        const email: string = `cluster-${UUIDUtilities.generate()}@cluster-websocket.test`;
+        const user: JwtUser = await inject<Repository<JwtUser>>(repositoryTokenFor(JwtUser)).create({ email, roles: [Roles.USER] });
+        await inject<Repository<PasswordCredentials, PasswordCredentialsCreateData>>(repositoryTokenFor(PasswordCredentials))
+            .create({ password: 'secure123', userId: user.id });
+        const authData: JwtAuthData<Roles> = await inject<AuthServiceInterface>(ZIBRI_DI_TOKENS.AUTH_SERVICE)
+            .login(PasswordAuthenticator<Roles>, JwtAuthStrategy<Roles>, { email, password: 'secure123' }, undefined);
+        return { userId: user.id, accessToken: authData.accessToken.value };
+    }
+
+    /**
+     * Deactivates a user from this instance.
+     * @param userId - The user.
+     */
+    @Post('/deactivate/:userId')
+    async deactivate(@Param.path('userId') userId: string): Promise<void> {
+        await inject<AuthServiceInterface>(ZIBRI_DI_TOKENS.AUTH_SERVICE).deactivateUser(userId, undefined);
+    }
 }
 
 const options: StartTestServerOptions = {
     controllers: [ClusterWebsocketController],
+    authStrategies: [JwtAuthStrategy],
     // this repository's own fixtures plus the mark table, the way every other suite here declares a
     // data source: importing the helper above registers JwtUser, and a registered entity no data
     // source declares is refused at boot
@@ -84,11 +162,9 @@ const options: StartTestServerOptions = {
     providers: [
         ...defaultClusterProviders,
         defineProvider({
-            token: ZIBRI_DI_TOKENS.WEBSOCKET_OPTIONS,
+            token: ZIBRI_DI_TOKENS.WEBSOCKET_OPTIONS_INPUT,
             useFactory: () => ({
-                timeoutInMs: Ms.SECOND * 5,
-                handlerInMs: Ms.SECOND * 30,
-                isAllowedToConnect: () => true,
+                messageRetentionInMs: Ms.DAY,
                 // without this a broadcast reaches only the clients of the instance that sent it
                 adapterDataSource: ClusterWebsocketValKeyDataSource
             })

@@ -9,6 +9,8 @@ export class TypeOrmTransaction implements Transaction {
 
     private finished: boolean = false;
 
+    private readonly committedWork: (() => Promise<void>)[] = [];
+
     constructor(readonly queryRunner: QueryRunner) {}
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -24,10 +26,19 @@ export class TypeOrmTransaction implements Transaction {
         finally {
             await this.finish();
         }
+        for (const work of this.committedWork.splice(0)) {
+            await work();
+        }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    afterCommit(work: () => Promise<void>): void {
+        this.committedWork.push(work);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async rollback(): Promise<void> {
+        this.committedWork.length = 0;
         try {
             await this.queryRunner.rollbackTransaction();
         }

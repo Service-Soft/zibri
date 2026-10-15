@@ -2,10 +2,11 @@ import { Readable } from 'node:stream';
 
 import { OpenApiServiceInterface } from './open-api-service.interface';
 import { OpenApiDefinition, OpenApiTagObject, OpenApiSecuritySchemeObject, OpenApiPaths, OpenApiResponse, OpenApiOperation, OpenApiResponsesObject, OpenApiResponseObject, OpenApiContentObject, OpenApiSchemaObject, OpenApiSecurityRequirementObject, OpenApiRequestBodyObject, OpenApiParameterLocation, OpenApiParameter, OpenApiReferenceObject, isOpenApiReferenceObject, JsonOpenApiResponse, OpenApiXmlObject } from './open-api.model';
+import { resolveResponseClass } from './resolve-response-class.function';
 import { ZibriApplication } from '../application/application';
 import { type AssetServiceInterface } from '../assets/asset-service.interface';
 import { type AuthServiceInterface } from '../auth/auth-service.interface';
-import { HasRoleMetadata } from '../auth/models/has-role-metadata.model';
+import { ResolvedAuthMetadata } from '../auth/models/resolved-auth-metadata.model';
 import { type RouteAuthConfiguration } from '../auth/models/route-auth-configuration.model';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
@@ -16,13 +17,15 @@ import { EntityMetadata } from '../entity/decorators/entity.decorator';
 import { PropertyMetadata } from '../entity/decorators/property.decorator';
 import { ArrayPropertyItemMetadata } from '../entity/models/array-property-metadata.model';
 import { BelongsToOnePropertyMetadata } from '../entity/models/belongs-to-one-property-metadata.model';
+import { BooleanPropertyMetadata } from '../entity/models/boolean-property-metadata.model';
 import { HasOnePropertyMetadata } from '../entity/models/has-one-property-metadata.model';
 import { ManyToManyPropertyMetadata } from '../entity/models/many-to-many-property-metadata.model';
 import { ManyToOnePropertyMetadata } from '../entity/models/many-to-one-property-metadata.model';
-import { NumberFormat } from '../entity/models/number-property-metadata.model';
+import { NumberFormat, NumberPropertyMetadata } from '../entity/models/number-property-metadata.model';
 import { AnyOfShapesMetadata, OneOfShapeMetadata } from '../entity/models/one-of-property-metadata.model';
 import { OneToManyPropertyMetadata } from '../entity/models/one-to-many-property-metadata.model';
 import { Relation } from '../entity/models/relation.enum';
+import { StringPropertyMetadata } from '../entity/models/string-property-metadata.model';
 import { OmitClass } from '../entity/omit-class.model';
 import { NotFoundError } from '../error-handling/errors/not-found.error';
 import { InternalError } from '../error-handling/internal-error.model';
@@ -51,6 +54,7 @@ import { ArrayParamItemMetadata } from '../routing/models/array-param-metadata.m
 import { type RouterInterface } from '../routing/router.interface';
 import { Newable } from '../types/newable.type';
 import { FsUtilities, FsPath } from '../utilities/fs.utilities';
+import { JsonUtilities } from '../utilities/json.utilities';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
 import { SemVerUtilities } from '../versioning/sem-ver.utilities';
@@ -89,6 +93,7 @@ const defaultDescriptionForHttpStatus: Record<HttpStatus | 'default', string> = 
     [HttpStatus.REQUEST_TIMEOUT]: '',
     [HttpStatus.CONFLICT]: '',
     [HttpStatus.GONE]: '',
+    [HttpStatus.PRECONDITION_FAILED]: '',
     [HttpStatus.CONTENT_TOO_LARGE]: '',
     [HttpStatus.URI_TOO_LONG]: '',
     [HttpStatus.UNSUPPORTED_MEDIA_TYPE]: '',
@@ -127,6 +132,24 @@ type OpenApiNumberType = {
      */
     format: string
 };
+
+/**
+ * What a string schema is built from, shared by string properties and string parameters.
+ */
+type StringSchemaSource = Pick<
+    StringPropertyMetadata<unknown, unknown, never, never, never>,
+    'format' | 'description' | 'minLength' | 'maxLength' | 'regex' | 'enum'
+>;
+
+/**
+ * What a number schema is built from, shared by number properties and number parameters.
+ */
+type NumberSchemaSource = Pick<NumberPropertyMetadata, 'format' | 'description' | 'min' | 'max' | 'enum'>;
+
+/**
+ * What a boolean schema is built from, shared by boolean properties and boolean parameters.
+ */
+type BooleanSchemaSource = Pick<BooleanPropertyMetadata, 'description'>;
 
 /**
  * Default open api service implementation of Zibri.
@@ -255,7 +278,7 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
                         [
                             'window.onload = function() {',
                             '    window.ui = SwaggerUIBundle({',
-                            `        urls: ${JSON.stringify(urls)},`,
+                            `        urls: ${JsonUtilities.stringify(urls)},`,
                             `        "urls.primaryName": "${latestVersion?.value ?? ''}",`,
                             '        dom_id: \'#swagger-ui\',',
                             '        presets: [',
@@ -532,10 +555,10 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
 
                 const responses: OpenApiResponse[] = MetadataUtilities.getRouteResponses(controllerClass, route.controllerMethod);
 
-                const hasRoleMetadata: HasRoleMetadata | undefined = RouteRegistry.get(
+                const { hasRole: hasRoleMetadata, hasPlatformRole: hasPlatformRoleMetadata }: ResolvedAuthMetadata = RouteRegistry.get(
                     controllerClass,
                     route.controllerMethod
-                ).auth.metadata.hasRole;
+                ).auth.metadata;
 
                 const operation: OpenApiOperation = {
                     description: this.describeScopes(responses),
@@ -548,7 +571,8 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
                     ],
                     requestBody: this.buildOpenApiBody(bodyMetadata),
                     security: await this.resolveOperationSecurity(controllerClass, route.controllerMethod),
-                    ['x-roles']: hasRoleMetadata?.allowedRoles
+                    ['x-roles']: hasRoleMetadata?.allowedRoles,
+                    ['x-platform-roles']: hasPlatformRoleMetadata?.allowedRoles
                 };
                 res[fullPath][httpMethodKey(route.httpMethod)] = operation;
             }
@@ -579,7 +603,8 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
                 // that it states one - or inherits `defaultAuth` by stating nothing - the spec says
                 // the same thing about it that it says about a controller route
                 security: this.resolveRouteSecurity(route.auth),
-                ['x-roles']: route.auth?.hasRole?.allowedRoles
+                ['x-roles']: route.auth?.hasRole?.allowedRoles,
+                ['x-platform-roles']: route.auth?.hasPlatformRole?.allowedRoles
             };
             res[fullPath][httpMethodKey(route.httpMethod)] = operation;
         }
@@ -610,7 +635,11 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
             else {
                 const data: OpenApiResponseObject = {
                     description: response.description ?? defaultDescriptionForHttpStatus[response.status ?? 'default'],
-                    content: this.buildResponseContent(response)
+                    content: this.buildResponseContent(response),
+                    // where a redirect sends the caller is all it says
+                    ...response.type === 'redirect'
+                        ? { headers: { [KnownHeader.LOCATION]: { schema: { type: 'string', format: 'uri' } } } }
+                        : {}
                 };
                 res[status] = data;
             }
@@ -638,11 +667,12 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
                 return content;
             }
             case 'json': {
-                if (!response.cls) {
+                const cls: Newable<unknown> | undefined = resolveResponseClass(response);
+                if (!cls) {
                     return undefined;
                 }
-                const propMeta: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(response.cls);
-                const schema: OpenApiSchemaObject = this.buildOpenApiSchemaForProperties(propMeta, response.cls, 'response', new Set());
+                const propMeta: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(cls);
+                const schema: OpenApiSchemaObject = this.buildOpenApiSchemaForProperties(propMeta, cls, 'response', new Set());
 
                 if (response.isArray === true) {
                     return { [MimeType.JSON]: { schema: { type: 'array', items: schema } } };
@@ -650,7 +680,7 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
 
                 const content: OpenApiContentObject = {};
                 for (const mimeType of response.mimeTypes ?? [MimeType.JSON]) {
-                    content[mimeType] = { schema: mimeType === MimeType.XML ? this.withXmlRoot(schema, response.cls) : schema };
+                    content[mimeType] = { schema: mimeType === MimeType.XML ? this.withXmlRoot(schema, cls) : schema };
                 }
                 return content;
             }
@@ -662,6 +692,7 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
                 return { [MimeType.HTML]: { schema } };
             }
             case 'empty':
+            case 'redirect':
             case 'error': {
                 return undefined;
             }
@@ -690,6 +721,7 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
                     continue;
                 }
                 case 'empty':
+                case 'redirect':
                 case 'error': {
                     continue;
                 }
@@ -716,11 +748,12 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
      * @param xmlSchemas - The schemas of the xml content, added to.
      */
     private addModelSchemas(response: JsonOpenApiResponse, schemas: OpenApiSchemaObject[], xmlSchemas: OpenApiSchemaObject[]): void {
-        if (!response.cls) {
+        const cls: Newable<unknown> | undefined = resolveResponseClass(response);
+        if (!cls) {
             return;
         }
-        const propMeta: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(response.cls);
-        const schema: OpenApiSchemaObject = this.buildOpenApiSchemaForProperties(propMeta, response.cls, 'response', new Set());
+        const propMeta: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(cls);
+        const schema: OpenApiSchemaObject = this.buildOpenApiSchemaForProperties(propMeta, cls, 'response', new Set());
         if (response.isArray === true) {
             schemas.push({ type: 'array', items: schema });
             return;
@@ -730,7 +763,7 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
             schemas.push(schema);
         }
         if (mimeTypes.includes(MimeType.XML)) {
-            xmlSchemas.push(this.withXmlRoot(schema, response.cls));
+            xmlSchemas.push(this.withXmlRoot(schema, cls));
         }
     }
 
@@ -742,23 +775,112 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
      */
     private withXmlRoot(schema: OpenApiSchemaObject, cls: Newable<unknown>): OpenApiSchemaObject {
         const root: XmlRootMetadata | undefined = MetadataUtilities.findXmlRoot(cls);
-        const prefix: string | undefined = ObjectUtilities.entries(root?.prefixes ?? {})
-            .find(([, namespace]) => namespace === root?.namespace)?.[0];
-        return { ...schema, xml: { name: root?.name ?? cls.name, namespace: root?.namespace, ...prefix == undefined ? {} : { prefix } } };
+        const prefix: string | undefined = this.findXmlPrefix(root, root?.namespace);
+        return {
+            ...this.qualifyXmlElements(schema, cls, root),
+            xml: { name: root?.name ?? cls.name, namespace: root?.namespace, ...prefix == undefined ? {} : { prefix } }
+        };
+    }
+
+    /**
+     * Copies the schema of a model inside an xml document, naming the namespace of each child element that is not
+     * in the document's default one.
+     *
+     * Which namespace an element is in depends on the document, not only on its model: a model without a namespace
+     * of its own takes the document's. So this is done per document, on a copy, leaving the schema json uses as it
+     * is.
+     * @param schema - The schema of the model.
+     * @param cls - The model.
+     * @param root - The root of the document.
+     * @returns The schema, its child elements qualified.
+     */
+    private qualifyXmlElements(schema: OpenApiSchemaObject, cls: Newable<unknown>, root: XmlRootMetadata | undefined): OpenApiSchemaObject {
+        if (schema.properties == undefined) {
+            return schema;
+        }
+        // the root's namespace is written without a prefix unless it has one, as the writer does. An element
+        // in the default namespace needs nothing, since it inherits the declaration on the root
+        const defaultNamespace: string | undefined = this.findXmlPrefix(root, root?.namespace) == undefined ? root?.namespace : undefined;
+        const namespace: string | undefined = XmlModelUtilities.resolveNamespace(cls, root?.namespace);
+        const prefix: string | undefined = this.findXmlPrefix(root, namespace);
+        const qualified: OpenApiXmlObject = namespace === defaultNamespace
+            ? {}
+            : { namespace, ...prefix == undefined ? {} : { prefix } };
+
+        const models: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(cls);
+        const properties: Record<string, OpenApiSchemaObject | OpenApiReferenceObject> = {};
+        for (const [key, property] of ObjectUtilities.entries(schema.properties)) {
+            const metadata: PropertyMetadata | undefined = models[key];
+            // attributes are written without a namespace, and mixed content has no form in this version of
+            // OpenAPI at all, so its elements are not described either
+            properties[key] = isOpenApiReferenceObject(property)
+                || metadata == undefined
+                || XmlModelUtilities.getXmlProperty(cls, key).kind !== 'element'
+                ? property
+                : this.qualifyXmlElement(property, metadata, qualified, root);
+        }
+        return { ...schema, properties };
+    }
+
+    /**
+     * Qualifies the element of one property, and the elements of the model it holds.
+     * @param property - The schema of the property.
+     * @param metadata - The property.
+     * @param qualified - The namespace of the element.
+     * @param root - The root of the document.
+     * @returns The schema, qualified.
+     */
+    private qualifyXmlElement(
+        property: OpenApiSchemaObject,
+        metadata: PropertyMetadata,
+        qualified: OpenApiXmlObject,
+        root: XmlRootMetadata | undefined
+    ): OpenApiSchemaObject {
+        switch (metadata.type) {
+            case 'object': {
+                return { ...this.qualifyXmlElements(property, metadata.cls(), root), xml: { ...property.xml, ...qualified } };
+            }
+            case 'array': {
+                // a list is its element repeated rather than wrapped, so the element is its items
+                if (property.items == undefined || isOpenApiReferenceObject(property.items)) {
+                    return property;
+                }
+                const items: OpenApiSchemaObject = metadata.items.type === 'object'
+                    ? this.qualifyXmlElements(property.items, metadata.items.cls(), root)
+                    : property.items;
+                return { ...property, items: { ...items, xml: { ...property.items.xml, ...qualified } } };
+            }
+            case 'string':
+            case 'number':
+            case 'boolean':
+            case 'date':
+            case 'file':
+            case 'oneOf':
+            case 'unknown':
+            case Relation.HAS_ONE:
+            case Relation.BELONGS_TO_ONE:
+            case Relation.ONE_TO_MANY:
+            case Relation.MANY_TO_ONE:
+            case Relation.MANY_TO_MANY: {
+                return { ...property, xml: { ...property.xml, ...qualified } };
+            }
+        }
+    }
+
+    private findXmlPrefix(root: XmlRootMetadata | undefined, namespace: string | undefined): string | undefined {
+        return ObjectUtilities.entries(root?.prefixes ?? {}).find(([, prefixed]) => prefixed === namespace)?.[0];
     }
 
     /**
      * Says how the properties of a model appear in xml, where that is not as a child element of their own name.
      *
      * On the schema json uses too, which is safe: json ignores it. The element's own text and mixed content have no
-     * form in this version of OpenAPI, so a property read from either is described like a child element. A model
-     * with a namespace of its own names it on each of its elements; the prefix it is written with is the document's
-     * to choose.
+     * form in this version of OpenAPI, so a property read from either is described like a child element. Which
+     * namespace an element is in is the document's to say, see `qualifyXmlElements`.
      * @param properties - The schemas of the model's properties, by property.
      * @param cls - The model.
      */
     private annotateXml(properties: Record<string, OpenApiSchemaObject>, cls: Newable<unknown>): void {
-        const namespace: string | undefined = MetadataUtilities.findXmlNamespace(cls);
         for (const [key, property] of ObjectUtilities.entries(properties)) {
             const xml: XmlPropertyMetadata = XmlModelUtilities.getXmlProperty(cls, key);
             switch (xml.kind) {
@@ -767,12 +889,11 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
                     break;
                 }
                 case 'element': {
-                    // a property without a decorator is its element already, unless its model moves it
-                    // into a namespace
-                    if (!Object.hasOwn(MetadataUtilities.getXmlProperties(cls), key) && namespace == undefined) {
+                    // a property without a decorator is its element already
+                    if (!Object.hasOwn(MetadataUtilities.getXmlProperties(cls), key)) {
                         break;
                     }
-                    const element: OpenApiXmlObject = { name: xml.name, ...namespace == undefined ? {} : { namespace } };
+                    const element: OpenApiXmlObject = { name: xml.name };
                     // a list is its element repeated rather than wrapped, so the name belongs to its items
                     properties[key] = property.items != undefined && !isOpenApiReferenceObject(property.items)
                         ? { ...property, items: { ...property.items, xml: element } }
@@ -802,12 +923,13 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
     private describeScopes(responses: OpenApiResponse[]): string | undefined {
         const scoped: string[] = [];
         for (const response of responses) {
-            if (response.type !== 'json' || response.cls == undefined) {
+            const cls: Newable<unknown> | undefined = response.type === 'json' ? resolveResponseClass(response) : undefined;
+            if (cls == undefined) {
                 continue;
             }
-            const metadata: EntityMetadata | undefined = MetadataUtilities.getEntityMetadata(response.cls as Newable<BaseEntity>);
-            if (metadata?.scope?.restrictedTo != undefined && !scoped.includes(response.cls.name)) {
-                scoped.push(response.cls.name);
+            const metadata: EntityMetadata | undefined = MetadataUtilities.getEntityMetadata(cls as Newable<BaseEntity>);
+            if (metadata?.scope?.restrictedTo != undefined && !scoped.includes(cls.name)) {
+                scoped.push(cls.name);
             }
         }
 
@@ -908,7 +1030,6 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
         return { description, anyOf: shapes.map(shape => this.buildShapeSchema(shape, context)) };
     }
 
-    // eslint-disable-next-line sonar/cognitive-complexity
     private buildOpenApiSchemaForProperties(
         propMeta: Record<string, PropertyMetadata>,
         entity: Newable<unknown>,
@@ -949,18 +1070,11 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
                     continue;
                 }
                 case 'number': {
-                    properties[key] = {
-                        ...meta,
-                        ...this.openApiNumberType(meta.format),
-                        required: undefined,
-                        minimum: meta.min,
-                        maximum: meta.max,
-                        enum: meta.enum ? ObjectUtilities.values(meta.enum) : undefined
-                    };
+                    properties[key] = this.numberSchema(meta, meta.default);
                     continue;
                 }
                 case 'boolean': {
-                    properties[key] = { ...meta, required: undefined };
+                    properties[key] = this.booleanSchema(meta, meta.default);
                     continue;
                 }
                 case 'file': {
@@ -968,12 +1082,7 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
                     continue;
                 }
                 case 'string': {
-                    properties[key] = {
-                        ...meta,
-                        required: undefined,
-                        pattern: meta.regex?.toString(),
-                        enum: meta.enum ? ObjectUtilities.values(meta.enum) : undefined
-                    };
+                    properties[key] = this.stringSchema(meta, meta.default);
                     continue;
                 }
                 case 'object': {
@@ -1139,25 +1248,13 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
     ): OpenApiSchemaObject {
         switch (meta.type) {
             case 'boolean': {
-                return { ...meta, required: undefined };
+                return this.booleanSchema(meta, undefined);
             }
             case 'number': {
-                return {
-                    ...meta,
-                    ...this.openApiNumberType(meta.format),
-                    required: undefined,
-                    minimum: meta.min,
-                    maximum: meta.max,
-                    enum: meta.enum ? ObjectUtilities.values(meta.enum) : undefined
-                };
+                return this.numberSchema(meta, undefined);
             }
             case 'string': {
-                return {
-                    ...meta,
-                    required: undefined,
-                    pattern: meta.regex?.toString(),
-                    enum: meta.enum ? ObjectUtilities.values(meta.enum) : undefined
-                };
+                return this.stringSchema(meta, undefined);
             }
             case 'date': {
                 return {
@@ -1186,6 +1283,45 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
                 return this.buildAnyOfSchema(meta.shapes, meta.description, 'request');
             }
         }
+    }
+
+    // built from the fields the openapi schema object defines, never by spreading the declaration: a
+    // property's metadata also carries what only the framework reads - `encryption`, `hash`,
+    // `primary`, `index` - and a parameter's carries its own name, none of which belong in a document
+    // the framework publishes
+    private stringSchema(meta: StringSchemaSource, defaultValue: unknown): OpenApiSchemaObject {
+        return {
+            type: 'string',
+            format: meta.format,
+            description: meta.description,
+            minLength: meta.minLength,
+            maxLength: meta.maxLength,
+            // the pattern without its delimiters and flags: `/^[a-z]+$/` written as it is would ask
+            // a client for the slashes as well
+            pattern: meta.regex instanceof RegExp ? meta.regex.source : meta.regex,
+            enum: meta.enum ? ObjectUtilities.values(meta.enum) : undefined,
+            ...this.defaultSchemaValue(defaultValue)
+        };
+    }
+
+    private numberSchema(meta: NumberSchemaSource, defaultValue: unknown): OpenApiSchemaObject {
+        return {
+            ...this.openApiNumberType(meta.format),
+            description: meta.description,
+            minimum: meta.min,
+            maximum: meta.max,
+            enum: meta.enum ? ObjectUtilities.values(meta.enum) : undefined,
+            ...this.defaultSchemaValue(defaultValue)
+        };
+    }
+
+    private booleanSchema(meta: BooleanSchemaSource, defaultValue: unknown): OpenApiSchemaObject {
+        return { type: 'boolean', description: meta.description, ...this.defaultSchemaValue(defaultValue) };
+    }
+
+    // a default computed per request is a function, and a document can only state a value
+    private defaultSchemaValue(defaultValue: unknown): Pick<OpenApiSchemaObject, 'default'> {
+        return defaultValue == undefined || typeof defaultValue === 'function' ? {} : { default: defaultValue };
     }
 
     private openApiNumberType(format: NumberFormat): OpenApiNumberType {

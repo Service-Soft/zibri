@@ -49,7 +49,7 @@ function applicationRequire(): ReturnType<typeof createRequire> {
  * @param name - The package to load.
  * @param neededFor - The feature that wants it, so the error says why it was asked for.
  * @returns The package's exports.
- * @throws If the package is not installed.
+ * @throws If the package is not installed, or cannot be loaded.
  */
 export function optionalPeer<T>(name: string, neededFor: string): T {
     const cached: unknown = loadedPeers.get(name);
@@ -62,6 +62,17 @@ export function optionalPeer<T>(name: string, neededFor: string): T {
         loaded = applicationRequire()(name) as T;
     }
     catch (error) {
+        // a peer that resolves is installed, and telling its user to install it again hides the
+        // reason it failed, such as an es module only package in a runtime that cannot load one
+        if (hasOptionalPeer(name)) {
+            throw new InternalError(
+                [
+                    `${neededFor} needs the optional peer dependency "${name}", which is installed but could not be loaded:`,
+                    error instanceof Error ? error.message : String(error)
+                ],
+                { cause: error }
+            );
+        }
         throw new InternalError(
             [
                 `${neededFor} needs the optional peer dependency "${name}", which is not installed.`,

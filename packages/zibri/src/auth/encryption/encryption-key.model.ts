@@ -20,7 +20,7 @@ export enum EncryptionKeyStatus {
 /**
  * A key used for encrypting data.
  */
-@Entity({ allowOrphan: true })
+@Entity({ tenant: 'shared', allowOrphan: true })
 export class EncryptionKey extends BaseEntity {
     /**
      * The actual key value, stored encrypted.

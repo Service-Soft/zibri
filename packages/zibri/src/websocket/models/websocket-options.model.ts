@@ -2,6 +2,7 @@ import { BaseUser } from '../../auth/models/base-user.model';
 import { DataSourceInterface } from '../../data-source/data-sources/data-source.interface';
 import { HandlerTimeout } from '../../http/handler-timeout.type';
 import { Newable } from '../../types/newable.type';
+import { OmitStrict } from '../../types/omit-strict.type';
 
 /**
  * Options regarding websockets.
@@ -40,6 +41,25 @@ export type WebsocketOptions = {
     adapterDataSource?: Newable<DataSourceInterface>,
     /**
      * Whether or not the provided user is allowed to connect to a websocket at all.
+     * @default () => true
      */
-    isAllowedToConnect: <T extends BaseUser<string>>(user: T | undefined) => boolean | Promise<boolean>
+    isAllowedToConnect: <T extends BaseUser<string>>(user: T | undefined) => boolean | Promise<boolean>,
+    /**
+     * How long a sent message is kept to be replayed to a client that reconnects. A client that was
+     * away for longer is sent a `ws:replay-incomplete` instead.
+     */
+    messageRetentionInMs: number,
+    /**
+     * How many missed messages a reconnecting client is sent at most. A client that missed more is
+     * sent a `ws:replay-incomplete` instead.
+     * @default 1000
+     */
+    maxReplayedMessages: number
 };
+
+/**
+ * What an application with websockets provides: how long its messages are kept, and whichever of the
+ * other options it sets.
+ */
+export type WebsocketOptionsInput = Pick<WebsocketOptions, 'messageRetentionInMs'>
+    & Partial<OmitStrict<WebsocketOptions, 'messageRetentionInMs'>>;

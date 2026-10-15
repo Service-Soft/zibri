@@ -7,7 +7,8 @@ import { TraceSpanInterface } from '../../tracing/trace-span.interface';
 import { TracingUtilities } from '../../tracing/tracing.utilities';
 import { DeepPartial } from '../../types/deep-partial.type';
 import { Newable } from '../../types/newable.type';
-import { AtomicUpdate } from '../models/atomic-update.model';
+import { UpsertRow } from '../models/upsert-row.model';
+import { Where } from '../models/where/where-filter.model';
 import { Transaction } from '../transaction/transaction.model';
 
 /**
@@ -101,12 +102,12 @@ export class TracedRepositoryDriver<T extends BaseEntity> implements RepositoryD
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async upsert(
-        identity: DeepPartial<T>,
-        create: DeepPartial<T>,
-        onConflict: AtomicUpdate<T>,
-        transaction: Transaction | undefined
-    ): Promise<T> {
-        return await this.traced('upsert', async () => await this.inner.upsert(identity, create, onConflict, transaction));
+        identity: string[],
+        rows: UpsertRow<T>[],
+        transaction: Transaction | undefined,
+        reachable: Where<T> | undefined
+    ): Promise<T[]> {
+        return await this.traced('upsert', async () => await this.inner.upsert(identity, rows, transaction, reachable));
     }
 
     /**

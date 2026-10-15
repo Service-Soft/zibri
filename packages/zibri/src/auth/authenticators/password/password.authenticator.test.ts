@@ -1,0 +1,332 @@
+import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
+
+import { PasswordCredentials, PasswordCredentialsCreateData } from './password-credentials.model';
+import { PasswordAuthenticator } from './password.authenticator';
+import { JwtTestAuthController } from '../../../__testing__/mocks/controllers/jwt-test-auth.controller';
+import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
+import { Roles } from '../../../__testing__/mocks/entities/roles.enum';
+import { defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerProviders } from '../../../__testing__/test-server/providers';
+import { startAndStopTestServerWithout } from '../../../__testing__/test-server/start-and-stop-test-server-without.function';
+import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
+import { DataSource } from '../../../data-source/decorators/data-source.decorator';
+import { Migration } from '../../../data-source/migration/migration.model';
+import { Repository } from '../../../data-source/repository/repository';
+import { Transaction } from '../../../data-source/transaction/transaction.model';
+import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
+import { Injectable } from '../../../di/decorators/injectable.decorator';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
+import { inject } from '../../../di/inject.function';
+import { defineProvider } from '../../../di/models/di-provider.model';
+import { Email } from '../../../email/models/email.model';
+import { BaseEntity } from '../../../entity/base-entity.model';
+import { Entity } from '../../../entity/decorators/entity.decorator';
+import { Property } from '../../../entity/decorators/property.decorator';
+import { OmitClass } from '../../../entity/omit-class.model';
+import { Controller } from '../../../routing/decorators/controller.decorator';
+import { Newable } from '../../../types/newable.type';
+import { JsonUtilities } from '../../../utilities/json.utilities';
+import { SemVerVersion } from '../../../versioning/sem-ver.utilities';
+import { OtpTwoFactorMethod } from '../../2fa/methods/otp/otp.two-factor-method';
+import { AuthController } from '../../auth-controller/auth-controller.model';
+import { type HashString, HashUtilities } from '../../hash/hash.utilities';
+import { ScryptCost } from '../../hash/strategies/scrypt.hash-strategy';
+import { PasswordResetToken } from '../../models/password-reset-token.model';
+import { CookieAuthRefreshSession } from '../../strategies/cookie/cookie-auth-refresh-session.model';
+import { CookieAuthSession } from '../../strategies/cookie/cookie-auth-session.model';
+import { CookieAuthStrategy } from '../../strategies/cookie/cookie-auth.auth-strategy';
+import { JwtRefreshToken } from '../../strategies/jwt/jwt-refresh-token.model';
+import { JwtAuthStrategy } from '../../strategies/jwt/jwt.auth-strategy';
+
+/**
+ * Logs in over http.
+ * @param baseUrl - Where the server is reachable.
+ * @param email - The email to log in with.
+ * @param password - The password to log in with.
+ * @returns The status of the response.
+ */
+async function login(baseUrl: string, email: string, password: string): Promise<number> {
+    const res: Response = await fetch(`${baseUrl}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JsonUtilities.stringify({ email, password })
+    });
+    return res.status;
+}
+
+// first, for the reason on startAndStopTestServerWithout
+describe('PasswordAuthenticator — starting', () => {
+    it('refuses to start without its entities, and names them', async () => {
+        const start: Promise<void> = startAndStopTestServerWithout([PasswordCredentials, PasswordResetToken], {
+            controllers: [JwtTestAuthController]
+        });
+
+        await expect(start).rejects.toThrow(/Error initializing PasswordAuthenticator[\S\s]*PasswordCredentials[\S\s]*PasswordResetToken/);
+    }, 30000);
+});
+
+/**
+ * The auth routes of an application logging in with jwts and with cookies.
+ */
+// an orphan for the cases in this file that boot without it
+@Controller('/auth', { allowOrphan: true, versions: 'all' })
+class JwtAndCookieAuthController extends AuthController({
+        strategies: [JwtAuthStrategy, CookieAuthStrategy],
+        authenticators: [PasswordAuthenticator],
+        twoFactorMethods: [OtpTwoFactorMethod]
+    }) {}
+
+describe('PasswordAuthenticator — a confirmed reset', () => {
+    const email: string = 'reset-ends-every-login@example.com';
+    const password: string = 'secure123';
+    // allowed to go unused, because the other cases in this file boot without it
+    const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({
+        entities: [...defaultTestServerEntities, CookieAuthSession, CookieAuthRefreshSession],
+        allowOrphan: true
+    });
+    let server: StartedTestServer;
+    let baseUrl: string;
+
+    beforeAll(async () => {
+        server = await startTestServer({
+            dataSources: [dataSourceClass],
+            authStrategies: [JwtAuthStrategy, CookieAuthStrategy],
+            controllers: [JwtAndCookieAuthController],
+            providers: [
+                ...defaultTestServerProviders,
+                defineProvider({ token: ZIBRI_DI_TOKENS.COOKIE_SIGN_SECRET, useFactory: () => 'test-cookie-secret' })
+            ]
+        });
+        baseUrl = await server.start();
+    }, 20000);
+
+    afterAll(async () => {
+        await server?.shutdown();
+    }, 15000);
+
+    it('ends the logins of every strategy, not only of the one whose controller took it', async () => {
+        const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email, roles: [Roles.USER] });
+        await inject<Repository<PasswordCredentials, PasswordCredentialsCreateData>>(repositoryTokenFor(PasswordCredentials))
+            .create({ password, userId: user.id });
+
+        // one login per strategy: a token pair over http, and a cookie session started directly
+        const loginRes: Response = await fetch(`${baseUrl}/auth/login?strategy=jwt`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JsonUtilities.stringify({ email, password })
+        });
+        expect(loginRes.status).toBe(200);
+        // eslint-disable-next-line typescript/no-unsafe-assignment
+        const tokens: { refreshToken: { value: string } } = await loginRes.json();
+        await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).login(PasswordAuthenticator<Roles>, CookieAuthStrategy<Roles>, { email, password }, undefined);
+        expect(await inject(repositoryTokenFor(CookieAuthRefreshSession)).findAll({ where: { userId: user.id } })).toHaveLength(1);
+
+        // the reset, through the auth routes
+        await fetch(`${baseUrl}/auth/request-password-reset`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JsonUtilities.stringify({ email })
+        });
+        const emails: Email[] = await inject(repositoryTokenFor(Email)).findAll({ where: { recipients: { includes: [email] } } });
+        const resetToken: string | undefined = /confirm-password-reset\/([\da-f]+)/.exec(emails.at(-1)?.html ?? '')?.[1];
+        const confirmRes: Response = await fetch(`${baseUrl}/auth/confirm-password-reset`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JsonUtilities.stringify({ resetToken, newPassword: 'newPass456' })
+        });
+        expect(confirmRes.status).toBe(204);
+
+        // nothing of either login can be refreshed into a new one
+        expect(await inject(repositoryTokenFor(JwtRefreshToken)).findAll({ where: { userId: user.id } })).toHaveLength(0);
+        expect(await inject(repositoryTokenFor(CookieAuthRefreshSession)).findAll({ where: { userId: user.id } })).toHaveLength(0);
+        expect(await inject(repositoryTokenFor(CookieAuthSession)).findAll({ where: { userId: user.id } })).toHaveLength(0);
+        const refreshRes: Response = await fetch(`${baseUrl}/auth/refresh-login?strategy=jwt`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JsonUtilities.stringify({ refreshToken: tokens.refreshToken.value })
+        });
+        expect(refreshRes.status).toBe(401);
+    });
+});
+
+describe('PasswordAuthenticator — passwords 2.x stored', () => {
+    /**
+     * The credentials the jwt strategy of 2.x stored, a copy of the entity it shipped.
+     */
+    @Entity({ tenant: 'shared', allowOrphan: true, tableName: 'jwt_credentials' })
+    class LegacyJwtCredentials extends BaseEntity {
+        @Property.string({ format: 'uuid' })
+        userId!: string;
+
+        @Property.string({ unique: true, format: 'email' })
+        email!: string;
+
+        @Property.string({ hash: true })
+        password!: HashString;
+    }
+
+    /**
+     * The credentials the cookie strategy of 2.x stored, a copy of the entity it shipped.
+     */
+    @Entity({ tenant: 'shared', allowOrphan: true, tableName: 'cookie_auth_credentials' })
+    class LegacyCookieAuthCredentials extends BaseEntity {
+        @Property.string({ format: 'uuid' })
+        userId!: string;
+
+        @Property.string({ unique: true, format: 'email' })
+        email!: string;
+
+        @Property.string({ hash: true })
+        password!: HashString;
+    }
+
+    /**
+     * What 2.x created the credentials of either strategy from.
+     */
+    class LegacyCredentialsCreateData extends OmitClass(LegacyJwtCredentials, ['id', 'password']) {
+        @Property.string({ hash: true })
+        password!: string;
+    }
+
+    // changed in place by the upgrade below, so that 3.x starts on the same data source class - and
+    // so on the same store, which belongs to the class
+    const entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, LegacyJwtCredentials, LegacyCookieAuthCredentials];
+    const migrations: Newable<Migration>[] = [];
+
+    /**
+     * The data source of both versions. Allowed to go unused, because the other cases in this file
+     * boot without it.
+     */
+    @DataSource({ allowOrphan: true })
+    class UpgradedDataSource extends InMemoryDataSource {
+        override readonly entities: Newable<BaseEntity>[] = entities;
+        override readonly migrations: Newable<Migration>[] = migrations;
+    }
+
+    /**
+     * The step of the upgrade migration that moves the passwords, as the upgrade guide gives it.
+     */
+    @Injectable()
+    class MovePasswordsMigration extends Migration {
+        version: SemVerVersion = '1.0.0';
+
+        constructor() {
+            super(UpgradedDataSource);
+        }
+
+        override async up(transaction: Transaction): Promise<void> {
+            await this.dataSource.mergeEntity({ entity: PasswordCredentials, currentTableName: 'jwt_credentials', transaction });
+            await this.dataSource.mergeEntity({ entity: PasswordCredentials, currentTableName: 'cookie_auth_credentials', transaction });
+            await this.dataSource.removePropertyFromEntity({ entity: PasswordCredentials, propertyKey: 'email', transaction });
+        }
+
+        // eslint-disable-next-line typescript/require-await
+        override async down(): Promise<void> {
+            throw new Error('Not needed for this test.');
+        }
+    }
+
+    let server: StartedTestServer;
+    let baseUrl: string;
+
+    beforeAll(async () => {
+        server = await startTestServer({ dataSources: [UpgradedDataSource], controllers: [JwtTestAuthController] });
+        const users: Repository<JwtUser> = inject(repositoryTokenFor(JwtUser));
+        const jwtCredentials: Repository<LegacyJwtCredentials, LegacyCredentialsCreateData> = inject(repositoryTokenFor(LegacyJwtCredentials));
+        const cookieCredentials: Repository<LegacyCookieAuthCredentials, LegacyCredentialsCreateData> = inject(
+            repositoryTokenFor(LegacyCookieAuthCredentials)
+        );
+        const jwtOnly: JwtUser = await users.create({ email: 'jwt-only@example.com', roles: [Roles.USER] });
+        const cookieOnly: JwtUser = await users.create({ email: 'cookie-only@example.com', roles: [Roles.USER] });
+        const both: JwtUser = await users.create({ email: 'both@example.com', roles: [Roles.USER] });
+        await jwtCredentials.createAll([
+            { userId: jwtOnly.id, email: jwtOnly.email, password: 'jwt-password' },
+            { userId: both.id, email: both.email, password: 'jwt-password' }
+        ]);
+        await cookieCredentials.createAll([
+            { userId: cookieOnly.id, email: cookieOnly.email, password: 'cookie-password' },
+            { userId: both.id, email: both.email, password: 'cookie-password' }
+        ]);
+
+        // the first start of 3.x, on the same store
+        entities.splice(entities.indexOf(LegacyJwtCredentials), 2);
+        migrations.push(MovePasswordsMigration);
+        await server.reInit();
+        baseUrl = await server.start();
+    }, 20000);
+
+    afterAll(async () => {
+        await server?.shutdown();
+    }, 15000);
+
+    it('signs in with the password of either strategy once the upgrade migration moved them', async () => {
+        expect(await login(baseUrl, 'jwt-only@example.com', 'jwt-password')).toBe(200);
+        expect(await login(baseUrl, 'cookie-only@example.com', 'cookie-password')).toBe(200);
+    });
+
+    it('keeps the password of the table merged first for a user who had one in both', async () => {
+        expect(await login(baseUrl, 'both@example.com', 'jwt-password')).toBe(200);
+        expect(await login(baseUrl, 'both@example.com', 'cookie-password')).toBe(401);
+    });
+
+    it('stores one password per user, without the email', async () => {
+        const stored: PasswordCredentials[] = await inject<Repository<PasswordCredentials, PasswordCredentialsCreateData>>(
+            repositoryTokenFor(PasswordCredentials)
+        ).findAll({ take: 'all' });
+
+        expect(stored.map(c => Object.keys(c).sort())).toStrictEqual([0, 1, 2].map(() => ['id', 'password', 'userId']));
+    });
+});
+
+describe('PasswordAuthenticator — a password stored at a cost that has since been raised', () => {
+    let server: StartedTestServer;
+    let userId: string;
+
+    const email: string = 'password-upgrade@example.com';
+    const password: string = 'secure123';
+
+    /**
+     * The stored hash's cost part, which scrypt writes first in the value.
+     * @returns What the stored password was derived at, e.g. `n=16384,r=8,p=1`.
+     */
+    async function findStoredCost(): Promise<string | undefined> {
+        const credentialsRepo: Repository<PasswordCredentials, PasswordCredentialsCreateData> = inject(repositoryTokenFor(PasswordCredentials));
+        const stored: PasswordCredentials = await credentialsRepo.findOne({ where: { userId } });
+        return HashUtilities.hashToContent(stored.password).hashedValue.split(':')[0];
+    }
+
+    beforeAll(async () => {
+        // the earlier deployment: the same application, configured more cheaply
+        server = await startTestServer({
+            controllers: [JwtTestAuthController],
+            providers: [
+                ...defaultTestServerProviders,
+                defineProvider({ token: ZIBRI_DI_TOKENS.SCRYPT_COST, useFactory: (): ScryptCost => ({ n: 1024, r: 8, p: 1 }) })
+            ]
+        });
+        const userRepo: Repository<JwtUser> = inject(repositoryTokenFor(JwtUser));
+        const credentialsRepo: Repository<PasswordCredentials, PasswordCredentialsCreateData> = inject(repositoryTokenFor(PasswordCredentials));
+        const user: JwtUser = await userRepo.create({ email, roles: [Roles.USER] });
+        userId = user.id;
+        await credentialsRepo.create({ password, userId });
+    }, 20000);
+
+    afterAll(async () => {
+        await server?.shutdown();
+    }, 15000);
+
+    it('rewrites the hash at the current cost on the next successful login', async () => {
+        expect(await findStoredCost()).toBe('n=1024,r=8,p=1');
+
+        // redeployed on the same database with the cost raised
+        await server.reInit({ providers: defaultTestServerProviders });
+        const baseUrl: string = await server.start();
+
+        expect(await login(baseUrl, email, password)).toBe(200);
+        // needsRehash had no production caller, so a stored hash stayed at whatever it was made
+        // with for as long as the account existed, and raising the cost upgraded nobody
+        expect(await findStoredCost()).toBe('n=16384,r=8,p=1');
+        expect(await login(baseUrl, email, password)).toBe(200);
+    });
+});

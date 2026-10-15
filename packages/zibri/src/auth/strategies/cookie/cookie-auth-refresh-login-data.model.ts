@@ -1,4 +1,5 @@
 import { Transaction } from '../../../data-source/transaction/transaction.model';
+import { OmitClass } from '../../../entity/omit-class.model';
 
 /**
  * Data for refreshing a login with the cookie auth strategy.
@@ -9,3 +10,8 @@ export class CookieAuthRefreshLoginData {
      */
     transaction!: Transaction;
 }
+
+/**
+ * The body a refresh of the cookie auth strategy is sent with: nothing, the cookies carry the login.
+ */
+export class CookieAuthRefreshLoginDto extends OmitClass(CookieAuthRefreshLoginData, ['transaction']) {}

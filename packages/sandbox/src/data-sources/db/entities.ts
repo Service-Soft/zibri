@@ -1,8 +1,8 @@
-import { BaseEntity, BackupEntity, BackupResourceEntity, CacheInvalidation, Change, ChangeSet, CronJobEntity, Email, EncryptionKey, EncryptionStrategyEntity, Entity, Event, EventSubscriberRegistration, EventSubscriberRun, HashStrategyEntity, Invoice, JwtCredentials, JwtRefreshToken, Lease, Log, MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken, MigrationEntity, Newable, NumberInvoices, OmitClass, OtpCredentials, PasswordResetToken, ThreadJobEntity, WebsocketChannel, WebsocketMessage } from 'zibri';
+import { BaseEntity, BackupEntity, BackupResourceEntity, CacheInvalidation, Change, ChangeSet, CronJobEntity, Email, EncryptionKey, EncryptionStrategyEntity, Entity, Event, EventSubscriberRegistration, EventSubscriberRun, HashStrategyEntity, Invoice, JwtRefreshToken, Lease, Log, MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken, MigrationEntity, Newable, NumberInvoices, OmitClass, OtpCredentials, PasswordCredentials, PasswordResetToken, ThreadJobEntity, TwoFactorFailureStreak, WebsocketChannel, WebsocketMessage, WebsocketMessageSequence } from 'zibri';
 
-import { Company, Test, User } from '../../models';
+import { Company, Membership, Test, User } from '../../models';
 
-@Entity()
+@Entity({ tenant: 'shared' })
 class Test2 extends OmitClass(MigrationEntity, ['ranAt']) {}
 
 /**
@@ -16,9 +16,10 @@ export const entities: Newable<BaseEntity>[] = [
     MigrationEntity,
     Test,
     User,
+    Membership,
     Test2,
     JwtRefreshToken,
-    JwtCredentials,
+    PasswordCredentials,
     PasswordResetToken,
     Company,
     MailingList,
@@ -30,6 +31,7 @@ export const entities: Newable<BaseEntity>[] = [
     Invoice,
     NumberInvoices,
     OtpCredentials,
+    TwoFactorFailureStreak,
     BackupEntity,
     BackupResourceEntity,
     Email,
@@ -37,6 +39,7 @@ export const entities: Newable<BaseEntity>[] = [
     ThreadJobEntity,
     WebsocketChannel,
     WebsocketMessage,
+    WebsocketMessageSequence,
     Event,
     EventSubscriberRun,
     EventSubscriberRegistration,

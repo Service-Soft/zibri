@@ -9,8 +9,8 @@ import { BaseEntity } from '../../../entity/base-entity.model';
 import { Entity } from '../../../entity/decorators/entity.decorator';
 import { Property } from '../../../entity/decorators/property.decorator';
 import { Newable } from '../../../types/newable.type';
-import { JsonValueTypeMismatchError } from '../../json-value-type-mismatch.error';
 import { Repository } from '../../repository/repository';
+import { StoredValueTypeMismatchError } from '../../stored-value-type-mismatch.error';
 import { PostgresDataSource } from '../postgres/postgres-typeorm-data-source.model';
 
 /**
@@ -31,7 +31,7 @@ class Reading {
     note: string | undefined | null;
 }
 
-@Entity()
+@Entity({ tenant: 'shared' })
 class Sensor extends BaseEntity {
     @Property.string()
     name!: string;
@@ -118,26 +118,14 @@ describe('a filter on a JSON column', () => {
             await writeReading('no-key', '{"value":"not-a-number","note":"ok"}');
         });
 
-        it('names the property, the type it declares and the value that was found', async () => {
-            await expect(sensorRepo.findAll({ where: { reading: { where: { value: { greaterThan: 1 } } } } }))
-                .rejects.toThrow(JsonValueTypeMismatchError);
-            await expect(sensorRepo.findAll({ where: { reading: { where: { value: { greaterThan: 1 } } } } }))
-                .rejects.toThrow('Sensor.reading.value is declared as a number, but a row holds "not-a-number"');
-        });
-
+        // what every data source answers alike is in mistyped-values.cases.ts. This one is about the
+        // statement the database refused, which only a data source running one has
         it('keeps the failed query readable as the cause', async () => {
             const raised: unknown = await sensorRepo.findAll({ where: { reading: { where: { value: { greaterThan: 1 } } } } })
                 .then(() => undefined, (error: unknown) => error);
 
-            expect(raised).toBeInstanceOf(JsonValueTypeMismatchError);
+            expect(raised).toBeInstanceOf(StoredValueTypeMismatchError);
             expect(raised instanceof Error ? raised.cause : undefined).toBeInstanceOf(Error);
-        });
-
-        it('leaves a filter that does not compare the mistyped property alone', async () => {
-            // the row is only unreadable through the question that has to cast it, so a filter on a
-            // property beside it still answers for every row including that one
-            const res: Sensor[] = await sensorRepo.findAll({ where: { reading: { where: { note: 'ok' } } } });
-            expect(res.map(s => s.name).sort()).toEqual(['has-value', 'holds-null', 'no-key']);
         });
     });
 });

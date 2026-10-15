@@ -103,4 +103,35 @@ describe('Cached decorator', () => {
 
         expect(wrapSpy).toHaveBeenCalledTimes(2);
     });
+
+    describe('what its key provider may take', () => {
+        it('takes fewer arguments than the method, typed as the method declares them', async () => {
+            // the method's arguments were inferred from the provider as well, so one reading fewer of
+            // them asked for a method taking only those, and did not compile
+            class Service {
+                @Cached(MultiplierCache, id => `key:${id.toUpperCase()}`)
+                // eslint-disable-next-line typescript/require-await
+                async compute(id: string, factor: number): Promise<number> {
+                    return id.length * factor;
+                }
+            }
+
+            await new Service().compute('abc', 3);
+
+            expect((await inject(MultiplierCache).store.get('key:ABC'))?.value).toBe(9);
+        });
+
+        it('refuses a provider the method does not fit', () => {
+            class Service {
+                // @ts-expect-error - the provider reads a number where the method takes a string
+                @Cached(MultiplierCache, (id: number) => `key:${id}`)
+                // eslint-disable-next-line typescript/require-await
+                async compute(id: string): Promise<number> {
+                    return id.length;
+                }
+            }
+
+            expect(Object.getOwnPropertyNames(Service.prototype)).toContain('compute');
+        });
+    });
 });

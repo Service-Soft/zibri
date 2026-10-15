@@ -67,7 +67,7 @@ async function sleep(ms: number): Promise<void> {
  * That is the whole difficulty an upsert has to solve: a replica that is about to insert the row
  * cannot name it by id, because the id does not exist until it has inserted it.
  */
-@Entity({ allowOrphan: true, uniques: [['name']] })
+@Entity({ tenant: 'shared', allowOrphan: true, uniques: [['name']] })
 export class ValKeyCounter extends BaseEntity {
     /**
      * What every replica identifies the row by.
@@ -86,6 +86,7 @@ export class ValKeyCounter extends BaseEntity {
 class ClusterTransactionValKeyDataSource extends ValKeyDataSource {
     override options: ValKeyOptions = {
         host: 'localhost',
+        useTLS: false,
         keyPrefix: 'cluster-tx'
     };
     entities: Newable<BaseEntity>[] = [...defaultTestValKeyEntities, ValKeyCounter];

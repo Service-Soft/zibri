@@ -4,7 +4,7 @@ name: CodeQL
 # changed - the branch going quiet is not the same as the risk going quiet.
 on:
     push:
-        branches-ignore: [release]
+        branches-ignore: [release, 'release-*']
     schedule:
         - cron: '0 3 * * 1'
 

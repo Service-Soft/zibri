@@ -4,7 +4,7 @@ import { ExcludeStrict } from '../../types/exclude-strict.type';
 import { Newable } from '../../types/newable.type';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { JsonOpenApiResponse, EmptyOpenApiResponse, ErrorOpenApiResponse, FileOpenApiResponse, OpenApiResponse, HtmlOpenApiResponse } from '../open-api.model';
+import { JsonOpenApiResponse, EmptyOpenApiResponse, ErrorOpenApiResponse, FileOpenApiResponse, OpenApiResponse, HtmlOpenApiResponse, RedirectOpenApiResponse } from '../open-api.model';
 import { KeysetPageClass, PaginationResultClass } from '../pagination-result.model';
 
 /**
@@ -15,19 +15,18 @@ export namespace Response {
 
     /**
      * A single object response, json by default. With `mimeTypes`, it can also be written as xml, picked by the
-     * request's `Accept` header.
-     * @param entityClass - The class that defines the response objects structure.
+     * request's `Accept` header. Several of them with the same status are one of their classes.
+     * @param entityClass - The class that defines the response objects structure, or a function answering it
+     * for a class that is only known once the application has started.
      * @param data - Additional configuration, like status, description or the formats it can be written in.
      */
     export function object(
-        entityClass: Newable<unknown>,
+        entityClass: Newable<unknown> | (() => Newable<unknown> | undefined),
         data?: OmitStrict<JsonOpenApiResponse, 'isArray' | 'type' | 'cls'>
     ): MethodDecorator {
         return (target, propertyKey) => {
             const ctor: Function = target.constructor;
-            // eslint-disable-next-line unicorn/error-message
-            const stack: string = new Error().stack ?? '';
-            MetadataUtilities.setFilePath(ctor, stack);
+            MetadataUtilities.setFilePath(ctor);
 
             const responses: OpenApiResponse[] = MetadataUtilities.getRouteResponses(ctor, propertyKey.toString());
             responses.push({
@@ -52,9 +51,7 @@ export namespace Response {
     ): MethodDecorator {
         return (target, propertyKey) => {
             const ctor: Function = target.constructor;
-            // eslint-disable-next-line unicorn/error-message
-            const stack: string = new Error().stack ?? '';
-            MetadataUtilities.setFilePath(ctor, stack);
+            MetadataUtilities.setFilePath(ctor);
 
             const responses: OpenApiResponse[] = MetadataUtilities.getRouteResponses(ctor, propertyKey.toString());
             responses.push({
@@ -79,9 +76,7 @@ export namespace Response {
     ): MethodDecorator {
         return (target, propertyKey) => {
             const ctor: Function = target.constructor;
-            // eslint-disable-next-line unicorn/error-message
-            const stack: string = new Error().stack ?? '';
-            MetadataUtilities.setFilePath(ctor, stack);
+            MetadataUtilities.setFilePath(ctor);
 
             const responses: OpenApiResponse[] = MetadataUtilities.getRouteResponses(ctor, propertyKey.toString());
             responses.push({
@@ -108,9 +103,7 @@ export namespace Response {
     ): MethodDecorator {
         return (target, propertyKey) => {
             const ctor: Function = target.constructor;
-            // eslint-disable-next-line unicorn/error-message
-            const stack: string = new Error().stack ?? '';
-            MetadataUtilities.setFilePath(ctor, stack);
+            MetadataUtilities.setFilePath(ctor);
 
             const responses: OpenApiResponse[] = MetadataUtilities.getRouteResponses(ctor, propertyKey.toString());
             responses.push({
@@ -135,9 +128,7 @@ export namespace Response {
     ): MethodDecorator {
         return (target, propertyKey) => {
             const ctor: Function = target.constructor;
-            // eslint-disable-next-line unicorn/error-message
-            const stack: string = new Error().stack ?? '';
-            MetadataUtilities.setFilePath(ctor, stack);
+            MetadataUtilities.setFilePath(ctor);
 
             const responses: OpenApiResponse[] = MetadataUtilities.getRouteResponses(ctor, propertyKey.toString());
             responses.push({
@@ -156,9 +147,7 @@ export namespace Response {
     export function file(data?: OmitStrict<FileOpenApiResponse, 'type'>): MethodDecorator {
         return (target, propertyKey) => {
             const ctor: Function = target.constructor;
-            // eslint-disable-next-line unicorn/error-message
-            const stack: string = new Error().stack ?? '';
-            MetadataUtilities.setFilePath(ctor, stack);
+            MetadataUtilities.setFilePath(ctor);
 
             const responses: OpenApiResponse[] = MetadataUtilities.getRouteResponses(ctor, propertyKey.toString());
             responses.push({
@@ -176,9 +165,7 @@ export namespace Response {
     export function html(data?: OmitStrict<HtmlOpenApiResponse, 'type'>): MethodDecorator {
         return (target, propertyKey) => {
             const ctor: Function = target.constructor;
-            // eslint-disable-next-line unicorn/error-message
-            const stack: string = new Error().stack ?? '';
-            MetadataUtilities.setFilePath(ctor, stack);
+            MetadataUtilities.setFilePath(ctor);
 
             const responses: OpenApiResponse[] = MetadataUtilities.getRouteResponses(ctor, propertyKey.toString());
             responses.push({
@@ -187,6 +174,26 @@ export namespace Response {
             });
             MetadataUtilities.setRouteResponses(ctor, responses, propertyKey.toString());
 
+        };
+    }
+
+    /**
+     * A response that sends the caller on to another url, returned as a `RedirectResponse`.
+     * @param data - Additional data, like the status or a description. The status defaults to 303 See Other,
+     * which a client follows with a GET.
+     */
+    export function redirect(data?: Partial<OmitStrict<RedirectOpenApiResponse, 'type'>>): MethodDecorator {
+        return (target, propertyKey) => {
+            const ctor: Function = target.constructor;
+            MetadataUtilities.setFilePath(ctor);
+
+            const responses: OpenApiResponse[] = MetadataUtilities.getRouteResponses(ctor, propertyKey.toString());
+            responses.push({
+                status: HttpStatus.SEE_OTHER,
+                ...data,
+                type: 'redirect'
+            });
+            MetadataUtilities.setRouteResponses(ctor, responses, propertyKey.toString());
         };
     }
 
@@ -201,9 +208,7 @@ export namespace Response {
     ): MethodDecorator {
         return (target, propertyKey) => {
             const ctor: Function = target.constructor;
-            // eslint-disable-next-line unicorn/error-message
-            const stack: string = new Error().stack ?? '';
-            MetadataUtilities.setFilePath(ctor, stack);
+            MetadataUtilities.setFilePath(ctor);
 
             const responses: OpenApiResponse[] = MetadataUtilities.getRouteResponses(ctor, propertyKey.toString());
             responses.push({

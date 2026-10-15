@@ -13,7 +13,13 @@ import { LoggedError } from '../../../logging/logged-error.model';
 @Entity({ allowOrphan: true })
 export class Payment<M extends PaymentMethod, Data extends AnyObject> extends BaseEntity {
     /**
+     * The tenant the payment was made in.
+     */
+    @Property.string({ format: 'uuid' })
+    tenantId!: string;
+    /**
      * The transactionId, should be provided eg. From the client side of a checkout to prevent duplicate payments.
+     * Unique among the payments of its tenant.
      */
     @Property.string({ format: 'uuid', unique: true })
     transactionId!: string;

@@ -188,8 +188,11 @@ describe('GlobalRegistry', () => {
             const options: ZibriApplicationOptions = {
                 name: 'my-app',
                 version: '1.2.3',
-                baseUrl: 'http://localhost:3000'
-            } as ZibriApplicationOptions;
+                baseUrl: 'http://localhost:3000',
+                controllers: [],
+                websocketControllers: [],
+                defaultAuth: 'public'
+            };
 
             GlobalRegistry.setAppData(options);
 

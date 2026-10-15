@@ -55,7 +55,7 @@ class Sample {
 /**
  * Stored in both data sources, so that what the two answer can be compared rather than assumed.
  */
-@Entity({ allowOrphan: true, allowDuplicate: true })
+@Entity({ tenant: 'shared', allowOrphan: true, allowDuplicate: true })
 class Reading extends BaseEntity {
     @Property.object({ cls: () => Sensor })
     sensor!: Sensor;

@@ -3,7 +3,8 @@ import { randomBytes } from 'crypto';
 import { MailingListSubscriberCreateData, MailingListQueueEmailData, MailingListServiceInterface } from './mailing-list-service.interface';
 import { type AssetServiceInterface } from '../../../assets/asset-service.interface';
 import { Repository } from '../../../data-source/repository/repository';
-import { InjectRepository } from '../../../di/decorators/inject-repository.decorator';
+import { NoActiveTenantError } from '../../../data-source/tenancy/no-active-tenant.error';
+import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../../di/decorators/inject.decorator';
 import { Injectable } from '../../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
@@ -14,11 +15,12 @@ import { InternalError } from '../../../error-handling/internal-error.model';
 import { GlobalRegistry } from '../../../global/global-registry';
 import { OnAppInit } from '../../../global/on-app-init.interface';
 import { Route } from '../../../routing/controller-route-configuration.model';
+import { type TenantServiceInterface } from '../../../tenancy/tenant-service.interface';
 import { TsxUtilities } from '../../../tsx/tsx.utilities';
 import { OmitStrict } from '../../../types/omit-strict.type';
 import { PromiseUtilities } from '../../../utilities/promise.utilities';
 import { ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from '../mailing-list.tokens';
-import { type MailingListBaseEmailTemplate } from '../models/mailing-list-base-email-template.model';
+import { type MailingListBaseEmailTemplate, MailingListTemplateData } from '../models/mailing-list-base-email-template.model';
 import { type MailingListSubscribeConfirmationEmailTemplate } from '../models/mailing-list-subscribe-confirmation-email-template.model';
 import { MailingListSubscriber } from '../models/mailing-list-subscriber.model';
 import { MailingListSubscriptionConfirmationToken, MailingListSubscriptionConfirmationTokenCreateData } from '../models/mailing-list-subscription-confirmation-token.model';
@@ -39,20 +41,44 @@ export class MailingListService implements MailingListServiceInterface, OnAppIni
         protected readonly assetService: AssetServiceInterface,
         @Inject(ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS.CONFIRMATION_TOKEN_EXPIRES_IN_MS)
         protected readonly mailingListSubscriptionConfirmationTokenExpiresInMs: number,
-        @InjectRepository(MailingList)
-        protected readonly mailingListRepository: Repository<MailingList>,
-        @InjectRepository(MailingListSubscriber)
-        protected readonly subscriberRepository: Repository<MailingListSubscriber, MailingListSubscriberCreateData>,
-        @InjectRepository(MailingListSubscriptionConfirmationToken)
-        protected readonly confirmationTokenRepository: Repository<
-            MailingListSubscriptionConfirmationToken,
-            MailingListSubscriptionConfirmationTokenCreateData
-        >,
         @Inject(ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS.SUBSCRIBE_CONFIRMATION_EMAIL_TEMPLATE)
         protected readonly MailingListSubscribeConfirmationEmail: MailingListSubscribeConfirmationEmailTemplate,
         @Inject(ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS.BASE_EMAIL_TEMPLATE)
-        protected readonly MailingListBaseEmail: MailingListBaseEmailTemplate
+        protected readonly MailingListBaseEmail: MailingListBaseEmailTemplate,
+        @Inject(ZIBRI_DI_TOKENS.TENANT_SERVICE)
+        protected readonly tenantService: TenantServiceInterface
     ) {}
+
+    // the three below are read when used rather than injected: this is built at every boot that
+    // uses the plugin, and ZibriMailingListPlugin.validate names the entities that are missing - which
+    // it could not, if building this had failed on a repository token first
+
+    /**
+     * The repository of the mailing lists.
+     * @returns The repository.
+     */
+    protected get mailingListRepository(): Repository<MailingList> {
+        return inject(repositoryTokenFor(MailingList));
+    }
+
+    /**
+     * The repository of the subscribers.
+     * @returns The repository.
+     */
+    protected get subscriberRepository(): Repository<MailingListSubscriber, MailingListSubscriberCreateData> {
+        return inject(repositoryTokenFor(MailingListSubscriber));
+    }
+
+    /**
+     * The repository of the tokens a subscription is confirmed with.
+     * @returns The repository.
+     */
+    protected get confirmationTokenRepository(): Repository<
+        MailingListSubscriptionConfirmationToken,
+        MailingListSubscriptionConfirmationTokenCreateData
+    > {
+        return inject(repositoryTokenFor(MailingListSubscriptionConfirmationToken));
+    }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     onAppInit(): void {
@@ -71,21 +97,34 @@ export class MailingListService implements MailingListServiceInterface, OnAppIni
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    getSubscribeConfirmationLink(listId: string, confirmationToken: string): string {
-        const baseUrl: string = GlobalRegistry.getAppData('baseUrl') ?? '';
-        return `${baseUrl}${this.mailingListBaseRoute}/${listId}/subscribe/${confirmationToken}`;
+    async resolveSubscribeConfirmationLink(listId: string, confirmationToken: string): Promise<string> {
+        return await this.resolveLink(`${this.mailingListBaseRoute}/${listId}/subscribe/${confirmationToken}`);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    getUnsubscribeLink(listId: string, subscriberId: string): string {
-        const baseUrl: string = GlobalRegistry.getAppData('baseUrl') ?? '';
-        return `${baseUrl}${this.mailingListBaseRoute}/${listId}/unsubscribe?subscriberId=${subscriberId}`;
+    async resolveUnsubscribeLink(listId: string, subscriberId: string): Promise<string> {
+        return await this.resolveLink(`${this.mailingListBaseRoute}/${listId}/unsubscribe?subscriberId=${subscriberId}`);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    getManagePreferencesLink(subscriberId: string): string {
+    async resolveManagePreferencesLink(subscriberId: string): Promise<string> {
+        return await this.resolveLink(`${this.mailingListBaseRoute}/preferences?subscriberId=${subscriberId}`);
+    }
+
+    /**
+     * Resolves a link to a route of the mailing lists, naming the active tenant the way its requests are
+     * read: following a link sends no header.
+     * @param path - The route, below the application's `baseUrl`.
+     * @returns The link.
+     * @throws A NoActiveTenantError when no tenant is active, whose mailing lists the link would be for.
+     */
+    protected async resolveLink(path: string): Promise<string> {
+        const tenantId: string | undefined = this.tenantService.getActiveTenantId();
+        if (tenantId == undefined) {
+            throw new NoActiveTenantError(MailingList);
+        }
         const baseUrl: string = GlobalRegistry.getAppData('baseUrl') ?? '';
-        return `${baseUrl}${this.mailingListBaseRoute}/preferences?subscriberId=${subscriberId}`;
+        return await this.tenantService.resolveTenantUrl(`${baseUrl}${path}`, tenantId);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -94,13 +133,19 @@ export class MailingListService implements MailingListServiceInterface, OnAppIni
         await PromiseUtilities.allChunked(
             list.subscribers,
             async subscriber => {
-                const content: string = await data.compile(data.template, { subscriber, list });
+                // resolved here rather than by the template, which renders without waiting for anything
+                const templateData: MailingListTemplateData = {
+                    subscriber,
+                    list,
+                    unsubscribeLink: await this.resolveUnsubscribeLink(list.id, subscriber.id),
+                    managePreferencesLink: await this.resolveManagePreferencesLink(subscriber.id)
+                };
+                const content: string = await data.compile(data.template, templateData);
 
                 const html: string = TsxUtilities.renderEmail(
                     this.MailingListBaseEmail,
                     {
-                        list,
-                        subscriber,
+                        ...templateData,
                         html: content,
                         title: data.title ?? data.subject
                     }
@@ -146,7 +191,7 @@ export class MailingListService implements MailingListServiceInterface, OnAppIni
             {
                 subscriber,
                 mailingList: list,
-                confirmEmailLink: this.getSubscribeConfirmationLink(listId, token.value)
+                confirmEmailLink: await this.resolveSubscribeConfirmationLink(listId, token.value)
             }
         );
 

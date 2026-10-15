@@ -2,6 +2,7 @@ import { Readable } from 'node:stream';
 import { ReadableStream as NodeReadableStream } from 'node:stream/web';
 import { setTimeout as wait } from 'node:timers/promises';
 
+import { FetchForLibraryOptions } from './fetch-for-library-options.model';
 import { type HttpClientDispatcher, type HttpClientOptions } from './http-client-options.model';
 import { HttpClientResponse, HttpClientResponseBodyInput, HttpClientResponseForBody } from './http-client-response.model';
 import { HttpClientError, HttpClientErrorOptions } from './http-client.error';
@@ -20,6 +21,7 @@ import { MimeType } from '../http/mime-type.enum';
 import { warn } from '../logging/logger.helpers';
 import { type ParserInterface } from '../parsing/parser.interface';
 import { BodyMetadata } from '../routing/decorators/body-metadata.model';
+import { resolveMaxBodySize } from '../routing/decorators/body.decorator';
 import { HeaderParamMetadata, HeaderParamMetadataInput } from '../routing/decorators/param.decorator';
 import { createHeaderParamMetadata } from '../routing/param-metdata.helpers';
 import { resolveBodyMetadata } from '../routing/resolve-body-metadata.function';
@@ -37,7 +39,7 @@ import { ObjectUtilities } from '../utilities/object.utilities';
 import { type ValidationServiceInterface } from '../validation/validation-service.interface';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-type ResponseType = 'json' | 'xml' | 'stream';
+type ResponseType = 'json' | 'xml' | 'text' | 'stream';
 
 /**
  * A request that is on its way, and the means to end the deadline it was sent under.
@@ -113,11 +115,13 @@ const maxRetryDelayMs: number = 10 * Ms.SECOND;
 
 const responseTypeForMimeType: Record<BodyMetadata['type'], ResponseType> = {
     [MimeType.JSON]: 'json',
+    [MimeType.JSON_LD]: 'json',
+    [MimeType.JSON_SCIM]: 'json',
     [MimeType.XML]: 'xml',
     // [MimeType.HTML]: 'text',
     // [MimeType.TXT]: 'text',
     [MimeType.FORM_DATA]: 'stream',
-    // [MimeType.FORM_URL_ENCODED]: 'text',
+    [MimeType.FORM_URL_ENCODED]: 'text',
     [MimeType.OCTET_STREAM]: 'stream'
     // [MimeType.PNG]: 'stream',
     // [MimeType.JPEG]: 'stream',
@@ -376,6 +380,58 @@ export class HttpClient implements HttpClientInterface {
         );
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async fetchForLibrary(url: string, init: RequestInit, options?: FetchForLibraryOptions): Promise<Response> {
+        const requested: string = (init.method ?? HttpMethod.GET).toUpperCase();
+        const method: HttpMethod | undefined = Object.values(HttpMethod).find(m => m === requested);
+        if (method == undefined) {
+            throw new InternalError(`The http client cannot send a request with the method "${init.method}".`);
+        }
+        return await TracingUtilities.trace(
+            method,
+            {
+                kind: TraceSpanKind.CLIENT,
+                attributes: { 'http.request.method': method, 'url.full': url, 'server.address': this.findHost(url) }
+            },
+            async span => {
+                const headers: Headers = new Headers(init.headers);
+                for (const [name, value] of Object.entries(this.withTraceContext(Object.fromEntries(headers.entries())) ?? {})) {
+                    headers.set(name, value);
+                }
+                const requestSignal: AbortSignal | undefined = AlsUtilities.findCurrentRequestSignal();
+                // the library's own signal as well as the request's: a library passing one expects it to
+                // end the call, and the deadline of the request this runs inside still applies
+                const signals: AbortSignal[] = [init.signal, requestSignal].filter(s => s != undefined);
+                const sent: SentRequest = await this.sendRequest(
+                    url,
+                    { ...init, headers },
+                    this.clientOptions.defaultTimeoutMs,
+                    this.clientOptions.dispatcher,
+                    signals.length ? AbortSignal.any(signals) : undefined
+                );
+                try {
+                    // read here rather than handed over as a stream, so the deadline and the size limit
+                    // cover the body the same way they do for every other call
+                    const body: Uint8Array<ArrayBuffer> = await this.readBytesWithin(
+                        sent.response,
+                        fileSizeToBytes(options?.maxResponseSize ?? this.clientOptions.defaultMaxResponseSize)
+                    ).catch((error: unknown) => {
+                        throw this.buildReadError(sent.response, method, url, init.body, Object.fromEntries(headers.entries()), error);
+                    });
+                    span.recordAttributes({ 'http.response.status_code': sent.response.status });
+                    return new Response(body.byteLength ? body : undefined, {
+                        status: sent.response.status,
+                        statusText: sent.response.statusText,
+                        headers: sent.response.headers
+                    });
+                }
+                finally {
+                    sent.release();
+                }
+            }
+        );
+    }
+
     /**
      * Everything one call does, with a span to record what it turned out to be.
      * @param method - The http method.
@@ -432,7 +488,7 @@ export class HttpClient implements HttpClientInterface {
         const bodyReader: ResponseType = responseTypeForMimeType[responseBodyMetadata?.type ?? MimeType.JSON];
         // a declared response body is the size of the thing that was asked for, the same way a route's body
         // is. Without one there is nothing to derive a size from, so the deployment's ceiling applies
-        const maxBodySize: BigNumber = responseBodyMetadata?.maxSize ?? fileSizeToBytes(this.clientOptions.defaultMaxResponseSize);
+        const maxBodySize: BigNumber = this.resolveMaxResponseSize(responseBodyMetadata);
 
         let fetchResponse: Response | undefined;
         let rawBody: unknown;
@@ -628,6 +684,18 @@ export class HttpClient implements HttpClientInterface {
      * @param headers - The headers the caller asked for, if any.
      * @returns The headers to send.
      */
+    /**
+     * The most a response body may weigh.
+     * @param metadata - The response body the call declared, if any.
+     * @returns The size the declared body allows, or the deployment's ceiling without one.
+     */
+    private resolveMaxResponseSize(metadata: BodyMetadata | undefined): BigNumber {
+        if (metadata == undefined) {
+            return fileSizeToBytes(this.clientOptions.defaultMaxResponseSize);
+        }
+        return metadata.type === MimeType.OCTET_STREAM ? metadata.maxSize : resolveMaxBodySize(metadata);
+    }
+
     /**
      * The host a call is going to, for a span to say who it was talking to.
      *
@@ -879,20 +947,41 @@ export class HttpClient implements HttpClientInterface {
             return await this.readBody(response, reader, maxSize);
         }
         catch (error) {
-            throw new HttpClientError(
-                'Could not read the response body',
-                {
-                    responseData: {
-                        body: undefined,
-                        status: response.status,
-                        statusText: response.statusText,
-                        headers: Object.fromEntries(response.headers.entries())
-                    },
-                    requestData: { method, url, body: requestBody, headers: requestHeaders as Record<string, unknown> ?? {} }
-                },
-                { cause: error }
-            );
+            throw this.buildReadError(response, method, url, requestBody, requestHeaders, error);
         }
+    }
+
+    /**
+     * Builds the error for a response body that could not be read.
+     * @param response - The response whose body could not be read.
+     * @param method - The method the request was sent with.
+     * @param url - The url that was requested.
+     * @param requestBody - The body that was sent.
+     * @param requestHeaders - The headers that were sent.
+     * @param cause - Why the body could not be read.
+     * @returns The error.
+     */
+    private buildReadError(
+        response: Response,
+        method: HttpMethod,
+        url: string,
+        requestBody: unknown,
+        requestHeaders: Record<string, HttpClientHeaderValue> | undefined,
+        cause: unknown
+    ): HttpClientError {
+        return new HttpClientError(
+            'Could not read the response body',
+            {
+                responseData: {
+                    body: undefined,
+                    status: response.status,
+                    statusText: response.statusText,
+                    headers: Object.fromEntries(response.headers.entries())
+                },
+                requestData: { method, url, body: requestBody, headers: requestHeaders as Record<string, unknown> ?? {} }
+            },
+            { cause }
+        );
     }
 
     private async readBody(response: Response, reader: ResponseType, maxSize: BigNumber): Promise<unknown> {
@@ -903,9 +992,10 @@ export class HttpClient implements HttpClientInterface {
                 const text: string = await this.readTextWithin(response, maxSize);
                 return text.length ? JsonUtilities.parse(text) : undefined;
             }
-            case 'xml': {
-                // kept as text: xml only becomes data against the model it is read into, which is
-                // the body parser's job
+            case 'xml':
+            case 'text': {
+                // kept as text: xml and a form only become data against the model they are read
+                // into, which is the body parser's job
                 const text: string = await this.readTextWithin(response, maxSize);
                 return text.length ? text : undefined;
             }
@@ -934,6 +1024,18 @@ export class HttpClient implements HttpClientInterface {
      * @throws ContentTooLargeError when the body is larger than allowed.
      */
     private async readTextWithin(response: Response, maxSize: BigNumber): Promise<string> {
+        return new TextDecoder().decode(await this.readBytesWithin(response, maxSize));
+    }
+
+    /**
+     * Reads a response body, giving up as soon as it is longer than allowed - for the reason
+     * `readTextWithin` gives.
+     * @param response - The response to read.
+     * @param maxSize - The most this may buffer.
+     * @returns The body.
+     * @throws ContentTooLargeError when the body is larger than allowed.
+     */
+    private async readBytesWithin(response: Response, maxSize: BigNumber): Promise<Uint8Array<ArrayBuffer>> {
         const contentLength: string | null = response.headers.get(KnownHeader.CONTENT_LENGTH);
         // an upstream that declares a length over the limit is refused before a byte of body is read.
         // It is free to lie or to say nothing, which is why the count below still happens
@@ -941,12 +1043,11 @@ export class HttpClient implements HttpClientInterface {
             throw new ContentTooLargeError();
         }
         if (!response.body) {
-            return '';
+            return new Uint8Array();
         }
 
-        const decoder: TextDecoder = new TextDecoder();
         let received: BigNumber = NumberUtilities.new(0);
-        let text: string = '';
+        const chunks: Uint8Array[] = [];
 
         for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>) {
             received = NumberUtilities.add(received, chunk.byteLength);
@@ -955,10 +1056,10 @@ export class HttpClient implements HttpClientInterface {
                 await response.body.cancel();
                 throw new ContentTooLargeError();
             }
-            text += decoder.decode(chunk, { stream: true });
+            chunks.push(chunk);
         }
 
-        return text + decoder.decode();
+        return Buffer.concat(chunks);
     }
 
     private async buildResponseError(

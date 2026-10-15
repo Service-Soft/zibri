@@ -1,4 +1,5 @@
 import { AuthStrategies } from './auth-strategies.model';
+import { CredentialLimits } from './credential-limits.model';
 import { ZibriApplication } from '../../application/application';
 import { HttpRequestContext } from '../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
@@ -6,18 +7,13 @@ import { OpenApiSecuritySchemeObject } from '../../open-api/open-api.model';
 import { BaseUser } from '../models/base-user.model';
 
 /**
- * Interface for an auth strategy.
+ * Interface for an auth strategy: how a request says who it is from.
+ *
+ * A strategy turns a request into a user. One that also starts, refreshes and ends logins implements
+ * `LoginAuthStrategyInterface`; one that reads a credential issued some other way, such as an api key,
+ * implements only this.
  */
-export interface AuthStrategyInterface<
-    RoleType extends string,
-    UserType extends BaseUser<RoleType>,
-    AuthDataType,
-    CredentialType,
-    RequestPasswordResetDataType,
-    ConfirmPasswordResetDataType,
-    RefreshLoginDataType,
-    LogoutData
-> {
+export interface AuthStrategyInterface<RoleType extends string, UserType extends BaseUser<RoleType>> {
     /**
      * Initializes the auth strategy.
      */
@@ -55,25 +51,32 @@ export interface AuthStrategyInterface<
      */
     resolveClaimedUser?: (context: HttpRequestContext | WebsocketRequestContext) => Promise<BaseUser<RoleType> | undefined>,
     /**
-     * Logs in a user.
+     * Resolves when the caller last logged in.
+     *
+     * The login itself, not the last refresh of it: refreshing keeps the time of the login it
+     * continues. Read by \@Auth.require2fa on a route that accepts a recent login in place of a
+     * second factor.
+     *
+     * Answer undefined when the strategy cannot say, for example for a key that is never logged in
+     * with. A caller without a time never counts as having logged in recently.
      */
-    login: (credentials: CredentialType) => Promise<AuthDataType>,
+    resolveAuthenticatedAt: (context: HttpRequestContext | WebsocketRequestContext) => Promise<Date | undefined>,
     /**
-     * Logs out the current user.
+     * Resolves when the credential of the request stops being accepted on its own: the expiry of a
+     * token, a key or a certificate. A socket that connected with the credential is checked again at
+     * that time, and closed when the credential no longer resolves to its user.
+     *
+     * Answer undefined for a credential that does not expire, or when the request carries none.
      */
-    logout: (data: LogoutData) => Promise<void>,
+    resolveExpiresAt: (context: HttpRequestContext | WebsocketRequestContext) => Promise<Date | undefined>,
     /**
-     * Refreshes the login of a user.
+     * Resolves what the credential of the request may do beyond being its user.
+     *
+     * Optional: leave it out for a credential that acts with everything its user may do, which is
+     * every login. An api key implements it, because a key may use only some of its user's roles and
+     * may be bound to one tenant.
      */
-    refreshLogin: (data: RefreshLoginDataType) => Promise<AuthDataType>,
-    /**
-     * Request a new password for a user using the request password reset data.
-     */
-    requestPasswordReset: (data: RequestPasswordResetDataType) => void | Promise<void>,
-    /**
-     * Confirms a new password for a user using the provided confirm password reset data.
-     */
-    confirmPasswordReset: (data: ConfirmPasswordResetDataType) => void | Promise<void>,
+    resolveCredentialLimits?: (context: HttpRequestContext | WebsocketRequestContext) => Promise<CredentialLimits | undefined>,
     /**
      * The security scheme object to be used by open api.
      */
@@ -98,16 +101,13 @@ export function isAuthStrategy(value: unknown): value is InstanceType<AuthStrate
     }
 
     const keys: (keyof InstanceType<AuthStrategies[number]>)[] = [
-        'confirmPasswordReset',
         'hasCredential',
-        'login',
-        'logout',
         'name',
-        'refreshLogin',
-        'requestPasswordReset',
+        'resolveAuthenticatedAt',
+        'resolveExpiresAt',
         'resolveUser',
         'securityScheme'
     ];
 
-    return !keys.find(key => !(key in value));
+    return keys.every(key => key in value);
 }

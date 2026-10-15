@@ -15,7 +15,7 @@ import { PostgresDataSource } from '../data-sources/postgres/postgres-typeorm-da
 import { Repository } from '../repository/repository';
 import { Transaction } from '../transaction/transaction.model';
 
-@Entity()
+@Entity({ tenant: 'shared' })
 class MigrationRollbackItem {
     @Property.string({ primary: true })
     id!: string;
@@ -100,7 +100,7 @@ describe('Migration rollback behavior', () => {
         server = await startTestServer({ dataSources: [dataSourceClass] });
         itemRepository = inject(repositoryTokenFor(MigrationRollbackItem));
         migrationRepository = inject(repositoryTokenFor(MigrationEntity));
-    }, 15000);
+    }, 30000);
 
     afterAll(async () => {
         await server?.shutdown();

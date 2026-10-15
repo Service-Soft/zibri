@@ -3,6 +3,7 @@ import { describe, expect, it } from '@jest/globals';
 import { CachedValue } from './cached-value.model';
 import { InMemoryCacheStore } from './in-memory.cache-store';
 import { Bytes } from '../../utilities/bytes';
+import { JsonUtilities } from '../../utilities/json.utilities';
 
 function createCachedValue<V>(value: V, tags: string[]): CachedValue<V> {
     return {
@@ -286,7 +287,7 @@ describe('InMemoryCacheStore', () => {
     describe('eviction on maxBytes overflow', () => {
         it('evicts entries once the estimated byte size would exceed maxBytes', () => {
             const sampleValue: CachedValue<string> = createCachedValue('a-value', []);
-            const singleEntryByteSize: number = Buffer.byteLength(JSON.stringify({ key: 'a', value: sampleValue }), 'utf8');
+            const singleEntryByteSize: number = Buffer.byteLength(JsonUtilities.stringify({ key: 'a', value: sampleValue }), 'utf8');
 
             const store: InMemoryCacheStore<string, string> = new InMemoryCacheStore({
                 maxEntries: 500,

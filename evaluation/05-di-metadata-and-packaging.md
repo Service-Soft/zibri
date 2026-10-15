@@ -547,7 +547,29 @@ two checks disagree about what "has a value" means.
 > over-count a subclass that deliberately takes none, which is worse. And a **sync** `useFactory`
 > declaring parameters is handed nothing and always was — its type says `deps?: never`, and what it
 > needs it reaches for with `inject()` — so either that type should refuse parameters outright or the
-> container should, which is its own decision rather than this one.
+> container should, which is its own decision rather than this one. **That second half is fixed
+> (2026-09-28)**: `useFactory` is typed `() => T` and called with nothing, so a factory declaring a
+> required parameter no longer compiles, which `di-container.test.ts` holds with a
+> `@ts-expect-error`. The container had been reading parameter metadata off a factory function,
+> where there never is any.
+>
+> **The first half closed too (2026-09-28), found-bug sweep item 8, and it was wider than written
+> here.** Probed with the repo's `tsc`: a decorated subclass declaring no constructor gets no
+> `design:paramtypes` of its own, and its parent gets none either unless the parent is decorated. So
+> `@Injectable() class Sub extends Base {}` over an undecorated `Base(clock: Clock)` was built with
+> nothing under the *default* toolchain too, not only in builds without metadata. The container now
+> finds the constructor a class runs: it walks up past a class that reports an arity of 0 and has no
+> parameter types recorded of its own, to the nearest ancestor that declares parameters. The arity
+> and the refusal come from there, and the refusal names both classes. What the walk over-counts is the
+> case this entry feared: a subclass declaring `constructor()` that passes its parent something
+> itself. Under a build recording types, that constructor's own empty `design:paramtypes` stops the
+> walk, so it is built as before. Without them it is indistinguishable from an inherited one and is
+> refused. **The user chose that (option A)** over an `@Injectable` opt-out, and chose the error's
+> wording: mark the parent's parameters with `@Inject`, or override the constructor in the subclass,
+> both of which work under every build. Held by four cases in `di-container.test.ts` (the refusal was
+> red first) and by `build-toolchains.test.ts`: an inherited constructor naming its tokens builds
+> under all four toolchains, and the empty-constructor subclass builds with metadata and is refused
+> without it. Documented in `getting-started.md` under *Build toolchains*.
 >
 > `@swc/core` was already a devDependency that nothing imported, left behind when the cluster harness
 > chose `ts-node` over it; it is what the SWC row is built with. `esbuild` was added for the row that
@@ -629,7 +651,7 @@ elsewhere in this review:
 `README.md:88` claims all public classes, interfaces and functions are "as strictly typed as
 possible". The compiler configuration does not reflect that.
 
-### M3. `any` sits in the core public metadata types — MINOR, **FIXED, except the variance limit**
+### M3. `any` sits in the core public metadata types — MINOR, **FIXED**
 
 > **Assessed rather than patched, on the user's instruction: for each `any`, find why it is there
 > before replacing it, and then say either what would make that reason obsolete or that the type
@@ -725,6 +747,67 @@ possible". The compiler configuration does not reflect that.
 > **What is left is the five in `PropertyMetadata`, and they are still the variance limit** described
 > above rather than anything this round could reach. Making them obsolete is a change to the
 > encryption model — splitting the declared config from the stored one — which is its own decision.
+>
+> **That split is done (2026-10-04), as described above.** What a declaration is written with keeps
+> its five type parameters, so the `encrypt` and `decrypt` options are still checked against the
+> strategy they name (checked first: a misspelled, a mistyped and another strategy's option are all
+> compile errors). What is stored is `StoredStringPropertyMetadata`, the same shape with no type
+> parameters, and `toStoredStringPropertyMetadata` in the property decorator is the one boundary,
+> with one cast and the reason beside it. Gone with it: the five `any`s in `PropertyMetadata` and
+> `PropertyMetadataInput`, the ones in both descriptors, in `encryptEncryptionProperties` (two),
+> `needsReEncryption`, the array item and migration input types, and the string readers in
+> validation and both value conversions. `ArrayPropertyItemMetadataInput`, `OneOfShapeMetadataInput`
+> and `OneOfShapesMetadataInput` take the same five parameters, so `Property.array` and
+> `Property.oneOf` infer them from the item or shape the way `Property.string` does; inside one
+> `@Property.oneOf` all named strategies share one key type, which is refused when they do not
+> rather than missed. Migration metadata takes the stored form, since a migration never names a
+> strategy. Held by type tests in `property.decorator.test.ts`.
+>
+> **The shared key type is lifted (2026-10-04).** The item and shape input types take what a string in
+> them is declared with instead of the five parameters, and `Property.array` and `Property.oneOf` check
+> the declaration as written against `StrategyCheckedItemInput` / `StrategyCheckedShapesInput`, which
+> work out each string's strategy from that string alone. The shapes of one value can now name
+> strategies with different keys and options, each checked against its own. The code that builds the
+> metadata takes `AnyStrategyStringPropertyMetadata`, with encryption and hashing as `unknown`, so
+> `toStoredStringPropertyMetadata` is still the one cast. The check is reached through an index
+> signature: a parameter typed as "the declaration and its check" knows every name the declaration
+> uses, which let a misspelled option compile (tried first, six existing type tests went unused).
+> TypeScript compares a property against an index signature on its own, so the misspelling is caught
+> again. The same reason is why `Property.array` takes one object rather than the union of a file
+> array and any other. What is left is narrow: a shape passes if it fits *any* shape's check, so two
+> strategies with the same key type whose options differ only in optional fields can take each
+> other's options. Migrations store arrays through `createArrayPropertyMetadata` directly, as they
+> already did for oneOf. Held by type tests in `property.decorator.test.ts`: mixed encryption
+> strategies and an array of such a oneOf, both red before; mixed hash strategies, which already
+> compiled because the bundled hash strategies declare methods, which TypeScript checks bivariantly;
+> the swapped option on each; and a misspelled option on the items of a shape that is a list.
+>
+> **Found on the way: request parameters accepted `encryption` and `hash` and did nothing with
+> them.** `StringParamMetadata` was built from the string property metadata, so it carried both flags
+> and the same five parameters with their `any`s - and nothing reads either flag for a parameter. The
+> user decided to remove them: a parameter is read from a request, not stored. `StringParamMetadata`
+> and its input have no type parameters now, which took the remaining `any`s of this kind out of the
+> parameter decorators, the route types and string validation. Held by type tests in `param.decorator.test.ts`, red
+> before.
+>
+> **The same held for every other shape that is read rather than stored (2026-10-04, the user's
+> decision again).** The shapes of a body, a websocket body and a response read by the http client,
+> the string shape of a oneOf path parameter, and the list shape of a oneOf query or header parameter
+> all accepted `encryption` and `hash`, and nothing acted on them. They now take
+> `IncomingStringPropertyMetadataInput`, the string input without both flags, and so does
+> `createAnyOfShapesMetadata`. That also removed the last `any`s of this kind, on the path parameter
+> shape. Held by type tests in `body.decorator.test.ts` and `param.decorator.test.ts`, red before.
+>
+> **Found on the way: `encryption` and `hash` on an array item or a string shape were accepted and
+> ignored.** `@Property.array({ items: { type: 'string', encryption: true } })` stored every item as
+> plaintext, as did a string shape of `@Property.oneOf`: the descriptors only looked at strings
+> directly on a model. The user decided to support them rather than refuse them. A
+> `StringValueDescriptor` now says where in a property's value its strings sit (the value, each item,
+> the value of a named shape, nested as deep as declared), and encrypting, decrypting, hashing, the
+> bound-property check of bulk writes and `needsReEncryption` all walk it. Such a property stays out
+> of change sets by default like an encrypted string, and an item declaring both `encryption` and
+> `hash` is refused as a property is. Held by `encrypted-items.cases.ts` (in-memory here, red before;
+> postgres and valkey in `encrypted-items.postgres-valkey.test.ts`) and `change-set-exclusion.test.ts`.
 
 - `src/entity/decorators/property.decorator.ts:27` —
   `StringPropertyMetadata<any, any, any, any, any>` in the central `PropertyMetadata` union, and
@@ -832,7 +915,7 @@ possible". The compiler configuration does not reflect that.
 > the application wrote down is now built whatever it is made of, which also restores the two guards
 > whose predicates read instance fields.
 >
-> **Named, not fixed**: a class first built *during* initialization by something else's constructor,
+> **Named, not fixed** (the first half since fixed, below): a class first built *during* initialization by something else's constructor,
 > after the sweep computed its list, still misses its hooks and is not refused - the state is not yet
 > `INITIALIZED`, which is what the refusal keys on. And a class that registers itself by being
 > imported, declares no hook, and happens to be shaped like a cache or a rate limiter without the
@@ -847,6 +930,32 @@ possible". The compiler configuration does not reflect that.
 > `additionalLifecycleServices`. An instance is cached under its class as well as its token
 > (`di-container.ts:317-319`), so this is the only shape that can reach the refusal at all: a class
 > whose token something else was given.
+
+> **The first half of the named residue is fixed (2026-09-28, found-bug sweep item 6), by keying the
+> refusal on phases rather than on the application's state.** Initializing is three phases and
+> starting two more; `GlobalRegistry` now records each as it finishes (`LifecyclePhase`), and the
+> container refuses a class only when a phase whose hook it declares has finished. Each phase runs
+> over its list and then over every value first built while it ran that declares its hook, until none
+> is left - so a class a constructor or a hook builds mid-initialization takes part in every phase
+> still ahead, and one reached after a phase it declares is refused at the `inject`, with the stack
+> that reached it. The state check was also too wide on the other side: a class declaring only a
+> shutdown hook was refused after startup, though shutdown runs on everything that exists by then.
+> Refusing it now would take away a service that works, so it is built. Three cases in
+> `application.orphan-registrations.test.ts`, each red on the old check by reading: the joined
+> service's `onAppInit` never ran, the early service was built silently, the teardown service was
+> refused. Phases stay finished through shutdown, so a hooked class first reached from a shutdown hook is
+> refused where it used to be built without its hooks.
+
+> **The last residue, deregistration and the watch-mode restart, closed on re-check (2026-10-13).**
+> Neither described the code any more. Deregistration exists: `unregister` removes a provider and
+> evicts a built instance before initialization (D4's test), and `dropUndeclaredOrphanControllers` uses
+> it. And the watch mode `zi new` generates does not re-import anything in-process: its
+> `OnBuildSuccessPlugin` stops the running server and starts the rebuilt bundle in a new `node`
+> process, so each generation starts with empty arrays. Only an in-process hot reload (webpack HMR
+> keeping the framework loaded) would re-import into them, and nothing ships one. The user chose to
+> close it with proof rather than build a registry reset nothing needs. Held by
+> `packages/cli/src/commands/new/new.command.test.ts`, which runs the generated plugin against a fake
+> compiler and `spawn`: two builds start two processes and stop the first.
 
 Decorators push into `GlobalRegistry.entityClasses` / `injectables` / `lazyInjectables` at import
 time (`src/entity/decorators/entity.decorator.ts:77`). Merely importing a controller registers it
@@ -1143,7 +1252,8 @@ Combined with P1, the ESM half of the dual build is unverified end to end.
 ### P3. Nine mandatory peer dependencies, including a compiler — ~~MAJOR~~ **FIXED**
 
 > **Four of twenty are mandatory now**: `bignumber.js`, `jsonwebtoken` and `rxjs`, which are core,
-> and `zibri-tsx`, which is the templating engine. Everything this finding names is optional, each
+> and `zibri-tsx`, which is the templating engine. *(Three since 2026-10-05: `jose` replaced
+> `jsonwebtoken` as an optional peer, [03 §H12](./03-auth-and-security.md).)* Everything this finding names is optional, each
 > one declared by a feature and checked while the application starts.
 >
 > **The compiler half went first.** `ts-node` is registered on demand, only for a file that is
@@ -1219,9 +1329,12 @@ database driver — is optional, while `pdfmake` is not.
 > That silence is what let this sit — a wrong exclusion pattern reads exactly like a right one.
 >
 > ```json
-> "files": ["./src", "!src/__testing__/**", "!src/**/test/**", "!src/**/*.test.ts",
+> "files": ["./src", "!src/**/__testing__/**", "!src/**/test/**", "!src/**/*.test.ts",
 >           "!src/**/*.test.worker.*", "./dist", ...]
 > ```
+>
+> The `__testing__` exclusion was first written for the top level folder only, which let nested
+> fixture folders such as `src/application/__testing__` ship. It matches at any depth now.
 >
 > **50.0MB → 10.26MB, 4725 files → 3283**, with every one of the 1442 dropped files verified to be
 > test material and no source lost.
@@ -1248,6 +1361,26 @@ database driver — is optional, while `pdfmake` is not.
 > `!dist/**/__testing__/**` beside them would hide the next build that genuinely emits the wrong
 > thing. And CI builds into a fresh checkout every time, so the only machine where `dist` has a
 > history is a developer's — which is also the machine that would have run `npm publish` by hand.
+>
+> **Past the 15MB ceiling once more, through growth this time, and three things were found
+> (2026-10-11, investigated with the user).** The tarball installed 15.36 MiB: sources grew 4.78 →
+> 5.96MB since the last commit, mostly real features (authenticators, SCIM, 2FA). Looking instead of
+> raising the ceiling found:
+> - **21 shared test-case files shipped**: `.cases.ts` (the suffix CODE_STYLE gives them) was in
+>   neither the `files` exclusions nor the "ships no test material" check. Red first, then
+>   `"!src/**/*.cases.ts"`.
+> - **The PDF fonts shipped twice and rendered wrong.** `pdf.utilities.ts` embedded Roboto as two
+>   base64 strings — 1.29MB in `src` and again in `dist`. They were *variable* fonts, which pdfkit
+>   draws at their default weight only, so bold text in every generated PDF came out regular (red
+>   first in the new `pdf.utilities.test.ts`). The optional peer `pdfmake` ships the static cuts
+>   itself (`pdfmake/build/vfs_fonts`), so zibri ships no font now and bold maps to Roboto Medium.
+> - **Comments were 32% of the built JavaScript.** The build is two passes now:
+>   `tsconfig.cjs.code.json` (`removeComments`, no declarations) and
+>   `tsconfig.cjs.declarations.json` (declarations only, keeping the JSDoc editors show). The sources
+>   ship with every comment and the maps lead to them. A published-package case checks both halves.
+>
+> **15.36 → 11.44 MiB**, and the ceiling tightened to 12 (the user's choice): growing past it is
+> a reason to look at what grew.
 
 `package.json:19-25` — `files: ["./src", "./dist", ...]`. This roughly doubles install size, ships
 `src/__testing__/`, and (per [02](./02-http-runtime-core.md) §C6) ships the 382 leaked
@@ -1255,12 +1388,40 @@ database driver — is optional, while `pdfmake` is not.
 [06](./06-tooling-ci-and-testing.md) §T2 more galling: the test helpers are physically present in
 `node_modules` and still unreachable through the `exports` map.
 
-### P5. Version skew across the monorepo — MINOR
+### P5. Version skew across the monorepo — ~~MINOR~~ **FIXED**
 
 `packages/zibri` pins `@types/node: ^25.9.1`; `packages/tsx` and `packages/cli` pin `^22.19.17`.
 `packages/zibri` uses `typescript: ^5.9.2`; the other two use `^5.8.3`. The packages are built and
 published together from one lockfile, so the type-checking surface differs between packages that
 are meant to interoperate.
+
+> **Fixed (2026-09-28), and the declared ranges were the smaller half.** The installed tree held
+> four `@types/node` majors: 25 for `zibri` and `zibri-testing`, 22 for the cli and the compiler,
+> 24 for the sandbox and every generated project. Every package declares `engines: >=24`, and
+> CI tests that floor plus each line node still maintains (`supported-node-majors.mjs`). Node 25
+> reached end of life on 2026-06-01, so no CI job runs it. **So the framework was type-checked
+> against a runtime newer than the one it promises**, where an api only 25 has compiles and fails
+> on 24. `typescript` was one installed copy with ranges that disagreed on paper, except that
+> `zibri-tsx` declared `^5.9.2` as its peer and developed against `^5.8.3`, a version it
+> refuses to consumers. `eslint` was `^9.24.0` beside `^9.36.0`.
+>
+> **The rule now: `@types/node` follows the `engines` floor.** `engines` already decides what
+> CI runs, so the one declaration decides both. All five manifests declare `@types/node ^24.0.0`,
+> `typescript ^5.9.2` and `eslint ^9.36.0`. Three cases in `ci-workflows.test.ts` hold it, and all
+> three were red first:
+> - A dependency declared by two workspaces uses one range. This is a general rule rather than a
+>   list, so a tool added later is covered.
+> - `@types/node`'s major equals the floor.
+> - A development range never falls below the package's own peer range.
+>
+> **Checked against Node 24's types before any install**, by pointing a scratch tsconfig at the
+> copy the sandbox already had. The shipped build compiles cleanly. One test,
+> `jwt-auth.asymmetric.test.ts`, did not: it typed a JWK through `webcrypto.JsonWebKey`, which
+> only Node 25's `createPublicKey` accepts. It now uses `JsonWebKeyInput['key']`, which is what
+> the function takes on either line.
+>
+> Kept per package rather than hoisted to the root, by choice: a manifest keeps saying what its
+> package builds with, and peer ranges are per package anyway.
 
 ### P6. `versions` and `translations` resolve on opposite sides of the bundle — ~~MINOR~~ **FIXED**
 

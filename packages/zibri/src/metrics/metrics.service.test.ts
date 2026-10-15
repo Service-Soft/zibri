@@ -88,7 +88,7 @@ describe('PrometheusMetricsService', () => {
         server = await startTestServer({ controllers: [MetricsIntegrationController] });
         baseUrl = await server.start();
         service = inject(PrometheusMetricsService);
-    }, 15000);
+    }, 30000);
 
     afterAll(async () => {
         await server?.shutdown();

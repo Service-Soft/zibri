@@ -2,8 +2,7 @@ import assert from 'node:assert';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { JwtAuthController } from '../../auth/strategies/jwt/jwt-auth.controller';
-import { JwtCredentials, JwtCredentialsCreateData } from '../../auth/strategies/jwt/jwt-credentials.model';
+import { PasswordCredentials, PasswordCredentialsCreateData } from '../../auth/authenticators/password/password-credentials.model';
 import { PostgresDataSource } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
 import { Repository } from '../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
@@ -13,6 +12,8 @@ import { defineProvider } from '../../di/models/di-provider.model';
 import { HttpMethod } from '../../http/http-method.enum';
 import { type RouterInterface } from '../../routing/router.interface';
 import { Newable } from '../../types/newable.type';
+import { JsonUtilities } from '../../utilities/json.utilities';
+import { JwtTestAuthController } from '../mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../mocks/entities/jwt-user.entity';
 import { Roles } from '../mocks/entities/roles.enum';
 import { createTestDataSource } from '../test-server/create-test-data-source.function';
@@ -49,13 +50,13 @@ const dataSourceClass: Newable<PostgresDataSource> = createTestDataSource();
  */
 async function createAndLogIn(email: string, roles: Roles[]): Promise<string> {
     const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email, roles });
-    const credentials: Repository<JwtCredentials, JwtCredentialsCreateData> = inject(repositoryTokenFor(JwtCredentials));
-    await credentials.create({ email, password, userId: user.id });
+    const credentials: Repository<PasswordCredentials, PasswordCredentialsCreateData> = inject(repositoryTokenFor(PasswordCredentials));
+    await credentials.create({ password, userId: user.id });
 
     const res: Response = await fetch(`${baseUrl}/auth/login`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JsonUtilities.stringify({ email, password })
     });
     expect(res.status).toBe(200);
     const data: { accessToken: { value: string } } = await res.json() as { accessToken: { value: string } };
@@ -80,7 +81,7 @@ beforeAll(async () => {
         dataSources: [dataSourceClass],
         // the real login endpoint, because the point is what a *logged in* caller gets - a file that
         // only ever sends anonymous requests cannot tell a closed route from a broken one
-        controllers: [JwtAuthController],
+        controllers: [JwtTestAuthController],
         defaultAuth: 'requireLogin'
     });
     baseUrl = await server.start();
@@ -105,7 +106,7 @@ beforeAll(async () => {
         httpMethod: HttpMethod.GET,
         route: '/manual/admin',
         openApi: { useInOpenApi: false },
-        auth: { hasRole: { allowedRoles: [Roles.ADMIN] } },
+        auth: { hasPlatformRole: { allowedRoles: [Roles.ADMIN] } },
         handler: () => 'admin'
     });
     router.registerRoute({

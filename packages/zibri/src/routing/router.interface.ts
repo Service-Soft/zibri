@@ -1,4 +1,7 @@
+import { Request, Response } from 'express';
+
 import { RouteConfiguration, RouteConfigurationInput } from './route-configuration.model';
+import { HttpMethod } from '../http/http-method.enum';
 import { Newable } from '../types/newable.type';
 import { BodyMetadata, DeclaredBodyInput } from './decorators/body-metadata.model';
 import { PathParamMetadataInput, QueryParamMetadataInput, HeaderParamMetadataInput, PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from './decorators/param.decorator';
@@ -26,6 +29,18 @@ export interface RouterInterface {
         // eslint-disable-next-line typescript/no-explicit-any
         ...params: any[]
     ) => void,
+
+    /**
+     * The origins whose pages may send the request with cookies, as the route it reaches declares
+     * them with `@AcceptCrossSitePosts`. Empty when that route declares none.
+     */
+    resolveAcceptedCrossSiteOrigins: (request: Request, response: Response) => Promise<string[]>,
+
+    /**
+     * The methods the routes matching a path declare, eg. `/auth/federated/google/callback` for a route
+     * `/auth/federated/:provider/callback`. None when no route matches it.
+     */
+    findMethods: (path: string) => HttpMethod[],
 
     /**
      * All routes that have been manually registered by calling the .register method.

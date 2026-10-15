@@ -1,6 +1,10 @@
+import { WhereFilter } from '../../data-source/models/where/where-filter.model';
+import { whereFor } from '../../data-source/models/where/where-for.function';
+import { BaseEntity } from '../../entity/base-entity.model';
 import { EntityMetadata } from '../../entity/decorators/entity.decorator';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
-import { declaresUnique, UniqueGroup, uniqueWhereOf } from '../../entity/models/unique-declaration.model';
+import { type EntityTenant } from '../../entity/models/entity-tenant.model';
+import { declaresUnique, KeyWhere, UniqueGroup, uniqueWhereOf } from '../../entity/models/unique-declaration.model';
 import { Newable } from '../../types/newable.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
@@ -46,7 +50,66 @@ export function keyGroupsOf(entityClass: Newable<unknown>): KeyGroups {
 
     res.uniques.push(...entityMetadata?.uniques ?? []);
     res.indexes.push(...entityMetadata?.indexes ?? []);
-    return res;
+
+    const tenant: EntityTenant | undefined = entityMetadata?.tenant;
+    if (tenant == undefined || tenant === 'shared') {
+        return res;
+    }
+    return withinTenant(res, tenant.property, properties[tenant.property]?.required === true);
+}
+
+/**
+ * Puts the tenant property in front of every group of an entity whose rows belong to a tenant.
+ *
+ * A value one tenant holds says nothing about another tenant's rows, so a unique holds within a
+ * tenant: two tenants each have their own `admin@example.com`. And every read of such an entity is
+ * narrowed to one tenant, so an index that does not start with the tenant answers from rows of every
+ * tenant. Here rather than in each store, so that every store, the upsert identities and the schema
+ * all see the groups the same way.
+ * @param groups - The groups as the entity declares them.
+ * @param tenantProperty - The property holding the tenant of a row.
+ * @param tenantRequired - Whether every row belongs to a tenant, or a row may belong to none.
+ * @returns The groups each led by the tenant, and an index on the tenant alone.
+ */
+function withinTenant(groups: KeyGroups, tenantProperty: string, tenantRequired: boolean): KeyGroups {
+    // a group already naming the tenant is unique or indexed per tenant as it was written - one row
+    // of settings per tenant, say - and naming it twice would be the same column in one key twice
+    const lead: (properties: string[]) => string[] = properties => properties.includes(tenantProperty)
+        ? properties
+        : [tenantProperty, ...properties];
+    const indexes: string[][] = groups.indexes.map(lead);
+    if (!indexes.some(group => group.length === 1 && group[0] === tenantProperty)) {
+        // asked of by every read, and a store reading a group's index only for a filter naming every
+        // column of it would otherwise read the whole table for a lookup by tenant alone
+        indexes.push([tenantProperty]);
+    }
+    return {
+        uniques: groups.uniques.flatMap(group => {
+            const led: UniqueGroup = { ...group, properties: lead(group.properties) };
+            if (tenantRequired || group.properties.includes(tenantProperty)) {
+                return [led];
+            }
+            // a row of no tenant holds null for the tenant, and no store compares a null in a unique,
+            // so the led group lets any number of them hold the same value. The rows of no tenant get
+            // a group of their own, unique among themselves the way each tenant's rows are
+            return [led, { properties: group.properties, where: withNoTenant(group.where, tenantProperty) }];
+        }),
+        indexes
+    };
+}
+
+/**
+ * Narrows the rows a unique covers to the rows of no tenant.
+ * @param where - The rows the unique covers as it was declared, undefined for all of them.
+ * @param tenantProperty - The property holding the tenant of a row.
+ * @returns The same rows, of no tenant only.
+ */
+function withNoTenant(where: KeyWhere | undefined, tenantProperty: string): KeyWhere {
+    // every branch, since they are alternatives: each covers rows of no tenant only from now on
+    const branches: WhereFilter<BaseEntity>[] = where == undefined ? [{}] : Array.isArray(where) ? where : [where];
+    // eslint-disable-next-line unicorn/no-null
+    const narrowed: WhereFilter<BaseEntity>[] = branches.map(branch => ({ ...branch, [tenantProperty]: null }));
+    return whereFor(narrowed.length === 1 ? narrowed[0] ?? {} : narrowed);
 }
 
 /**

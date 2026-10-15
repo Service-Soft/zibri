@@ -82,7 +82,11 @@ export function resolveApplicationOptions(
         // an empty array (rather than undefined) so ZibriApplication's own JwtAuthStrategy fallback
         // still applies
         authStrategies: options.authStrategies ?? base.authStrategies ?? [],
+        // the same, for ZibriApplication's own PasswordAuthenticator fallback
+        authenticators: options.authenticators ?? base.authenticators ?? [],
         twoFactorMethods: options.twoFactorMethods ?? base.twoFactorMethods ?? [],
+        // false rather than undefined, which is what ZibriApplication falls back to anyway
+        twoFactorFailureLimit: options.twoFactorFailureLimit ?? base.twoFactorFailureLimit ?? false,
         cronJobs: options.cronJobs ?? base.cronJobs ?? [],
         additionalLifecycleServices: options.additionalLifecycleServices
             ?? base.additionalLifecycleServices

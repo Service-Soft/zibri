@@ -56,7 +56,10 @@ export class RateLimitingService implements RateLimitingServiceInterface, OnAppI
                 );
             }
             this.logger.info(`  - ${limiter.config.name}`);
-            this.limiters.push(limiter);
+            // added already when the feature that builds it started first, see addLimiter
+            if (!this.limiters.includes(limiter)) {
+                this.limiters.push(limiter);
+            }
         }
 
         // among what the application has actually built, rather than everything registered - see
@@ -86,6 +89,22 @@ export class RateLimitingService implements RateLimitingServiceInterface, OnAppI
         if (!app.options.cronJobs.includes(RateLimitingCleanupCronJob)) {
             app.options.cronJobs.push(RateLimitingCleanupCronJob);
         }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc, typescript/no-explicit-any
+    addLimiter(limiter: RateLimiterInterface<any>): void {
+        // a limiter whose state only some applications have a table for is built by the feature that
+        // needs it, while the application starts - before or after the sweep above, so both add it.
+        // The two arguments below are the any of the parameter, see RateLimitingServiceInterface
+        // eslint-disable-next-line typescript/no-unsafe-argument
+        if (this.limiters.includes(limiter)) {
+            return;
+        }
+        if (this.limiters.some(l => l.config.name === limiter.config.name)) {
+            throw new InitRateLimitingServiceError(['There are duplicate rate limiter names:', `- ${limiter.config.name}`]);
+        }
+        // eslint-disable-next-line typescript/no-unsafe-argument
+        this.limiters.push(limiter);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

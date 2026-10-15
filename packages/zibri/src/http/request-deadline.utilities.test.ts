@@ -4,13 +4,15 @@ import { Readable } from 'node:stream';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import express, { Express } from 'express';
-import { createInMemoryDataSource, defaultTestProviders, StartedTestServer, startTestServer } from 'zibri-testing';
+import { createInMemoryDataSource } from 'zibri-testing';
 
 import { HttpMethod } from './http-method.enum';
 import { HttpServerTimeouts } from './http-server-timeouts.model';
 import { HttpStatus } from './http-status.enum';
 import { JwtUser } from '../__testing__/mocks/entities/jwt-user.entity';
 import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerProviders } from '../__testing__/test-server/providers';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { AlsUtilities } from '../context/als.utilities';
 import { HttpRequestContext } from '../context/request/http-request.context';
 import { WebsocketRequestContext } from '../context/request/websocket-request.context';
@@ -258,7 +260,7 @@ const timeouts: HttpServerTimeouts = {
 };
 
 const providers: DiProvider<unknown>[] = [
-    ...defaultTestProviders,
+    ...defaultTestServerProviders,
     defineProvider({ token: ZIBRI_DI_TOKENS.HTTP_SERVER_TIMEOUTS, useValue: timeouts })
 ];
 

@@ -2,18 +2,23 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { XRechnungConformanceService } from './x-rechnung-conformance.service';
 import { testFileFolder } from '../../../../../__testing__/constants';
+import { companyInfoProvider } from '../../../../../__testing__/mocks/company-info-provider.function';
 import { createTestDataSource, defaultTestServerEntities } from '../../../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../../../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../../../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../../../../di/decorators/inject-repository.decorator';
+import { ZIBRI_DI_TOKENS } from '../../../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../../../di/inject.function';
 import { defineProvider } from '../../../../../di/models/di-provider.model';
+import { type TenantServiceInterface } from '../../../../../tenancy/tenant-service.interface';
 import { OmitStrict } from '../../../../../types/omit-strict.type';
 import { FsUtilities } from '../../../../../utilities/fs.utilities';
 import { Ms } from '../../../../../utilities/ms';
+import { UUIDUtilities } from '../../../../../utilities/uuid.utilities';
 import { ZibriInvoicingPlugin } from '../../../invoicing.plugin';
 import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../../../invoicing.tokens';
+import { CompanyInfo } from '../../../models/company-info.model';
 import { Invoice } from '../../../models/invoice.model';
 import { InvoicingOptions } from '../../../models/invoicing-options.model';
 import { NumberInvoices } from '../../../models/number-invoices.model';
@@ -21,7 +26,6 @@ import { NumberInvoices } from '../../../models/number-invoices.model';
 const invoicingOptions: InvoicingOptions = {
     footerFontSize: 10,
     images: undefined,
-    logo: undefined,
     phoneLabel: 'Phone',
     emailLabel: 'E-Mail',
     headline: 'Invoice',
@@ -50,31 +54,46 @@ const invoicingOptions: InvoicingOptions = {
     numberOfDigits: 4,
     separator: '-',
     numberCompanyAbbreviationCharacters: 6,
-    numberPrivateCustomerAbbreviationCharacters: 3,
-    companyInfo: {
-        name: 'Example Company',
-        fullName: 'Example Company LLC',
-        email: 'info@example-company.com',
-        phone: '12345 67890123',
-        address: {
-            street: 'Example street',
-            number: '1b',
-            postcode: '12345',
-            city: 'Example city',
-            countryId: 'DE'
-        },
-        taxNumber: '123/456/78910',
-        ceo: 'James Smith',
-        iban: 'DE75 5121 0800 1245 1261 99',
-        bic: 'ABCD5F'
+    numberPrivateCustomerAbbreviationCharacters: 3
+};
+
+const companyInfo: CompanyInfo = {
+    name: 'Example Company',
+    fullName: 'Example Company LLC',
+    email: 'info@example-company.com',
+    phone: '12345 67890123',
+    address: {
+        street: 'Example street',
+        number: '1b',
+        postcode: '12345',
+        city: 'Example city',
+        countryId: 'DE'
     },
+    taxNumber: '123/456/78910',
+    ceo: 'James Smith',
+    iban: 'DE75 5121 0800 1245 1261 99',
+    bic: 'ABCD5F',
     bankName: 'Example Bank',
     taxOffice: 'Tax Office Example City'
 };
 
+/**
+ * The tenant the invoices of the tests are issued in.
+ */
+const TENANT: string = UUIDUtilities.generate();
+
 let server: StartedTestServer;
-let repo: Repository<Invoice, OmitStrict<Invoice, 'id'>>;
+let repo: Repository<Invoice, OmitStrict<Invoice, 'id' | 'tenantId'>>;
 let conformanceService: XRechnungConformanceService;
+
+/**
+ * Creates an invoice in the tenant of the tests.
+ * @param data - The invoice.
+ * @returns The created invoice.
+ */
+async function createInvoice(data: OmitStrict<Invoice, 'id' | 'tenantId'>): Promise<Invoice> {
+    return await inject<TenantServiceInterface>(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(TENANT, async () => await repo.create(data));
+}
 
 describe('generateXml', () => {
     beforeAll(async () => {
@@ -84,20 +103,21 @@ describe('generateXml', () => {
             dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Invoice, NumberInvoices] })],
             providers: [
                 ...defaultTestServerProviders,
-                defineProvider({ token: ZIBRI_INVOICING_PLUGIN_DI_TOKENS.OPTIONS_INPUT, useValue: invoicingOptions })
+                defineProvider({ token: ZIBRI_INVOICING_PLUGIN_DI_TOKENS.OPTIONS_INPUT, useValue: invoicingOptions }),
+                companyInfoProvider(() => companyInfo)
             ]
         });
 
         repo = inject(repositoryTokenFor(Invoice));
         conformanceService = inject(XRechnungConformanceService);
-    }, 15000);
+    }, 30000);
 
     afterAll(async () => {
         await server.shutdown();
     }, 15000);
 
     it('should create the expected result', async () => {
-        const invoice: Invoice = await repo.create({
+        const invoice: Invoice = await createInvoice({
             // eslint-disable-next-line cspell/spellchecker
             number: `${new Date().getFullYear()}-GREATC-0001`,
             currency: 'EUR',
@@ -155,7 +175,7 @@ describe('generateXml', () => {
     it('states the calendar day of the given time zone, not of the machine', async () => {
         // 01:30 utc on new year's day is still December 31st in New York, and the document has to
         // say whichever of the two the caller asked for no matter where the server stands
-        const invoice: Invoice = await repo.create({
+        const invoice: Invoice = await createInvoice({
             // eslint-disable-next-line cspell/spellchecker
             number: `${new Date().getFullYear()}-GREATC-0002`,
             currency: 'EUR',

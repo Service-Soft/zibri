@@ -6,7 +6,7 @@ import { OmitClass } from '../../../entity/omit-class.model';
 /**
  * A cookie auth refresh session.
  */
-@Entity({ allowOrphan: true })
+@Entity({ tenant: 'shared', allowOrphan: true })
 export class CookieAuthRefreshSession extends BaseEntity {
     /**
      * The id of the user that this session belong to.
@@ -38,6 +38,32 @@ export class CookieAuthRefreshSession extends BaseEntity {
      */
     @Property.string({ format: 'uuid' })
     familyId!: string;
+    /**
+     * When the user logged in. Every refresh session of one family carries the same value.
+     */
+    @Property.date()
+    authenticatedAt!: Date;
+    /**
+     * The name of the provider the login was started at. Null for a login started some other way.
+     * Every refresh session of one family carries the same value, like the three below.
+     */
+    @Property.string({ required: false })
+    federatedProvider: string | undefined | null;
+    /**
+     * Identifies the person at that provider, which a logout there finds the login by.
+     */
+    @Property.string({ required: false })
+    federatedSubjectKey: string | undefined | null;
+    /**
+     * Identifies their session at that provider, which a logout there finds the login by.
+     */
+    @Property.string({ required: false })
+    federatedSessionKey: string | undefined | null;
+    /**
+     * What ends the session at that provider, once the login ends here.
+     */
+    @Property.string({ required: false })
+    federatedLogout: string | undefined | null;
 }
 
 /**

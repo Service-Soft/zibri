@@ -16,7 +16,7 @@ import { whereFor } from '../models/where/where-for.function';
  * builds one out of configuration.
  */
 
-@Entity({ allowOrphan: true })
+@Entity({ tenant: 'shared', allowOrphan: true })
 class Registration extends BaseEntity {
     @Property.string()
     email!: string;
@@ -34,7 +34,7 @@ class Registration extends BaseEntity {
 /**
  * A second entity, so a filter can be typed against the wrong one without a cast.
  */
-@Entity({ allowOrphan: true })
+@Entity({ tenant: 'shared', allowOrphan: true })
 class Invitation extends BaseEntity {
     @Property.string()
     invitedBy!: string;

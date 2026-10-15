@@ -13,7 +13,15 @@ export type MailingListTemplateData = {
     /**
      * The mailing list that the email belongs to, if any.
      */
-    list: MailingList
+    list: MailingList,
+    /**
+     * The link the subscriber leaves the list with.
+     */
+    unsubscribeLink: string,
+    /**
+     * The link to the page the subscriber manages their preferences on.
+     */
+    managePreferencesLink: string
 };
 
 /**

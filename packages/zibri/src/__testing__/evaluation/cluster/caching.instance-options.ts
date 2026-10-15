@@ -57,6 +57,7 @@ const valKeyPrefix: string = 'cluster-cache';
 class ClusterValKeyDataSource extends ValKeyDataSource {
     override options: ValKeyOptions = {
         host: 'localhost',
+        useTLS: false,
         keyPrefix: valKeyPrefix
     };
     entities: Newable<BaseEntity>[] = defaultTestValKeyEntities;

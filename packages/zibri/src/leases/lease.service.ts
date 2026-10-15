@@ -10,10 +10,11 @@ import { ZibriApplication } from '../application/application';
 import { AlsUtilities } from '../context/als.utilities';
 import { Repository } from '../data-source/repository/repository';
 import { runInLeaseScope } from '../data-source/run-in-lease-scope.function';
-import { InjectRepository } from '../di/decorators/inject-repository.decorator';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { inject } from '../di/inject.function';
 import { InternalError } from '../error-handling/internal-error.model';
 import { OnAppInit } from '../global/on-app-init.interface';
 import { OnAppShutdown } from '../global/on-app-shutdown.interface';
@@ -72,10 +73,14 @@ export class LeaseService implements LeaseServiceInterface, OnAppInit, OnAppShut
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
         private readonly logger: LoggerInterface,
         @Inject(ZIBRI_DI_TOKENS.LEASE_DRAIN_TIMEOUT_IN_MS)
-        private readonly drainTimeoutInMs: number,
-        @InjectRepository(Lease)
-        private readonly leaseRepository: Repository<Lease, CreateLeaseData>
+        private readonly drainTimeoutInMs: number
     ) {}
+
+    // read when used rather than injected, so that an application without the entity is told to
+    // declare it by onAppInit, instead of failing on a repository token while this is built
+    private get leaseRepository(): Repository<Lease, CreateLeaseData> {
+        return inject(repositoryTokenFor(Lease));
+    }
 
     /**
      * Fails the boot of an application that cannot coordinate.

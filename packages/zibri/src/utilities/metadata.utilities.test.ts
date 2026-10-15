@@ -1,8 +1,54 @@
 import { describe, expect, it } from '@jest/globals';
 
 import { MetadataUtilities } from './metadata.utilities';
-import { PropertyMetadata } from '../entity/decorators/property.decorator';
+import { DataSource } from '../data-source/decorators/data-source.decorator';
+import { Injectable } from '../di/decorators/injectable.decorator';
+import { Property, PropertyMetadata } from '../entity/decorators/property.decorator';
 import { BodyMetadata } from '../routing/decorators/body-metadata.model';
+
+/**
+ * A project's own decorator, built on one of the framework's.
+ * @returns The decorator.
+ */
+function TenantDataSource(): ClassDecorator {
+    return target => DataSource({ allowOrphan: true, register: 'onUse' })(target);
+}
+
+describe('MetadataUtilities — the file a class is declared in', () => {
+    it('records the file of a class decorated by a framework decorator', () => {
+        @Injectable({ register: 'onUse' })
+        class Service {}
+
+        expect(MetadataUtilities.getFilePath(Service)).toBe(__filename);
+    });
+
+    it('records the file of a class decorated through a project\'s own decorator', () => {
+        // read at a fixed depth of the stack, which this decorator's extra frames moved into reflect-metadata
+        @TenantDataSource()
+        class TenantDb {}
+
+        expect(MetadataUtilities.getFilePath(TenantDb)).toBe(__filename);
+    });
+
+    it('records the file of a class declared inside a function', () => {
+        const declare: () => Function = () => {
+            class Declared {
+                @Property.string()
+                name!: string;
+            }
+            return Declared;
+        };
+
+        expect(MetadataUtilities.getFilePath(declare())).toBe(__filename);
+    });
+
+    it('answers unknown when it was not called from a decorator', () => {
+        class Undecorated {}
+        MetadataUtilities.setFilePath(Undecorated);
+
+        expect(MetadataUtilities.getFilePath(Undecorated)).toBe('unknown');
+    });
+});
 
 describe('MetadataUtilities — Reflect-metadata based inheritance (getRouteBody/setRouteBody)', () => {
     it('returns own metadata directly when set on the class itself', () => {

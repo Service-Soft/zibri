@@ -4,6 +4,7 @@ import { describe, expect, it } from '@jest/globals';
 
 import { Property, PropertyMetadata } from './property.decorator';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { type OneOf } from '../models/one-of.model';
 
 /**
  * What a change set is allowed to hold.
@@ -27,6 +28,18 @@ class Secrets {
 
     @Property.string({ encryption: { bindToRow: false }, excludeFromChangeSets: false })
     deliberatelyRecorded!: string;
+
+    @Property.array({ items: { type: 'string', encryption: true } })
+    recoveryCodes!: string[];
+
+    @Property.array({ items: { type: 'array', items: { type: 'string', hash: true } } })
+    pinsPerDevice!: string[][];
+
+    @Property.oneOf({ shapes: { Email: { type: 'string', encryption: true }, Count: { type: 'number' } } })
+    contact!: OneOf<{ Email: string, Count: number }>;
+
+    @Property.array({ items: { type: 'string' } })
+    tags!: string[];
 }
 
 /**
@@ -47,10 +60,17 @@ describe('a property that holds a secret', () => {
         expect(metadataOf('password').excludeFromChangeSets).toBe(true);
     });
 
+    it('stays out of change sets when its items or one of its shapes hold the secret', () => {
+        expect(metadataOf('recoveryCodes').excludeFromChangeSets).toBe(true);
+        expect(metadataOf('pinsPerDevice').excludeFromChangeSets).toBe(true);
+        expect(metadataOf('contact').excludeFromChangeSets).toBe(true);
+    });
+
     it('leaves every other property where it was', () => {
         // the default for everything else is unchanged: a change set is the audit trail, and
         // narrowing it beyond what has to be narrowed would quietly lose history
         expect(metadataOf('title').excludeFromChangeSets).toBe(false);
+        expect(metadataOf('tags').excludeFromChangeSets).toBe(false);
     });
 
     it('lets the declaration say otherwise', () => {

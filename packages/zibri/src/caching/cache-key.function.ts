@@ -1,3 +1,4 @@
+import { AlsUtilities } from '../context/als.utilities';
 import { JsonUtilities } from '../utilities/json.utilities';
 
 /**
@@ -10,6 +11,11 @@ import { JsonUtilities } from '../utilities/json.utilities';
 const SERIALIZED_KEY_MARK: string = String.fromCodePoint(0);
 
 /**
+ * Marks the start and the end of the tenant a key was written in, for the reason above.
+ */
+const TENANT_KEY_MARK: string = String.fromCodePoint(1);
+
+/**
  * Reduces whatever a key provider returned to the value everything keyed by it agrees on.
  *
  * A key function is free to return an object - `{ userId, tenantId }` is an ordinary thing to cache
@@ -19,20 +25,27 @@ const SERIALIZED_KEY_MARK: string = String.fromCodePoint(0);
  *
  * The one definition of key identity, so a store, a second store and the single flight map cannot
  * disagree about it.
+ *
+ * A key holds the tenant active while it is used, so each tenant has its own entries and its own
+ * loads in flight.
  * @param key - The key as the key provider returned it.
  * @returns The key as everything storing it should use it.
  */
 export function cacheKeyOf(key: unknown): string {
+    // read here rather than handed in, so that no store and no key provider can forget it: the
+    // same key read in two tenants would otherwise answer one tenant with what another cached
+    const tenantId: string | undefined = AlsUtilities.getCurrentTenant();
+    const tenant: string = tenantId == undefined ? '' : `${TENANT_KEY_MARK}${tenantId}${TENANT_KEY_MARK}`;
     if (typeof key === 'string') {
-        return key;
+        return `${tenant}${key}`;
     }
-    return `${SERIALIZED_KEY_MARK}${JsonUtilities.stringify(canonical(key))}`;
+    return `${tenant}${SERIALIZED_KEY_MARK}${JsonUtilities.stringify(canonical(key))}`;
 }
 
 /**
  * Puts a value into the one shape every equal value shares.
  *
- * Property order is not part of what an object *is*, but it is part of what `JSON.stringify` writes,
+ * Property order is not part of what an object *is*, but it is part of what `JsonUtilities.stringify` writes,
  * so `{ userId, tenantId }` and `{ tenantId, userId }` would otherwise be two keys holding one value
  * - which costs a duplicate entry and a miss that looks like a cold cache.
  *

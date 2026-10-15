@@ -95,9 +95,10 @@ export type HashPropertyValue<Data, THashOptions extends AnyObject> = boolean | 
     );
 
 /**
- * The possible formats a string value can have.
+ * The possible formats a string value can have. `phone` is a number in international format, eg.
+ * `+4915112345678`.
  */
-export type StringFormat = 'uuid' | 'email';
+export type StringFormat = 'uuid' | 'email' | 'phone';
 
 /**
  * Metadata for string properties.
@@ -115,7 +116,8 @@ export type StringPropertyMetadata<
     type: 'string',
     /**
      * Whether or not the property is a primary key.
-     * Enabling this also turns on 'uuid' as the format and sets 'unique' to true.
+     * Enabling this also turns on 'uuid' as the format and sets 'unique' to true. A string primary
+     * key always holds uuids, so declaring another format, or none, is refused.
      *
      * A primary key names at most one row through an index of its own, so declaring 'unique' or
      * 'index' beside it is refused.
@@ -188,12 +190,71 @@ export type StringPropertyMetadata<
 };
 
 /**
+ * Metadata for string properties, as it is stored and read back.
+ *
+ * A declaration names the type of the data its settings are given, the key type of its encryption
+ * strategy and the options that strategy takes, so that the options are checked against the strategy
+ * where they are written. Nothing reading the metadata back needs those types: the strategy is resolved
+ * from its class when a value is encrypted, and hands its own key to itself.
+ */
+export type StoredStringPropertyMetadata = StringPropertyMetadata<
+    unknown,
+    unknown,
+    BaseEncryptOptions<unknown>,
+    BaseDecryptOptions<unknown>,
+    AnyObject
+>;
+
+/**
+ * The encryption setting of a string property, as it is stored and read back.
+ */
+export type StoredEncryptionPropertyValue = StoredStringPropertyMetadata['encryption'];
+
+/**
+ * The hash setting of a string property, as it is stored and read back.
+ */
+export type StoredHashPropertyValue = StoredStringPropertyMetadata['hash'];
+
+/**
+ * Metadata for string properties, whatever encryption or hashing strategy they name.
+ *
+ * Where a declaration is written, its settings are checked against the strategy it names. This is what
+ * it is after that check: the same declaration, now handled the same way whichever strategy it was.
+ */
+export type AnyStrategyStringPropertyMetadata = OmitStrict<StoredStringPropertyMetadata, 'encryption' | 'hash'> & {
+    /**
+     * Settings for encrypting/decrypting this property, checked where they were declared.
+     */
+    encryption: unknown,
+    /**
+     * Settings for hashing this property, checked where they were declared.
+     */
+    hash: unknown
+};
+
+/**
+ * Input metadata for string properties, whatever encryption or hashing strategy they name.
+ */
+export type AnyStrategyStringPropertyMetadataInput = Partial<OmitStrict<AnyStrategyStringPropertyMetadata, 'type'>>;
+
+/**
+ * Input metadata for a string that comes in with a request or a response, which is read rather than
+ * stored.
+ */
+export type IncomingStringPropertyMetadataInput = OmitStrict<
+    StringPropertyMetadataInput,
+    // encryption and hashing are what a repository does to a value it stores, so nothing would ever act
+    // on either flag for a value that is only read
+    'encryption' | 'hash'
+>;
+
+/**
  * Input Metadata for string properties.
  */
 export type StringPropertyMetadataInput<
-    Data,
-    TKey,
-    TEncryptOptions extends BaseEncryptOptions<TKey>,
-    TDecryptOptions extends BaseDecryptOptions<TKey>,
-    THashOptions extends AnyObject
+    Data = unknown,
+    TKey = unknown,
+    TEncryptOptions extends BaseEncryptOptions<TKey> = BaseEncryptOptions<TKey>,
+    TDecryptOptions extends BaseDecryptOptions<TKey> = BaseDecryptOptions<TKey>,
+    THashOptions extends AnyObject = AnyObject
 > = Partial<OmitStrict<StringPropertyMetadata<Data, TKey, TEncryptOptions, TDecryptOptions, THashOptions>, 'type'>>;

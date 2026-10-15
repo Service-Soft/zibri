@@ -5,6 +5,7 @@ import { RateLimiterLockInterface } from './rate-limiter-lock.interface';
 import { BaseRateLimitState, RateLimiterStoreInterface, RateLimiterStoreUpdateResult } from './rate-limiter-store.interface';
 import { Repository } from '../../data-source/repository/repository';
 import { UniqueConstraintViolationError } from '../../data-source/unique-constraint-violation.error';
+import { DiContainer } from '../../di/di-container';
 import { InternalError } from '../../error-handling/internal-error.model';
 
 /**
@@ -27,11 +28,25 @@ const maxWriteAttempts: number = 8;
 const backoffBaseInMs: number = 5;
 
 /**
+ * The namespaces taken by the stores of each application, by its container.
+ *
+ * By container rather than for the whole process, the way injection tokens are: a limiter builds its
+ * store when it is built, and every application a process runs - a restart, a test - builds its
+ * limiters anew. The container is discarded with its application, and the namespaces with it.
+ */
+const namespacesByContainer: WeakMap<DiContainer, Set<string>> = new WeakMap();
+
+/**
  * A rate limiter store that keeps its state in a data source, which makes the limits work across
  * multiple instances of an app.
  *
  * Because it goes through a repository it works with every data source, so the same limits can be
  * backed by valkey or by postgres without changing anything but the repository that is injected.
+ *
+ * ## Namespace
+ * Every store on a data source shares the one `RateLimitStateEntity` table, so each is given a
+ * namespace of its own, such as the name of its limiter. Two stores of one namespace in an application are
+ * refused, because they would count on each other's rows.
  *
  * ## Expiry
  * Expired states are treated as absent as soon as they are read, exactly like the
@@ -50,14 +65,28 @@ export class RepositoryRateLimiterStore<TState extends BaseRateLimitState> imple
 
     constructor(
         private readonly repository: Repository<RateLimitStateEntity>,
-        private readonly lock: RateLimiterLockInterface
-    ) {}
+        private readonly lock: RateLimiterLockInterface,
+        private readonly namespace: string
+    ) {
+        const container: DiContainer = DiContainer.getInstance();
+        const taken: Set<string> = namespacesByContainer.get(container) ?? new Set();
+        if (taken.has(namespace)) {
+            throw new InternalError([
+                `A RepositoryRateLimiterStore with the namespace "${namespace}" already exists.`,
+                'Give every store a namespace of its own, or their limits count on the same rows.'
+            ]);
+        }
+        taken.add(namespace);
+        namespacesByContainer.set(container, taken);
+    }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async atomicUpdate(key: string, updater: (current: TState | undefined) => TState): Promise<RateLimiterStoreUpdateResult<TState>> {
         for (let attempt: number = 0; attempt < maxWriteAttempts; attempt++) {
             const res: RateLimiterStoreUpdateResult<TState> | undefined = await this.lock.withLock(
-                key,
+                // namespaced as well: one lock can guard several stores, a valkey lock every store of
+                // every instance
+                `${this.namespace}:${key}`,
                 async () => await this.tryUpdate(key, updater)
             );
             if (res) {
@@ -72,17 +101,17 @@ export class RepositoryRateLimiterStore<TState extends BaseRateLimitState> imple
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async get(key: string): Promise<TState | undefined> {
-        return this.toState(await this.repository.findOne({ where: { key }, required: false }));
+        return this.toState(await this.repository.findOne({ where: { namespace: this.namespace, key }, required: false }));
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async delete(key: string): Promise<void> {
-        await this.repository.deleteAll({ key });
+        await this.repository.deleteAll({ namespace: this.namespace, key });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async deleteExpired(now: number): Promise<void> {
-        await this.repository.deleteAll({ expiresAtMs: { lesserThanEquals: now } });
+        await this.repository.deleteAll({ namespace: this.namespace, expiresAtMs: { lesserThanEquals: now } });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -92,6 +121,7 @@ export class RepositoryRateLimiterStore<TState extends BaseRateLimitState> imple
             // reservations until some later pass happened to include them
             take: 'all',
             where: {
+                namespace: this.namespace,
                 expiresAtMs: { greaterThan: now },
                 nextReservationExpiryMs: { lesserThanEquals: now }
             }
@@ -137,7 +167,10 @@ export class RepositoryRateLimiterStore<TState extends BaseRateLimitState> imple
         key: string,
         updater: (current: TState | undefined) => TState
     ): Promise<RateLimiterStoreUpdateResult<TState> | undefined> {
-        const existing: RateLimitStateEntity | undefined = await this.repository.findOne({ where: { key }, required: false });
+        const existing: RateLimitStateEntity | undefined = await this.repository.findOne({
+            where: { namespace: this.namespace, key },
+            required: false
+        });
         const current: TState | undefined = this.toState(existing);
         const next: TState = updater(current);
 
@@ -145,7 +178,7 @@ export class RepositoryRateLimiterStore<TState extends BaseRateLimitState> imple
             // the version is part of the filter rather than checked beforehand, so nothing can write
             // between the check and this. Exactly one of two concurrent writers gets a row back
             const updated: number = await this.repository.updateAll(
-                { key, version: existing.version },
+                { namespace: this.namespace, key, version: existing.version },
                 {
                     expiresAtMs: next.expiresAtMs,
                     nextReservationExpiryMs: this.nextReservationExpiryMs(next),
@@ -158,6 +191,7 @@ export class RepositoryRateLimiterStore<TState extends BaseRateLimitState> imple
 
         try {
             await this.repository.create({
+                namespace: this.namespace,
                 key,
                 expiresAtMs: next.expiresAtMs,
                 nextReservationExpiryMs: this.nextReservationExpiryMs(next),
@@ -166,8 +200,8 @@ export class RepositoryRateLimiterStore<TState extends BaseRateLimitState> imple
             });
         }
         catch (error) {
-            // the key is unique and the row has no other constraint, so the only thing that refusal
-            // can mean is the same key being created by someone else. Same answer as a lost compare
+            // the namespace and the key are unique together and the row has no other constraint, so the
+            // only thing that refusal can mean is the same key being created by someone else. Same answer as a lost compare
             // and set: read what they wrote and run the updater against that.
             //
             // Asked for by name rather than caught wholesale, because everything else a store can
@@ -195,7 +229,10 @@ export class RepositoryRateLimiterStore<TState extends BaseRateLimitState> imple
 
     private async readUnexpired(): Promise<RateLimitStateEntity[]> {
         // one row per limited key, and the answer is about all of them
-        return await this.repository.findAll({ take: 'all', where: { expiresAtMs: { greaterThan: Date.now() } } });
+        return await this.repository.findAll({
+            take: 'all',
+            where: { namespace: this.namespace, expiresAtMs: { greaterThan: Date.now() } }
+        });
     }
 
     /**

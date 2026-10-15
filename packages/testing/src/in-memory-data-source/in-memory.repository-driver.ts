@@ -1,4 +1,4 @@
-import { AtomicUpdate, BaseEntity, coversEveryRow, DeepPartial, DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, EntityMetadata, EntityMetadataMissingError, EntityOrderUtilities, EntityRelationsUtilities, InternalError, JsonUtilities, MetadataUtilities, ModelRegistry, Newable, ObjectUtilities, OrderKey, PaginationResult, parseArray, parseObject, parseOneOf, PropertyMetadata, Relation, RelationMetadata, RelationTree, RelationTreeByRowId, RepositoryDriverInterface, Transaction, UniqueConstraintViolationError, UniqueGroup, upsertConflictWhere, UUIDUtilities, Where, WhereFilterEvaluator } from 'zibri';
+import { BaseEntity, coversEveryRow, DeepPartial, DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, EntityMetadata, EntityMetadataMissingError, EntityOrderUtilities, EntityRelationsUtilities, InternalError, JsonUtilities, MetadataUtilities, ModelRegistry, Newable, ObjectUtilities, OrderKey, PaginationResult, parseArray, parseNumber, parseObject, parseOneOf, PropertyMetadata, Relation, RelationMetadata, RelationTree, RelationTreeByRowId, RepositoryDriverInterface, Transaction, UniqueConstraintViolationError, UniqueGroup, UpsertIdentityUtilities, UpsertRow, UUIDUtilities, Where, WhereFilterEvaluator } from 'zibri';
 
 import { InMemoryScope, InMemoryStore, StoredRow } from './in-memory-store';
 import { InMemoryTransaction } from './in-memory-transaction.model';
@@ -105,7 +105,6 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
     private persist(data: DeepPartial<T>[], scope: InMemoryScope, reload: boolean): T[] {
         const ids: string[] = [];
         const relationsById: Map<string, RelationTree> = new Map();
-        const childrenById: Map<string, Map<string, BaseEntity[]>> = new Map();
 
         for (const entry of data) {
             const id: string = entry.id ?? this.generateId(scope);
@@ -121,7 +120,6 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
             this.assertUniquesFree(row, id, scope);
 
             scope.writeRow(this.tableName, id, row);
-            childrenById.set(id, this.saveToManyRelations(id, entry, scope, reload));
             this.saveManyToManyRelations(id, entry, scope);
             ids.push(id);
             relationsById.set(id, this.providedKeyRelations(entry));
@@ -131,14 +129,9 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
             return [];
         }
         // with the relations each row's data wrote, as they were stored, so a caller gets the ids of
-        // the rows created along with it - the rows of a to many relation being the ones just written
-        const res: T[] = this.loadRows(ids, {}, scope, relationsById);
-        for (const entity of res) {
-            for (const [key, children] of childrenById.get(entity.id) ?? []) {
-                (entity as Record<string, unknown>)[key] = this.properties[key]?.type === Relation.HAS_ONE ? children.at(0) : children;
-            }
-        }
-        return res;
+        // the rows it references. The rows of a one to many or has one relation are the repository's
+        // to write, through the repository of their own entity
+        return this.loadRows(ids, {}, scope, relationsById);
     }
 
     /**
@@ -282,36 +275,49 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
 
     // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
     async upsert(
-        identity: DeepPartial<T>,
-        create: DeepPartial<T>,
-        onConflict: AtomicUpdate<T>,
-        transaction: Transaction | undefined
-    ): Promise<T> {
-        const changes: [string, UpsertChange][] = ObjectUtilities
-            .entries(onConflict as Record<string, UpsertChange | undefined>)
-            .filter((entry): entry is [string, UpsertChange] => entry[1] != undefined);
-
-        if (!changes.length) {
-            throw new InternalError('upsert was called with an empty onConflict, so the conflict path would do nothing.');
-        }
-        // the identity has to name at most one row, exactly as it does on a shipped driver, and the
-        // rows it may land on are the ones the key covers rather than every row holding the value
-        const conflictWhere: Where<T> = upsertConflictWhere(this.entityClass, identity);
-
+        identity: string[],
+        rows: UpsertRow<T>[],
+        transaction: Transaction | undefined,
+        reachable: Where<T> | undefined
+    ): Promise<T[]> {
         const scope: InMemoryScope = this.scope(transaction);
-        const found: T | undefined = this.findRows({ where: conflictWhere }, scope).at(0);
+        // read once for every row rather than once per row: nothing is written until every row has
+        // been judged, so the answer cannot change in between
+        const reachableIds: Set<string> | undefined = reachable == undefined
+            ? undefined
+            : new Set(this.findRows({ where: reachable }, scope).map(r => r.id));
 
-        if (found == undefined) {
-            return this.onlyPersisted(this.persist([create], scope, true));
-        }
+        // every row is judged before any is written, so a refused one leaves nothing behind even
+        // when the caller passed no transaction to roll back
+        const data: DeepPartial<T>[] = rows.map(row => {
+            const changes: [string, UpsertChange][] = ObjectUtilities
+                .entries(row.onConflict as Record<string, UpsertChange | undefined>)
+                .filter((entry): entry is [string, UpsertChange] => entry[1] != undefined);
+            if (!changes.length) {
+                throw new InternalError('upsert was called with an empty onConflict, so the conflict path would do nothing.');
+            }
 
-        const updated: Record<string, unknown> = { id: found.id };
-        for (const [key, change] of changes) {
-            updated[key] = 'increment' in change
-                ? Number((found as Record<string, unknown>)[key]) + change.increment
-                : change.set;
-        }
-        return this.onlyPersisted(this.persist([updated as DeepPartial<T>], scope, true));
+            // the identity has to name at most one row, exactly as it does on a shipped driver, and
+            // the rows it may land on are the ones the key covers rather than every row holding the value
+            const conflictWhere: Where<T> = UpsertIdentityUtilities.resolveConflictWhere(this.entityClass, identity, row.create);
+            const found: T | undefined = this.findRows({ where: conflictWhere }, scope).at(0);
+            if (found == undefined) {
+                return row.create;
+            }
+            if (reachableIds != undefined && !reachableIds.has(found.id)) {
+                const group: UniqueGroup = UpsertIdentityUtilities.resolveUniqueGroup(this.entityClass, identity);
+                throw new UniqueConstraintViolationError(this.entityClass.name, group.properties);
+            }
+
+            const updated: Record<string, unknown> = { id: found.id };
+            for (const [key, change] of changes) {
+                updated[key] = 'increment' in change
+                    ? Number((found as Record<string, unknown>)[key]) + change.increment
+                    : change.set;
+            }
+            return updated as DeepPartial<T>;
+        });
+        return this.persist(data, scope, true);
     }
 
     /**
@@ -345,6 +351,192 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
                 ) {
                     throw new UniqueConstraintViolationError(this.entityClass.name, group.properties);
                 }
+            }
+        }
+    }
+
+    /**
+     * Moves the rows stored under another table name to the one this entity declares, for a migration
+     * renaming it.
+     * @param currentTableName - The table name the rows are stored under now.
+     * @param transaction - The transaction of the migration.
+     * @throws When rows are stored under this entity's table name already.
+     */
+    moveStoredRowsFrom(currentTableName: string, transaction: Transaction): void {
+        if (this.scope(transaction).ids(this.tableName).length) {
+            throw new InternalError(
+                `Cannot rename ${currentTableName} to ${this.tableName}, because something is stored under ${this.tableName} already.`
+            );
+        }
+        // into an entity storing nothing, which is what renaming is
+        this.mergeStoredRowsFrom(currentTableName, transaction);
+    }
+
+    /**
+     * Moves the rows stored under another table name to this entity, next to the ones it stores, for
+     * a migration merging them - with their many to many relations, and the numbers handed out for
+     * new ids.
+     *
+     * A row holding what a stored row holds under its id or under a unique the entity declares is
+     * left out, and no other row keeps a relation to it.
+     * @param currentTableName - The table name the rows to merge are stored under.
+     * @param transaction - The transaction of the migration.
+     */
+    mergeStoredRowsFrom(currentTableName: string, transaction: Transaction): void {
+        const scope: InMemoryScope = this.scope(transaction);
+        const ids: string[] = scope.ids(currentTableName);
+        const moved: Map<string, StoredRow> = this.resolveMovedRows(currentTableName, ids, scope);
+        for (const [key, metadata] of ObjectUtilities.entries(this.properties)) {
+            if (metadata.type === Relation.MANY_TO_MANY) {
+                this.moveRelation(currentTableName, key, metadata.target(), metadata.inverseSide, ids, moved, scope);
+            }
+        }
+        for (const id of ids) {
+            const row: StoredRow | undefined = moved.get(id);
+            if (row != undefined) {
+                scope.writeRow(this.tableName, id, row);
+            }
+            scope.deleteRow(currentTableName, id);
+        }
+        // outside the transaction like every number a sequence hands out, for the reason the valkey
+        // driver gives
+        this.store.carrySequence(currentTableName, this.tableName);
+    }
+
+    /**
+     * Reads the rows a merge moves: every one but those holding what a stored row holds under its id
+     * or under a unique the entity declares.
+     * @param currentTableName - The table name the rows to merge are stored under.
+     * @param ids - Their ids.
+     * @param scope - What to read through.
+     * @returns The rows that move, by their id.
+     */
+    private resolveMovedRows(currentTableName: string, ids: string[], scope: InMemoryScope): Map<string, StoredRow> {
+        const taken: Set<string> = new Set();
+        for (const id of scope.ids(this.tableName)) {
+            const row: StoredRow | undefined = scope.readRow(this.tableName, id);
+            for (const value of [`id=${id}`, ...row == undefined ? [] : this.resolveTakenValues(row)]) {
+                taken.add(value);
+            }
+        }
+        const res: Map<string, StoredRow> = new Map();
+        for (const id of ids) {
+            const row: StoredRow | undefined = scope.readRow(currentTableName, id);
+            if (row != undefined && !taken.has(`id=${id}`) && !this.resolveTakenValues(row).some(value => taken.has(value))) {
+                res.set(id, row);
+            }
+        }
+        return res;
+    }
+
+    /**
+     * Moves one many to many relation of the rows a merge moves, and takes the rows left out out of it.
+     * @param currentTableName - The table name the rows to merge are stored under.
+     * @param key - The property of the relation.
+     * @param target - The entity on the other side.
+     * @param inverseSide - The property of the relation on the other side.
+     * @param ids - The ids of the rows to merge.
+     * @param moved - The rows that move, by their id.
+     * @param scope - What to read and write through.
+     */
+    private moveRelation(
+        currentTableName: string,
+        key: string,
+        target: Newable<BaseEntity>,
+        inverseSide: string,
+        ids: string[],
+        moved: Map<string, StoredRow>,
+        scope: InMemoryScope
+    ): void {
+        const relatesToItself: boolean = target === this.entityClass;
+        const inverseDriver: InMemoryRepositoryDriver<BaseEntity> = new InMemoryRepositoryDriver(target, this.store);
+        for (const id of ids) {
+            const currentKey: string = `${currentTableName}:${id}:${key}`;
+            const members: Set<string> = scope.readJoin(currentKey);
+            scope.writeJoin(currentKey, new Set());
+            if (moved.has(id)) {
+                // a row of this entity left out takes its side of the relation with it
+                scope.writeJoin(this.joinKey(id, key), relatesToItself ? new Set([...members].filter(m => moved.has(m))) : members);
+            }
+            if (relatesToItself) {
+                continue;
+            }
+            // the other side: a moved row under the name it gives the relation now, which for rows
+            // merged from another entity is not the one their sets were kept under, and a row left out
+            // nowhere, since it is gone
+            for (const relatedId of members) {
+                const inverseKey: string = inverseDriver.joinKey(relatedId, inverseSide);
+                const inverse: Set<string> = scope.readJoin(inverseKey);
+                if (moved.has(id)) {
+                    inverse.add(id);
+                }
+                else {
+                    inverse.delete(id);
+                }
+                scope.writeJoin(inverseKey, inverse);
+            }
+        }
+    }
+
+    /**
+     * Works out what a row holds under each unique the entity declares.
+     * @param row - The row, as it is stored.
+     * @returns One entry per unique that covers the row and whose values it holds, telling the uniques
+     * apart.
+     */
+    private resolveTakenValues(row: StoredRow): string[] {
+        return this.uniqueGroups.flatMap(group => {
+            const values: string | undefined = this.coveredBy(group, row) ? this.uniqueValuesOf(group.properties, row) : undefined;
+            return values == undefined ? [] : [`${group.properties.join(',')}|${JsonUtilities.stringify(group.where ?? {})}=${values}`];
+        });
+    }
+
+    /**
+     * Notes the indexes and uniques the entity declares, and says whether they differ from the ones
+     * it was booted with before.
+     *
+     * There is nothing to build for them here; what is kept is only so that a change is told apart,
+     * the way the shipped data sources tell it apart by what they create and drop.
+     * @returns Whether a declaration was added or removed since the previous boot.
+     */
+    reconcileKeyLists(): boolean {
+        const lists: string = JsonUtilities.stringify({
+            uniques: this.uniqueGroups,
+            indexes: ModelRegistry.get(this.entityClass).keyDescriptor.indexes
+        });
+        const previous: string | undefined = this.store.getKeyLists(this.tableName);
+        this.store.setKeyLists(this.tableName, lists);
+        return previous !== lists;
+    }
+
+    /**
+     * Refuses unique declarations the stored rows already break.
+     *
+     * What booting needs: every write is checked against the declarations, but rows written before
+     * one was declared never were, and two of them may already hold the same values.
+     * @throws When two stored rows hold the values one of the declarations names, naming them.
+     */
+    validateStoredRowsAreUnique(): void {
+        const scope: InMemoryScope = this.scope(undefined);
+        for (const group of this.uniqueGroups) {
+            const holders: Map<string, string> = new Map();
+            for (const id of scope.ids(this.tableName)) {
+                const row: StoredRow | undefined = scope.readRow(this.tableName, id);
+                const values: string | undefined = row != undefined && this.coveredBy(group, row)
+                    ? this.uniqueValuesOf(group.properties, row)
+                    : undefined;
+                if (values == undefined) {
+                    continue;
+                }
+                const holder: string | undefined = holders.get(values);
+                if (holder != undefined) {
+                    throw new InternalError([
+                        `Cannot keep ${this.entityClass.name} unique by ${group.properties.join(', ')}:`,
+                        `the stored rows ${holder} and ${id} both hold ${values}.`,
+                        'Remove the duplicates in a migration.'
+                    ]);
+                }
+                holders.set(values, id);
             }
         }
     }
@@ -392,12 +584,13 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
      * @param group - The properties of the unique declaration.
      * @param row - The row, as the json encoded fields it is stored as.
      * @returns The values as one string, or undefined when the row does not carry all of them - a
-     * row missing part of a group is not named by it and therefore cannot collide on it.
+     * row missing part of a group, or holding null for it, is not named by it and takes nothing up,
+     * the way a sql unique counts it.
      */
     private uniqueValuesOf(group: string[], row: StoredRow): string | undefined {
         const values: string[] = [];
         for (const key of group) {
-            if (row[key] == undefined) {
+            if (row[key] == undefined || row[key] === 'null') {
                 return undefined;
             }
             values.push(`${key}=${row[key]}`);
@@ -445,14 +638,8 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
      * @returns The relations to resolve, and the relations to resolve below each of those.
      */
     private relationsToResolve(options: DriverFindOptions<T>): RelationTree {
-        const forFilter: Map<string, RelationTree> = new Map();
-        for (const filter of Array.isArray(options.where) ? options.where : [options.where]) {
-            for (const key of ObjectUtilities.keys((filter ?? {}) as Record<string, unknown>)) {
-                if (this.isRelation(this.properties[key])) {
-                    forFilter.set(key, new Map());
-                }
-            }
-        }
+        // as deep as the filter reaches, which a filter naming a relation of a relation needs
+        const forFilter: RelationTree = EntityRelationsUtilities.resolveFilterTree(options.where, this.properties);
         return EntityRelationsUtilities.mergeTrees(
             EntityRelationsUtilities.mergeTrees(
                 EntityRelationsUtilities.resolveTree(options.relations),
@@ -524,44 +711,6 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
                 return targetDriver.loadRows(ids, { relations: below }, scope);
             }
         }
-    }
-
-    /**
-     * Persists the entities of a one to many or has one relation that were provided with the data.
-     *
-     * Just like a shipped data source, this only happens when the relation (or its inverse side) has
-     * the cascade insert flag set, otherwise the provided entities are ignored.
-     * @param id - The id of the entity that was saved.
-     * @param data - The data that was saved.
-     * @param scope - What to write through.
-     * @param reload - Whether the written entities should be read back.
-     * @returns The written entities of each relation by its key, when they were read back.
-     */
-    private saveToManyRelations(id: string, data: DeepPartial<T>, scope: InMemoryScope, reload: boolean): Map<string, BaseEntity[]> {
-        const res: Map<string, BaseEntity[]> = new Map();
-        for (const [key, metadata] of ObjectUtilities.entries(this.properties)) {
-            if (metadata.type !== Relation.ONE_TO_MANY && metadata.type !== Relation.HAS_ONE) {
-                continue;
-            }
-            const value: unknown = (data as Record<string, unknown>)[key];
-            if (value == undefined || !this.hasCascadeInsert(metadata)) {
-                continue;
-            }
-
-            const foreignKeyColumn: string = this.requireInverseJoinColumn(metadata, key);
-            const children: unknown[] = Array.isArray(value) ? value : [value];
-            const targetDriver: InMemoryRepositoryDriver<BaseEntity> = new InMemoryRepositoryDriver(metadata.target(), this.store);
-
-            const saved: BaseEntity[] = targetDriver.persist(
-                children.map(c => ({ ...c as DeepPartial<BaseEntity>, [foreignKeyColumn]: id })),
-                scope,
-                reload
-            );
-            if (reload) {
-                res.set(key, saved);
-            }
-        }
-        return res;
     }
 
     /**
@@ -807,13 +956,18 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
             return value;
         }
         switch (metadata.type) {
+            // a value that does not read as the declared type is handed back as it is stored, the way
+            // a value inside an object is: turned into an invalid date or NaN it would be a different
+            // value that nothing can tell from a real one, and a filter comparing it could not name it
             case 'date': {
                 // eslint-disable-next-line typescript/no-base-to-string
-                return new Date(String(value));
+                const date: Date = new Date(String(value));
+                return Number.isNaN(date.getTime()) ? value : date;
             }
             case 'number': {
-                // eslint-disable-next-line typescript/no-base-to-string
-                return metadata.format === 'bigint' ? BigInt(String(value)) : Number(value);
+                // every format through the one reader, so an exact decimal comes back as one rather
+                // than as the double it does not fit in
+                return parseNumber(value, metadata.format);
             }
             case 'file': {
                 // eslint-disable-next-line typescript/no-base-to-string

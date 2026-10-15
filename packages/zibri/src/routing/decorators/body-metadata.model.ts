@@ -2,6 +2,8 @@ import { BasePropertyMetadata } from '../../entity/models/base-property-metadata
 import { FileSize } from '../../entity/models/file-property-metadata.model';
 import { ObjectPropertyMetadata, ObjectPropertyMetadataInput } from '../../entity/models/object-property-metadata.model';
 import { AnyOfShapesMetadata, OneOfShapeMetadata, OneOfShapeMetadataInput } from '../../entity/models/one-of-property-metadata.model';
+import { IncomingStringPropertyMetadataInput } from '../../entity/models/string-property-metadata.model';
+import { JsonMimeType } from '../../http/json-mime-type.type';
 import { MimeType } from '../../http/mime-type.enum';
 import { FormDataLimits } from '../../parsing/form-data/form-data-limits.model';
 import { Newable } from '../../types/newable.type';
@@ -28,10 +30,10 @@ type BaseBodyMetadata = OmitStrict<BasePropertyMetadata, 'excludeFromChangeSets'
      */
     index: number,
     /**
-     * The maximum size of the body.
-     * Is calculated by adding the base max size and any sizes of file or file array properties on the body model.
+     * The maximum size of the body without the files it may carry. `resolveMaxBodySize` adds the sizes
+     * of its file and file array properties to it.
      */
-    maxSize: BigNumber
+    baseMaxSize: BigNumber
 };
 
 /**
@@ -39,9 +41,10 @@ type BaseBodyMetadata = OmitStrict<BasePropertyMetadata, 'excludeFromChangeSets'
  */
 export type JsonBodyMetadata = BaseBodyMetadata & {
     /**
-     * The type of the request body (json).
+     * The type of the request body: `MimeType.JSON` accepts every json type, one of the others only
+     * itself, eg. `MimeType.JSON_SCIM`.
      */
-    type: MimeType.JSON
+    type: JsonMimeType
 };
 
 /**
@@ -78,24 +81,43 @@ export type FormDataBodyMetadata = BaseBodyMetadata & {
 };
 
 /**
- *
+ * Metadata of url encoded form http request body properties.
  */
-export type StreamBodyMetadata = OmitStrict<BaseBodyMetadata, 'shape'> & {
+export type FormUrlEncodedBodyMetadata = BaseBodyMetadata & {
     /**
-     *
+     * The type of the request body (url encoded form).
      */
-    type: MimeType.OCTET_STREAM
+    type: MimeType.FORM_URL_ENCODED
 };
+
+/**
+ * Metadata of stream http request body properties.
+ */
+export type StreamBodyMetadata = OmitStrict<BaseBodyMetadata, 'shape' | 'baseMaxSize'> & {
+    /**
+     * The type of the request body (octet stream).
+     */
+    type: MimeType.OCTET_STREAM,
+    /**
+     * The maximum size of the body.
+     */
+    maxSize: BigNumber
+};
+
+/**
+ * Metadata of a http request body that has a shape: every kind but a stream.
+ */
+export type ShapedBodyMetadata = JsonBodyMetadata | XmlBodyMetadata | FormDataBodyMetadata | FormUrlEncodedBodyMetadata;
 
 /**
  * Metadata for http request body properties.
  */
-export type BodyMetadata = StreamBodyMetadata | JsonBodyMetadata | XmlBodyMetadata | FormDataBodyMetadata;
+export type BodyMetadata = StreamBodyMetadata | ShapedBodyMetadata;
 
 /**
- *
+ * Metadata Input for json http request body properties.
  */
-export type JsonBodyMetadataInput = Partial<OmitStrict<JsonBodyMetadata, 'shape' | 'index' | 'maxSize'>> & {
+export type JsonBodyMetadataInput = Partial<OmitStrict<JsonBodyMetadata, 'shape' | 'index' | 'baseMaxSize'>> & {
     /**
      * The maximum size of the body.
      */
@@ -117,10 +139,10 @@ export type JsonBodyMetadataInput = Partial<OmitStrict<JsonBodyMetadata, 'shape'
 export type XmlBodyMetadataInput = OmitStrict<JsonBodyMetadataInput, 'type'> & Pick<XmlBodyMetadata, 'type'>;
 
 /**
- *
+ * Metadata Input for form data http request body properties.
  */
 // type is required: a body declared without one is read as json
-export type FormDataBodyMetadataInput = Partial<OmitStrict<FormDataBodyMetadata, 'shape' | 'index' | 'maxSize' | 'type'>>
+export type FormDataBodyMetadataInput = Partial<OmitStrict<FormDataBodyMetadata, 'shape' | 'index' | 'baseMaxSize' | 'type'>>
     & Pick<FormDataBodyMetadata, 'type'> & {
         /**
          * The base maximum size of the body.
@@ -135,7 +157,23 @@ export type FormDataBodyMetadataInput = Partial<OmitStrict<FormDataBodyMetadata,
     };
 
 /**
- *
+ * Metadata Input for url encoded form http request body properties.
+ */
+// type is required: a body declared without one is read as json
+export type FormUrlEncodedBodyMetadataInput = Partial<OmitStrict<FormUrlEncodedBodyMetadata, 'shape' | 'index' | 'baseMaxSize' | 'type'>>
+    & Pick<FormUrlEncodedBodyMetadata, 'type'> & {
+        /**
+         * The maximum size of the body.
+         */
+        maxSize?: FileSize,
+        /**
+         * Whether properties the model does not declare are allowed on the body.
+         */
+        allowAdditionalProperties?: boolean
+    };
+
+/**
+ * Metadata Input for stream http request body properties.
  */
 // type is required: a body declared without one is read as json
 export type StreamBodyMetadataInput = Partial<OmitStrict<StreamBodyMetadata, 'index' | 'maxSize' | 'type'>>
@@ -149,12 +187,16 @@ export type StreamBodyMetadataInput = Partial<OmitStrict<StreamBodyMetadata, 'in
 /**
  * Metadata Input for http request body properties that are one model.
  */
-export type BodyMetadataInput = JsonBodyMetadataInput | XmlBodyMetadataInput | FormDataBodyMetadataInput | StreamBodyMetadataInput;
+export type BodyMetadataInput = JsonBodyMetadataInput
+    | XmlBodyMetadataInput
+    | FormDataBodyMetadataInput
+    | FormUrlEncodedBodyMetadataInput
+    | StreamBodyMetadataInput;
 
 /**
  * A shape a json body can be one of.
  */
-export type JsonBodyShapeMetadataInput = OneOfShapeMetadataInput;
+export type JsonBodyShapeMetadataInput = OneOfShapeMetadataInput<IncomingStringPropertyMetadataInput>;
 
 /**
  * A shape a form data body can be one of. A form is made of named fields, so only a class describes one.
@@ -162,7 +204,7 @@ export type JsonBodyShapeMetadataInput = OneOfShapeMetadataInput;
 export type FormDataBodyShapeMetadataInput = ObjectPropertyMetadataInput & Pick<ObjectPropertyMetadata, 'type'>;
 
 /**
- *
+ * Metadata Input for json http request body properties that are one of several shapes.
  */
 type JsonBodyOneOfMetadataInput = JsonBodyMetadataInput & {
     /**
@@ -182,7 +224,7 @@ type XmlBodyOneOfMetadataInput = XmlBodyMetadataInput & {
 };
 
 /**
- *
+ * Metadata Input for form data http request body properties that are one of several shapes.
  */
 type FormDataBodyOneOfMetadataInput = FormDataBodyMetadataInput & {
     /**
@@ -192,7 +234,17 @@ type FormDataBodyOneOfMetadataInput = FormDataBodyMetadataInput & {
 };
 
 /**
- *
+ * Metadata Input for url encoded form http request body properties that are one of several shapes.
+ */
+type FormUrlEncodedBodyOneOfMetadataInput = FormUrlEncodedBodyMetadataInput & {
+    /**
+     * The shapes the body can be. It becomes the first, in this order, that it fits.
+     */
+    shapes: FormDataBodyShapeMetadataInput[]
+};
+
+/**
+ * Metadata Input for stream http request body properties that are one of several shapes.
  */
 type StreamBodyOneOfMetadataInput = StreamBodyMetadataInput;
 
@@ -202,10 +254,11 @@ type StreamBodyOneOfMetadataInput = StreamBodyMetadataInput;
 export type OneOfBodyMetadataInput = JsonBodyOneOfMetadataInput
     | XmlBodyOneOfMetadataInput
     | FormDataBodyOneOfMetadataInput
+    | FormUrlEncodedBodyOneOfMetadataInput
     | StreamBodyOneOfMetadataInput;
 
 /**
- *
+ * Metadata Input for json http request bodies that are one model.
  */
 type DeclaredJsonBodyInput = JsonBodyMetadataInput & {
     /**
@@ -225,7 +278,7 @@ type DeclaredXmlBodyInput = XmlBodyMetadataInput & {
 };
 
 /**
- *
+ * Metadata Input for form data http request bodies that are one model.
  */
 type DeclaredFormDataBodyInput = FormDataBodyMetadataInput & {
     /**
@@ -235,7 +288,17 @@ type DeclaredFormDataBodyInput = FormDataBodyMetadataInput & {
 };
 
 /**
- *
+ * Metadata Input for url encoded form http request bodies that are one model.
+ */
+type DeclaredFormUrlEncodedBodyInput = FormUrlEncodedBodyMetadataInput & {
+    /**
+     * The model class that defines the body properties structure.
+     */
+    modelClass: Newable<unknown>
+};
+
+/**
+ * Metadata Input for stream http request bodies that are one model.
  */
 type DeclaredStreamBodyInput = StreamBodyMetadataInput;
 
@@ -245,6 +308,7 @@ type DeclaredStreamBodyInput = StreamBodyMetadataInput;
 export type DeclaredBodyInput = DeclaredJsonBodyInput
     | DeclaredXmlBodyInput
     | DeclaredFormDataBodyInput
+    | DeclaredFormUrlEncodedBodyInput
     | DeclaredStreamBodyInput
     | OneOfBodyMetadataInput;
 
@@ -255,8 +319,10 @@ export type BodyMetadataForType<M extends BodyMetadata['type']> = M extends Mime
     ? StreamBodyMetadata
     : M extends MimeType.FORM_DATA
         ? FormDataBodyMetadata
-        : M extends MimeType.JSON
-            ? JsonBodyMetadata
-            : M extends MimeType.XML
-                ? XmlBodyMetadata
-                : never;
+        : M extends MimeType.FORM_URL_ENCODED
+            ? FormUrlEncodedBodyMetadata
+            : M extends JsonMimeType
+                ? JsonBodyMetadata
+                : M extends MimeType.XML
+                    ? XmlBodyMetadata
+                    : never;

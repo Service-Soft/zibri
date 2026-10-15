@@ -90,22 +90,41 @@ export class VersioningService implements VersioningServiceInterface, AfterAppIn
                 'Create it empty to start recording versions from this one.'
             ]);
         }
+        // another instance starting from the same folder can record the version between this one
+        // reading the folder and writing to it. What it recorded is then read again, and judged like
+        // any history that was there before
+        if (await this.recordVersion(app)) {
+            return;
+        }
+        if (!await this.recordVersion(app)) {
+            throw new InitVersioningServiceError(
+                `The versions folder at "${this.versionsPath}" kept changing while the application started.`
+            );
+        }
+    }
+
+    /**
+     * Checks the routes against the recorded versions, and records the version the application is on.
+     * @param app - The application.
+     * @returns Whether it was recorded, false when another instance recorded the same version meanwhile.
+     */
+    private async recordVersion(app: ZibriApplication): Promise<boolean> {
         this.versionFiles = await this.loadAllVersionFiles();
         const currentLatestVersions: VersionFile[] = this.versionFiles.filter(v => v.endsAt == undefined);
 
         if (currentLatestVersions.length === 1 && currentLatestVersions.at(0)?.value === app.options.version) {
             // is already at the latest version, doesn't need to do anything.
-            return;
+            return true;
         }
 
         if (!this.versionFiles.length) {
-            await this.createVersionFile({
+            const created: boolean = await this.createVersionFile({
                 startsAt: new Date(),
                 value: app.options.version,
                 routes: this.getAllRoutes(app).map(r => this.toStoredRoute(r))
             });
             this.versionFiles = await this.loadAllVersionFiles();
-            return;
+            return created;
         }
 
         const currentLatest: VersionFile | undefined = this.resolveCurrentLatest(currentLatestVersions, app);
@@ -137,19 +156,23 @@ export class VersioningService implements VersioningServiceInterface, AfterAppIn
             // Ensure the new file’s routes are up to date
             await this.updateVersionFile(newVersion, { routes: inCodeRoutes.map(r => this.toStoredRoute(r)) });
             this.versionFiles = await this.loadAllVersionFiles();
-            return;
+            return true;
         }
 
-        await this.createVersionFile({
+        const created: boolean = await this.createVersionFile({
             value: app.options.version,
             startsAt: transitionTime,
             routes: inCodeRoutes.map(r => this.toStoredRoute(r))
         });
+        if (!created) {
+            return false;
+        }
 
         for (const active of currentLatestVersions) {
             await this.updateVersionFile(active, { endsAt: transitionTime });
         }
         this.versionFiles = await this.loadAllVersionFiles();
+        return true;
     }
 
     private validateNoDowngrade(app: ZibriApplication): void {
@@ -229,8 +252,13 @@ export class VersioningService implements VersioningServiceInterface, AfterAppIn
         return { key: route.key, versions: route.versions.value };
     }
 
-    private async createVersionFile(data: VersionFile): Promise<void> {
-        await FsUtilities.createFile(
+    /**
+     * Records a version.
+     * @param data - The version.
+     * @returns Whether it was recorded, false when another instance recorded it first.
+     */
+    private async createVersionFile(data: VersionFile): Promise<boolean> {
+        return await FsUtilities.createFileIfAbsent(
             FsUtilities.getPath(this.versionsPath, `${data.value}.json`),
             JsonUtilities.stringify(data)
         );

@@ -121,7 +121,16 @@ The safe default is `false`; Zibri's framework-internal jobs all override it
 > the startup run happens *ahead of* the slot rather than instead of it, and taking its key here would
 > silently cancel the scheduled run. An instance restarting a week later computes a different slot and
 > runs again, which is the whole point of the option. `distributed: false` skips the election, because
-> per-instance work has to happen on every instance.
+> per-instance work has to happen on every instance. Held by `cron.test.ts` for two jobs asking at
+> once, and by `cluster/cron-startup.cluster.test.ts` for instances booting after the first.
+>
+> **The claim outlived nothing, which the todo audit found.** It was held for
+> `CRON_EXECUTION_LEASE_IN_MS`, five minutes by default, while the key it guards means something until
+> the slot it names. A lapsed grant is deleted by the next acquirer, so every instance a slow rolling
+> deploy started more than five minutes after the winner took the same key again and repeated the run -
+> the key was right, and only its lifetime was wrong. It is held until that slot now, never less than
+> the execution lease. The cluster test waits past a one second lease before scaling out to three,
+> which is exactly the deploy that used to run it three times.
 >
 > **The window it does not close:** an instance booting in the gap after a slot fires and before the
 > next is computed sees a different key and runs a second time. It fails toward one extra execution
@@ -191,7 +200,7 @@ own default, is what turns "scheduled" into "fired", and a fix that moved regist
 moving the start would otherwise read as closed. The shared test providers replace `CRON_SERVICE`
 with an inert stub, so the test has to put the real one back before there is any timing to observe.
 
-### 1.4 The "durable event system" does not cross processes — ~~CRITICAL~~ **MOSTLY FIXED**
+### 1.4 The "durable event system" does not cross processes — ~~CRITICAL~~ ~~MOSTLY FIXED~~ **FIXED**
 
 > **Closed for delivery and exactly-once; see 1.4b for what remains.**
 >
@@ -1224,7 +1233,8 @@ silently skips/doubles a 02:30 job.
 >
 > **The coordination fell out for free.** The claim uses the key that slot's own execution would have
 > used — `<name>:<slot ISO>`, node-cron's own format — so a make-up run and a real one are the same
-> event to the deployment: if any instance ran it, the key is taken and nothing happens.
+> event to the deployment: if any instance ran it, the key is taken and nothing happens. Held by
+> `cron.test.ts`, where two instances back from the same outage make it up once between them.
 >
 > **Where it lives:** `CronService`, private. The service is the swap point for scheduling policy, and
 > a first attempt that put the search in a standalone function with its own callback type was
@@ -1296,6 +1306,61 @@ correctly, and are the evidence that flooring was the intent.
 >
 > Held by `src/cron/cron-expression.utilities.test.ts`, which needs no container and runs in the
 > normal suite.
+
+### 2.14 A mail whose send throws stays at the head of the queue, and enough of them stop a priority — MAJOR, **open**
+
+*Filed on the re-check of 2026-10-15.*
+
+[2.2](#22-failed-emails-are-silently-deleted--critical-fixed) settled the mail a server *rejects*: it
+becomes `FAILED` and leaves the queue. A send that *throws* was called fine there, because the row
+stays `QUEUED`. It stays `QUEUED` for good, though, whatever makes it throw: an attachment path that
+does not exist (`validateAttachments`, `src/email/email.service.ts:269-281`), which in a cluster is
+any attachment written on another instance or cleaned up since, or a message the transport refuses
+before the server answers.
+
+`findMails` (`:289-299`) reads the oldest queued mails of each priority (`Email` orders by `createdAt`),
+so such a mail is read first on every pass. `sendMany` sends the batch with one `Promise.all`
+(`:210-212`), so one throw fails the batch and `retainOnError` (`:179-194`) keeps the claim of every
+mail in it, the poisoned one included, for `sendLeaseInMs`. While the claims are held the pass reads
+the same rows, takes none and returns. Once they lapse the mail is tried again and throws again.
+
+So a mail that cannot be sent is retried once a minute forever, with an error logged each time, and
+once a priority's share of a batch (`sendBatchSize` less the slots held back for lower priorities)
+is made of such mails, nothing of that priority is sent again. There is no attempt count, no
+`FAILED` for this path and no way past the head of the queue.
+
+### 2.15 Disabling, enabling, rescheduling or stopping a cron job reaches only one instance — MAJOR, **open**
+
+*Filed on the re-check of 2026-10-15.*
+
+`CronService.enable`, `disable`, `changeCron` and `update` (`src/cron/cron.service.ts:231-274`) find
+the job in this instance's `cronJobs` and call it; `CronJob` writes the shared row and stops,
+restarts or rebuilds **its own** node-cron task (`src/cron/cron-job.model.ts:575-639`). Every other
+instance keeps its task as it was, and nothing reads the row again before a tick
+(`runOnTick`, `:472-508`) or before the next boot.
+
+With `distributed: true`, every instance competes for each slot, so after `disable()` on one
+instance the job goes on running on the others, once per slot, while the row and `job.state` say
+`INACTIVE`. `changeCron` leaves the old schedule running elsewhere beside the new one, and since the
+claim key is `<name>:<scheduled time>`, slots of both schedules are claimed and run. `stopOnError`
+is the same: a tick that throws stops the task of the instance it threw on and records
+`STOPPED_ON_ERROR`, and the next slot is claimed by another instance and runs. `docs/cron.md`
+describes all of these as states of the job.
+
+`update` also accepts a new `name` and writes it to the row, while every later write
+(`lastRun`, the state, the error) still filters on the class's own name (`:495`, `:528`, `:565`) and
+reaches no row, and the next boot creates a new one under the old name.
+
+### 2.16 The default timeouts of normal and priority thread jobs are swapped — MAJOR, **open**
+
+*Filed on the re-check of 2026-10-15.*
+
+`MultithreadingService.getDefaultTimeout` (`src/multithreading/services/multithreading.service.ts:696-698`)
+returns `defaultTimeoutMs` for a priority job and `defaultTimeoutPriorityMs` for a normal one. The
+option's JSDoc and `docs/multithreading.md` say the opposite: an hour for a normal job, five minutes
+for a priority one. So a queued background job given no `timeout` is stopped after five minutes, and
+`run(func, input)`, whose `priority` defaults to `true`, gets an hour. No test asserts which default
+a job without a `timeout` gets.
 
 ---
 
@@ -1424,7 +1489,7 @@ the mail cron drains ten per iteration while the in-memory token bucket blocks; 
 > Held by `log-to-email.digest.test.ts`, against the real mail queue rather than a stub, because what
 > the finding is about is how many rows end up in it.
 
-### 3.5 Mail queue: three SELECTs per ten mails, hardcoded batch — **PARTIALLY FIXED**
+### 3.5 Mail queue: three SELECTs per ten mails, hardcoded batch — ~~MAJOR~~ **FIXED, the rest WITHDRAWN**
 
 `src/email/email.service.ts:82-86` issues three sequential queries yielding at most ten rows, then
 one `UPDATE` or `DELETE` per mail (`:136-141`), all inside a spin loop
@@ -1445,6 +1510,24 @@ hook. Draining a 10,000-mail backlog costs ~3,000 SELECTs plus 10,000 individual
 > enum, so `ORDER BY priority` sorts `HIGH, LOW, NORMAL`. One query needs either a numeric sort
 > weight on the row or a numeric enum, and valkey's ordering story is separate again. The one write
 > per mail is untouched.
+>
+> **Withdrawn, and the schema question above was the wrong question** (2026-09-26). Even a numeric
+> sort weight would not help, because the three reads are not redundant. Each one takes up to its
+> own cap, and the caps are the reservation described above. One `ORDER BY priority LIMIT batch`
+> read would give every pass to HIGH for as long as HIGH keeps arriving, which is exactly what the
+> reservation exists to prevent. Keeping it in one statement needs a `UNION` of limited reads, which
+> the repository cannot express on any of the three stores.
+>
+> The write per mail was never waste either. Each row is written as soon as its own send returns,
+> as SENT, FAILED with its rejected recipients, or deleted. A batched write would hold them until the
+> whole pass had sent, and a process dying in that window would send every mail of the pass again
+> instead of at most the one still being sent.
+>
+> Against that, the cost is three indexed reads per ten mails, next to ten sends that each take a
+> round trip to a mail provider, all under `maxEmailsPerHour`. The finding read the queue as a
+> database workload, but it is a sending workload. `mail-queue.evaluation.test.ts` holds both
+> halves without containers: NORMAL and LOW get a slot in the first pass of a HIGH flood, and a
+> mail's row is SENT while another mail of the same pass is still being sent.
 
 ### 3.6 ValKey cache: three or more sequential round trips per `set` — ~~MAJOR~~ **FIXED**
 
@@ -1613,17 +1696,61 @@ always misses and coalescing never occurs. Silent, with no type-level or runtime
 > caught as a collision: the number `42` and the string `'42'` were one key. Serialized keys carry a
 > mark that a string key cannot, which is the only thing that separates the two spaces.
 
-### 3.11 Double JSON round trip per websocket recipient — MINOR
+### 3.11 Double JSON round trip per websocket recipient — ~~MINOR~~ **FIXED**
 
 `src/websocket/services/websocket.service.ts:425, 462, 526` — stringify-then-parse to strip class
 instances, then socket.io serializes again. Three passes per message; in `sendToAll` with
 `expectResponse`, once **per connection** (`:531-536`).
 
-### 3.12 Static assets served with no cache headers — MINOR
+> **The per connection half had already closed and the entry did not know.** The payload was
+> prepared once per fan out before this round. What was left is the round trip itself, and it was
+> not stripping class instances — json writes those the same either way. It existed because
+> socket.io's encoder is plain `JSON.stringify`, which throws on a bigint.
+>
+> **The fix is to write the message once, in the place that has to write it anyway.** socket.io takes
+> its encoder as an option, so the server gets one that writes every packet with
+> `JsonUtilities.stringify`, and the service hands it the message as it is. The cluster adapter
+> publishes through the same function, because the packet it carries now holds the message as sent.
+>
+> **The round trip had never covered the acknowledgement.** A handler answering a client that asked
+> for an acknowledgement handed the message straight to socket.io, so a bigint in that answer threw
+> inside socket.io and the answer never went out — the client waited out its own timeout. And a buffer
+> went out as binary there and as `{ type: 'Buffer', data }` everywhere else. One encoder for every
+> packet makes those the same.
+>
+> **A buffer is written as json on purpose, not as binary.** socket.io's own encoder sends a buffer beside
+> the json, and that is what the acknowledgement path did. But a message is stored and replayed as json, and it reaches the
+> clients of another instance as json, so binary on the clients of one instance would be the one path
+> that differs. Nothing had asked for binary, so the encoder writes json only.
+>
+> The cost is one more optional peer: the server still reads what clients send with socket.io's own
+> decoder, so `socket.io-parser` is declared next to `socket.io-adapter`, and like it arrives with
+> socket.io.
+
+### 3.12 Static assets served with no cache headers — ~~MINOR~~ **WITHDRAWN**
 
 `src/assets/asset.service.ts:58` — `app.use(this.assetsRoute, express.static(this.publicAssetsPath))`
 with no options: no `maxAge`, no `immutable`, no `Cache-Control`, no precompressed/brotli handling.
 The `/favicon.ico` route (`:63-72`) does an `fs.exists` stat per request with no caching.
+
+> **Read off the options rather than the response, and the response already had all of it.** With
+> no options, the static middleware sends `Cache-Control: public, max-age=0`, a weak ETag and a
+> `Last-Modified`. The favicon route answers through `res.sendFile`, which sends the same three.
+> A browser confirms its copy before using it and gets a 304 with no body. Once the file changes, it
+> gets the new one. Brotli and gzip come from the application's own compression middleware, which
+> sits in front of both.
+>
+> **A longer `max-age` or `immutable` would be wrong here, not missing.** Both are safe only for a
+> file whose name changes when its content does. Nothing served from `assets/public` is named that
+> way: the explorer's bundle, the vendored scripts, `style.css` and the logo all keep their names
+> across releases. A browser told to reuse them for a day would run the old ones for a day after
+> every deploy. The per-request stat is how the validator is read, and the static middleware makes
+> the same one.
+>
+> Observed in `src/__testing__/evaluation/static-assets.evaluation.test.ts`. Its first run was red
+> for both routes, because node's fetch adds `cache-control: no-cache` to a conditional request by
+> itself, and a server that answered that with a 304 would be wrong. Revalidating the way a browser
+> does, with `max-age=0`, is what turned it green.
 
 ---
 
@@ -1913,7 +2040,8 @@ compiler there will not pass build-pipeline or container-hardening review.
 > published name this cost.
 >
 > **What is still mandatory, and why**: `bignumber.js`, `jsonwebtoken` and `rxjs` are core, and
-> `zibri-tsx` is the templating engine. Four of fourteen.
+> `zibri-tsx` is the templating engine. Four of fourteen. *(Three since 2026-10-05: `jose` replaced
+> `jsonwebtoken` as an optional peer, [03 §H12](./03-auth-and-security.md).)*
 >
 > **A consequence worth naming: optional peers stop being installed in this repository too.** npm
 > does not install an optional peer, so the framework's own suites lose the package the moment it is
@@ -1962,13 +2090,13 @@ own and loads the built package without it.
 > was not asked for. The alternative — deleting the `optional` claims so the manifest tells the
 > truth — is cheaper and worse: it makes the framework honestly heavier instead of actually lighter.
 
-### 5.2 No swap-in path for real infrastructure — ~~MAJOR~~ **MOSTLY FIXED**
+### 5.2 No swap-in path for real infrastructure — ~~MAJOR~~ **FIXED**
 
 | Subsystem | Pluggable? |
 |---|---|
 | Cache store | Yes — `CacheStoreInterface`, in-memory + ValKey |
 | Rate limiter store | Yes — in-memory, repository, ValKey lock |
-| Backup transport | Partly — `BackupTransportInterface` exists, but only `BaseFsBackupTransport` ships (`src/backup/transports/fs.backup-transport.ts:19`); no S3/GCS |
+| ~~Backup transport~~ **fixed** | `BaseS3BackupTransport` for any S3 compatible storage and `BaseSftpBackupTransport` for any SFTP server, beside `BaseFsBackupTransport` |
 | ~~Email~~ **fixed** | `EmailTransportInterface` + `ZIBRI_DI_TOKENS.EMAIL_TRANSPORT`; `SmtpEmailTransport` ships and an http API is a class |
 | ~~Email rate-limiter store~~ **withdrawn** | `EMAIL_RATE_LIMITER` is a `useClass` provider — the same answer as [§1.7](#17-mail-rate-limiter-defaults-to-in-memory--major-withdrawn-mostly) |
 | ~~Events~~ **fixed** | Claimed per `(event, subscriber)` in the data source and polled by every instance — see §1.4 |
@@ -2023,6 +2151,43 @@ own and loads the built package without it.
 >
 > **Backups stay open**, and are a different shape: `BackupTransportInterface` already exists, so
 > what is missing there is an implementation rather than a seam.
+>
+> **Backups closed too, and half of it was this row being stale** (2026-09-26). `BaseS3BackupTransport`
+> had already shipped, documented and tested against a gateway that checks every signature, while
+> the row still said only the filesystem one existed. It has no dependency: it signs its requests
+> itself and sends them through the framework's own http client, so it inherits the retry policy,
+> the size limits and the tracing every other call gets.
+>
+> **`BaseSftpBackupTransport` is the other half**, for everyone whose backups go to a storage box, a
+> NAS or a machine of their own rather than to object storage. Unlike S3 it takes a dependency, and
+> that is justified: SSH is key exchange, ciphers and host authentication, which is not something to
+> write again, and `ssh2` is the implementation Node's ecosystem uses. It is an optional peer, loaded
+> when a transport is built, so an application storing its backups anywhere else never loads it.
+>
+> **The host key is required rather than defaulted.** A transport that accepts whatever key it is
+> shown hands backups to anyone who can answer on that address, and "you forgot to say" would look
+> exactly like "accept anything". The fingerprint is written the way `ssh-keygen -lf` prints it,
+> because that is what providers publish, and a refused key is named in the error, since the key
+> the server did present is what somebody setting this up needs to compare.
+>
+> Two details carry the backup's own contract over to SFTP. The record is written under a
+> `.partial` name and renamed once complete, because the record is what makes a backup finished,
+> and one cut off mid-write must not look finished. And the last resource to be deleted takes its
+> folder with it, because a folder left empty would be resolved as an interrupted backup and warned
+> about on every sync. **`BaseFsBackupTransport` had exactly that defect**: it deleted the files
+> and kept the folder, so every sync after a delete warned about a backup that was never
+> interrupted. Found while writing the SFTP transport, and fixed with `FsUtilities.rmIfEmpty`,
+> which is one `rmdir` rather than a check followed by a removal, since the resources of a backup
+> are deleted at the same time; `fs.backup-transport.test.ts` holds it.
+>
+> **The SFTP test found a third thing, in the service**: one transport that could not be read kept
+> the application from starting, because the startup sync awaited every transport and any error
+> failed `afterAppInit`. A backup server having a bad day took production down with it. The startup
+> sync skips such a transport now with a warning naming it, which loses nothing recorded — every
+> transport of a backup holds the same record — while `syncBackupEntities()` called by hand still
+> fails. `backup-service.startup-sync.test.ts` holds both halves. The SFTP
+> transport is tested against a real OpenSSH server in `sftp.backup-transport.test.ts`, including a
+> refused host key, key-based login and a round trip through `BackupService`.
 
 ### 5.3 Metrics collection reads the wrong network interface — MINOR, **FIXED**
 
@@ -2116,11 +2281,63 @@ utilities on several platforms.
 > that fails and a backup that hangs.
 >
 > **What stays open**, and each is its own decision rather than this one's residue:
-> - **Encryption of backup data.** A checksum says an archive is the one that was written; it says
->   nothing about who can read it. That is a transport concern and wants a key management answer.
-> - **A restore that is atomic.** The refusal happens before anything is applied, but a restore that
->   fails *while* applying still leaves a half-restored database. That is `restoreBackup`'s contract,
->   not the verification's.
+> - ~~**Encryption of backup data.**~~ **Closed, and it was not a transport concern.** Encrypting per
+>   transport would have given each copy its own ciphertext and its own checksum, left the staging
+>   file on this instance's disk in plaintext, and made every custom transport implement cryptography.
+>   The data is encrypted once, before it is staged, so the disk and every transport only ever hold
+>   ciphertext. `@Backup` takes a required `encrypt`, since both answers are legitimate. Every backup
+>   gets a random data key, and that key is stored in the record, encrypted with the master key.
+>   **The key management answer was the one that already existed**: the user rejected a separate
+>   backup key, because it would come from the same environment as the master key, so whoever can
+>   read one can read the other. It goes through the encryption service, whose `masterEncrypt` and
+>   `masterDecrypt` are on its interface for this, so an application that replaces the service
+>   decides how backup keys are encrypted too. They use the master key rather than the key table
+>   because a restore usually runs against a database that is being replaced. The data is
+>   sealed in 64 KiB AES-256-GCM chunks, whose nonce is the chunk's position plus a last-chunk flag
+>   (the STREAM construction), rather than as one message. One GCM message tops out near 64 GB, and
+>   the S3 transport allows 156 GB. A restore unwraps the key before fetching anything, so a master
+>   key that is no longer listed costs no download. It then decrypts while staging and applies
+>   nothing until every chunk has authenticated, which also refuses an archive whose record was
+>   rewritten to match it. Held by `backup-service.encryption.test.ts` (in memory) and by
+>   `backup-service.test.ts`, whose postgres round trip is encrypted now.
+>
+>   **A defect nobody had filed came out with it, and it was not about encryption.**
+>   `FsUtilities.createReadStream` decoded every file as utf8 by default. So every staged archive
+>   reached its transports as text re-encoded, and `followFile` reads in ranges, which means a
+>   multi-byte character split across two reads came back as two replacement characters. A
+>   plain-text dump with an umlaut in the wrong place was stored altered, and the next restore
+>   refused it as corrupt. The sandbox's file controller served its JPEG through the same helper,
+>   with a size that no longer matched. The helper hands out bytes now. The two restores that parse
+>   text, valkey's and the in-memory store's, decode the whole stream rather than each chunk.
+> - ~~**A restore that is atomic.**~~ **Closed 2026-10-13.** Within one resource it already was:
+>   postgres applies a dump inside psql's `--single-transaction`, and valkey stages keys and swaps them
+>   in with one batch. Across resources a backup of postgres and valkey whose second restore failed
+>   left the first one applied.
+>
+>   **It was worse than filed, and that part was a defect.** `restoreWithin` ran every resource in one
+>   `Promise.all`, each staging, checking and applying on its own, so resource A could be applied while
+>   resource B's archive was still being fetched and then turned out corrupt. "Refuses before applying
+>   any of it" held per resource only. Red first, deterministically: B's archive was held back until A
+>   reported itself applied.
+>
+>   **The user's choice was stage all, snapshot, undo**, over a two-phase resource interface
+>   (prepare/commit, breaking for custom resources, and postgres would have to restore into a second
+>   database and swap it in) and over staging alone (no answer to a failure while applying). Every
+>   archive is fetched and checked first, settled rather than raced so nothing still writes to the
+>   staging folder when it is cleaned. Then every resource is snapshotted through its own
+>   `createBackupData`, taken before any of them changes, and the resources are applied one after
+>   another. When one fails, the ones applied are put back from their snapshots, the failing one
+>   included, since nothing promises a resource that throws applied none of its data. When a put-back
+>   fails too, `RestoreNotUndoneError` names the resource and keeps its snapshot file. No change to
+>   `BackupResourceInterface`.
+>
+>   **What it costs:** resources are applied one at a time instead of together, and a restore needs disk
+>   for every archive plus a snapshot of each at once (docs say so). It is not atomic against a process
+>   killed between two applies; that would need the two-phase interface. A resource the application no
+>   longer knows is still skipped with a warning, as before.
+>
+>   Held by `backup-service.several-resources.test.ts` (in memory: all restored; a corrupt second
+>   archive applies nothing; a failing apply is undone; a failing undo is named and its snapshot kept).
 > - **The 15 minute shutdown wait** (`shutdownTimeoutInMs`) still exceeds most Kubernetes grace
 >   periods. An interrupted backup is now refused rather than mistaken for a good one, which is the
 >   part that bites; making the wait fit the platform is a separate question about what a backup
@@ -2172,3 +2389,130 @@ truncated archive with a matching id is treated as valid. `onAppShutdown` waits 
 for an in-flight backup (`:71`, `:118-123`), which exceeds most Kubernetes
 `terminationGracePeriodSeconds` and will be SIGKILLed mid-write, leaving a partial archive that
 `syncBackupEntities` happily registers.
+
+---
+
+## 6. Plugins
+
+*Added on the re-check of 2026-10-15. [09](./09-method-and-coverage.md) lists the mailing list and
+payment plugins as essentially unreviewed; these are what a first read of them found.*
+
+### 6.1 An address already on one mailing list is put on any other without confirming — MAJOR, **open**
+
+`MailingListService.requestSubscribeToList` (`src/plugin/mailing-list/services/mailing-list.service.ts:166-199`)
+looks the address up first, and when a subscriber with it exists, writes the list onto it at once
+and returns: no confirmation mail, no token. The double opt-in only ever applies to an address the
+application has never seen. Anybody who can call the route the application builds on it can put an
+existing subscriber on every list, and the list is appended again when the subscriber is on it
+already (`[...foundSubscriber.mailingLists, list]`).
+
+### 6.2 A subscription confirmation token never expires and is never used up — MAJOR, **open**
+
+`confirmSubscribeToList` (`:202-221`) finds the token by its value and nothing else. The
+`expirationDate` written at creation (`:184`) is read nowhere, the token is not deleted once it
+confirmed, nothing cleans the table up, and the value is stored as it is, which
+[03 §B5](./03-auth-and-security.md) stopped doing for password reset tokens. A link from a mail
+years old still subscribes, as often as it is followed. The `subscribe/:id/:token` route
+(`src/plugin/mailing-list/mailing-list.controller.ts:69-87`) reads the list named in the path for the
+page it renders and subscribes to the one the token names.
+
+### 6.3 Unsubscribing is a GET, and a subscriber's id is the only credential for their preferences — MINOR, **open**
+
+`GET /mailing-lists/:id/unsubscribe` (`src/plugin/mailing-list/mailing-list.controller.ts:89-108`)
+changes state, so a mail scanner or link preview that follows the link unsubscribes the recipient.
+No `List-Unsubscribe` / `List-Unsubscribe-Post` header (RFC 8058) is written, which the large mailbox
+providers ask of bulk senders.
+
+`GET` and `PATCH /mailing-lists/preferences?subscriberId=…` (`:110-134`) take the subscriber's
+primary key as their whole authorization: it shows the address and name and replaces the lists. The
+id is in every mail sent to the list, never changes, and is the same value the application uses for
+the row everywhere else.
+
+### 6.4 A payment changes state on what the caller's copy of it says — ~~MAJOR~~ **FIXED**
+
+> **Closed 2026-10-15.** Each part, in the order the finding names them:
+>
+> - **The caller's copy.** `PaymentService` runs every transition under a lease on the payment
+>   (`zibri.payment:<id>`, waited for, renewed while PayPal is called), reads the row inside it and
+>   decides on that. A second confirmation waits for the first, reads PAID and warns. The caller's
+>   copy is brought up to date afterwards, which the sandbox suite relies on.
+> - **Any error becoming FAILED.** Every PayPal call that moves money carries a `PayPal-Request-Id`
+>   (`<payment id>:capture` and so on), so a repeated one is answered like the first rather than
+>   done again. A call that throws is reconciled from the order: a completed capture is PAID, an
+>   authorization RESERVED, a voided one CANCELLED, a refunded capture REFUNDED. When the order says
+>   the step was not done, or cannot be read, nothing is written and the error is thrown - the
+>   user's choice over a new status only a reconciliation could leave, since the idempotency key
+>   makes retrying safe. FAILED is written for an answer that says the money did not move. A refund
+>   PayPal declines leaves the payment PAID with the error, since the money is still captured.
+> - **The order before the unique column.** The row is stored before the order is created, so a
+>   repeated `transactionId` is refused by the unique column before PayPal sees anything; an order
+>   that cannot be created takes its row with it.
+> - **500s for the caller's mistakes.** A status that does not allow the transition and a used
+>   `transactionId` are `ConflictError`s (409), invalid payment data a `BadRequestError` (400).
+>
+> Held by `pay-pal.payment-provider.local.test.ts` (eight cases, red first), against
+> `src/__testing__/local-pay-pal-server.ts`, a local PayPal serving the orders as approved and
+> answering a second capture the way PayPal does; the provider reaches it through `apiUrl`, which a
+> subclass overrides, as the OAuth2 authenticators' endpoints are. `payment.service.test.ts` stores
+> its payments now, since a transition is judged by the stored one.
+
+Every transition in `PaymentService` (`src/plugin/payment/services/payment.service.ts:94-169`) checks
+the `status` of the object it is handed, calls the provider, and the provider writes the whole object
+back with `updateById(payment.id, payment)` (eg.
+`src/plugin/payment/providers/pay-pal/pay-pal.payment-provider.ts:356`). Nothing reads the row, takes
+a lease or writes conditionally on the status, which [01 §M20](./01-data-layer.md) made possible.
+
+Two confirmations of one payment - a double click, a retried request, two replicas - both see
+`CREATED` and both capture. PayPal refuses the second as already captured, and the provider turns
+**any** error into `status: FAILED` (`:351-352` for a reservation, the same in the others) and writes
+its copy last if it finishes last. A payment that was captured is then recorded as failed, and
+`FAILED` cannot be confirmed again. A single confirmation whose answer times out after PayPal
+captured ends the same way.
+
+`validatePaymentData` checks `transactionId` with a read before the order is created
+(`payment.service.ts:68-71`); the unique column refuses the second row, but only after PayPal has an
+order for it. Refusals a caller caused - a reused `transactionId`, a status that does not allow the
+transition - are `InternalError`s, so a client's retry is answered with a 500.
+
+### 6.5 A payment amount is a float, sent as `String(amount)` — MINOR, **open**
+
+`PayPalPaymentData.amount` and `Payment.amount` are `number`s, and every call to PayPal writes
+`value: String(amount)` (`pay-pal.payment-provider.ts:264`, `:296`, `:418`, `:497`). An amount computed
+by the application, such as `0.1 + 0.2`, goes out as `0.30000000000000004`, a small one as `1e-7`, and
+an amount with more decimals than its currency has (two for most, none for `JPY`) passes
+`validatePaymentData` and is refused by PayPal with an error that becomes `FAILED`. The invoicing
+plugin calculates with `BigNumber`; the payment plugin does not.
+
+### 6.6 Two recipients whose names abbreviate alike draw the same invoice numbers — MAJOR, **open**
+
+`InvoiceNumberService.getConsecutiveNumber`
+(`src/plugin/invoicing/services/invoice-number.service.ts:105-125`) keeps one counter per year and
+**recipient**, while the number it goes into is `<year>-<abbreviation>-<counter>` (`:40-53`), and the
+abbreviation is the first six letters and digits of a company name or the first three letters of
+first and last name (`invoicing.plugin.ts:69-72`). "Siemens AG" and "Siemens Healthineers" are both
+`SIEMEN`, "Anna Schmidt" and "Annabelle Schmitz" both `ANNSCH`, so the second recipient's first
+invoice is `2026-SIEMEN-0001` again.
+
+`validateInvoiceNumber` (`:171-175`) refuses it with a `ConflictError`. Called inside a transaction,
+which is how the counter stays gapless, the refusal rolls the increment back, so the second recipient
+draws `0001` again on every attempt and cannot be invoiced at all while the first has an invoice that
+year. Called without one, each attempt burns a number until the two counters stop overlapping. [1.11](#111-invoice-numbering-is-a-read-modify-write-race--critical-fixed)
+made the counter atomic and left what it counts as it was; nothing in its tests uses two recipients.
+
+### 6.7 E-invoice amounts are written unrounded, and VAT is summed per line — MAJOR, **open**
+
+`InvoiceCalcService` (`src/plugin/invoicing/services/invoice-calc.service.ts`) calculates exactly and
+rounds nowhere, and `En16931ConformanceService`
+(`src/plugin/invoicing/services/conformance/en16931/en16931-conformance.service.ts:146-171`, `:237`)
+writes every amount with `BigNumber.toString()`. Three items at 9.99 with 19 % VAT give a tax of
+`5.6943`, written as the VAT breakdown's `CalculatedAmount` and the document's `TaxTotalAmount`.
+EN 16931 allows two decimals for those amounts (the `BR-DEC` rules), so XRechnung and Peppol
+validators refuse the invoice. The VAT of a breakdown is also the sum of each line's own VAT
+(`getTotalTaxForTaxGroup`, `:58-65`), where the standard takes the group's taxable amount times its
+rate, rounded once (`BR-S-09` and its siblings), so rounding the output alone would still leave totals
+a cent apart.
+
+`getTotalBeforeTax` clamps a negative sum to zero (`:38`), `getTotalTax` does not, so an invoice with a
+credit line larger than the rest has a net total of `0`, a negative VAT and a grand total that is not
+their sum. Every conformance test uses 0 % VAT and a whole price, which is the one case where none of
+this shows.

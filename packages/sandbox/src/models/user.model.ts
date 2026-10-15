@@ -1,23 +1,17 @@
-import { BaseUserEntity, Entity, IntersectionClass, JwtCredentials, OmitClass, OmitStrict, Property } from 'zibri';
+import { BaseUserEntity, Entity, IntersectionClass, OmitClass, OmitStrict, PasswordCredentials, Property } from 'zibri';
 
-import { Company } from './company.model';
 import { Roles } from './roles.enum';
 
-@Entity()
+// 'shared' because one user can be member in multiple tenants
+@Entity({ tenant: 'shared' })
 export class User extends BaseUserEntity(Roles) {
     @Property.string()
     name!: string;
-
-    @Property.manyToOne({ target: () => Company, inverseSide: 'workers', joinColumn: 'companyId', required: false })
-    company?: Company | null;
-
-    @Property.string({ format: 'uuid', required: false })
-    companyId?: string | null;
 }
 
 export class UserCreateDto extends IntersectionClass(
     OmitClass(User, ['id', 'roles']),
-    OmitClass(JwtCredentials, ['id', 'userId', 'email'])
+    OmitClass(PasswordCredentials, ['id', 'userId'])
 ) {}
 
-export type UserCreateData = OmitStrict<User, 'id' | 'company'>;
+export type UserCreateData = OmitStrict<User, 'id'>;

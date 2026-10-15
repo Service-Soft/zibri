@@ -14,7 +14,7 @@ import { Repository } from '../repository/repository';
 
 // ---------- Test entities ----------
 
-@Entity()
+@Entity({ tenant: 'shared' })
 class Category extends BaseEntity {
     @Property.string()
     name!: string;
@@ -23,7 +23,7 @@ class Category extends BaseEntity {
     products!: Product[];
 }
 
-@Entity()
+@Entity({ tenant: 'shared' })
 class Review extends BaseEntity { // used as an object type for array-of-objects
     @Property.number()
     rating!: number;
@@ -40,7 +40,7 @@ class Metadata { // plain object embedded inside Product
     weight!: number;
 }
 
-@Entity()
+@Entity({ tenant: 'shared' })
 class Product extends BaseEntity {
     @Property.string({ required: false })
     name: string | undefined | null;

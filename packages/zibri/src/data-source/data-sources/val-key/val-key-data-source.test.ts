@@ -24,14 +24,20 @@ import { BaseRateLimitState, RateLimiterStoreUpdateResult } from '../../../rate-
 import { RepositoryRateLimiterStore } from '../../../rate-limiting/stores/repository.rate-limiter-store';
 import { ValKeyRateLimiterLock } from '../../../rate-limiting/stores/val-key.rate-limiter-lock';
 import { Newable } from '../../../types/newable.type';
+import { MetadataUtilities } from '../../../utilities/metadata.utilities';
+import { UUIDUtilities } from '../../../utilities/uuid.utilities';
 import { MigrationEntity } from '../../migration/migration-entity.model';
+import { ValueConversion } from '../../models/value-conversion.enum';
 import { Repository } from '../../repository/repository';
+import { KeyDeclarationsChangedError } from '../../transaction/key-declarations-changed.error';
 import { Transaction } from '../../transaction/transaction.model';
+import { ValKeyTransaction } from '../../transaction/val-key-transaction.model';
+import { UniqueConstraintViolationError } from '../../unique-constraint-violation.error';
 import { PostgresDataSource } from '../postgres/postgres-typeorm-data-source.model';
 
 // ---------- Test entities ----------
 
-@Entity({ allowOrphan: true })
+@Entity({ tenant: 'shared', allowOrphan: true })
 class ValKeyTag extends BaseEntity {
     @Property.string()
     name!: string;
@@ -40,7 +46,7 @@ class ValKeyTag extends BaseEntity {
     products!: ValKeyProduct[];
 }
 
-@Entity({ allowOrphan: true })
+@Entity({ tenant: 'shared', allowOrphan: true })
 class ValKeyCategory extends BaseEntity {
     @Property.string()
     name!: string;
@@ -57,7 +63,7 @@ class ValKeyProductMetadata {
     weight!: number;
 }
 
-@Entity({ allowOrphan: true })
+@Entity({ tenant: 'shared', allowOrphan: true })
 class ValKeyProduct extends BaseEntity {
     @Property.string({ required: false })
     name: string | undefined | null;
@@ -91,13 +97,25 @@ class ValKeyProduct extends BaseEntity {
 /**
  * A row addressed by something other than its id, which is what an upsert needs.
  */
-@Entity({ allowOrphan: true, uniques: [['sku']] })
+@Entity({ tenant: 'shared', allowOrphan: true, uniques: [['sku']] })
 class ValKeyStock extends BaseEntity {
     @Property.string()
     sku!: string;
 
     @Property.number()
     quantity!: number;
+}
+
+/**
+ * A row looked up by something other than its id or a unique value: an index.
+ */
+@Entity({ tenant: 'shared', allowOrphan: true })
+class ValKeyShelvedItem extends BaseEntity {
+    @Property.string({ index: true })
+    shelf!: string;
+
+    @Property.string()
+    name!: string;
 }
 
 let server: StartedTestServer;
@@ -111,7 +129,7 @@ const postgresDataSourceClass: Newable<DataSourceInterface> = createTestDataSour
 
 const valKeyDataSourceClass: Newable<ValKeyDataSource> = createTestValKeyDataSource({
     // MigrationEntity is duplicated across data sources on purpose, every one tracks its own migrations
-    entities: [MigrationEntity, RateLimitStateEntity, ValKeyProduct, ValKeyCategory, ValKeyTag, ValKeyStock]
+    entities: [MigrationEntity, RateLimitStateEntity, ValKeyProduct, ValKeyCategory, ValKeyTag, ValKeyStock, ValKeyShelvedItem]
 });
 
 beforeAll(async () => {
@@ -130,6 +148,17 @@ beforeAll(async () => {
 afterAll(async () => {
     await server.shutdown();
 }, 15000);
+
+/**
+ * Runs one step in a transaction of its own, the way a migration runs.
+ * @param step - The step, given the transaction.
+ */
+async function inTransaction(step: (transaction: ValKeyTransaction) => Promise<void>): Promise<void> {
+    const transaction: Transaction = await dataSource.startTransaction();
+    assert(transaction instanceof ValKeyTransaction, 'a valkey data source hands out valkey transactions');
+    await step(transaction);
+    await transaction.commit();
+}
 
 beforeEach(async () => {
     await productRepo.deleteAll({});
@@ -371,6 +400,84 @@ describe('ValKeyDataSource', () => {
         });
     });
 
+    describe('a migration rewriting stored values', () => {
+        it('keeps a declared unique unique under the values it converted', async () => {
+            await stockRepo.deleteAll({});
+            await stockRepo.create({ sku: 'old', quantity: 1 });
+
+            await inTransaction(transaction => dataSource.changePropertyOfEntity({
+                entity: ValKeyStock,
+                currentProperty: { name: 'sku', type: 'string' },
+                property: { name: 'sku', type: 'string' },
+                convert: { values: [{ from: 'old', to: 'new' }], default: ValueConversion.CAST },
+                transaction
+            }));
+
+            // the rows were rewritten past the unique's index, which went on naming the old value: so
+            // the old value stayed taken by a row that no longer held it, and the new one was free
+            await expect(stockRepo.create({ sku: 'old', quantity: 2 })).resolves.toBeDefined();
+            await expect(stockRepo.create({ sku: 'new', quantity: 3 })).rejects.toThrow(UniqueConstraintViolationError);
+            expect((await stockRepo.findOne({ where: { sku: 'new' } })).quantity).toBe(1);
+        });
+    });
+
+    describe('an index the entity declares', () => {
+        it('answers a filter on it from the index booting built', async () => {
+            const items: Repository<ValKeyShelvedItem> = inject(repositoryTokenFor(ValKeyShelvedItem));
+            await items.createAll([{ shelf: 'a', name: 'first' }, { shelf: 'b', name: 'second' }, { shelf: 'a', name: 'third' }]);
+            // a row whose name no read can parse, written past the repository: reading every row
+            // reaches it and fails, so a read that succeeds is one that never looked at it
+            const tableName: string = MetadataUtilities.getEntityMetadata(ValKeyShelvedItem)?.tableName ?? '';
+            const brokenId: string = UUIDUtilities.generate();
+            const brokenKey: string = `${dataSource.keyPrefix}:${tableName}:${brokenId}`;
+            await inTransaction(async transaction => {
+                await transaction.add({ type: 'hashSet', key: brokenKey, values: { id: `"${brokenId}"`, shelf: '"c"', name: '{not json' } });
+                await transaction.add({ type: 'setAdd', key: `${dataSource.keyPrefix}:${tableName}:ids`, members: [brokenId] });
+            });
+
+            try {
+                // reading every row reaches the broken one and fails
+                await expect(items.findAll({ where: { name: 'first' } })).rejects.toThrow();
+
+                expect((await items.findAll({ where: { shelf: 'a' } })).map(i => i.name).sort()).toEqual(['first', 'third']);
+                expect((await items.findAll({ where: { shelf: { oneOf: ['a', 'b'] } } })).map(i => i.name).sort()).toEqual(['first', 'second', 'third']);
+                expect(await items.count({ where: [{ shelf: 'b' }, { shelf: 'nowhere' }] })).toBe(1);
+
+                // and kept true by the writes that move a row from one entry to another, or out of all of them
+                const [first] = await items.findAll({ where: { name: 'first', shelf: 'a' } });
+                assert(first != undefined, 'the first item was stored');
+                await items.updateById(first.id, { shelf: 'b' });
+                await items.deleteAll({ name: 'second', shelf: 'b' });
+                expect((await items.findAll({ where: { shelf: 'b' } })).map(i => i.name)).toEqual(['first']);
+                expect((await items.findAll({ where: { shelf: 'a' } })).map(i => i.name)).toEqual(['third']);
+            }
+            finally {
+                await inTransaction(async transaction => {
+                    await transaction.add({ type: 'delete', key: brokenKey });
+                    await transaction.add({ type: 'setRemove', key: `${dataSource.keyPrefix}:${tableName}:ids`, members: [brokenId] });
+                });
+                await items.deleteAll({});
+            }
+        });
+    });
+
+    describe('a transaction committing after the indexes and uniques it read changed', () => {
+        it('applies nothing, and says to run it again', async () => {
+            const items: Repository<ValKeyShelvedItem> = inject(repositoryTokenFor(ValKeyShelvedItem));
+            const tagTable: string = MetadataUtilities.getEntityMetadata(ValKeyTag)?.tableName ?? '';
+            const transaction: Transaction = await dataSource.startTransaction();
+            assert(transaction instanceof ValKeyTransaction, 'a valkey data source hands out valkey transactions');
+
+            await items.create({ shelf: 'g', name: 'guarded' }, { transaction });
+            // as if it had read a list that booting replaced since, which is what a newer version
+            // starting next to this one does
+            transaction.guardKey(`${dataSource.keyPrefix}:${tagTable}:keys`, '');
+
+            await expect(transaction.commit()).rejects.toThrow(KeyDeclarationsChangedError);
+            expect(await items.count({ where: { name: 'guarded' } })).toBe(0);
+        });
+    });
+
     describe('ordering and pagination', () => {
         beforeEach(async () => {
             await productRepo.createAll([
@@ -529,6 +636,19 @@ describe('ValKeyDataSource', () => {
             await transaction.rollback();
         });
 
+        it('reads a row it deleted and created again as it created it, without what it held before', async () => {
+            const stored: ValKeyProduct = await productRepo.create({ name: 'a', price: 1 });
+            const transaction: Transaction = await dataSource.startTransaction();
+            await productRepo.deleteById(stored.id, { transaction });
+            await productRepo.create({ id: stored.id, name: 'b' }, { transaction, allowId: true });
+
+            const res: ValKeyProduct = await productRepo.findById(stored.id, { transaction });
+            expect(res.name).toBe('b');
+            expect(res.price).not.toBe(1);
+
+            await transaction.rollback();
+        });
+
         it('rejects a transaction that belongs to another data source', async () => {
             const postgresRepository: Repository<MigrationEntity> = inject(
                 repositoryTokenFor(MigrationEntity, postgresDataSourceClass)
@@ -651,7 +771,9 @@ describe('ValKeyDataSource', () => {
         beforeEach(() => {
             store = new RepositoryRateLimiterStore(
                 inject(repositoryTokenFor(RateLimitStateEntity, valKeyDataSourceClass)),
-                new ValKeyRateLimiterLock(dataSource)
+                new ValKeyRateLimiterLock(dataSource),
+                // one per case, since every case builds its own in the one application
+                `rate-limits-${UUIDUtilities.generate()}`
             );
         });
 
@@ -735,7 +857,8 @@ describe('ValKeyDataSource', () => {
             // guards nothing at all, which is the worst the expiry can do
             const unlocked: RepositoryRateLimiterStore<BaseRateLimitState> = new RepositoryRateLimiterStore(
                 inject(repositoryTokenFor(RateLimitStateEntity, valKeyDataSourceClass)),
-                { withLock: async (_key, run) => await run() }
+                { withLock: async (_key, run) => await run() },
+                'unlocked-rate-limits'
             );
             await unlocked.atomicUpdate('unlocked', () => ({ expiresAtMs: future, reservations: [], count: 0 } as BaseRateLimitState));
 

@@ -1,14 +1,16 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
-import { createInMemoryDataSource, InMemoryDataSource, StartedTestServer, startTestServer } from 'zibri-testing';
+import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
 import { SoftDeleteEntity } from './models/soft-delete-entity.model';
+import { SoftDeleteRepository } from './soft-delete-repository';
 import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
-import { Repository } from '../data-source/repository/repository';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { inject } from '../di/inject.function';
 import { BaseEntity } from '../entity/base-entity.model';
 import { Entity } from '../entity/decorators/entity.decorator';
 import { Property } from '../entity/decorators/property.decorator';
+import { NotFoundError } from '../error-handling/errors/not-found.error';
 import { Newable } from '../types/newable.type';
 
 /**
@@ -22,7 +24,7 @@ import { Newable } from '../types/newable.type';
 /**
  * Deleted by marking rather than removing, and always read with the rows beside it.
  */
-@Entity({ allowOrphan: true, allowDuplicate: true, defaultRelations: { steps: true } })
+@Entity({ tenant: 'shared', allowOrphan: true, allowDuplicate: true, defaultRelations: { steps: true } })
 class Recipe extends SoftDeleteEntity {
     /**
      * What it is called.
@@ -31,16 +33,17 @@ class Recipe extends SoftDeleteEntity {
     name!: string;
 
     /**
-     * The rows that have to be resolved whether or not anybody asked for them.
+     * The rows that have to be resolved whether or not anybody asked for them. Not removed along
+     * with the recipe, so that a step - which cannot be soft deleted - is a row of its own.
      */
-    @Property.oneToMany({ target: () => Step, inverseSide: 'recipe' })
+    @Property.oneToMany({ target: () => Step, inverseSide: 'recipe', cascade: ['insert', 'update'] })
     steps!: Step[];
 }
 
 /**
  * The far side of the relation a recipe always reads.
  */
-@Entity({ allowOrphan: true, allowDuplicate: true })
+@Entity({ tenant: 'shared', allowOrphan: true, allowDuplicate: true })
 class Step extends BaseEntity {
     /**
      * What to do.
@@ -67,7 +70,7 @@ const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({
 
 describe('what a soft delete hands back', () => {
     let server: StartedTestServer | undefined;
-    let recipes: Repository<Recipe>;
+    let recipes: SoftDeleteRepository<Recipe>;
 
     beforeAll(async () => {
         server = await startTestServer({ dataSources: [dataSourceClass] });
@@ -97,5 +100,33 @@ describe('what a soft delete hands back', () => {
 
         expect(count).toBe(1);
         expect(await recipes.count({ where: { id: recipe.id } })).toBe(0);
+    });
+
+    it('hands back what an update that marks the row deleted wrote', async () => {
+        const recipe: Recipe = await recipes.create({ name: 'stew', steps: [{ instruction: 'stir' }] });
+
+        // the relation is read after the write, through the same guard that now hides the row
+        const updated: Recipe = await recipes.updateById(recipe.id, { name: 'old stew', deleted: true });
+
+        expect(updated).toMatchObject({ name: 'old stew', deleted: true });
+        expect(updated.steps.map(s => s.instruction)).toEqual(['stir']);
+        expect(await recipes.findById(recipe.id, { deleted: 'include' })).toMatchObject({ name: 'old stew', deleted: true });
+    });
+
+    it('hands back what it wrote without a change set as well', async () => {
+        const recipe: Recipe = await recipes.create({ name: 'salad', steps: [{ instruction: 'toss' }] });
+
+        const updated: Recipe = await recipes.updateByIdWithoutChangeSet(recipe.id, { deleted: true });
+
+        expect(updated.deleted).toBe(true);
+        expect(updated.steps.map(s => s.instruction)).toEqual(['toss']);
+    });
+
+    it('refuses to mark a row deleted that already is, and writes nothing', async () => {
+        const recipe: Recipe = await recipes.create({ name: 'cake', steps: [] });
+        await recipes.deleteById(recipe.id);
+
+        await expect(recipes.updateById(recipe.id, { name: 'pie', deleted: true })).rejects.toThrow(NotFoundError);
+        expect((await recipes.findById(recipe.id, { deleted: 'include' })).name).toBe('cake');
     });
 });

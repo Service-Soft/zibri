@@ -1,9 +1,11 @@
 import type { Batch, GlideClient } from '@valkey/valkey-glide';
 
+import { applyGuardedValKeyWrites } from './apply-guarded-val-key-writes.function';
+import { KeyDeclarationsChangedError } from './key-declarations-changed.error';
+import { queueValKeyWrite } from './queue-val-key-write.function';
 import { TransactionAlreadyFinishedError } from './transaction-already-finished.error';
 import { Transaction } from './transaction.model';
 import { InternalError } from '../../error-handling/internal-error.model';
-import { KeptGrant } from '../../leases/held-lease.model';
 import { LoggerInterface } from '../../logging/logger.interface';
 import { valKeyGlide } from '../data-sources/val-key/val-key-glide.function';
 
@@ -78,12 +80,23 @@ export type ValKeyBufferedWrite = {
 };
 
 /**
- * Takes a grant on one valkey key and keeps it alive until it is released.
+ * The grants of one transaction, kept alive and handed back together.
  *
  * Supplied by the data source rather than built here, so the transaction does not have to know how a
  * grant is stored - only when to take one.
  */
-export type ValKeyGrantProvider = (key: string) => Promise<KeptGrant>;
+export type ValKeyTransactionGrants = {
+    /**
+     * Takes a grant on each of the keys in sorted order, queueing on each one while somebody else
+     * holds it. A claim that completes after the grants were released hands its keys straight back.
+     * @throws When a wait ran out, which is also how a deadlock ends.
+     */
+    claim: (keys: string[]) => Promise<void>,
+    /**
+     * Hands every grant back. Safe to call more than once.
+     */
+    release: () => Promise<void>
+};
 
 /**
  * A transaction of a valkey data source.
@@ -114,12 +127,12 @@ export class ValKeyTransaction implements Transaction {
     private readonly writes: ValKeyBufferedWrite[] = [];
 
     /**
-     * The grants this transaction holds, keyed by the valkey key they cover.
+     * The claims this transaction made, keyed by the valkey key they cover.
      *
-     * The promise rather than the grant, so two writes to the same key racing inside one transaction
-     * wait on one acquisition instead of taking two grants and leaking one.
+     * The promise rather than a flag, so two writes to the same key racing inside one transaction
+     * wait on one acquisition instead of taking the key twice.
      */
-    private readonly grants: Map<string, Promise<KeptGrant>> = new Map();
+    private readonly claims: Map<string, Promise<void>> = new Map();
 
     /**
      * The hashes that have been written inside this transaction, keyed by their valkey key.
@@ -150,7 +163,20 @@ export class ValKeyTransaction implements Transaction {
      */
     private readonly deleted: Set<string> = new Set();
 
+    /**
+     * The keys that have been deleted inside this transaction, whether or not they were written again
+     * since - which means what is stored under them no longer counts, only what was written after.
+     */
+    private readonly replaced: Set<string> = new Set();
+
+    /**
+     * The value each guarded key was read with, by key, which it still has to hold when this commits.
+     */
+    private readonly guards: Map<string, string> = new Map();
+
     private finished: boolean = false;
+
+    private readonly committedWork: (() => Promise<void>)[] = [];
 
     /**
      * Rolls the transaction back once nothing has happened on it for long enough.
@@ -162,7 +188,7 @@ export class ValKeyTransaction implements Transaction {
 
     constructor(
         private readonly client: GlideClient,
-        private readonly acquireGrant: ValKeyGrantProvider,
+        private readonly grants: ValKeyTransactionGrants,
         private readonly idleTimeoutInMs: number,
         private readonly logger: LoggerInterface
     ) {}
@@ -191,7 +217,7 @@ export class ValKeyTransaction implements Transaction {
 
         this.touch();
         if (write.type === 'hashSet' || write.type === 'hashDelete' || write.type === 'delete') {
-            await this.claim(write.key);
+            await this.claim([write.key]);
         }
 
         // re-checked, because the grant above is awaited and the transaction may have been rolled
@@ -235,8 +261,11 @@ export class ValKeyTransaction implements Transaction {
             }
             case 'delete': {
                 this.deleted.add(write.key);
+                this.replaced.add(write.key);
                 this.hashOverlay.delete(write.key);
                 this.hashRemovals.delete(write.key);
+                this.setAdditions.delete(write.key);
+                this.setRemovals.delete(write.key);
                 return;
             }
             case 'setAdd': {
@@ -264,25 +293,50 @@ export class ValKeyTransaction implements Transaction {
     }
 
     /**
-     * Takes a grant on a key that this transaction is not itself writing.
+     * Takes a grant on keys before anything is written to them.
      *
-     * The one case that needs this is a read whose result decides what gets written - an upsert. The
-     * grant that `add` takes is taken too late for that: by the time the write is known, the value it
-     * was derived from has already been read, and another transaction may have written it since.
-     * Claiming up front puts the read inside the protected window as well.
+     * The case that needs this is a read whose result decides what gets written - an upsert, or the
+     * stored row a save compares against. The grant that `add` takes is taken too late for that: by
+     * the time the write is known, the value it was derived from has already been read, and another
+     * transaction may have written it since. Claiming up front puts the read inside the protected
+     * window as well. It is also the cheaper way to take many: all of them in one claim rather than one
+     * claim per write.
      *
-     * The key does not have to hold anything. An upsert claims a key derived from the identity rather
+     * A key does not have to hold anything. An upsert claims a key derived from the identity rather
      * than from a row, because the row it may be about to insert does not exist yet and has no key.
-     * @param key - The key to hold until this transaction commits or rolls back.
+     * @param keys - The keys to hold until this transaction commits or rolls back. Taken in sorted
+     * order, whatever order they are given in.
      * @throws When the transaction has already been committed or rolled back.
      */
-    async claimKey(key: string): Promise<void> {
+    async claimKeys(keys: string[]): Promise<void> {
         if (this.finished) {
             throw new TransactionAlreadyFinishedError();
         }
         this.touch();
-        await this.claim(key);
+        await this.claim(keys);
         this.touch();
+    }
+
+    /**
+     * Makes the commit depend on a key still holding the value it was read with.
+     *
+     * For a value some of the buffered writes were worked out from, which other instances may change
+     * meanwhile without holding anything this transaction would wait on. The commit then applies
+     * nothing when it has changed, rather than writes derived from a value that no longer holds.
+     * @param key - The key that was read.
+     * @param value - What it held, an empty string when it did not exist.
+     * @throws KeyDeclarationsChangedError when the transaction already read the key and found something
+     * else, since writes derived from both cannot all be right.
+     */
+    guardKey(key: string, value: string): void {
+        if (this.finished) {
+            throw new TransactionAlreadyFinishedError();
+        }
+        const guarded: string | undefined = this.guards.get(key);
+        if (guarded != undefined && guarded !== value) {
+            throw new KeyDeclarationsChangedError();
+        }
+        this.guards.set(key, value);
     }
 
     /**
@@ -330,30 +384,34 @@ export class ValKeyTransaction implements Transaction {
     }
 
     /**
-     * Takes a grant on the given key, unless this transaction already holds one.
-     * @param key - The key about to be overwritten.
-     * @returns The grant.
+     * Takes a grant on each of the given keys this transaction does not already hold.
+     *
+     * A claim still queueing when the transaction ends hands its keys back itself once they are
+     * granted, rather than leaving them held with nothing coming back for them - which `grants` takes
+     * care of.
+     * @param keys - The keys about to be overwritten.
      */
-    private async claim(key: string): Promise<KeptGrant> {
-        const existing: Promise<KeptGrant> | undefined = this.grants.get(key);
-        if (existing) {
-            return await existing;
+    private async claim(keys: string[]): Promise<void> {
+        const pending: Promise<void>[] = [];
+        const unclaimed: string[] = [];
+        for (const key of new Set(keys)) {
+            const existing: Promise<void> | undefined = this.claims.get(key);
+            if (existing) {
+                pending.push(existing);
+                continue;
+            }
+            unclaimed.push(key);
         }
-        const grant: Promise<KeptGrant> = this.acquireGrant(key);
-        // stored before it is awaited, so a second write to the same key joins this acquisition
-        // rather than starting its own
-        this.grants.set(key, grant);
-        const res: KeptGrant = await grant;
-
-        // the transaction can end while this is queueing for the grant, because the idle timeout
-        // ends it from a timer rather than from whoever is writing. Everything it held was handed
-        // back as it ended, and this arrived after that - so it is handed back here instead of
-        // sitting in a map nothing comes back to, renewed for as long as the process lives
-        if (this.finished) {
-            this.grants.delete(key);
-            await res.release();
+        if (unclaimed.length) {
+            const claim: Promise<void> = this.grants.claim(unclaimed);
+            // stored before it is awaited, so a second write to one of these keys joins this
+            // acquisition rather than starting its own
+            for (const key of unclaimed) {
+                this.claims.set(key, claim);
+            }
+            pending.push(claim);
         }
-        return res;
+        await Promise.all(pending);
     }
 
     /**
@@ -367,20 +425,10 @@ export class ValKeyTransaction implements Transaction {
         // nothing left to give up on once the grants are going back
         clearTimeout(this.idleTimer);
         this.idleTimer = undefined;
-
-        const pending: Promise<KeptGrant>[] = [...this.grants.values()];
-        this.grants.clear();
-
-        // settled, because an acquisition that failed has no grant to hand back and must not stop
-        // the ones that succeeded from being released
-        const grants: PromiseSettledResult<KeptGrant>[] = await Promise.allSettled(pending);
-        await Promise.all(
-            grants.map(async g => {
-                if (g.status === 'fulfilled') {
-                    await g.value.release();
-                }
-            })
-        );
+        this.claims.clear();
+        // together rather than one by one, because a transaction holds as many grants as it wrote
+        // rows - and without waiting for claims still queueing, which hand their key back on their own
+        await this.grants.release();
     }
 
     /**
@@ -403,22 +451,25 @@ export class ValKeyTransaction implements Transaction {
         if (this.deleted.has(key)) {
             return undefined;
         }
+        // a key deleted and written again holds what was written since, which the commit applies
+        // after deleting it - so none of the fields stored before
+        const kept: Record<string, string> | undefined = this.replaced.has(key) ? undefined : stored;
         const buffered: Record<string, string> | undefined = this.hashOverlay.get(key);
         const removed: Set<string> | undefined = this.hashRemovals.get(key);
         if (!buffered && !removed?.size) {
-            return stored;
+            return kept;
         }
         // removing a field of a hash that is not there leaves nothing behind, rather than an empty
         // row that reads as existing
-        if (stored == undefined && !buffered) {
+        if (kept == undefined && !buffered) {
             return undefined;
         }
 
         if (!removed?.size) {
-            return { ...stored, ...buffered };
+            return { ...kept, ...buffered };
         }
         return Object.fromEntries(
-            Object.entries({ ...stored, ...buffered }).filter(([field]) => !removed.has(field))
+            Object.entries({ ...kept, ...buffered }).filter(([field]) => !removed.has(field))
         );
     }
 
@@ -432,7 +483,8 @@ export class ValKeyTransaction implements Transaction {
         if (this.deleted.has(key)) {
             return [];
         }
-        const res: Set<string> = new Set(stored);
+        // for the reason a hash does
+        const res: Set<string> = new Set(this.replaced.has(key) ? [] : stored);
         for (const member of this.setAdditions.get(key) ?? []) {
             res.add(member);
         }
@@ -458,45 +510,35 @@ export class ValKeyTransaction implements Transaction {
             // having taken them
             await this.releaseGrants();
         }
+        for (const work of this.committedWork.splice(0)) {
+            await work();
+        }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    afterCommit(work: () => Promise<void>): void {
+        this.committedWork.push(work);
     }
 
     /**
      * Applies everything this transaction buffered, in one atomic batch.
+     * @throws KeyDeclarationsChangedError when a guarded key changed, in which case nothing was applied.
      * @throws When the batch could not be applied.
      */
     private async applyWrites(): Promise<void> {
         if (!this.writes.length) {
             return;
         }
+        if (this.guards.size) {
+            if (!await applyGuardedValKeyWrites(this.client, this.guards, this.writes)) {
+                throw new KeyDeclarationsChangedError();
+            }
+            return;
+        }
 
         const batch: Batch = new (valKeyGlide().Batch)(true);
         for (const write of this.writes) {
-            switch (write.type) {
-                case 'hashSet': {
-                    // eslint-disable-next-line cspell/spellchecker
-                    batch.hset(write.key, write.values);
-                    break;
-                }
-                case 'hashDelete': {
-                    // eslint-disable-next-line cspell/spellchecker
-                    batch.hdel(write.key, write.fields);
-                    break;
-                }
-                case 'delete': {
-                    batch.del([write.key]);
-                    break;
-                }
-                case 'setAdd': {
-                    // eslint-disable-next-line cspell/spellchecker
-                    batch.sadd(write.key, write.members);
-                    break;
-                }
-                case 'setRemove': {
-                    // eslint-disable-next-line cspell/spellchecker
-                    batch.srem(write.key, write.members);
-                    break;
-                }
-            }
+            queueValKeyWrite(batch, write);
         }
 
         const res: unknown[] | null = await this.client.exec(batch, true);
@@ -514,6 +556,9 @@ export class ValKeyTransaction implements Transaction {
         this.setAdditions.clear();
         this.setRemovals.clear();
         this.deleted.clear();
+        this.replaced.clear();
+        this.guards.clear();
+        this.committedWork.length = 0;
         await this.releaseGrants();
     }
 }

@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/glo
 
 import { Auth } from './auth.decorator';
 import { CurrentUser } from './current-user.decorator';
+import { JwtTestAuthController } from '../../__testing__/mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../__testing__/mocks/entities/roles.enum';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
@@ -10,8 +11,8 @@ import { repositoryTokenFor } from '../../di/decorators/inject-repository.decora
 import { inject } from '../../di/inject.function';
 import { Controller } from '../../routing/decorators/controller.decorator';
 import { Get } from '../../routing/decorators/get.decorator';
-import { JwtAuthController } from '../strategies/jwt/jwt-auth.controller';
-import { JwtCredentials, JwtCredentialsCreateData } from '../strategies/jwt/jwt-credentials.model';
+import { JsonUtilities } from '../../utilities/json.utilities';
+import { PasswordCredentials, PasswordCredentialsCreateData } from '../authenticators/password/password-credentials.model';
 import { JwtAuthStrategy } from '../strategies/jwt/jwt.auth-strategy';
 
 @Controller('/current-user-test')
@@ -34,16 +35,16 @@ describe('CurrentUser decorator — real HTTP flow', () => {
     let server: StartedTestServer;
     let baseUrl: string;
     let userRepo: Repository<JwtUser>;
-    let credentialsRepo: Repository<JwtCredentials, JwtCredentialsCreateData>;
+    let credentialsRepo: Repository<PasswordCredentials, PasswordCredentialsCreateData>;
 
     const email: string = 'current-user-test@example.com';
     const password: string = 'secure123';
 
     beforeAll(async () => {
-        server = await startTestServer({ controllers: [JwtAuthController, CurrentUserTestController] });
+        server = await startTestServer({ controllers: [JwtTestAuthController, CurrentUserTestController] });
         baseUrl = await server.start();
         userRepo = inject(repositoryTokenFor(JwtUser));
-        credentialsRepo = inject(repositoryTokenFor(JwtCredentials));
+        credentialsRepo = inject(repositoryTokenFor(PasswordCredentials));
     }, 20000);
 
     afterAll(async () => {
@@ -57,12 +58,12 @@ describe('CurrentUser decorator — real HTTP flow', () => {
 
     async function login(): Promise<string> {
         const user: JwtUser = await userRepo.create({ email, roles: [Roles.USER] });
-        await credentialsRepo.create({ email, password, userId: user.id });
+        await credentialsRepo.create({ password, userId: user.id });
 
         const res: Response = await fetch(`${baseUrl}/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password })
+            body: JsonUtilities.stringify({ email, password })
         });
         expect(res.status).toBe(200);
         // eslint-disable-next-line typescript/no-unsafe-assignment

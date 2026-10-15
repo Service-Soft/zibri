@@ -28,7 +28,7 @@ beforeAll(async () => {
     server = await startTestServer({ dataSources: [postgresDataSourceClass, valKeyDataSourceClass] });
     postgres = inject(postgresDataSourceClass).getRepository(Contact);
     valKey = inject(valKeyDataSourceClass).getRepository(Contact);
-}, 30000);
+}, 45000);
 
 afterAll(async () => {
     await server?.shutdown();

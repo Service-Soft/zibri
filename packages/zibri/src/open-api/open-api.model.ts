@@ -1,13 +1,26 @@
 import type { oas31 } from 'openapi3-ts';
 
 import { HttpStatus } from '../http/http-status.enum';
+import { JsonMimeType } from '../http/json-mime-type.type';
 import { MimeType } from '../http/mime-type.enum';
 import { Newable } from '../types/newable.type';
+import { OmitStrict } from '../types/omit-strict.type';
 
 /**
  * Alias for the root OpenAPI 3.1 document object.
  */
-export type OpenApiDefinition = oas31.OpenAPIObject;
+export type OpenApiDefinition = OmitStrict<oas31.OpenAPIObject, 'components'> & {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    components?: OpenApiComponentsObject
+};
+
+/**
+ * The reusable objects of an OpenAPI document.
+ */
+export type OpenApiComponentsObject = OmitStrict<oas31.ComponentsObject, 'securitySchemes'> & {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    securitySchemes?: Record<string, OpenApiSecuritySchemeObject | OpenApiReferenceObject>
+};
 
 /**
  * Collection of path items keyed by path string.
@@ -65,7 +78,16 @@ export type OpenApiSchemas = {
 /**
  * Security scheme definition object.
  */
-export type OpenApiSecuritySchemeObject = oas31.SecuritySchemeObject;
+export type OpenApiSecuritySchemeObject = OmitStrict<oas31.SecuritySchemeObject, 'type'> & {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    type: OpenApiSecuritySchemeType
+};
+
+/**
+ * The kinds of security scheme of OpenAPI 3.1.
+ */
+// mutualTLS is one of them since 3.1.0, but openapi3-ts's oas31 leaves it out (its oas32 has it)
+export type OpenApiSecuritySchemeType = oas31.SecuritySchemeType | 'mutualTLS';
 
 /**
  * Security requirement mapping.
@@ -123,9 +145,11 @@ export type JsonOpenApiResponse = {
      */
     description?: string,
     /**
-     * Constructor function to map the JSON payload to a class instance.
+     * Constructor function to map the JSON payload to a class instance, or a function answering it for
+     * a class that is only known once the application has started. A function answering undefined names
+     * no class.
      */
-    cls?: Newable<unknown>,
+    cls?: Newable<unknown> | (() => Newable<unknown> | undefined),
     /**
      * If true, indicates the response payload is an array of items.
      */
@@ -135,10 +159,11 @@ export type JsonOpenApiResponse = {
      * picks one, and the first is taken when it accepts several or names none. Defaults to json.
      *
      * Xml is written as the document `cls` describes, with `cls` as its root element, so it needs a `cls` and a
-     * response that is not an array. The json and empty responses of a route name the same formats, which is
-     * checked at startup.
+     * response that is not an array. Any other format is written as json, with its own type, eg.
+     * `MimeType.JSON_SCIM`. The json and empty responses of a route name the same formats, which is checked
+     * at startup.
      */
-    mimeTypes?: (MimeType.JSON | MimeType.XML)[],
+    mimeTypes?: (JsonMimeType | MimeType.XML)[],
     /**
      * Whether this response was added automatically by the framework (such as by \@RateLimited) rather than
      * explicitly declared by the developer. Used to distinguish auto-generated documentation from legitimate ones
@@ -169,7 +194,7 @@ export type EmptyOpenApiResponse = {
      * The formats the route answers in. An empty response has no body in any of them, so this defaults to json
      * and xml; the json responses of the same route name the same formats, which is checked at startup.
      */
-    mimeTypes?: (MimeType.JSON | MimeType.XML)[],
+    mimeTypes?: (JsonMimeType | MimeType.XML)[],
     /**
      * Whether this response was added automatically by the framework rather than explicitly declared by the
      * developer. Used to distinguish auto-generated documentation from legitimate ones when checking for missing
@@ -231,6 +256,37 @@ export type HtmlOpenApiResponse = {
 };
 
 /**
+ * The statuses a redirect can be answered with.
+ */
+export type RedirectHttpStatus = HttpStatus.FOUND | HttpStatus.SEE_OTHER | HttpStatus.TEMPORARY_REDIRECT;
+
+/**
+ * Descriptor for a redirect response:
+ * - type: 'redirect'
+ * - the status, and an optional description.
+ */
+export type RedirectOpenApiResponse = {
+    /**
+     * Constant identifier for a redirect response.
+     */
+    type: 'redirect',
+    /**
+     * HTTP status code to use for the redirect.
+     */
+    status: RedirectHttpStatus,
+    /**
+     * Human-readable description of the redirect.
+     */
+    description?: string,
+    /**
+     * Whether this response was added automatically by the framework rather than explicitly declared by the
+     * developer. Used to distinguish auto-generated documentation from legitimate ones when checking for missing
+     * response data.
+     */
+    implicit?: boolean
+};
+
+/**
  * Definition for a single response.
  */
 export type OpenApiResponseObject = oas31.ResponseObject;
@@ -262,5 +318,6 @@ export type OpenApiResponse
     = | JsonOpenApiResponse
         | EmptyOpenApiResponse
         | HtmlOpenApiResponse
+        | RedirectOpenApiResponse
         | ErrorOpenApiResponse
         | FileOpenApiResponse;

@@ -6,7 +6,7 @@ import { DatePropertyMetadataInput } from '../../entity/models/date-property-met
 import { NumberPropertyMetadataInput } from '../../entity/models/number-property-metadata.model';
 import { ObjectPropertyMetadataInput } from '../../entity/models/object-property-metadata.model';
 import { AnyOfShapesMetadata } from '../../entity/models/one-of-property-metadata.model';
-import { StringPropertyMetadataInput } from '../../entity/models/string-property-metadata.model';
+import { IncomingStringPropertyMetadataInput } from '../../entity/models/string-property-metadata.model';
 import { OmitStrict } from '../../types/omit-strict.type';
 
 /**
@@ -27,8 +27,8 @@ export type OneOfParamMetadata = BaseParamMetadata & Pick<BasePropertyMetadata, 
  * A shape a path parameter can be one of. A path segment is one piece of text, so it is text, a number,
  * a boolean or a date.
  */
-// eslint-disable-next-line typescript/no-explicit-any, jsdoc/require-jsdoc
-export type PathParamShapeMetadataInput = StringPropertyMetadataInput<any, any, any, any, any> & { type: 'string' }
+// eslint-disable-next-line jsdoc/require-jsdoc
+export type PathParamShapeMetadataInput = IncomingStringPropertyMetadataInput & { type: 'string' }
     // eslint-disable-next-line jsdoc/require-jsdoc
     | NumberPropertyMetadataInput & { type: 'number' }
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -43,7 +43,7 @@ export type QueryParamShapeMetadataInput = PathParamShapeMetadataInput
     // eslint-disable-next-line jsdoc/require-jsdoc
     | ObjectPropertyMetadataInput & { type: 'object' }
     // eslint-disable-next-line jsdoc/require-jsdoc
-    | ArrayPropertyMetadataInput & { type: 'array' };
+    | ArrayPropertyMetadataInput<IncomingStringPropertyMetadataInput> & { type: 'array' };
 
 /**
  * Metadata Input of a path parameter that is one of several shapes.

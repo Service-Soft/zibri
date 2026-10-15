@@ -74,6 +74,19 @@ export abstract class TypeOrmUtilities {
     }
 
     /**
+     * Turns one value an entity holds into what the column stores.
+     * @param column - The column it is written to or compared against.
+     * @param value - The value as the entity's property takes it.
+     * @returns The value the database is handed.
+     */
+    static toColumnValue(column: ColumnMetadata, value: unknown): unknown {
+        if (column.transformer == undefined) {
+            return value;
+        }
+        return ApplyValueTransformers.transformTo(column.transformer, value);
+    }
+
+    /**
      * Gets the metadata for a typeorm column.
      * @param target - The entity.
      * @param propertyName - The name of the property to get the column metadata for.

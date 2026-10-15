@@ -9,6 +9,7 @@ import { IsolationLevel } from '../../data-source/data-sources/data-source.inter
 import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
 import { DataSource } from '../../data-source/decorators/data-source.decorator';
 import { SchemaManagement } from '../../data-source/models/schema-management.model';
+import { Where } from '../../data-source/models/where/where-filter.model';
 import { whereFor } from '../../data-source/models/where/where-for.function';
 import { Repository, UNBOUNDED_FIND_ALL_LIMIT } from '../../data-source/repository/repository';
 import { Transaction } from '../../data-source/transaction/transaction.model';
@@ -19,6 +20,7 @@ import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity, EntityMetadata } from '../../entity/decorators/entity.decorator';
 import { Property, PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { scopeFor } from '../../entity/models/entity-scope.model';
+import { BadRequestError } from '../../error-handling/errors/bad-request.error';
 import { ConflictError } from '../../error-handling/errors/conflict.error';
 import { NotFoundError } from '../../error-handling/errors/not-found.error';
 import { InternalError } from '../../error-handling/internal-error.model';
@@ -39,7 +41,7 @@ import { StartedTestServer, startTestServer } from '../test-server/start-test-se
 
 // ---------- Test entities ----------
 
-@Entity({ allowOrphan: true })
+@Entity({ tenant: 'shared', allowOrphan: true })
 class EvalOrder extends BaseEntity {
     @Property.string()
     reference!: string;
@@ -73,7 +75,7 @@ class EvalOrder extends BaseEntity {
  * entity rather than by the repository: with a required column the insert breaks a constraint, with
  * none it quietly succeeds. This is the second case, which is the one that leaves no trace.
  */
-@Entity({ allowOrphan: true })
+@Entity({ tenant: 'shared', allowOrphan: true })
 class EvalNote extends BaseEntity {
     @Property.string({ required: false })
     body: string | undefined | null;
@@ -86,6 +88,7 @@ class EvalNote extends BaseEntity {
  * caller is told about a row they cannot see, and that does not need a login to arise.
  */
 @Entity({
+    tenant: 'shared',
     allowOrphan: true,
     scope: { restrictedTo: scopeFor<EvalScopedOrder>(() => ({ archived: false })) }
 })
@@ -104,7 +107,7 @@ class EvalScopedOrder extends BaseEntity {
  * problem but never the fix: nothing about a boolean property tells the framework that the row is
  * gone.
  */
-@Entity({ allowOrphan: true })
+@Entity({ tenant: 'shared', allowOrphan: true })
 class EvalAccount extends SoftDeleteEntity {
     @Property.string({ unique: { where: whereFor<EvalAccount>({ deleted: false }) } })
     email!: string;
@@ -114,6 +117,7 @@ class EvalAccount extends SoftDeleteEntity {
  * The same thing where no column is unique on its own - one address per tenant, among live rows.
  */
 @Entity({
+    tenant: 'shared',
     allowOrphan: true,
     uniques: [{ properties: ['tenantId', 'email'], where: whereFor<EvalTenantAccount>({ deleted: false }) }]
 })
@@ -166,6 +170,7 @@ class EvalDataSource extends PostgresDataSource {
         username: 'postgres',
         password: 'password',
         database: 'db',
+        ssl: false,
         logging: true,
         logger: statementCountingLogger
     };
@@ -582,6 +587,113 @@ describe('evaluation/01-data-layer', () => {
         });
     });
 
+    describe('MINOR - a soft delete repository answers what it was asked', () => {
+        it('refuses to mark a row deleted that already is, rather than reporting a write that never ran', async () => {
+            const accountRepo: SoftDeleteRepository<EvalAccount> = inject(repositoryTokenFor(EvalAccount));
+            await accountRepo.deleteAll({}, { hardDelete: true });
+            const created: EvalAccount = await accountRepo.create({ email: 'twice@example.com' });
+            await accountRepo.deleteById(created.id);
+
+            // the guard's NotFoundError was caught whenever the change set `deleted: true`, and the row
+            // read again past the guard - so this answered with the old row as if it were the update
+            await expect(accountRepo.updateById(created.id, { email: 'changed@example.com', deleted: true }))
+                .rejects.toThrow(NotFoundError);
+            expect((await accountRepo.findById(created.id, { deleted: 'include' })).email).toBe('twice@example.com');
+        });
+
+        it('reaches the soft deleted rows alone, and refuses a filter that would have been overwritten', async () => {
+            const accountRepo: SoftDeleteRepository<EvalAccount> = inject(repositoryTokenFor(EvalAccount));
+            await accountRepo.deleteAll({}, { hardDelete: true });
+            await accountRepo.create({ email: 'live@example.com' });
+            const gone: EvalAccount = await accountRepo.create({ email: 'gone@example.com' });
+            await accountRepo.deleteById(gone.id);
+
+            expect((await accountRepo.findAll({ deleted: 'only' })).map(a => a.email)).toEqual(['gone@example.com']);
+
+            // a filter typed as the entity's own Where carries `deleted` past the soft delete types,
+            // and the guard used to overwrite it without a word
+            const onlyDeleted: Where<EvalAccount> = { deleted: true };
+            await expect(accountRepo.findAll({ where: onlyDeleted })).rejects.toThrow(InternalError);
+        });
+
+        it('hard deletes a soft deleted row by its id', async () => {
+            const accountRepo: SoftDeleteRepository<EvalAccount> = inject(repositoryTokenFor(EvalAccount));
+            await accountRepo.deleteAll({}, { hardDelete: true });
+            const created: EvalAccount = await accountRepo.create({ email: 'purged@example.com' });
+            await accountRepo.deleteById(created.id);
+
+            await accountRepo.deleteById(created.id, { hardDelete: true });
+
+            expect(await accountRepo.count({ deleted: 'include' })).toBe(0);
+        });
+    });
+
+    describe('MINOR - a file property that never said which files it takes', () => {
+        it('does not compile', () => {
+            // it warned and then took every file type, so a forgotten list read exactly like a
+            // decision to accept anything
+            class EvalUpload {
+                // @ts-expect-error - a file property names its mime types, or 'all'
+                @Property.file({ maxSize: '1mb' })
+                attachment!: File;
+
+                @Property.file({ allowedMimeTypes: 'all' })
+                anything!: File;
+            }
+
+            expect(MetadataUtilities.getModelProperties(EvalUpload)['anything']).toHaveProperty('allowedMimeTypes', 'all');
+        });
+    });
+
+    describe('MINOR - a stack trace per decorator evaluation', () => {
+        it('reads the stack once per class, however many decorators it has', () => {
+            // a stack is read either by rendering one (`error.stack`, through prepareStackTrace) or
+            // by collecting its frames (captureStackTrace) - both are counted, so this measures
+            // reads rather than one way of doing them
+            let reads: number = 0;
+            const originalPrepareStackTrace: typeof Error.prepareStackTrace = Error.prepareStackTrace;
+            const originalCaptureStackTrace: typeof Error.captureStackTrace = Error.captureStackTrace;
+            Error.prepareStackTrace = (error, callSites): unknown => {
+                reads++;
+                return originalPrepareStackTrace === undefined ? `${error}` : originalPrepareStackTrace(error, callSites);
+            };
+            Error.captureStackTrace = (target, constructorOpt) => {
+                reads++;
+                originalCaptureStackTrace(target, constructorOpt);
+            };
+            try {
+                class EvalManyProperties {
+                    @Property.string()
+                    first!: string;
+
+                    @Property.string()
+                    second!: string;
+
+                    @Property.number()
+                    third!: number;
+                }
+                expect(Object.keys(MetadataUtilities.getModelProperties(EvalManyProperties))).toHaveLength(3);
+            }
+            finally {
+                Error.prepareStackTrace = originalPrepareStackTrace;
+                Error.captureStackTrace = originalCaptureStackTrace;
+            }
+
+            // one per property: every decorator rendered the whole stack to text to find one file
+            // name, which is the same for every decorator of a class
+            expect(reads).toBe(1);
+        });
+    });
+
+    describe('MINOR - an isolation level no store runs as itself', () => {
+        it('is not offered', () => {
+            // postgres runs it as READ COMMITTED and valkey runs no isolation level at all, so a
+            // caller choosing it got something else on every store this framework supports
+            // @ts-expect-error - READ UNCOMMITTED is not an isolation level a transaction can ask for
+            expect(IsolationLevel.READ_UNCOMMITTED).toBeUndefined();
+        });
+    });
+
     describe('M12 - write amplification on change set and soft delete entities', () => {
         it('reads the row once for a soft delete rather than once per layer', async () => {
             const accountRepo: SoftDeleteRepository<EvalAccount> = inject(repositoryTokenFor(EvalAccount));
@@ -611,7 +723,7 @@ describe('evaluation/01-data-layer', () => {
             // the property it changed, and the one property a soft delete changes is the one its
             // change set leaves out - so the update has a change to write and the delete has none
             expect(readsForSoftDelete).toBe(readsForUpdate);
-            expect(await accountRepo.findById(toDelete.id, { withDeleted: true })).toHaveProperty('deleted', true);
+            expect(await accountRepo.findById(toDelete.id, { deleted: 'include' })).toHaveProperty('deleted', true);
         }, 30000);
 
         it('records the delete once, under the type it is', async () => {
@@ -819,6 +931,13 @@ describe('evaluation/01-data-layer', () => {
 
             // dropping the whole condition would hide a row the caller legitimately asked for
             expect(found.map(o => o.id)).toEqual([created.id]);
+        });
+
+        it('refuses a negation of a malformed id as the caller\'s mistake, rather than failing the query', async () => {
+            // every row differs from it, so the only other answers were every row - wider than the
+            // filter reads - or the store's own refusal, which surfaced as a 500
+            await expect(orderRepo.findAll({ where: { id: { not: 'not-a-uuid' } } })).rejects.toThrow(BadRequestError);
+            await expect(orderRepo.count({ where: { id: { notOneOf: ['not-a-uuid'] } } })).rejects.toThrow(BadRequestError);
         });
 
         it('still finds a row whose id is a uuid version this framework does not generate', async () => {

@@ -8,9 +8,12 @@ import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { ModelRegistry } from '../../global/model-registry/model.registry';
 import { Newable } from '../../types/newable.type';
+import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { PostgresDataSource } from '../data-sources/postgres/postgres-typeorm-data-source.model';
 import { indexName, trigramIndexName, TRIGRAM_INDEX_PREFIX } from '../index-name.function';
-import { uniqueGroupFor } from '../unique-group-for.function';
+import { Repository } from '../repository/repository';
+import { uniqueConstraintName } from '../unique-constraint-name.function';
+import { UpsertIdentityUtilities } from '../upsert-identity.utilities';
 
 /**
  * What an entity declares about the lookups it expects.
@@ -22,6 +25,7 @@ import { uniqueGroupFor } from '../unique-group-for.function';
  */
 
 @Entity({
+    tenant: 'shared',
     allowOrphan: true,
     // `tenantId` carries no `index` of its own: this group already answers a lookup by it, since an
     // index answers any leading part of itself
@@ -54,7 +58,7 @@ class IndexedOrder extends BaseEntity {
  * Exists so that the schema carries a junction table, which the orm builds rather than an entity
  * declaring it - and which therefore has no class behind it to read declarations from.
  */
-@Entity({ allowOrphan: true })
+@Entity({ tenant: 'shared', allowOrphan: true })
 class IndexedTag extends BaseEntity {
     @Property.string()
     label!: string;
@@ -161,11 +165,42 @@ describe('an entity that declares indexes', () => {
         // without the same column being named a second time under the entity's `uniques`. The rows
         // it covers come back with it, because an identity only names one row while the key covers
         // every row it could be
-        expect(uniqueGroupFor(IndexedOrder, ['reference'])).toEqual({ properties: ['reference'], where: undefined });
+        expect(UpsertIdentityUtilities.resolveUniqueGroup(IndexedOrder, ['reference'])).toEqual({ properties: ['reference'], where: undefined });
+    });
+
+    it('names a property\'s own unique the way an upsert refers to it, and creates it once', async () => {
+        const rows: { conname: string }[] = await dataSource.query(IndexedOrder).connection.query(
+            'SELECT conname FROM pg_constraint WHERE conrelid = \'indexed_order\'::regclass AND contype = \'u\''
+        );
+
+        // it used to reach the column as the orm's own unique, under a hashed name nothing else can
+        // arrive at - so an upsert naming the constraint named one that did not exist
+        expect(rows.map(r => r.conname)).toEqual([uniqueConstraintName('indexed_order', ['reference'])]);
+    });
+
+    it('lands an upsert identified by that property on the row holding it', async () => {
+        const orders: Repository<IndexedOrder> = dataSource.getRepository(IndexedOrder);
+        const reference: string = UUIDUtilities.generate();
+        const order: Partial<IndexedOrder> = {
+            reference,
+            tenantId: 'tenant',
+            status: 'open',
+            note: '',
+            customerId: UUIDUtilities.generate(),
+            placedAt: new Date()
+        };
+
+        const first: IndexedOrder = await orders.upsert({ reference }, order, { status: { set: 'paid' } });
+        const second: IndexedOrder = await orders.upsert({ reference }, order, { status: { set: 'paid' } });
+
+        // the whole of what the resolution above is for, which checking the resolution alone never ran
+        expect(first.status).toBe('open');
+        expect(second.id).toBe(first.id);
+        expect(second.status).toBe('paid');
     });
 
     it('refuses an identity that nothing declares unique', () => {
-        expect(() => uniqueGroupFor(IndexedOrder, ['status'])).toThrow();
+        expect(() => UpsertIdentityUtilities.resolveUniqueGroup(IndexedOrder, ['status'])).toThrow();
     });
 
     afterAll(async () => {

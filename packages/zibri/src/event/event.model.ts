@@ -38,6 +38,11 @@ export enum EventStatus {
 @Entity({ allowOrphan: true, defaultOrder: { createdAt: 'ASC' } })
 export class Event<T> extends BaseEntity {
     /**
+     * The tenant the event was emitted in, or null for one emitted outside every tenant.
+     */
+    @Property.string({ format: 'uuid', required: false })
+    tenantId?: string | null;
+    /**
      * The timestamp at which the event has been created.
      */
     @Property.date({ default: () => new Date() })

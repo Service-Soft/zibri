@@ -27,7 +27,7 @@ export const ALL_EVENTS_TYPE: string = 'zibri.all-events';
  * Has to be registered in exactly one data source, for the same reason as the events themselves - two
  * stores would mean two registries and neither would see the other.
  */
-@Entity({ uniques: [['subscriberId', 'eventType']] })
+@Entity({ tenant: 'shared', allowOrphan: true, uniques: [['subscriberId', 'eventType']] })
 export class EventSubscriberRegistration extends BaseEntity {
     /**
      * The id of the subscriber, as it was subscribed under.

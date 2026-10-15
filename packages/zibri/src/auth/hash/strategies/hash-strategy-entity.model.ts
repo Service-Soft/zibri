@@ -15,7 +15,7 @@ export enum HashStrategyStatus {
 /**
  * The hash strategy entity that is stored in the db.
  */
-@Entity({ allowOrphan: true })
+@Entity({ tenant: 'shared', allowOrphan: true })
 export class HashStrategyEntity extends BaseEntity {
     /**
      * The name of the strategy.

@@ -88,4 +88,36 @@ describe('CacheDelete decorator', () => {
 
         expect(wrapDeleteSpy).toHaveBeenCalledTimes(2);
     });
+
+    describe('what its key provider may take', () => {
+        it('takes fewer arguments than the method, typed as the method declares them', async () => {
+            // the method's arguments were inferred from the provider as well, so one reading fewer of
+            // them asked for a method taking only those, and did not compile
+            class Service {
+                @CacheDelete(DeleteTestCache, id => `key:${id.toUpperCase()}`)
+                // eslint-disable-next-line typescript/require-await
+                async remove(id: string, reason: string): Promise<string> {
+                    return `removed:${id}:${reason}`;
+                }
+            }
+            await inject(DeleteTestCache).store.set('key:ABC', createCachedValue('stale', []));
+
+            await new Service().remove('abc', 'outdated');
+
+            expect(await inject(DeleteTestCache).store.get('key:ABC')).toBeUndefined();
+        });
+
+        it('refuses a provider the method does not fit', () => {
+            class Service {
+                // @ts-expect-error - the provider reads a number where the method takes a string
+                @CacheDelete(DeleteTestCache, (id: number) => `key:${id}`)
+                // eslint-disable-next-line typescript/require-await
+                async remove(id: string): Promise<string> {
+                    return id;
+                }
+            }
+
+            expect(Object.getOwnPropertyNames(Service.prototype)).toContain('remove');
+        });
+    });
 });

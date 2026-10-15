@@ -7,7 +7,7 @@ import { type SemVerVersion } from '../../versioning/sem-ver.utilities';
  * The migration entity that is stored in the db.
  */
 // every data source keeps track of its own migrations, so this entity is duplicated by design
-@Entity({ allowOrphan: true, allowDuplicate: true })
+@Entity({ tenant: 'shared', allowOrphan: true, allowDuplicate: true })
 export class MigrationEntity extends BaseEntity {
     /**
      * The name of the migration, which is which migration this is.

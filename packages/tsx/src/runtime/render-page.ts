@@ -1,4 +1,5 @@
 import { projectValue } from './access-shape';
+import { toScriptJson } from './script-json';
 import { ClientInstanceEntry, CompiledComponent, createServerRuntime, isClientPropMarker, renderChild,
     RenderServerRuntime } from './server-runtime';
 import { CLIENT_HOOK_SOURCES, HookData, substituteHookPlaceholders } from '../codegen/client/hooks';
@@ -146,7 +147,7 @@ export function buildClientScript(
     for (const entry of entries) {
         // Each instance is handed only the handlers and function props it declared, so running the
         // same setup again for the next instance cannot attach this instance's elements a second time.
-        const runtime: string = JSON.stringify({
+        const runtime: string = toScriptJson({
             handlers: ssr.handlers.filter(handler => handler.owner === entry.owner),
             props: ssr.clientProps.filter(prop => prop.owner === entry.owner)
         });
@@ -173,13 +174,13 @@ function instanceBinding(owner: number): string {
  */
 function serializeInstanceProps(props: Record<string, unknown>): string {
     if (!Object.values(props).some(isClientPropMarker)) {
-        return JSON.stringify(props);
+        return toScriptJson(props);
     }
     const entries: string[] = Object.entries(props).map(([name, value]) => {
         const source: string = isClientPropMarker(value)
-            ? `${instanceBinding(value.owner)}[${JSON.stringify(value.id)}]`
-            : JSON.stringify(value);
-        return `${JSON.stringify(name)}:${source}`;
+            ? `${instanceBinding(value.owner)}[${toScriptJson(value.id)}]`
+            : toScriptJson(value);
+        return `${toScriptJson(name)}:${source}`;
     });
     return `{${entries.join(',')}}`;
 }
@@ -308,8 +309,11 @@ export function wrapDocument(html: string, script: string, nonce?: string): stri
         return `<!DOCTYPE html>\n${html}`;
     }
     const nonceAttr: string = nonce ? ` nonce="${nonce}"` : '';
-    // Neutralize any `</script>` inside the emitted code so it cannot terminate the tag early.
-    const safe: string = script.replaceAll('</script>', '<\\/script>');
+    // Neutralize any `</script` inside the emitted code so it cannot terminate the tag early. An html
+    // parser ends a script on it in any case and followed by whitespace, `/` or `>`, so every one is
+    // escaped; `<\/` is the same two characters inside a javascript string or regex. The data in the
+    // script cannot contain one at all, see toScriptJson.
+    const safe: string = script.replaceAll(/<\/script/gi, match => `<\\/${match.slice(2)}`);
     const tag: string = `<script${nonceAttr}>\n${safe}\n</script>`;
     // A function replacer is required: generated code can contain `$$`, `$&` and friends, which a
     // string replacement would interpret as substitution patterns and corrupt.

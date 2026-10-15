@@ -33,9 +33,7 @@ export function CurrentUser(required?: boolean, allowedStrategies?: AuthStrategi
             allowedStrategies
         };
         const ctor: Function = target.constructor;
-        // eslint-disable-next-line unicorn/error-message
-        const stack: string = new Error().stack ?? '';
-        MetadataUtilities.setFilePath(ctor, stack);
+        MetadataUtilities.setFilePath(ctor);
         const key: string = propertyKey?.toString() ?? '';
         MetadataUtilities.setRouteCurrentUser(ctor, fullMetadata, key);
     };

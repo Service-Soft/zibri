@@ -9,7 +9,7 @@ import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { Repository } from '../repository/repository';
 
-@Entity({ uniques: [['name']] })
+@Entity({ tenant: 'shared', uniques: [['name']] })
 class Warehouse extends BaseEntity {
     @Property.string()
     name!: string;
@@ -22,7 +22,7 @@ class Warehouse extends BaseEntity {
  * Every read of one resolves its warehouse, which is what makes an upsert handing back a row without
  * it a `TypeError` rather than a missing property: nothing about the type says it can be absent.
  */
-@Entity({ uniques: [['tenant', 'sku']], defaultRelations: { warehouse: true } })
+@Entity({ tenant: 'shared', uniques: [['tenant', 'sku']], defaultRelations: { warehouse: true } })
 class StockLevel extends BaseEntity {
     @Property.string()
     tenant!: string;
@@ -51,7 +51,7 @@ beforeAll(async () => {
     });
     warehouseRepository = inject(repositoryTokenFor(Warehouse));
     stockRepository = inject(repositoryTokenFor(StockLevel));
-}, 15000);
+}, 30000);
 
 afterAll(async () => {
     await server?.shutdown();

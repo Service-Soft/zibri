@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { OtpCredentials } from '../../auth/2fa/methods/otp/otp-credentials.model';
 import { OtpTwoFactorMethod } from '../../auth/2fa/methods/otp/otp.two-factor-method';
 import { type TwoFactorServiceInterface } from '../../auth/2fa/two-factor-service.interface';
+import { PasswordCredentials } from '../../auth/authenticators/password/password-credentials.model';
 import { Auth } from '../../auth/decorators/auth.decorator';
 import { EncryptionKey, EncryptionKeyStatus } from '../../auth/encryption/encryption-key.model';
 import { EncryptionMasterOptions } from '../../auth/encryption/encryption-master-options.model';
@@ -17,8 +18,6 @@ import { BaseDecryptOptions, BaseEncryptOptions, EncryptionStrategyInterface } f
 import { type HashServiceInterface } from '../../auth/hash/hash-service.interface';
 import { BaseUser } from '../../auth/models/base-user.model';
 import { PasswordResetToken } from '../../auth/models/password-reset-token.model';
-import { JwtAuthController } from '../../auth/strategies/jwt/jwt-auth.controller';
-import { JwtCredentials } from '../../auth/strategies/jwt/jwt-credentials.model';
 import { JwtRefreshToken } from '../../auth/strategies/jwt/jwt-refresh-token.model';
 import { type HttpRequestContext } from '../../context/request/http-request.context';
 import { type WebsocketRequestContext } from '../../context/request/websocket-request.context';
@@ -37,10 +36,13 @@ import { InMemoryRateLimiterStore } from '../../rate-limiting/stores/in-memory.r
 import { type BaseRateLimitState, type RateLimiterStoreInterface } from '../../rate-limiting/stores/rate-limiter-store.interface';
 import { Controller } from '../../routing/decorators/controller.decorator';
 import { Get } from '../../routing/decorators/get.decorator';
+import { Post } from '../../routing/decorators/post.decorator';
 import { Newable } from '../../types/newable.type';
+import { JsonUtilities } from '../../utilities/json.utilities';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { Ms } from '../../utilities/ms';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { JwtTestAuthController } from '../mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../mocks/entities/jwt-user.entity';
 import { Roles } from '../mocks/entities/roles.enum';
 import { createTestDataSource } from '../test-server/create-test-data-source.function';
@@ -53,7 +55,8 @@ import { StartedTestServer, startTestServer } from '../test-server/start-test-se
  * Observations are made against real state: the Log table the framework writes through its real db
  * transport, the entity metadata the framework itself reads, and real HTTP round trips. Findings
  * that need a flow this file cannot drive (a full login, an enrolled second factor, a configured
- * cookie strategy) are `it.todo` rather than assertions about how the source is written.
+ * cookie strategy) are tested in the file that can, and named in a comment here. The `it.todo`s left
+ * are capabilities that do not exist yet.
  *
  * Every expectation describes the fixed behavior, so this file is red until the corresponding
  * finding is closed. See ./README.md for why.
@@ -99,6 +102,17 @@ class EvaluationCookieController {
         // eslint-disable-next-line typescript/no-unsafe-return
         return context.request.cookies;
     }
+
+    /**
+     * A public route that changes something on the cookie's authority, which is the shape F4 says the
+     * csrf check never reaches: it resolves no session, so the cookie strategy never runs.
+     * @returns Anything at all - only the status is read.
+     */
+    @Post('/act')
+    @Auth.skip()
+    act(): string {
+        return 'acted';
+    }
 }
 
 /**
@@ -131,6 +145,7 @@ const remoteKeyStore: Map<string, Buffer> = new Map([[remoteMasterKeyRef, random
 class RemoteMasterStrategy implements EncryptionStrategyInterface<RemoteKeyHandle> {
     readonly name: string = 'remote-kms';
     readonly version: string = 'v1';
+    readonly usableInMigrations: boolean = false;
 
     async encrypt(value: string, options: BaseEncryptOptions<RemoteKeyHandle>): Promise<EncryptionString> {
         const key: Buffer = await this.resolve(options.key);
@@ -212,9 +227,9 @@ beforeAll(async () => {
         // the framework's own auth routes, because B4, E1 and G1 are all about what those answer.
         // Without them every one of those tests failed on its own 404 guard rather than on the
         // finding it describes.
-        controllers: [EvaluationUnprotectedController, EvaluationCookieController, JwtAuthController],
+        controllers: [EvaluationUnprotectedController, EvaluationCookieController, JwtTestAuthController],
         // the posture A1 is about being able to declare at all. The rest of this file is unaffected
-        // by it: every route it drives is either on JwtAuthController, which states its own, or is
+        // by it: every route it drives is either on JwtTestAuthController, which states its own, or is
         // the undecorated one A1 exists to talk about.
         defaultAuth: 'requireLogin',
         // the numbers the framework ships with, since E1 is about what a deployment gets by default.
@@ -316,7 +331,7 @@ describe('evaluation/03-auth-and-security', () => {
             const res: Response = await fetch(`${baseUrl}/auth/request-password-reset`, {
                 method: 'POST',
                 headers: { 'content-type': 'application/json' },
-                body: JSON.stringify({ email: 'definitely-not-registered@example.com' })
+                body: JsonUtilities.stringify({ email: 'definitely-not-registered@example.com' })
             });
 
             // a controller shipped by the framework cannot know which default the application
@@ -400,20 +415,15 @@ describe('evaluation/03-auth-and-security', () => {
     });
 
     describe('B3 - reuse detection must not hand out a working session', () => {
-        // Deliberately not a test. rotateSessions (cookie-auth.auth-strategy.ts:273-275) calls
-        // logout on a blacklisted session, deletes the family, then falls through with no return
-        // and mints a fresh refresh session *and* access session in that same family, setting both
-        // cookies - the presenter of a reused token is handed a working session.
+        // CLOSED by construction: the reuse branch in rotateSessions logs out and throws
+        // CredentialReusedError, so there is nothing after it to fall through to. It used to delete
+        // the family and then mint a fresh refresh and access session in it.
         //
-        // Both of its callers pre-check `blacklisted` first (`:236` and `:452`) and throw or bail,
-        // so the branch cannot be reached over http today. Writing a test that drives it would mean
-        // calling a private method, and writing one that drives the endpoint would go green while
-        // proving nothing about the code the finding is about.
-        //
-        // What makes it worth keeping open rather than withdrawing: it is untested dead code on the
-        // critical path, and B2's race is exactly what makes it reachable. Fix B2 by widening a
-        // pre-check rather than by a compare-and-set and this becomes live.
-        it.todo('does not mint a session for a refresh token that was already used');
+        // What a caller sees is held over http by ../../auth/auth-controller/auth-controller.cookie.test.ts,
+        // "rejects a refresh once the refresh session has been blacklisted", and by B2's concurrency
+        // cases in ./auth-sessions-and-2fa.evaluation.test.ts. Both callers check `blacklisted` before
+        // rotateSessions runs, so no request reaches the branch itself - which is why the fix is one
+        // that holds by construction rather than one a test would have to catch.
     });
 
     describe('B4 - auth endpoints must not be enumeration oracles', () => {
@@ -426,14 +436,14 @@ describe('evaluation/03-auth-and-security', () => {
             return await fetch(`${baseUrl}/auth/request-password-reset`, {
                 method: 'POST',
                 headers: { 'content-type': 'application/json' },
-                body: JSON.stringify({ email })
+                body: JsonUtilities.stringify({ email })
             });
         }
 
         it('answers a password reset request identically for known and unknown addresses', async () => {
             const known: string = 'reset-oracle@example.com';
             const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email: known, roles: [Roles.USER] });
-            await inject(repositoryTokenFor(JwtCredentials)).create({ email: known, password: 'secure123', userId: user.id });
+            await inject(repositoryTokenFor(PasswordCredentials)).create({ password: 'secure123', userId: user.id });
 
             // the guard, and it has to be the address that exists: a missing route and the oracle
             // below both answer 404, so guarding on the unknown address could not tell them apart
@@ -456,7 +466,7 @@ describe('evaluation/03-auth-and-security', () => {
             await fetch(`${baseUrl}/auth/login`, {
                 method: 'POST',
                 headers: { 'content-type': 'application/json' },
-                body: JSON.stringify({ email: 'no-such-account@example.com', password: 'whatever' })
+                body: JsonUtilities.stringify({ email: 'no-such-account@example.com', password: 'whatever' })
             });
 
             // the other half of this finding, and the half identical response bodies do not fix: an
@@ -476,7 +486,7 @@ describe('evaluation/03-auth-and-security', () => {
                 const res: Response = await fetch(`${baseUrl}/auth/login`, {
                     method: 'POST',
                     headers: { 'content-type': 'application/json' },
-                    body: JSON.stringify({ email: 'brute@example.com', password: `guess-${i}` })
+                    body: JsonUtilities.stringify({ email: 'brute@example.com', password: `guess-${i}` })
                 });
                 statuses.push(res.status);
             }
@@ -489,10 +499,10 @@ describe('evaluation/03-auth-and-security', () => {
             expect(statuses).toContain(429);
         }, 120000);
 
-        // keyFn receives the controller method arguments rather than the request, so there is no
-        // supported way to key by ip, and the default key is the literal string 'global' - one
-        // attacker exhausts the bucket for every user at once
-        it.todo('limits one caller without locking out everybody else');
+        // E2 is CLOSED and tested for real in ../../rate-limiting/rate-limit-keys.test.ts: a route
+        // naming no key counts per caller, and the shared bucket is something a route asks for. The
+        // default key used to be the literal string 'global', so one attacker exhausted the bucket
+        // for every user at once.
     });
 
     describe('E3 / E4 - what a limiter costs and what it does when it cannot answer', () => {
@@ -540,13 +550,21 @@ describe('evaluation/03-auth-and-security', () => {
     });
 
     describe('D1 / D2 / D3 - cryptography', () => {
-        // ScryptHashOptions exposes only saltLength, so the work factor is pinned to Node's
-        // defaults with no supported way to raise it. Nothing to call until the option exists.
-        it.todo('accepts a scrypt work factor above the default');
-
-        // needsRehash and needsReEncryption both exist and have no production caller, so marking a
-        // hash strategy or a data key DEPRECATED upgrades nothing
-        it.todo('upgrades a deprecated password hash on a successful login');
+        // D1 is CLOSED and tested in ../../auth/hash/strategies/scrypt.hash-strategy.test.ts: the cost
+        // is an option, ships at n=2^17, and is written into the hash so raising it locks nobody out.
+        // ScryptHashOptions used to expose only saltLength.
+        //
+        // D2's hash half is CLOSED and tested over http in
+        // ../../auth/strategies/jwt/jwt-auth.password-upgrade.test.ts: a server redeployed with a
+        // higher cost rewrites a stored hash on the next login. needsRehash used to have no
+        // production caller. The encryption half is the case below.
+        //
+        // The residue D2 and D4 shared - nothing reported how much is still under an old data key or
+        // master key - is CLOSED (2026-10-13) and tested in
+        // ../../auth/encryption/encryption.service.retired-keys.test.ts and the backup suites
+        // ../../backup/backup-service.encryption.test.ts and backup-service.several-resources.test.ts:
+        // resolveRetiredKeyUsage counts stored values per deprecated key, and data keys and recorded
+        // backups per old master, a backup counting by the keys it recorded when it was taken.
 
         it('re-encrypts a value protected by a deprecated key', async () => {
             const repository: Repository<OtpCredentials> = inject(repositoryTokenFor(OtpCredentials));
@@ -622,10 +640,10 @@ describe('evaluation/03-auth-and-security', () => {
             expect(await allLogs()).toEqual([]);
         }, 60000);
 
-        // trust proxy is never enabled, so req.secure is false behind any ingress and the Secure
-        // flag falls back to reading X-Forwarded-Proto straight from the client. Needs a
-        // configured cookie auth strategy to observe a Set-Cookie.
-        it.todo('sets Secure on the session cookie regardless of client supplied headers');
+        // F2 is CLOSED and tested in ../../auth/auth-controller/auth-controller.cookie.test.ts, the
+        // suite with a configured cookie strategy: `secure` can be stated outright, and a derived one
+        // ignores an X-Forwarded-Proto the client sent. The flag used to fall back to reading that
+        // header, because trust proxy was never enabled.
 
         it('keeps the first cookie when a name is sent twice', async () => {
             const res: Response = await fetch(`${baseUrl}/evaluation-cookies/parsed`, {
@@ -640,10 +658,28 @@ describe('evaluation/03-auth-and-security', () => {
             expect(await res.json()).toEqual({ sessionId: 'the-victims' });
         });
 
-        // covered against a real rotation in cookie-auth.controller.test.ts, which is the suite with
-        // a configured cookie strategy: the token changes, the retired one is refused, and the new
-        // one arrives on the x-csrf-token response header
-        it.todo('rotates the csrf token when the session rotates');
+        // F4's rotation is CLOSED and tested against a real rotation in
+        // ../../auth/auth-controller/auth-controller.cookie.test.ts: the token changes, the retired
+        // one is refused, and the new one arrives on the x-csrf-token response header. The
+        // cross-origin cases beyond the one below are in ../../http/cross-origin-cookie.middleware.test.ts.
+
+        it('refuses a write another site sends with cookies to a route that resolves no session', async () => {
+            await clearLogs();
+
+            const res: Response = await fetch(`${baseUrl}/evaluation-cookies/act`, {
+                method: 'POST',
+                headers: { 'sec-fetch-site': 'cross-site', origin: 'https://evil.example.com', cookie: 'sessionId=the-victims' }
+            });
+
+            // the csrf token is checked inside the cookie strategy, so a route that never asked who
+            // the caller is ran on the browser's cookies with nothing checking where it came from
+            expect(res.status).toBe(403);
+            expect(await auditEvents()).toContainEqual({
+                action: AuditAction.AUTHORIZATION,
+                outcome: AuditOutcome.FAILURE,
+                reason: AuditReason.CROSS_ORIGIN
+            });
+        }, 60000);
     });
 
     describe('G1 - authentication failures must be auditable', () => {
@@ -656,7 +692,7 @@ describe('evaluation/03-auth-and-security', () => {
             const res: Response = await fetch(`${baseUrl}/auth/login`, {
                 method: 'POST',
                 headers: { 'content-type': 'application/json' },
-                body: JSON.stringify({ email: 'audit@example.com', password: 'wrong-password' })
+                body: JsonUtilities.stringify({ email: 'audit@example.com', password: 'wrong-password' })
             });
             expect(res.status).toBe(401);
 
@@ -680,7 +716,7 @@ describe('evaluation/03-auth-and-security', () => {
             const res: Response = await fetch(`${baseUrl}/auth/request-password-reset`, {
                 method: 'POST',
                 headers: { 'content-type': 'application/json' },
-                body: JSON.stringify({ email: 'audit@example.com' })
+                body: JsonUtilities.stringify({ email: 'audit@example.com' })
             });
             // B4: the same answer whether or not the address exists, so the caller learns nothing
             expect(res.status).toBe(204);
@@ -711,11 +747,11 @@ describe('evaluation/03-auth-and-security', () => {
             });
         }, 60000);
 
-        // needs a strategy that throws rather than refuses, which this server has no way to register
-        // mid-suite. The distinction now exists in the model - auditReasonFor maps a 5xx and a
-        // non-http throw to `error` rather than `refused` - so an outage reads as an outage instead
-        // of as a credential stuffing run.
-        it.todo('records a strategy that failed as an error rather than as a refusal');
+        // the refused / error split is tested for real in
+        // ../../auth/user/user-service.store-outage.test.ts: a login while one user store is down is
+        // answered 500 and recorded as `error`. Writing it found the split unreachable - the user
+        // service turned every failed lookup into "not found", so an outage was still refused like a
+        // wrong password, to the caller and in the trail.
     });
 
     // G2 - authorization errors must not describe the authorization model - is observed in
@@ -727,21 +763,110 @@ describe('evaluation/03-auth-and-security', () => {
     // declared as a `scope` on the entity and enforced by the repository, so no authorization check
     // has an entity class left to name.
 
-    describe('H - enterprise identity', () => {
-        // no OIDC, OAuth2, SAML, LDAP, provisioning, JWKS, mTLS or API keys anywhere, and
-        // AuthStrategyInterface is shaped around login(credentials) with no callback, state or
-        // nonce plumbing, so a redirect based flow does not fit the interface as it stands
-        it.todo('authenticates through a federated identity provider');
+    // H1 - access tokens signed only with a shared secret - is CLOSED and tested over http in
+    // ../../auth/strategies/jwt/jwt-auth.asymmetric.test.ts: an access token signed with an
+    // ES256/384/512 or RS256 key pair verifies against the public key alone, which
+    // JwksController publishes at /.well-known/jwks.json under an RFC 7638 kid; hmac over the
+    // public key and a stranger's key naming a known kid are both refused; a previous key keeps
+    // verifying after a rotation. The allowlist was widened per key rather than per token, so the
+    // algorithm is always the configured key's and never the header's.
 
-        // there is no asymmetric signing: JwtUtilities pins `algorithms: ['HS256']` (B1) and the
-        // configured secrets are strings, so no RS256/ES256, no JWKS and no kid. A secret can now be
-        // replaced without logging everybody out (D4), which is the half of this that bites in
-        // practice, but a verifier still has to hold the secret that signs.
-        //
-        // Adding asymmetric support means widening that allowlist deliberately rather than
-        // remembering to introduce one - which is the order that keeps RS256-to-HS256 confusion out.
-        it.todo('verifies a token signed with an asymmetric algorithm');
-    });
+    // H2 - sign-in through an OpenID Connect provider - is CLOSED and tested over http in
+    // ../../auth/authenticators/oidc/base-oidc.authenticator.test.ts against an in-process fake
+    // provider (both handovers, the browser binding, single use, a wrong audience, nonce or auth_time,
+    // the redirect allowlist, the registration) and in
+    // ../../auth/authenticators/oidc/providers/base-keycloak.authenticator.test.ts against a real
+    // Keycloak, private_key_jwt and prompt=login included.
+
+    // H3 - SAML 2.0 service provider - is CLOSED and tested over http in
+    // ../../auth/authenticators/saml/base-saml.authenticator.test.ts against an in-process fake identity
+    // provider (only an answer to this browser's request, signatures, issuer and audience, encrypted
+    // assertions, signed requests, a sign-in too old, single logout both ways, cookie and jwt) and in
+    // ../../auth/authenticators/oidc/providers/base-keycloak.authenticator.test.ts against a real
+    // Keycloak.
+
+    // H4 - LDAP / Active Directory bind - is CLOSED and tested over http in
+    // ../../auth/authenticators/ldap/base-ldap.authenticator.test.ts against an in-process fake
+    // directory (search then bind, TLS and StartTLS, an empty password, a name read as a filter, a
+    // locked account by every code, the first sign-in hook and its race) and in
+    // ../../auth/authenticators/ldap/base-ldap.authenticator.heavy.test.ts and
+    // ../../auth/authenticators/ldap/providers/base-active-directory.authenticator.heavy.test.ts
+    // against 389 Directory Server and a Samba domain controller.
+
+    // H5 - identity for machines - is CLOSED and tested over http in
+    // ../../auth/strategies/api-key/api-key.auth-strategy.test.ts: a key acts as its user with only the
+    // roles it may use that the user still has, also for the handler, is kept hashed, expires, and is
+    // revoked on its own or with every other key of the user. The client credentials grant moved to H8.
+
+    // H6 - client certificate authentication - is CLOSED and tested over http in
+    // ../../auth/strategies/client-certificate/base-client-certificate.auth-strategy.test.ts: a
+    // certificate forwarded by a trusted proxy acts as the user the application finds for it, and only
+    // when an authority it names issued it and it is valid; from anywhere else the header is ignored.
+    // Behind a real nginx and a real Envoy in base-client-certificate.auth-strategy.nginx.test.ts and
+    // .envoy.test.ts beside it.
+
+    // H7 - provisioning and deprovisioning - is CLOSED and tested over http in
+    // ../../auth/scim/scim-controller.model.test.ts: an identity provider provisions users and groups,
+    // a user set inactive is deactivated (logins ended, api keys revoked, no login or request until
+    // reactivated), group membership sets roles, and a deleted user goes through the provisioner.
+    // Deactivation itself in ../../auth/auth.service.deactivation.test.ts.
+
+    // H8 - OAuth2 token endpoints - is CLOSED and tested over http in
+    // ../../auth/authorization-server/authorization-server-controller.model.test.ts: a service exchanges
+    // its api key for an access token by a secret, a signed jwt or a client certificate (bound to it),
+    // for the roles and services it may ask for; introspection answers for every kind of token to a
+    // caller holding a role; revocation takes a token back, at once when access tokens are revoked
+    // immediately, and a client only its own.
+
+    // H9 - step-up authentication - is WITHDRAWN: @Auth.require2fa asks for a second factor on every
+    // request to the route it guards, never once per session. Tested over http in
+    // ./auth-sessions-and-2fa.evaluation.test.ts, where a logged in session without a code is
+    // refused and the same session with one is let through; the replay test beside it shows a
+    // code is spent by the operation it opened.
+
+    // H10 - WebAuthn / passkeys - is CLOSED and tested over http in ./auth-passkey.evaluation.test.ts:
+    // a sign-up with nothing but a passkey logs in and signs in again later, a passkey used on another
+    // origin is refused, and a passkey is the second factor of a require2fa route. The cases of each
+    // check are in ../../auth/authenticators/passkey/passkey.authenticator.test.ts.
+
+    // H11 - SMS or email code as a second factor - is CLOSED and tested in
+    // ../../auth/2fa/methods/code/code.two-factor-method.test.ts: enrolling with a delivered code, a code
+    // taken once and kept encrypted, the throttle on wrong codes and on sending, for both channels.
+
+    // H12 - EdDSA for access tokens - is CLOSED and tested in
+    // ../../auth/strategies/jwt/jwt-auth.asymmetric.test.ts: an Ed25519 key signs, verifies with the
+    // public key alone and is published as an OKP key; a key of another type is refused at boot.
+
+    // H13 - a fresh login in place of a second factor - is CLOSED and tested over http in
+    // ./auth-sessions-and-2fa.evaluation.test.ts: refused unless the route or the application allows
+    // it, accepted inside the window and refused past it, accepted as a fallback only from a user
+    // without a confirmed factor, kept across a refresh, refused for a strategy that cannot say when
+    // its caller logged in. The cookie strategy's half is in
+    // ../../auth/auth-controller/auth-controller.cookie.test.ts.
+
+    // H14 - an identity provider's tokens as bearer credentials - is CLOSED and tested over http in
+    // ./auth-provider-tokens.evaluation.test.ts: a mobile app's access token from the company's provider
+    // acts as the user its identity is linked to. Audiences, types, ID tokens, binding and the login
+    // time are in ../../auth/strategies/provider-token/provider-token.auth-strategy.test.ts.
+
+    // H15 - sign-in through a plain OAuth2 provider - is CLOSED and tested over http in
+    // ./auth-oauth2.evaluation.test.ts: a provider that issues no ID token signs a linked user in, who
+    // is read from its api. The login time and GitHub are in ../../auth/authenticators/oauth2.
+
+    // H16 - adding an identity provider to an existing account - is CLOSED and tested over http in
+    // ./auth-oauth-connect.evaluation.test.ts: a user logged in with a password connects a provider,
+    // whose next sign-in logs into that account. The attacks and refusals are in
+    // ../../auth/authenticators/oidc/base-oidc.authenticator.test.ts.
+
+    // H18 - connecting a provider for access to its apis - is CLOSED and tested over http in
+    // ./auth-oauth-api-access.evaluation.test.ts: a user connects a provider for its calendar only, the
+    // application reads it with refreshed access tokens, and the connection signs nobody in. Rotation,
+    // declined scopes and revocation are in ../../auth/authenticators/oidc/base-oidc.authenticator.test.ts.
+
+    // H19 - auth routes built from what is registered - is CLOSED and tested over http in
+    // ../../auth/auth-controller/auth-controller.model.test.ts: one controller defined from the
+    // strategies, authenticators and two factor methods serves the routes they call for, chosen per
+    // request, and the application refuses to start when its options and the registered ones differ.
 
     // last in the file on purpose: it replaces the running application with one configured
     // differently, and nothing after it would be looking at the server the tests above started
@@ -799,5 +924,12 @@ describe('evaluation/03-auth-and-security', () => {
 
             await rotated.deleteAll({});
         }, 60000);
+    });
+
+    describe('H20 - a tenant cannot bring its own sign-in', () => {
+        // deferred: every authenticator is configured in code for the whole application, and nothing
+        // models a connection per tenant for a login to resolve
+        it.todo('signs a member of a tenant in through the identity provider their tenant connected at runtime');
+        it.todo('refuses a sign-in through one tenant\'s identity provider for a user who is not a member there');
     });
 });

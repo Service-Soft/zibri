@@ -1,3 +1,5 @@
+import { toScriptJson } from '../../runtime/script-json';
+
 /**
  * Placeholders inside the client hook sources that {@link substituteHookPlaceholders} replaces with
  * render-time data supplied to `renderPage`.
@@ -115,7 +117,7 @@ export function substituteHookPlaceholders(source: string, data: HookData): stri
     // Function replacers are required: the serialized data can contain `$$`, `$&` and friends,
     // which a string replacement would interpret as substitution patterns.
     return source
-        .replaceAll(HOOK_PLACEHOLDERS.translations, () => JSON.stringify(data.translations))
-        .replaceAll(HOOK_PLACEHOLDERS.locale, () => JSON.stringify(data.locale))
-        .replaceAll(HOOK_PLACEHOLDERS.formatOptions, () => JSON.stringify(data.formatOptions));
+        .replaceAll(HOOK_PLACEHOLDERS.translations, () => toScriptJson(data.translations))
+        .replaceAll(HOOK_PLACEHOLDERS.locale, () => toScriptJson(data.locale))
+        .replaceAll(HOOK_PLACEHOLDERS.formatOptions, () => toScriptJson(data.formatOptions));
 }

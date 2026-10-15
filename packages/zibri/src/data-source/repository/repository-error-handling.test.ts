@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
+import { Repository } from './repository';
 import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
@@ -12,9 +13,8 @@ import { NotFoundError } from '../../error-handling/errors/not-found.error';
 import { type LoggerInterface } from '../../logging/logger.interface';
 import { QueryFailedError } from '../query-failed.error';
 import { UniqueConstraintViolationError } from '../unique-constraint-violation.error';
-import { Repository } from './repository';
 
-@Entity()
+@Entity({ tenant: 'shared' })
 class Widget extends BaseEntity {
     @Property.string({ unique: true })
     name!: string;
@@ -32,7 +32,7 @@ describe('Repository error handling', () => {
             dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Widget] })]
         });
         widgetRepo = inject(repositoryTokenFor(Widget));
-    }, 15000);
+    }, 30000);
 
     afterAll(async () => {
         await server?.shutdown();

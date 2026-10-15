@@ -76,7 +76,8 @@ export abstract class HandlebarUtilities {
             if (typeof value !== 'string') {
                 return '';
             }
-            return new (this.compiler().SafeString)(MaskUtilities.mask(value));
+            // a plain string, which `{{ }}` escapes: what the mask keeps of the value is the value's own
+            return MaskUtilities.mask(value);
         });
 
         const componentsDir: string = options.componentsDir

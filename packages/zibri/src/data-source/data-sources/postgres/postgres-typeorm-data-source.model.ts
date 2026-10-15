@@ -1,12 +1,14 @@
 import { ChildProcess, ChildProcessByStdio, spawn } from 'node:child_process';
 import { PassThrough, Readable, Writable } from 'node:stream';
 
-import { EntitySchemaColumnOptions, EntitySchemaIndexOptions, EntitySchemaRelationOptions, ColumnType, FindOperator, QueryBuilder, QueryRunner, ValueTransformer, DataSource as TODataSource, QueryFailedError as TOQueryFailedError } from 'typeorm';
+import { EntitySchemaColumnOptions, EntitySchemaIndexOptions, EntitySchemaRelationOptions, ColumnType, FindOperator, QueryBuilder, QueryRunner, TableColumn, ValueTransformer, DataSource as TODataSource, EntityMetadata as TOEntityMetadata, QueryFailedError as TOQueryFailedError } from 'typeorm';
 import { PostgresConnectionOptions } from 'typeorm/driver/postgres/PostgresConnectionOptions.js';
 import { OnDeleteType } from 'typeorm/metadata/types/OnDeleteType.js';
 import { OnUpdateType } from 'typeorm/metadata/types/OnUpdateType.js';
 
 import { pgTypeParsers } from './pg-type-parsers.function';
+import { PostgresColumnSql } from './postgres-column-sql.model';
+import { PostgresValueConversionUtilities } from './postgres-value-conversion.utilities';
 import { type AuthServiceInterface } from '../../../auth/auth-service.interface';
 import { Inject } from '../../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
@@ -14,9 +16,12 @@ import { inject } from '../../../di/inject.function';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { PropertyMetadata, RelationMetadata } from '../../../entity/decorators/property.decorator';
 import { ArrayPropertyItemMetadata, ArrayPropertyMetadata } from '../../../entity/models/array-property-metadata.model';
+import { isRelationMetadata } from '../../../entity/models/is-relation-metadata.function';
 import { NumberFormat } from '../../../entity/models/number-property-metadata.model';
 import { Relation } from '../../../entity/models/relation.enum';
+import { coversEveryRow } from '../../../entity/models/unique-declaration.model';
 import { InternalError } from '../../../error-handling/internal-error.model';
+import { KeyGroups, keyGroupsOf } from '../../../global/model-registry/key-descriptor';
 import { type LoggerInterface } from '../../../logging/logger.interface';
 import { parseArray } from '../../../parsing/functions/parse-array.function';
 import { parseObject } from '../../../parsing/functions/parse-object.function';
@@ -32,16 +37,21 @@ import { hasOptionalPeer } from '../../../utilities/optional-peer.function';
 import { PromiseUtilities } from '../../../utilities/promise.utilities';
 import { readNumber } from '../../../utilities/read-number.function';
 import { TypeOrmUtilities } from '../../../utilities/typeorm.utilities';
-import { trigramIndexName, TRIGRAM_INDEX_PREFIX } from '../../index-name.function';
-import { MistypedJsonValue } from '../../json-value-type-mismatch.error';
+import { indexName, trigramIndexName, TRIGRAM_INDEX_PREFIX } from '../../index-name.function';
+import { DataSourceOptions, ResolvedDataSourceOptions } from '../../models/data-source-options.model';
+import { RefusedValue } from '../../models/refused-value.model';
+import { ResolvedPropertyConversion } from '../../models/resolved-property-conversion.model';
 import { DEFAULT_MIN_SIMILARITY, MinSimilarity } from '../../models/where/fuzzy-like.model';
 import { FuzzySearchUtilities } from '../../models/where/fuzzy-search.utilities';
 import { AnyNumber } from '../../models/where/number-where-filter.model';
+import { MistypedStoredValue } from '../../stored-value-type-mismatch.error';
 import { Transaction } from '../../transaction/transaction.model';
+import { uniqueConstraintName } from '../../unique-constraint-name.function';
+import { keyWhereToSql } from '../../where/key-where-to-sql.function';
 import { DataSourceInitializationError } from '../data-source-initialization.error';
 import { StartTransactionOptions } from '../data-source.interface';
 import { QueryOptions, SqlDataSourceInterface } from '../sql-data-source.interface';
-import { UpsertInput, UpsertSql, TypeOrmBaseDataSource, ToColumnMappableTypes } from '../typeorm-base-data-source.model';
+import { MergedRows, UpsertInput, UpsertSql, TypeOrmBaseDataSource, ToColumnMappableTypes } from '../typeorm-base-data-source.model';
 import { PostgresTypeOrmWhereFilterConverter, TrigramSupport } from '../where-converter/postgres-typeorm-where-filter.converter';
 
 /**
@@ -51,13 +61,27 @@ import { PostgresTypeOrmWhereFilterConverter, TrigramSupport } from '../where-co
  * said once, as `schemaManagement` on the data source, so there is no second place that can disagree
  * with it.
  */
-export type PostgresOptions = OmitStrict<PostgresConnectionOptions, 'synchronize' | 'extra'> & {
-    /**
-     * Settings handed to the connection pool as they are, for what the driver accepts and typeorm
-     * has no option of its own for.
-     */
-    extra?: Record<string, unknown>
-};
+export type PostgresOptions = OmitStrict<PostgresConnectionOptions, 'synchronize' | 'extra' | 'ssl'>
+    & Pick<DataSourceOptions, 'maxBoundValuesPerStatement'>
+    & {
+        /**
+         * Settings handed to the connection pool as they are, for what the driver accepts and typeorm
+         * has no option of its own for.
+         */
+        extra?: Record<string, unknown>,
+        /**
+         * Whether the connection uses tls.
+         *
+         * `true` encrypts it and verifies the server's certificate against the system's certificate
+         * authorities, an object passes node's tls options for anything else, such as your own ca or
+         * a client certificate, and `false` connects unencrypted.
+         *
+         * The `PGSSLMODE` environment variable does not apply to the connection. It applies to the
+         * client tools a backup runs, which use `require` when this is set and `disable` when it is
+         * `false` while the environment names no mode.
+         */
+        ssl: NonNullable<PostgresConnectionOptions['ssl']>
+    };
 
 /**
  * How long a transaction may sit idle before postgres ends it, when it does not say for itself.
@@ -244,6 +268,15 @@ type TrigramIndexTarget = {
 };
 
 /**
+ * Quotes a name for a statement.
+ * @param name - The name of a table, a column or a collation.
+ * @returns The name, quoted.
+ */
+function escapeIdentifier(name: string): string {
+    return `"${name.replaceAll('"', '""')}"`;
+}
+
+/**
  * One index of a table, as postgres lists it.
  */
 type IndexNameRow = {
@@ -252,6 +285,108 @@ type IndexNameRow = {
      */
     indexname: string
 };
+
+/**
+ * One index of a table, as postgres lists it for keeping the declared ones.
+ */
+type StoredKeyRow = {
+    /**
+     * The name of the index, as postgres stores it.
+     */
+    name: string,
+    /**
+     * Whether it is complete. A concurrent build that failed leaves its index behind invalid.
+     */
+    valid: boolean,
+    /**
+     * Whether a unique constraint is enforced through it.
+     */
+    constraint: boolean
+};
+
+/**
+ * The id of a row a merge moved, as text.
+ */
+type MovedRowId = {
+    /**
+     * The id.
+     */
+    id: string
+};
+
+/**
+ * The sequence a primary column takes its values from.
+ */
+type SerialSequence = {
+    /**
+     * The name of the sequence, null when the column takes its values from none.
+     */
+    name: string | null
+};
+
+/**
+ * Values more than one row holds, among the rows a unique covers.
+ */
+type DuplicateValuesRow = {
+    /**
+     * The values, as a json array.
+     */
+    values: string
+};
+
+/**
+ * An index or unique an entity declares, as the statements that create it.
+ */
+type DeclaredKey = {
+    /**
+     * Its name.
+     */
+    name: string,
+    /**
+     * The properties it covers.
+     */
+    properties: string[],
+    /**
+     * Builds the index, concurrently.
+     */
+    build: string,
+    /**
+     * Makes a unique over every row a constraint, through the index once it is built.
+     */
+    constrain: string | undefined,
+    /**
+     * Finds values more than one row holds, for a unique.
+     */
+    duplicates: string | undefined
+};
+
+/**
+ * Lists the indexes of a table in the current schema.
+ */
+const STORED_KEYS_SQL: string = `
+    SELECT i.relname AS "name", x.indisvalid AS "valid", c.conname IS NOT NULL AS "constraint"
+    FROM pg_index x
+    JOIN pg_class i ON i.oid = x.indexrelid
+    JOIN pg_class t ON t.oid = x.indrelid
+    JOIN pg_namespace n ON n.oid = t.relnamespace
+    LEFT JOIN pg_constraint c ON c.conindid = x.indexrelid AND c.contype = 'u'
+    WHERE n.nspname = current_schema() AND t.relname = $1
+`;
+
+/**
+ * The longest name postgres keeps, in bytes. A longer one is cut to this when it is created.
+ */
+const MAX_IDENTIFIER_BYTES: number = 63;
+
+/**
+ * The name postgres stores for a given one.
+ * @param name - The name.
+ * @returns It, cut to what postgres keeps.
+ */
+function toStoredIdentifier(name: string): string {
+    const bytes: Buffer = Buffer.from(name);
+    return bytes.length <= MAX_IDENTIFIER_BYTES ? name : bytes.subarray(0, MAX_IDENTIFIER_BYTES).toString();
+}
 
 /**
  * A base postgres data source definition.
@@ -302,7 +437,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
     };
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    protected readonly defaultOptions: OmitStrict<PostgresOptions, 'type' | 'entities'> = {
+    protected readonly defaultOptions: ResolvedDataSourceOptions<Partial<OmitStrict<PostgresOptions, 'type' | 'entities'>>> = {
         // per process, and a deployment is many processes: what the database sees is this times the
         // number of replicas. Stock postgres accepts a hundred connections in total, so a default
         // generous enough to look safe on one machine is what takes the database down the first
@@ -314,7 +449,10 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
         // backends spend their time contending instead of working - which is why this is a limit
         // worth having and not merely a budget. A deployment that outgrows it wants a pooler in
         // front rather than a bigger number here, since the ceiling belongs to the server
-        poolSize: 20
+        poolSize: 20,
+        // the wire protocol counts a statement's values in sixteen bits, so this is the server's
+        // ceiling rather than a setting of it
+        maxBoundValuesPerStatement: 65535
     };
 
     // eslint-disable-next-line jsdoc/require-returns
@@ -333,8 +471,8 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
      * nothing else. Appended to whatever the consumer asked for, since the same string carries every
      * startup setting.
      */
-    protected override get fullOptions(): OmitStrict<PostgresOptions, 'type' | 'entities'> {
-        const options: OmitStrict<PostgresOptions, 'type' | 'entities'> = super.fullOptions;
+    protected override get fullOptions(): ResolvedDataSourceOptions<OmitStrict<PostgresOptions, 'type' | 'entities'>> {
+        const options: ResolvedDataSourceOptions<OmitStrict<PostgresOptions, 'type' | 'entities'>> = super.fullOptions;
         const extra: Record<string, unknown> = { ...options.extra } as Record<string, unknown>;
         const startupOptions: string = typeof extra['options'] === 'string' ? `${extra['options']} ` : '';
         return {
@@ -507,22 +645,16 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
      * Makes `fuzzyLike` usable, without making the right to install an extension a condition of
      * booting at all.
      *
-     * Asked for before it is created, because a managed postgres normally has this provisioned by
-     * somebody with the rights to do it and an application role with none. Issuing the DDL there
-     * fails over something that is already true, so the check is what turns the common enterprise
-     * setup from a failed boot into no statement at all.
-     *
      * Missing *and* not creatable is reported rather than raised: every other feature works without
      * it, so refusing to start would take the whole application down over one filter operator. The
      * warning names that operator, because it is the only thing that stops working.
      * @param dataSource - The initialized typeorm data source to query through.
      */
     private async installTrigramExtension(dataSource: TODataSource): Promise<void> {
-        const installed: unknown[] = await dataSource.query('SELECT 1 FROM pg_extension WHERE extname = $1', ['pg_trgm']);
-        if (installed.length) {
-            return;
-        }
-
+        // no pg_extension lookup first: postgres answers IF NOT EXISTS for an installed extension
+        // before it asks whether the role may create one, so a managed postgres that provisioned it
+        // for a role with no rights boots on this statement alone. Held by the first case of
+        // trigram-extension.evaluation.test.ts, which runs it as exactly that role
         try {
             await dataSource.query('CREATE EXTENSION IF NOT EXISTS pg_trgm');
         }
@@ -698,16 +830,17 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
     }
 
     /**
-     * Reports the searchable columns that have no trigram index on a schema this data source does not
-     * create.
+     * Reports the searchable columns that have no trigram index on a schema somebody outside the
+     * application owns.
      *
-     * The same shape as the collation warning, and for the same reason: with migrations or an outside
-     * owner in charge of the schema, nothing here is going to add the index, and a `fuzzyLike` the
-     * framework accepts because the property declares itself searchable would read the whole table.
+     * The same shape as the collation warning, and for the same reason: with an outside owner in
+     * charge of the schema, nothing here is going to add the index, and a `fuzzyLike` the framework
+     * accepts because the property declares itself searchable would read the whole table. Under
+     * migrations the data source keeps these itself, as it keeps every index an entity declares.
      * @param dataSource - The initialized typeorm data source to query through.
      */
     private async warnAboutMissingTrigramIndexes(dataSource: TODataSource): Promise<void> {
-        if (this.schemaManagement === 'synchronize' || this.trigramSupport.threshold == undefined) {
+        if (this.schemaManagement !== 'external' || this.trigramSupport.threshold == undefined) {
             return;
         }
         const declared: Map<string, TrigramIndexTarget> = this.declaredTrigramIndexes(dataSource);
@@ -720,7 +853,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
         }
         this.logger.warn(
             'These columns are searchable with "fuzzyLike" and have no trigram index, so a search of them'
-            + ' reads every row. Add one per column in a migration, as'
+            + ' reads every row. Create one per column, as'
             + ' CREATE INDEX "name" ON "table" USING GIN ("column" gin_trgm_ops), or declare'
             + ' fuzzySearchable: false on the property:'
             + missing.map(c => `\n- ${c.table}.${c.column}, as "${trigramIndexName(c.table, c.column)}"`).join('')
@@ -789,24 +922,44 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     protected buildUpsertSql(input: UpsertInput): UpsertSql {
-        const params: unknown[] = [];
-        // postgres numbers its placeholders, so they have to be produced in the order the statement
-        // reads them - the insert values first, then the updates
+        // the select deciding which rows may be changed arrives with its placeholders numbered from
+        // the first, so its parameters go first and everything this adds is numbered after them
+        const params: unknown[] = [...input.reachable?.params ?? []];
         const param: (value: unknown) => string = value => {
             params.push(value);
             return `$${params.length}`;
         };
         const escape: (name: string) => string = name => `"${name.replaceAll('"', '""')}"`;
         const table: string = escape(input.tableName);
+        const id: string = escape(input.idColumn);
 
-        const columns: string = input.insert.map(i => escape(i.column)).join(', ');
-        const values: string = input.insert.map(i => param(i.value)).join(', ');
-        const updates: string = input.updates
-            .map(u => 'increment' in u
-                // qualified with the table name, which is how postgres refers to the row that is
-                // already there - unqualified would read the row being inserted instead
-                ? `${escape(u.column)} = ${table}.${escape(u.column)} + ${param(u.increment)}`
-                : `${escape(u.column)} = ${param(u.value)}`)
+        const columns: string = input.columns.map(c => escape(c)).join(', ');
+        const values: string = input.rows
+            .map(row => `(${row.values.map(v => v === 'default' ? 'DEFAULT' : param(v.value)).join(', ')})`)
+            .join(', ');
+
+        // one assignment per column any row changes, choosing each row's change by the id that row
+        // was proposed with - which is what EXCLUDED carries for the insert that conflicted. A row
+        // that leaves the column alone falls through to the value already stored. The stored value
+        // is qualified with the table name, which is how postgres refers to the row that is already
+        // there; unqualified would read the row being inserted instead
+        const branches: [string, string][] = input.rows.flatMap(row => {
+            const when: string = `WHEN ${param(row.id)} THEN`;
+            return row.updates.map((u): [string, string] => {
+                // an increment is added on its own branch rather than around the whole case, so
+                // postgres reads its parameter as the column's own type
+                const then: string = 'increment' in u ? `${table}.${escape(u.column)} + ${param(u.increment)}` : param(u.value);
+                return [u.column, `${when} ${then}`];
+            });
+        });
+        const updates: string = [...new Set(branches.map(([column]) => column))]
+            .map(column => {
+                const cases: string = branches
+                    .filter(([c]) => c === column)
+                    .map(([, branch]) => branch)
+                    .join(' ');
+                return `${escape(column)} = CASE EXCLUDED.${id} ${cases} ELSE ${table}.${escape(column)} END`;
+            })
             .join(', ');
 
         // a constraint is named, an index has to be described. `ON CONSTRAINT` accepts only the
@@ -817,11 +970,19 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
             ? `ON CONSTRAINT ${escape(input.conflict.constraintName)}`
             : `(${input.conflict.columns.map(c => escape(c)).join(', ')}) WHERE ${input.conflict.predicate}`;
 
+        // a conflicting row this excludes is locked and left as it is, and the statement returns
+        // nothing for it - which is how the caller learns the identity is held by a row they may not
+        // change. Qualified with the table name, which refers to the row that is already there
+        const reachable: string[] = input.reachable == undefined
+            ? []
+            : [`WHERE ${table}.${id} IN (${input.reachable.sql})`];
+
         return {
             sql: [
-                `INSERT INTO ${table} (${columns}) VALUES (${values})`,
+                `INSERT INTO ${table} (${columns}) VALUES ${values}`,
                 `ON CONFLICT ${conflict}`,
                 `DO UPDATE SET ${updates}`,
+                ...reachable,
                 'RETURNING *'
             ].join(' '),
             params
@@ -855,7 +1016,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    mistypedJsonValue(error: TOQueryFailedError): MistypedJsonValue | undefined {
+    mistypedJsonValue(error: TOQueryFailedError, entityName: string): MistypedStoredValue | undefined {
         if (!('code' in error.driverError) || typeof error.driverError.code !== 'string'
             || !UNREADABLE_VALUE_SQL_STATES.includes(error.driverError.code)) {
             return undefined;
@@ -873,10 +1034,13 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
             return undefined;
         }
 
+        // the column arrives quoted, because the marker is written before the statement knows which
+        // column it is for and is filled in along with it. The entity goes in place of the name the
+        // statement gave its table, which is the same thing to the database and not to whoever wrote
+        // the model the rest of the path is spelled in
+        const [, ...properties]: string[] = path.replaceAll('"', '').split('.');
         return {
-            // the column arrives quoted, because the marker is written before the statement knows
-            // which column it is for and is filled in along with it
-            path: path.replaceAll('"', ''),
+            path: [entityName, ...properties].join('.'),
             declaredType,
             value: UNREADABLE_VALUE_PATTERN.exec(error.message)?.groups?.['value'] ?? error.message
         };
@@ -987,6 +1151,12 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
      * Every `PG*` variable already present is passed through, because that is how an operator
      * configures tls (`PGSSLMODE`, `PGSSLROOTCERT`) for a managed postgres, and losing them silently
      * would turn a verified connection into a refused one.
+     *
+     * Without one, the mode follows the connection's `ssl`. Libpq's own default is `prefer`, which
+     * falls back to plaintext without saying so, so a backup would travel less protected than every
+     * query does. `require` rather than a verifying mode for an enabled `ssl`, because verifying needs
+     * a root certificate libpq reads from its own places rather than from the system's store - an
+     * operator who has one says `verify-full` through the environment.
      * @param password - The password to pass, if there is one.
      * @returns The environment for the child process.
      */
@@ -1000,6 +1170,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
                 env[key] = process.env[key];
             }
         }
+        env['PGSSLMODE'] ??= this.options.ssl === false ? 'disable' : 'require';
         if (password != undefined) {
             env['PGPASSWORD'] = password;
         }
@@ -1181,13 +1352,16 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
         const thisHasUpdate: boolean = this.hasCascadeFlag(metadata.cascade, 'update');
         const thisHasInsert: boolean = this.hasCascadeFlag(metadata.cascade, 'insert');
 
-        // try to inspect inverse property's cascade (if inverseSide provided)
+        // the inverse property's cascade counts as well. Not necessarily a relation itself - a change
+        // set entity's inverse is the plain id column its change sets carry - and its existence is
+        // the data source service's to refuse, before any data source is initialized
         const targetClass: Newable<T> = metadata.target();
         const targetProps: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(targetClass);
-        const inv: RelationMetadata<BaseEntity> = targetProps[metadata.inverseSide] as RelationMetadata<BaseEntity>;
-        const inverseHasRemove: boolean = this.hasCascadeFlag(inv.cascade, 'remove');
-        const inverseHasUpdate: boolean = this.hasCascadeFlag(inv.cascade, 'update');
-        const inverseHasInsert: boolean = this.hasCascadeFlag(inv.cascade, 'insert');
+        const inverse: PropertyMetadata | undefined = targetProps[metadata.inverseSide];
+        const inverseCascade: RelationMetadata<BaseEntity>['cascade'] = isRelationMetadata(inverse) ? inverse.cascade : false;
+        const inverseHasRemove: boolean = this.hasCascadeFlag(inverseCascade, 'remove');
+        const inverseHasUpdate: boolean = this.hasCascadeFlag(inverseCascade, 'update');
+        const inverseHasInsert: boolean = this.hasCascadeFlag(inverseCascade, 'insert');
 
         const onDelete: OnDeleteType | undefined = thisHasRemove || inverseHasRemove ? 'CASCADE' : undefined;
         const onUpdate: OnUpdateType | undefined = thisHasUpdate || inverseHasUpdate ? 'CASCADE' : undefined;
@@ -1282,6 +1456,322 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
             case 'number': {
                 return this.fullColumnTypeMapping.number;
             }
+        }
+    }
+
+    protected override async convertColumnInPlace(
+        queryRunner: QueryRunner,
+        tableName: string,
+        current: TableColumn,
+        changed: TableColumn,
+        conversion: ResolvedPropertyConversion
+    ): Promise<void> {
+        const column: PostgresColumnSql = this.toColumnSql(queryRunner, current);
+        const target: PostgresColumnSql = this.toColumnSql(queryRunner, changed);
+        // because a column changed into text otherwise collates as the database does rather than as
+        // the application does
+        const collate: string = changed.collation == undefined ? '' : ` COLLATE ${escapeIdentifier(changed.collation)}`;
+        await this.useExactFloatText(queryRunner);
+        // the default goes first: it is of the old type, and the changed column declares its own
+        await queryRunner.query(
+            `ALTER TABLE ${escapeIdentifier(tableName)} ALTER COLUMN ${column.name} DROP DEFAULT,`
+            + ` ALTER COLUMN ${column.name} TYPE ${target.type}${collate}`
+            + ` USING ${PostgresValueConversionUtilities.resolveConvertedSql(column, target, conversion)}`
+        );
+    }
+
+    protected override async findRefusedValues(
+        queryRunner: QueryRunner,
+        tableName: string,
+        current: TableColumn,
+        changed: TableColumn,
+        conversion: ResolvedPropertyConversion
+    ): Promise<RefusedValue[]> {
+        const query: string | undefined = PostgresValueConversionUtilities.resolveRefusalsQuery(
+            escapeIdentifier(tableName),
+            this.toColumnSql(queryRunner, current),
+            this.toColumnSql(queryRunner, changed),
+            conversion
+        );
+        if (query == undefined) {
+            return [];
+        }
+        await this.useExactFloatText(queryRunner);
+        return await queryRunner.connection.query<RefusedValue[]>(query, [], queryRunner);
+    }
+
+    /**
+     * Makes the migration's transaction write a double as the shortest text that reads back as it,
+     * which is the decimal every conversion reads a double as.
+     * @param queryRunner - The query runner of the migration's transaction.
+     */
+    private async useExactFloatText(queryRunner: QueryRunner): Promise<void> {
+        // the server's default, set anyway because a session or a role can lower it, and then a
+        // double is written rounded to fifteen digits
+        await queryRunner.query('SET LOCAL extra_float_digits = 1');
+    }
+
+    /**
+     * Describes a column for the statements that convert it.
+     * @param queryRunner - The query runner of the migration's transaction.
+     * @param column - The column.
+     * @returns The column, quoted and with its full type.
+     */
+    private toColumnSql(queryRunner: QueryRunner, column: TableColumn): PostgresColumnSql {
+        return { name: escapeIdentifier(column.name), stored: column, type: queryRunner.connection.driver.createFullType(column) };
+    }
+
+    protected override async renameDeclaredKeys(queryRunner: QueryRunner, currentTableName: string, tableName: string): Promise<void> {
+        const prefixes: [string, string][] = [
+            [uniqueConstraintName(currentTableName, []), uniqueConstraintName(tableName, [])],
+            [indexName(currentTableName, []), indexName(tableName, [])],
+            [trigramIndexName(currentTableName, ''), trigramIndexName(tableName, '')]
+        ];
+        const stored: StoredKeyRow[] = await queryRunner.connection.query<StoredKeyRow[]>(STORED_KEYS_SQL, [tableName], queryRunner);
+        for (const key of stored) {
+            const match: [string, string] | undefined = prefixes.find(([prefix]) => key.name.startsWith(prefix));
+            if (match == undefined) {
+                continue;
+            }
+            const [current, changed]: [string, string] = match;
+            // a name postgres cut short comes out shorter than the one the entity declares, and then
+            // keeping the declared ones builds that one and drops this - the same end, at the cost of
+            // a build. Renaming the index renames the constraint enforced through it, too
+            const renamed: string = toStoredIdentifier(`${changed}${key.name.slice(current.length)}`);
+            await queryRunner.query(`ALTER INDEX ${escapeIdentifier(key.name)} RENAME TO ${escapeIdentifier(renamed)}`);
+        }
+    }
+
+    protected override async mergeRows(queryRunner: QueryRunner, merge: MergedRows): Promise<void> {
+        const current: string = escapeIdentifier(merge.currentTableName);
+        const table: string = escapeIdentifier(merge.tableName);
+        const columns: string = merge.columns.map(c => escapeIdentifier(c)).join(', ');
+        const primary: string = escapeIdentifier(merge.primaryColumn);
+        const sameAsStored: (unique: string[]) => string = unique => unique
+            .map(c => `stored.${escapeIdentifier(c)} = ${current}.${escapeIdentifier(c)}`)
+            .join(' AND ');
+        // a condition unqualified both times: inside the subquery its columns are the stored row's,
+        // outside it the merged one's
+        const conflicts: string[] = [{ columns: [merge.primaryColumn], where: undefined }, ...merge.uniques].map(u => u.where == undefined
+            ? `EXISTS (SELECT 1 FROM ${table} AS stored WHERE ${sameAsStored(u.columns)})`
+            : `((${u.where}) AND EXISTS (SELECT 1 FROM ${table} AS stored WHERE ${sameAsStored(u.columns)} AND (${u.where})))`);
+        const moved: MovedRowId[] = await queryRunner.connection.query<MovedRowId[]>(
+            `INSERT INTO ${table} (${columns}) SELECT ${columns} FROM ${current}`
+            + ` WHERE NOT (${conflicts.join(' OR ')}) RETURNING ${primary}::text AS "id"`,
+            [],
+            queryRunner
+        );
+
+        // a numeric id moved with its row is one the sequence of the table has not handed out yet, and
+        // would hand out again. Looked up first rather than filtered in the same statement: postgres
+        // plans the max even when no sequence is found, and there is no max of a uuid
+        const [sequence]: SerialSequence[] = await queryRunner.connection.query<SerialSequence[]>(
+            'SELECT pg_get_serial_sequence($1, $2) AS "name"',
+            [table, merge.primaryColumn],
+            queryRunner
+        );
+        if (sequence?.name != undefined) {
+            await queryRunner.query(
+                // eslint-disable-next-line cspell/spellchecker
+                `SELECT setval($1, (SELECT max(${primary}) FROM ${table}))`,
+                [sequence.name]
+            );
+        }
+
+        const ids: string[] = moved.map(row => row.id);
+        for (const joinTable of merge.joinTables) {
+            // only the relations of rows that were moved, which is every row the relation names
+            const ofMoved: string = joinTable.entityColumns.map(c => `${escapeIdentifier(c)}::text = ANY($1)`).join(' AND ');
+            const into: string = joinTable.columns.map(([, c]) => escapeIdentifier(c)).join(', ');
+            const from: string = joinTable.columns.map(([c]) => escapeIdentifier(c)).join(', ');
+            await queryRunner.query(
+                `INSERT INTO ${escapeIdentifier(joinTable.name)} (${into})`
+                + ` SELECT ${from} FROM ${escapeIdentifier(joinTable.currentName)} WHERE ${ofMoved}`,
+                [ids]
+            );
+        }
+    }
+
+    protected override async reconcileKeys(): Promise<boolean> {
+        if (!this.ds) {
+            throw new DataSourceInitializationError();
+        }
+        // a connection of its own, and no transaction on it: an index is built concurrently, which
+        // cannot happen inside one - and is the point, since writes go on while it is built. The
+        // instances still serving the previous version are writing the whole time
+        const runner: QueryRunner = this.createQueryRunner();
+        await runner.connect();
+        try {
+            let changed: boolean = false;
+            for (const entity of this.entities) {
+                changed = await this.reconcileKeysOf(runner, entity, this.ds.getMetadata(entity)) || changed;
+            }
+            return changed;
+        }
+        finally {
+            await runner.release();
+        }
+    }
+
+    /**
+     * Makes the indexes and uniques of one entity's table match what it declares.
+     * @param runner - The connection to build them on.
+     * @param entity - The entity.
+     * @param metadata - Its metadata, for the table and its columns.
+     * @returns Whether anything was created or dropped.
+     */
+    private async reconcileKeysOf(runner: QueryRunner, entity: Newable<BaseEntity>, metadata: TOEntityMetadata): Promise<boolean> {
+        const declared: DeclaredKey[] = this.resolveDeclaredKeys(entity, metadata);
+        const stored: StoredKeyRow[] = await runner.connection.query<StoredKeyRow[]>(STORED_KEYS_SQL, [metadata.tableName], runner);
+        const owned: StoredKeyRow[] = stored.filter(k => this.isDeclaredKeyName(k.name, metadata.tableName));
+
+        // what a build that failed leaves behind: an index that enforces and serves nothing, and is
+        // kept up on every write all the same
+        for (const leftover of owned.filter(k => !k.valid)) {
+            await runner.query(`DROP INDEX CONCURRENTLY IF EXISTS ${escapeIdentifier(leftover.name)}`);
+        }
+        const kept: Map<string, StoredKeyRow> = new Map(owned.filter(k => k.valid).map(k => [k.name, k]));
+        const declaredNames: Set<string> = new Set(declared.map(k => toStoredIdentifier(k.name)));
+        const missing: DeclaredKey[] = declared.filter(k => !kept.has(toStoredIdentifier(k.name)));
+        const abandoned: StoredKeyRow[] = [...kept.values()].filter(k => !declaredNames.has(k.name));
+
+        // created before anything is dropped, so that a unique whose name changed is enforced throughout
+        for (const key of missing) {
+            await this.createDeclaredKey(runner, entity, key);
+        }
+        // an index built before the constraint could take it over, by a boot that stopped in between
+        for (const key of declared.filter(k => k.constrain != undefined && kept.get(toStoredIdentifier(k.name))?.constraint === false)) {
+            await this.inShortLock(runner, key.constrain ?? '');
+        }
+        const table: string = escapeIdentifier(metadata.tableName);
+        for (const key of abandoned) {
+            await (key.constraint
+                ? this.inShortLock(runner, `ALTER TABLE ${table} DROP CONSTRAINT ${escapeIdentifier(key.name)}`)
+                : runner.query(`DROP INDEX CONCURRENTLY IF EXISTS ${escapeIdentifier(key.name)}`));
+        }
+        return missing.length > 0 || abandoned.length > 0;
+    }
+
+    /**
+     * Builds the statements creating every index and unique an entity declares.
+     * @param entity - The entity.
+     * @param metadata - Its metadata, for the table and its columns.
+     * @returns Each one, under the name the schema gives it.
+     */
+    private resolveDeclaredKeys(entity: Newable<BaseEntity>, metadata: TOEntityMetadata): DeclaredKey[] {
+        const tableName: string = metadata.tableName;
+        const table: string = escapeIdentifier(tableName);
+        const columnsOf: (properties: string[]) => string[] = properties => properties
+            .map(p => escapeIdentifier(metadata.findColumnWithPropertyName(p)?.databaseName ?? p));
+        const groups: KeyGroups = keyGroupsOf(entity);
+        const res: DeclaredKey[] = [];
+
+        for (const unique of groups.uniques) {
+            const columns: string[] = columnsOf(unique.properties);
+            // the function the schema writes the condition with, so the name it hashes is the same
+            const where: string | undefined = unique.where == undefined || coversEveryRow(unique.where)
+                ? undefined
+                : keyWhereToSql(entity, unique.where);
+            const name: string = uniqueConstraintName(tableName, unique.properties, where);
+            const quoted: string = escapeIdentifier(name);
+            const list: string = columns.join(', ');
+            // rows holding no value in one of the columns never conflict, which is how the index
+            // itself counts them
+            const valued: string = columns.map(c => `${c} IS NOT NULL`).join(' AND ');
+            res.push({
+                name,
+                properties: unique.properties,
+                build: `CREATE UNIQUE INDEX CONCURRENTLY ${quoted} ON ${table} (${list})${where == undefined ? '' : ' WHERE ' + where}`,
+                constrain: where == undefined ? `ALTER TABLE ${table} ADD CONSTRAINT ${quoted} UNIQUE USING INDEX ${quoted}` : undefined,
+                duplicates: `SELECT json_build_array(${list})::text AS "values" FROM ${table}`
+                    + ` WHERE ${valued}${where == undefined ? '' : ' AND (' + where + ')'}`
+                    + ` GROUP BY ${list} HAVING count(*) > 1 LIMIT 3`
+            });
+        }
+        for (const index of groups.indexes) {
+            const name: string = indexName(tableName, index);
+            const build: string = `CREATE INDEX CONCURRENTLY ${escapeIdentifier(name)} ON ${table} (${columnsOf(index).join(', ')})`;
+            res.push({ name, properties: index, build, constrain: undefined, duplicates: undefined });
+        }
+        // without the extension there is no operator class to build these with, and the warning that
+        // says so has already been given
+        if (this.trigramSupport.threshold != undefined) {
+            for (const property of this.searchableColumnsOf(entity)) {
+                const name: string = trigramIndexName(tableName, property);
+                const build: string = `CREATE INDEX CONCURRENTLY ${escapeIdentifier(name)} ON ${table}`
+                    + ` USING GIN (${columnsOf([property]).join('')} gin_trgm_ops)`;
+                res.push({ name, properties: [property], build, constrain: undefined, duplicates: undefined });
+            }
+        }
+        return res;
+    }
+
+    /**
+     * Creates one declared index or unique over the rows already stored.
+     * @param runner - The connection to build it on.
+     * @param entity - The entity declaring it.
+     * @param key - What it is.
+     * @throws When stored rows break the unique, naming the values they share.
+     */
+    private async createDeclaredKey(runner: QueryRunner, entity: Newable<BaseEntity>, key: DeclaredKey): Promise<void> {
+        // looked for first, so that the failure names the values rather than leaving that to the
+        // build - which finds the first and says only that it did
+        await this.validateNoDuplicates(runner, entity, key);
+        try {
+            await runner.query(key.build);
+        }
+        catch (error) {
+            await runner.query(`DROP INDEX CONCURRENTLY IF EXISTS ${escapeIdentifier(key.name)}`);
+            // a row written meanwhile can break a unique the stored rows kept a moment ago
+            await this.validateNoDuplicates(runner, entity, key);
+            throw error;
+        }
+        if (key.constrain != undefined) {
+            await this.inShortLock(runner, key.constrain);
+        }
+    }
+
+    /**
+     * Refuses a unique that stored rows break.
+     * @param runner - The connection to look on.
+     * @param entity - The entity declaring it.
+     * @param key - The unique. An index has nothing to look for.
+     * @throws When stored rows hold the same values, naming them.
+     */
+    private async validateNoDuplicates(runner: QueryRunner, entity: Newable<BaseEntity>, key: DeclaredKey): Promise<void> {
+        if (key.duplicates == undefined) {
+            return;
+        }
+        const rows: DuplicateValuesRow[] = await runner.connection.query<DuplicateValuesRow[]>(key.duplicates, [], runner);
+        if (!rows.length) {
+            return;
+        }
+        throw new InternalError([
+            `Cannot keep ${entity.name} unique by ${key.properties.join(', ')}:`,
+            `the stored rows hold ${rows.map(r => r.values).join(', ')} more than once.`,
+            'Remove the duplicates in a migration.'
+        ]);
+    }
+
+    /**
+     * Runs a statement that takes the whole table, giving up rather than waiting long for it.
+     *
+     * Every read and write of the table queues behind a statement waiting for that lock, so one that
+     * waits on a long transaction stops the table for as long. The statements this runs are over as
+     * soon as they hold it.
+     * @param runner - The connection to run it on.
+     * @param statement - The statement.
+     */
+    private async inShortLock(runner: QueryRunner, statement: string): Promise<void> {
+        await runner.startTransaction();
+        try {
+            await runner.query(`SET LOCAL lock_timeout = ${inject(ZIBRI_DI_TOKENS.SCHEMA_LOCK_TIMEOUT_IN_MS)}`);
+            await runner.query(statement);
+            await runner.commitTransaction();
+        }
+        catch (error) {
+            await runner.rollbackTransaction();
+            throw error;
         }
     }
 
@@ -1509,7 +1999,8 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
                     ...metadata,
                     type: this.numberColumnType(metadata.format),
                     default: columnDefault,
-                    unique: metadata.unique === true,
+                    // the schema declares it as a named constraint instead, see the string case
+                    unique: false,
                     transformer: this.numberColumnTransformer(metadata.format)
                 };
             }
@@ -1527,10 +2018,12 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
                     length: metadata.maxLength,
                     enum: metadata.enum ? ObjectUtilities.values(metadata.enum) : undefined,
                     default: columnDefault,
-                    // only when it covers every row: a column unique among some of them is enforced
-                    // by the partial index the schema declares for it, and a constraint here would
-                    // hold for all of them instead
-                    unique: metadata.unique === true
+                    // never here: a column unique among every row is a constraint the schema declares
+                    // under the name an upsert and a migration refer to it by, and one unique among
+                    // some of them is the partial index it declares. Written out because the spread
+                    // above carries the property's own `unique`, which the orm would turn into a
+                    // second constraint under a generated name
+                    unique: false
                 };
             }
         }

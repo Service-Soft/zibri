@@ -33,6 +33,11 @@ import { FsUtilities, type FsPath } from '../../../utilities/fs.utilities';
 const workerFilePath: FsPath = FsUtilities.getPath(__dirname, 'thread-jobs.test.worker.ts');
 
 /**
+ * The worker file that reports which file the shared packages resolve to inside a worker thread.
+ */
+const modulePathWorkerFilePath: FsPath = FsUtilities.getPath(__dirname, 'thread-jobs-module-path.test.worker.ts');
+
+/**
  * The data the fixture is given.
  */
 type ThreadJobClusterWorkerData = BaseThreadJobWorkerData & {
@@ -69,9 +74,28 @@ class ClusterThreadJobController {
     }
 
     /**
+     * Queues a job that reports which file `zibri-testing` resolves to in its worker thread.
+     * @returns The id of the queued job.
+     */
+    @Post('/queue-module-path')
+    async queueModulePath(): Promise<string> {
+        const multithreadingService: MultithreadingServiceInterface = inject(ZIBRI_DI_TOKENS.MULTITHREADING_SERVICE);
+        return await multithreadingService.queueThreadJob({ workerData: { filePath: modulePathWorkerFilePath } });
+    }
+
+    /**
+     * Answers with the file `zibri-testing` resolves to in this instance's main thread.
+     * @returns The resolved path.
+     */
+    @Get('/module-path')
+    readModulePath(): string {
+        return require.resolve('zibri-testing');
+    }
+
+    /**
      * Reads what a job's row currently says.
      * @param id - The job to read.
-     * @returns Its status and, once it has one, the id of the instance that ran it.
+     * @returns Its status and, once it has one, the id of the instance that ran it - or why it failed.
      */
     @Get('/:id')
     async read(
@@ -79,7 +103,9 @@ class ClusterThreadJobController {
         id: string
     ): Promise<string> {
         const job: ThreadJobEntity<ThreadJobClusterWorkerData, string> = await this.threadJobRepository.findById(id);
-        return `${job.status}:${job.result ?? ''}`;
+        // the error as well, so a job that failed says why in the timeout message rather than only
+        // that it did - the instance logs nothing for a job that fails inside its worker
+        return `${job.status}:${job.result ?? job.error?.paragraphs.join(' ') ?? ''}`;
     }
 }
 

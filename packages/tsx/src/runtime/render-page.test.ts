@@ -72,6 +72,12 @@ describe('wrapDocument', () => {
         expect(out.match(/<\/script>/g)).toHaveLength(1);
     });
 
+    it('neutralizes a closing script tag inside the code, whatever its case and whatever follows the name', () => {
+        // an html parser ends a script on `</script` followed by whitespace, `/` or `>`, in any case
+        const out: string = wrapDocument('<div/>', 'const a = "</SCRIPT>"; const b = "</Script >"; const c = "</script/";');
+        expect(out.match(/<\/script/gi)).toHaveLength(1);
+    });
+
     it('omits the script entirely when there is no client behavior', () => {
         expect(wrapDocument('<div>x</div>', '')).toBe('<!DOCTYPE html>\n<div>x</div>');
     });
@@ -98,6 +104,26 @@ describe('renderPage', () => {
         const body: string = scriptBodyOf(out);
         expect(body).toContain('"shown":"yes"');
         expect(body).not.toContain('do-not-leak');
+    });
+
+    it('keeps a prop holding a closing script tag inside the script, and hands it to the client as it was', () => {
+        const hostile: string = '</SCRIPT><img src=x onerror=alert(1)></script ><!--<script>';
+        const source: string = 'const Home = ({ name }) => { onClient(() => { track(name); }); return <div/>; };';
+        const out: string = renderPage(compilePage(source), { name: hostile });
+
+        // the one closing tag is the script's own: a prop is a user's name or a comment, and anything
+        // closing the script early turns the rest of it into markup
+        expect(out.match(/<\/script/gi)).toHaveLength(1);
+        const tracked: unknown[] = [];
+        runScript(scriptBodyOf(out), [], { track: (value: unknown) => tracked.push(value) });
+        expect(tracked).toEqual([hostile]);
+    });
+
+    it('keeps a translation holding a closing script tag inside the script', () => {
+        const source: string = 'const Home = () => { onClient(() => { show($ts`hello`); }); return <div/>; };';
+        const localeData: LocaleData = { locale: 'de', translations: { de: { hello: '</Script><b>' } }, formatOptions: {} };
+        const out: string = renderPage(compilePage(source), {}, { localeData });
+        expect(out.match(/<\/script/gi)).toHaveLength(1);
     });
 
     it('inlines the $ts hook with the render-time locale data', () => {

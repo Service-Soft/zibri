@@ -1,12 +1,25 @@
 import { AccessShape, projectValue } from './access-shape';
 import type { TranslationSources } from '../semantics/translation-sources';
 
+// What tells the runtime's own objects apart from a value that only looks like one: a property keyed
+// by a symbol, which json cannot write, so nothing that came in as data - a json column, a body, a
+// provider's answer - passes for trusted html or for a reference the page writes as code. Symbol.for
+// rather than a symbol of this module, since the runtime is built for both module systems and a
+// template compiled against one copy can be rendered by the other.
+const RAW: unique symbol = Symbol.for('zibri-tsx.raw');
+const HANDLER_MARKER: unique symbol = Symbol.for('zibri-tsx.handler-marker');
+const CLIENT_PROP_MARKER: unique symbol = Symbol.for('zibri-tsx.client-prop-marker');
+
 /**
  * A pre-rendered, trusted HTML fragment. Wrapping lowered JSX in this marker lets
  * {@link renderChild} tell safe HTML (emitted by the compiler) apart from dynamic text that must
- * be escaped.
+ * be escaped. Only {@link raw} and {@link $raw} create one.
  */
 export type Raw = {
+    /**
+     * Marks the object as trusted html.
+     */
+    readonly [RAW]: true,
     /**
      * The trusted HTML string.
      */
@@ -47,12 +60,34 @@ const ATTRIBUTE_NAME_MAP: Readonly<Record<string, string>> = {
 const NON_ATTRIBUTE_PROPS: ReadonlySet<string> = new Set<string>(['children', 'key', 'ref', 'dangerouslySetInnerHTML']);
 
 /**
+ * The names an attribute is rendered under: letters, digits and `_ : . -`, starting with a letter,
+ * `_` or `:`.
+ */
+const ATTRIBUTE_NAME: RegExp = /^[:A-Z_a-z][\w.:-]*$/;
+
+/**
+ * The attributes whose value a browser follows as a url, lower case.
+ */
+const URL_ATTRIBUTES: ReadonlySet<string> = new Set<string>([
+    'href',
+    'src',
+    'action',
+    'formaction',
+    'xlink:href',
+    'xlinkhref',
+    'poster',
+    'cite',
+    'background',
+    'data'
+]);
+
+/**
  * Wraps a trusted HTML string as {@link Raw}.
  * @param html - The trusted HTML.
  * @returns The wrapped value.
  */
 export function raw(html: string): Raw {
-    return { __raw: html };
+    return { [RAW]: true, __raw: html };
 }
 
 /**
@@ -66,16 +101,17 @@ export function raw(html: string): Raw {
  * @returns The wrapped value, usable anywhere a JSX child is.
  */
 export function $raw(html: string): Raw {
-    return { __raw: html };
+    return raw(html);
 }
 
 /**
- * Whether a value is a {@link Raw} marker.
+ * Whether a value is a {@link Raw} marker created by {@link raw}.
  * @param value - The value to test.
  * @returns True when the value is a Raw marker.
  */
 export function isRaw(value: unknown): value is Raw {
-    return typeof value === 'object' && value !== null && typeof (value as Raw).__raw === 'string';
+    return typeof value === 'object' && value !== null && RAW in value && value[RAW] === true
+        && '__raw' in value && typeof value.__raw === 'string';
 }
 
 /**
@@ -138,7 +174,14 @@ function kebabCase(name: string): string {
 export function attr(name: string, value: unknown): string {
     // A client-prop reference stands in for a function, so it is skipped for the same reason: a
     // capitalized tag holding an element name gets one before the runtime knows it is not a component.
-    if (NON_ATTRIBUTE_PROPS.has(name) || isEventHandler(name) || typeof value === 'function' || isClientPropMarker(value)) {
+    if (NON_ATTRIBUTE_PROPS.has(name) || typeof value === 'function' || isClientPropMarker(value)) {
+        return '';
+    }
+    // handlers are attached on the client, so no name starting with `on` is ever written: a spread of
+    // an object holding `onclick` would otherwise render a working inline handler. And only a name made
+    // of the characters an attribute name is written with, since a name is not escaped and one holding
+    // a space, a quote or `=` would write attributes of its own
+    if (name.toLowerCase().startsWith('on') || !ATTRIBUTE_NAME.test(name)) {
         return '';
     }
     if (value == undefined || value === false) {
@@ -151,7 +194,24 @@ export function attr(name: string, value: unknown): string {
     if (name === 'style') {
         return ` style="${escapeAttribute(renderStyle(value))}"`;
     }
-    return ` ${mapped}="${escapeAttribute(primitiveToString(value))}"`;
+    const text: string = primitiveToString(value);
+    if (URL_ATTRIBUTES.has(mapped.toLowerCase()) && isScriptUrl(text)) {
+        return '';
+    }
+    return ` ${mapped}="${escapeAttribute(text)}"`;
+}
+
+/**
+ * Whether a url runs script when it is followed.
+ * @param url - The url.
+ * @returns True for a `javascript:` or `vbscript:` url, however it is spelled.
+ */
+function isScriptUrl(url: string): boolean {
+    // a browser drops tabs and line breaks anywhere in a url and control characters and spaces around
+    // it, so every one of them is dropped before the scheme is read
+    const scheme: string = [...url].filter(character => character > ' ').join('')
+        .toLowerCase();
+    return scheme.startsWith('javascript:') || scheme.startsWith('vbscript:');
 }
 
 /**
@@ -281,7 +341,7 @@ export type HandlerMarker = {
     /**
      * Marks this object as a handler marker.
      */
-    __marker: true,
+    readonly [HANDLER_MARKER]: true,
     /**
      * The build-time handler site id.
      */
@@ -306,7 +366,7 @@ export type ClientPropMarker = {
     /**
      * Marks this object as a client-prop reference.
      */
-    __propMarker: true,
+    readonly [CLIENT_PROP_MARKER]: true,
     /**
      * The build-time site id.
      */
@@ -427,7 +487,7 @@ function renderDynamicElement(
  * @returns True for a marker.
  */
 function isHandlerMarker(value: unknown): value is HandlerMarker {
-    return typeof value === 'object' && value !== null && ('__marker' in value) && value.__marker === true;
+    return typeof value === 'object' && value !== null && HANDLER_MARKER in value && value[HANDLER_MARKER] === true;
 }
 
 /**
@@ -716,12 +776,12 @@ export function createServerRuntime(): RenderServerRuntime {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     function mark(site: string, captured: unknown[]): HandlerMarker {
-        return { __marker: true, site, captured, owner: currentOwner };
+        return { [HANDLER_MARKER]: true, site, captured, owner: currentOwner };
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     function markProp(site: string, captured: unknown[]): ClientPropMarker {
-        const marker: ClientPropMarker = { __propMarker: true, site, id: `${site}_${counter++}`, captured, owner: currentOwner };
+        const marker: ClientPropMarker = { [CLIENT_PROP_MARKER]: true, site, id: `${site}_${counter++}`, captured, owner: currentOwner };
         clientProps.push({ id: marker.id, site, captured, owner: marker.owner });
         return marker;
     }
@@ -860,7 +920,7 @@ function pickSerializable(props: Record<string, unknown>, names: string[], shape
  * @returns True for a client-prop reference.
  */
 export function isClientPropMarker(value: unknown): value is ClientPropMarker {
-    return typeof value === 'object' && value !== null && '__propMarker' in value;
+    return typeof value === 'object' && value !== null && CLIENT_PROP_MARKER in value && value[CLIENT_PROP_MARKER] === true;
 }
 
 /**
@@ -869,7 +929,7 @@ export function isClientPropMarker(value: unknown): value is ClientPropMarker {
  * @returns True when the value is a handler marker.
  */
 function isMarker(value: unknown): boolean {
-    return typeof value === 'object' && value !== null && '__marker' in value;
+    return isHandlerMarker(value);
 }
 
 /**

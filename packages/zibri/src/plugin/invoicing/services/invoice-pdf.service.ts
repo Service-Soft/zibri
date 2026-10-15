@@ -1,3 +1,4 @@
+import { type CompanyInfoServiceInterface } from './company-info-service.interface';
 import { InvoiceConformanceServiceInterface, InvoiceConformance } from './conformance/invoice-conformance-service.interface';
 import { type InvoiceCalcServiceInterface } from './invoice-calc-service.interface';
 import { InvoicePdfServiceInterface } from './invoice-pdf-service.interface';
@@ -12,6 +13,7 @@ import { Timezone } from '../../../localization/models/timezone.model';
 import { BigNumber } from '../../../utilities/number.utilities';
 import { optionalPeer } from '../../../utilities/optional-peer.function';
 import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../invoicing.tokens';
+import { CompanyInfo } from '../models/company-info.model';
 import { Invoice } from '../models/invoice.model';
 import { type InvoicingOptions } from '../models/invoicing-options.model';
 import { Vat } from '../models/vat.model';
@@ -21,19 +23,6 @@ import { Vat } from '../models/vat.model';
  */
 @Injectable({ register: 'onUse' })
 export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
-    /**
-     * The definition of the header of the pdf.
-     */
-    protected readonly header: PdfContentDefinition;
-    /**
-     * The definition of the footer of the pdf.
-     */
-    protected readonly footer: PdfContentDefinition;
-    /**
-     * The definition of the column in the letterhead that displays the information about the company that is sending out the invoice.
-     */
-    protected readonly companyLetterheadColumn: PdfColumnDefinition;
-
     constructor(
         @Inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.OPTIONS)
         protected readonly options: InvoicingOptions,
@@ -42,17 +31,15 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
         @Inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.INVOICE_CONFORMANCE_SERVICES)
         private readonly invoiceConformanceServices: InvoiceConformanceServiceInterface<Invoice>[],
         @Inject(ZIBRI_DI_TOKENS.LOCALIZE_SERVICE)
-        private readonly localizeService: LocalizeServiceInterface
+        private readonly localizeService: LocalizeServiceInterface,
+        @Inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.COMPANY_INFO_SERVICE)
+        private readonly companyInfoService: CompanyInfoServiceInterface
     ) {
         // at startup rather than at the first invoice. This service is registered by the invoicing
         // plugin, and every registered token is constructed while the application starts - so an
         // application that declared the plugin without installing pdfmake finds out on the way up,
         // months before the first invoice run would have found out for it.
         optionalPeer('pdfmake', 'The invoicing plugin');
-
-        this.header = this.getHeader();
-        this.footer = this.getFooter();
-        this.companyLetterheadColumn = this.getCompanyLetterheadColumn();
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -87,9 +74,11 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
         timezone: Timezone
     ): Promise<PdfDocumentDefinition> {
         const taxGroups: Vat[] = this.getTaxGroups(invoice);
+        // the company of the invoice's own tenant, whichever tenant asks for its pdf
+        const company: CompanyInfo = await this.companyInfoService.resolveCompanyInfo(invoice.tenantId);
         const res: PdfDocumentDefinition = {
             info: {
-                producer: this.options.companyInfo.fullName
+                producer: company.fullName
             },
             pageSize: 'A4',
             pageMargins: [40, 40, 40, 70],
@@ -97,9 +86,9 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
             version: '1.7',
             subset: 'PDF/A-3',
             images: this.options.images,
-            header: this.header,
+            header: this.getHeader(company),
             content: [
-                this.getLetterhead(invoice),
+                this.getLetterhead(invoice, company),
                 {
                     text: this.options.headline,
                     fontSize: this.options.headlineFontSize,
@@ -112,7 +101,7 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
                 await this.getTotalTable(invoice, taxGroups, locale),
                 ...this.getContentFromParagraphs(invoice.textAfterItems)
             ],
-            footer: this.footer
+            footer: this.getFooter(company)
         };
         if (conformance != undefined) {
             await this.getConformanceService(conformance).updateDocumentDefinition(invoice, res, timezone);
@@ -387,14 +376,15 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
     /**
      * Gets the letterhead.
      * @param invoice - The invoice to get the letterhead from.
+     * @param company - The company issuing the invoice.
      * @returns The letterhead of the customer and the company.
      */
-    protected getLetterhead(invoice: Invoice): PdfContentDefinition {
+    protected getLetterhead(invoice: Invoice, company: CompanyInfo): PdfContentDefinition {
         return {
             columns: [
-                this.getCustomerLetterheadColumn(invoice),
+                this.getCustomerLetterheadColumn(invoice, company),
                 {
-                    columns: [this.companyLetterheadColumn],
+                    columns: [this.getCompanyLetterheadColumn(company)],
                     width: 'auto'
                 }
             ]
@@ -404,11 +394,12 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
     /**
      * Gets the letterhead of the customer.
      * @param invoice - The invoice to get the customer letterhead from.
+     * @param company - The company issuing the invoice, whose address line heads it.
      * @returns The letterhead of the customer, containing the name and address.
      */
-    protected getCustomerLetterheadColumn(invoice: Invoice): PdfColumnDefinition {
+    protected getCustomerLetterheadColumn(invoice: Invoice, company: CompanyInfo): PdfColumnDefinition {
         // eslint-disable-next-line stylistic/max-len
-        const companyAddressLine: string = `${this.options.companyInfo.fullName} - ${this.options.companyInfo.address.street} ${this.options.companyInfo.address.number} - ${this.options.companyInfo.address.postcode} ${this.options.companyInfo.address.city}`;
+        const companyAddressLine: string = `${company.fullName} - ${company.address.street} ${company.address.number} - ${company.address.postcode} ${company.address.city}`;
         const fontSize: number = this.getFontSizeForLetterhead(companyAddressLine);
         return [
             {
@@ -449,21 +440,22 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
 
     /**
      * Gets the letterhead of the company.
+     * @param company - The company issuing the invoice.
      * @returns The letterhead of the company, containing full name, address and contact information.
      */
-    protected getCompanyLetterheadColumn(): PdfColumnDefinition {
+    protected getCompanyLetterheadColumn(company: CompanyInfo): PdfColumnDefinition {
         return [
             {
-                text: this.options.companyInfo.fullName,
+                text: company.fullName,
                 bold: true
             },
-            `${this.options.companyInfo.address.street} ${this.options.companyInfo.address.number}`,
+            `${company.address.street} ${company.address.number}`,
             {
-                text: `${this.options.companyInfo.address.postcode} ${this.options.companyInfo.address.city}`,
+                text: `${company.address.postcode} ${company.address.city}`,
                 margin: [0, 0, 0, 10]
             },
-            `${this.options.phoneLabel}: ${this.options.companyInfo.phone}`,
-            `${this.options.emailLabel}: ${this.options.companyInfo.email}`
+            `${this.options.phoneLabel}: ${company.phone}`,
+            `${this.options.emailLabel}: ${company.email}`
         ];
     }
 
@@ -479,10 +471,11 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
 
     /**
      * Gets the Content of the header.
-     * @returns A row with the logo or an empty array if no logo has been specified.
+     * @param company - The company issuing the invoice.
+     * @returns A row with the logo or an empty array if the company has none.
      */
-    protected getHeader(): PdfContentDefinition {
-        if (!this.options.logo) {
+    protected getHeader(company: CompanyInfo): PdfContentDefinition {
+        if (!company.logo) {
             return [];
         }
         return [
@@ -494,7 +487,7 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
                     },
                     {
                         fit: [500, 25],
-                        image: this.options.logo
+                        image: company.logo
                     }
                 ]
             }
@@ -503,13 +496,14 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
 
     /**
      * Gets the Content of the footer.
+     * @param company - The company issuing the invoice.
      * @returns Multiple rows containing information about the company and payment data.
      */
-    protected getFooter(): PdfContentDefinition {
+    protected getFooter(company: CompanyInfo): PdfContentDefinition {
         return {
             columns: [
-                this.getFirstFooterColumn(),
-                this.getSecondFooterColumn()
+                this.getFirstFooterColumn(company),
+                this.getSecondFooterColumn(company)
             ],
             margin: [40, 0, 0, 0],
             fontSize: this.options.footerFontSize
@@ -518,46 +512,48 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
 
     /**
      * Gets the first column of the footer.
+     * @param company - The company issuing the invoice.
      * @returns The column definition.
      */
-    protected getFirstFooterColumn(): PdfColumnDefinition {
+    protected getFirstFooterColumn(company: CompanyInfo): PdfColumnDefinition {
         const res: PdfColumnDefinition = [
             {
                 text: this.options.bankDetailsLabel,
                 bold: true
             }
         ];
-        if (this.options.bankName) {
-            res.push(this.options.bankName);
+        if (company.bankName) {
+            res.push(company.bankName);
         }
-        if (this.options.companyInfo.iban) {
-            res.push(`${this.options.ibanLabel} ${this.options.companyInfo.iban}`);
+        if (company.iban) {
+            res.push(`${this.options.ibanLabel} ${company.iban}`);
         }
-        if (this.options.companyInfo.bic) {
-            res.push(`${this.options.bicLabel} ${this.options.companyInfo.bic}`);
+        if (company.bic) {
+            res.push(`${this.options.bicLabel} ${company.bic}`);
         }
         return res;
     }
 
     /**
      * Gets the second column of the footer.
+     * @param company - The company issuing the invoice.
      * @returns The column definition.
      */
-    protected getSecondFooterColumn(): PdfColumnDefinition {
+    protected getSecondFooterColumn(company: CompanyInfo): PdfColumnDefinition {
         const res: PdfColumnDefinition = [
             {
-                text: this.options.companyInfo.fullName,
+                text: company.fullName,
                 bold: true
             }
         ];
-        if (this.options.companyInfo.taxNumber) {
-            res.push(`${this.options.taxNumberLabel} ${this.options.companyInfo.taxNumber}`);
+        if (company.taxNumber) {
+            res.push(`${this.options.taxNumberLabel} ${company.taxNumber}`);
         }
-        if (this.options.taxOffice) {
-            res.push(this.options.taxOffice);
+        if (company.taxOffice) {
+            res.push(company.taxOffice);
         }
-        if (this.options.companyInfo.ceo) {
-            res.push(`${this.options.ceoLabel} ${this.options.companyInfo.ceo}`);
+        if (company.ceo) {
+            res.push(`${this.options.ceoLabel} ${company.ceo}`);
         }
         return res;
     }

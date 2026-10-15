@@ -24,6 +24,25 @@ It peer depends on `zibri`, so the framework under test is the copy your applica
 | `defaultTestProviders` | value | The providers that make a deployment's defaults workable in a test |
 | `testMasterKey` | value | The encryption master key those providers register |
 | `UnconfiguredEmailTransport` | class | A mail transport that refuses to send |
+| `RecordingEmailTransport` | class | A mail transport that sends nothing and keeps what it was given, in `sends` |
+| `RecordingSmsService` | class | A text message sender that sends nothing and keeps what it was given, in `sent` |
+| `startFakeOAuthProvider` | function | Starts a provider inside the test, speaking OpenID Connect or plain OAuth2 |
+| `FakeOAuthProvider` | class | The running provider: who signs in, and what it was asked |
+| `startFakeSamlProvider` | function | Starts a SAML 2.0 identity provider inside the test |
+| `FakeSamlProvider` | class | The running identity provider: who signs in, what it was asked, and the logout requests it sends |
+| `FakeSamlProviderOptions`, `FakeSamlIdentity`, `FakeSamlAnswerChanges`, `FakeSamlLogoutOptions` | type | How it answers, who signs in, what the next answer gets wrong, and who a logout request logs out |
+| `FakeSamlRequest`, `FakeSamlAnswer`, `FakeSamlLogoutRequest` | type | What it was asked, and what it answered |
+| `createFakeKeyPair`, `FakeKeyPair` | function, type | A key and its certificate: your application's SAML signing and decryption keys, or a TLS server's |
+| `FakeKeyPairOptions` | type | The hosts a certificate is valid for, whether it is an authority, and the authority that signs it |
+| `startFakeLdapDirectory` | function | Starts a directory inside the test, speaking LDAP over TLS |
+| `FakeLdapDirectory` | class | The running directory: its entries, and the binds and searches it was asked for |
+| `FakeLdapDirectoryOptions`, `FakeLdapEntry`, `FakeLdapBind`, `FakeLdapSearch` | type | Its entries, and what it was asked |
+| `TestBrowser` | class | Plays the browser: keeps cookies, follows no redirect on its own |
+| `FakePasskeyDevice` | class | Plays a device with its browser: creates and uses passkeys |
+| `FakePasskeyDeviceOptions`, `FakePasskey`, `FakePasskeyAttestation` | type | What kind of device it is, the passkeys it holds, and how it proves its model |
+| `FakeDpopKey`, `FakeDpopProofOptions` | class, type | A client's key pair, signing DPoP proofs, see [DPoP](#dpop) |
+| `startFakeFidoMetadataService` | function | Starts a FIDO Metadata Service inside the test |
+| `FakeFidoMetadataService` | class | The running service: the models it lists, and the attestations of their devices |
 | `startDataSourceContainers` | function | Starts one container per data source that needs a server of its own |
 | `StartedTestServer.scratchPath` | property | Where this server's application writes what it records at runtime |
 | `startTestCluster` | function | Boots several instances of one application against shared data sources |
@@ -42,9 +61,9 @@ their own rather than inline in `index.ts`. `zi new` writes three:
 
 ```ts
 // src/application-options.base.ts — everything the application is
-import { JwtAuthController, MailingListController, Newable, OmitStrict, ZibriApplicationOptions, ZibriMailingListPlugin } from 'zibri';
+import { MailingListController, Newable, OmitStrict, ZibriApplicationOptions, ZibriMailingListPlugin } from 'zibri';
 
-import { PageController } from './controllers';
+import { AppAuthController, PageController } from './controllers';
 import { DbDataSource } from './data-sources';
 import { entities } from './data-sources/db/entities';
 import { version } from '../package.json';
@@ -54,7 +73,7 @@ export const baseApplicationOptions: OmitStrict<ZibriApplicationOptions, 'dataSo
     name: 'My Api',
     baseUrl: 'http://localhost:3000',
     plugins: [new ZibriMailingListPlugin()],
-    controllers: [PageController, MailingListController, JwtAuthController],
+    controllers: [PageController, MailingListController, AppAuthController],
     websocketControllers: [],
     cronJobs: [],
     version,
@@ -171,9 +190,8 @@ export async function startForScenario(scenario: { controllers?: Newable<unknown
 ```
 
 Everything a `ZibriApplication` takes can be named this way — `controllers`, `websocketControllers`,
-`cronJobs`, `providers`, `plugins`, `authStrategies`, `twoFactorMethods`, `bodyParsers`, `security`,
-`defaultAuth`, `version`, `name`, `baseUrl`, `dataSources` — plus `assetsPath`, which says where the
-application serves its static assets from.
+`cronJobs`, `providers`, `plugins`, `authStrategies`, `twoFactorMethods`, `twoFactorFailureLimit`, `bodyParsers`, `security`,
+`defaultAuth`, `version`, `name`, `baseUrl`, `dataSources`.
 
 Without an `application` to build on, the harness boots one with no controllers on an in process data
 source. That is what a test of the framework itself, or a quick throwaway, runs on.
@@ -203,6 +221,10 @@ dataSources: [createPostgresTestDataSource({ entities })]
 The harness starts a container for it and points the data source at the port it was mapped to. It
 also takes the credentials, and `poolSize` with `connectionTimeoutInMs` for a test that is about the
 pool itself. A container takes seconds to come up, so give such a suite a timeout to match.
+
+Your application connects the way it does against a managed postgres: as a role that owns its
+database and has no other privilege. It is neither a superuser nor able to create roles or
+databases, so a suite fails wherever your application would need more than that in production.
 
 Both creators build a class per call, because a data source is identified by its class. Pass
 `allowOrphan: true` for one a test builds and hands to something other than the application it starts.
@@ -239,8 +261,8 @@ const ownVersionsFolder = {
 ```
 
 The paths a test server redirects this way are `VERSIONS_PATH`, `TRANSLATIONS_PATH` and
-`FILE_UPLOAD_TEMP_FOLDER`. `assetsPath` is not among them — assets are read, not written, so a test
-points it at fixtures with the `assetsPath` option instead.
+`FILE_UPLOAD_TEMP_FOLDER`. A test that serves its own fixtures names the folder they are in the same
+way, with the [`ASSETS_PATH`](./assets.md) token.
 
 ### Changing how the application is configured
 Starting a server is most of what a container-backed suite costs, and the same containers can carry
@@ -265,7 +287,8 @@ a test:
 | Token | What a test server uses instead |
 |---|---|
 | `SCRYPT_COST` | node's older cost, so hashing a password costs milliseconds rather than a fifth of a second |
-| `JWT_AUTH_OPTIONS_INPUT` | two fixed secrets, so tokens are reproducible across processes |
+| `JWT_AUTH_OPTIONS_INPUT` | two fixed secrets, so tokens are reproducible across processes, and `requireDpop: false` |
+| `DPOP_NONCES` | `false`, since it has no default |
 | `CONFIRM_PASSWORD_RESET_URL`, `PASSWORD_RESET_EMAIL_TEMPLATE` | fixtures, so an application that never resets a password still starts |
 | `EMAIL_CONFIG`, `EMAIL_TRANSPORT` | an `UnconfiguredEmailTransport`, which refuses to send and names the token to register a real one under |
 | `ENCRYPTION_MASTER_OPTIONS` | `testMasterKey`, the same 32 bytes in every process, so replicas sharing a database read each other's values |
@@ -294,6 +317,267 @@ cron scheduler or the real thread pool filters them out of the list instead of a
 
 `testMasterKey` is exported for the case that needs it: a test swapping the master encryption
 strategy hands it back in as an old key, so the key rows already stored stay readable.
+
+### Signing in through a provider
+`startFakeOAuthProvider` starts an OpenID Connect provider inside the test, reached over http on
+`127.0.0.1`. It signs in whoever its `identity` says, without asking anything. Point your
+authenticator's `issuer` at it, and drive the sign-in with a `TestBrowser`, which keeps the cookies
+each site sets and follows no redirect on its own:
+
+```ts
+import { FakeOAuthProvider, startFakeOAuthProvider, TestBrowser } from 'zibri-testing';
+
+let provider: FakeOAuthProvider;
+
+beforeAll(async () => {
+    provider = await startFakeOAuthProvider({ clientId: 'my-app', clientSecret: 'secret' });
+});
+
+it('signs a user in', async () => {
+    provider.identity = { subject: 'alice', email: 'alice@example.com', emailVerified: true };
+    const browser: TestBrowser = new TestBrowser(baseUrl, 'https://api.example.com');
+
+    const atProvider: string = await browser.follow('https://api.example.com/auth/federated/authorize?authenticator=company&redirectTo=https://app.example.com');
+    const callback: string = await browser.follow(atProvider);
+    expect(await browser.follow(callback)).toBe('https://app.example.com');
+});
+```
+
+The second argument of `TestBrowser` is the `baseUrl` of your application. The browser sends what
+goes there to the test server, so the callback url your provider knows works in the test as well.
+
+| Member | What it does |
+|---|---|
+| `identity`, `authenticatedAt` | Who the next sign-in is, and when they signed in at the provider |
+| `denyNext(error)` | Answers the next sign-in with an error, eg. `access_denied` |
+| `addToNextAnswer(fields)` | Sends the next answer with more fields next to the code, the way Apple sends the user's name |
+| `rewriteNextIdToken(rewrite)` | Changes the claims of the next ID token before it is signed |
+| `authorizationRequests` | What your application asked the provider for |
+| `tokenRequests` | What your application sent the token endpoint: the exchanges of codes, and the refreshes |
+| `apiRequests` | Every request your application sent the provider's api |
+| `declinedScopes` | The scopes the user leaves out whenever they are asked for them |
+| `revokedTokens` | The tokens your application handed back at the revocation endpoint |
+| `revokeGrantsOf(subject)` | Withdraws what a user allowed your client, the way removing an app at the provider does |
+| `createJwtAccessToken(options)` | Signs an access token for an api as a jwt for `identity`, the way a mobile app or a service holds one, see [accepting a provider's tokens](./provider-tokens.md). Takes the `audience`, the `typ` (`at+jwt` by default) and claims on top, such as a `cnf` |
+| `createIdToken(audience, claims)` | Signs an ID token for `identity`, issued to the client `audience`, the way a mobile app holds one once the user signed in there |
+| `formPost` | An option: the provider answers with a page posting the code, like `response_mode=form_post` |
+| `clientSecret` | An option: the secret of your client, or a function checking the one it sends, for a secret your application signs |
+| `issuesIdToken` | An option: `false` makes it a provider that speaks plain OAuth2, issuing an access token and no ID token |
+| `resources` | An option: what its api answers, by path, to a request with an access token it issued, made from who that token is for |
+| `supportedPrompts` | An option: the `prompt` values it takes. A sign-in asking for another one gets an error page, the way Google answers `prompt=login` |
+| `accessTokenExpiresInSeconds` | An option: how long an access token it issues is valid. 300 by default |
+| `rotatesRefreshTokens` | An option: a refresh gives out a new refresh token and refuses the old one from then on |
+
+For a provider that speaks plain OAuth2, point the authenticator's endpoints and api at it too:
+
+```ts
+let github: FakeOAuthProvider;
+
+beforeAll(async () => {
+    github = await startFakeOAuthProvider({
+        clientId: 'my-app',
+        clientSecret: 'secret',
+        issuesIdToken: false,
+        resources: { '/user': identity => ({ id: Number(identity.subject), name: identity.name }) }
+    });
+});
+```
+
+A request `TestBrowser.open` sends with `crossSiteFrom` is one another site's page sends, like a
+form the provider posts: it carries that `Origin`, `Sec-Fetch-Site: cross-site`, and only the cookies a
+browser sends across sites, those with `SameSite=None` and, on a GET, those with `SameSite=Lax`.
+
+`startFakeSamlProvider` starts a SAML 2.0 identity provider the same way. Point your authenticator's
+`issuer` at its `entityId` and its `identityProvider` at its `metadataUrl`. It answers with a page
+posting the signed answer, which the test posts to the callback from the provider's origin:
+
+```ts
+import { FakeSamlAnswer, FakeSamlProvider, startFakeSamlProvider, TestBrowser } from 'zibri-testing';
+
+let idp: FakeSamlProvider;
+
+beforeAll(async () => {
+    idp = await startFakeSamlProvider({
+        serviceProviderEntityId: 'https://app.example.com/saml',
+        serviceProviderLogoutUrl: 'https://api.example.com/auth/federated/company-saml/logout'
+    });
+});
+
+it('signs a user in, and logs them out when they log out at the identity provider', async () => {
+    idp.identity = { nameId: 'alice', attributes: { email: 'alice@example.com' } };
+    const browser: TestBrowser = new TestBrowser(baseUrl, 'https://api.example.com');
+
+    await browser.open(await browser.follow('https://api.example.com/auth/federated/authorize?authenticator=company-saml&redirectTo=https://app.example.com'));
+    const answer: FakeSamlAnswer | undefined = idp.answers.at(-1);
+    expect(await browser.follow(answer?.url ?? '', {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: answer?.fields,
+        crossSiteFrom: new URL(idp.entityId).origin
+    })).toBe('https://app.example.com');
+
+    await new TestBrowser(baseUrl, 'https://api.example.com')
+        .follow(idp.createLogoutRequestUrl({ nameId: 'alice', sessionIndex: answer?.sessionIndex }));
+});
+```
+
+| Member | What it does |
+|---|---|
+| `identity`, `authenticatedAt` | Who the next sign-in is, with the NameID and the attributes sent, and when they signed in at the provider |
+| `denyNext(status)` | Answers the next sign-in with a second level status, eg. `urn:oasis:names:tc:SAML:2.0:status:RequestDenied` |
+| `changeNextAnswer(changes)` | Gets the next answer wrong: another issuer or audience, unsolicited, expired, unsigned, signed by another key, or changed after it was signed |
+| `createLogoutRequestUrl(options)` | The url a user logging out at the provider is sent to: your logout route with a signed logout request, or one that is not signed |
+| `requests`, `answers` | What your application asked the provider for, and what it answered, with the session it names |
+| `logoutRequests` | The logout requests your application sent the provider |
+| `metadataReads` | How often the metadata was read |
+| `signs` | An option: whether it signs the assertion, the whole response, or both |
+| `encryptsTo` | An option: the certificate of your decryption key, which it encrypts the assertion to |
+| `requiresRequestsSignedBy` | An option: the certificate of your signing key, which every request has to be signed with |
+| `serviceProviderLogoutUrl` | An option: your logout route, where it sends logout requests and the answers to yours |
+
+### Passkeys
+A `FakePasskeyDevice` does what a browser and a device do with [passkeys](./passkeys.md): hand it the options your routes answer with and the origin of the page, and it answers what the browser would:
+
+```ts
+import { JsonUtilities, PasskeyOptions, PasskeyRequestOptions } from 'zibri';
+import { FakePasskeyDevice } from 'zibri-testing';
+
+it('signs a user in with a passkey', async () => {
+    const device: FakePasskeyDevice = new FakePasskeyDevice({ synced: true });
+    const options: PasskeyRequestOptions = await (await fetch(`${baseUrl}/auth/sign-in-options`, { method: 'POST' })).json();
+
+    const res: Response = await fetch(`${baseUrl}/auth/login?authenticator=passkey`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JsonUtilities.stringify({ response: device.get(options, 'https://app.example.com') })
+    });
+
+    expect(res.status).toBe(200);
+});
+```
+
+| Member | What it does |
+|---|---|
+| `create(options, origin)` | Creates a passkey, as `navigator.credentials.create` does |
+| `get(options, origin, passkeyId)` | Uses one, as `navigator.credentials.get` does. The first one for the site unless you pick one |
+| `passkeys` | The passkeys it holds, with their signature counts |
+| `copy()` | A copy of the device with every passkey and count on it |
+| `verifiesUser` | Whether it verifies its user before the next passkey it creates or uses |
+| `synced` | An option: its passkeys are synced, like a phone's password manager keeps them, and count no signatures |
+| `aaguid` | An option: the model it names |
+| `attestation` | An option: what it proves its model with, from a `FakeFidoMetadataService` |
+
+`startFakeFidoMetadataService` starts a FIDO Metadata Service inside the test, signed under a root of its own. Point `metadataServiceUrl` at its `blobUrl` and `metadataServiceRootCertificates` at its `rootCertificate`:
+
+```ts
+import { FakeFidoMetadataService, FakePasskeyAttestation, startFakeFidoMetadataService } from 'zibri-testing';
+
+let metadata: FakeFidoMetadataService;
+let allowed: FakePasskeyAttestation;
+
+beforeAll(async () => {
+    metadata = await startFakeFidoMetadataService();
+    allowed = await metadata.addModel();
+});
+
+// what PASSKEY_OPTIONS is provided with in the test
+function passkeyOptions(): PasskeyOptions {
+    return {
+        relyingPartyId: 'example.com',
+        relyingPartyName: 'Example',
+        origins: ['https://app.example.com'],
+        attestation: {
+            allowedAaguids: [allowed.aaguid],
+            metadataServiceUrl: metadata.blobUrl,
+            metadataServiceRootCertificates: [metadata.rootCertificate]
+        }
+    };
+}
+
+// a device of the allowed model, which proves it when it creates a passkey
+function allowedDevice(): FakePasskeyDevice {
+    return new FakePasskeyDevice({ attestation: allowed });
+}
+```
+
+| Member | What it does |
+|---|---|
+| `addModel()` | Lists a model, certified, and answers with what its devices prove themselves with |
+| `createUnlistedModel(aaguid)` | A model nobody listed, naming whichever model you give |
+| `reportCompromised(aaguid)` | Reports that the keys of a model have leaked |
+| `downloads` | How often the list has been downloaded |
+| `nextUpdate` | When the list says it is next updated |
+| `close()` | Stops the service |
+
+### DPoP
+A `FakeDpopKey` holds a key pair the way a client does, and signs a [DPoP proof](./dpop.md) for whatever request you name. Sign the url as your application's `baseUrl` writes it, which is not where the test reaches the server:
+
+```ts
+import { FakeDpopKey } from 'zibri-testing';
+
+it('binds a login to the key of its proof', async () => {
+    const key: FakeDpopKey = new FakeDpopKey();
+    const appUrl: string = 'http://localhost:3000';
+
+    const login: Response = await fetch(`${baseUrl}/auth/login`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', dpop: key.createProof('POST', `${appUrl}/auth/login`) },
+        body: JSON.stringify({ email: 'anna@example.com', password: 'secret' })
+    });
+    const { accessToken } = await login.json();
+
+    const me: Response = await fetch(`${baseUrl}/profile`, {
+        headers: {
+            authorization: `DPoP ${accessToken.value}`,
+            dpop: key.createProof('GET', `${appUrl}/profile`, { accessToken: accessToken.value })
+        }
+    });
+    expect(me.status).toBe(200);
+});
+```
+
+| Member | What it does |
+|---|---|
+| `thumbprint` | The RFC 7638 thumbprint of the key, which a bound token names as `cnf.jkt` |
+| `createProof(method, url, options)` | Signs a proof, with the `accessToken` it hashes, the `nonce`, the time it was `issuedAt` and its `jwtId` |
+
+### A fake directory
+`startFakeLdapDirectory` starts a directory inside the test, for [sign-in through a directory](./sign-in-through-a-directory.md). It speaks LDAP over TLS with a certificate of its own: point your authenticator's `urls` at its `ldapsUrl`, or at its `ldapUrl` for StartTLS, and its `trustedCertificates` at its `certificate`:
+
+```ts
+import { FakeLdapDirectory, startFakeLdapDirectory } from 'zibri-testing';
+
+let ldapDirectory: FakeLdapDirectory;
+
+beforeAll(async () => {
+    ldapDirectory = await startFakeLdapDirectory({
+        entries: [
+            { dn: 'cn=app,ou=services,dc=example,dc=com', password: 'service-secret', attributes: { objectClass: ['person'] } },
+            {
+                dn: 'uid=alice,ou=people,dc=example,dc=com',
+                password: 'alice-secret',
+                attributes: { objectClass: ['inetOrgPerson'], uid: ['alice'], mail: ['alice@example.com'] }
+            }
+        ]
+    });
+});
+
+afterAll(async () => {
+    await ldapDirectory.stop();
+});
+```
+
+A bind in the clear is refused, a bind with a name and no password succeeds without binding as anybody, and only a connection bound with a password may search. An entry without an `entryUUID` gets one, sent only when a search asks for it by name. A search with Active Directory's in-chain rule, `(member:1.2.840.113556.1.4.1941:=<dn>)`, finds the groups an entry is a member of through other groups as well.
+
+| Member | What it does |
+|---|---|
+| `entries` | The entries of the directory, which the test may change |
+| `binds`, `searches` | The binds and searches it was asked for, with whether the connection was encrypted and who it was bound as |
+| `ldapsUrl`, `ldapUrl` | Where it takes connections encrypted from the first byte, and ones upgraded with StartTLS |
+| `certificate` | The certificate it proves who it is with |
+| `stop()` | Stops the directory |
+| `password` | An option of an entry: the password a bind as it takes |
+| `lockedWith` | An option of an entry: refuses every bind as it, with `invalidCredentials`, `unwillingToPerform` or `constraintViolation` |
 
 ## Testing across several instances
 Some behavior only exists with more than one replica: a cron job firing on each of them, an event

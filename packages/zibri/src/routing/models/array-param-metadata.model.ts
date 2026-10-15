@@ -10,8 +10,7 @@ import { OmitStrict } from '../../types/omit-strict.type';
 /**
  * Metadata for an item of an array parameter.
  */
-// eslint-disable-next-line typescript/no-explicit-any
-export type ArrayParamItemMetadata = OmitStrict<StringParamMetadata<any, any, any, any, any>, 'name'>
+export type ArrayParamItemMetadata = OmitStrict<StringParamMetadata, 'name'>
     | OmitStrict<NumberParamMetadata, 'name'>
     | OmitStrict<BooleanParamMetadata, 'name'>
     | OmitStrict<DateParamMetadata, 'name'>
@@ -21,8 +20,7 @@ export type ArrayParamItemMetadata = OmitStrict<StringParamMetadata<any, any, an
 /**
  * Input metadata for an item of an array parameter.
  */
-// eslint-disable-next-line typescript/no-explicit-any
-export type ArrayParamItemMetadataInput = StringParamMetadataInput<any, any, any, any, any>
+export type ArrayParamItemMetadataInput = StringParamMetadataInput
     | NumberParamMetadataInput
     | BooleanParamMetadataInput
     | DateParamMetadataInput

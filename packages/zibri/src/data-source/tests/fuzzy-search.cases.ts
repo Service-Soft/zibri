@@ -27,7 +27,7 @@ export enum ContactKind {
 /**
  * A contact, which is searched for by name.
  */
-@Entity({ allowOrphan: true, allowDuplicate: true })
+@Entity({ tenant: 'shared', allowOrphan: true, allowDuplicate: true })
 export class Contact extends BaseEntity {
     /**
      * Groups the contacts of one test, so the cases do not read each other's rows.

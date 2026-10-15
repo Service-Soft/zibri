@@ -1,15 +1,12 @@
 import { type EncryptionServiceInterface } from './encryption-service.interface';
+import { EncryptedEntity, resolveEncryptedEntities } from './resolve-encrypted-entities.function';
 import { ZibriApplication } from '../../application/application';
 import { CronExpression } from '../../cron/cron-expression.utilities';
 import { CronJob, InitialCronConfig } from '../../cron/cron-job.model';
-import { DataSourceInterface } from '../../data-source/data-sources/data-source.interface';
 import { Repository } from '../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
 import { BaseEntity } from '../../entity/base-entity.model';
-import { ModelRegistry } from '../../global/model-registry/model.registry';
 import { needsReEncryption } from '../../global/model-registry/needs-re-encryption.function';
 import { OnAppInit } from '../../global/on-app-init.interface';
 import { Newable } from '../../types/newable.type';
@@ -27,20 +24,6 @@ const maxRowsPerRun: number = 500;
  * How many rows are read at a time while looking for work.
  */
 const pageSize: number = 200;
-
-/**
- * An entity that holds encrypted values, and the repository that reads it.
- */
-type EncryptedEntity = {
-    /**
-     * The entity class.
-     */
-    entityClass: Newable<BaseEntity>,
-    /**
-     * The repository for it, from the data source that holds it.
-     */
-    repository: Repository<BaseEntity>
-};
 
 /**
  * Rewrites encrypted values that are no longer stored the way they should be.
@@ -82,18 +65,7 @@ export class EncryptionRotationCronJob extends CronJob implements OnAppInit {
     onAppInit(app: ZibriApplication): void {
         // resolved once: which entities can hold an encrypted value is a property of the model, and
         // an hourly job has no reason to work it out again every time
-        for (const dataSourceClass of app.options.dataSources) {
-            const dataSource: DataSourceInterface = inject(dataSourceClass);
-            for (const entityClass of dataSource.entities) {
-                if (!ModelRegistry.get(entityClass).encryptionDescriptor.hasAnything()) {
-                    continue;
-                }
-                this.encryptedEntities.push({
-                    entityClass,
-                    repository: inject(repositoryTokenFor(entityClass, dataSourceClass))
-                });
-            }
-        }
+        this.encryptedEntities.push(...resolveEncryptedEntities(app.options.dataSources));
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

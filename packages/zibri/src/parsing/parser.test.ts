@@ -5,6 +5,7 @@ import { Property } from '../entity/decorators/property.decorator';
 import { Body } from '../routing/decorators/body.decorator';
 import { Controller } from '../routing/decorators/controller.decorator';
 import { Post } from '../routing/decorators/post.decorator';
+import { JsonUtilities } from '../utilities/json.utilities';
 
 class ParserTestBody {
     @Property.string()
@@ -39,7 +40,7 @@ describe('Parser — parseBody content-type dispatch', () => {
         const res: Response = await fetch(`${baseUrl}/parser-test`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: 'a' })
+            body: JsonUtilities.stringify({ name: 'a' })
         });
         expect(res.status).toBe(200);
     });
@@ -48,7 +49,7 @@ describe('Parser — parseBody content-type dispatch', () => {
         const res: Response = await fetch(`${baseUrl}/parser-test`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-totally-made-up' },
-            body: JSON.stringify({ name: 'a' })
+            body: JsonUtilities.stringify({ name: 'a' })
         });
         expect(res.status).toBe(415);
     });
@@ -66,7 +67,7 @@ describe('Parser — parseBody content-type dispatch', () => {
         const res: Response = await fetch(`${baseUrl}/parser-test`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json; charset=utf-8' },
-            body: JSON.stringify({ name: 'a' })
+            body: JsonUtilities.stringify({ name: 'a' })
         });
         expect(res.status).toBe(200);
     });

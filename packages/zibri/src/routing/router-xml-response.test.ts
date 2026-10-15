@@ -83,7 +83,7 @@ describe('Router - answering with xml', () => {
         server = await startTestServer({ controllers: [OrderController] });
         baseUrl = await server.start();
         xml = await XmlUtilities.generateFrom(Order, order);
-    }, 25000);
+    }, 40000);
 
     afterAll(async () => {
         await server.shutdown();

@@ -6,6 +6,7 @@ import { type BaseUser } from '../../auth/models/base-user.model';
 import { type HttpRequestContext } from '../../context/request/http-request.context';
 import { type WebsocketRequestContext } from '../../context/request/websocket-request.context';
 import { type Where } from '../../data-source/models/where/where-filter.model';
+import { type BaseMembership } from '../../tenancy/membership/base-membership.model';
 import { type Newable } from '../../types/newable.type';
 import { type BaseEntity } from '../base-entity.model';
 
@@ -36,6 +37,15 @@ export type EntityScopeContext = {
      * somebody are the same question asked of different entities.
      */
     currentUser: BaseUser<string> | undefined,
+    /**
+     * The tenant the work acts in, if one is active.
+     */
+    tenantId: string | undefined,
+    /**
+     * The membership the requesting user acts through in that tenant, its roles narrowed to what the
+     * credential of the request may use. Undefined without a logged in user or an active tenant.
+     */
+    currentMembership: BaseMembership<string> | undefined,
     /**
      * The request being handled, if there is one.
      */

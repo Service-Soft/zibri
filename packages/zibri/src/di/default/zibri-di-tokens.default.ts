@@ -1,8 +1,17 @@
 import { AssetServiceInterface } from '../../assets/asset-service.interface';
+import { SmsCodeLimits } from '../../auth/2fa/methods/code/sms-code-limits.model';
+import { TwoFactorCodeOptions } from '../../auth/2fa/methods/code/two-factor-code-options.model';
 import { OtpValidationWindowInMs } from '../../auth/2fa/methods/otp/otp.utilities';
 import { TwoFactorServiceInterface } from '../../auth/2fa/two-factor-service.interface';
 import { AuthServiceInterface } from '../../auth/auth-service.interface';
 import { AuthRateLimitOptions } from '../../auth/auth.rate-limiter';
+import { FederationOptions } from '../../auth/authenticators/federated/federation-options.model';
+import { FidoMetadataServiceInterface } from '../../auth/authenticators/passkey/fido-metadata-service.interface';
+import { PasskeyOptions } from '../../auth/authenticators/passkey/passkey-options.model';
+import { PasskeyServiceInterface } from '../../auth/authenticators/passkey/passkey-service.interface';
+import { PasswordResetEmailTemplate } from '../../auth/authenticators/password/password-reset-email-template.model';
+import { AuthorizationServerServiceInterface } from '../../auth/authorization-server/authorization-server-service.interface';
+import { DpopServiceInterface } from '../../auth/dpop/dpop-service.interface';
 import { EncryptionKey } from '../../auth/encryption/encryption-key.model';
 import { EncryptionMasterOptions } from '../../auth/encryption/encryption-master-options.model';
 import { EncryptionServiceInterface } from '../../auth/encryption/encryption-service.interface';
@@ -10,10 +19,14 @@ import { EncryptionStrategyInterface } from '../../auth/encryption/strategies/en
 import { HashServiceInterface } from '../../auth/hash/hash-service.interface';
 import { HashStrategyInterface } from '../../auth/hash/strategies/hash-strategy.interface';
 import { ScryptCost } from '../../auth/hash/strategies/scrypt.hash-strategy';
+import { Require2faReauth } from '../../auth/models/require-2fa-reauth.model';
 import { RouteAuthConfiguration } from '../../auth/models/route-auth-configuration.model';
+import { ScimServiceInterface } from '../../auth/scim/scim-service.interface';
+import { ApiKeyServiceInterface } from '../../auth/strategies/api-key/api-key-service.interface';
 import { CookieAuthSessionOptionsInput } from '../../auth/strategies/cookie/cookie-auth.auth-strategy';
+import { AccessTokenRevocation } from '../../auth/strategies/jwt/access-token-revocation.type';
 import { JwtAuthOptions, JwtAuthOptionsInput } from '../../auth/strategies/jwt/jwt-auth-options.model';
-import { PasswordResetEmailTemplate } from '../../auth/strategies/jwt/jwt-auth.controller';
+import { JwtServiceInterface } from '../../auth/strategies/jwt/jwt-service.interface';
 import { UserServiceInterface } from '../../auth/user/user-service.interface';
 import { BackupServiceInterface } from '../../backup/backup-service.interface';
 import { WriteThroughReadThroughCache } from '../../caching/cache/read-through/write-through-read-through.cache';
@@ -44,11 +57,14 @@ import { MultithreadingOptions } from '../../multithreading/models/multithreadin
 import { MultithreadingServiceInterface } from '../../multithreading/services/multithreading-service.interface';
 import { OpenApiServiceInterface } from '../../open-api/open-api-service.interface';
 import { FormDataLimits } from '../../parsing/form-data/form-data-limits.model';
-import { CspOptions } from '../../parsing/html/csp-options.model';
+import { CspOptions, CspOptionsInput } from '../../parsing/html/csp-options.model';
 import { ParserInterface } from '../../parsing/parser.interface';
 import { RateLimiterInterface } from '../../rate-limiting/limiter/rate-limiter.interface';
 import { RateLimitingServiceInterface } from '../../rate-limiting/rate-limiting-service.interface';
 import { RouterInterface } from '../../routing/router.interface';
+import { SmsServiceInterface } from '../../sms/sms-service.interface';
+import { MembershipServiceInterface } from '../../tenancy/membership/membership-service.interface';
+import { TenantServiceInterface } from '../../tenancy/tenant-service.interface';
 import { OpenTelemetrySpanExporter } from '../../tracing/open-telemetry/open-telemetry-api.model';
 import { TraceBufferInterface } from '../../tracing/trace-buffer.interface';
 import { TracerInterface } from '../../tracing/tracer.interface';
@@ -56,7 +72,7 @@ import { Newable } from '../../types/newable.type';
 import { FsPath } from '../../utilities/fs.utilities';
 import { ValidationServiceInterface } from '../../validation/validation-service.interface';
 import { VersioningServiceInterface } from '../../versioning/versioning-service.interface';
-import { WebsocketOptions } from '../../websocket/models/websocket-options.model';
+import { WebsocketOptions, WebsocketOptionsInput } from '../../websocket/models/websocket-options.model';
 import { WebsocketServiceInterface } from '../../websocket/services/websocket-service.interface';
 import { TokenRecord } from '../models/di-token.model';
 import { InjectionToken } from '../models/injection-token.model';
@@ -103,13 +119,32 @@ export const ZIBRI_DI_TOKENS = {
     OPEN_API_AUTH: ziToken<RouteAuthConfiguration>('zi.open_api_auth'),
     AUTH_SERVICE: ziToken<AuthServiceInterface>('zi.auth_service'),
     REVALIDATE_USER_ON_AUTH_CHECK: ziToken<boolean>('zi.revalidate_user_on_auth_check'),
+    /**
+     * When an access token stops working once what it was issued for has ended: when it expires, or
+     * immediately, which reads on every check of a token whether its login or its client still exists.
+     */
+    ACCESS_TOKEN_REVOCATION: ziToken<AccessTokenRevocation>('zi.access_token_revocation'),
+    AUTHORIZATION_SERVER_SERVICE: ziToken<AuthorizationServerServiceInterface>('zi.authorization_server_service'),
     // eslint-disable-next-line typescript/no-explicit-any
     AUTH_RATE_LIMITER: ziToken<RateLimiterInterface<any>>('zi.auth_rate_limiter'),
     AUTH_RATE_LIMIT_OPTIONS: ziToken<AuthRateLimitOptions>('zi.auth_rate_limit_options'),
     TWO_FACTOR_SERVICE: ziToken<TwoFactorServiceInterface>('zi.two_factor_service'),
+    TWO_FACTOR_FAILURE_DELAY_IN_MS: ziToken<number>('zi.two_factor_failure_delay_in_ms'),
+    REQUIRE_2FA_REAUTH: ziToken<Require2faReauth>('zi.require_2fa_reauth'),
+    REQUIRE_2FA_REAUTH_WINDOW_IN_MS: ziToken<number>('zi.require_2fa_reauth_window_in_ms'),
     OTP_HEADER: ziToken<string>('zi.otp_header'),
     OTP_VALIDATION_WINDOW_IN_MS: ziToken<OtpValidationWindowInMs>('zi.otp_validation_window_in_ms'),
     OTP_LENGTH: ziToken<number>('zi.otp_length'),
+    PASSKEY_HEADER: ziToken<string>('zi.passkey_header'),
+    EMAIL_CODE_HEADER: ziToken<string>('zi.email_code_header'),
+    SMS_CODE_HEADER: ziToken<string>('zi.sms_code_header'),
+    // undefined for an application that provides none, which is the one not sending codes by text message
+    SMS_CODE_LIMITS: ziToken<SmsCodeLimits | undefined>('zi.sms_code_limits'),
+    RECOVERY_CODE_HEADER: ziToken<string>('zi.recovery_code_header'),
+    API_KEY_HEADER: ziToken<string>('zi.api_key_header'),
+    API_KEY_SERVICE: ziToken<ApiKeyServiceInterface>('zi.api_key_service'),
+    SCIM_SERVICE: ziToken<ScimServiceInterface>('zi.scim_service'),
+    TWO_FACTOR_CODE_OPTIONS: ziToken<TwoFactorCodeOptions>('zi.two_factor_code_options'),
     PARSER: ziToken<ParserInterface>('zi.parser_service'),
     VALIDATION_SERVICE: ziToken<ValidationServiceInterface>('zi.validation_service'),
     DATA_SOURCE_SERVICE: ziToken<DataSourceServiceInterface>('zi.data_source_service'),
@@ -121,9 +156,17 @@ export const ZIBRI_DI_TOKENS = {
     HTTP_SERVER_TIMEOUTS: ziToken<HttpServerTimeouts>('zi.http_server_timeouts'),
     COMPRESSION_OPTIONS: ziToken<CompressionOptions>('zi.compression_options'),
     LEASE_SERVICE: ziToken<LeaseServiceInterface>('zi.lease_service'),
+    TENANT_SERVICE: ziToken<TenantServiceInterface>('zi.tenant_service'),
+    MEMBERSHIP_SERVICE: ziToken<MembershipServiceInterface>('zi.membership_service'),
     LEASE_DRAIN_TIMEOUT_IN_MS: ziToken<number>('zi.lease_drain_timeout_in_ms'),
     JWT_AUTH_OPTIONS_INPUT: ziToken<JwtAuthOptionsInput>('zi.jwt_auth_options_input'),
     JWT_AUTH_OPTIONS: ziToken<JwtAuthOptions>('zi.jwt_auth_options'),
+    JWT_SERVICE: ziToken<JwtServiceInterface>('zi.jwt_service'),
+    DPOP_SERVICE: ziToken<DpopServiceInterface>('zi.dpop_service'),
+    /**
+     * Whether the DPoP proofs of clients carry a nonce the application issued. Defaults to false.
+     */
+    DPOP_NONCES: ziToken<boolean>('zi.dpop_nonces'),
     COOKIE_AUTH_SESSION_OPTIONS: ziToken<CookieAuthSessionOptionsInput>('zi.cookie_auth_session_options'),
     COOKIE_AUTH_REFRESH_SESSION_OPTIONS: ziToken<CookieAuthSessionOptionsInput>('zi.cookie_auth_refresh_session_options'),
     COOKIE_AUTH_SESSION_EXPIRES_IN_MS: ziToken<number>('zi.cookie_auth_session_expires_in_ms'),
@@ -132,6 +175,10 @@ export const ZIBRI_DI_TOKENS = {
     CONFIRM_PASSWORD_RESET_URL: ziToken<string | undefined>('zi.confirm_password_reset_url'),
     // eslint-disable-next-line typescript/no-explicit-any
     PASSWORD_RESET_EMAIL_TEMPLATE: ziToken<PasswordResetEmailTemplate<any, any> | undefined>('zi.password_reset_email_template'),
+    FEDERATION_OPTIONS: ziToken<FederationOptions | undefined>('zi.federation_options'),
+    PASSKEY_OPTIONS: ziToken<PasskeyOptions | undefined>('zi.passkey_options'),
+    PASSKEY_SERVICE: ziToken<PasskeyServiceInterface>('zi.passkey_service'),
+    FIDO_METADATA_SERVICE: ziToken<FidoMetadataServiceInterface>('zi.fido_metadata_service'),
     USER_SERVICE: ziToken<UserServiceInterface>('zi.user_service'),
     CRON_SERVICE: ziToken<CronServiceInterface>('zi.cron_service'),
     CRON_EXECUTION_LEASE_IN_MS: ziToken<number>('zi.cron_execution_lease_in_ms'),
@@ -140,8 +187,10 @@ export const ZIBRI_DI_TOKENS = {
     BACKUP_TEMP_FOLDER: ziToken<FsPath>('zi.backup_temp_folder'),
     VERSIONS_PATH: ziToken<FsPath>('zi.versions_path'),
     TRANSLATIONS_PATH: ziToken<FsPath>('zi.translations_path'),
+    ASSETS_PATH: ziToken<FsPath>('zi.assets_path'),
     FORM_DATA_LIMITS: ziToken<FormDataLimits>('zi.form_data_limits'),
     EMAIL_SERVICE: ziToken<EmailServiceInterface>('zi.email_service'),
+    SMS_SERVICE: ziToken<SmsServiceInterface | undefined>('zi.sms_service'),
     EMAIL_CONFIG: ziToken<EmailConfigInput | undefined>('zi.email_config'),
     EMAIL_TRANSPORT: ziToken<EmailTransportInterface | undefined>('zi.email_transport'),
     // eslint-disable-next-line typescript/no-explicit-any
@@ -150,7 +199,9 @@ export const ZIBRI_DI_TOKENS = {
     MULTITHREADING_OPTIONS: ziToken<MultithreadingOptions>('zi.multithreading_options'),
     // eslint-disable-next-line typescript/no-explicit-any
     WEBSOCKET_SERVICE: ziToken<WebsocketServiceInterface<any>>('zi.websocket_service'),
-    WEBSOCKET_OPTIONS: ziToken<WebsocketOptions>('zi.websocket_options'),
+    // both undefined for an application that provides no input, which is the one without websockets
+    WEBSOCKET_OPTIONS_INPUT: ziToken<WebsocketOptionsInput | undefined>('zi.websocket_options_input'),
+    WEBSOCKET_OPTIONS: ziToken<WebsocketOptions | undefined>('zi.websocket_options'),
     HTTP_CLIENT: ziToken<HttpClientInterface>('zi.http_client'),
     HTTP_CLIENT_OPTIONS_INPUT: ziToken<HttpClientOptionsInput>('zi.http_client_options_input'),
     HTTP_CLIENT_OPTIONS: ziToken<HttpClientOptions>('zi.http_client_options'),
@@ -225,8 +276,9 @@ export const ZIBRI_DI_TOKENS = {
     LOCALIZE_OPTIONS: ziToken<LocalizeOptions>('zi.localize_options'),
     RATE_LIMITING_SERVICE: ziToken<RateLimitingServiceInterface>('zi.rate_limiting_service'),
     HANDLEBAR_OPTIONS: ziToken<HandlebarOptions>('zi.handlebar_options'),
+    DEFAULT_CSP_OPTIONS_INPUT: ziToken<CspOptionsInput>('zi.default_csp_options_input'),
+    DEFAULT_CSP_OPTIONS: ziToken<CspOptions>('zi.default_csp_options'),
     // dynamic/context based tokens
     CURRENT_REQUEST_CONTEXT: ziToken<HttpRequestContext | WebsocketRequestContext | undefined>('zi.current_request_context'),
-    DEFAULT_CSP_OPTIONS: ziToken<CspOptions>('zi.default_csp_options'),
     CURRENT_CACHE_CONTEXT: ziToken<CacheContext[] | undefined>('zi.current_cache_context')
 } as const satisfies TokenRecord;

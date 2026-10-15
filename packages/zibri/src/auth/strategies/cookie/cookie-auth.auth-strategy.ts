@@ -1,28 +1,23 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 
-import { CookieAuthConfirmPasswordResetData } from './cookie-auth-confirm-password-reset-data.model';
-import { CookieAuthCredentials, CookieAuthCredentialsData } from './cookie-auth-credentials.model';
 import { CookieAuthData } from './cookie-auth-data.model';
-import { CookieAuthLogoutData } from './cookie-auth-logout-data.model';
-import { CookieAuthRefreshLoginData } from './cookie-auth-refresh-login-data.model';
+import { CookieAuthLogoutData, CookieAuthLogoutDto } from './cookie-auth-logout-data.model';
+import { CookieAuthRefreshLoginData, CookieAuthRefreshLoginDto } from './cookie-auth-refresh-login-data.model';
 import { CookieAuthRefreshSession, CookieAuthRefreshSessionCreateData } from './cookie-auth-refresh-session.model';
-import { CookieAuthRequestPasswordResetData } from './cookie-auth-request-password-reset-data.model';
 import { CookieAuthSessionCleanupCronJob } from './cookie-auth-session-cleanup.cron-job';
 import { CookieAuthSession, CookieAuthSessionCreateData } from './cookie-auth-session.model';
 import { ZibriApplication } from '../../../application/application';
 import { HttpRequestContext } from '../../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../../context/request/websocket-request.context';
+import { IsolationLevel } from '../../../data-source/data-sources/data-source.interface';
 import { Repository } from '../../../data-source/repository/repository';
 import { Transaction } from '../../../data-source/transaction/transaction.model';
-import { InjectRepository } from '../../../di/decorators/inject-repository.decorator';
+import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { NoProviderError } from '../../../di/errors/no-provider.error';
 import { inject } from '../../../di/inject.function';
-import { type EmailServiceInterface } from '../../../email/email-service.interface';
-import { EmailPriority } from '../../../email/models/email-priority.enum';
 import { CredentialReusedError } from '../../../error-handling/errors/credential-reused.error';
-import { HttpError } from '../../../error-handling/errors/http.error';
 import { NotFoundError } from '../../../error-handling/errors/not-found.error';
 import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.error';
 import { type CookieOptions } from '../../../http/cookie-options.model';
@@ -30,18 +25,20 @@ import { HttpMethod } from '../../../http/http-method.enum';
 import { KnownHeader } from '../../../http/known-header.enum';
 import { $ts } from '../../../localization/translate.function';
 import { OpenApiSecuritySchemeObject } from '../../../open-api/open-api.model';
-import { TsxUtilities } from '../../../tsx/tsx.utilities';
+import { Newable } from '../../../types/newable.type';
 import { type OmitStrict } from '../../../types/omit-strict.type';
 import { Ms } from '../../../utilities/ms';
 import { UUIDUtilities } from '../../../utilities/uuid.utilities';
-import { type HashServiceInterface } from '../../hash/hash-service.interface';
-import type { HashString } from '../../hash/hash.utilities';
-import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy';
+import { validateEntitiesRegistered } from '../../../utilities/validate-entities-registered.function';
+import { FederatedSessionColumns } from '../../authenticators/federated/federated-session-columns.model';
+import { FederatedSessionMatch } from '../../authenticators/federated/federated-session-match.model';
+import { FederatedSession } from '../../authenticators/federated/federated-session.model';
+import { FederatedSessionUtilities } from '../../authenticators/federated/federated-session.utilities';
+import { Authentication } from '../../models/authentication.model';
 import { BaseUser } from '../../models/base-user.model';
-import { PasswordResetToken, PasswordResetTokenCreateData } from '../../models/password-reset-token.model';
 import { type UserServiceInterface } from '../../user/user-service.interface';
-import { AuthStrategyInterface } from '../auth-strategy.interface';
-import { PasswordResetEmailTemplate } from '../jwt/jwt-auth.controller';
+import { AuthControllerStrategyInterface } from '../auth-controller-strategy.interface';
+import { CsrfTokenAuthStrategyInterface } from '../csrf-token-auth-strategy.interface';
 
 /**
  * Options input for any cookie session.
@@ -55,15 +52,15 @@ import { PasswordResetEmailTemplate } from '../jwt/jwt-auth.controller';
 export type CookieAuthSessionOptionsInput = OmitStrict<CookieOptions, 'maxAge' | 'expires' | 'signed' | 'httpOnly'>;
 
 /**
- * The pair minted by one rotation.
+ * A session and the refresh session it belongs to.
  */
-type RotatedSessions = {
+type SessionPair = {
     /**
-     * The new session.
+     * The session.
      */
     session: CookieAuthSession,
     /**
-     * The new refresh session, which is what carries the new csrf token.
+     * The refresh session, which is what carries the csrf token.
      */
     refreshSession: CookieAuthRefreshSession
 };
@@ -80,32 +77,41 @@ type CookieAuthSessionOptions = CookieOptions
 export class CookieAuthStrategy<
     RoleType extends string,
     UserType extends BaseUser<RoleType> = BaseUser<RoleType>
-> implements AuthStrategyInterface<
+> implements AuthControllerStrategyInterface<
     RoleType,
     UserType,
     CookieAuthData<RoleType>,
-    CookieAuthCredentialsData,
-    CookieAuthRequestPasswordResetData<RoleType, UserType>,
-    CookieAuthConfirmPasswordResetData,
     CookieAuthRefreshLoginData,
     CookieAuthLogoutData
-> {
+>, CsrfTokenAuthStrategyInterface<RoleType, UserType> {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly name: string = 'cookie';
     // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly authDataModel: Newable<CookieAuthData<RoleType>> = CookieAuthData;
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly refreshLoginModel: Newable<CookieAuthRefreshLoginDto> = CookieAuthRefreshLoginDto;
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly logoutModel: Newable<CookieAuthLogoutDto> = CookieAuthLogoutDto;
+    // the cookies go out with whichever response the login is started in, a redirect included
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly logsInWithResponse: boolean = true;
+    // eslint-disable-next-line jsdoc/require-jsdoc
     readonly securityScheme: OpenApiSecuritySchemeObject;
 
-    private readonly confirmPasswordResetUrl: string;
-    private readonly PasswordResetEmail: PasswordResetEmailTemplate<RoleType, UserType>;
-    private dummyPasswordHashPromise: Promise<HashString> | undefined;
     private readonly sessionOptions: CookieAuthSessionOptions;
     private readonly refreshSessionOptions: CookieAuthSessionOptions;
 
+    // read when used rather than injected, so that an application without the entities is told which
+    // ones to declare by init, instead of failing on a repository token while this is built
+    private get sessionRepository(): Repository<CookieAuthSession, CookieAuthSessionCreateData> {
+        return inject(repositoryTokenFor(CookieAuthSession));
+    }
+
+    private get refreshSessionRepository(): Repository<CookieAuthRefreshSession, CookieAuthRefreshSessionCreateData> {
+        return inject(repositoryTokenFor(CookieAuthRefreshSession));
+    }
+
     constructor(
-        @InjectRepository(CookieAuthSession)
-        private readonly sessionRepository: Repository<CookieAuthSession, CookieAuthSessionCreateData>,
-        @InjectRepository(CookieAuthRefreshSession)
-        private readonly refreshSessionRepository: Repository<CookieAuthRefreshSession, CookieAuthRefreshSessionCreateData>,
         @Inject(ZIBRI_DI_TOKENS.USER_SERVICE)
         private readonly userService: UserServiceInterface,
         @Inject(ZIBRI_DI_TOKENS.CSRF_TOKEN_HEADER)
@@ -118,35 +124,12 @@ export class CookieAuthStrategy<
         private readonly sessionExpiresInMs: number,
         @Inject(ZIBRI_DI_TOKENS.COOKIE_AUTH_REFRESH_SESSION_EXPIRES_IN_MS)
         private readonly refreshSessionExpiresInMs: number,
-        @Inject(ZIBRI_DI_TOKENS.PASSWORD_RESET_TOKEN_EXPIRES_IN_MS)
-        private readonly passwordResetTokenExpiresInMs: number,
-        @InjectRepository(PasswordResetToken)
-        private readonly passwordResetTokenRepository: Repository<PasswordResetToken>,
-        @InjectRepository(CookieAuthCredentials)
-        private readonly credentialsRepository: Repository<CookieAuthCredentials>,
-        @Inject(ZIBRI_DI_TOKENS.EMAIL_SERVICE)
-        private readonly emailService: EmailServiceInterface,
-        @Inject(ZIBRI_DI_TOKENS.HASH_SERVICE)
-        private readonly hashService: HashServiceInterface,
         @Inject(ZIBRI_DI_TOKENS.COOKIE_SIGN_SECRET)
         secret: string | undefined
     ) {
         if (!secret) {
             throw new NoProviderError(ZIBRI_DI_TOKENS.COOKIE_SIGN_SECRET, []);
         }
-        const confirmPasswordResetUrl: string | undefined = inject(ZIBRI_DI_TOKENS.CONFIRM_PASSWORD_RESET_URL);
-        if (!confirmPasswordResetUrl) {
-            throw new NoProviderError(ZIBRI_DI_TOKENS.CONFIRM_PASSWORD_RESET_URL, []);
-        }
-        const PasswordResetEmail: PasswordResetEmailTemplate<RoleType, UserType> | undefined = inject(
-            ZIBRI_DI_TOKENS.PASSWORD_RESET_EMAIL_TEMPLATE
-        );
-        if (!PasswordResetEmail) {
-            throw new NoProviderError(ZIBRI_DI_TOKENS.PASSWORD_RESET_EMAIL_TEMPLATE, []);
-        }
-
-        this.confirmPasswordResetUrl = confirmPasswordResetUrl;
-        this.PasswordResetEmail = PasswordResetEmail;
 
         this.sessionOptions = {
             maxAge: this.sessionExpiresInMs,
@@ -172,6 +155,8 @@ export class CookieAuthStrategy<
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     init(app: ZibriApplication): void {
+        // first, since the cleanup job below needs them as well
+        validateEntitiesRegistered(CookieAuthStrategy.name, app, CookieAuthSession, CookieAuthRefreshSession);
         if (!app.options.cronJobs.includes(CookieAuthSessionCleanupCronJob)) {
             app.options.cronJobs.push(CookieAuthSessionCleanupCronJob);
         }
@@ -198,115 +183,104 @@ export class CookieAuthStrategy<
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async resolveUser(context: HttpRequestContext | WebsocketRequestContext): Promise<UserType | undefined> {
-        const session: CookieAuthSession | undefined = await this.resolveAndValidateSession(context, undefined);
-        if (!session) {
+        const sessions: SessionPair | undefined = await this.resolveAndValidateSessions(context, undefined);
+        if (!sessions) {
             return undefined;
         }
 
-        return await this.userService.findById<RoleType, UserType>(session.userId);
+        return await this.userService.findById<RoleType, UserType>(sessions.session.userId);
     }
 
     /**
-     * The stored password for a user, or undefined when there is none to compare against.
+     * Resolves the csrf token that goes with the session the request carries.
      *
-     * A user can exist without credentials, and that has to answer the same as a wrong password
-     * rather than as an error.
-     * @param user - The user to look up.
-     * @returns The stored hash, or undefined when the user has no credentials.
+     * Renews a session that has lapsed first, like any request resolving it does, so the token is the
+     * one that is valid from now on.
+     * @param context - The request carrying the session cookies.
+     * @returns The csrf token, or undefined when the request carries no valid session.
      */
-    private async findStoredPassword(user: UserType): Promise<HashString | undefined> {
-        try {
-            const credentials: CookieAuthCredentials = await this.userService.resolveCredentialsFor(user);
-            return credentials.password;
-        }
-        catch {
+    async resolveCsrfToken(context: HttpRequestContext | WebsocketRequestContext): Promise<string | undefined> {
+        const sessions: SessionPair | undefined = await this.resolveAndValidateSessions(context, undefined);
+        return sessions?.refreshSession.csrfToken;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async resolveAuthenticatedAt(context: HttpRequestContext | WebsocketRequestContext): Promise<Date | undefined> {
+        // read without validating again. Validating rotates a session that has lapsed, and the user
+        // this is asked about was resolved earlier in the same request - which already rotated it,
+        // so a second rotation would present a refresh session that request just spent, and end the
+        // login as reuse. A blacklisted row is therefore not refused here: inside this request it is
+        // the one the rotation just replaced, and it carries the same login time as its successor
+        const refreshSession: CookieAuthRefreshSession | undefined = await this.resolveRefreshSession(context, undefined);
+        if (!refreshSession || new Date(refreshSession.expirationDate).getTime() <= Date.now()) {
             return undefined;
         }
-    }
-
-    /**
-     * Re-hashes a password that was just proven correct, if the stored hash is out of date.
-     *
-     * See the same method on the jwt strategy for why it lives here rather than in `AuthService`.
-     * @param user - The user that just logged in.
-     * @param password - The plaintext they logged in with.
-     * @param storedPassword - The hash it was compared against.
-     */
-    private async upgradeStoredPassword(user: UserType, password: string, storedPassword: HashString): Promise<void> {
-        try {
-            if (!await this.hashService.needsRehash(storedPassword)) {
-                return;
-            }
-            await this.credentialsRepository.updateAll({ userId: user.id }, { password });
-        }
-        catch (error) {
-            inject(ZIBRI_DI_TOKENS.LOGGER).warn(
-                `Could not upgrade the stored password hash for user ${user.id}: ${String(error)}`
-            );
-        }
-    }
-
-    /**
-     * Something to compare a password against when there is nothing real to compare it against.
-     *
-     * Hashed from a value nobody holds, with the default strategy, so a comparison against it costs
-     * what a comparison against a real password costs. Computed once and reused.
-     * @returns The stand-in hash.
-     */
-    private async dummyPasswordHash(): Promise<HashString> {
-        this.dummyPasswordHashPromise ??= Promise.resolve(this.hashService.hash(randomBytes(32).toString('hex')));
-        return await this.dummyPasswordHashPromise;
+        return new Date(refreshSession.authenticatedAt);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async login(credentials: CookieAuthCredentialsData): Promise<CookieAuthData<RoleType>> {
-        try {
-            const foundUser: UserType | undefined = await this.userService.findByEmail(credentials.email, { required: false });
-            const storedPassword: HashString | undefined = foundUser == undefined
-                ? undefined
-                : await this.findStoredPassword(foundUser);
-
-            // one comparison on every path - see the same note on the jwt strategy. Without it the
-            // response time says whether the address is registered.
-            const passwordMatched: boolean = await this.hashService.equal(
-                credentials.password,
-                storedPassword ?? await this.dummyPasswordHash()
-            );
-            if (foundUser == undefined || storedPassword == undefined || !passwordMatched) {
-                throw new UnauthorizedError($ts`Invalid email or password.`);
-            }
-            await this.upgradeStoredPassword(foundUser, credentials.password, storedPassword);
-
-            const refreshSession: CookieAuthRefreshSession = await this.createRefreshSession(
-                foundUser.id,
-                UUIDUtilities.generate(),
-                credentials.transaction,
-                randomBytes(32).toString('base64url')
-            );
-            const session: CookieAuthSession = await this.createSession(refreshSession, credentials.transaction);
-            this.setRefreshSessionCookie(refreshSession);
-            this.setSessionCookie(session);
-
-            return {
-                userId: session.userId,
-                roles: foundUser.roles,
-                csrfToken: refreshSession.csrfToken,
-                sessionExpirationDate: session.expirationDate,
-                refreshSessionExpirationDate: refreshSession.expirationDate
-            };
-        }
-        catch (error) {
-            // see the same note on the jwt strategy: every way of being *refused* answers alike, but
-            // a fault is not one of them and must not be dressed as one
-            if (!(error instanceof HttpError)) {
-                throw error;
-            }
-            throw new UnauthorizedError($ts`Invalid email or password.`);
-        }
+    async resolveExpiresAt(context: HttpRequestContext | WebsocketRequestContext): Promise<Date | undefined> {
+        // the refresh session's, read without validating for the reason resolveAuthenticatedAt gives:
+        // a session that lapses before it is rotated into a new one, so the pair is accepted until then
+        const refreshSession: CookieAuthRefreshSession | undefined = await this.resolveRefreshSession(context, undefined);
+        return refreshSession == undefined ? undefined : new Date(refreshSession.expirationDate);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async logout(data: CookieAuthLogoutData): Promise<void> {
+    async startTransaction(): Promise<Transaction> {
+        return await this.sessionRepository.dataSource.startTransaction({ isolationLevel: IsolationLevel.READ_COMMITTED });
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async startLogin(authentication: Authentication<UserType>, transaction: Transaction | undefined): Promise<CookieAuthData<RoleType>> {
+        const refreshSession: CookieAuthRefreshSession = await this.createRefreshSession(
+            authentication.user.id,
+            UUIDUtilities.generate(),
+            transaction,
+            randomBytes(32).toString('base64url'),
+            // rotation carries both from here on
+            authentication.authenticatedAt,
+            FederatedSessionUtilities.toColumns(authentication.federatedSession)
+        );
+        const session: CookieAuthSession = await this.createSession(refreshSession, transaction);
+        this.setRefreshSessionCookie(refreshSession);
+        this.setSessionCookie(session);
+
+        return {
+            userId: session.userId,
+            roles: authentication.user.roles,
+            csrfToken: refreshSession.csrfToken,
+            sessionExpirationDate: session.expirationDate,
+            refreshSessionExpirationDate: refreshSession.expirationDate
+        };
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async endLogins(userId: string, transaction: Transaction | undefined): Promise<void> {
+        await this.sessionRepository.deleteAll({ userId }, { transaction });
+        // the refresh sessions too. With only the sessions gone, a refresh session from before rotated
+        // into a fresh session on its next refresh, so whoever held the cookies stayed logged in
+        // through a password reset that was meant to end their access
+        await this.refreshSessionRepository.deleteAll({ userId }, { transaction });
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async endFederatedLogins(session: FederatedSessionMatch, transaction: Transaction | undefined): Promise<void> {
+        const refreshSessions: CookieAuthRefreshSession[] = await this.refreshSessionRepository.findAll({
+            where: FederatedSessionUtilities.toWhere(session),
+            transaction
+        });
+        const familyIds: string[] = [...new Set(refreshSessions.map(refreshSession => refreshSession.familyId))];
+        if (!familyIds.length) {
+            return;
+        }
+        // the sessions as well, which carry no provider of their own: they hang off the family
+        await this.sessionRepository.deleteAll({ familyId: { oneOf: familyIds } }, { transaction });
+        await this.refreshSessionRepository.deleteAll({ familyId: { oneOf: familyIds } }, { transaction });
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async logout(data: CookieAuthLogoutData): Promise<FederatedSession | undefined> {
         try {
             const refreshSession: CookieAuthRefreshSession | undefined = await this.refreshSessionRepository.findOne(
                 { where: { id: data.refreshSessionId }, transaction: data.transaction, required: false }
@@ -320,9 +294,11 @@ export class CookieAuthStrategy<
             if (data.clearCookies) {
                 this.clearCookies();
             }
+            return refreshSession == undefined ? undefined : FederatedSessionUtilities.fromColumns(refreshSession);
         }
         catch {
             // ignore
+            return undefined;
         }
     }
 
@@ -395,7 +371,7 @@ export class CookieAuthStrategy<
     private async rotateSessions(
         currentRefreshSession: CookieAuthRefreshSession,
         transaction: Transaction | undefined
-    ): Promise<RotatedSessions> {
+    ): Promise<SessionPair> {
         if (currentRefreshSession.blacklisted) {
             // ends here. This used to log out and then carry on to mint a new refresh session and a
             // new access session in the same family, handing the presenter of a spent credential a
@@ -435,7 +411,10 @@ export class CookieAuthStrategy<
             currentRefreshSession.userId,
             currentRefreshSession.familyId,
             transaction,
-            randomBytes(32).toString('base64url')
+            randomBytes(32).toString('base64url'),
+            // the login's time, not now: a rotation is not a login. Its session at a provider stays too
+            currentRefreshSession.authenticatedAt,
+            FederatedSessionUtilities.toColumns(FederatedSessionUtilities.fromColumns(currentRefreshSession))
         );
 
         // 3. create new access session
@@ -469,84 +448,6 @@ export class CookieAuthStrategy<
         context.response.setHeader(this.csrfTokenHeader as KnownHeader, csrfToken);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    async requestPasswordReset(data: CookieAuthRequestPasswordResetData<RoleType, UserType>): Promise<void> {
-        if (await this.activePasswordResetTokenAlreadyExists(data.user, data.transaction)) {
-            // silently, for the same reason as in the jwt strategy: a different answer here named an
-            // address that exists and had recently been asked about
-            return;
-        }
-
-        // kept here rather than read back off the entity - the property is hashed on the way in, so
-        // this is the only moment the token itself exists. See the same note in the jwt strategy.
-        const tokenValue: string = randomBytes(16).toString('hex');
-        const resetTokenData: PasswordResetTokenCreateData = {
-            value: tokenValue,
-            userId: data.user.id,
-            expirationDate: new Date(Date.now() + this.passwordResetTokenExpiresInMs)
-        };
-        await this.passwordResetTokenRepository.create(resetTokenData, { transaction: data.transaction });
-
-        const html: string = TsxUtilities.renderEmail(
-            this.PasswordResetEmail,
-            {
-                user: data.user,
-                confirmPasswordResetLink: `${data.emailData?.confirmPasswordResetUrl ?? this.confirmPasswordResetUrl}/${tokenValue}`
-            }
-        );
-
-        await this.emailService.queue({
-            recipients: [data.user.email],
-            subject: 'Password Reset',
-            html,
-            priority: EmailPriority.HIGH,
-            ...data.emailData,
-            // after the spread, so an application cannot ask for this one to be kept - see the same
-            // note in the jwt strategy
-            persist: false
-        });
-    }
-
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    async confirmPasswordReset(data: CookieAuthConfirmPasswordResetData): Promise<void> {
-        const resetToken: PasswordResetToken | undefined = await this.passwordResetTokenRepository.findOne(
-            {
-                // hashed to be searched for, because that is how it is stored
-                where: { value: await this.hashService.hash(data.resetToken, { strategy: Sha256HashStrategy }) },
-                transaction: data.transaction,
-                required: false
-            }
-        );
-        if (!resetToken) {
-            throw new UnauthorizedError($ts`Link invalid`);
-        }
-        if (new Date(resetToken.expirationDate).getTime() <= Date.now()) {
-            await this.passwordResetTokenRepository.deleteById(resetToken.id, { transaction: data.transaction });
-            throw new UnauthorizedError($ts`Link expired`);
-        }
-
-        const user: UserType = await this.userService.findById(resetToken.userId);
-        const credentials: CookieAuthCredentials = await this.userService.resolveCredentialsFor(user);
-
-        await this.credentialsRepository.updateById(credentials.id, { password: data.newPassword }, { transaction: data.transaction });
-        await this.passwordResetTokenRepository.deleteById(resetToken.id, { transaction: data.transaction });
-        await this.sessionRepository.deleteAll({ userId: resetToken.userId }, { transaction: data.transaction });
-        // TODO: set require password change to false
-    }
-
-    private async activePasswordResetTokenAlreadyExists(user: BaseUser<RoleType>, transaction: Transaction | undefined): Promise<boolean> {
-        const existingToken: PasswordResetToken | undefined = await this.passwordResetTokenRepository.findOne(
-            { where: { userId: user.id }, transaction, required: false }
-        );
-        if (existingToken) {
-            if (new Date(existingToken.expirationDate).getTime() > Date.now()) {
-                return true;
-            }
-            await this.passwordResetTokenRepository.deleteById(existingToken.id, { transaction });
-        }
-        return false;
-    }
-
     private async resolveSession(
         context: HttpRequestContext | WebsocketRequestContext,
         transaction: Transaction | undefined
@@ -562,10 +463,10 @@ export class CookieAuthStrategy<
         return await this.sessionRepository.findOne({ where: { id: currentSessionId }, transaction, required: false });
     }
 
-    private async resolveAndValidateSession(
+    private async resolveAndValidateSessions(
         context: HttpRequestContext | WebsocketRequestContext,
         transaction: Transaction | undefined
-    ): Promise<CookieAuthSession | undefined> {
+    ): Promise<SessionPair | undefined> {
         const refreshSession: CookieAuthRefreshSession | undefined = await this.resolveRefreshSession(context, transaction);
 
         if (!refreshSession) {
@@ -587,14 +488,14 @@ export class CookieAuthStrategy<
         if (new Date(session.expirationDate).getTime() <= Date.now()) {
             // the new csrf token reaches this caller through the response header, since this renewal
             // happens inside somebody else's request and there is no body of ours to put it in
-            return (await this.rotateSessions(refreshSession, transaction)).session;
+            return await this.rotateSessions(refreshSession, transaction);
         }
 
         if (session.familyId !== refreshSession.familyId || session.userId !== refreshSession.userId) {
             return undefined;
         }
 
-        return session;
+        return { session, refreshSession };
     }
 
     private isCsrfTokenValid(
@@ -658,14 +559,18 @@ export class CookieAuthStrategy<
         userId: string,
         familyId: string,
         transaction: Transaction | undefined,
-        csrfToken: string
+        csrfToken: string,
+        authenticatedAt: Date,
+        federatedSession: FederatedSessionColumns
     ): Promise<CookieAuthRefreshSession> {
         return await this.refreshSessionRepository.create({
             userId,
             blacklisted: false,
             familyId,
             expirationDate: new Date(Date.now() + this.refreshSessionExpiresInMs + (Ms.MINUTE * 5)),
-            csrfToken
+            csrfToken,
+            authenticatedAt,
+            ...federatedSession
         }, { transaction });
     }
 

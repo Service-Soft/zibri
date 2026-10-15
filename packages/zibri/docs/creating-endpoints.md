@@ -5,8 +5,12 @@ Zibri uses controller classes for registering endpoints.
 | Export | Kind | Purpose |
 |---|---|---|
 | `Controller` | decorator | Marks a class as a controller and defines its base route |
+| `ControllerUtilities` | class | Where the endpoints of a controller are |
 | `Get` | decorator | Defines a GET endpoint |
 | `Post` | decorator | Defines a POST endpoint |
+| `Put` | decorator | Defines a PUT endpoint |
+| `Patch` | decorator | Defines a PATCH endpoint |
+| `Delete` | decorator | Defines a DELETE endpoint |
 | `Property` | namespace | Decorators for defining model properties |
 | `Body` | decorator | Injects and validates the request body, `Body.oneOf` for a body of several shapes |
 | `Param` | namespace | Decorators for path, query and header parameters |
@@ -15,6 +19,8 @@ Zibri uses controller classes for registering endpoints.
 | `Response` | namespace | Decorators for documenting OpenAPI responses |
 | `FileResponse` | class | Response type for returning files |
 | `HtmlResponse` | class | Response type for returning html |
+| `RedirectResponse` | class | Response type for sending the caller to another url |
+| `JsonResponse` | class | Response type for answering with headers beside a json body |
 | `File` | class | Represents an uploaded file |
 | `FormData` | class | Typed wrapper for a form-data request body |
 | `MimeType` | enum | Mime type constants (eg. for allowed file uploads) |
@@ -43,6 +49,8 @@ export class UserController {
 ```
 
 The `/users` provided to the decorator is the base route of the controller. Meaning that all endpoints you define in the controller are prefixed with it.
+
+A class extending a controller keeps its endpoints. Give it a `@Controller` of its own to serve them under another base route. `ControllerUtilities.resolveUrl(UserController)` answers where the endpoints of a controller are: your `baseUrl`, followed by its base route.
 
 You then need to register the controller in the application:
 
@@ -158,6 +166,8 @@ export class WritingUserController {
 
 For the special case of uploading files we have a [separate section](#handling-file-uploads). A body sent as xml is declared with `type: MimeType.XML`, see [XML](./xml.md#receiving-an-xml-body).
 
+A json body is read in every json type: `application/json`, and every format written in json that carries the `+json` suffix, such as `application/scim+json` or `application/merge-patch+json`. A body that names one of them, eg. `@Body(UserCreateDTO, { type: MimeType.JSON_SCIM })`, is read in that one alone, and any other is refused with a `415`.
+
 You can try the example above and navigate to your applications open api explorer (`http://localhost:3000/explorer` by default).
 
 You should now see a new route post `/users` with the correctly defined request body and return type.
@@ -173,6 +183,36 @@ export class BulkUserController {
     }
 }
 ```
+
+#### A form
+
+A body an html form sends without files is declared with `type: MimeType.FORM_URL_ENCODED`. Each field fills the property of the same name, read as that property's type, and a field sent once per item fills a list:
+
+```ts
+// src/controllers/newsletter.controller.ts
+import { Body, Controller, MimeType, Post, Property } from 'zibri';
+
+class NewsletterSignUp {
+    @Property.string({ format: 'email' })
+    email!: string;
+
+    @Property.array({ items: { type: 'string' }, required: false })
+    topics?: string[];
+}
+
+@Controller('/newsletter-sign-ups')
+export class NewsletterSignUpController {
+    @Post()
+    async signUp(
+        @Body(NewsletterSignUp, { type: MimeType.FORM_URL_ENCODED })
+        form: NewsletterSignUp
+    ): Promise<void> {
+        // your logic
+    }
+}
+```
+
+A form with files is a [multipart body](#handling-file-uploads).
 
 #### A body of several shapes
 
@@ -212,7 +252,7 @@ export class InviteController {
 
 The body becomes the first shape it fits, in the order they are listed. So put the more specific shape first: a date is also a string, so with `string` listed before `date` you will never get a `Date`. A body that fits none of them is answered with a `400` naming every shape. In the OpenAPI document the body is `anyOf` its shapes.
 
-A form data body can be one of several classes, with `type: MimeType.FORM_DATA`. Each shape has to be a class.
+A form body can be one of several classes, with `type: MimeType.FORM_DATA` or `type: MimeType.FORM_URL_ENCODED`. Each shape has to be a class.
 
 #### path, query and header params
 
@@ -351,7 +391,7 @@ class FileUploadDTO {
     @Property.file({ allowedMimeTypes: [MimeType.JSON] })
     file!: File;
 
-    @Property.array({ items: { type: 'file' } })
+    @Property.array({ items: { type: 'file', allowedMimeTypes: 'all' } })
     files!: File[];
 }
 
@@ -368,6 +408,9 @@ export class FileController {
 ```
 
 > Notice that `FormData` is being imported from Zibri.
+
+Every file property says which files it accepts: `allowedMimeTypes` lists the mime types, or is
+`'all'` for any of them. A file of another type is answered with `400`.
 
 Uploads are written to disk while the request is handled, and a cron job removes the ones nothing claimed. The default location is `.zibri/uploads` in your application — the nearest `package.json` above the entry point, so it stays put no matter which directory the app was started from. A generated project's `.gitignore` already covers it.
 
@@ -464,7 +507,7 @@ export class LoginAuthController {
 ```
 
 #### hasRole
-Determines if the currently logged in user has a certain role:
+Determines if the currently logged in user holds a certain role in the [tenant](./tenancy.md#members-and-their-roles) the request is for, through their membership in it:
 
 ```ts
 // src/controllers/auth.controller.ts
@@ -476,11 +519,30 @@ export class AdminAuthController {
 
     // ...
 
-    // ensures that the logged in user has the role of "admin"
+    // ensures that the logged in user has the role of "admin" in the request's tenant
     @Auth.hasRole(['admin'])
     @Get('/admin-stuff')
     async getAdminStuff(): Promise<unknown> {
         // your logic that returns stuff for admin users
+        return {};
+    }
+}
+```
+
+#### hasPlatformRole
+Determines if the currently logged in user holds a certain role of their own, independant of the tenant the request is for:
+
+```ts
+// src/controllers/operations.controller.ts
+import { Auth, Controller, Get } from 'zibri';
+
+@Controller('/operations')
+export class OperationsController {
+
+    // ensures that the logged in user operates the whole application
+    @Auth.hasPlatformRole(['operator'])
+    @Get('/tenants')
+    async listTenants(): Promise<unknown> {
         return {};
     }
 }
@@ -501,6 +563,9 @@ export class AdminAuthController {
     }
 })
 export class PersonalDocument extends BaseEntity {
+    @Property.string({ format: 'uuid' })
+    tenantId!: string;
+
     @Property.string({ format: 'uuid' })
     userId!: string;
 }
@@ -553,6 +618,10 @@ export class DocumentedUserController {
 
 }
 ```
+
+A json response is written as `application/json`, or as another json type it names among its `mimeTypes`, eg. `mimeTypes: [MimeType.JSON_SCIM, MimeType.JSON]`: the request's `Accept` picks one, and the first is taken when it accepts several or names none.
+
+Several `@Response.object` with the same status are one of their classes, which the OpenAPI document describes as `oneOf`. `@Response.object` also takes a function answering the class, eg. `@Response.object(() => User)`, for a class that is only known once the application has started.
 
 The json and empty responses of an endpoint answer in the same formats, and the application refuses to start otherwise. `@Response.empty()` answers json and xml by default, so next to responses answering one of them alone it names that one, eg. `mimeTypes: [MimeType.JSON]`. See [XML](./xml.md#answering-with-xml).
 
@@ -620,6 +689,54 @@ export class HtmlController {
 }
 
 ```
+
+#### Redirecting
+To send the caller on to another url, return a `RedirectResponse`. `@Response.redirect()` answers with 303 See Other, which a client follows with a GET; pass `status` for 302 Found or 307 Temporary Redirect:
+
+```ts
+// src/controllers/docs.controller.ts
+import { Controller, Get, RedirectResponse, Response } from 'zibri';
+
+@Controller('/docs')
+export class DocsController {
+    @Response.redirect()
+    @Get('/latest')
+    latest(): RedirectResponse {
+        return RedirectResponse.to('https://docs.example.com/v3');
+    }
+}
+```
+
+#### Answering with headers
+To answer with headers of your own beside a json body, return a `JsonResponse`. The status and the json type are the ones the route declares, as for a body returned as it is:
+
+```ts
+// src/controllers/document.controller.ts
+import { Controller, Get, JsonResponse, KnownHeader, Param, Property, Response } from 'zibri';
+
+class DocumentModel {
+    @Property.string()
+    id!: string;
+
+    @Property.number()
+    revision!: number;
+}
+
+@Controller('/documents')
+export class DocumentController {
+    @Response.object(DocumentModel)
+    @Get('/:id')
+    find(
+        @Param.path('id')
+        id: string
+    ): JsonResponse<DocumentModel> {
+        const document: DocumentModel = { id, revision: 3 };
+        return JsonResponse.of(document, { headers: { [KnownHeader.ETAG]: `W/"${document.revision}"` } });
+    }
+}
+```
+
+A `GET` answered with an `etag` answers a request whose `If-None-Match` names that etag with `304 Not Modified` and no body.
 
 ### Deadlines
 A handler has a limited time to produce a result. The application sets it with `handlerInMs`, a controller sets it for all of its routes, and a route sets its own:

@@ -20,5 +20,14 @@ export type BaseRepositoryOptions = {
      * Every use is a place the restriction does not hold, which is why it is spelled out at the call
      * rather than configured away somewhere.
      */
-    unscoped?: Unscoped
+    unscoped?: Unscoped,
+    /**
+     * Whether this call reaches the rows of every tenant rather than those of the active one.
+     *
+     * Separate from `unscoped` on purpose: lifting an entity's scopes never reaches another tenant's
+     * rows. Needed by work that serves every tenant at once - a job draining a queue, a platform
+     * report - and by code outside any tenant writing a tenant's row, which then names the tenant in
+     * the data. A row's tenant cannot be changed either way.
+     */
+    acrossTenants?: boolean
 };

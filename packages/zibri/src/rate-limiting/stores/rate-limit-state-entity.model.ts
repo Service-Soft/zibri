@@ -13,15 +13,21 @@ import { Property } from '../../entity/decorators/property.decorator';
  * window its timestamps - so the state itself is stored as is. Only the two timestamps cleanup needs
  * to filter on are mirrored into properties of their own.
  */
-@Entity({ allowOrphan: true, allowDuplicate: true })
+// the namespace and the key together are unique, because they name at most one row: that is both what
+// makes it safe to look a limit up by them and what lets a store resolve one directly instead of reading
+// every limit there is
+@Entity({ tenant: 'shared', allowOrphan: true, allowDuplicate: true, uniques: [['namespace', 'key']] })
 export class RateLimitStateEntity extends BaseEntity {
     /**
-     * The rate limit key, eg. `user:42`.
-     *
-     * Unique because it names at most one row, which is both what makes it safe to look a limit up
-     * by and what lets a store resolve it directly instead of reading every limit there is.
+     * The namespace of the store the state belongs to, which keeps the limiters sharing this table apart.
      */
-    @Property.string({ unique: true })
+    @Property.string()
+    namespace!: string;
+
+    /**
+     * The rate limit key, eg. `user:42`.
+     */
+    @Property.string()
     key!: string;
 
     /**

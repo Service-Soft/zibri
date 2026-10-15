@@ -1,8 +1,7 @@
 import { ClusterMark, clusterInstanceId, createPostgresTestDataSource, defaultClusterTestEntities, StartTestServerOptions } from 'zibri-testing';
 
+import { PasswordCredentials, PasswordCredentialsCreateData } from '../../../auth/authenticators/password/password-credentials.model';
 import { Auth } from '../../../auth/decorators/auth.decorator';
-import { JwtAuthController } from '../../../auth/strategies/jwt/jwt-auth.controller';
-import { JwtCredentials, JwtCredentialsCreateData } from '../../../auth/strategies/jwt/jwt-credentials.model';
 import { DataSourceInterface } from '../../../data-source/data-sources/data-source.interface';
 import { Repository } from '../../../data-source/repository/repository';
 import { InjectRepository, repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
@@ -12,8 +11,12 @@ import { Get } from '../../../routing/decorators/get.decorator';
 import { Param } from '../../../routing/decorators/param.decorator';
 import { Post } from '../../../routing/decorators/post.decorator';
 import { Newable } from '../../../types/newable.type';
+import { JwtTestAuthController } from '../../mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../../mocks/entities/jwt-user.entity';
 import { Roles } from '../../mocks/entities/roles.enum';
+import { TestMembership } from '../../mocks/entities/test-membership.entity';
+// eslint-disable-next-line eslintImport/no-unassigned-import
+import '../../test-server/membership-repository';
 // eslint-disable-next-line eslintImport/no-unassigned-import
 import '../../test-server/user-repository'; // this import is needed so that the DI system can pick up the user repository.
 
@@ -30,7 +33,7 @@ import '../../test-server/user-repository'; // this import is needed so that the
  */
 const clusterDataSources: Newable<DataSourceInterface>[] = [
     // needs to be distributed
-    createPostgresTestDataSource({ entities: [...defaultClusterTestEntities, JwtUser] })
+    createPostgresTestDataSource({ entities: [...defaultClusterTestEntities, JwtUser, TestMembership] })
 ];
 
 /**
@@ -70,8 +73,8 @@ class BaselineController {
     constructor(
         @InjectRepository(JwtUser)
         private readonly userRepository: Repository<JwtUser>,
-        @InjectRepository(JwtCredentials)
-        private readonly credentialsRepository: Repository<JwtCredentials, JwtCredentialsCreateData>
+        @InjectRepository(PasswordCredentials)
+        private readonly credentialsRepository: Repository<PasswordCredentials, PasswordCredentialsCreateData>
     ) {}
 
     /**
@@ -94,7 +97,7 @@ class BaselineController {
     ): Promise<void> {
         const email: string = baselineUserEmail(tag);
         const user: JwtUser = await this.userRepository.create({ email, roles: [Roles.USER] });
-        await this.credentialsRepository.create({ email, password: baselineUserPassword, userId: user.id });
+        await this.credentialsRepository.create({ password: baselineUserPassword, userId: user.id });
     }
 
     /**
@@ -128,7 +131,7 @@ const options: StartTestServerOptions = {
     dataSources: clusterDataSources,
     // the real auth controller, so the parent logs in the way a client does and the token it gets
     // back is the one the framework actually issues
-    controllers: [BaselineController, JwtAuthController]
+    controllers: [BaselineController, JwtTestAuthController]
 };
 
 export default options;

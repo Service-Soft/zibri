@@ -3,7 +3,8 @@ import { AlsUtilities } from '../../context/als.utilities';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { PaginationResult } from '../../open-api/pagination-result.model';
 import { DeepPartial } from '../../types/deep-partial.type';
-import { AtomicUpdate } from '../models/atomic-update.model';
+import { UpsertRow } from '../models/upsert-row.model';
+import { Where } from '../models/where/where-filter.model';
 import { Transaction } from '../transaction/transaction.model';
 
 /**
@@ -67,13 +68,13 @@ export class DeadlineAwareRepositoryDriver<T extends BaseEntity> implements Repo
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async upsert(
-        identity: DeepPartial<T>,
-        create: DeepPartial<T>,
-        onConflict: AtomicUpdate<T>,
-        transaction: Transaction | undefined
-    ): Promise<T> {
+        identity: string[],
+        rows: UpsertRow<T>[],
+        transaction: Transaction | undefined,
+        reachable: Where<T> | undefined
+    ): Promise<T[]> {
         this.validateStillWanted();
-        return await this.inner.upsert(identity, create, onConflict, transaction);
+        return await this.inner.upsert(identity, rows, transaction, reachable);
     }
 
     /**

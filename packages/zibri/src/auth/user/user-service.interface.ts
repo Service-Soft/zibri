@@ -1,5 +1,8 @@
 import { UserRepositoryInterface } from './user-repository.interface';
 import { FindByIdOptions } from '../../data-source/models/options/find-by-id-options.model';
+import { Transaction } from '../../data-source/transaction/transaction.model';
+import { BaseEntity } from '../../entity/base-entity.model';
+import { Newable } from '../../types/newable.type';
 import { BaseUser } from '../models/base-user.model';
 
 /**
@@ -20,8 +23,7 @@ export interface UserServiceInterface {
     /**
      * All user repositories that have been registered.
      */
-    // eslint-disable-next-line typescript/no-explicit-any
-    readonly userRepositories: UserRepositoryInterface<string, BaseUser<string>, any>[],
+    readonly userRepositories: UserRepositoryInterface<string, BaseUser<string>>[],
     /**
      * Finds a user by the given id.
      */
@@ -37,9 +39,17 @@ export interface UserServiceInterface {
         options?: FindUserOptions<B>
     ) => Promise<B extends false ? T | undefined : T>,
     /**
-     * Resolves the credentials for the provided user.
+     * Stores when a user was deactivated, or null to reactivate them, in the user repository that
+     * holds them.
+     * @throws A NotFoundError when no user repository holds the user.
      */
-    resolveCredentialsFor: <Role extends string, T extends BaseUser<Role>, CredentialsType>(user: T) => Promise<CredentialsType>
+    updateDeactivatedAt: (id: string, deactivatedAt: Date | null, transaction: Transaction | undefined) => Promise<void>,
+    /**
+     * Whether the rows of an entity are users, because a user repository reads them.
+     *
+     * Asked by every repository deleting rows, so that the memberships of a deleted user go with them.
+     */
+    isUserEntity: (entityClass: Newable<BaseEntity>) => boolean
 }
 
 /**
@@ -51,7 +61,8 @@ export function isUserService(value: unknown): value is UserServiceInterface {
     const keys: (keyof UserServiceInterface)[] = [
         'findByEmail',
         'findById',
-        'resolveCredentialsFor',
+        'updateDeactivatedAt',
+        'isUserEntity',
         'userRepositories'
     ];
 

@@ -13,8 +13,9 @@
     "out": "docs/generated",
     "projectDocuments": [
         "./docs/getting-started.md",
+        "./docs/architecture.md",
         "./docs/creating-endpoints.md",
-        "./docs/!(getting-started|creating-endpoints).md"
+        "./docs/!(getting-started|architecture|creating-endpoints).md"
     ],
     "readme": "none",
     "tsconfig": "tsconfig.base.json"

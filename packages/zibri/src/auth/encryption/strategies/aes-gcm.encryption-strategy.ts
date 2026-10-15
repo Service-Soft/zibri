@@ -90,6 +90,10 @@ export class AesGcmEncryptionStrategy implements EncryptionStrategyInterface<
     readonly name: CipherGCMTypes = 'aes-256-gcm';
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly version: string = 'v1';
+    // node's own cipher, with keys from the data source and the master key from the configuration -
+    // nothing it needs waits for the application to start
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly usableInMigrations: boolean = true;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     encrypt(value: string, options: AesGcmEncryptOptions): EncryptionString {

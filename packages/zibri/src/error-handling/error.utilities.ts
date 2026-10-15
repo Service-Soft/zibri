@@ -1,3 +1,4 @@
+import { HttpStatus } from '../http/http-status.enum';
 import { $ts } from '../localization/translate.function';
 import { JsonUtilities } from '../utilities/json.utilities';
 import { HttpError } from './errors/http.error';
@@ -28,6 +29,18 @@ export abstract class ErrorUtilities {
      */
     static isHttpError(value: unknown): value is HttpError {
         return value instanceof HttpError;
+    }
+
+    /**
+     * Checks if the given value says no rather than says something broke.
+     *
+     * An http error below 500 is an answer - not found, not allowed, not valid. Anything else means
+     * the question could not be answered at all.
+     * @param value - The value to check.
+     * @returns True if the value is a http error with a status below 500, false otherwise.
+     */
+    static isRefusal(value: unknown): value is HttpError {
+        return this.isHttpError(value) && value.status < HttpStatus.INTERNAL_SERVER_ERROR;
     }
 
     /**

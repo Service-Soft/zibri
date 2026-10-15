@@ -14,7 +14,7 @@ To support that use case, Zibri provides a exclude flag:
 // src/models/user.model.ts
 import { BaseEntity, Entity, HashString, Property } from 'zibri';
 
-@Entity()
+@Entity({ tenant: 'shared' })
 export class UserWithPassword extends BaseEntity {
     // Alternatively you can also provide an options object instead of the boolean flag.
     @Property.string({ hash: true, exclude: true })

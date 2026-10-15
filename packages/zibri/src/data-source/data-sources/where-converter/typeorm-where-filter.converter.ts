@@ -1,8 +1,9 @@
-import { And, ArrayContainedBy, ArrayContains, Equal, FindOperator, ILike, In, IsNull, LessThan, LessThanOrEqual, Like, MoreThan, MoreThanOrEqual, Not, Or, Raw, FindOptionsWhere as ToFindOptionsWhere, FindOptionsWhereProperty as ToFindOptionsWhereProperty, DataSource as ToDataSource } from 'typeorm';
+import { And, ArrayContainedBy, ArrayContains, Equal, FindOperator, ILike, IsNull, LessThan, LessThanOrEqual, Like, MoreThan, MoreThanOrEqual, Not, Or, Raw, FindOptionsWhere as ToFindOptionsWhere, FindOptionsWhereProperty as ToFindOptionsWhereProperty, DataSource as ToDataSource } from 'typeorm';
 
 import { TypeOrmParameters } from './typeorm-parameters';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { PropertyMetadata, RelationMetadata } from '../../../entity/decorators/property.decorator';
+import { isRelationMetadata } from '../../../entity/models/is-relation-metadata.function';
 import { OneOfPropertyMetadata } from '../../../entity/models/one-of-property-metadata.model';
 import { Relation } from '../../../entity/models/relation.enum';
 import { InternalError } from '../../../error-handling/internal-error.model';
@@ -14,6 +15,7 @@ import { ObjectUtilities } from '../../../utilities/object.utilities';
 import { ArrayWhereFilter } from '../../models/where/array-where-filter.model';
 import { isAllOfWhereFilterKey, isWhereFilterKey, WhereFilterKeys } from '../../models/where/where-filter-keys.model';
 import { Where, WhereFilter, WhereFilterProperty } from '../../models/where/where-filter.model';
+import { ScopeWhereUtilities } from '../../scopes/scope-where.utilities';
 
 // eslint-disable-next-line typescript/typedef
 const lengthWhereFilterKeys = [
@@ -52,19 +54,30 @@ export abstract class TypeOrmWhereFilterConverter {
         // null needs IsNull, the same way the `is` handler below does it. Not(null) becomes
         // `column != NULL`, which is never true in sql, so `{ not: null }` silently matched nothing
         // at all rather than every row that has a value.
-        not: (value) => value === null ? Not(IsNull()) : Not(value),
+        // and a row holding no value is not the value named, which `column != value` alone answers
+        // with null rather than yes
+        not: (value) => value === null ? Not(IsNull()) : Or(IsNull(), Not(value)),
         like: (value) => Like(value),
-        oneOf: (value) => {
+        oneOf: (value, metadata, nestedProperties, entityClass, property) => {
             if (!Array.isArray(value)) {
                 throw new InternalError('The "oneOf" property of the where filter needs to be an array.');
             }
-            return In(value);
+            const listed: unknown[] = value.filter(v => v !== null);
+            const equalsListed: FindOperator<unknown> = this.equalsOneOf(listed, entityClass, property);
+            // null equals nothing in sql, `IN (NULL)` included, so a null in the list is asked for on
+            // its own - which is what an in process evaluation of the same list answers
+            return listed.length === value.length ? equalsListed : Or(equalsListed, IsNull());
         },
-        notOneOf: (value) => {
+        notOneOf: (value, metadata, nestedProperties, entityClass, property) => {
             if (!Array.isArray(value)) {
                 throw new InternalError('The "notOneOf" property of the where filter needs to be an array.');
             }
-            return Not(In(value));
+            const listed: unknown[] = value.filter(v => v !== null);
+            const notListed: FindOperator<unknown> = Not(this.equalsOneOf(listed, entityClass, property));
+            // a row holding no value is not one of the values listed unless null is, the way `not`
+            // answers it. `NOT IN` answers it with null either way, and keeps no row at all once
+            // the list holds a null
+            return listed.length === value.length ? Or(IsNull(), notListed) : And(Not(IsNull()), notListed);
         },
         after: (value) => MoreThan(value),
         before: (value) => LessThan(value),
@@ -75,6 +88,9 @@ export abstract class TypeOrmWhereFilterConverter {
         lesserThan: (value) => LessThan(value),
         lesserThanEquals: (value) => LessThanOrEqual(value),
         iLike: (value) => ILike(value),
+        // the complement of like, which `NOT LIKE` alone answers with null for a row holding no value
+        notLike: (value) => Or(IsNull(), Not(Like(value))),
+        notILike: (value) => Or(IsNull(), Not(ILike(value))),
         fuzzyLike: (value, metadata, nestedProperties, entityClass, property) => this.fuzzyLikeWhereFilterHandler(
             value,
             metadata,
@@ -158,10 +174,49 @@ export abstract class TypeOrmWhereFilterConverter {
         entityClass: Newable<T>
     ): ToFindOptionsWhere<T> | ToFindOptionsWhere<T>[] {
         const properties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(entityClass);
-        if (Array.isArray(filter)) {
-            return filter.map(f => this.singleWhereFilterToFindOptionsWhere(f, properties, entityClass));
+        const written: WhereFilter<T>[] = Array.isArray(filter) ? filter : [filter];
+        const branches: WhereFilter<T>[] = written.flatMap(f => this.distributeRelationAlternatives(f, properties));
+        if (!Array.isArray(filter) && branches.length === 1 && branches[0] != undefined) {
+            return this.singleWhereFilterToFindOptionsWhere(branches[0], properties, entityClass);
         }
-        return this.singleWhereFilterToFindOptionsWhere(filter, properties, entityClass);
+        return branches.map(f => this.singleWhereFilterToFindOptionsWhere(f, properties, entityClass));
+    }
+
+    /**
+     * One branch of a filter as the branches it is an OR of, once every OR inside a filter on a
+     * relation to one entity is moved to the top.
+     *
+     * A relation to one entity is filtered through nested find options, and typeorm ORs only at the
+     * top level: an array in there was read as an object whose keys are its indexes. `{ owner: { where:
+     * [a, b] } }` is the same question as `[{ owner: { where: a } }, { owner: { where: b } }]`, with the
+     * rest of the branch on both - so that is what it is turned into, to any depth.
+     * @param branch - The branch as the caller wrote it.
+     * @param properties - The property metadata of the entity the branch filters.
+     * @returns The branches it is an OR of. Just the branch when nothing in it has to move.
+     */
+    private distributeRelationAlternatives<T extends object>(
+        branch: WhereFilter<T>,
+        properties: Record<string, PropertyMetadata>
+    ): WhereFilter<T>[] {
+        let res: Record<string, unknown>[] = [{ ...branch }];
+        for (const [key, condition] of Object.entries(branch)) {
+            const metadata: PropertyMetadata | undefined = properties[key];
+            if (!this.isToOneRelation(metadata) || !ScopeWhereUtilities.isConditionObject(condition) || condition['where'] == undefined) {
+                continue;
+            }
+            const where: unknown = condition['where'];
+            const nested: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(metadata.target());
+            const alternatives: unknown[] = (Array.isArray(where) ? where : [where])
+                .flatMap((w: WhereFilter<Record<string, unknown>>) => this.distributeRelationAlternatives(w, nested))
+                .map(w => ({ ...condition, where: w }));
+            res = res.flatMap(r => alternatives.map(alternative => ({ ...r, [key]: alternative })));
+        }
+        // the same keys as the branch it came from, each holding one of the conditions it allowed
+        return res as WhereFilter<T>[];
+    }
+
+    private isToOneRelation(metadata: PropertyMetadata | undefined): metadata is RelationMetadata<BaseEntity> {
+        return isRelationMetadata(metadata) && metadata.type !== Relation.ONE_TO_MANY && metadata.type !== Relation.MANY_TO_MANY;
     }
 
     /**
@@ -446,6 +501,18 @@ export abstract class TypeOrmWhereFilterConverter {
     }
 
     // ── Abstract – DB‑specific building blocks ───────────────────
+
+    /**
+     * Builds the operator matching a column that equals one of the given values.
+     *
+     * Abstract because how a list reaches the statement is the dialect's to say, and a list can be
+     * as long as whoever wrote the filter made it.
+     * @param values - The values, none of them null.
+     * @param entityClass - The entity the column belongs to.
+     * @param property - The property the column stores.
+     * @returns A typeorm FindOperator, matching nothing for an empty list.
+     */
+    protected abstract equalsOneOf(values: unknown[], entityClass: Newable<unknown>, property: string): FindOperator<unknown>;
 
     protected abstract buildRelationLengthRawOperator<T>(
         entityClass: Newable<T>,

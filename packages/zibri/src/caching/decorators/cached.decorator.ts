@@ -24,8 +24,10 @@ type ExtractWrapOptions<C, TArgs extends unknown[]>
 // eslint-disable-next-line jsdoc/require-jsdoc, typescript/no-explicit-any
 export function Cached<C extends { wrap: (...args: any[]) => any }, K, V, TArgs extends unknown[]>(
     cacheToken: DiToken<C>,
-    keyFn: CacheKeyProvider<K, TArgs>,
-    options?: ExtractWrapOptions<C, TArgs>
+    // TArgs and V are the decorated method's, inferred from the method alone through the decorator
+    // this returns, so a key provider may take fewer arguments than the method - see CacheWrite
+    keyFn: NoInfer<CacheKeyProvider<K, TArgs>>,
+    options?: NoInfer<ExtractWrapOptions<C, TArgs>>
 ) {
     return (
         target: object,

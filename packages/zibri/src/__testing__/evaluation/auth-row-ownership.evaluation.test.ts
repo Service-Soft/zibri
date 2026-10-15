@@ -1,9 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 
+import { PasswordCredentials, PasswordCredentialsCreateData } from '../../auth/authenticators/password/password-credentials.model';
 import { Auth } from '../../auth/decorators/auth.decorator';
 import { type BaseUser } from '../../auth/models/base-user.model';
-import { JwtAuthController } from '../../auth/strategies/jwt/jwt-auth.controller';
-import { JwtCredentials, JwtCredentialsCreateData } from '../../auth/strategies/jwt/jwt-credentials.model';
 import { JwtRefreshToken } from '../../auth/strategies/jwt/jwt-refresh-token.model';
 import { AlsUtilities } from '../../context/als.utilities';
 import { type HttpRequestContext } from '../../context/request/http-request.context';
@@ -28,6 +27,8 @@ import { Param } from '../../routing/decorators/param.decorator';
 import { Patch } from '../../routing/decorators/patch.decorator';
 import { Post } from '../../routing/decorators/post.decorator';
 import { Newable } from '../../types/newable.type';
+import { JsonUtilities } from '../../utilities/json.utilities';
+import { JwtTestAuthController } from '../mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../mocks/entities/jwt-user.entity';
 import { Roles } from '../mocks/entities/roles.enum';
 import { createTestDataSource, defaultTestServerEntities } from '../test-server/create-test-data-source.function';
@@ -65,6 +66,7 @@ async function currentUser(): Promise<BaseUser<string> | undefined> {
  * Every row belongs to one user, and there is nothing here for a caller who is not one.
  */
 @Entity({
+    tenant: 'shared',
     scope: {
         restrictedTo: scopeFor<EvaluationInvoice>(ctx => {
             if (!ctx.currentUser) {
@@ -91,6 +93,7 @@ class EvaluationInvoice extends BaseEntity {
  * route serve both an owner and somebody who oversees all of them.
  */
 @Entity({
+    tenant: 'shared',
     scope: {
         restrictedTo: scopeFor<EvaluationReport>(ctx => {
             if (!ctx.currentUser) {
@@ -112,6 +115,7 @@ class EvaluationReport extends BaseEntity {
  * A row that belongs to several users at once, the shape websocket rooms use.
  */
 @Entity({
+    tenant: 'shared',
     scope: {
         restrictedTo: scopeFor<EvaluationRoom>(ctx => {
             if (!ctx.currentUser) {
@@ -137,6 +141,7 @@ class EvaluationRoom extends BaseEntity {
  * nothing at all without being refused outright.
  */
 @Entity({
+    tenant: 'shared',
     scope: {
         restrictedTo: scopeFor<EvaluationDocument>(ctx => {
             if (!ctx.currentUser) {
@@ -221,7 +226,7 @@ class EvaluationInvoiceController {
 
     // the escape hatch, next to the role check that is what actually decides who may call this
     @Get('/admin/all')
-    @Auth.hasRole([Roles.ADMIN])
+    @Auth.hasPlatformRole([Roles.ADMIN])
     async listAll(): Promise<EvaluationInvoice[]> {
         return await this.invoices.findAll({ unscoped: ['restrictedTo'] });
     }
@@ -307,7 +312,7 @@ type TokenResponseBody = {
 let server: StartedTestServer | undefined;
 let baseUrl: string;
 let userRepository: Repository<JwtUser>;
-let credentialsRepository: Repository<JwtCredentials, JwtCredentialsCreateData>;
+let credentialsRepository: Repository<PasswordCredentials, PasswordCredentialsCreateData>;
 let refreshTokenRepository: Repository<JwtRefreshToken>;
 let invoiceRepository: Repository<EvaluationInvoice>;
 let reportRepository: Repository<EvaluationReport>;
@@ -334,12 +339,12 @@ const dataSourceClass: Newable<PostgresDataSource> = createTestDataSource({
  */
 async function register(email: string, roles: Roles[]): Promise<{ user: JwtUser, token: string }> {
     const user: JwtUser = await userRepository.create({ email, roles });
-    await credentialsRepository.create({ email, password, userId: user.id });
+    await credentialsRepository.create({ password, userId: user.id });
 
     const res: Response = await fetch(`${baseUrl}/auth/login`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JsonUtilities.stringify({ email, password })
     });
     expect(res.status).toBe(200);
     const body: TokenResponseBody = await res.json() as TokenResponseBody;
@@ -381,7 +386,7 @@ beforeAll(async () => {
     server = await startTestServer({
         dataSources: [dataSourceClass],
         controllers: [
-            JwtAuthController,
+            JwtTestAuthController,
             EvaluationInvoiceController,
             EvaluationDocumentController,
             EvaluationPublicInvoiceController
@@ -392,7 +397,7 @@ beforeAll(async () => {
     });
     baseUrl = await server.start();
     userRepository = inject(repositoryTokenFor(JwtUser));
-    credentialsRepository = inject(repositoryTokenFor(JwtCredentials));
+    credentialsRepository = inject(repositoryTokenFor(PasswordCredentials));
     refreshTokenRepository = inject(repositoryTokenFor(JwtRefreshToken));
     invoiceRepository = inject(repositoryTokenFor(EvaluationInvoice));
     reportRepository = inject(repositoryTokenFor(EvaluationReport));
@@ -502,7 +507,7 @@ describe('evaluation/03-auth-and-security A2 - rows must be restricted to what t
         it('refuses to create a row that names somebody else as its owner', async () => {
             const res: Response = await call('', aliceToken, {
                 method: 'POST',
-                body: JSON.stringify({ title: 'planted', userId: bob.id })
+                body: JsonUtilities.stringify({ title: 'planted', userId: bob.id })
             });
 
             // the read half on its own is a rule that only looks enforced: a caller who can create
@@ -514,7 +519,7 @@ describe('evaluation/03-auth-and-security A2 - rows must be restricted to what t
         it('lets the property\'s own default supply the owner', async () => {
             const res: Response = await call('', aliceToken, {
                 method: 'POST',
-                body: JSON.stringify({ title: 'mine' })
+                body: JsonUtilities.stringify({ title: 'mine' })
             });
             const body: EvaluationInvoice = await res.json() as EvaluationInvoice;
 
@@ -529,7 +534,7 @@ describe('evaluation/03-auth-and-security A2 - rows must be restricted to what t
 
             const res: Response = await call(`/${bobInvoice.id}`, aliceToken, {
                 method: 'PATCH',
-                body: JSON.stringify({ title: 'taken over' })
+                body: JsonUtilities.stringify({ title: 'taken over' })
             });
 
             expect(res.status).toBe(404);
@@ -542,7 +547,7 @@ describe('evaluation/03-auth-and-security A2 - rows must be restricted to what t
 
             const res: Response = await call(`/${aliceInvoice.id}`, aliceToken, {
                 method: 'PATCH',
-                body: JSON.stringify({ userId: bob.id })
+                body: JsonUtilities.stringify({ userId: bob.id })
             });
 
             expect(res.status).toBe(403);
@@ -555,7 +560,7 @@ describe('evaluation/03-auth-and-security A2 - rows must be restricted to what t
 
             const res: Response = await call(`/${aliceInvoice.id}`, aliceToken, {
                 method: 'PATCH',
-                body: JSON.stringify({ title: 'renamed' })
+                body: JsonUtilities.stringify({ title: 'renamed' })
             });
 
             // the change carries no userId at all. Judging it against the whole condition would

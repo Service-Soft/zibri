@@ -2,20 +2,21 @@ import { BaseDecryptOptions, BaseEncryptOptions } from '../../auth/encryption/st
 import { type NamedShapeValue } from '../../data-source/models/where/one-of-where-filter.model';
 import { OneOfWhereFilterUtilities } from '../../data-source/models/where/one-of-where-filter.utilities';
 import { InternalError } from '../../error-handling/internal-error.model';
-import { warn } from '../../logging/logger.helpers';
 import { Newable } from '../../types/newable.type';
 import { MetadataInjectionKeys } from '../../utilities/metadata-injection-keys.enum';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { BigNumber } from '../../utilities/number.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
 import { ReflectUtilities } from '../../utilities/reflect.utilities';
+import { RegexUtilities } from '../../utilities/regex.utilities';
 import { AnyObject } from '../any-object.model';
 import type { BaseEntity } from '../base-entity.model';
 import { ArrayPropertyMetadata, ArrayPropertyMetadataInput, ArrayPropertyItemMetadataInput, ArrayPropertyItemMetadata } from '../models/array-property-metadata.model';
+import { BasePropertyMetadata } from '../models/base-property-metadata.model';
 import { BelongsToOnePropertyMetadata, BelongsToOnePropertyMetadataInput } from '../models/belongs-to-one-property-metadata.model';
 import { BooleanPropertyMetadata, BooleanPropertyMetadataInput } from '../models/boolean-property-metadata.model';
 import { DatePropertyMetadata, DatePropertyMetadataInput } from '../models/date-property-metadata.model';
-import type { FilePropertyMetadata, FilePropertyMetadataInput } from '../models/file-property-metadata.model';
+import type { FilePropertyMetadata, FilePropertyMetadataInput, FileSize } from '../models/file-property-metadata.model';
 import { HasOnePropertyMetadata, HasOnePropertyMetadataInput } from '../models/has-one-property-metadata.model';
 import { ManyToManyPropertyMetadata, ManyToManyPropertyMetadataInput } from '../models/many-to-many-property-metadata.model';
 import { ManyToOnePropertyMetadata, ManyToOnePropertyMetadataInput } from '../models/many-to-one-property-metadata.model';
@@ -26,15 +27,15 @@ import { OneOf } from '../models/one-of.model';
 import { OneToManyPropertyMetadata, OneToManyPropertyMetadataInput } from '../models/one-to-many-property-metadata.model';
 import { Relation } from '../models/relation.enum';
 import { ShapeType } from '../models/shape-type.model';
-import { StringPropertyMetadata, StringPropertyMetadataInput } from '../models/string-property-metadata.model';
+import { StrategyCheckedItemInput, StrategyCheckedShapesInput } from '../models/strategy-checked-input.model';
+import { AnyStrategyStringPropertyMetadata, AnyStrategyStringPropertyMetadataInput, StoredStringPropertyMetadata, StringPropertyMetadata, StringPropertyMetadataInput, IncomingStringPropertyMetadataInput } from '../models/string-property-metadata.model';
 import { declaresUnique } from '../models/unique-declaration.model';
 import { UnknownPropertyMetadata, UnknownPropertyMetadataInput } from '../models/unknown-property-metadata.model';
 
 /**
  * The metadata of a property.
  */
-// eslint-disable-next-line typescript/no-explicit-any
-export type PropertyMetadata = StringPropertyMetadata<any, any, any, any, any>
+export type PropertyMetadata = StoredStringPropertyMetadata
     | NumberPropertyMetadata
     | ObjectPropertyMetadata
     | ArrayPropertyMetadata
@@ -57,8 +58,7 @@ export type RelationMetadata<T extends BaseEntity> = ManyToOnePropertyMetadata<T
 /**
  * The metadata input to define a property.
  */
-// eslint-disable-next-line typescript/no-explicit-any
-export type PropertyMetadataInput = StringPropertyMetadataInput<any, any, any, any, any>
+export type PropertyMetadataInput = StringPropertyMetadataInput
     | NumberPropertyMetadataInput
     | ObjectPropertyMetadataInput
     | ArrayPropertyMetadataInput
@@ -116,7 +116,7 @@ export namespace Property {
             hash: false,
             ...data
         };
-        return applyData(fullMetadata);
+        return applyData(toStoredStringPropertyMetadata(fullMetadata));
     }
 
     /**
@@ -205,28 +205,21 @@ export namespace Property {
      * Defines a file property.
      * @param data - Additional data to specify the property.
      */
-    export function file(data?: FilePropertyMetadataInput): PropertyDecorator {
+    export function file(data: FilePropertyMetadataInput): PropertyDecorator {
         return (target, key) => {
-            if (data?.allowedMimeTypes == undefined) {
-                warn([
-                    `Did not specify allowedMimeTypes on property "${target.constructor.name}.${key.toString()}"`,
-                    'Defaults to allowing any file type.'
-                ].join('\n'));
-            }
+            // no default for allowedMimeTypes: any file type and a list of them are both ordinary
+            // answers, and a default made a forgotten one indistinguishable from a chosen one
             const fullMetadata: FilePropertyMetadata = {
                 required: true,
                 type: 'file',
                 description: undefined,
-                allowedMimeTypes: 'all',
                 maxSize: '5mb',
                 exclude: false,
-                excludeFromChangeSets: typeof data?.exclude === 'boolean' ? data.exclude : false,
+                excludeFromChangeSets: typeof data.exclude === 'boolean' ? data.exclude : false,
                 ...data
             };
             const ctor: Newable<unknown> = target.constructor as Newable<unknown>;
-            // eslint-disable-next-line unicorn/error-message
-            const stack: string = new Error().stack ?? '';
-            MetadataUtilities.setFilePath(ctor, stack);
+            MetadataUtilities.setFilePath(ctor);
             const propertyMetadata: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(ctor);
             propertyMetadata[key as string] = fullMetadata;
             MetadataUtilities.setModelProperties(ctor, propertyMetadata);
@@ -237,22 +230,28 @@ export namespace Property {
      * Defines an array property.
      * @param data - Additional data to specify the property.
      */
-    export function array(data: ArrayPropertyMetadataInput): PropertyDecorator {
+    export function array<Items extends ArrayPropertyItemMetadataInput<AnyStrategyStringPropertyMetadataInput>>(
+        // the items once more as checked, because each string in them names its own strategy: the items of
+        // several shapes can name several, and one set of types for all of them fits none.
+        // Checked through an index signature rather than as "items: Items & checked": next to the items'
+        // own type every name they use is a known one, so a misspelled option would compile. A property
+        // compared against an index signature is compared against that alone, and the pattern matches
+        // nothing an array declares but its items. One object rather than the union of a file array and
+        // any other, because against a union the options inside the items go unchecked for names again
+        data: Partial<BasePropertyMetadata>
+            & {
+                // eslint-disable-next-line jsdoc/require-jsdoc
+                items: Items,
+                // eslint-disable-next-line jsdoc/require-jsdoc
+                totalMaxSize?: Items extends { type: 'file' } ? FileSize : never
+            }
+            & { [key: `items${string}`]: StrategyCheckedItemInput<Items> }
+    ): PropertyDecorator {
         return (target, key) => {
-            const fullMetadata: ArrayPropertyMetadata = {
-                required: true,
-                type: 'array',
-                description: undefined,
-                exclude: false,
-                excludeFromChangeSets: typeof data?.exclude === 'boolean' ? data.exclude : false,
-                totalMaxSize: '50mb',
-                ...data,
-                items: createArrayItemPropertyMetadata(data.items, `${target.constructor.name}.${key.toString()}`)
-            };
+            const fullMetadata: ArrayPropertyMetadata
+                = createArrayPropertyMetadata(data, `${target.constructor.name}.${key.toString()}`);
             const ctor: Newable<unknown> = target.constructor as Newable<unknown>;
-            // eslint-disable-next-line unicorn/error-message
-            const stack: string = new Error().stack ?? '';
-            MetadataUtilities.setFilePath(ctor, stack);
+            MetadataUtilities.setFilePath(ctor);
             const propertyMetadata: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(ctor);
             propertyMetadata[key as string] = fullMetadata;
             MetadataUtilities.setModelProperties(ctor, propertyMetadata);
@@ -282,7 +281,17 @@ export namespace Property {
      * A value names the shape it is, as `{ shape: 'Signup', value: { ... } }`.
      * @param data - The shapes by name, and what the property as a whole is declared with.
      */
-    export function oneOf<const Shapes extends OneOfShapesMetadataInput>(data: OneOfPropertyMetadataInput<Shapes>) {
+    export function oneOf<const Shapes extends OneOfShapesMetadataInput<AnyStrategyStringPropertyMetadataInput>>(
+        // the shapes once more as checked, because each string in them names its own strategy and the
+        // constraint takes any: one set of types for all the shapes fits none once two name different ones.
+        // Checked through an index signature rather than shape by shape: next to the shapes' own type every
+        // name they use is a known one, so a misspelled option would compile, and a property compared
+        // against an index signature is compared against that alone. Each shape has to be one of the
+        // checked shapes, which only lets a shape through as another one's when its strategy is one too
+        data: OneOfPropertyMetadataInput<Shapes> & OneOfPropertyMetadataInput<{
+            [name: string]: StrategyCheckedShapesInput<Shapes>[keyof Shapes]
+        }>
+    ) {
         return <Target extends object, Key extends keyof Target & string>(
             target: Target,
             key: Key & MatchingKey<Target, Key, OneOf<{ [Name in keyof Shapes]: ShapeType<Shapes[Name]> }>>
@@ -402,6 +411,22 @@ export namespace Property {
 }
 
 /**
+ * Stores a string declaration without the types it was declared with.
+ * @param declared - The full metadata, checked against its strategies where it was declared.
+ * @returns The same metadata, as it is stored and read back.
+ */
+function toStoredStringPropertyMetadata(declared: AnyStrategyStringPropertyMetadata): StoredStringPropertyMetadata {
+    // the one place the declared types are let go of (05 §M3). A strategy's key type sits in a return
+    // position and in a parameter position of the strategy, so no type is a supertype of a strategy for
+    // every key - TypeScript cannot say "some strategy, and that strategy's options", which is what the
+    // declaration checks and what is stored. The decorators check each string against its own strategy
+    // and carry it here as unknown; nothing reading the metadata needs the types: the strategy is
+    // resolved from its class and only ever handed the key it generated itself, and the settings functions
+    // are given the data of the row they were declared on, which the decorator cannot check either
+    return declared as StoredStringPropertyMetadata;
+}
+
+/**
  * The parts of a property declaration that decide whether a change set may record it.
  */
 type RecordableDeclaration = {
@@ -440,6 +465,36 @@ function excludedFromChangeSetsByDefault(data?: RecordableDeclaration): boolean 
         return true;
     }
     return typeof data?.exclude === 'boolean' ? data.exclude : false;
+}
+
+/**
+ * Whether a value of the given declaration holds a string the framework generated to store, as an item
+ * of an array or the value of a shape - which keeps the property holding it out of change sets for the
+ * reasons {@link excludedFromChangeSetsByDefault} gives for a string property.
+ * @param metadata - The items of an array, or a shape.
+ * @returns True when a string anywhere in it is encrypted or hashed.
+ */
+function holdsGeneratedStrings(metadata: ArrayPropertyItemMetadata): boolean {
+    switch (metadata.type) {
+        case 'string': {
+            return excludedFromChangeSetsByDefault({ encryption: metadata.encryption, hash: metadata.hash });
+        }
+        case 'array': {
+            return holdsGeneratedStrings(metadata.items);
+        }
+        case 'oneOf': {
+            return ObjectUtilities.values(metadata.shapes).some(holdsGeneratedStrings);
+        }
+        case 'number':
+        case 'boolean':
+        case 'date':
+        case 'file':
+        case 'unknown':
+        case 'object': {
+            // an object's own properties are recorded by what it declares, not by the property holding it
+            return false;
+        }
+    }
 }
 
 /**
@@ -492,25 +547,54 @@ function applyData(data: PropertyMetadata): PropertyDecorator {
         if ('primary' in data && data.primary && data.exclude !== false) {
             throw new InternalError(`${target.constructor.name}.${key.toString()}: Cannot mark a primary key with "exclude."`);
         }
-        if (
-            'encryption' in data && 'hash' in data
-            && data.encryption !== undefined && data.encryption !== false
-            && data.hash !== undefined && data.hash !== false
-        ) {
-            throw new InternalError(
-                `${target.constructor.name}.${key.toString()}: Cannot set the flags "encryption" and "hash" at the same time.`
-            );
-        }
+        validateNotEncryptedAndHashed(`${target.constructor.name}.${key.toString()}`, data);
         validateKeyIsDeclaredOnce(`${target.constructor.name}.${key.toString()}`, data);
+        validatePrimaryStringIsUuid(`${target.constructor.name}.${key.toString()}`, data);
+        if (data.type === 'string') {
+            RegexUtilities.validateLinear(`${target.constructor.name}.${key.toString()}`, data.regex);
+        }
         const ctor: Newable<unknown> = target.constructor as Newable<unknown>;
         validateNumberTypeMatchesFormat(`${ctor.name}.${key.toString()}`, data, ctor, key.toString());
-        // eslint-disable-next-line unicorn/error-message
-        const stack: string = new Error().stack ?? '';
-        MetadataUtilities.setFilePath(ctor, stack);
+        MetadataUtilities.setFilePath(ctor);
         const propertyMetadata: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(ctor);
         propertyMetadata[key as string] = data;
         MetadataUtilities.setModelProperties(ctor, propertyMetadata);
     };
+}
+
+/**
+ * Refuses a string that is declared both encrypted and hashed.
+ * @param fullKey - Where the string is declared, for the message.
+ * @param data - The declared metadata of the property, item or shape.
+ * @throws When both are declared.
+ */
+function validateNotEncryptedAndHashed(fullKey: string, data: PropertyMetadata): void {
+    if (
+        'encryption' in data && 'hash' in data
+        && data.encryption !== undefined && data.encryption !== false
+        && data.hash !== undefined && data.hash !== false
+    ) {
+        throw new InternalError(`${fullKey}: Cannot set the flags "encryption" and "hash" at the same time.`);
+    }
+}
+
+/**
+ * Refuses a string primary key that is declared to hold something other than uuids.
+ * @param fullKey - The class and property the declaration is on, for the message.
+ * @param data - The declared property metadata.
+ * @throws When a string primary key declares another format, or none.
+ */
+function validatePrimaryStringIsUuid(fullKey: string, data: PropertyMetadata): void {
+    // one kind of string key is what lets every data source store, compare and generate it the same
+    // way. A key of another format was a uuid column on one store and free text on the others
+    if (data.type !== 'string' || !data.primary || data.format === 'uuid') {
+        return;
+    }
+    const declared: string = data.format == undefined ? 'no format' : `the format "${data.format}"`;
+    throw new InternalError([
+        `${fullKey}: A string primary key holds uuids, so it cannot declare ${declared}.`,
+        'Remove "format" here. A key that is no uuid belongs in a property of its own, declared unique.'
+    ]);
 }
 
 /**
@@ -554,6 +638,37 @@ function validateKeyIsDeclaredOnce(fullKey: string, data: PropertyMetadata): voi
 }
 
 /**
+ * Creates full metadata for an array property.
+ * @param data - The array as declared.
+ * @param fullPropertyKey - The full key of the property, for messages.
+ * @returns The full metadata.
+ */
+export function createArrayPropertyMetadata(
+    // one object rather than the union of a file array and any other: which of them it is was the
+    // declaration's to check, and nothing here treats the two differently
+    data: Partial<BasePropertyMetadata> & {
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        items: ArrayPropertyItemMetadataInput<AnyStrategyStringPropertyMetadataInput>,
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        totalMaxSize?: FileSize
+    },
+    fullPropertyKey: string
+): ArrayPropertyMetadata {
+    const items: ArrayPropertyItemMetadata = createArrayItemPropertyMetadata(data.items, fullPropertyKey);
+    return {
+        required: true,
+        type: 'array',
+        description: undefined,
+        exclude: false,
+        // before the spread, so the declaration is still the last word
+        excludeFromChangeSets: holdsGeneratedStrings(items) || (typeof data.exclude === 'boolean' ? data.exclude : false),
+        totalMaxSize: '50mb',
+        ...data,
+        items
+    };
+}
+
+/**
  * Creates full metadata for an array property item.
  * @param data - The array item input data.
  * @param fullPropertyKey - The full key of the property.
@@ -561,7 +676,7 @@ function validateKeyIsDeclaredOnce(fullKey: string, data: PropertyMetadata): voi
  */
 // eslint-disable-next-line sonar/cognitive-complexity
 export function createArrayItemPropertyMetadata(
-    data: ArrayPropertyItemMetadataInput,
+    data: ArrayPropertyItemMetadataInput<AnyStrategyStringPropertyMetadataInput>,
     fullPropertyKey: string
 ): ArrayPropertyItemMetadata {
     switch (data.type) {
@@ -584,7 +699,8 @@ export function createArrayItemPropertyMetadata(
             };
         }
         case 'string': {
-            return {
+            RegexUtilities.validateLinear(fullPropertyKey, data.regex);
+            const item: StoredStringPropertyMetadata = toStoredStringPropertyMetadata({
                 required: true,
                 primary: false,
                 unique: false,
@@ -605,7 +721,9 @@ export function createArrayItemPropertyMetadata(
                 hash: false,
                 excludeFromChangeSets: typeof data?.exclude === 'boolean' ? data.exclude : false,
                 ...data
-            };
+            });
+            validateNotEncryptedAndHashed(fullPropertyKey, item);
+            return item;
         }
         case 'unknown': {
             return {
@@ -665,16 +783,9 @@ export function createArrayItemPropertyMetadata(
             return metadata;
         }
         case 'file': {
-            if (data.allowedMimeTypes == undefined) {
-                warn([
-                    `Did not specify allowedMimeTypes on property "${fullPropertyKey}"`,
-                    'Defaults to allowing any file type.'
-                ].join('\n'));
-            }
             return {
                 required: true,
                 description: undefined,
-                allowedMimeTypes: 'all',
                 maxSize: '5mb',
                 exclude: false,
                 excludeFromChangeSets: typeof data?.exclude === 'boolean' ? data.exclude : false,
@@ -721,8 +832,12 @@ type WidenedText<T> = T extends string
  * @returns The full metadata.
  * @throws When the shapes cannot be told apart or cannot be carried as json.
  */
-export function createOneOfPropertyMetadata(data: OneOfPropertyMetadataInput, fullPropertyKey: string): OneOfPropertyMetadata {
-    const entries: [string, OneOfShapeMetadataInput][] = ObjectUtilities.entries(data.shapes);
+export function createOneOfPropertyMetadata(
+    data: OneOfPropertyMetadataInput<OneOfShapesMetadataInput<AnyStrategyStringPropertyMetadataInput>>,
+    fullPropertyKey: string
+): OneOfPropertyMetadata {
+    const entries: [string, OneOfShapeMetadataInput<AnyStrategyStringPropertyMetadataInput>][]
+        = ObjectUtilities.entries(data.shapes);
     if (entries.length < 2) {
         throw new InternalError([
             `${fullPropertyKey}: A property that holds one of several shapes needs at least two shapes.`,
@@ -750,7 +865,8 @@ export function createOneOfPropertyMetadata(data: OneOfPropertyMetadataInput, fu
         required: true,
         description: undefined,
         exclude: false,
-        excludeFromChangeSets: typeof data.exclude === 'boolean' ? data.exclude : false,
+        excludeFromChangeSets: ObjectUtilities.values(shapes).some(holdsGeneratedStrings)
+            || (typeof data.exclude === 'boolean' ? data.exclude : false),
         ...data,
         type: 'oneOf',
         shapes
@@ -764,7 +880,10 @@ export function createOneOfPropertyMetadata(data: OneOfPropertyMetadataInput, fu
  * @returns The full metadata.
  * @throws When fewer than two shapes are listed, or a shape cannot be one.
  */
-export function createAnyOfShapesMetadata(shapes: OneOfShapeMetadataInput[], fullKey: string): AnyOfShapesMetadata {
+export function createAnyOfShapesMetadata(
+    shapes: OneOfShapeMetadataInput<IncomingStringPropertyMetadataInput>[],
+    fullKey: string
+): AnyOfShapesMetadata {
     if (shapes.length < 2) {
         throw new InternalError([
             `${fullKey}: A value of one of several shapes needs at least two shapes.`,
@@ -781,7 +900,7 @@ export function createAnyOfShapesMetadata(shapes: OneOfShapeMetadataInput[], ful
  * @returns The full metadata.
  * @throws When the shape is a file or itself one of several shapes.
  */
-function createShapeMetadata(shape: OneOfShapeMetadataInput, fullKey: string): OneOfShapeMetadata {
+function createShapeMetadata(shape: OneOfShapeMetadataInput<AnyStrategyStringPropertyMetadataInput>, fullKey: string): OneOfShapeMetadata {
     // checked on the input's type rather than trusted to it, for a caller without types
     const kind: string = shape.type;
     if (kind === 'oneOf') {

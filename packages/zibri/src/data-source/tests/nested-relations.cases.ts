@@ -35,7 +35,7 @@ const FROM_PRELUDES: string = `from ${PRELUDES}`;
 /**
  * The far end of the chain, two relations away from a track.
  */
-@Entity({ allowOrphan: true, allowDuplicate: true })
+@Entity({ tenant: 'shared', allowOrphan: true, allowDuplicate: true })
 export class Artist extends BaseEntity {
     /**
      * What decides the order of the cases that sort two relations down.
@@ -53,7 +53,7 @@ export class Artist extends BaseEntity {
 /**
  * The middle of the chain: a track reaches it directly, an artist through it.
  */
-@Entity({ allowOrphan: true, allowDuplicate: true })
+@Entity({ tenant: 'shared', allowOrphan: true, allowDuplicate: true })
 export class Album extends BaseEntity {
     /**
      * What decides the order of the cases that sort one relation down.
@@ -83,7 +83,7 @@ export class Album extends BaseEntity {
 /**
  * Where every case starts, so that each one reads from the near end of the chain.
  */
-@Entity({ allowOrphan: true, allowDuplicate: true })
+@Entity({ tenant: 'shared', allowOrphan: true, allowDuplicate: true })
 export class Track extends BaseEntity {
     /**
      * The rows one test wrote, so that what a filter finds is not mixed up with another test's rows.
@@ -239,6 +239,25 @@ export function describeNestedRelations(
             // without it, and read is not the same as asked for
             expect(tracks.map(t => t.title)).toEqual([FROM_NOCTURNES]);
             expect(tracks.map(t => t.album)).toEqual([undefined]);
+        });
+
+        it('filters by either of two conditions on a relation, and one two relations down', async () => {
+            const batch: string = await seedCatalog();
+
+            // an or inside the relation's filter, beside a condition of the row's own that holds for
+            // both. A store that ors only at the top level read the array as an object of indexes
+            const either: Track[] = await tracksOf().findAll({
+                where: { batch, album: { where: [{ title: NOCTURNES }, { title: PRELUDES }] } },
+                order: { title: 'ASC' },
+                take: 'all'
+            });
+            const byArtist: Track[] = await tracksOf().findAll({
+                where: { batch, album: { where: { artist: { where: [{ name: 'Ada' }, { name: 'nobody' }] } } } },
+                take: 'all'
+            });
+
+            expect(either.map(t => t.title)).toEqual([FROM_NOCTURNES, FROM_PRELUDES]);
+            expect(byArtist.map(t => t.title)).toEqual([FROM_PRELUDES]);
         });
 
         it('orders by a relation before a column of its own', async () => {

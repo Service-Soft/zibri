@@ -25,7 +25,7 @@ import { Repository } from '../repository/repository';
 
 const POOL_SIZE: number = 5;
 
-@Entity()
+@Entity({ tenant: 'shared' })
 class Item {
     @Property.string({ primary: true })
     id!: string;

@@ -1,4 +1,9 @@
 import { EntityRelations, RelationTree } from './entity-relations.model';
+import { isRelationMetadata } from './is-relation-metadata.function';
+import { Relation } from './relation.enum';
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { type BaseEntity } from '../base-entity.model';
+import { type PropertyMetadata, type RelationMetadata } from '../decorators/property.decorator';
 
 /**
  * Utilities for the relations a read resolves.
@@ -16,6 +21,34 @@ export abstract class EntityRelationsUtilities {
      */
     static resolveTree<T>(relations: EntityRelations<T> | readonly (keyof T)[] | RelationTree | undefined): RelationTree {
         return this.treeOf(relations);
+    }
+
+    /**
+     * The relations a filter cannot be answered without, as deep as it reaches.
+     *
+     * A store that judges rows in process needs every relation a filter names resolved on them
+     * first - including the ones below a relation, which a `where` on it reaches.
+     * @param where - The filter, as its branches or as one of them.
+     * @param properties - The property metadata of the entity it filters.
+     * @returns The tree of those relations, which is empty when it names none.
+     */
+    static resolveFilterTree(where: unknown, properties: Record<string, PropertyMetadata>): RelationTree {
+        let res: RelationTree = new Map();
+        const branches: unknown[] = Array.isArray(where) ? where : [where];
+        for (const branch of branches) {
+            if (branch == undefined || typeof branch !== 'object') {
+                continue;
+            }
+            for (const [key, condition] of Object.entries(branch)) {
+                const metadata: PropertyMetadata | undefined = properties[key];
+                if (!isRelationMetadata(metadata)) {
+                    continue;
+                }
+                const below: RelationTree = this.filterTreeBelow(condition, metadata);
+                res = this.mergeTrees(res, new Map([[key, below]]));
+            }
+        }
+        return res;
     }
 
     /**
@@ -61,6 +94,27 @@ export abstract class EntityRelationsUtilities {
                 this.keepOnlyRequested(this.holdersOf([holder[key]]), branch, below);
             }
         }
+    }
+
+    /**
+     * The relations below one relation that a condition on it reaches through its `where`.
+     * @param condition - The condition on the relation.
+     * @param metadata - The relation's metadata.
+     * @returns The tree below the relation.
+     */
+    private static filterTreeBelow(condition: unknown, metadata: RelationMetadata<BaseEntity>): RelationTree {
+        const toMany: boolean = metadata.type === Relation.ONE_TO_MANY || metadata.type === Relation.MANY_TO_MANY;
+        // on a relation to one entity an array is an or of conditions; on one to many it is the list
+        // of entities the relation has to hold, which reaches nothing below
+        const options: unknown[] = Array.isArray(condition) && !toMany ? condition : [condition];
+        let res: RelationTree = new Map();
+        for (const option of options) {
+            if (option == undefined || typeof option !== 'object' || !('where' in option)) {
+                continue;
+            }
+            res = this.mergeTrees(res, this.resolveFilterTree(option.where, MetadataUtilities.getModelProperties(metadata.target())));
+        }
+        return res;
     }
 
     /**

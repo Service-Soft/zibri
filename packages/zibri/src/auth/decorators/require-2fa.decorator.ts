@@ -1,12 +1,11 @@
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { TwoFactorMethods } from '../2fa/two-factor-methods.model';
 import { Require2faMetadata } from '../models/require-2fa-metadata.model';
 
 /**
  * The type of the require 2fa decorator.
  */
 export interface Require2faFn {
-    (allowedMethods?: TwoFactorMethods): MethodDecorator & ClassDecorator,
+    (options?: Require2faMetadata): MethodDecorator & ClassDecorator,
     /**
      * This skips the require 2fa validation.
      */
@@ -15,16 +14,17 @@ export interface Require2faFn {
 
 /**
  * Marks an endpoint to be only reachable when the logged in user provides a second factor somehow.
- * @param allowedMethods - The allowed two factor methods to use.
+ * @param options - Which two factor methods are allowed, and whether a recent login is accepted instead.
  */
 export const require2faDecorator: Require2faFn
-    = (allowedMethods?: TwoFactorMethods) => {
-        // left undefined rather than defaulted to an empty array, which is not the same thing:
-        // undefined means "whichever methods the app configured", an empty list means "none of
-        // them". Filling it in here turned @Auth.require2fa() with no argument - the way it is meant
-        // to be used - into a route nobody could ever satisfy, because validating against no methods
-        // cannot succeed.
-        const fullMetadata: Require2faMetadata = { allowedMethods };
+    = (options?: Require2faMetadata) => {
+        // both left undefined rather than filled in here, because neither default is the same thing
+        // as its value. An undefined allowedMethods means "whichever methods the app configured", an
+        // empty list means "none of them" - filling it in turned @Auth.require2fa() with no argument
+        // into a route nobody could ever satisfy. An undefined reauth means whatever
+        // REQUIRE_2FA_REAUTH says when the route is checked, which a value taken here would freeze
+        // before the application's providers are known.
+        const fullMetadata: Require2faMetadata = { allowedMethods: options?.allowedMethods, reauth: options?.reauth };
 
         const decorator: MethodDecorator & ClassDecorator = (
             target: Object,

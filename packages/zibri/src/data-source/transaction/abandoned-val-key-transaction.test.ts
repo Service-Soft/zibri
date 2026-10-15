@@ -31,7 +31,7 @@ import { Repository } from '../repository/repository';
  * again until the process that abandoned the transaction is restarted.
  */
 
-@Entity({ allowOrphan: true })
+@Entity({ tenant: 'shared', allowOrphan: true })
 class ValKeyItem extends BaseEntity {
     @Property.string()
     value!: string;

@@ -82,4 +82,56 @@ describe('CacheWrite decorator', () => {
 
         expect(wrapWriteSpy).toHaveBeenCalledTimes(2);
     });
+
+    describe('what its key provider may take', () => {
+        it('takes the result alone, however many arguments the method has', async () => {
+            // the method's arguments were inferred from the provider as well, so one reading only the
+            // result asked for a method that takes nothing and did not compile
+            class Service {
+                @CacheWrite(WriteTestCache, result => result.id)
+                // eslint-disable-next-line typescript/require-await
+                async create(name: string, suffix: string): Promise<{ id: string }> {
+                    return { id: `${name}${suffix}` };
+                }
+            }
+
+            await new Service().create('a', 'b');
+
+            expect((await inject(WriteTestCache).store.get('ab'))?.value).toEqual({ id: 'ab' });
+        });
+
+        it('hands it the method\'s arguments after the result, typed as the method declares them', async () => {
+            class Service {
+                @CacheWrite(WriteTestCache, (result, name) => `${result.id}:${name.toUpperCase()}`)
+                // eslint-disable-next-line typescript/require-await
+                async create(name: string): Promise<{ id: string }> {
+                    return { id: `id:${name}` };
+                }
+            }
+
+            await new Service().create('abc');
+
+            expect((await inject(WriteTestCache).store.get('id:abc:ABC'))?.value).toEqual({ id: 'id:abc' });
+        });
+
+        it('refuses a provider the method does not fit', () => {
+            class Service {
+                // @ts-expect-error - the provider reads a number where the method takes a string
+                @CacheWrite(WriteTestCache, (result: { id: string }, name: number) => `${result.id}${name}`)
+                // eslint-disable-next-line typescript/require-await
+                async readsWrongArgument(name: string): Promise<{ id: string }> {
+                    return { id: name };
+                }
+
+                // @ts-expect-error - the provider expects a result the method does not return
+                @CacheWrite(WriteTestCache, (result: { other: string }) => result.other)
+                // eslint-disable-next-line typescript/require-await
+                async returnsSomethingElse(name: string): Promise<{ id: string }> {
+                    return { id: name };
+                }
+            }
+
+            expect(Object.getOwnPropertyNames(Service.prototype)).toContain('readsWrongArgument');
+        });
+    });
 });

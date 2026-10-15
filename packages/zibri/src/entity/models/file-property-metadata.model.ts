@@ -39,7 +39,7 @@ export type FilePropertyMetadata = BasePropertyMetadata & {
      */
     type: 'file',
     /**
-     * The allowed mime types.
+     * The mime types a file may have, or `'all'` for any.
      */
     allowedMimeTypes: MimeType[] | 'all',
     /**
@@ -50,5 +50,8 @@ export type FilePropertyMetadata = BasePropertyMetadata & {
 
 /**
  * Input Metadata for file properties.
+ *
+ * Which files are accepted is always said, `'all'` included.
  */
-export type FilePropertyMetadataInput = Partial<OmitStrict<FilePropertyMetadata, 'type'>>;
+export type FilePropertyMetadataInput = Partial<OmitStrict<FilePropertyMetadata, 'type' | 'allowedMimeTypes'>>
+    & Pick<FilePropertyMetadata, 'allowedMimeTypes'>;

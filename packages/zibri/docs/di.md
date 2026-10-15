@@ -296,9 +296,10 @@ Importing the module that declares a class is what makes it resolvable, and that
 registering a class and building one are separate, so a package whose services an application never
 asks for costs it the import and nothing further.
 
-**A hook runs for whatever exists when the application reaches it.** A class first built after a
-phase has passed — one registered on first use, or one injected from inside a request handler —
-takes part in the phases still ahead of it.
+**A hook runs for whatever exists when the application reaches it.** A class first built while the
+application comes up — by another class's constructor, or from inside a hook — takes part in every
+phase that has not finished yet. The shutdown hooks run for whatever exists when the application
+shuts down, so a class declaring only those can be built at any time.
 
 ## Registering on first use
 `@Injectable({ register: 'onUse' })` records the class without putting it in the container. The container finds it the first time something asks for it, and registers it then.
@@ -333,8 +334,9 @@ const app: ZibriApplication = new ZibriApplication({
 });
 ```
 
-Injecting one that the application did not name, once the phases it declares have passed, raises a
-`MissedLifecycleHooksError` rather than handing back a service that was never prepared:
+Injecting one that the application did not name, once a phase whose hook it declares has finished,
+raises a `MissedLifecycleHooksError` rather than handing back a service that was never prepared. That
+includes being reached from inside a later hook while the application comes up:
 
 ```
 MissedLifecycleHooksError: "ReportArchiveService" declares a lifecycle hook and is being built for the first time now,

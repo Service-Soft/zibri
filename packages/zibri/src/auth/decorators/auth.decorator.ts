@@ -1,3 +1,4 @@
+import { hasPlatformRoleDecorator } from './has-platform-role.decorator';
 import { hasRoleDecorator, HasRoleFn } from './has-role.decorator';
 import { isLoggedInDecorator, IsLoggedInFn } from './is-logged-in.decorator';
 import { isNotLoggedInDecorator, IsNotLoggedInFn } from './is-not-logged-in.decorator';
@@ -21,11 +22,19 @@ export namespace Auth {
      */
     export const isNotLoggedIn: IsNotLoggedInFn = isNotLoggedInDecorator;
     /**
-     * Marks an endpoint to be only reachable when the logged in user has one of the provided roles.
+     * Marks an endpoint to be only reachable when the logged in user holds one of the provided roles
+     * in the tenant the request is for, through their membership in it.
      * @param allowedRoles - All roles that are allowed to access this endpoint.
      * @param allowedStrategies - The auth strategies that are allowed to be used to check that.
      */
     export const hasRole: HasRoleFn = hasRoleDecorator;
+    /**
+     * Marks an endpoint to be only reachable when the logged in user holds one of the provided roles
+     * of their own, whichever tenant the request is for - eg. An operator of the whole application.
+     * @param allowedRoles - All roles that are allowed to access this endpoint.
+     * @param allowedStrategies - The auth strategies that are allowed to be used to check that.
+     */
+    export const hasPlatformRole: HasRoleFn = hasPlatformRoleDecorator;
     /**
      * Marks an endpoint to be only reachable when the logged in user provides a second factor somehow.
      * @param allowedMethods - The allowed two factor methods to use.

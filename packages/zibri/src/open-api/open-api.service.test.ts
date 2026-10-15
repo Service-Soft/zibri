@@ -2,27 +2,33 @@ import assert from 'node:assert';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { type Relation } from 'typeorm';
+import { createInMemoryDataSource } from 'zibri-testing';
 
 import { Response } from './decorators/response.decorator';
 import { OpenApiDefinition, OpenApiOperation, OpenApiReferenceObject, OpenApiSchemaObject } from './open-api.model';
 import { type PaginationResult } from './pagination-result.model';
+import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { Auth } from '../auth/decorators/auth.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { defineProvider } from '../di/models/di-provider.model';
+import { XmlUtilities } from '../document/xml.utilities';
 import { BaseEntity } from '../entity/base-entity.model';
 import { Property } from '../entity/decorators/property.decorator';
 import { type OneOf } from '../entity/models/one-of.model';
 import { OnAppInit } from '../global/on-app-init.interface';
 import { HttpMethod } from '../http/http-method.enum';
 import { HttpStatus } from '../http/http-status.enum';
+import { KnownHeader } from '../http/known-header.enum';
 import { MimeType } from '../http/mime-type.enum';
+import { RedirectResponse } from '../http/redirect-response.model';
 import { FileResponse } from '../parsing/form-data/file-response.model';
 import { HtmlResponse } from '../parsing/html/html-response.model';
 import { XmlAttribute } from '../parsing/xml/xml-attribute.decorator';
 import { XmlElement } from '../parsing/xml/xml-element.decorator';
+import { XmlNamespace } from '../parsing/xml/xml-namespace.decorator';
 import { XmlRoot } from '../parsing/xml/xml-root.decorator';
 import { Body } from '../routing/decorators/body.decorator';
 import { Controller } from '../routing/decorators/controller.decorator';
@@ -167,6 +173,38 @@ class XmlOrder {
     lines!: OrderLine[];
 }
 
+@XmlNamespace('urn:example:header')
+class XmlHeader {
+    @Property.string()
+    id!: string;
+}
+
+// no namespace of its own, so it is in the namespace of whichever document holds it
+class XmlParty {
+    @Property.string()
+    name!: string;
+}
+
+@XmlRoot({
+    name: 'Envelope',
+    namespace: 'urn:example:envelope',
+    prefixes: { e: 'urn:example:envelope', h: 'urn:example:header' }
+})
+class XmlEnvelope {
+    @XmlAttribute()
+    @Property.string()
+    version!: string;
+
+    @Property.object({ cls: () => XmlHeader })
+    header!: XmlHeader;
+
+    @XmlElement('Party')
+    @Property.array({ items: { type: 'object', cls: () => XmlParty } })
+    parties!: XmlParty[];
+}
+
+const envelope: XmlEnvelope = { version: '1', header: { id: 'h1' }, parties: [{ name: 'Ada' }] };
+
 @Controller('/items')
 class ItemController {
     @Auth.isLoggedIn()
@@ -218,6 +256,12 @@ class ItemController {
         return HtmlResponse.fromString('<h1>hi</h1>');
     }
 
+    @Response.redirect()
+    @Get('/elsewhere')
+    elsewhere(): RedirectResponse {
+        return RedirectResponse.to('https://example.com');
+    }
+
     @Response.error(HttpStatus.BAD_REQUEST, { description: 'missing field' })
     @Response.error(HttpStatus.BAD_REQUEST, { description: 'invalid field' })
     @Response.object(Item, { status: HttpStatus.OK })
@@ -230,6 +274,11 @@ class ItemController {
     @Response.empty()
     @Get('/admin-only')
     adminOnly(): void { }
+
+    @Auth.hasPlatformRole(['operator'])
+    @Response.empty()
+    @Get('/operator-only')
+    operatorOnly(): void { }
 
     @Response.object(Owner, { status: HttpStatus.OK })
     @Get('/:id/owner')
@@ -258,6 +307,12 @@ class ItemController {
         order: XmlOrder
     ): XmlOrder {
         return order;
+    }
+
+    @Response.object(XmlEnvelope, { status: HttpStatus.OK, mimeTypes: [MimeType.JSON, MimeType.XML] })
+    @Get('/envelope')
+    getEnvelope(): XmlEnvelope {
+        return envelope;
     }
 
     @Response.object(NodeA, { status: HttpStatus.OK })
@@ -305,6 +360,8 @@ describe('OpenApiService', () => {
         server = await startTestServer({
             controllers: [ItemController],
             version: '1.0.0',
+            // the document is built from declarations alone, so no store has to be running for it
+            dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities })],
             providers: [...defaultTestServerProviders, defineProvider({ token: ManualPingRoute, useClass: ManualPingRoute })]
         });
         baseUrl = await server.start();
@@ -369,6 +426,14 @@ describe('OpenApiService', () => {
     it('exposes allowed roles via x-roles for a route behind @Auth.hasRole()', () => {
         const operation: OpenApiOperation = op('/items/admin-only', 'get');
         expect(operation['x-roles']).toEqual(['admin']);
+        expect(operation['x-platform-roles']).toBeUndefined();
+    });
+
+    it('exposes the roles of the user\'s own via x-platform-roles for a route behind @Auth.hasPlatformRole()', () => {
+        const operation: OpenApiOperation = op('/items/operator-only', 'get');
+        expect(operation['x-platform-roles']).toEqual(['operator']);
+        expect(operation['x-roles']).toBeUndefined();
+        expect(operation.security).toBeDefined();
     });
 
     it('resolves a hasOne relation schema, excluding the inverse back-reference key', () => {
@@ -420,6 +485,28 @@ describe('OpenApiService', () => {
         expect(schema.properties?.['labels']).toMatchObject({ type: 'array', items: { type: 'string' } });
         // Tag is also described by primaryTag right before, which is no cycle
         expect(schema.properties?.['tags']).toMatchObject({ type: 'array', items: { type: 'object', properties: { label: { type: 'string' } } } });
+    });
+
+    it('describes a property with what openapi defines, and nothing only the framework reads', () => {
+        const operation: OpenApiOperation = op('/items/{id}', 'get');
+        // eslint-disable-next-line typescript/no-unsafe-argument, typescript/no-unsafe-member-access
+        const schema: OpenApiSchemaObject = schemaOf(operation.responses?.['200']?.content?.[MimeType.JSON]?.schema);
+
+        // `primary` is a storage fact, and a regex is a pattern without the slashes that delimit it
+        expect(schema.properties?.['id']).toStrictEqual({ type: 'string', format: 'uuid' });
+        expect(schema.properties?.['category']).toStrictEqual({ type: 'string', pattern: '^[a-z]+$', enum: ['books', 'toys'] });
+        expect(schema.properties?.['price']).toStrictEqual({ type: 'number', format: 'double', minimum: 0, maximum: 1000 });
+        expect(schema.properties?.['inStock']).toStrictEqual({ type: 'boolean' });
+    });
+
+    it('describes a parameter without repeating its name inside its schema', () => {
+        const operation: OpenApiOperation = op('/items/{id}', 'get');
+        const parameterSchemas: unknown[] = (operation.parameters ?? []).map(p => 'schema' in p ? p.schema : undefined);
+
+        for (const parameterSchema of parameterSchemas) {
+            expect(parameterSchema).not.toHaveProperty('name');
+            expect(parameterSchema).not.toHaveProperty('required');
+        }
     });
 
     it('builds an array response schema for @Response.array()', () => {
@@ -514,6 +601,43 @@ describe('OpenApiService', () => {
         expect(xml.properties?.['lines']).toMatchObject({ type: 'array', items: { xml: { name: 'Line' } } });
     });
 
+    it('names the namespace of every element a prefixed root puts in one, as the document is written', async () => {
+        const operation: OpenApiOperation = op('/items/envelope', 'get');
+        // eslint-disable-next-line typescript/typedef, typescript/no-unsafe-assignment, typescript/no-unsafe-member-access
+        const content = operation.responses?.['200']?.content;
+        // eslint-disable-next-line typescript/no-unsafe-argument, typescript/no-unsafe-member-access
+        const json: OpenApiSchemaObject = schemaOf(content?.[MimeType.JSON]?.schema);
+        // eslint-disable-next-line typescript/no-unsafe-argument, typescript/no-unsafe-member-access
+        const xml: OpenApiSchemaObject = schemaOf(content?.[MimeType.XML]?.schema);
+        const envelopeNamespace: { namespace: string, prefix: string } = { namespace: 'urn:example:envelope', prefix: 'e' };
+        const header: OpenApiSchemaObject = schemaOf(xml.properties?.['header']);
+        const parties: OpenApiSchemaObject = schemaOf(xml.properties?.['parties']);
+
+        expect(xml.xml).toEqual({ name: 'Envelope', ...envelopeNamespace });
+        // an attribute is in no namespace
+        expect(xml.properties?.['version']).toMatchObject({ xml: { name: 'version', attribute: true } });
+        expect(xml.properties?.['version']).not.toHaveProperty('xml.namespace');
+        // declared by the root, so in the root's namespace, while what it holds is in the header's
+        expect(header.xml).toEqual(envelopeNamespace);
+        expect(schemaOf(header.properties?.['id']).xml).toEqual({ namespace: 'urn:example:header', prefix: 'h' });
+        // a list is its items repeated, and a model without a namespace is in the document's
+        expect(parties.xml).toBeUndefined();
+        expect(schemaOf(parties.items).xml).toEqual({ name: 'Party', ...envelopeNamespace });
+        expect(schemaOf(schemaOf(parties.items).properties?.['name']).xml).toEqual(envelopeNamespace);
+        // the json schema describes the same model and is left as it is
+        expect(schemaOf(json.properties?.['header']).xml).toBeUndefined();
+        expect(schemaOf(schemaOf(json.properties?.['header']).properties?.['id']).xml).toBeUndefined();
+
+        // and it is what the document actually holds
+        expect(await XmlUtilities.generateFrom(XmlEnvelope, envelope)).toBe([
+            '<?xml version="1.0" encoding="UTF-8"?>',
+            '<e:Envelope xmlns:e="urn:example:envelope" xmlns:h="urn:example:header" version="1">',
+            '<e:header><h:id>h1</h:id></e:header>',
+            '<e:Party><e:name>Ada</e:name></e:Party>',
+            '</e:Envelope>'
+        ].join(''));
+    });
+
     it('describes an xml request body as the document of its model', () => {
         const operation: OpenApiOperation = op('/items/orders', 'post');
         assert(operation.requestBody && !('$ref' in operation.requestBody));
@@ -538,6 +662,15 @@ describe('OpenApiService', () => {
         const content = operation.responses?.['200']?.content;
         // eslint-disable-next-line typescript/no-unsafe-member-access
         expect(content?.[MimeType.HTML]?.schema).toEqual({ type: 'string', format: 'html' });
+    });
+
+    it('describes a redirect response by its status and location, without content', () => {
+        const operation: OpenApiOperation = op('/items/elsewhere', 'get');
+        expect(operation.responses?.['303']).toEqual({
+            description: '',
+            content: undefined,
+            headers: { [KnownHeader.LOCATION]: { schema: { type: 'string', format: 'uri' } } }
+        });
     });
 
     it('merges multiple responses declared for the same status into a oneOf schema', () => {

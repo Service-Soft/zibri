@@ -9,7 +9,7 @@ import { type MailingListServiceInterface } from './services/mailing-list-servic
 import { ZibriApplication } from '../../application/application';
 import { Auth } from '../../auth/decorators/auth.decorator';
 import { Repository } from '../../data-source/repository/repository';
-import { InjectRepository } from '../../di/decorators/inject-repository.decorator';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../di/decorators/inject.decorator';
 import { NoProviderError } from '../../di/errors/no-provider.error';
 import { inject } from '../../di/inject.function';
@@ -30,11 +30,18 @@ import { TsxUtilities } from '../../tsx/tsx.utilities';
 @Controller('/mailing-lists', { allowOrphan: true, versions: 'all' })
 export class MailingListController implements OnAppInit {
 
+    // the two below are read when used rather than injected: controllers are built before any init,
+    // and ZibriMailingListPlugin.validate names the entities that are missing - which it could not,
+    // if building this had failed on a repository token first
+    private get subscriberRepository(): Repository<MailingListSubscriber> {
+        return inject(repositoryTokenFor(MailingListSubscriber));
+    }
+
+    private get mailingListRepository(): Repository<MailingList> {
+        return inject(repositoryTokenFor(MailingList));
+    }
+
     constructor(
-        @InjectRepository(MailingListSubscriber)
-        private readonly subscriberRepository: Repository<MailingListSubscriber>,
-        @InjectRepository(MailingList)
-        private readonly mailingListRepository: Repository<MailingList>,
         @Inject(ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS.MAILING_LIST_SERVICE)
         private readonly mailingListService: MailingListServiceInterface,
         @Inject(ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS.PREFERENCES_PAGE_TEMPLATE)
@@ -70,7 +77,7 @@ export class MailingListController implements OnAppInit {
         const mailingList: MailingList = await this.mailingListRepository.findById(id);
 
         const subscriber: MailingListSubscriber = await this.mailingListService.confirmSubscribeToList(token);
-        const managePreferencesLink: string = this.mailingListService.getManagePreferencesLink(subscriber.id);
+        const managePreferencesLink: string = await this.mailingListService.resolveManagePreferencesLink(subscriber.id);
 
         const html: string = TsxUtilities.renderPage(
             this.SubscribeSuccessPage,
@@ -91,7 +98,7 @@ export class MailingListController implements OnAppInit {
         const mailingList: MailingList = await this.mailingListRepository.findById(id);
 
         await this.mailingListService.unsubscribeFromList(id, subscriberId);
-        const managePreferencesLink: string = this.mailingListService.getManagePreferencesLink(subscriberId);
+        const managePreferencesLink: string = await this.mailingListService.resolveManagePreferencesLink(subscriberId);
 
         const html: string = TsxUtilities.renderPage(
             this.UnsubscribeConfirmationPage,
@@ -108,7 +115,7 @@ export class MailingListController implements OnAppInit {
     ): Promise<HtmlResponse> {
         const subscriber: MailingListSubscriber = await this.subscriberRepository.findById(subscriberId);
         const mailingLists: MailingList[] = await this.mailingListRepository.findAll();
-        const managePreferencesApiUrl: string = this.mailingListService.getManagePreferencesLink(subscriberId);
+        const managePreferencesApiUrl: string = await this.mailingListService.resolveManagePreferencesLink(subscriberId);
 
         const html: string = TsxUtilities.renderPage(this.PreferencesPage, { subscriber, mailingLists, managePreferencesApiUrl });
         return HtmlResponse.fromString(html);

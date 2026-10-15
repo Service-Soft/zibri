@@ -63,7 +63,7 @@ describe('generateEntityFiles', () => {
                 `export const providers = [{
                     prefix: 'Simple',
                     generateSchemasFromPaths: true,
-                    markAsEntities: true,
+                    markAsEntities: 'shared',
                     resolveSpec: async () => ({ ${richProviderSchema} })
                 }];`
             );
@@ -77,7 +77,7 @@ describe('generateEntityFiles', () => {
             expect(providerIndex).toContain('export * from \'./simple.thing.model\';');
 
             const entityFile: string = await FsUtilities.readFile(FsUtilities.getPath(generatedDir, 'simple/simple.thing.model.ts'));
-            expect(entityFile).toContain('@Entity()');
+            expect(entityFile).toContain('@Entity({ tenant: \'shared\' })');
             expect(entityFile).toContain('export class SimpleThing');
             expect(entityFile).toContain('\'name\'!: string;');
             expect(entityFile).toContain('\'status\'!: \'active\' | \'inactive\';');
@@ -89,6 +89,37 @@ describe('generateEntityFiles', () => {
         15000
     );
 
+    it('marks the generated classes as entities of one tenant each, adding the property holding it', async () => {
+        await FsUtilities.createFile(
+            FsUtilities.getPath(generatedDir, 'providers.ts'),
+            `export const providers = [
+                {
+                    prefix: 'Owned',
+                    generateSchemasFromPaths: true,
+                    markAsEntities: { property: 'tenantId' },
+                    resolveSpec: async () => ({ ${richProviderSchema} })
+                },
+                {
+                    prefix: 'Workspace',
+                    generateSchemasFromPaths: true,
+                    markAsEntities: { property: 'workspaceId' },
+                    resolveSpec: async () => ({ ${richProviderSchema} })
+                }
+            ];`
+        );
+
+        await generateEntityFiles();
+
+        // "tenantId" is where an entity holds its tenant by default, so it is left unsaid
+        const entityFile: string = await FsUtilities.readFile(FsUtilities.getPath(generatedDir, 'owned/owned.thing.model.ts'));
+        expect(entityFile).toContain('@Entity()');
+        expect(entityFile).toContain('@Property.string({ format: \'uuid\' })\n    \'tenantId\'!: string;');
+
+        const renamedFile: string = await FsUtilities.readFile(FsUtilities.getPath(generatedDir, 'workspace/workspace.thing.model.ts'));
+        expect(renamedFile).toContain('@Entity({ tenant: { property: \'workspaceId\' } })');
+        expect(renamedFile).toContain('@Property.string({ format: \'uuid\' })\n    \'workspaceId\'!: string;');
+    }, 15000);
+
     it('aggregates multiple providers from one providers.ts file into the top-level index.ts, in order', async () => {
         await FsUtilities.createFile(
             FsUtilities.getPath(generatedDir, 'providers.ts'),
@@ -96,13 +127,13 @@ describe('generateEntityFiles', () => {
                 {
                     prefix: 'First',
                     generateSchemasFromPaths: true,
-                    markAsEntities: true,
+                    markAsEntities: 'shared',
                     resolveSpec: async () => ({ ${richProviderSchema} })
                 },
                 {
                     prefix: 'Second',
                     generateSchemasFromPaths: true,
-                    markAsEntities: true,
+                    markAsEntities: 'shared',
                     resolveSpec: async () => ({ ${richProviderSchema} })
                 }
             ];`
@@ -124,7 +155,7 @@ describe('generateEntityFiles', () => {
             `export default [{
                 prefix: 'Defaulted',
                 generateSchemasFromPaths: true,
-                markAsEntities: true,
+                markAsEntities: 'shared',
                 resolveSpec: async () => ({ ${richProviderSchema} })
             }];`
         );

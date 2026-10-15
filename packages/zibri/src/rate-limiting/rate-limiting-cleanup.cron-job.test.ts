@@ -8,6 +8,7 @@ import { BaseRateLimitState } from './stores/rate-limiter-store.interface';
 function fakeRateLimitingService(): RateLimitingServiceInterface & { cleanup: jest.Mock<() => Promise<void>> } {
     return {
         limiters: [] as RateLimiterInterface<BaseRateLimitState>[],
+        addLimiter: () => undefined,
         cleanup: jest.fn<() => Promise<void>>().mockResolvedValue(undefined)
     };
 }

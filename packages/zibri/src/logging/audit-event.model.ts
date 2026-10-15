@@ -30,6 +30,81 @@ export enum AuditAction {
      */
     TWO_FACTOR = 'auth.2fa',
     /**
+     * Locking a user's second factor after too many wrong codes in a row.
+     */
+    TWO_FACTOR_LOCKED = 'auth.2fa.locked',
+    /**
+     * Removing every second factor of a user and lifting a lock: by a recovery code, which removes the
+     * locked ones, or by a reset, which removes all of them.
+     */
+    TWO_FACTOR_RESET = 'auth.2fa.reset',
+    /**
+     * Linking an identity at a provider to a user who already exists, which it signs in as from then on.
+     */
+    IDENTITY_LINKED = 'auth.identity.linked',
+    /**
+     * Unlinking an identity at a provider from a user.
+     */
+    IDENTITY_UNLINKED = 'auth.identity.unlinked',
+    /**
+     * Starting to keep a provider's tokens for an identity, which lets the application call the
+     * provider's apis for the user it is linked to.
+     */
+    PROVIDER_ACCESS_GRANTED = 'auth.provider-access.granted',
+    /**
+     * Stopping to keep a provider's tokens for an identity: removed by the application, or refused by
+     * the provider.
+     */
+    PROVIDER_ACCESS_REVOKED = 'auth.provider-access.revoked',
+    /**
+     * Creating an api key, which acts as its user until it expires or is revoked.
+     */
+    API_KEY_CREATED = 'auth.api-key.created',
+    /**
+     * Revoking one or every api key of a user.
+     */
+    API_KEY_REVOKED = 'auth.api-key.revoked',
+    /**
+     * A client asking the authorization server for an access token with its api key.
+     */
+    TOKEN_ISSUED = 'auth.token.issued',
+    /**
+     * Revoking an access or refresh token at the authorization server.
+     */
+    TOKEN_REVOKED = 'auth.token.revoked',
+    /**
+     * Deactivating a user, which ends their logins and revokes their api keys.
+     */
+    USER_DEACTIVATED = 'auth.user.deactivated',
+    /**
+     * Reactivating a deactivated user.
+     */
+    USER_REACTIVATED = 'auth.user.reactivated',
+    /**
+     * An identity provider provisioning a user through SCIM.
+     */
+    SCIM_USER_CREATED = 'scim.user.created',
+    /**
+     * An identity provider changing a user it provisioned.
+     */
+    SCIM_USER_UPDATED = 'scim.user.updated',
+    /**
+     * An identity provider deleting a user it provisioned.
+     */
+    SCIM_USER_DELETED = 'scim.user.deleted',
+    /**
+     * An identity provider provisioning a group through SCIM.
+     */
+    SCIM_GROUP_CREATED = 'scim.group.created',
+    /**
+     * An identity provider changing a group it provisioned, its members included.
+     */
+    SCIM_GROUP_UPDATED = 'scim.group.updated',
+    /**
+     * An identity provider deleting a group it provisioned.
+     */
+    SCIM_GROUP_DELETED = 'scim.group.deleted',
+    /**
      * Deciding whether a caller may reach a route.
      */
     AUTHORIZATION = 'authz.check',
@@ -75,6 +150,17 @@ export enum AuditReason {
      */
     TOKEN_REUSED = 'token-reused',
     /**
+     * A credential was presented by what looks like a copy of the device it lives on: a passkey
+     * whose signature counter went backwards.
+     *
+     * Either the device was cloned, or its counter is broken. Like a reused token, worth a look.
+     */
+    CREDENTIAL_CLONED = 'credential-cloned',
+    /**
+     * The credentials were right, but the user is deactivated.
+     */
+    DEACTIVATED = 'deactivated',
+    /**
      * The account the attempt named does not exist.
      *
      * Recorded where the api deliberately answers as though it did - a password reset for an unknown
@@ -96,6 +182,11 @@ export enum AuditReason {
      */
     MISSING_ROLE = 'missing-role',
     /**
+     * The caller is logged in, and is no member of the tenant the request is for - or acts through a
+     * credential bound to another tenant.
+     */
+    NOT_A_MEMBER = 'not-a-member',
+    /**
      * The caller tried to write a row outside what the entity's scope lets them see.
      *
      * Writes only. A refused *read* cannot be recorded, because a scoped query that comes back empty
@@ -107,6 +198,11 @@ export enum AuditReason {
      * The route needs a second factor and the session has not presented one.
      */
     SECOND_FACTOR_MISSING = 'second-factor-missing',
+    /**
+     * A browser sent a request changing something from a page on another origin, with cookies
+     * attached, and that origin may not send credentials.
+     */
+    CROSS_ORIGIN = 'cross-origin',
     /**
      * Something broke rather than refused.
      *
@@ -145,5 +241,9 @@ export type AuditEvent = {
     /**
      * The id of the account, once the attempt got far enough to resolve one.
      */
-    userId?: string
+    userId?: string,
+    /**
+     * The scopes of a provider's apis the access granted or revoked covers.
+     */
+    scopes?: string[]
 };

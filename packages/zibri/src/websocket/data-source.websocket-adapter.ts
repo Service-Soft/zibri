@@ -4,6 +4,7 @@ import type { ClusterAdapter, ClusterMessage, ClusterResponse, Offset, ServerId 
 import { DataSourceSubscription, PubSubDataSourceInterface } from '../data-source/data-sources/pub-sub-data-source.interface';
 import { InternalError } from '../error-handling/internal-error.model';
 import { type LoggerInterface } from '../logging/logger.interface';
+import { JsonUtilities } from '../utilities/json.utilities';
 import { optionalPeer } from '../utilities/optional-peer.function';
 
 /**
@@ -119,7 +120,9 @@ export function dataSourceWebsocketAdapterClass(): DataSourceWebsocketAdapterCon
          */
         private async publishEnvelope(envelope: PublishedEnvelope): Promise<void> {
             try {
-                await this.dataSource.publish(WEBSOCKET_CHANNEL, JSON.stringify(envelope));
+                // the packet holds the message as it was sent, bigints included, so it is written
+                // the way the encoder writes it for the clients of this instance
+                await this.dataSource.publish(WEBSOCKET_CHANNEL, JsonUtilities.stringify(envelope));
             }
             catch (error) {
                 // swallowing it would mean the other instances silently never hear about this broadcast
@@ -153,7 +156,7 @@ export function dataSourceWebsocketAdapterClass(): DataSourceWebsocketAdapterCon
         private receive(raw: string): void {
             let envelope: PublishedEnvelope;
             try {
-                envelope = JSON.parse(raw) as PublishedEnvelope;
+                envelope = JsonUtilities.parse(raw);
             }
             catch {
                 this.logger.warn('received a websocket message that could not be read, ignoring it');

@@ -1,12 +1,14 @@
 import { afterAll, beforeAll } from '@jest/globals';
-import { createInMemoryDataSource, InMemoryDataSource, StartedTestServer, startTestServer } from 'zibri-testing';
+import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
 import { Book, describeCreatedRelations, Plaque, Shelf } from './created-relations.cases';
+import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { inject } from '../../di/inject.function';
 import { Newable } from '../../types/newable.type';
 import { Repository } from '../repository/repository';
 
-const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({ entities: [Shelf, Book, Plaque] });
+const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({ entities: [...defaultTestServerEntities, Shelf, Book, Plaque] });
 
 let server: StartedTestServer | undefined;
 let shelves: Repository<Shelf>;

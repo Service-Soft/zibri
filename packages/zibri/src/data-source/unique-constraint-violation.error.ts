@@ -1,4 +1,5 @@
-import { InternalError } from '../error-handling/internal-error.model';
+import { ConflictError } from '../error-handling/errors/conflict.error';
+import { $ts } from '../localization/translate.function';
 
 /**
  * An error for a write that a unique declaration refuses.
@@ -6,8 +7,10 @@ import { InternalError } from '../error-handling/internal-error.model';
  * One error for every store on purpose. `unique` is declared on the entity rather than on the data
  * source, so an application that has to react to a duplicate - retrying, reporting it, falling back
  * to a read - must not have to know which store refused the write.
+ *
+ * Over http it answers 409: a value already taken is the caller's to change.
  */
-export class UniqueConstraintViolationError extends InternalError {
+export class UniqueConstraintViolationError extends ConflictError {
 
     /**
      * The properties whose values are already taken.
@@ -15,7 +18,7 @@ export class UniqueConstraintViolationError extends InternalError {
     readonly properties: string[];
 
     constructor(entityName: string, properties: string[], options?: ErrorOptions) {
-        super(`Another ${entityName} already holds these values for "${properties.join(', ')}".`, options);
+        super($ts`Another ${entityName} already holds these values for "${properties.join(', ')}".`, options);
         this.name = 'UniqueConstraintViolationError';
         this.properties = properties;
     }

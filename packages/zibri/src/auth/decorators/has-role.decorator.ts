@@ -3,18 +3,19 @@ import { HasRoleMetadata } from '../models/has-role-metadata.model';
 import { AuthStrategies } from '../strategies/auth-strategies.model';
 
 /**
- * The type of the has role decorator.
+ * The type of the has role and has platform role decorators.
  */
 export interface HasRoleFn {
     (allowedRoles: string[], allowedStrategies?: AuthStrategies): MethodDecorator & ClassDecorator,
     /**
-     * This skips the has role validation.
+     * This skips the role validation.
      */
     skip: () => MethodDecorator & ClassDecorator
 }
 
 /**
- * Marks an endpoint to be only reachable when the logged in user has one of the provided roles.
+ * Marks an endpoint to be only reachable when the logged in user holds one of the provided roles in
+ * the tenant the request is for.
  * @param allowedRoles - All roles that are allowed to access this endpoint.
  * @param allowedStrategies - The auth strategies that are allowed to be used to check that.
  */

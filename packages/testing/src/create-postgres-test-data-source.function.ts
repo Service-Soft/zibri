@@ -16,7 +16,8 @@ export type CreatePostgresTestDataSourceOptions = {
      */
     host?: string,
     /**
-     * The user to connect as.
+     * The user to connect as. The harness creates it as a role that owns `database` and has no other
+     * privilege.
      */
     username?: string,
     /**
@@ -81,6 +82,8 @@ export function createPostgresTestDataSource(options: CreatePostgresTestDataSour
             username,
             password,
             database,
+            // the container serves no tls
+            ssl: false,
             // spread rather than assigned, because an explicit undefined would take the framework
             // default away instead of leaving it in place
             ...poolSize != undefined ? { poolSize } : {},

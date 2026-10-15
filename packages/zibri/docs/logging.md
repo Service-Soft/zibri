@@ -53,6 +53,8 @@ export class TestController {
 
 Note that none of these return a promise, so there is nothing to await. See [caveats](#caveats) for what follows from that.
 
+An entry records the [tenant](./tenancy.md#work-outside-a-request) it was logged in, in `tenantId`.
+
 ### The audit trail
 `audit` is the sixth method, and it is not a level — it is what the framework calls when something
 security relevant happens. Failed and successful logins, refused routes, password reset requests, a

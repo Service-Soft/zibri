@@ -85,6 +85,100 @@ class LateService {
 }
 
 /**
+ * A service recorded rather than registered, which initialization reaches only because another
+ * service's constructor asks for it.
+ */
+@Injectable({ register: 'onUse' })
+class JoinedService {
+    constructor() {
+        events.push('JoinedService constructed');
+    }
+
+    /**
+     * Records that the application reached it.
+     */
+    onAppInit(): void {
+        events.push('JoinedService.onAppInit');
+    }
+}
+
+/**
+ * A service that takes part in the lifecycle and builds the one above while it is itself built.
+ */
+@Injectable()
+class JoiningService {
+    constructor(
+        @Inject(JoinedService)
+        readonly joined: JoinedService
+    ) {}
+
+    /**
+     * Takes part in the lifecycle, which is what gets this built at startup.
+     */
+    onAppInit(): void {
+        events.push('JoiningService.onAppInit');
+    }
+}
+
+/**
+ * A service recorded rather than registered, declaring a hook of the first phase.
+ */
+@Injectable({ register: 'onUse' })
+class EarlyService {
+    constructor() {
+        events.push('EarlyService constructed');
+    }
+
+    /**
+     * Records that the application reached it.
+     */
+    beforeAppInit(): void {
+        events.push('EarlyService.beforeAppInit');
+    }
+}
+
+/**
+ * Whether {@link ReachingService} reaches for {@link EarlyService}. Off unless a test says so, because
+ * the service is registered for every application this file starts.
+ */
+let reachForEarlyService: boolean = false;
+
+/**
+ * A service that reaches for {@link EarlyService} from a hook of a later phase.
+ */
+@Injectable()
+class ReachingService {
+    /**
+     * Reaches for the service once the phase it declares has finished, and records what it got.
+     */
+    onAppInit(): void {
+        if (!reachForEarlyService) {
+            return;
+        }
+        try {
+            inject(EarlyService);
+            events.push('EarlyService injected');
+        }
+        catch (error) {
+            events.push(error instanceof Error ? error.name : String(error));
+        }
+    }
+}
+
+/**
+ * A service recorded rather than registered, declaring nothing but a shutdown hook.
+ */
+@Injectable({ register: 'onUse' })
+class TeardownService {
+    /**
+     * Records that the application reached it.
+     */
+    onAppShutdown(): void {
+        events.push('TeardownService.onAppShutdown');
+    }
+}
+
+/**
  * A controller that asks for the service nothing else wants.
  *
  * Orphan-allowed because only one test declares it, and a controller this file declares is in the
@@ -126,6 +220,7 @@ describe('an application that imports the package', () => {
 
     beforeEach(() => {
         events.length = 0;
+        reachForEarlyService = false;
     });
 
     afterEach(async () => {
@@ -222,6 +317,42 @@ describe('an application that imports the package', () => {
         expect(() => inject(LateService)).toThrow(MissedLifecycleHooksError);
         expect(() => inject(LateService)).toThrow('additionalLifecycleServices');
         expect(events).not.toContain('LateService constructed');
+    }, 15000);
+
+    it('runs the hooks of a service another one builds while the application initializes', async () => {
+        server = await startTestServer({ dataSources: [dataSourceClass] });
+        await server.start();
+
+        // nothing names this class up front, so the list the phases run over could not have held it.
+        // It was built before the phase it declares began, which leaves nothing missed - only a hook
+        // that has to reach it
+        expect(events).toContain('JoinedService constructed');
+        expect(events).toContain('JoinedService.onAppInit');
+        // and the one whose hook ran is the one everybody gets
+        expect(inject(JoiningService).joined).toBe(inject(JoinedService));
+    }, 15000);
+
+    it('refuses a service first reached during initialization after a phase it declares', async () => {
+        reachForEarlyService = true;
+        server = await startTestServer({ dataSources: [dataSourceClass] });
+
+        // reached from a hook of the second phase, and its hook belongs to the first. Keyed on the
+        // application being initialized, the refusal waited until the end of all three, so this was
+        // built without its hook and nothing said so
+        expect(events).toContain(MissedLifecycleHooksError.name);
+        expect(events).not.toContain('EarlyService constructed');
+    }, 15000);
+
+    it('hands over a service declaring only a shutdown hook after startup, and shuts it down', async () => {
+        server = await startTestServer({ dataSources: [dataSourceClass] });
+        await server.start();
+
+        // nothing it declares is behind the application: shutting down reaches whatever exists by
+        // then, so refusing it would only take away a service that works
+        expect(() => inject(TeardownService)).not.toThrow();
+        await server.shutdown();
+        server = undefined;
+        expect(events).toContain('TeardownService.onAppShutdown');
     }, 15000);
 
     it('does not construct anything during shutdown that it never built', async () => {

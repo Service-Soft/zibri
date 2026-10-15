@@ -12,6 +12,7 @@ import { CacheService } from '../../cache.service';
 import { Cache } from '../../decorators/cache.decorator';
 import { CachedValue } from '../../store/cached-value.model';
 import { InMemoryCacheStore } from '../../store/in-memory.cache-store';
+import { CacheInterface } from '../cache.interface';
 
 @Cache()
 class MainCache extends WriteAroundReadAsideCache<string, string, 'Write Around Read Aside Main Cache'> {
@@ -85,8 +86,11 @@ describe('WriteAroundReadAsideCache', () => {
 
     it('setDirect is a no-op', async () => {
         const cache: MainCache = inject(MainCache);
+        // called the way the interface declares it, which is how code written for any cache calls it.
+        // The class itself takes no parameters, since it uses none of them
+        const anyCache: CacheInterface<string, string, string, false, 'Write Around Read Aside Main Cache'> = cache;
 
-        await cache.setDirect('key:a', 'value');
+        await anyCache.setDirect('key:a', 'value');
 
         expect(await cache.store.get('key:a')).toBeUndefined();
     });

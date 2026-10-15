@@ -15,7 +15,7 @@ import { Repository } from '../repository/repository';
 /**
  * A booking of a room, unique among the bookings that have not been cancelled.
  */
-@Entity({ allowOrphan: true, allowDuplicate: true })
+@Entity({ tenant: 'shared', allowOrphan: true, allowDuplicate: true })
 export class Slot extends BaseEntity {
     /**
      * What identifies a slot, among the slots that are still open.

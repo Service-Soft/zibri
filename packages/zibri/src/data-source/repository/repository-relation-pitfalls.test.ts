@@ -12,7 +12,7 @@ import { Property } from '../../entity/decorators/property.decorator';
 
 // ==================== ENTITIES ====================
 
-@Entity()
+@Entity({ tenant: 'shared' })
 class Parent extends BaseEntity {
     @Property.string()
     name!: string;
@@ -21,7 +21,7 @@ class Parent extends BaseEntity {
     children!: Child[];
 }
 
-@Entity()
+@Entity({ tenant: 'shared' })
 class Child extends BaseEntity {
     @Property.string()
     name!: string;
@@ -33,7 +33,7 @@ class Child extends BaseEntity {
     parentId!: string;
 }
 
-@Entity()
+@Entity({ tenant: 'shared' })
 class Author extends BaseEntity {
     @Property.string()
     name!: string;
@@ -43,7 +43,7 @@ class Author extends BaseEntity {
     books!: Book[];
 }
 
-@Entity()
+@Entity({ tenant: 'shared' })
 class Book extends BaseEntity { // redeclare to add inverse (real code would be in one place)
     @Property.string()
     title!: string;
@@ -53,7 +53,7 @@ class Book extends BaseEntity { // redeclare to add inverse (real code would be 
     authors!: Author[];
 }
 
-@Entity()
+@Entity({ tenant: 'shared' })
 class Reader extends BaseEntity {
     @Property.string()
     name!: string;
@@ -62,7 +62,7 @@ class Reader extends BaseEntity {
     bookmark!: Relation<Bookmark>;
 }
 
-@Entity()
+@Entity({ tenant: 'shared' })
 class Bookmark extends BaseEntity {
     @Property.string()
     page!: string;

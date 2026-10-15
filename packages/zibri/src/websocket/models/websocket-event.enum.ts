@@ -4,6 +4,7 @@
  */
 export enum WebsocketEvent {
     RESPONSE = 'ws:response',
+    REPLAY_INCOMPLETE = 'ws:replay-incomplete',
     DISCONNECT = 'disconnect'
 }
 

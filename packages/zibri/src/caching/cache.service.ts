@@ -62,7 +62,8 @@ export class CacheService implements CacheServiceInterface, OnAppInit {
             this.logger.info(`configures ${cacheProviders.length} ${cacheProviders.length > 1 ? 'caches' : 'cache'}:`);
 
             // instances tell each other about invalidations through a row, so the entity has to
-            // exist. Only asked for when there is something to invalidate.
+            // exist. Only asked for when there is something to invalidate - invalidateTags and
+            // applyPendingInvalidations leave the table alone otherwise.
             validateEntitiesRegistered(CacheService.name, app, CacheInvalidation);
             if (!app.options.cronJobs.includes(CacheInvalidationCronJob)) {
                 app.options.cronJobs.push(CacheInvalidationCronJob);
@@ -111,6 +112,11 @@ export class CacheService implements CacheServiceInterface, OnAppInit {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async invalidateTags(tags: string[]): Promise<void> {
+        // every instance runs the same caches, so with none here there is nothing to clear and
+        // nobody to tell - and the table is only asked for at startup when there are caches
+        if (!this.caches.length) {
+            return;
+        }
         await this.invalidateTagsLocally(tags);
 
         // and tell the other instances, whose caches this one cannot reach. Published after the
@@ -120,6 +126,10 @@ export class CacheService implements CacheServiceInterface, OnAppInit {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async applyPendingInvalidations(): Promise<void> {
+        // for the same reason as invalidateTags
+        if (!this.caches.length) {
+            return;
+        }
         const repository: Repository<CacheInvalidation, CreateCacheInvalidationData> = inject(
             repositoryTokenFor(CacheInvalidation)
         );

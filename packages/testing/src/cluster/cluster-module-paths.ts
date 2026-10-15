@@ -42,10 +42,11 @@ export function clusterModulePaths(): Record<string, string> {
 type ResolveFilename = (this: unknown, request: string, ...rest: unknown[]) => string;
 
 /**
- * Points the shared packages at the files the parent named, for the rest of this process.
+ * Points the shared packages at the files the parent named, for the rest of this thread.
  *
- * Imported for its side effect, and it has to be the first import of the instance entry: a mapping
- * installed after the framework has already been loaded from somewhere else changes nothing.
+ * Runs as a preload (`-r`) of every instance, so it comes before anything else in each of its
+ * threads: a mapping installed after the framework has already been loaded from somewhere else
+ * changes nothing.
  */
 function applyClusterModulePaths(): void {
     const raw: string | undefined = process.env[CLUSTER_MODULE_PATHS_ENV];

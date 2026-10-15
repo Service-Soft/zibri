@@ -1,6 +1,7 @@
 /* eslint-disable jsdoc/require-jsdoc */
 import { MetadataInjectionKeys } from './metadata-injection-keys.enum';
 import { ReflectUtilities } from './reflect.utilities';
+import { resolveCallSites } from './resolve-call-sites.function';
 import { CurrentUserMetadata } from '../auth/decorators/current-user.decorator';
 import { HasRoleMetadata, SkipHasRoleMetadata } from '../auth/models/has-role-metadata.model';
 import { IsLoggedInMetadata, SkipIsLoggedInMetadata } from '../auth/models/is-logged-in-metadata.model';
@@ -18,6 +19,7 @@ import { OpenApiResponse } from '../open-api/open-api.model';
 import { XmlPropertyMetadata } from '../parsing/xml/xml-property-metadata.model';
 import { XmlRootMetadata } from '../parsing/xml/xml-root-metadata.model';
 import { ControllerRouteConfiguration } from '../routing/controller-route-configuration.model';
+import { AcceptCrossSitePostsOptions } from '../routing/decorators/accept-cross-site-posts-options.model';
 import { BodyMetadata } from '../routing/decorators/body-metadata.model';
 import { ControllerData } from '../routing/decorators/controller.decorator';
 import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from '../routing/decorators/param.decorator';
@@ -117,13 +119,41 @@ export abstract class MetadataUtilities {
     }
 
     // ---------- file path ----------
-    static setFilePath(target: Object, errorStack: string): void {
-        // a stack can be shorter than the frame being reached for, and then there is no caller line
-        // to read a path out of - which the 'unknown' below already answers for
-        const callerLine: string = errorStack.split('\n')[5] ?? '';
-        const filePath: string = callerLine.match(/\((.*):\d+:\d+\)/)?.[1] ?? 'unknown';
+    /**
+     * Records the file the decorated class is declared in. Called from inside a decorator.
+     * @param target - The class, or its prototype.
+     */
+    static setFilePath(target: Object): void {
+        const ctor: Newable<unknown> = this.toNewable(target);
+        // every decorator of a class records this - once per property, route and parameter - and
+        // they all answer the same file, so only the first one pays for reading the stack. Own
+        // metadata only: a subclass is declared in a file of its own
+        if (ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.FILE_LOCATION, ctor) !== undefined) {
+            return;
+        }
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.FILE_LOCATION, MetadataUtilities.resolveDeclaringFile(), ctor);
+    }
 
-        ReflectUtilities.setMetadata(MetadataInjectionKeys.FILE_LOCATION, filePath, this.toNewable(target));
+    private static resolveDeclaringFile(): string {
+        // found by what the frames are rather than at a fixed depth. The depth moved with every
+        // decorator built on another - `@DataSource` calls `@Injectable` - and for a project's own
+        // decorator wrapping one of those it landed inside reflect-metadata. Every decorator runs
+        // from the helper the compiler emits for the class (`__decorate`, which goes through
+        // `Reflect.decorate`), and the frame right below those is the statement declaring the class
+        const callSites: NodeJS.CallSite[] = resolveCallSites(MetadataUtilities.setFilePath);
+        const helperStart: number = callSites.findIndex(callSite => MetadataUtilities.isDecorateHelper(callSite));
+        if (helperStart === -1) {
+            return 'unknown';
+        }
+        const helperEnd: number = callSites.findIndex(
+            (callSite, index) => index > helperStart && !MetadataUtilities.isDecorateHelper(callSite)
+        );
+        return callSites[helperEnd]?.getFileName() ?? 'unknown';
+    }
+
+    private static isDecorateHelper(callSite: NodeJS.CallSite): boolean {
+        // `decorate` is reflect-metadata's, `__decorate` the one tsc and tslib emit
+        return /^_*decorate$/.test(callSite.getFunctionName() ?? '');
     }
 
     static getFilePath(target: Object): string | undefined {
@@ -133,6 +163,17 @@ export abstract class MetadataUtilities {
     // ---------- param types / DI ----------
     static getParamTypes(target: Object): unknown[] {
         return ReflectUtilities.getMetadata(MetadataInjectionKeys.PARAM_TYPES, target) ?? [];
+    }
+
+    /**
+     * Finds the parameter types the build recorded for the constructor a class declares itself.
+     * @param target - The class.
+     * @returns The types, or undefined when nothing was recorded for the class itself - which is the
+     * case both for a class that inherits its constructor and for any class of a build that records
+     * no decorator metadata.
+     */
+    static findOwnParamTypes(target: Object): unknown[] | undefined {
+        return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.PARAM_TYPES, target);
     }
 
     static setDiToken<T>(target: Object, token?: DiToken<T>): void {
@@ -234,6 +275,18 @@ export abstract class MetadataUtilities {
         );
     }
 
+    static setRouteAcceptCrossSitePosts(controller: Function, data: AcceptCrossSitePostsOptions, controllerMethod: string): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_ACCEPT_CROSS_SITE_POSTS, data, controller, controllerMethod);
+    }
+
+    static getRouteAcceptCrossSitePosts(controller: Function, controllerMethod: string): AcceptCrossSitePostsOptions | undefined {
+        return MetadataUtilities.ensureInheritedReflectMetadata<AcceptCrossSitePostsOptions>(
+            MetadataInjectionKeys.ROUTE_ACCEPT_CROSS_SITE_POSTS,
+            controller,
+            controllerMethod
+        );
+    }
+
     static setRouteCurrentUser(controller: Function, body: CurrentUserMetadata, controllerMethod: string): void {
         ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_CURRENT_USER, body, controller, controllerMethod);
     }
@@ -326,6 +379,47 @@ export abstract class MetadataUtilities {
 
     static getControllerSkipHasRole(controller: Function): SkipHasRoleMetadata | undefined {
         return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.CONTROLLER_SKIP_HAS_ROLE, controller);
+    }
+
+    // ---------- platform role metadata (method-level for routes) ----------
+    static setRouteHasPlatformRole(controller: Function, data: HasRoleMetadata, controllerMethod: string): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_HAS_PLATFORM_ROLE, data, controller, controllerMethod);
+    }
+
+    static getRouteHasPlatformRole(controller: Function, controllerMethod: string): HasRoleMetadata | undefined {
+        return MetadataUtilities.ensureInheritedReflectMetadata<HasRoleMetadata>(
+            MetadataInjectionKeys.ROUTE_HAS_PLATFORM_ROLE,
+            controller,
+            controllerMethod
+        );
+    }
+
+    static setRouteSkipHasPlatformRole(controller: Function, data: SkipHasRoleMetadata, controllerMethod: string): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_SKIP_HAS_PLATFORM_ROLE, data, controller, controllerMethod);
+    }
+
+    static getRouteSkipHasPlatformRole(controller: Function, controllerMethod: string): SkipHasRoleMetadata | undefined {
+        return MetadataUtilities.ensureInheritedReflectMetadata<SkipHasRoleMetadata>(
+            MetadataInjectionKeys.ROUTE_SKIP_HAS_PLATFORM_ROLE,
+            controller,
+            controllerMethod
+        );
+    }
+
+    static setControllerHasPlatformRole(controller: Function, data: HasRoleMetadata): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.CONTROLLER_HAS_PLATFORM_ROLE, data, controller);
+    }
+
+    static getControllerHasPlatformRole(controller: Function): HasRoleMetadata | undefined {
+        return ReflectUtilities.getMetadata(MetadataInjectionKeys.CONTROLLER_HAS_PLATFORM_ROLE, controller);
+    }
+
+    static setControllerSkipHasPlatformRole(controller: Function, data: SkipHasRoleMetadata): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.CONTROLLER_SKIP_HAS_PLATFORM_ROLE, data, controller);
+    }
+
+    static getControllerSkipHasPlatformRole(controller: Function): SkipHasRoleMetadata | undefined {
+        return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.CONTROLLER_SKIP_HAS_PLATFORM_ROLE, controller);
     }
 
     // ---------- require2fa (method-level, inherit) ----------

@@ -13,7 +13,7 @@ import { Transaction } from '../transaction/transaction.model';
  * created along with it. A file per data source runs them against repositories of its own.
  */
 
-@Entity({ allowOrphan: true, allowDuplicate: true })
+@Entity({ tenant: 'shared', allowOrphan: true, allowDuplicate: true })
 export class Shelf extends BaseEntity {
     @Property.string()
     label!: string;
@@ -25,7 +25,7 @@ export class Shelf extends BaseEntity {
     plaque?: Relation<Plaque>;
 }
 
-@Entity({ allowOrphan: true, allowDuplicate: true })
+@Entity({ tenant: 'shared', allowOrphan: true, allowDuplicate: true })
 export class Book extends BaseEntity {
     @Property.string()
     title!: string;
@@ -37,7 +37,7 @@ export class Book extends BaseEntity {
     shelfId?: string;
 }
 
-@Entity({ allowOrphan: true, allowDuplicate: true })
+@Entity({ tenant: 'shared', allowOrphan: true, allowDuplicate: true })
 export class Plaque extends BaseEntity {
     @Property.string()
     text!: string;

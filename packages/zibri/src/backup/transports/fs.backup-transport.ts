@@ -74,6 +74,9 @@ export abstract class BaseFsBackupTransport implements BackupTransportInterface 
     async deleteData(backup: BackupEntity, resource: BackupResourceEntity): Promise<void> {
         const p: FsPath = this.getResourcePath(backup, resource);
         await FsUtilities.rm(p);
+        // the record went first, so the last resource to go empties the folder. Left behind, it would be
+        // resolved as a backup that was interrupted, and warned about on every sync
+        await FsUtilities.rmIfEmpty(this.getBackupPath(backup));
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

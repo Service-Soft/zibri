@@ -1,0 +1,37 @@
+[
+    {
+        "medianMs": 0.7554810000001453,
+        "name": "GET one row",
+        "p95Ms": 1.0103610000001026
+    },
+    {
+        "medianMs": 1.2487790000000132,
+        "name": "GET 100 rows",
+        "p95Ms": 1.9668400000000474
+    },
+    {
+        "medianMs": 0.2618130000000747,
+        "name": "repository findById",
+        "p95Ms": 0.28065799999967567
+    },
+    {
+        "medianMs": 0.5505359999997381,
+        "name": "repository findAll of 100 rows",
+        "p95Ms": 0.6176019999998061
+    },
+    {
+        "medianMs": 0.4640030000000479,
+        "name": "POST one row",
+        "p95Ms": 0.5671870000001036
+    },
+    {
+        "medianMs": 0.023734999999760475,
+        "name": "repository create",
+        "p95Ms": 0.029003999999986263
+    },
+    {
+        "medianMs": 0.008495999999922788,
+        "name": "where filter conversion",
+        "p95Ms": 0.013946000000032654
+    }
+]

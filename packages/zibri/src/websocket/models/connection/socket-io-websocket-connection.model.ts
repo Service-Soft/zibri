@@ -2,9 +2,11 @@ import { Socket } from 'socket.io';
 
 import { BaseWebsocketConnection } from './base-websocket-connection.model';
 import { InternalError } from '../../../error-handling/internal-error.model';
+import { KnownHeader } from '../../../http/known-header.enum';
 import { Version } from '../../../versioning/version.model';
 import { LooseWebsocketEvent, WebsocketEvent } from '../websocket-event.enum';
 import { WebsocketMessage } from '../websocket-message.model';
+import { WebsocketRequest } from '../websocket-request.model';
 
 /**
  * A socket.io websocket connection.
@@ -27,6 +29,19 @@ export class SocketIOWebsocketConnection implements BaseWebsocketConnection {
     }
     set offset(value: number) {
         this.socket.handshake.auth['offset'] = value;
+    }
+
+    /**
+     * The request the connection was opened with.
+     * @returns The headers and the query of its handshake.
+     */
+    get handshakeRequest(): WebsocketRequest {
+        return {
+            headers: this.socket.handshake.headers as Partial<Record<KnownHeader, string | undefined>>,
+            body: undefined,
+            query: this.socket.handshake.query as Partial<Record<string, string | undefined>>,
+            params: {}
+        };
     }
 
     constructor(
@@ -73,6 +88,15 @@ export class SocketIOWebsocketConnection implements BaseWebsocketConnection {
      */
     async join(channels: string | string[]): Promise<void> {
         await this.socket.join(channels);
+    }
+
+    /**
+     * Whether the connection is in the given room.
+     * @param room - The room.
+     * @returns True when the connection joined it and has not left it.
+     */
+    isIn(room: string): boolean {
+        return this.socket.rooms.has(room);
     }
 
     /**

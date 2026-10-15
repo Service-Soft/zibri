@@ -9,6 +9,7 @@ When building an API, you most likely will need to integrate some third party AP
 | `HttpClientResponse` | type | Shape of a response, including validated body and headers |
 | `HttpClientDispatcher` | type | What a request is sent over — a proxy, a CA bundle, a client certificate |
 | `ZIBRI_DI_TOKENS.HTTP_CLIENT_OPTIONS_INPUT` | DI token | Deployment-wide timeout, response size limit and dispatcher |
+| `FetchForLibraryOptions` | type | A larger response size limit for one request [handed to a library](#handing-the-client-to-a-library) |
 | `MimeType` | enum | Known mime types, used to select a non-default response body format |
 | `KnownHeader` | enum | Known header names, used to define expected response headers |
 | `FormData` | class | Response body wrapper for `multipart/form-data` responses |
@@ -154,6 +155,27 @@ A request's own `dispatcher` **replaces** the application's rather than merging 
 
 Naming no dispatcher anywhere uses Node's own, exactly like a plain `fetch`. The client never installs a global dispatcher: that would change where every other library in the process sends its traffic, which is not a framework's decision to make.
 
+### Handing the client to a library
+Some libraries send their own requests and take a fetch function to send them with. Hand them `fetchForLibrary`, so their requests go out with your dispatcher, timeout and response size limit too:
+
+```ts
+export function createSdkFetch(): (url: string, init: RequestInit) => Promise<Response> {
+    const http: HttpClientInterface = inject(ZIBRI_DI_TOKENS.HTTP_CLIENT);
+    return async (url, init) => await http.fetchForLibrary(url, init);
+}
+```
+
+`fetchForLibrary` answers like `fetch`: a status that is not ok is a response, not an error, and nothing is validated or retried. Use `get`, `post` and the others for your own requests.
+
+A library downloading something larger than `defaultMaxResponseSize` allows names its own limit for that request, as `FetchForLibraryOptions`:
+
+```ts
+export async function downloadLargeList(url: string): Promise<string> {
+    const http: HttpClientInterface = inject(ZIBRI_DI_TOKENS.HTTP_CLIENT);
+    return await (await http.fetchForLibrary(url, { method: 'GET' }, { maxResponseSize: '100mb' })).text();
+}
+```
+
 ### Defining response data
 Response data only consists of the body and possible headers that have been sent.
 
@@ -185,7 +207,7 @@ class FormDataItem {
     @Property.file({ allowedMimeTypes: [MimeType.JSON] })
     file!: File;
 
-    @Property.array({ items: { type: 'file' }, totalMaxSize: '5mb' })
+    @Property.array({ items: { type: 'file', allowedMimeTypes: 'all' }, totalMaxSize: '5mb' })
     files!: File[];
 }
 

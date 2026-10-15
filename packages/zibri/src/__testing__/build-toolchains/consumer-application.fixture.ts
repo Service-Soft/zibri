@@ -62,9 +62,39 @@ export class UntaggedService {
 }
 
 /**
+ * A parent naming what its constructor wants, and declaring nothing else.
+ */
+abstract class NamingGreetingBase {
+    constructor(@Inject(GreetingService) readonly greeting: GreetingService) {}
+}
+
+/**
+ * A service built with the constructor it inherits, which names its tokens.
+ */
+@Injectable()
+export class InheritingService extends NamingGreetingBase {}
+
+/**
+ * A parent letting the compiler say what its constructor wants.
+ */
+abstract class UntaggedGreetingBase {
+    constructor(readonly greeting: GreetingService) {}
+}
+
+/**
+ * A service declaring a constructor that takes nothing, and passing its parent what it needs itself.
+ */
+@Injectable()
+export class SelfSupplyingService extends UntaggedGreetingBase {
+    constructor() {
+        super(new GreetingService());
+    }
+}
+
+/**
  * An entity, so that the decorators which write their own metadata are covered too.
  */
-@Entity({ allowOrphan: true })
+@Entity({ tenant: 'shared', allowOrphan: true })
 export class Invoice extends BaseEntity {
 
     /**
@@ -113,7 +143,7 @@ export function declareContradictedNumber(): void {
     /**
      * An amount held exactly, declared as something that cannot hold it.
      */
-    @Entity({ allowOrphan: true })
+    @Entity({ tenant: 'shared', allowOrphan: true })
     class ContradictedInvoice extends BaseEntity {
 
         /**
@@ -129,6 +159,20 @@ export function declareContradictedNumber(): void {
 }
 
 /**
+ * What resolving a service did: the error it failed with, or `it resolved` and what it answered.
+ */
+export type ResolutionOutcome = {
+    /**
+     * The name of the error, or `it resolved`.
+     */
+    name: string,
+    /**
+     * The error's message, or what the resolved service answered.
+     */
+    message: string
+};
+
+/**
  * What the loaded application can be asked about itself.
  */
 export type ProbeResult = {
@@ -139,7 +183,16 @@ export type ProbeResult = {
     /**
      * What resolving a service that named nothing did.
      */
-    untagged: { name: string, message: string } | { name: 'it resolved', message: string },
+    untagged: ResolutionOutcome,
+    /**
+     * What resolving a service that inherits a constructor naming its tokens did.
+     */
+    inherited: ResolutionOutcome,
+    /**
+     * What resolving a service that declares a constructor taking nothing, below a parent whose
+     * constructor takes something, did.
+     */
+    ownEmptyConstructor: ResolutionOutcome,
     /**
      * The properties the entity's metadata carries.
      */
@@ -159,20 +212,26 @@ export type ProbeResult = {
 };
 
 /**
+ * Resolves a service and asks it for its greeting.
+ * @param read - Resolves the service and reads the greeting.
+ * @returns What happened.
+ */
+function resolveOutcome(read: () => string): ResolutionOutcome {
+    try {
+        return { name: 'it resolved', message: read() };
+    }
+    catch (error) {
+        const failure: Error = error as Error;
+        return { name: failure.name, message: failure.message };
+    }
+}
+
+/**
  * Asks the loaded application everything the toolchain could have changed.
  * @returns The answers, in a shape the test can compare across toolchains.
  */
 export function probe(): ProbeResult {
     initDiContainer();
-
-    let untagged: ProbeResult['untagged'] = { name: 'it resolved', message: '' };
-    try {
-        untagged = { name: 'it resolved', message: inject(UntaggedService).greet() };
-    }
-    catch (error) {
-        const failure: Error = error as Error;
-        untagged = { name: failure.name, message: failure.message };
-    }
 
     let contradictedFormat: string = 'it was accepted';
     try {
@@ -186,7 +245,9 @@ export function probe(): ProbeResult {
 
     return {
         tagged: inject(TaggedService).greet(),
-        untagged: untagged,
+        untagged: resolveOutcome(() => inject(UntaggedService).greet()),
+        inherited: resolveOutcome(() => inject(InheritingService).greeting.greet()),
+        ownEmptyConstructor: resolveOutcome(() => inject(SelfSupplyingService).greeting.greet()),
         entityProperties: Object.keys(MetadataUtilities.getModelProperties(Invoice)),
         routes: MetadataUtilities.getControllerRoutes(InvoiceController)
             .map(route => `${route.httpMethod} ${route.route}`),

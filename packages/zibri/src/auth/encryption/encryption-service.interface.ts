@@ -1,5 +1,7 @@
 import { EncryptionKey, EncryptionKeyCreateData } from './encryption-key.model';
 import { EncryptionString } from './encryption.utilities';
+import { KeysInUse } from './keys-in-use.model';
+import { RetiredKeyUsage } from './retired-key-usage.model';
 import { BaseEncryptOptions, EncryptionStrategyInterface } from './strategies/encryption-strategy.interface';
 import { BaseRepositoryOptions } from '../../data-source/models/options/base-repository-options.model';
 import { Where } from '../../data-source/models/where/where-filter.model';
@@ -81,6 +83,18 @@ export interface EncryptionServiceInterface {
         encryptedKey: EncryptionString
     ) => Promise<TKey>,
     /**
+     * Encrypts a key, given as base64, with the current master key.
+     *
+     * `masterDecrypt` reads it back without anything stored in a data source, so a key encrypted this
+     * way can be read while the data sources are empty or being replaced.
+     */
+    masterEncrypt: (keyBase64: string) => EncryptionString | Promise<EncryptionString>,
+    /**
+     * Decrypts a key encrypted with `masterEncrypt`, under the current or one of the old master keys.
+     * The key comes back as base64.
+     */
+    masterDecrypt: (encrypted: EncryptionString) => string | Promise<string>,
+    /**
      * Retires a key, so that everything encrypted with it is rewritten under the current one.
      *
      * The rewriting is what `EncryptionRotationCronJob` does, in the background, a bounded number of
@@ -96,5 +110,23 @@ export interface EncryptionServiceInterface {
      * second is not something the value can answer on its own: a property may have asked not to be
      * bound, and sweeping those would never finish.
      */
-    needsReEncryption: (encrypted: EncryptionString, shouldBeBoundToRow?: boolean) => boolean | Promise<boolean>
+    needsReEncryption: (encrypted: EncryptionString, shouldBeBoundToRow?: boolean) => boolean | Promise<boolean>,
+    /**
+     * Resolves the keys that whatever is encrypted right now depends on: the current master key, every
+     * master key a data key is still encrypted under, the data keys, and the data source they are
+     * stored in.
+     */
+    resolveKeysInUse: () => Promise<KeysInUse>,
+    /**
+     * Counts what is still encrypted under the data keys, master keys and master strategies being
+     * retired, which says when a rotation is done.
+     *
+     * Counted are the values of the encrypted properties of the current models, the data keys, and the
+     * recorded backups. A value encrypted by calling `encrypt` directly, or held by a column no current
+     * model declares, is not seen, and neither is a backup the transports hold that is not recorded.
+     *
+     * Reads every row of every entity holding an encrypted property, so it costs as much as one full
+     * pass of `EncryptionRotationCronJob`.
+     */
+    resolveRetiredKeyUsage: () => Promise<RetiredKeyUsage>
 }

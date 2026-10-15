@@ -10,6 +10,7 @@ import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { type DiProviderWithoutToken } from '../../di/models/di-provider.model';
 import { Property } from '../../entity/decorators/property.decorator';
+import { ValidationError } from '../../error-handling/errors/validation.error';
 import { HttpMethod } from '../../http/http-method.enum';
 import { HttpRequest } from '../../http/http-request.model';
 import { KnownHeader } from '../../http/known-header.enum';
@@ -19,6 +20,8 @@ import { type LoggerInterface } from '../../logging/logger.interface';
 import { File } from '../../parsing/form-data/file.model';
 import { FormDataBodyParserCleanupCronJob } from '../../parsing/form-data/form-data-body-parser-cleanup.cron-job';
 import { CLEANUP_AT_FILE_NAME } from '../../parsing/form-data/form-data.model';
+import { BodyMetadata } from '../../routing/decorators/body-metadata.model';
+import { resolveBodyMetadata } from '../../routing/resolve-body-metadata.function';
 import { type RouterInterface } from '../../routing/router.interface';
 import { type TraceBufferInterface } from '../../tracing/trace-buffer.interface';
 import { TraceContextUtilities } from '../../tracing/trace-context.utilities';
@@ -31,15 +34,16 @@ import { JsonUtilities } from '../../utilities/json.utilities';
 import { Ms } from '../../utilities/ms';
 import { resolveAppRoot } from '../../utilities/resolve-app-root.function';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { ValidationServiceInterface } from '../../validation/validation-service.interface';
 import { createTestDataSource } from '../test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
 /**
  * Executable form of evaluation/02-http-runtime-core.md.
  *
- * Observations are real HTTP round trips, injected values and process state. Findings that need a
- * scrape endpoint, a file upload route or a shutdown race this file cannot drive safely are
- * `it.todo` rather than assertions about how the source is written.
+ * Observations are real HTTP round trips, injected values and process state. Findings proven in a
+ * file of their own - because they need a registry read, a signal or a second process - are comments
+ * naming that file rather than assertions about how the source is written.
  *
  * Every expectation describes the fixed behavior, so this file is red until the corresponding
  * finding is closed. See ./README.md for why.
@@ -434,11 +438,9 @@ describe('evaluation/02-http-runtime-core', () => {
         // routing correct traffic to it.
         //
         // What did get fixed is held elsewhere: the bounded drain and the leases it releases are
-        // `cluster/shutdown.cluster.test.ts`.
-
-        // shutdown() calls process.exit unconditionally, which is why the harness stubs it before
-        // init. Asserting it from a test means spying on a function the harness already replaced.
-        it.todo('shuts down without terminating the process');
+        // `cluster/shutdown.cluster.test.ts`, and the exit is ../../application/application.shutdown.test.ts -
+        // a shutdown by a call leaves the process running, and one by a signal exits 1 when a
+        // teardown failed. It used to exit unconditionally, and 0 whatever the hooks did.
     });
 
     // C5 (listen errors must reach the caller) lives in ./bootstrap.evaluation.test.ts, because it
@@ -518,7 +520,7 @@ describe('evaluation/02-http-runtime-core', () => {
             // would say something different on every laptop.
             const onePass: number = fastestOfThree(() => void JsonUtilities.stringify(largeJsonPayload));
             const threePasses: number = fastestOfThree(
-                () => void JSON.stringify(JsonUtilities.parse(JsonUtilities.stringify(largeJsonPayload)))
+                () => void JsonUtilities.stringify(JsonUtilities.parse(JsonUtilities.stringify(largeJsonPayload)))
             );
 
             // warmed first, or the measured request pays for compiling everything on the way
@@ -954,7 +956,6 @@ describe('evaluation/02-http-runtime-core', () => {
         // is counted as 499 instead of going missing. `req.originalUrl` is always defined, so
         // `req.route?.path` was dead code and every distinct url became ~11 retained series with no
         // eviction - an unauthenticated remote OOM.
-        it.todo('keeps the series count flat under a burst of distinct urls');
     });
 
     describe('the process must survive a rejected promise', () => {
@@ -966,6 +967,41 @@ describe('evaluation/02-http-runtime-core', () => {
 
         it('installs a process level uncaught exception handler', () => {
             expect(process.listenerCount('uncaughtException')).toBeGreaterThan(exceptionListenersBeforeStart);
+        });
+    });
+
+    describe('MINOR - a declared regex runs on what a request sent', () => {
+        it('checks a value against a pattern that backtracks in time linear to the value', async () => {
+            class EvalCode {
+                @Property.string({ regex: /^(a+)+$/ })
+                code!: string;
+            }
+            const validation: ValidationServiceInterface = inject(ZIBRI_DI_TOKENS.VALIDATION_SERVICE);
+            const metadata: BodyMetadata = resolveBodyMetadata({ modelClass: EvalCode }, 0);
+
+            // a backtracking engine tries every way of splitting the a's between the two quantifiers
+            // before it gives up on the `!`, which for 27 of them is 2^27 attempts - seconds, during
+            // which the process answers nothing else. A linear one is done in microseconds, so the
+            // margin below is a thousand times what it needs
+            const start: number = performance.now();
+            const validated: Promise<void> = Promise.resolve(validation.validateBody({ code: `${'a'.repeat(27)}!` }, metadata));
+            await expect(validated).rejects.toThrow(ValidationError);
+            const duration: number = performance.now() - start;
+
+            expect(duration).toBeLessThan(100);
+        });
+
+        it('refuses a pattern it cannot run in linear time while the class is declared', () => {
+            const declare: () => Function = () => {
+                class EvalLookahead {
+                    @Property.string({ regex: /^(?=\d)\w+$/ })
+                    code!: string;
+                }
+                return EvalLookahead;
+            };
+
+            // refused at the declaration, so the first request is not where anybody finds out
+            expect(declare).toThrow('EvalLookahead.code');
         });
     });
 });

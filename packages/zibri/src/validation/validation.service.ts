@@ -171,7 +171,10 @@ export class ValidationService implements ValidationServiceInterface {
 
         switch (meta.type) {
             case MimeType.JSON:
-            case MimeType.XML: {
+            case MimeType.JSON_LD:
+            case MimeType.JSON_SCIM:
+            case MimeType.XML:
+            case MimeType.FORM_URL_ENCODED: {
                 return this.problemsOfBodyItself(await this.validateBodyShape(body, meta.shape));
             }
             case MimeType.FORM_DATA: {

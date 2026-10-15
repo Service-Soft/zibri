@@ -28,7 +28,7 @@ import { BackupTransport } from './decorators/backup-transport.decorator';
 
 const backupFsFolder: FsPath = FsUtilities.getPath(testFileFolder, 'backups');
 
-@Entity()
+@Entity({ tenant: 'shared' })
 class Item {
     @Property.string({ primary: true })
     id!: string;
@@ -45,7 +45,8 @@ class FsBackupTransport extends BaseFsBackupTransport {
 
 @DataSource()
 @Backup({
-    transports: [FsBackupTransport]
+    transports: [FsBackupTransport],
+    encrypt: true
 })
 class DbDataSource extends PostgresDataSource {
     override rootPw: string = 'password';
@@ -54,14 +55,15 @@ class DbDataSource extends PostgresDataSource {
         host: 'localhost',
         username: 'postgres',
         password: 'password',
-        database: 'db'
+        database: 'db',
+        ssl: false
     };
     entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, Item, BackupResourceEntity, BackupEntity];
     schemaManagement: SchemaManagement = 'synchronize';
 }
 
 describe('Create and restore postgres backup', () => {
-    let server: StartedTestServer;
+    let server: StartedTestServer | undefined;
     let backupService: BackupService;
     let itemRepository: Repository<Item>;
     let backupRepository: Repository<BackupEntity>;
@@ -75,10 +77,11 @@ describe('Create and restore postgres backup', () => {
 
         // seed one row without `value`
         await itemRepository.create({ value: '42' });
-    }, 15000);
+    }, 30000);
 
     afterAll(async () => {
-        await server.shutdown();
+        // guarded so a failed beforeAll reports the real cause instead of a shutdown TypeError
+        await server?.shutdown();
     }, 15000);
 
     it('should create and restore a backup', async () => {

@@ -17,6 +17,18 @@ type StringWhereFilterObject = BaseWhereFilterObject<string> & {
      */
     iLike?: AllOf<string>,
     /**
+     * The property must not be like the provided string, nor like any of them. A property holding no
+     * value is like nothing, so it matches.
+     * @example '%@example.com'
+     */
+    notLike?: AllOf<string>,
+    /**
+     * The property must not be like the provided string, nor like any of them, ignoring case. A
+     * property holding no value is like nothing, so it matches.
+     * @example '%@EXAMPLE.com'
+     */
+    notILike?: AllOf<string>,
+    /**
      * The property needs to fuzzily be like the provided string so that eg. Typos don't matter.
      *
      * Several of them are all required, the same way several patterns are.

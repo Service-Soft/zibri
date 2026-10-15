@@ -18,8 +18,10 @@ export function CacheDelete<
     TArgs extends unknown[]
 >(
     cacheToken: DiToken<C>,
-    keyFn: CacheKeyProvider<K, TArgs>,
-    options?: CacheWrapDeleteOptions<TArgs, CacheTag>
+    // TArgs is the decorated method's, inferred from the method alone through the decorator this
+    // returns, so a key provider may take fewer arguments than the method - see CacheWrite
+    keyFn: NoInfer<CacheKeyProvider<K, TArgs>>,
+    options?: NoInfer<CacheWrapDeleteOptions<TArgs, CacheTag>>
 ) {
     return (
         target: object,

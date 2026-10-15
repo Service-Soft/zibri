@@ -1,6 +1,8 @@
 import assert from 'node:assert';
 import { createHash } from 'node:crypto';
+import { writeFile } from 'node:fs/promises';
 import { Readable } from 'node:stream';
+import { text } from 'node:stream/consumers';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
@@ -12,6 +14,7 @@ import { Backup } from '../../backup/decorators/backup-resource.decorator';
 import { BackupTransport } from '../../backup/decorators/backup-transport.decorator';
 import { BaseFsBackupTransport } from '../../backup/transports/fs.backup-transport';
 import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
+import { ValKeyDataSource, ValKeyOptions } from '../../data-source/data-sources/val-key/val-key-data-source.model';
 import { DataSource } from '../../data-source/decorators/data-source.decorator';
 import { SchemaManagement } from '../../data-source/models/schema-management.model';
 import { Repository } from '../../data-source/repository/repository';
@@ -52,7 +55,7 @@ const backupFolder: FsPath = FsUtilities.getPath(testFileFolder, 'evaluation-bac
  */
 const secondBackupFolder: FsPath = FsUtilities.getPath(testFileFolder, 'evaluation-backups-second');
 
-@Entity({ allowOrphan: true })
+@Entity({ tenant: 'shared', allowOrphan: true })
 class EvalBackupItem extends BaseEntity {
     @Property.string()
     value!: string;
@@ -82,7 +85,10 @@ class EvalFsBackupTransportSecond extends BaseFsBackupTransport {
     transports: [
         EvalFsBackupTransport,
         EvalFsBackupTransportSecond
-    ]
+    ],
+    // unencrypted, because several cases here edit a stored archive and assert what the checksum
+    // makes of it - encrypted, the chunks would refuse the edit before the checksum is compared
+    encrypt: false
 })
 class EvalBackupDataSource extends PostgresDataSource {
 
@@ -90,7 +96,8 @@ class EvalBackupDataSource extends PostgresDataSource {
         host: 'localhost',
         username: 'postgres',
         password: 'password',
-        database: 'db'
+        database: 'db',
+        ssl: false
     };
 
     entities: Newable<BaseEntity>[] = [
@@ -102,6 +109,20 @@ class EvalBackupDataSource extends PostgresDataSource {
 
     schemaManagement: SchemaManagement = 'synchronize';
 }
+
+/**
+ * What postgres says about the privileges of a role.
+ */
+type RoleRow = {
+    /**
+     * Whether the role bypasses every permission check.
+     */
+    rolsuper: boolean,
+    /**
+     * Whether the role may create other roles, which is one step from being the superuser.
+     */
+    rolcreaterole: boolean
+};
 
 let server: StartedTestServer | undefined;
 let backupService: BackupService;
@@ -233,20 +254,132 @@ describe('evaluation/01-data-layer C6 - a backup is this application\'s database
         await expect(dataSource.restoreBackup(stream)).rejects.toThrow();
     }, 60000);
 
-    // The container's application role is the superuser, so the tests above prove the *requirement*
-    // for root credentials is gone, not that a least-privilege role suffices. Proving that needs a
-    // second role created with neither SUPERUSER nor CREATEROLE and a data source connecting as it,
-    // and the two privileges it does still need - reading every object it dumps, and owning every
-    // object a `--clean` restore replaces - stated as the contract rather than discovered.
-    it.todo('takes and restores a backup as a role with neither SUPERUSER nor CREATEROLE');
+    it('takes and restores a backup as a role with neither SUPERUSER nor CREATEROLE', async () => {
+        const dataSource: EvalBackupDataSource = inject(EvalBackupDataSource);
 
-    // `env: { ...process.env, PGPASSWORD }` hands the dump child every secret the application holds -
-    // jwt secret, encryption master keys, smtp credentials - none of which libpq reads. Observing it
-    // from outside needs a stub `pg_dump` earlier on PATH that prints its own environment.
-    it.todo('gives the dump child only the connection variables libpq reads');
+        // the harness hands a data source the role a managed postgres hands an application: it owns
+        // its database and holds nothing else. Owning it is the whole contract - it is what lets a
+        // dump read every object and a restore replace them. Asked of the server rather than taken
+        // from the harness, because every case in this file proves least privilege only as far as
+        // this holds
+        const roles: RoleRow[] = await dataSource.query(EvalBackupItem).connection.query(
+            'SELECT rolsuper, rolcreaterole FROM pg_roles WHERE rolname = current_user'
+        );
+        expect(roles).toEqual([{ rolsuper: false, rolcreaterole: false }]);
+
+        await itemRepository.deleteAll({});
+        await itemRepository.create({ value: 'least-privilege' });
+        await backupService.createBackup({ name: 'least-privilege' });
+        await itemRepository.deleteAll({});
+
+        const [backup]: BackupEntity[] = await backupRepository.findAll({
+            where: { name: 'least-privilege' },
+            relations: ['resources']
+        });
+        assert(backup, 'the backup was not created');
+        await backupService.restore(backup);
+
+        expect((await itemRepository.findAll()).map(i => i.value)).toEqual(['least-privilege']);
+    }, 60000);
+
+    it('gives the dump child only the connection variables libpq reads', async () => {
+        // a `pg_dump` earlier on PATH that prints the names of what it was given. Node rather than a
+        // shell script, because a shell adds variables of its own and they would read as a leak
+        const stubFolder: FsPath = FsUtilities.getPath(testFileFolder, 'pg-dump-stub');
+        await FsUtilities.mkdir(stubFolder);
+        await writeFile(
+            FsUtilities.getPath(stubFolder, 'pg_dump'),
+            '#!/usr/bin/env node\nprocess.stdout.write(JSON.stringify(Object.keys(process.env)));\n',
+            { mode: 0o755 }
+        );
+
+        const originalPath: string | undefined = process.env['PATH'];
+        process.env['PATH'] = `${stubFolder}:${originalPath}`;
+        // what an application's environment holds, and what the dump child has no use for
+        process.env['JWT_SECRET'] = 'must-not-reach-the-dump';
+        // how tls to a managed postgres is configured, which has to survive
+        process.env['PGSSLMODE'] = 'prefer';
+        try {
+            const keys: string[] = JsonUtilities.parse(await text(await inject(EvalBackupDataSource).createBackupData()));
+
+            // it used to be `{ ...process.env, PGPASSWORD }`: the jwt secret, the encryption master
+            // keys and the smtp credentials, none of which libpq reads, readable by anything that can
+            // read /proc/<pid>/environ
+            expect(keys).not.toContain('JWT_SECRET');
+            expect(keys.filter(k => !k.startsWith('PG') && !['PATH', 'LANG', 'LC_ALL', 'LC_MESSAGES'].includes(k))).toEqual([]);
+            expect(keys).toEqual(expect.arrayContaining(['PATH', 'PGPASSWORD', 'PGSSLMODE']));
+        }
+        finally {
+            process.env['PATH'] = originalPath;
+            delete process.env['JWT_SECRET'];
+            delete process.env['PGSSLMODE'];
+        }
+    }, 60000);
+});
+
+describe('evaluation/01-data-layer MINOR - postgres never requires tls', () => {
+    /**
+     * Runs a backup through a `pg_dump` earlier on PATH that prints the tls mode it was given.
+     * @param environmentMode - The `PGSSLMODE` the application's environment sets, if any.
+     * @returns The mode the dump child saw.
+     */
+    async function resolveDumpSslMode(environmentMode: string | undefined): Promise<string> {
+        const stubFolder: FsPath = FsUtilities.getPath(testFileFolder, 'pg-dump-tls-mode-stub');
+        await FsUtilities.mkdir(stubFolder);
+        await writeFile(
+            FsUtilities.getPath(stubFolder, 'pg_dump'),
+            '#!/usr/bin/env node\nprocess.stdout.write(JSON.stringify(process.env.PGSSLMODE ?? "unset"));\n',
+            { mode: 0o755 }
+        );
+        const originalPath: string | undefined = process.env['PATH'];
+        process.env['PATH'] = `${stubFolder}:${originalPath}`;
+        if (environmentMode != undefined) {
+            process.env['PGSSLMODE'] = environmentMode;
+        }
+        try {
+            return JsonUtilities.parse(await text(await inject(EvalBackupDataSource).createBackupData()));
+        }
+        finally {
+            process.env['PATH'] = originalPath;
+            delete process.env['PGSSLMODE'];
+        }
+    }
+
+    it('runs the dump with the connection\'s tls choice when the environment names none', async () => {
+        // libpq's own default is `prefer`, which falls back to plaintext without saying so. The data
+        // source here says `ssl: false`, so the honest mode is `disable`, and `require` for `true`
+        expect(await resolveDumpSslMode(undefined)).toBe('disable');
+    }, 60000);
+
+    it('leaves a mode the environment names to the environment', async () => {
+        expect(await resolveDumpSslMode('verify-full')).toBe('verify-full');
+    }, 60000);
+
+    it('does not compile a data source that leaves tls unsaid', () => {
+        class EvalUnsaidPostgresDataSource extends PostgresDataSource {
+            // @ts-expect-error - a postgres connection says whether it uses tls
+            override options: OmitStrict<PostgresOptions, 'type' | 'entities'> = {
+                host: 'localhost',
+                database: 'db'
+            };
+            entities: Newable<BaseEntity>[] = [];
+            schemaManagement: SchemaManagement = 'synchronize';
+        }
+
+        class EvalUnsaidValKeyDataSource extends ValKeyDataSource {
+            // @ts-expect-error - a valkey connection says whether it uses tls
+            override options: ValKeyOptions = { host: 'localhost' };
+            entities: Newable<BaseEntity>[] = [];
+        }
+
+        expect([EvalUnsaidPostgresDataSource, EvalUnsaidValKeyDataSource]).toHaveLength(2);
+    });
 });
 
 describe('evaluation/04-infrastructure-subsystems 5.4 - a backup must be checkable before it is trusted', () => {
+    // 5.4's residue - a restore of several resources whose second one fails leaves the first applied -
+    // is CLOSED (2026-10-13) and tested in memory in ../../backup/backup-service.several-resources.test.ts:
+    // every archive is checked before any is applied, and the applied ones are put back from snapshots.
 
     it('records what it wrote, so there is something to check a restore against', async () => {
         await backupService.createBackup({ name: 'measured' });

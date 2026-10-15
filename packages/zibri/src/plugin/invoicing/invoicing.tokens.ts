@@ -1,6 +1,7 @@
 /* eslint-disable jsdoc/require-jsdoc */
 import { InvoicingOptionsInput } from './models/invoicing-options-input.model';
 import { InvoicingOptions } from './models/invoicing-options.model';
+import { CompanyInfoServiceInterface } from './services/company-info-service.interface';
 import { InvoiceConformanceServiceInterface } from './services/conformance/invoice-conformance-service.interface';
 import { InvoiceCalcServiceInterface } from './services/invoice-calc-service.interface';
 import { InvoiceNumberServiceInterface } from './services/invoice-number-service.interface';
@@ -22,7 +23,8 @@ export const ZIBRI_INVOICING_PLUGIN_DI_TOKENS = {
     // eslint-disable-next-line typescript/no-explicit-any
     INVOICE_PDF_SERVICE: invoicingToken<InvoicePdfServiceInterface<any>>('zi.invoicing.invoice_pdf_service'),
     // eslint-disable-next-line typescript/no-explicit-any
-    INVOICE_CONFORMANCE_SERVICES: invoicingToken<InvoiceConformanceServiceInterface<any>[]>('zi.invoicing.invoice_conformance_services')
+    INVOICE_CONFORMANCE_SERVICES: invoicingToken<InvoiceConformanceServiceInterface<any>[]>('zi.invoicing.invoice_conformance_services'),
+    COMPANY_INFO_SERVICE: invoicingToken<CompanyInfoServiceInterface>('zi.invoicing.company_info_service')
 } as const satisfies TokenRecord;
 
 function invoicingToken<T = never>(k: `zi.invoicing.${string}`): InjectionToken<T> {

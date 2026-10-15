@@ -21,7 +21,7 @@ const CURRENT_USER: RequestContextToken<{ isAdmin: boolean }> = new RequestConte
     }
 );
 
-@Entity()
+@Entity({ tenant: 'shared' })
 class Test extends BaseEntity {
     @Property.string({
         exclude: async (_, ctx) => {

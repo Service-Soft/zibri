@@ -3,9 +3,9 @@ import { type RelationTree } from '../../entity/models/entity-relations.model';
 import { PaginationResult } from '../../open-api/pagination-result.model';
 import { DeepPartial } from '../../types/deep-partial.type';
 import { OmitStrict } from '../../types/omit-strict.type';
-import { AtomicUpdate } from '../models/atomic-update.model';
 import { FindAllOptions } from '../models/options/find-all-options.model';
 import { type StreamOptions } from '../models/options/stream-options.model';
+import { UpsertRow } from '../models/upsert-row.model';
 import { Where } from '../models/where/where-filter.model';
 import { Transaction } from '../transaction/transaction.model';
 
@@ -199,7 +199,7 @@ export interface RepositoryDriverInterface<T extends BaseEntity> {
     updateAll: <R extends boolean = false>(options: DriverUpdateAllOptions<T, R>) => Promise<R extends true ? T[] : number>,
 
     /**
-     * Inserts the given row, or applies `onConflict` to the row already identified by `identity`,
+     * Inserts each given row, or applies its `onConflict` to the row already holding its identity,
      * with no window for another writer to interleave in.
      *
      * Closing that window is the entire point. A read followed by a write cannot be made safe by
@@ -208,24 +208,30 @@ export interface RepositoryDriverInterface<T extends BaseEntity> {
      * 41 and both write 42.
      *
      * The properties in `identity` have to be declared together in `uniques` on the entity, in any
-     * order, which `uniqueGroupFor` enforces. Without it the identity does not name at most one row.
+     * order, which `UpsertIdentityUtilities.resolveUniqueGroup` enforces. Without it the identity does not name at most one row.
+     * Each row's identity is the values its `create` holds for them, and no two rows carry the same
+     * one. An `onConflict` leaves the identity as it is.
      *
      * **Required rather than optional.** How the window is closed is the driver's business and
      * differs per store, but a caller cannot branch on which store it happens to be talking to, so
      * every driver has to answer.
-     * @param identity - The properties identifying the row, and their values. Also the conflict target.
-     * @param create - The full row to insert when nothing matches `identity` yet.
-     * @param onConflict - The changes to apply when a row already matches `identity`.
+     * @param identity - The properties identifying each row. Also the conflict target.
+     * @param rows - What to insert, and what to change when the identity is already held.
      * @param transaction - The transaction to run the operation in. The result is returned before the
      * transaction commits, so the caller can use it while the transaction is still open, and it is
      * rolled back along with everything else if the caller rolls back. A driver that needs one to be
      * atomic takes its own when this is undefined.
-     * @returns The row as it is after the insert or the update.
+     * @param reachable - The rows an `onConflict` may be applied to, or undefined for any row. A row
+     * holding an identity outside it is refused with a `UniqueConstraintViolationError`, as inserting
+     * the identity would be - judged within the same window as the write, so the row cannot change
+     * between the two. Rows written before the refused one may stay written; run the call in a
+     * transaction when a refusal has to leave nothing behind.
+     * @returns The rows as they are after the insert or the update, in the order they were given.
      */
     upsert: (
-        identity: DeepPartial<T>,
-        create: DeepPartial<T>,
-        onConflict: AtomicUpdate<T>,
-        transaction: Transaction | undefined
-    ) => Promise<T>
+        identity: string[],
+        rows: UpsertRow<T>[],
+        transaction: Transaction | undefined,
+        reachable: Where<T> | undefined
+    ) => Promise<T[]>
 }

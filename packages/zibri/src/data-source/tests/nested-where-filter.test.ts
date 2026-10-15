@@ -34,7 +34,7 @@ class PersonalData {
     addresses: Address[] | undefined | null;
 }
 
-@Entity()
+@Entity({ tenant: 'shared' })
 class Customer extends BaseEntity {
     @Property.string()
     name!: string;
@@ -62,7 +62,7 @@ class Item {
     tags: Tag[] | undefined | null;
 }
 
-@Entity()
+@Entity({ tenant: 'shared' })
 class Container extends BaseEntity {
     @Property.string()
     title!: string;

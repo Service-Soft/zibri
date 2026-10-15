@@ -15,7 +15,7 @@ import { FindAllPaginatedOptions } from '../models/options/find-all-paginated-op
 
 // ==================== ENTITIES ====================
 
-@Entity()
+@Entity({ tenant: 'shared' })
 class Company extends BaseEntity {
     @Property.string()
     name!: string;
@@ -24,7 +24,7 @@ class Company extends BaseEntity {
     employees!: User[];
 }
 
-@Entity()
+@Entity({ tenant: 'shared' })
 class Profile extends BaseEntity {
     @Property.string()
     bio!: string;
@@ -33,7 +33,7 @@ class Profile extends BaseEntity {
     user!: Relation<User>;
 }
 
-@Entity()
+@Entity({ tenant: 'shared' })
 class Tag extends BaseEntity {
     @Property.string()
     name!: string;
@@ -42,7 +42,7 @@ class Tag extends BaseEntity {
     posts!: Post[];
 }
 
-@Entity()
+@Entity({ tenant: 'shared' })
 class Group extends BaseEntity {
     @Property.string()
     name!: string;
@@ -51,7 +51,7 @@ class Group extends BaseEntity {
     members!: User[];
 }
 
-@Entity()
+@Entity({ tenant: 'shared' })
 class Post extends BaseEntity {
     @Property.string()
     title!: string;
@@ -69,7 +69,7 @@ class Post extends BaseEntity {
     tags!: Tag[];
 }
 
-@Entity()
+@Entity({ tenant: 'shared' })
 class Comment extends BaseEntity {
     @Property.string()
     text!: string;
@@ -81,7 +81,7 @@ class Comment extends BaseEntity {
     postId!: string;
 }
 
-@Entity()
+@Entity({ tenant: 'shared' })
 class User extends BaseEntity {
     @Property.string()
     name!: string;

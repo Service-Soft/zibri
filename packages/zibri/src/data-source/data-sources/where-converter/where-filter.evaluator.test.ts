@@ -8,7 +8,7 @@ import { Entity } from '../../../entity/decorators/entity.decorator';
 import { Property } from '../../../entity/decorators/property.decorator';
 import { Where } from '../../models/where/where-filter.model';
 
-@Entity({ allowOrphan: true })
+@Entity({ tenant: 'shared', allowOrphan: true })
 class EvaluatorCategory extends BaseEntity {
     @Property.string()
     name!: string;
@@ -17,7 +17,7 @@ class EvaluatorCategory extends BaseEntity {
     products!: EvaluatorProduct[];
 }
 
-@Entity({ allowOrphan: true })
+@Entity({ tenant: 'shared', allowOrphan: true })
 class EvaluatorReview extends BaseEntity {
     @Property.number()
     rating!: number;
@@ -34,7 +34,7 @@ class EvaluatorMetadata {
     weight!: number;
 }
 
-@Entity({ allowOrphan: true })
+@Entity({ tenant: 'shared', allowOrphan: true })
 class EvaluatorProduct extends BaseEntity {
     @Property.string({ required: false })
     name: string | undefined | null;
@@ -92,8 +92,8 @@ describe('WhereFilterEvaluator', () => {
             expect(matches({ name: 'Alpha' }, { name: { not: 'Alpha' } })).toBe(false);
         });
 
-        it('not does not match null values, mirroring sql', () => {
-            expect(matches({ name: null }, { name: { not: 'Alpha' } })).toBe(false);
+        it('not matches a null value, which is not the value named', () => {
+            expect(matches({ name: null }, { name: { not: 'Alpha' } })).toBe(true);
         });
 
         it('not null matches everything that is set', () => {

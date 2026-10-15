@@ -7,6 +7,10 @@ import { AssetService } from '../../assets/asset.service';
 import { TwoFactorService } from '../../auth/2fa/two-factor.service';
 import { AuthRateLimiter } from '../../auth/auth.rate-limiter';
 import { AuthService } from '../../auth/auth.service';
+import { FidoMetadataService } from '../../auth/authenticators/passkey/fido-metadata.service';
+import { PasskeyService } from '../../auth/authenticators/passkey/passkey.service';
+import { AuthorizationServerService } from '../../auth/authorization-server/authorization-server.service';
+import { DpopService } from '../../auth/dpop/dpop.service';
 import { EncryptionKeyCache } from '../../auth/encryption/encryption-key.cache';
 import { EncryptionService } from '../../auth/encryption/encryption.service';
 import { AesGcmEncryptionStrategy } from '../../auth/encryption/strategies/aes-gcm.encryption-strategy';
@@ -14,14 +18,15 @@ import { HashService } from '../../auth/hash/hash.service';
 import { defaultScryptCost, ScryptHashStrategy } from '../../auth/hash/strategies/scrypt.hash-strategy';
 import { Sha256HashStrategy } from '../../auth/hash/strategies/sha256.hash-strategy';
 import { RouteAuthConfiguration } from '../../auth/models/route-auth-configuration.model';
+import { ScimService } from '../../auth/scim/scim.service';
+import { ApiKeyService } from '../../auth/strategies/api-key/api-key.service';
+import { AccessTokenRevocation } from '../../auth/strategies/jwt/access-token-revocation.type';
 import { JwtAuthOptionsInput } from '../../auth/strategies/jwt/jwt-auth-options.model';
+import { JwtService } from '../../auth/strategies/jwt/jwt.service';
 import { UserService } from '../../auth/user/user.service';
 import { BackupService } from '../../backup/backup.service';
 import { CacheService } from '../../caching/cache.service';
 import { AlsUtilities } from '../../context/als.utilities';
-import { HttpRequestContext } from '../../context/request/http-request.context';
-import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../../context/request/request-context-token.model';
-import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
 import { CronService } from '../../cron/cron.service';
 import { DataSourceService } from '../../data-source/data-source.service';
 import { EmailRateLimiter } from '../../email/email.rate-limiter';
@@ -43,10 +48,12 @@ import { LoggerTransport } from '../../logging/transport/logger-transport.model'
 import { PrometheusMetricsService } from '../../metrics/metrics.service';
 import { MultithreadingService } from '../../multithreading/services/multithreading.service';
 import { OpenApiService } from '../../open-api/open-api.service';
-import { CspSource } from '../../parsing/html/csp-options.model';
+import { CspOptionsInput } from '../../parsing/html/csp-options.model';
 import { Parser } from '../../parsing/parser';
 import { RateLimitingService } from '../../rate-limiting/rate-limiting.service';
 import { Router } from '../../routing/router';
+import { MembershipService } from '../../tenancy/membership/membership.service';
+import { TenantService } from '../../tenancy/tenant.service';
 import { InMemoryTraceBuffer } from '../../tracing/in-memory.trace-buffer';
 import { OpenTelemetryTracer } from '../../tracing/open-telemetry/open-telemetry.tracer';
 import { FsUtilities } from '../../utilities/fs.utilities';
@@ -55,7 +62,7 @@ import { resolveAppRoot } from '../../utilities/resolve-app-root.function';
 import { resolveZibriRoot } from '../../utilities/resolve-zibri-root.function';
 import { ValidationService } from '../../validation/validation.service';
 import { VersioningService } from '../../versioning/versioning.service';
-import { WebsocketOptions } from '../../websocket/models/websocket-options.model';
+import { WebsocketOptions, WebsocketOptionsInput } from '../../websocket/models/websocket-options.model';
 import { WebsocketService } from '../../websocket/services/websocket.service';
 import { DiTokenProviderRecord } from '../models/di-token.model';
 import { DiVariants } from '../models/di-variant.model';
@@ -143,26 +150,50 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
         })
     },
     LEASE_SERVICE: { useClass: LeaseService },
+    TENANT_SERVICE: { useClass: TenantService },
+    MEMBERSHIP_SERVICE: { useClass: MembershipService },
     // how long a shutting down instance waits for work it holds a lease on before taking the lease
     // away. Comfortably inside the shutdown timeout, or the hook is cut off before it can release.
     LEASE_DRAIN_TIMEOUT_IN_MS: { useFactory: () => Ms.SECOND * 10 },
     AUTH_SERVICE: { useClass: AuthService },
     REVALIDATE_USER_ON_AUTH_CHECK: { useFactory: () => true },
+    ACCESS_TOKEN_REVOCATION: { useFactory: (): AccessTokenRevocation => 'onExpiry' },
+    AUTHORIZATION_SERVER_SERVICE: { useClass: AuthorizationServerService },
     AUTH_RATE_LIMITER: { useClass: AuthRateLimiter, variants: [DiVariants.RATE_LIMITER] },
     AUTH_RATE_LIMIT_OPTIONS: { useFactory: () => ({ maxAttempts: 20, windowInMs: Ms.MINUTE * 10 }) },
     TWO_FACTOR_SERVICE: { useClass: TwoFactorService },
+    // the wait after the first wrong code, doubling with each one after it - so a typo costs a
+    // second, and a guesser is down to a few dozen codes a year
+    TWO_FACTOR_FAILURE_DELAY_IN_MS: { useFactory: () => Ms.SECOND },
+    // a second factor only, unless the application or the route says otherwise. A recent login is
+    // the weaker proof - it is the factor the session already rests on - so accepting it is a
+    // loosening that has to be stated rather than the default
+    REQUIRE_2FA_REAUTH: { useFactory: () => false },
+    REQUIRE_2FA_REAUTH_WINDOW_IN_MS: { useFactory: () => Ms.MINUTE * 5 },
     OTP_HEADER: { useFactory: () => 'x-authorization-otp' },
     OTP_VALIDATION_WINDOW_IN_MS: { useFactory: () => 30_000 },
     OTP_LENGTH: { useFactory: () => 6 },
+    PASSKEY_HEADER: { useFactory: () => 'x-authorization-passkey' },
+    EMAIL_CODE_HEADER: { useFactory: () => 'x-authorization-email-code' },
+    SMS_CODE_HEADER: { useFactory: () => 'x-authorization-sms-code' },
+    SMS_CODE_LIMITS: { useFactory: () => undefined },
+    RECOVERY_CODE_HEADER: { useFactory: () => 'x-authorization-recovery-code' },
+    API_KEY_HEADER: { useFactory: () => 'x-api-key' },
+    API_KEY_SERVICE: { useClass: ApiKeyService },
+    SCIM_SERVICE: { useClass: ScimService },
+    TWO_FACTOR_CODE_OPTIONS: { useFactory: () => ({}) },
     USER_SERVICE: { useClass: UserService },
     PASSWORD_RESET_EMAIL_TEMPLATE: { useFactory: () => undefined },
     JWT_AUTH_OPTIONS_INPUT: { useFactory: () => ({}) },
+    JWT_SERVICE: { useClass: JwtService },
+    DPOP_SERVICE: { useClass: DpopService },
+    DPOP_NONCES: { useFactory: () => false },
     JWT_AUTH_OPTIONS: {
         useFactory: () => {
             const input: JwtAuthOptionsInput = inject(ZIBRI_DI_TOKENS.JWT_AUTH_OPTIONS_INPUT);
             return {
-                accessTokenSecret: undefined,
-                previousAccessTokenSecrets: [],
+                accessTokenKey: undefined,
+                previousAccessTokenKeys: [],
                 accessTokenExpiresInMs: Ms.HOUR,
                 refreshTokenSecret: undefined,
                 previousRefreshTokenSecrets: [],
@@ -170,6 +201,7 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
                 // stolen one is worth stealing. 30 days is the usual "stay signed in" window; 100
                 // was a third of a year.
                 refreshTokenExpiresInMs: 30 * Ms.DAY,
+                requireDpop: false,
                 ...input
             };
         }
@@ -178,6 +210,7 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
     CRON_EXECUTION_LEASE_IN_MS: { useFactory: () => Ms.MINUTE * 5 },
     CRON_REGISTRATION_LEASE_IN_MS: { useFactory: () => Ms.SECOND * 30 },
     EMAIL_SERVICE: { useClass: EmailService },
+    SMS_SERVICE: { useFactory: () => undefined },
     EMAIL_RATE_LIMITER: { useClass: EmailRateLimiter, variants: [DiVariants.RATE_LIMITER] },
     EMAIL_CONFIG: { useFactory: () => undefined },
     // no default, the same way EMAIL_CONFIG has none: every transport needs something only the
@@ -197,9 +230,20 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
     // to. The two differ on purpose: a version file is written at runtime and read by the next
     // deployment, while a translation is built once and shipped with what reads it.
     TRANSLATIONS_PATH: { useFactory: () => FsUtilities.getPath(__dirname, 'translations') },
+    // beside the bundle for the same reason as the translations: a build copies them there and
+    // nothing writes to them at runtime. A token rather than a field of the asset service, because an
+    // application that does not bundle resolves this file inside the installed framework, and the
+    // service derives its public and template folders from it while it is built.
+    ASSETS_PATH: { useFactory: () => FsUtilities.getPath(__dirname, 'assets') },
     FORM_DATA_LIMITS: { useFactory: () => ({ maxFiles: 20, maxParts: 1000, maxFields: 500 }) },
     PASSWORD_RESET_TOKEN_EXPIRES_IN_MS: { useFactory: () => 300000 },
     CONFIRM_PASSWORD_RESET_URL: { useFactory: () => undefined },
+    FEDERATION_OPTIONS: { useFactory: () => undefined },
+    // no default: the site passkeys are bound to and the pages allowed to use them are the
+    // deployment's, and a guess would bind every passkey to the wrong one
+    PASSKEY_OPTIONS: { useFactory: () => undefined },
+    PASSKEY_SERVICE: { useClass: PasskeyService },
+    FIDO_METADATA_SERVICE: { useClass: FidoMetadataService },
     MULTITHREADING_OPTIONS: {
         useFactory: () => ({
             maxThreads,
@@ -215,12 +259,25 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
     // handlerInMs bounds this server's own code, the way the http one does. Thirty seconds for the
     // same reason: long enough that no ordinary event reaches it, short enough that a client hears
     // something before it gives up
+    WEBSOCKET_OPTIONS_INPUT: { useFactory: () => undefined },
     WEBSOCKET_OPTIONS: {
-        useFactory: (): WebsocketOptions => ({
-            timeoutInMs: Ms.SECOND * 5,
-            handlerInMs: Ms.SECOND * 30,
-            isAllowedToConnect: () => true
-        })
+        useFactory: (): WebsocketOptions | undefined => {
+            const input: WebsocketOptionsInput | undefined = inject(ZIBRI_DI_TOKENS.WEBSOCKET_OPTIONS_INPUT);
+            // no default for how long messages are kept: it is how long a client may be away and still
+            // be sent what it missed, which only the application knows. Undefined rather than refused
+            // here, because a factory is built in every application while it starts; the websocket
+            // service refuses it once it knows the application has websockets
+            if (input == undefined) {
+                return undefined;
+            }
+            return {
+                timeoutInMs: Ms.SECOND * 5,
+                handlerInMs: Ms.SECOND * 30,
+                isAllowedToConnect: () => true,
+                maxReplayedMessages: 1000,
+                ...input
+            };
+        }
     },
     HTTP_CLIENT: { useClass: HttpClient },
     HTTP_CLIENT_OPTIONS_INPUT: { useFactory: () => ({}) },
@@ -309,16 +366,13 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
     },
     RATE_LIMITING_SERVICE: { useClass: RateLimitingService },
     HANDLEBAR_OPTIONS: { useValue: {} },
-    // dynamic
-    CURRENT_REQUEST_CONTEXT: {
-        useFactory: () => AlsUtilities.getCurrentRequestContext(),
-        scope: 'transient'
-    },
+    DEFAULT_CSP_OPTIONS_INPUT: { useFactory: () => ({}) },
+    // no nonce here: the router adds the request's own to script-src as each response is written,
+    // which is what keeps a response that outlives its request - a cached page - from handing every
+    // later visitor the nonce the first one was given
     DEFAULT_CSP_OPTIONS: {
         useFactory: () => {
-            const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
-            const nonce: string | undefined = context?.get(ZIBRI_REQUEST_CONTEXT_TOKENS.NONCE);
-            const nonceSrc: CspSource | undefined = nonce ? `'nonce-${nonce}'` : undefined;
+            const input: CspOptionsInput = inject(ZIBRI_DI_TOKENS.DEFAULT_CSP_OPTIONS_INPUT);
             return {
                 baseUri: ['\'self\''],
                 connectSrc: [],
@@ -329,14 +383,16 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
                 imgSrc: [],
                 mediaSrc: [],
                 objectSrc: ['\'none\''],
-                scriptSrc: [
-                    '\'self\'',
-                    ...nonceSrc ? [nonceSrc] : []
-                ],
+                scriptSrc: ['\'self\''],
                 scriptSrcAttr: ['\'none\''],
-                styleSrc: []
+                styleSrc: [],
+                ...input
             };
-        },
+        }
+    },
+    // dynamic
+    CURRENT_REQUEST_CONTEXT: {
+        useFactory: () => AlsUtilities.getCurrentRequestContext(),
         scope: 'transient'
     },
     CURRENT_CACHE_CONTEXT: {

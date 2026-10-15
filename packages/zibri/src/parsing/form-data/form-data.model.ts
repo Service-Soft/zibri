@@ -4,7 +4,7 @@ import { FsUtilities, FsPath } from '../../utilities/fs.utilities';
 /**
  * The raw value that a form-data property has.
  */
-export type FormDataValue = string | File | File[] | undefined;
+export type FormDataValue = string | string[] | File | File[] | undefined;
 
 /**
  * The name of the file that contains information about when a uploaded file should be cleaned up.

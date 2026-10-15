@@ -18,7 +18,7 @@ class MailAddress {
     city!: string;
 }
 
-@Entity({ allowOrphan: true })
+@Entity({ tenant: 'shared', allowOrphan: true })
 class Organization extends BaseEntity {
     @Property.string()
     name!: string;
@@ -30,7 +30,7 @@ class Organization extends BaseEntity {
 /**
  * A row owned by a user, with something else to filter on beside the owner.
  */
-@Entity({ allowOrphan: true })
+@Entity({ tenant: 'shared', allowOrphan: true })
 class Invoice extends BaseEntity {
     /**
      * The user the invoice belongs to.
@@ -93,7 +93,7 @@ class Invoice extends BaseEntity {
     payments!: Payment[];
 }
 
-@Entity({ allowOrphan: true })
+@Entity({ tenant: 'shared', allowOrphan: true })
 class Payment extends BaseEntity {
     @Property.number()
     amount!: number;

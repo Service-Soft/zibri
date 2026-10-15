@@ -1,6 +1,6 @@
 import { Readable } from 'node:stream';
 
-import { type AuthServiceInterface, BaseEntity, ChangeSet, ChangeSetEntity, ChangeSetRepository, DataSourceInitializationError, DataSourceInterface, EntityMetadata, EntityMetadataMissingError, ExcludeStrict, FilePropertyMetadata, getDefaultBeforeReturnHook, getDefaultBeforeSaveHook, Inject, InternalError, isChangeSetEntityNewable, isSoftDeleteEntityNewable, type LoggerInterface, MetadataUtilities, Migration, Newable, ObjectUtilities, PropertyMetadata, PropertyMetadataInput, registerRepositoryProvidersFor, RelationMetadata, Repository, RepositoryDriverInterface, RepositoryTypeForEntity, revertMigrationsAfter, runMigrations, SemVerVersion, SoftDeleteEntity, SoftDeleteRepository, StartTransactionOptions, Transaction, ZIBRI_DI_TOKENS } from 'zibri';
+import { AddPropertyToEntityInput, type AuthServiceInterface, BaseEntity, ChangePropertyOfEntityInput, ChangeSet, ChangeSetEntity, ChangeSetRepository, ConvertedValue, DataSourceInitializationError, DataSourceInterface, EntityMetadata, EntityMetadataMissingError, getDefaultBeforeReturnHook, getDefaultBeforeSaveHook, Inject, InternalError, isChangeSetEntityNewable, isSoftDeleteEntityNewable, JsonUtilities, type LoggerInterface, MergeEntityInput, MetadataUtilities, MigratedEntityUtilities, Migration, MigrationPropertyMetadata, Newable, ObjectUtilities, PropertyMetadata, recordKeyReconciliation, RefusedValue, registerRepositoryProvidersFor, RemovePropertyFromEntityInput, RenameEntityInput, Repository, RepositoryDriverInterface, RepositoryTypeForEntity, ResolvedPropertyConversion, revertMigrationsAfter, runMigrations, SemVerVersion, SoftDeleteEntity, SoftDeleteRepository, StartTransactionOptions, Transaction, ValueConversionUtilities, ZIBRI_DI_TOKENS } from 'zibri';
 
 import { InMemoryScope, inMemoryStoreFor, InMemoryStore, InMemoryStoreSnapshot, StoredRow } from './in-memory-store';
 import { InMemoryTransaction } from './in-memory-transaction.model';
@@ -107,6 +107,19 @@ export abstract class InMemoryDataSource implements DataSourceInterface {
         // no lock around this, unlike the shipped data sources. Theirs stops two instances setting
         // the schema up at once, and there is only ever one instance on this store.
         await this.runMigrations();
+        // there is nothing to build, since every filter goes through the rows and every write is
+        // checked against what the entity declares - but rows stored before a unique was declared
+        // never were, and a restart over them has to refuse to start as the shipped data sources do.
+        // A change is recorded as theirs is, so that an older version refuses to start after it
+        let changed: boolean = false;
+        for (const entity of this.entities) {
+            const driver: InMemoryRepositoryDriver<BaseEntity> = new InMemoryRepositoryDriver(entity, this.store);
+            driver.validateStoredRowsAreUnique();
+            changed = driver.reconcileKeyLists() || changed;
+        }
+        if (changed) {
+            await recordKeyReconciliation(this.constructor as Newable<DataSourceInterface>);
+        }
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -204,53 +217,82 @@ export abstract class InMemoryDataSource implements DataSourceInterface {
     }
 
     // eslint-disable-next-line typescript/require-await, jsdoc/require-jsdoc
-    async addPropertyToEntity<T extends BaseEntity>(entity: Newable<T>, key: keyof T, transaction: Transaction): Promise<void> {
-        const metadata: PropertyMetadata | undefined = MetadataUtilities.getModelProperties(entity)[String(key)];
-        if (metadata == undefined) {
-            throw new InternalError(`The property "${entity.name}.${String(key)}" does not exist.`);
-        }
+    async addPropertyToEntity<T extends BaseEntity>(input: AddPropertyToEntityInput<T>): Promise<void> {
+        const name: string = String(input.property.name);
+        const metadata: PropertyMetadata = MigratedEntityUtilities.resolvePropertyMetadata(input.property);
         const value: unknown = 'default' in metadata && metadata.default !== undefined
             ? typeof metadata.default === 'function' ? (metadata.default as () => unknown)() : metadata.default
             // eslint-disable-next-line unicorn/no-null
             : null;
 
-        this.updateStoredRows(entity, transaction, row => {
-            if (String(key) in row) {
+        this.updateStoredRows(input.entity, input.transaction, row => {
+            if (name in row) {
                 return undefined;
             }
-            return { values: { [String(key)]: JSON.stringify(value) } };
+            return { values: { [name]: JsonUtilities.stringify(value) } };
         });
     }
 
-    // eslint-disable-next-line typescript/require-await, jsdoc/require-jsdoc
-    async changePropertyOfEntity<T extends BaseEntity>(
-        entity: Newable<T>,
-        oldProperty: keyof T | string & {},
-        newProperty: PropertyMetadataInput & {
-            /**
-             * The name of the new column.
-             */
-            name?: keyof T | string & {},
-            /**
-             * The type of the new column.
-             */
-            type: ExcludeStrict<PropertyMetadata, RelationMetadata<BaseEntity> | FilePropertyMetadata>['type']
-        },
-        transaction: Transaction
-    ): Promise<void> {
-        const oldKey: string = String(oldProperty);
-        const newKey: string = String(newProperty.name ?? oldProperty);
-        if (oldKey === newKey) {
-            return;
+    // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
+    async removePropertyFromEntity<T extends BaseEntity>(input: RemovePropertyFromEntityInput<T>): Promise<void> {
+        const metadata: PropertyMetadata | undefined = MetadataUtilities.getModelProperties(input.entity)[String(input.propertyKey)];
+        if (metadata && 'primary' in metadata && metadata.primary) {
+            throw new InternalError('primary keys cannot be removed');
         }
 
-        this.updateStoredRows(entity, transaction, row => {
-            const value: string | undefined = row[oldKey];
-            if (value == undefined) {
+        this.updateStoredRows(input.entity, input.transaction, () => ({
+            values: {},
+            remove: [String(input.propertyKey)]
+        }));
+    }
+
+    // eslint-disable-next-line typescript/require-await, jsdoc/require-jsdoc
+    async changePropertyOfEntity<T extends BaseEntity, C extends MigrationPropertyMetadata, M extends MigrationPropertyMetadata>(
+        input: ChangePropertyOfEntityInput<T, C, M>
+    ): Promise<void> {
+        const conversion: ResolvedPropertyConversion = ValueConversionUtilities.resolveConversion(input);
+        const renames: boolean = conversion.currentName !== conversion.changedName;
+
+        // the same conversion the valkey data source makes, since both store each value as json
+        const refused: RefusedValue[] = [];
+        this.updateStoredRows(input.entity, input.transaction, row => {
+            const stored: string | undefined = row[conversion.currentName];
+            // a field that is not there is a value that is null, which a change lists and converts alike
+            const converted: ConvertedValue | RefusedValue = ValueConversionUtilities.resolveConvertedValue(
+                // eslint-disable-next-line unicorn/no-null
+                stored == undefined ? null : JsonUtilities.parse(stored),
+                conversion
+            );
+            if ('refusal' in converted) {
+                refused.push(converted);
                 return undefined;
             }
-            return { values: { [newKey]: value }, remove: [oldKey] };
+            if (stored == undefined && converted.value === null) {
+                return undefined;
+            }
+            return {
+                values: { [conversion.changedName]: JsonUtilities.stringify(converted.value) },
+                remove: renames ? [conversion.currentName] : undefined
+            };
         });
+        // after every row, so that the migration names all of them at once. What the rows above were
+        // given stays in the transaction, which failing the migration rolls back
+        ValueConversionUtilities.validateNothingRefused(conversion, refused);
+    }
+
+    // eslint-disable-next-line typescript/require-await, jsdoc/require-jsdoc
+    async renameEntity<T extends BaseEntity>(input: RenameEntityInput<T>): Promise<void> {
+        new InMemoryRepositoryDriver(input.entity, this.store).moveStoredRowsFrom(input.currentTableName, input.transaction);
+    }
+
+    // eslint-disable-next-line typescript/require-await, jsdoc/require-jsdoc
+    async mergeEntity<T extends BaseEntity>(input: MergeEntityInput<T>): Promise<void> {
+        new InMemoryRepositoryDriver(input.entity, this.store).mergeStoredRowsFrom(input.currentTableName, input.transaction);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async createEntity(): Promise<void> {
+        // Creates nothing: in memory has no schema.
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -265,11 +307,13 @@ export abstract class InMemoryDataSource implements DataSourceInterface {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async restoreBackup(backupData: Readable): Promise<void> {
-        const chunks: string[] = [];
+        // decoded once rather than per chunk: the data arrives as bytes, and a character spanning two
+        // chunks decoded one chunk at a time comes out as two replacement characters
+        const chunks: Buffer[] = [];
         for await (const chunk of backupData) {
-            chunks.push(Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk));
+            chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)));
         }
-        this.store.restore(JSON.parse(chunks.join('')) as InMemoryStoreSnapshot);
+        this.store.restore(JSON.parse(Buffer.concat(chunks).toString('utf8')) as InMemoryStoreSnapshot);
     }
 
     /**

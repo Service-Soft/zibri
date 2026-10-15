@@ -161,6 +161,77 @@ describe('DiContainer', () => {
             // the container reads is @Inject, and it never looks at the metadata for this parameter
             expect(inject(NeedsSettings).settings.retries).toBe(3);
         });
+
+        describe('a class inheriting its constructor', () => {
+            @Injectable()
+            class Clock {
+                now(): number {
+                    return 1;
+                }
+            }
+
+            /**
+             * Not decorated, so nothing is recorded about its constructor's parameters.
+             */
+            abstract class UndecoratedBase {
+                constructor(readonly clock: Clock) {}
+            }
+
+            /**
+             * Decorated, so its constructor's parameter types are recorded.
+             */
+            @Injectable()
+            class DecoratedBase {
+                constructor(readonly clock: Clock) {}
+            }
+
+            /**
+             * Names its constructor's tokens, which needs nothing recorded.
+             */
+            abstract class NamingBase {
+                constructor(
+                    @Inject(Clock)
+                    readonly clock: Clock
+                ) {}
+            }
+
+            it('refuses one whose inherited constructor nothing records, naming both classes', () => {
+                @Injectable()
+                class InheritsUnrecorded extends UndecoratedBase {}
+
+                // it reports an arity of 0 of its own, so it used to be built with no arguments and
+                // its parent handed undefined for the clock - found at the first call, somewhere else
+                expect(() => inject(InheritsUnrecorded)).toThrow(UninjectableParameterError);
+                expect(() => inject(InheritsUnrecorded))
+                    .toThrow(/Parameter 0 of "InheritsUnrecorded", taken from the constructor of "UndecoratedBase"/);
+            });
+
+            it('builds one whose parent is decorated, with what the parent records', () => {
+                @Injectable()
+                class InheritsRecorded extends DecoratedBase {}
+
+                expect(inject(InheritsRecorded).clock).toBe(inject(Clock));
+            });
+
+            it('builds one whose parent names its tokens', () => {
+                @Injectable()
+                class InheritsNamed extends NamingBase {}
+
+                expect(inject(InheritsNamed).clock).toBe(inject(Clock));
+            });
+
+            it('builds one declaring a constructor that takes nothing, whatever its parent takes', () => {
+                @Injectable()
+                class TakesNothing extends UndecoratedBase {
+                    constructor() {
+                        super(new Clock());
+                    }
+                }
+
+                // the recorded, empty parameter list is what says this class declares its own
+                expect(inject(TakesNothing).clock.now()).toBe(1);
+            });
+        });
     });
 
     describe('asynchronous providers', () => {
@@ -319,6 +390,23 @@ describe('DiContainer', () => {
 
             expect(inject(token)).not.toBe(inject(token));
             expect(built).toBe(2);
+        });
+    });
+
+    describe('synchronous factories', () => {
+        it('refuses a factory that declares a parameter, while compiling', () => {
+            const token: InjectionToken<string> = new InjectionToken<string>('factory-with-parameter');
+
+            // nothing is ever handed to a sync factory - what it needs, it reaches for with inject()
+            // - so a declared parameter would only ever be undefined
+            defineProvider({
+                token,
+                // @ts-expect-error - the factory declares a parameter nothing will pass
+                useFactory: (prefix: unknown) => `${String(prefix)}-value`
+            });
+            DiContainer.getInstance().register(defineProvider({ token, useFactory: () => 'value' }));
+
+            expect(inject(token)).toBe('value');
         });
     });
 

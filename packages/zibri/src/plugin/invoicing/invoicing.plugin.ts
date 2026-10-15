@@ -28,18 +28,19 @@ export class ZibriInvoicingPlugin extends ZibriPlugin {
         INVOICE_CONFORMANCE_SERVICES: {
             useFactory: () => [inject(XRechnungConformanceService), inject(PeppolConformanceService)]
         },
-        OPTIONS_INPUT: {
+        // the company issuing the invoices differs per tenant, and there is no sensible default for it
+        COMPANY_INFO_SERVICE: {
             useFactory: () => {
-                throw new NoProviderError(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.OPTIONS_INPUT, []);
+                throw new NoProviderError(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.COMPANY_INFO_SERVICE, []);
             }
         },
+        OPTIONS_INPUT: { useFactory: () => ({}) },
         OPTIONS: {
             useFactory: () => {
                 const input: InvoicingOptionsInput = inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.OPTIONS_INPUT);
                 const res: InvoicingOptions = {
                     footerFontSize: 10,
                     images: undefined,
-                    logo: undefined,
                     phoneLabel: 'Phone',
                     emailLabel: 'E-Mail',
                     headline: 'Invoice',
@@ -62,11 +63,9 @@ export class ZibriInvoicingPlugin extends ZibriPlugin {
                     itemAmountLabel: 'Amount',
                     itemSinglePriceLabel: 'Price',
                     itemTotalPriceLabel: 'Total',
-                    taxOffice: undefined,
                     bankDetailsLabel: 'Bank details:',
                     ibanLabel: 'IBAN:',
                     bicLabel: 'BIC/SWIFT:',
-                    bankName: undefined,
                     numberOfDigits: 4,
                     separator: '-',
                     numberCompanyAbbreviationCharacters: 6,

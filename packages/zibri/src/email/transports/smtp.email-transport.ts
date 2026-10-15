@@ -1,8 +1,9 @@
-import { createTransport, Transporter } from 'nodemailer';
-import SMTPPool from 'nodemailer/lib/smtp-pool';
-import SMTPTransport from 'nodemailer/lib/smtp-transport';
+import type { Transporter } from 'nodemailer';
+import type SMTPPool from 'nodemailer/lib/smtp-pool';
+import type SMTPTransport from 'nodemailer/lib/smtp-transport';
 
 import { EmailSendResult, EmailTransportInterface } from './email-transport.interface';
+import { optionalPeer } from '../../utilities/optional-peer.function';
 import { Email } from '../models/email.model';
 
 /**
@@ -69,6 +70,9 @@ export class SmtpEmailTransport implements EmailTransportInterface {
      * @param options - How to reach the server.
      */
     constructor(options: SmtpEmailTransportOptions) {
+        // eslint-disable-next-line typescript/typedef
+        const createTransport = optionalPeer<typeof import('nodemailer')>('nodemailer', 'The smtp email transport').createTransport;
+
         const transportOptions: SMTPTransport.Options = {
             host: options.host,
             port: options.port,
@@ -93,9 +97,10 @@ export class SmtpEmailTransport implements EmailTransportInterface {
         });
 
         // nodemailer rejects the connection-level failures by throwing, so reaching this line means
-        // the server answered - and `rejected` is the per recipient half of that answer
+        // the server answered - and `rejected` is the per recipient half of that answer: the bare
+        // addresses of the envelope the server refused in reply to RCPT TO
         return {
-            rejectedRecipients: res.rejected.map(r => typeof r === 'string' ? r : r.address)
+            rejectedRecipients: res.rejected
         };
     }
 

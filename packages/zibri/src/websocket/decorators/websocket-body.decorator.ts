@@ -52,9 +52,7 @@ export namespace WebsocketBody {
 // eslint-disable-next-line jsdoc/require-jsdoc
 function setRouteBody(target: Object, propertyKey: string | symbol | undefined, metadata: JsonBodyMetadata | XmlBodyMetadata): void {
     const ctor: Function = target.constructor;
-    // eslint-disable-next-line unicorn/error-message
-    const stack: string = new Error().stack ?? '';
-    MetadataUtilities.setFilePath(ctor, stack);
+    MetadataUtilities.setFilePath(ctor);
     const key: string = propertyKey?.toString() ?? '';
     MetadataUtilities.setRouteBody(ctor, metadata, key);
 }

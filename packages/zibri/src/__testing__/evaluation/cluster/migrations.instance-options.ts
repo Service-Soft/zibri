@@ -55,7 +55,8 @@ class MigrationDataSource extends PostgresDataSource {
         host: 'localhost',
         username: 'postgres',
         password: 'password',
-        database: 'db'
+        database: 'db',
+        ssl: false
     };
     entities: Newable<BaseEntity>[] = defaultClusterTestEntities;
     override readonly migrations: Newable<Migration>[] = [ClusterMigration];

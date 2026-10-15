@@ -1,3 +1,5 @@
+import { writeFile } from 'node:fs/promises';
+
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { FsPath, FsUtilities } from './fs.utilities';
@@ -25,6 +27,23 @@ describe('FsUtilities', () => {
 
         it('normalizes ".." and "." segments', () => {
             expect(FsUtilities.getPath('a', 'b', '..', 'c')).toBe('a/c');
+        });
+    });
+
+    describe('createReadStream', () => {
+        it('hands out the bytes of a file that is not text', async () => {
+            // an image being served, say: read as text, every byte that is not valid utf8 comes back as
+            // the three bytes of a replacement character, and the file no longer matches its own size
+            const bytes: Buffer = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x80]);
+            const p: FsPath = FsUtilities.getPath(workDir, 'binary');
+            await writeFile(p, bytes);
+
+            const read: Buffer[] = [];
+            for await (const chunk of FsUtilities.createReadStream(p)) {
+                read.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)));
+            }
+
+            expect(Buffer.concat(read).equals(bytes)).toBe(true);
         });
     });
 
@@ -60,6 +79,29 @@ describe('FsUtilities', () => {
 
         it('reports false for a path that does not exist', async () => {
             expect(await FsUtilities.exists(FsUtilities.getPath(workDir, 'does-not-exist.txt'))).toBe(false);
+        });
+    });
+
+    describe('createFileIfAbsent', () => {
+        it('creates the file once when many create it at the same time, and leaves it whole', async () => {
+            const folder: FsPath = FsUtilities.getPath(workDir, 'created-once');
+            const file: FsPath = FsUtilities.getPath(folder, 'file.json');
+            const contents: string[] = Array.from({ length: 20 }, (_, i) => `${String(i)}:${'x'.repeat(100000)}`);
+
+            const created: boolean[] = await Promise.all(contents.map(async content => await FsUtilities.createFileIfAbsent(file, content)));
+
+            expect(created.filter(Boolean)).toHaveLength(1);
+            expect(contents).toContain(await FsUtilities.readFile(file));
+            // nothing of the way there is left beside it
+            expect(await FsUtilities.readdir(folder)).toHaveLength(1);
+        });
+
+        it('leaves a file that is there as it is', async () => {
+            const file: FsPath = FsUtilities.getPath(workDir, 'kept.txt');
+            await FsUtilities.createFile(file, 'first');
+
+            expect(await FsUtilities.createFileIfAbsent(file, 'second')).toBe(false);
+            expect(await FsUtilities.readFile(file)).toBe('first');
         });
     });
 
@@ -138,6 +180,30 @@ describe('FsUtilities', () => {
 
         it('does not throw when removing a path that does not exist', async () => {
             await expect(FsUtilities.rm(FsUtilities.getPath(workDir, 'never-existed.txt'))).resolves.toBeUndefined();
+        });
+    });
+
+    describe('rmIfEmpty', () => {
+        it('removes an empty directory', async () => {
+            const dir: FsPath = FsUtilities.getPath(workDir, 'empty-dir');
+            await FsUtilities.mkdir(dir);
+
+            await FsUtilities.rmIfEmpty(dir);
+
+            expect(await FsUtilities.exists(dir)).toBe(false);
+        });
+
+        it('keeps a directory that holds something, and what it holds', async () => {
+            const file: FsPath = FsUtilities.getPath(workDir, 'full-dir', 'kept.txt');
+            await FsUtilities.createFile(file, 'x');
+
+            await FsUtilities.rmIfEmpty(FsUtilities.getPath(workDir, 'full-dir'));
+
+            expect(await FsUtilities.readFile(file)).toBe('x');
+        });
+
+        it('does not throw for a directory that does not exist', async () => {
+            await expect(FsUtilities.rmIfEmpty(FsUtilities.getPath(workDir, 'never-existed'))).resolves.toBeUndefined();
         });
     });
 

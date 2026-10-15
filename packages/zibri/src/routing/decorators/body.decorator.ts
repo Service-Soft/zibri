@@ -1,6 +1,6 @@
-import { BodyMetadata, BodyMetadataInput, BodyShapeMetadata, OneOfBodyMetadataInput, StreamBodyMetadataInput } from './body-metadata.model';
+import { BodyMetadata, BodyMetadataInput, BodyShapeMetadata, OneOfBodyMetadataInput, ShapedBodyMetadata, StreamBodyMetadataInput } from './body-metadata.model';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
-import { FileSize, fileSizeToBytes } from '../../entity/models/file-property-metadata.model';
+import { fileSizeToBytes } from '../../entity/models/file-property-metadata.model';
 import { Relation } from '../../entity/models/relation.enum';
 import { MimeType } from '../../http/mime-type.enum';
 import { ExcludeStrict } from '../../types/exclude-strict.type';
@@ -13,11 +13,12 @@ import { resolveBodyMetadata } from '../resolve-body-metadata.function';
 
 /**
  * Defines a http request body property with the given data.
- * @param modelClass - The model class that defines the body properties structure.
+ * @param modelClass - The model class that defines the body properties structure, or a function answering
+ * it for a class that is only known once the application has started.
  * @param options - Additional options, like the type.
  */
 export function Body(
-    modelClass: Newable<unknown>,
+    modelClass: Newable<unknown> | (() => Newable<unknown>),
     options: ExcludeStrict<BodyMetadataInput, StreamBodyMetadataInput> = {}
 ): ParameterDecorator {
     return (target, propertyKey, index) => {
@@ -44,8 +45,8 @@ export namespace Body {
     }
 
     /**
-     *
-     * @param data
+     * Defines a http request body that is a stream.
+     * @param data - Options like the maximum size etc.
      */
     export function stream(data: OmitStrict<StreamBodyMetadataInput, 'type'>): ParameterDecorator {
         const withoutIndex: BodyMetadata = resolveBodyMetadata({ ...data, type: MimeType.OCTET_STREAM }, 0);
@@ -58,19 +59,33 @@ export namespace Body {
 // eslint-disable-next-line jsdoc/require-jsdoc
 function setRouteBody(target: Object, propertyKey: string | symbol | undefined, metadata: BodyMetadata): void {
     const ctor: Function = target.constructor;
-    // eslint-disable-next-line unicorn/error-message
-    const stack: string = new Error().stack ?? '';
-    MetadataUtilities.setFilePath(ctor, stack);
+    MetadataUtilities.setFilePath(ctor);
     const key: string = propertyKey?.toString() ?? '';
     MetadataUtilities.setRouteBody(ctor, metadata, key);
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
-export function resolveMaxBodySize(shape: BodyShapeMetadata, baseMaxSize: FileSize = '100kb'): BigNumber {
-    if (shape.type === 'anyOf') {
-        return fileSizeToBytes(baseMaxSize).plus(largestOf(shape.shapes));
+/**
+ * What the files of each body shape add to its size, once worked out.
+ */
+const fileAllowances: WeakMap<BodyShapeMetadata, BigNumber> = new WeakMap();
+
+/**
+ * The most a body may weigh: its base maximum size, and the sizes of the files it may carry.
+ *
+ * Worked out when a body is first read rather than when it is declared, so a shape may name a class
+ * that only exists once the application has started.
+ * @param metadata - The body.
+ * @returns The size in bytes.
+ */
+export function resolveMaxBodySize(metadata: Pick<ShapedBodyMetadata, 'shape' | 'baseMaxSize'>): BigNumber {
+    let allowance: BigNumber | undefined = fileAllowances.get(metadata.shape);
+    if (allowance == undefined) {
+        allowance = metadata.shape.type === 'anyOf'
+            ? largestOf(metadata.shape.shapes)
+            : resolveMaxSize(NumberUtilities.new(0), { body: metadata.shape });
+        fileAllowances.set(metadata.shape, allowance);
     }
-    return resolveMaxSize(fileSizeToBytes(baseMaxSize), { body: shape });
+    return metadata.baseMaxSize.plus(allowance);
 }
 
 /**

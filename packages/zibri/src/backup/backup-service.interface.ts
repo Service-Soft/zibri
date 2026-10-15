@@ -11,7 +11,7 @@ import { BackupTransportInterface } from './transports/backup-transport.interfac
 /**
  * The data needed to create a new backup.
  */
-export type BackupCreateData = OmitStrict<BackupEntityCreateData, 'resources'>;
+export type BackupCreateData = OmitStrict<BackupEntityCreateData, 'resources' | 'masterKeys' | 'dataKeyIds'>;
 
 /**
  * Interface for a backup service.
@@ -27,6 +27,9 @@ export interface BackupServiceInterface {
     isRestoringBackup: BehaviorSubject<boolean>,
     /**
      * Synchronizes backup entities with the data from all transports.
+     *
+     * Fails when a transport cannot be read. The sync that runs while the application starts skips such a
+     * transport with a warning instead.
      */
     syncBackupEntities: () => Promise<void>,
     /**
@@ -60,5 +63,9 @@ export interface BackupServiceInterface {
         transports: BackupTransportInterface[],
         resource: BackupResourceEntity,
         backup: BackupEntity
-    ) => Readable | Promise<Readable>
+    ) => Readable | Promise<Readable>,
+    /**
+     * Resolves every backup recorded in the database, or none when the application backs nothing up.
+     */
+    resolveRecordedBackups: () => Promise<BackupEntity[]>
 }

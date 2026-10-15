@@ -16,7 +16,7 @@ import { OnAppInit } from '../global/on-app-init.interface';
 import { HttpRequest, isHttpRequest } from '../http/http-request.model';
 import { KnownHeader } from '../http/known-header.enum';
 import { MimeType } from '../http/mime-type.enum';
-import { isMimeType, isXmlMimeType } from '../http/mime-type.helpers';
+import { isJsonMimeType, isMimeType, isXmlMimeType } from '../http/mime-type.helpers';
 import { HttpClientResponse, isHttpClientResponse } from '../http-client/http-client-response.model';
 import { LoggerInterface } from '../logging/logger.interface';
 import { parseArray } from './functions/parse-array.function';
@@ -159,6 +159,12 @@ export class Parser implements ParserInterface, OnAppInit {
         if (isXmlMimeType(contentType)) {
             contentType = MimeType.XML;
         }
+        // json has many media types too, everything with the `+json` suffix, and the json parser reads
+        // them all: a body declared as plain json takes any of them, one declared as a specific one
+        // only that one
+        if (metadata.type === MimeType.JSON && isJsonMimeType(contentType)) {
+            contentType = MimeType.JSON;
+        }
         // a response declared as a stream is handed over as the bytes that arrived, which nothing reads by
         // their type, and a service labels them as it likes: an object store answers with whatever type the
         // object was stored with, eg. binary/octet-stream. A http request is still refused, since what a
@@ -176,10 +182,11 @@ export class Parser implements ParserInterface, OnAppInit {
 
         // the cases only read the same: each narrows metadata to its own type, which is what lets it
         // reach the parser typed for it - merged, they would need one parser that accepts every metadata
-        /* eslint-disable sonar/no-duplicated-branches */
         switch (metadata.type) {
-            case MimeType.JSON: {
-                return await this.parseBodyWith(this.findBodyParser(metadata.type), req, metadata);
+            case MimeType.JSON:
+            case MimeType.JSON_LD:
+            case MimeType.JSON_SCIM: {
+                return await this.parseBodyWith(this.findBodyParser(MimeType.JSON), req, metadata);
             }
             case MimeType.XML: {
                 return await this.parseBodyWith(this.findBodyParser(metadata.type), req, metadata);
@@ -187,11 +194,13 @@ export class Parser implements ParserInterface, OnAppInit {
             case MimeType.FORM_DATA: {
                 return await this.parseBodyWith(this.findBodyParser(metadata.type), req, metadata);
             }
+            case MimeType.FORM_URL_ENCODED: {
+                return await this.parseBodyWith(this.findBodyParser(metadata.type), req, metadata);
+            }
             case MimeType.OCTET_STREAM: {
                 return await this.parseBodyWith(this.findBodyParser(metadata.type), req, metadata);
             }
         }
-        /* eslint-enable sonar/no-duplicated-branches */
     }
 
     private findBodyParser<M extends MimeType>(contentType: M): BodyParserInterface<M> {

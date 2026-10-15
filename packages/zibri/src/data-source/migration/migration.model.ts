@@ -1,4 +1,5 @@
 import { MigrationEntity } from './migration-entity.model';
+import { AlsUtilities } from '../../context/als.utilities';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { inject } from '../../di/inject.function';
 import { Newable } from '../../types/newable.type';
@@ -32,7 +33,9 @@ export abstract class Migration {
     async runUp(): Promise<void> {
         const transaction: Transaction = await this.dataSource.startTransaction();
         try {
-            await this.up(transaction);
+            // so that what refuses to run during a migration - an encryption strategy that needs
+            // the application up, for one - knows that this is one
+            await AlsUtilities.runInMigration(this.constructor.name, () => this.up(transaction));
             await this.migrationRepository.create(
                 {
                     version: this.version,
@@ -55,7 +58,7 @@ export abstract class Migration {
     async runDown(): Promise<void> {
         const transaction: Transaction = await this.dataSource.startTransaction();
         try {
-            await this.down(transaction);
+            await AlsUtilities.runInMigration(this.constructor.name, () => this.down(transaction));
             // by name, the same thing runUp records it under. Deleting by version took every other
             // change of the same release with it, so reverting one of them told the database that
             // none of them had ever been applied

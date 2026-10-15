@@ -4,9 +4,8 @@ import { createPostgresTestDataSource, defaultClusterTestEntities, StartTestServ
 import { OtpRegistration, OtpTwoFactorMethod } from '../../../auth/2fa/methods/otp/otp.two-factor-method';
 import { OTP_PERIOD_IN_SECONDS } from '../../../auth/2fa/methods/otp/otp.utilities';
 import { type TwoFactorServiceInterface } from '../../../auth/2fa/two-factor-service.interface';
+import { PasswordCredentials, PasswordCredentialsCreateData } from '../../../auth/authenticators/password/password-credentials.model';
 import { Auth } from '../../../auth/decorators/auth.decorator';
-import { JwtAuthController } from '../../../auth/strategies/jwt/jwt-auth.controller';
-import { JwtCredentials, JwtCredentialsCreateData } from '../../../auth/strategies/jwt/jwt-credentials.model';
 import { DataSourceInterface } from '../../../data-source/data-sources/data-source.interface';
 import { Repository } from '../../../data-source/repository/repository';
 import { InjectRepository } from '../../../di/decorators/inject-repository.decorator';
@@ -19,8 +18,12 @@ import { Param } from '../../../routing/decorators/param.decorator';
 import { Post } from '../../../routing/decorators/post.decorator';
 import { Newable } from '../../../types/newable.type';
 import { Ms } from '../../../utilities/ms';
+import { JwtTestAuthController } from '../../mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../../mocks/entities/jwt-user.entity';
 import { Roles } from '../../mocks/entities/roles.enum';
+import { TestMembership } from '../../mocks/entities/test-membership.entity';
+// eslint-disable-next-line eslintImport/no-unassigned-import
+import '../../test-server/membership-repository';
 // eslint-disable-next-line eslintImport/no-unassigned-import
 import '../../test-server/user-repository'; // this import is needed so that the DI system can pick up the user repository.
 
@@ -37,7 +40,7 @@ import '../../test-server/user-repository'; // this import is needed so that the
  */
 const clusterDataSources: Newable<DataSourceInterface>[] = [
     // needs to be distributed
-    createPostgresTestDataSource({ entities: [...defaultClusterTestEntities, JwtUser] })
+    createPostgresTestDataSource({ entities: [...defaultClusterTestEntities, JwtUser, TestMembership] })
 ];
 
 /**
@@ -80,8 +83,8 @@ class ClusterOtpController {
     constructor(
         @InjectRepository(JwtUser)
         private readonly userRepository: Repository<JwtUser>,
-        @InjectRepository(JwtCredentials)
-        private readonly credentialsRepository: Repository<JwtCredentials, JwtCredentialsCreateData>,
+        @InjectRepository(PasswordCredentials)
+        private readonly credentialsRepository: Repository<PasswordCredentials, PasswordCredentialsCreateData>,
         @Inject(ZIBRI_DI_TOKENS.TWO_FACTOR_SERVICE)
         private readonly twoFactorService: TwoFactorServiceInterface
     ) {}
@@ -102,7 +105,7 @@ class ClusterOtpController {
     ): Promise<OtpRegistration> {
         const email: string = otpUserEmail(tag);
         const user: JwtUser = await this.userRepository.create({ email, roles: [Roles.USER] });
-        await this.credentialsRepository.create({ email, password: otpUserPassword, userId: user.id });
+        await this.credentialsRepository.create({ password: otpUserPassword, userId: user.id });
 
         const method: OtpTwoFactorMethod = inject(OtpTwoFactorMethod);
         const registration: OtpRegistration = await this.twoFactorService.requestRegisterTwoFactorMethodForUser(
@@ -135,7 +138,7 @@ const options: StartTestServerOptions = {
     dataSources: clusterDataSources,
     // the real auth controller, so the parent logs in the way a client does rather than through a
     // route written to make the test convenient
-    controllers: [ClusterOtpController, JwtAuthController]
+    controllers: [ClusterOtpController, JwtTestAuthController]
 };
 
 export default options;

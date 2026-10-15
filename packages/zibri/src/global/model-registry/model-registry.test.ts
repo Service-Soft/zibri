@@ -18,13 +18,14 @@ import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { OmitClass } from '../../entity/omit-class.model';
+import { JsonUtilities } from '../../utilities/json.utilities';
 
 // This entity exercises all four model-registry descriptors together (exclude, default, hash,
 // encryption), created/read through a real repository. These descriptors are wired as the default
 // beforeSave/beforeReturn hooks applied to every repository (see hooks.default.ts), so a real
 // repository round trip is the only way to catch a break in how they actually compose — a unit test
 // per descriptor could all pass while, say, exclusion still ran before defaults were filled in.
-@Entity()
+@Entity({ tenant: 'shared' })
 class ModelRegistryTestItem extends BaseEntity {
     @Property.string()
     plain!: string;
@@ -44,7 +45,7 @@ class ModelRegistryTestItem extends BaseEntity {
 
 // password is a plain string going in (hashed by the beforeSave hook) but a branded HashString coming
 // back out, so the create data needs its own un-hashed, un-branded type — same split as
-// JwtCredentials/JwtCredentialsCreateData in src/auth/strategies/jwt/jwt-credentials.model.ts.
+// PasswordCredentials/PasswordCredentialsCreateData in src/auth/authenticators/password/password-credentials.model.ts.
 class ModelRegistryTestItemCreateData extends OmitClass(ModelRegistryTestItem, ['id', 'withDefault', 'password']) {
     @Property.string({ required: false })
     withDefault?: string;
@@ -66,7 +67,7 @@ class NestedSecret {
     nestedSecret!: string;
 }
 
-@Entity()
+@Entity({ tenant: 'shared' })
 class PropagationTestItem extends BaseEntity {
     @Property.string()
     plain!: string;
@@ -80,7 +81,7 @@ class PropagationTestItem extends BaseEntity {
 
 type DynamicOptionsCreateData = { shouldEncrypt: boolean, conditionallySensitive: string };
 
-@Entity()
+@Entity({ tenant: 'shared' })
 class DynamicOptionsTestItem extends BaseEntity {
     @Property.boolean()
     shouldEncrypt!: boolean;
@@ -202,7 +203,7 @@ describe('model-registry descriptors — real repository round trip', () => {
 
         const found: ModelRegistryTestItem = await repo.findById(created.id);
 
-        expect(JSON.stringify(found)).not.toContain('top secret');
+        expect(JsonUtilities.stringify(found)).not.toContain('top secret');
         expect(Object.keys(found)).not.toContain('secret');
         // the value is still retrievable directly, it's just hidden from enumeration/serialization
         expect(found.secret).toBe('top secret');
@@ -262,8 +263,8 @@ describe('model-registry descriptors — nested object and array propagation', (
 
         const found: PropagationTestItem = await repo.findById(created.id);
 
-        expect(JSON.stringify(found)).not.toContain('top secret');
-        expect(JSON.stringify(found)).not.toContain('also secret');
+        expect(JsonUtilities.stringify(found)).not.toContain('top secret');
+        expect(JsonUtilities.stringify(found)).not.toContain('also secret');
         expect(Object.keys(found.nested ?? {})).not.toContain('nestedSecret');
         // still directly retrievable, just hidden from enumeration/serialization
         expect(found.nested?.nestedSecret).toBe('top secret');

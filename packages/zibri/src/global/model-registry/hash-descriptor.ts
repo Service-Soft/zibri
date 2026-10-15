@@ -1,21 +1,27 @@
 import { ModelDescriptor } from './model-descriptor';
 import { ModelRegistry } from './model.registry';
+import { StringValueDescriptor } from './string-value-descriptor.model';
+import { StringValueUtilities } from './string-value.utilities';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
-import { HashPropertyValue } from '../../entity/models/string-property-metadata.model';
+import { StoredHashPropertyValue } from '../../entity/models/string-property-metadata.model';
 import { ExcludeStrict } from '../../types/exclude-strict.type';
 import { Newable } from '../../types/newable.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
 
 /**
+ * The hash settings of one string, when it has any.
+ */
+export type HashSettings = ExcludeStrict<StoredHashPropertyValue, false>;
+
+/**
  * A descriptor that keeps track of the hash properties of an entity.
  */
 export class HashDescriptor<T> extends ModelDescriptor<HashDescriptor<unknown>> {
     /**
-     * Keys that have a hash value of true or function.
+     * Keys whose value holds hashed strings, and where in the value they sit.
      */
-    // eslint-disable-next-line typescript/no-explicit-any
-    readonly keys: Map<string, ExcludeStrict<HashPropertyValue<any, any>, false>> = new Map();
+    readonly keys: Map<string, StringValueDescriptor<HashSettings>> = new Map();
 
     /**
      * Updates this descriptor by the properties of the given class.
@@ -28,10 +34,14 @@ export class HashDescriptor<T> extends ModelDescriptor<HashDescriptor<unknown>> 
         const properties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(entityClass);
 
         for (const [key, metadata] of ObjectUtilities.entries(properties)) {
-            if (('hash' in metadata) && metadata.hash !== undefined && metadata.hash !== false) {
-                this.keys.set(key, metadata.hash);
-                continue;
+            const strings: StringValueDescriptor<HashSettings> | undefined = StringValueUtilities.resolveDescriptor(
+                metadata,
+                m => m.hash === false ? undefined : m.hash
+            );
+            if (strings != undefined) {
+                this.keys.set(key, strings);
             }
+            // as well rather than instead, for the reason the encryption descriptor gives
             this.updateNestedKey(key, metadata, cls => ModelRegistry.get(cls).hashDescriptor);
         }
     }

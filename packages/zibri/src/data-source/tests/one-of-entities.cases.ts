@@ -6,6 +6,7 @@ import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { type OneOf } from '../../entity/models/one-of.model';
+import { JsonUtilities } from '../../utilities/json.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { Where } from '../models/where/where-filter.model';
 import { Repository } from '../repository/repository';
@@ -49,7 +50,7 @@ export class LeadDetails {
     preferred!: OneOf<{ Email: string, Phone: string }>;
 }
 
-@Entity({ allowOrphan: true, allowDuplicate: true })
+@Entity({ tenant: 'shared', allowOrphan: true, allowDuplicate: true })
 export class Lead extends BaseEntity {
     /**
      * The rows one test wrote, so that what a filter finds is not mixed up with another test's rows.
@@ -216,7 +217,7 @@ export function describeStoredOneOf(dataSourceName: string, leadsOf: () => Repos
 
             const read: Lead = await leadsOf().findById(created.id);
 
-            expect(JSON.stringify(read)).not.toContain('newsletter');
+            expect(JsonUtilities.stringify(read)).not.toContain('newsletter');
             expect(read.contact.shape === 'Signup' ? read.contact.value.referrer : undefined).toBe('newsletter');
         });
     });

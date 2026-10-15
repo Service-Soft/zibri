@@ -3,6 +3,7 @@ import { NextFunction } from 'express';
 import { ErrorPageTemplate, GlobalErrorHandler } from './error-handler.model';
 import { ErrorResponseBody } from './error-response-body.model';
 import { ErrorUtilities } from './error.utilities';
+import { CustomBodyHttpError } from './errors/custom-body-http.error';
 import { InternalError } from './internal-error.model';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
@@ -11,6 +12,7 @@ import { HttpRequest } from '../http/http-request.model';
 import { HttpResponse } from '../http/http-response.model';
 import { HttpError } from './errors/http.error';
 import { HttpStatus } from '../http/http-status.enum';
+import { JsonMimeType } from '../http/json-mime-type.type';
 import { KnownHeader } from '../http/known-header.enum';
 import { MimeType } from '../http/mime-type.enum';
 import { AuditAction, AuditOutcome } from '../logging/audit-event.model';
@@ -18,9 +20,11 @@ import { LoggerInterface } from '../logging/logger.interface';
 import { TracingUtilities } from '../tracing/tracing.utilities';
 import { TsxUtilities } from '../tsx/tsx.utilities';
 import { GlobalError } from './errors/global.error';
+import { JsonUtilities } from '../utilities/json.utilities';
 import { MethodNotAllowedError } from './errors/method-not-allowed.error';
 import { TooManyRequestsError } from './errors/too-many-requests.error';
 import { NumberUtilities } from '../utilities/number.utilities';
+import { ObjectUtilities } from '../utilities/object.utilities';
 
 /**
  * The default error handler implementation of Zibri.
@@ -40,9 +44,23 @@ export const errorHandler: GlobalErrorHandler = async (error: unknown, req: Http
     handleRateLimitHeaders(httpError, res);
     handleAllowHeader(httpError, res);
 
-    const preferred: string | false = req.accepts(MimeType.JSON, MimeType.XML, MimeType.HTML);
     // the body depends on what the request accepts, so a cache in front of this has to keep them apart
     res.vary(KnownHeader.ACCEPT);
+
+    if (httpError instanceof CustomBodyHttpError) {
+        const accepted: string | false = req.accepts(httpError.mimeTypes);
+        const mimeType: JsonMimeType = httpError.mimeTypes.find(m => m === accepted) ?? httpError.mimeTypes[0] ?? MimeType.JSON;
+        for (const [name, value] of ObjectUtilities.entries(httpError.headers)) {
+            if (value != undefined) {
+                res.setHeader(name, value);
+            }
+        }
+        res.status(httpError.status).type(mimeType)
+            .send(JsonUtilities.stringify(httpError.body));
+        return;
+    }
+
+    const preferred: string | false = req.accepts(MimeType.JSON, MimeType.XML, MimeType.HTML);
     // the trace the response already names in a header, repeated where somebody copying an error
     // into a ticket will actually see it - which is the only place it does any good
     const body: ErrorResponseBody = {
@@ -127,16 +145,24 @@ function handleAllowHeader(error: unknown, res: HttpResponse): void {
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 function handleRateLimitHeaders(error: unknown, res: HttpResponse): void {
-    if (!(error instanceof TooManyRequestsError) || !error.rateLimitResult) {
+    if (!(error instanceof TooManyRequestsError)) {
         return;
     }
 
-    const { limit, remaining, resetsAtMs, retryAtMs } = error.rateLimitResult;
-    const now: number = Date.now();
+    // apart, because not every refusal comes from a limiter: a wait can be known without there
+    // being a capacity to report
+    if (error.rateLimitResult) {
+        const { limit, remaining, resetsAtMs } = error.rateLimitResult;
+        res.setHeader(KnownHeader.X_RATE_LIMIT_LIMIT, limit.toString());
+        res.setHeader(KnownHeader.X_RATE_LIMIT_REMAINING, remaining.toString());
+        res.setHeader(KnownHeader.X_RATE_LIMIT_RESET, Math.ceil(NumberUtilities.divide(resetsAtMs, 1000).toNumber()).toString());
+    }
 
-    res.setHeader(KnownHeader.X_RATE_LIMIT_LIMIT, limit.toString());
-    res.setHeader(KnownHeader.X_RATE_LIMIT_REMAINING, remaining.toString());
-    res.setHeader(KnownHeader.X_RATE_LIMIT_RESET, Math.ceil(NumberUtilities.divide(resetsAtMs, 1000).toNumber()).toString());
+    const retryAtMs: number | undefined = error.retryAtMs;
+    if (retryAtMs == undefined) {
+        return;
+    }
+    const now: number = Date.now();
     res.setHeader(KnownHeader.RETRY_AFTER,
         Math.ceil(
             NumberUtilities.subtract(retryAtMs, now)

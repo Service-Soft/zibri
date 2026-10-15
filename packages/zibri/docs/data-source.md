@@ -27,11 +27,12 @@ They provide a lot of functionality out of the box, including:
 | `NumberUtilities` | class | Arithmetic and comparison over every shape a number takes — `number`, `bigint`, `BigNumber` |
 | `Newable` | type | Helper type for referencing a class (constructor) |
 | `InjectRepository` | decorator | Injects a `Repository` for a given entity into a constructor parameter |
-| `Repository` | class | Generic repository exposing `findAll`, `findAllPaginated`, `stream`, `findOne`, `findById`, `count`, `exists`, `createAll`, `create`, `updateAll`, `updateById`, `upsert`, `deleteAll`, `deleteById` |
+| `Repository` | class | Generic repository exposing `findAll`, `findAllPaginated`, `stream`, `findOne`, `findById`, `count`, `exists`, `createAll`, `create`, `updateAll`, `updateById`, `upsert`, `upsertAll`, `deleteAll`, `deleteById` |
 | `StreamOptions` | type | What `stream` accepts — a filter and relations, with no limit and no order |
 | `ChangeSetRepository` | class | Extended `Repository` that automatically tracks who changed what & when |
 | `SoftDeleteRepository` | class | Extended `ChangeSetRepository` that adds soft delete functionality |
-| `Transaction` | class | Represents a started transaction (`commit`/`rollback`) |
+| `ChangeSet`, `Change` | entity | The recorded change sets |
+| `Transaction` | class | Represents a started transaction (`commit`/`rollback`/`afterCommit`) |
 | `Migration` | class | Base class to extend when defining a migration |
 | `SemVerVersion` | type | Version type used for `Migration.version` |
 
@@ -54,10 +55,14 @@ export class DbDataSource extends PostgresDataSource {
         port: 5432,
         username: 'postgres',
         password: 'password',
-        database: 'db'
+        database: 'db',
+        ssl: true
     };
 
-    entities: Newable<BaseEntity>[] = [Test];
+    entities: Newable<BaseEntity>[] = [
+        // ...
+        Test
+    ];
     // see "Handling migrations" below
     migrations: Newable<Migration>[] = [RenameValuePropertyMigration];
     schemaManagement: SchemaManagement = 'synchronize';
@@ -73,7 +78,19 @@ npm i pg pg-query-stream
 
 They are optional so that an application on another store carries neither, and a postgres data source
 refuses to start without them — `pg-query-stream` is what a cursor is opened through, so it is what
-[`stream`](#a-findall-that-names-no-limit) reads a large table with.
+[`stream`](#accessing-the-data-source) reads a large table with.
+
+`ssl` says whether the connection is encrypted, and every postgres data source has to state it:
+
+| Value | What happens |
+|---|---|
+| `true` | The connection is encrypted, and the server's certificate is verified against the system's certificate authorities |
+| an object | Node's tls options, for your own `ca`, a client certificate or anything else the connection needs |
+| `false` | The connection is unencrypted. For a database only reachable on the same machine or a network you trust (eg. docker) |
+
+The `PGSSLMODE` environment variable does not apply to the connection. The client tools a
+[backup](./backup.md) runs read it, and use `require` when `ssl` is set and `disable` when it is
+`false` while it names no mode.
 
 `schemaManagement` says who makes the database match your entities, and every sql data source has to
 state it. There is no default because there is no answer that is safe everywhere:
@@ -92,6 +109,11 @@ migrations, so it can undo one. Use it while you are still shaping the model, an
 Saying `'migrations'` and shipping none is refused at boot, because nothing would ever create a
 table — say `'external'` if that is deliberate.
 
+`createAll`, `upsertAll`, `updateAll` and `deleteAll` take as many rows as you pass them. A call that
+holds more values than one statement can is split into several statements inside one transaction, so
+it still lands whole or not at all. `maxBoundValuesPerStatement` in the options says how many values
+that is, and defaults to what the database accepts.
+
 Every data source you define has to be listed in your application options, and one that is not is
 refused at boot: a data source the application meant to use connects to nothing, and the first query
 is where you would otherwise find out. Where defining one is not the same as intending to run it —
@@ -101,6 +123,7 @@ call — say so on the declaration:
 ```ts
 @DataSource({ allowOrphan: true })
 class ReportingDataSource extends PostgresDataSource {
+    options: OmitStrict<PostgresOptions, 'type' | 'entities'> = { host: 'reporting.internal', database: 'reporting', ssl: true };
     entities: Newable<BaseEntity>[] = [];
     schemaManagement: SchemaManagement = 'external';
 }
@@ -120,12 +143,19 @@ export class CacheDbDataSource extends ValKeyDataSource {
     options: ValKeyOptions = {
         host: 'localhost',
         port: 6379,
+        useTLS: true,
         keyPrefix: 'my-app'
     };
 
-    entities: Newable<BaseEntity>[] = [Session];
+    entities: Newable<BaseEntity>[] = [
+        // ...
+        Session
+    ];
 }
 ```
+
+`useTLS` says whether the connection is encrypted, and has to be stated the same way `ssl` has to on
+postgres: `true` encrypts it and verifies the server's certificate, `false` connects unencrypted.
 
 `@valkey/valkey-glide` is an optional peer dependency, install it when you use this data source:
 
@@ -181,12 +211,18 @@ import { BaseEntity, Entity, Property } from 'zibri';
 
 @Entity()
 export class Test extends BaseEntity {
+    @Property.string({ format: 'uuid' })
+    tenantId!: string;
+
     @Property.string()
     value!: string;
 }
 ```
 
 An entity to be included in a data source needs to extend `BaseEntity`, which defines an id property.
+
+Every entity says which tenant its rows belong to: the property holding the tenant of each row, or
+`'shared'` for rows every tenant shares. See [tenants](./tenancy.md).
 
 In order for the data source to map the properties, you need to decorate them with the `@Property` decorator, the same way as for any other [model](./models.md).
 
@@ -195,6 +231,9 @@ A single column that has to be unique is expressed on the property itself with `
 ```ts
 @Entity({ uniques: [['year', 'recipientId']] })
 export class NumberInvoices extends BaseEntity {
+    @Property.string({ format: 'uuid' })
+    tenantId!: string;
+
     @Property.number()
     year!: number;
 
@@ -208,30 +247,37 @@ export class NumberInvoices extends BaseEntity {
 
 The property names are checked against the entity, so a typo is a compile error rather than a constraint that silently covers the wrong columns. Besides rejecting duplicates, this is what [`upsert`](#changing-a-value-based-on-what-is-stored--upsert) needs in order to have at most one row to change.
 
-A write that would leave two rows carrying the same values is refused with a `UniqueConstraintViolationError`, whose `properties` name what is already taken. Every data source answers the declaration that way, so code that reacts to a duplicate — retrying, reporting it, falling back to a read — works the same wherever the entity is stored.
+On a tenant's entity, a unique holds within each tenant, see [uniques and indexes](./tenancy.md#uniques-and-indexes).
 
-> **Adding `uniques` to an entity that already has data.** The constraint cannot be created if rows already violate it, so a table that accumulated duplicates first has to be cleaned up. Under `schemaManagement: 'synchronize'` this surfaces as a failure on the next boot, so check the table before deploying the change.
+A write that would leave two rows carrying the same values is refused with a `UniqueConstraintViolationError`, whose `properties` name what is already taken. Every data source answers the declaration that way, so code that reacts to a duplicate — retrying, reporting it, falling back to a read — works the same wherever the entity is stored. When it reaches the response, it answers 409 Conflict.
+
+A row holding no value for one of the properties takes nothing up, so any number of rows without a value are stored side by side. The properties can be optional.
+
+> **Adding `uniques` to an entity that already has data.** A unique the stored rows already break cannot be created, so the application refuses to start and names the values they share. Remove the duplicates in a migration of the same release: migrations run first, and the unique is created right after them, see [keeping indexes and uniques](#keeping-indexes-and-uniques).
 
 #### Unique among only some rows
 
 A `where` narrows which rows a unique declaration covers, so the value stays free for every row the filter leaves out. Both places take it, and `whereFor` names the entity the filter is written against:
 
 ```ts
-// src/models/membership.model.ts
+// src/models/account.model.ts
 import { Entity, Property, SoftDeleteEntity, whereFor } from 'zibri';
 
 @Entity({
-    uniques: [{ properties: ['tenantId', 'email'], where: whereFor<Membership>({ deleted: false }) }]
+    uniques: [{ properties: ['email', 'handle'], where: whereFor<Account>({ deleted: false }) }]
 })
-export class Membership extends SoftDeleteEntity {
-    @Property.string({ unique: { where: whereFor<Membership>({ deleted: false }) } })
+export class Account extends SoftDeleteEntity {
+    @Property.string({ unique: { where: whereFor<Account>({ deleted: false }) } })
     inviteCode!: string;
 
-    @Property.string()
+    @Property.string({ format: 'uuid' })
     tenantId!: string;
 
     @Property.string()
     email!: string;
+
+    @Property.string()
+    handle!: string;
 }
 ```
 
@@ -249,16 +295,19 @@ or "where: {}" to keep the value taken for good.
 
 An empty filter is how the second answer is written down. Restoring a soft deleted row can then fail, because the value it held may have been taken while it was gone — which is the same conflict any other write gets, at the point the row comes back.
 
-A key covering only some rows is an `upsert` target like any other, and the rows it leaves out are not in its way. An `upsert` identified by an account's email lands on the live row holding that address, and inserts beside the deleted ones that still hold it.
+A key covering only some rows is an `upsert` target like any other, and the rows it leaves out are not in its way. An `upsert` identified by an account's email and handle lands on the live row holding them, and inserts beside the deleted ones that still hold them.
 
 Indexes are declared the same way — `@Property.string({ index: true })` for a single column, and on the
 entity for a lookup that uses several:
 
 ```ts
-@Entity({ indexes: [['tenantId', 'status']] })
+@Entity({ indexes: [['customerId', 'status']] })
 export class Order extends BaseEntity {
-    @Property.string()
+    @Property.string({ format: 'uuid' })
     tenantId!: string;
+
+    @Property.string()
+    customerId!: string;
 
     @Property.string()
     status!: string;
@@ -269,9 +318,10 @@ export class Order extends BaseEntity {
 ```
 
 The order of a group is the order of the index, and an index answers a lookup by any leading part of
-itself: `['tenantId', 'status']` covers a lookup by `tenantId`, where one by `status` alone reads the
-table. A unique declaration comes with an index of its own, so a column that is unique needs no
-second one.
+itself: `['customerId', 'status']` covers a lookup by `customerId`, where one by `status` alone reads
+the table. A unique declaration comes with an index of its own, so a column that is unique needs no
+second one. On a tenant's entity, every index starts with the tenant property, see
+[uniques and indexes](./tenancy.md#uniques-and-indexes).
 
 Each key is declared once. `primary`, `unique` and `index` beside each other on the same property are
 refused while the class is being declared, as is a group that names a column which is already unique
@@ -283,6 +333,26 @@ declaration to drop.
 A property that declares `index` and a group that begins with the same column stand next to each
 other. They are two lookups — one column, and that column with more beside it — so both are declared.
 
+#### Keeping indexes and uniques
+
+Your data source keeps the indexes and uniques your entities declare. Every time the application
+starts, once the [migrations](#handling-migrations) have run, it creates each declared one it does not
+have yet, over the rows already stored, and removes each one no entity declares anymore. Declaring an
+index or a unique, changing which rows it covers, or deleting it is all a release has to do.
+
+- Creating one does not block writes to the entity, so instances still serving the previous version
+  keep working while it is built.
+- A unique the stored rows already break stops the start, naming the values they share. Remove the
+  duplicates in a migration, which runs before the unique is created.
+- Once a release has changed the indexes and uniques, an older release refuses to start, the same way
+  it refuses a database migrated past it, see [going back](#going-back).
+- A transaction that commits while a newer release next to it changes the indexes and uniques of an
+  entity it wrote fails with `KeyDeclarationsChangedError`. Nothing it wrote is applied, so run it
+  again.
+
+With `schemaManagement: 'synchronize'`, synchronizing keeps them instead. With `'external'`, whoever
+owns the schema does.
+
 #### What a property holds
 
 The kinds a property can be, the number formats and what object and array properties hold are the
@@ -292,6 +362,13 @@ data source as the type its property declares.
 Filters are the one place a number can be written as something other than what the property holds.
 A bound on a `bignumber` can be a plain number or a `bigint`, so `{ total: { greaterThanEquals: 0 } }`
 needs no `BigNumber` around the zero. A plain number property takes plain number bounds.
+
+A declaration can change after rows were written, and those rows keep the value they were written
+with. Such a value is read back as it is stored. A filter that compares a number, date or boolean
+property holding one — by the value itself, `not`, `oneOf`, `notOneOf` or an ordering — raises a
+`StoredValueTypeMismatchError` naming the property, the type it declares and the value found in its
+place. `null` and `{ not: null }` do not compare the value, so they answer for that row as for any
+other.
 
 ### Accessing the data source
 To access data from the data source, you use repositories for specific entities. They can simply be injected without needing you to define them:
@@ -333,6 +410,7 @@ A repository always exposes the methods:
 - updateAll
 - updateById
 - upsert
+- upsertAll
 - deleteAll
 - deleteById
 
@@ -475,6 +553,9 @@ them](#reading-relations), and the entity's `defaultRelations` are used when you
 // src/models/team.model.ts
 @Entity()
 export class Team extends BaseEntity {
+    @Property.string({ format: 'uuid' })
+    tenantId!: string;
+
     @Property.string()
     name!: string;
 
@@ -485,6 +566,9 @@ export class Team extends BaseEntity {
 // src/models/seat.model.ts
 @Entity()
 export class Seat extends BaseEntity {
+    @Property.string({ format: 'uuid' })
+    tenantId!: string;
+
     @Property.string()
     occupant!: string;
 
@@ -543,6 +627,55 @@ Ordering by a relation resolves it, and so does filtering on one — there is no
 that has not been read. Neither puts it on the rows you get back: what a read answers with is what
 its own `relations` asked for, so the same rows come back however they were found and sorted.
 
+#### Saving and deleting the rows of a relation
+
+A `oneToMany` or `hasOne` value you give a write is saved along with the row, in the same
+transaction:
+
+```ts
+const teamRepository: Repository<Team> = inject(repositoryTokenFor(Team));
+
+async function createTeam(tenantId: string): Promise<Team> {
+    return await teamRepository.create({ tenantId, name: 'Blue', seats: [{ tenantId, occupant: 'Ada' }] });
+}
+
+async function replaceSeats(teamId: string, keptSeatId: string, tenantId: string): Promise<Team> {
+    return await teamRepository.updateById(teamId, { seats: [{ id: keptSeatId }, { tenantId, occupant: 'Grace' }] });
+}
+```
+
+The value is the whole relation:
+
+| What you give | What happens |
+|---|---|
+| A row without an `id` | It is created, pointing at the row you write |
+| A row with an `id` | It is linked to the row you write, and its other values are written when the relation's `cascade` includes `'update'`. With `allowId`, a row with an `id` that no row has yet is created with it |
+| No row that is there already | It is deleted when its foreign key is required, and its foreign key is set to `null` otherwise |
+| An empty list, or `null` | Every row there already is left out |
+| Nothing | The rows stay as they are |
+
+All of this happens when the relation's `cascade` includes `'insert'`, which it does by default.
+`updateAll` gives the value to every row it matches, and each gets its own copy of the rows without an
+`id`. A row with an `id` belongs to one row only, so `updateAll` refuses one when it matches more.
+
+The rows are written through the repository of their own entity, so its scope, hooks and change sets
+apply to them as they do to a write of your own. A row with an `id` that you may not see is not
+found, and the whole write is refused. A row that is left out and whose entity soft deletes is soft
+deleted.
+
+When the relation's `cascade` includes `'remove'`, which it does by default, deleting a row deletes
+the rows of the relation the same way, and theirs in turn, however the scope of their entity
+restricts:
+
+| How the row is deleted | What happens to the rows of its relation |
+|---|---|
+| Hard deleted | They are hard deleted, also when their entity soft deletes |
+| Soft deleted | They are soft deleted |
+| Restored | The rows its soft delete took along are restored, and not the ones deleted on their own before |
+
+An entity that soft deletes can only remove rows of entities that soft delete as well. Otherwise the
+application refuses to start.
+
 #### Two people editing the same thing
 
 Last write wins. That is right for most properties and silent data loss for the ones two people edit
@@ -555,6 +688,9 @@ was:
 // src/models/company.model.ts
 @Entity()
 export class Company extends BaseEntity {
+    @Property.string({ format: 'uuid' })
+    tenantId!: string;
+
     @Property.string({ optimisticLocking: true })
     name!: string;
 }
@@ -614,7 +750,11 @@ straight to the repository. Naming the format on the parameter as well — `@Par
 the handler runs, which tells the caller more than an empty result does.
 
 Listing several values keeps the ones that are possible, so `{ oneOf: ['not-an-id', realId] }` still
-finds `realId`.
+finds `realId`. The same holds for a filter reaching through a relation, eg. `{ team: { where: { id:
+'not-an-id' } } }`.
+
+Excluding a value a property cannot hold, with `not` or `notOneOf`, fails with a `BadRequestError`,
+which a request is answered `400` with.
 
 ### Using one entity in multiple data sources
 An entity normally belongs to exactly one data source, which is why `@InjectRepository(Test)` does not
@@ -624,7 +764,7 @@ data source mirrors entities that postgres owns.
 That has to be declared on the entity:
 
 ```ts
-@Entity({ allowDuplicate: true })
+@Entity({ tenant: 'shared', allowDuplicate: true })
 export class Session extends BaseEntity {
     @Property.string()
     token!: string;
@@ -673,12 +813,23 @@ async function findByValue(): Promise<void> {
     await testRepository.findAll({ where: { value: [{ iLike: '%42', not: '42' }, '43'] } });
     // returns all test entities where value starts with 'rent' AND ends with '2026'
     await testRepository.findAll({ where: { value: { like: ['rent%', '%2026'] } } });
+    // returns all test entities where value neither starts with 'rent' nor ends with '2026'
+    await testRepository.findAll({ where: { value: { notLike: ['rent%', '%2026'] } } });
 }
 ```
 
-`like`, `iLike` and `fuzzyLike` take one value or several, and several means every one of them has to
-hold. Every other operator says what
+`like`, `iLike`, `notLike`, `notILike` and `fuzzyLike` take one value or several, and several means
+every one of them has to hold. Every other operator says what
 it means once: a list under `oneOf` is a list of values the property may be.
+
+In a pattern, `%` stands for any text and `_` for any one character. A backslash makes the character
+after it literal: `{ like: '50\\%%' }` finds the values starting with `50%`.
+
+A property holding no value counts as holding `null`. So `{ not: 'a' }` and `{ notOneOf: ['a'] }`
+find it, because no value is not `'a'`, `{ notLike: 'a%' }` finds it, because no value is like
+nothing, and `{ oneOf: ['a'] }` does not. Name `null` to say otherwise:
+`{ oneOf: ['a', null] }` finds it as well, and `{ not: null }` or `{ notOneOf: ['a', null] }` leave it
+out. A list under `oneOf` or `notOneOf` can be as long as you need.
 
 Text is ordered by the application's default locale, so `after` and `before` sort alphabetically
 rather than by the bytes the text is written with, and a filter agrees with an `order` over the same
@@ -689,6 +840,9 @@ An id is always a uuid the framework generates. When rows are named by something
 a key, an id from another system — give that its own property and declare it `unique`, rather than
 writing it into the id. A data source resolves a unique property directly, so looking a row up by one
 costs what looking it up by id costs.
+
+A uuid is stored in lower case, whichever case it was written in, and a filter finds it in either case.
+That holds for the id, for every property declared `format: 'uuid'`, and for the ids of related rows.
 
 Everything a filter carries is data, never part of the query. A search term forwarded from a request,
 an id taken out of a url, the name of a field inside a json object — each is handed to the data source
@@ -704,6 +858,9 @@ is close to an exact match:
 ```ts
 @Entity()
 export class Contact extends BaseEntity {
+    @Property.string({ format: 'uuid' })
+    tenantId!: string;
+
     @Property.string()
     name!: string;
 
@@ -749,6 +906,9 @@ class ProductMetadata {
 
 @Entity()
 export class Product extends BaseEntity {
+    @Property.string({ format: 'uuid' })
+    tenantId!: string;
+
     @Property.object({ cls: () => ProductMetadata, required: false })
     metadata: ProductMetadata | undefined | null;
 }
@@ -769,12 +929,6 @@ back. `{ not: null }` answers with exactly the rows `null` leaves out, so the tw
 for every row that has the object at all. A row whose object property is empty answers a question
 about the properties inside it the way it answers a question about a color it has no metadata to
 hold: it stays out of both halves.
-
-An object property is also the one place where what a row holds can differ from what the entity says
-it is, since the type is checked as the value is written and a declaration can change after that. A
-filter that compares such a value raises `JsonValueTypeMismatchError`, naming the property, the type
-it declares and the value found in its place, so the rows worth correcting are the ones you hear
-about rather than the ones quietly left out of an answer.
 
 #### Filtering a value of several shapes
 
@@ -797,6 +951,9 @@ class Invite {
 
 @Entity()
 export class Lead extends BaseEntity {
+    @Property.string({ format: 'uuid' })
+    tenantId!: string;
+
     @Property.oneOf({ shapes: { Signup: { type: 'object', cls: () => Signup }, Invite: { type: 'object', cls: () => Invite } } })
     contact!: OneOf<{ Signup: Signup, Invite: Invite }>;
 }
@@ -832,6 +989,9 @@ import { $ts, BaseEntity, Entity, Property, scopeFor, UnauthorizedError } from '
     }
 })
 export class Invoice extends BaseEntity {
+    @Property.string({ format: 'uuid' })
+    tenantId!: string;
+
     @Property.string()
     title!: string;
 
@@ -866,6 +1026,8 @@ async function readInvoices(id: string): Promise<void> {
 
 **Writes are restricted too.** A row that would land outside the filter is refused with a `403`, whether it is created there or moved there by an update. Without that half a caller could create rows they are not allowed to see and then read them back entirely legitimately. An update is judged only on the columns it carries, so renaming a row you can already reach is never refused.
 
+An [`upsert`](#changing-a-value-based-on-what-is-stored--upsert) only ever changes a row the caller may see. When its identity is held by a row they may not see, it is refused with the same `UniqueConstraintViolationError` inserting that identity would be. Its changes are judged the way an update's are: a value it sets before anything is written, and an amount it adds on the row once it is written, so an increment that carries the row outside the filter is refused and rolled back. Inside a transaction you passed, that increment stays until you roll the transaction back. An `upsertAll` is all or nothing: when one of its rows is refused, none of the others are written either.
+
 #### What a scope can answer
 | Returns | Meaning |
 |---|---|
@@ -894,6 +1056,9 @@ The array is what makes public rows and private rows in one table expressible:
     }
 })
 export class Document extends BaseEntity {
+    @Property.string({ format: 'uuid' })
+    tenantId!: string;
+
     @Property.boolean()
     published!: boolean;
 
@@ -940,6 +1105,9 @@ async function currentUser(): Promise<BaseUser<string> | undefined> {
 
 @Entity()
 export class Receipt extends BaseEntity {
+    @Property.string({ format: 'uuid' })
+    tenantId!: string;
+
     @Property.string({ format: 'uuid', default: async () => (await currentUser())?.id ?? '' })
     userId!: string;
 }
@@ -980,6 +1148,21 @@ A transaction holds something from the moment it starts until it commits or roll
 out of the pool, and a grant on every row it writes. The `catch` above is what hands those back when
 the work fails, and it is worth writing.
 
+Work that has to follow the writes only once they landed goes to `afterCommit`. It runs once the
+commit is done, in the order it was added, and never after a rollback:
+
+```ts
+// src/services/test-announcement.service.ts
+import { Repository, Transaction } from 'zibri';
+
+import { announceTest } from './announce-test.function';
+
+async function createAndAnnounce(testRepository: Repository<Test>, transaction: Transaction): Promise<void> {
+    const test: Test = await testRepository.create({ value: '44' }, { transaction });
+    transaction.afterCommit(async () => await announceTest(test.id));
+}
+```
+
 A transaction that reaches neither a commit nor a rollback is rolled back once it has sat idle for
 ten seconds, and everything it held is handed back. The clock runs from the last thing it did, so a
 transaction that keeps working keeps its full allowance however long it runs. A transaction that
@@ -1016,14 +1199,71 @@ class RenameValuePropertyMigration extends Migration {
     }
 
     override async up(transaction: Transaction): Promise<void> {
-        await this.dataSource.changePropertyOfEntity(Test, 'oldValue', { type: 'string', name: 'value' }, transaction);
+        await this.dataSource.changePropertyOfEntity({
+            entity: Test,
+            currentProperty: { name: 'oldValue', type: 'string' },
+            property: { name: 'value', type: 'string' },
+            transaction
+        });
     }
 
     override async down(transaction: Transaction): Promise<void> {
-        await this.dataSource.changePropertyOfEntity(Test, 'value', { type: 'string', name: 'oldValue' }, transaction);
+        await this.dataSource.changePropertyOfEntity({
+            entity: Test,
+            currentProperty: { name: 'value', type: 'string' },
+            property: { name: 'oldValue', type: 'string' },
+            transaction
+        });
     }
 }
 ```
+
+A migration says how each property is stored, with the same metadata the `@Property` decorator takes plus its `type`, instead of reading it off the entity. It runs again on every new database, long after the entity may have changed. `unique`, `index` and `fuzzySearchable` are left out: the data source [keeps the indexes and uniques](#keeping-indexes-and-uniques) the entity declares now, once the migrations have run.
+
+| Helper | What it does |
+|---|---|
+| `addPropertyToEntity` | Adds a property. It is empty in the entities already stored, so the migration can fill it |
+| `changePropertyOfEntity` | Changes a property from `currentProperty` to `property`: its name, its type, or both. It fails when `currentProperty` does not describe what is stored. `convert` says what each stored value becomes, see below |
+| `removePropertyFromEntity` | Removes a property and what it holds |
+| `renameEntity` | Moves every stored entity from `currentTableName` to the table name the entity declares, with its relations, indexes and uniques. It fails when entities are stored under the declared table name already |
+| `mergeEntity` | Moves every stored entity from `currentTableName` to the entity, next to the ones it stores, with its relations. An entity that holds what a stored one holds under its id or a unique the entity declares is left out |
+| `createEntity` | Creates what an entity is stored in. `properties` is written out or `'resolveFromEntity'`. Relations are only created when it is resolved |
+
+Something written out means the same in every later version. Something resolved means whatever the entity has become by the time the migration runs.
+
+#### Converting values
+`changePropertyOfEntity` converts every stored value, and fails without changing anything when one of them cannot be converted. The error names each of those values. `convert` lists values that become specific other values, and its `default` says what happens to all the others:
+
+```ts
+import { CronJobEntity, CronJobState, DataSourceInterface, Transaction, ValueConversion } from 'zibri';
+
+async function replaceActiveWithState(dataSource: DataSourceInterface, transaction: Transaction): Promise<void> {
+    await dataSource.changePropertyOfEntity({
+        entity: CronJobEntity,
+        currentProperty: { name: 'active', type: 'boolean' },
+        property: { name: 'state', type: 'string', enum: CronJobState },
+        convert: {
+            values: [{ from: true, to: CronJobState.ACTIVE }, { from: false, to: CronJobState.INACTIVE }],
+            default: ValueConversion.NONE
+        },
+        transaction
+    });
+}
+```
+
+- `ValueConversion.NONE` converts only the listed values, and fails on any other value.
+- `ValueConversion.CAST` casts the other values. It is what happens without `convert`.
+
+A cast keeps the value, or fails:
+
+| From | To | A value is kept when |
+|---|---|---|
+| any type | the same type | the new property can hold it: a string has to be one of its `enum`, at most `maxLength` characters long, and a uuid if it has to be one |
+| number | number of another `format` | it is the same number afterwards: `1.5` fails as an `'integer'` |
+| number | string | always, written the way javascript writes it, eg. `'1.5'` or `'1e+21'`. A `'bigint'` or `'bignumber'` is written in decimal digits |
+| string | number | it is a number written out, eg. `'-1.5'` or `'2e3'`, and that number fits the `format`. An `'integer'` or `'bigint'` takes digits only. `' 7'` and `'0x10'` fail |
+
+Any other change of type has no cast, so `convert` with `ValueConversion.NONE` is required. A missing value fails when the new property is required.
 
 `down` undoes what `up` did. It is worth writing even when you cannot imagine needing it: it is what [going back](#going-back) runs, and a release that has to be rolled back is exactly the release nobody planned for.
 
@@ -1045,6 +1285,8 @@ than reverting the schema that the newer instances are using.
 
 It refuses rather than reverting because the schema is shared. An instance arriving late — a rollback, a restart, a scale event — would otherwise take the schema away from the instances already serving on it, and a `down()` that drops a column takes the data with it.
 
+A release that changed the [indexes and uniques](#keeping-indexes-and-uniques) counts the same: its version is recorded under `zibri:indexes-and-uniques`, and an older release refuses to start against it. `revertMigrationsAfter` removes that record along with the migrations, and the older build then brings the indexes and uniques back to what its own entities declare when it starts.
+
 Rolling back past a migration is therefore something you do on purpose, in this order:
 
 1. stop the instances running the newer version
@@ -1056,7 +1298,7 @@ Doing step 2 while a newer instance is still serving takes the schema out from u
 Note what this means for a normal rolling deploy: while it is in progress, instances of both versions are live at the same time, and the framework cannot prevent that — it does not control your orchestrator. Keep a migration backward compatible with the version before it (add a nullable column, do not rename one in place; remove the old column in a later release) and that window is safe.
 
 #### Running more than one instance
-Schema setup — creating the migration table, running migrations, and whatever `schemaManagement` asks for — happens inside a lock that every instance of your deployment competes for. The first instance to boot sets the schema up and the rest find the work already done.
+Schema setup — creating the migration table, running migrations, keeping the indexes and uniques, and whatever `schemaManagement` asks for — happens inside a lock that every instance of your deployment competes for. The first instance to boot sets the schema up and the rest find the work already done.
 
 Without it, three replicas starting together all read an empty migration table and all run the same migration, and all issue the same `CREATE TABLE`. That surfaces as `duplicate key value violates unique constraint "pg_type_typname_nsp_index"` — a Postgres *catalog* index, which names nothing about your application — and the instances that lose crash-loop.
 
@@ -1101,11 +1343,31 @@ that is the `uniques: [['year', 'recipientId']]` on [`NumberInvoices`](#defining
 
 Without that declaration the identity does not name at most one row, and the call is refused rather than quietly picking one of them. `increment` is only offered on numeric properties; every other property takes `{ set: value }`.
 
+The identity holds the same values as the row you insert, and the changes leave it as it is. A call that breaks either is refused.
+
 It is safe to pass your `transaction`, and you should: the result comes back before the transaction commits, so you can use it while the transaction is still open, and it rolls back with everything else. For invoice numbering that is the point — an abandoned invoice leaves no gap in the sequence.
 
 A `belongsToOne` or `manyToOne` may be named in the row you insert, and is written as the foreign key it resolves to — pass the related entity or its id, whichever you have. The other three relation kinds keep their key somewhere else: on the row at the other end, or in a join table. Writing one of those means writing rows beside this one, and statements around the insert-or-update reopen the window `upsert` exists to close, so naming one is refused and says which property it means. Write that side separately, or use `create`.
 
 What comes back has its relations resolved, the same as any other read — see [What a write hands back](#what-a-write-hands-back).
+
+To do the same for several rows in one call, use `upsertAll`. You name the identity once, and each row brings what to insert and its own changes:
+
+```ts
+async function nextNumbers(year: number, recipientIds: string[], transaction: Transaction): Promise<number[]> {
+    const counters: NumberInvoices[] = await numberInvoicesRepository.upsertAll(
+        ['year', 'recipientId'],                     // read off each row's `create`
+        recipientIds.map(recipientId => ({
+            create: { year, recipientId, number: 1 },
+            onConflict: { number: { increment: 1 } }
+        })),
+        { transaction }
+    );
+    return counters.map(c => c.number);
+}
+```
+
+Every rule of `upsert` applies to each row. The rows come back in the order you passed them. No two rows may hold the same identity; such a call is refused before anything is written. Calls running at the same time may name the same rows in any order: each waits for the other rather than failing.
 
 #### Changing every row that matches a filter — `updateAll`
 
@@ -1114,6 +1376,9 @@ What comes back has its relations resolved, the same as any other read — see [
 ```ts
 @Entity()
 export class Job extends BaseEntity {
+    @Property.string({ format: 'uuid' })
+    tenantId!: string;
+
     @Property.string()
     status!: string;
 }
@@ -1180,10 +1445,17 @@ import { ChangeSetEntity, Entity, Property } from 'zibri';
 
 @Entity()
 export class Note extends ChangeSetEntity {
+    @Property.string({ format: 'uuid' })
+    tenantId!: string;
+
     @Property.string({ excludeFromChangeSets: true })
     draft!: string;
 }
 ```
+
+Change sets are stored in the same data source as the entity they record. A change set belongs to the
+[tenant](./tenancy.md#work-outside-a-request) of the row it describes, also when the change was made
+across tenants.
 
 #### A change and its record are one write
 
@@ -1211,6 +1483,33 @@ absent is the person, because there was none.
 ### SoftDeleteRepository
 The `SoftDeleteRepository` is an extended version of a `ChangeSetRepository`, which adds soft delete functionality.
 
+A delete marks the row as deleted and keeps it. Every read and write leaves soft deleted rows out,
+unless the call's `deleted` option says otherwise:
+
+| `deleted` | The call reaches |
+|---|---|
+| `'exclude'` | Rows that are not soft deleted. The default |
+| `'include'` | Every row |
+| `'only'` | Soft deleted rows alone |
+
+```ts
+import { SoftDeleteRepository } from 'zibri';
+
+async function listTrash(accountRepository: SoftDeleteRepository<Account>): Promise<Account[]> {
+    return await accountRepository.findAll({ deleted: 'only' });
+}
+
+async function restore(accountRepository: SoftDeleteRepository<Account>, id: string): Promise<Account> {
+    return await accountRepository.updateById(id, { deleted: false }, { deleted: 'only' });
+}
+```
+
+The option is the only way to choose: a filter naming `deleted` with a value the option does not
+give it is refused. An update hands back the row it wrote, whether or not that row is still reached
+afterwards.
+
+`hardDelete: true` on `deleteById` or `deleteAll` removes rows for good, soft deleted ones included.
+
 ### Reads and writes inside a request
 A repository operation belongs to the request that asked for it. When that request runs out of the
 time its route allows, the next operation is refused rather than issued, and a statement already
@@ -1223,6 +1522,7 @@ it wrote is going to be asked for, so it rolls back and the rows it was holding 
 See [deadlines](./creating-endpoints.md#deadlines).
 
 ## See also
+- [Costs](./costs.md) — how many round trips each repository call takes
 - [Models](./models.md) — the `@Property` decorators entities are declared with
 - [Replication](./replication.md) — the shared data source every instance coordinates through
 - [Leases](./leases.md) — the grant behind everything only one instance may do at a time

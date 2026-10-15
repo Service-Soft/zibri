@@ -31,7 +31,7 @@ export enum CronJobState {
 /**
  * The cron job entity that is stored in the db.
  */
-@Entity()
+@Entity({ tenant: 'shared', allowOrphan: true })
 export class CronJobEntity extends BaseEntity {
     /**
      * The name of the cron job.

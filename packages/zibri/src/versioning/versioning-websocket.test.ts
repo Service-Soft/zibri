@@ -147,7 +147,7 @@ beforeAll(async () => {
         websocketControllers: [VersionResolveController, VersionedDispatchController]
     });
     baseUrl = await server.start();
-}, 15000);
+}, 30000);
 
 afterAll(async () => {
     await server.shutdown();

@@ -1,68 +1,89 @@
-import { randomBytes } from 'crypto';
-
+import { type AccessTokenRevocation } from './access-token-revocation.type';
 import { EncodedJwt } from './encoded-jwt-access-token.model';
 import { isJwtAccessTokenPayload, JwtAccessTokenPayload } from './jwt-access-token-payload.model';
 import { JwtAuthData } from './jwt-auth-data.model';
 import { type JwtAuthOptions } from './jwt-auth-options.model';
-import { PasswordResetEmailTemplate } from './jwt-auth.controller';
-import { JwtConfirmPasswordResetData } from './jwt-confirm-password-reset-data.model';
-import { JwtCredentials, JwtCredentialsCreateData, JwtCredentialsDto } from './jwt-credentials.model';
-import { JwtRefreshLoginData } from './jwt-refresh-login-data.model';
+import { JwtKey } from './jwt-key.model';
+import { JwtRefreshLoginData, JwtRefreshLoginDto } from './jwt-refresh-login-data.model';
 import { JwtRefreshTokenCleanupCronJob } from './jwt-refresh-token-cleanup.cron-job';
 import { isJwtRefreshTokenPayload, JwtRefreshTokenPayload } from './jwt-refresh-token-payload.model';
 import { JwtRefreshToken, JwtRefreshTokenCreateDto } from './jwt-refresh-token.model';
-import { JwtRequestPasswordResetData } from './jwt-request-password-reset-data.model';
+import { type JwtServiceInterface } from './jwt-service.interface';
 import { JwtUtilities } from './jwt.utilities';
+import { MissingJwtSecretError } from './missing-jwt-secret.error';
+import { VerifiedJwt } from './verified-jwt.model';
 import { ZibriApplication } from '../../../application/application';
 import { HttpRequestContext } from '../../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../../context/request/websocket-request.context';
+import { IsolationLevel } from '../../../data-source/data-sources/data-source.interface';
 import { Repository } from '../../../data-source/repository/repository';
 import { Transaction } from '../../../data-source/transaction/transaction.model';
-import { InjectRepository } from '../../../di/decorators/inject-repository.decorator';
+import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { NoProviderError } from '../../../di/errors/no-provider.error';
 import { inject } from '../../../di/inject.function';
-import { type EmailServiceInterface } from '../../../email/email-service.interface';
-import { EmailPriority } from '../../../email/models/email-priority.enum';
 import { CredentialReusedError } from '../../../error-handling/errors/credential-reused.error';
-import { HttpError } from '../../../error-handling/errors/http.error';
 import { NotFoundError } from '../../../error-handling/errors/not-found.error';
 import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.error';
 import { InternalError } from '../../../error-handling/internal-error.model';
-import { GlobalRegistry } from '../../../global/global-registry';
 import { $ts } from '../../../localization/translate.function';
 import { OpenApiSecuritySchemeObject } from '../../../open-api/open-api.model';
-import { TsxUtilities } from '../../../tsx/tsx.utilities';
+import { Newable } from '../../../types/newable.type';
 import { OmitStrict } from '../../../types/omit-strict.type';
 import { Ms } from '../../../utilities/ms';
 import { UUIDUtilities } from '../../../utilities/uuid.utilities';
+import { validateEntitiesRegistered } from '../../../utilities/validate-entities-registered.function';
+import { type BaseWebsocketConnection } from '../../../websocket/models/connection/base-websocket-connection.model';
+import { type WebsocketServiceInterface } from '../../../websocket/services/websocket-service.interface';
+import { FederatedSessionColumns } from '../../authenticators/federated/federated-session-columns.model';
+import { FederatedSessionMatch } from '../../authenticators/federated/federated-session-match.model';
+import { FederatedSession } from '../../authenticators/federated/federated-session.model';
+import { FederatedSessionUtilities } from '../../authenticators/federated/federated-session.utilities';
+import { IntrospectionResponse } from '../../authorization-server/introspection-response.model';
+import { OAuth2ErrorCode } from '../../authorization-server/oauth2-error-code.enum';
+import { OAuth2Error } from '../../authorization-server/oauth2.error';
+import { type DpopServiceInterface } from '../../dpop/dpop-service.interface';
 import { type HashServiceInterface } from '../../hash/hash-service.interface';
-import type { HashString } from '../../hash/hash.utilities';
 import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy';
+import { Authentication } from '../../models/authentication.model';
 import { BaseUser } from '../../models/base-user.model';
-import { PasswordResetToken, PasswordResetTokenCreateData } from '../../models/password-reset-token.model';
 import { type UserServiceInterface } from '../../user/user-service.interface';
-import { AuthStrategyInterface } from '../auth-strategy.interface';
+import { AuthControllerStrategyInterface } from '../auth-controller-strategy.interface';
+import { AuthorizationHeaderUtilities } from '../authorization-header.utilities';
+import { AuthorizationToken } from '../authorization-token.model';
+import { TokenIntrospectingAuthStrategyInterface } from '../token-introspecting-auth-strategy.interface';
 
 /**
- * An error to throw when one of the two required jwt signing secrets has not been configured.
- *
- * There is deliberately no default: a framework that invented one would ship every application the
- * same signing key, and anyone who read the source could mint tokens for all of them.
+ * What a verified access token of a login says.
  */
-class MissingJwtSecretError extends InternalError {
-    constructor(secret: 'accessTokenSecret' | 'refreshTokenSecret', options?: ErrorOptions) {
-        super(
-            [
-                `No ${secret} configured on ZIBRI_DI_TOKENS.JWT_AUTH_OPTIONS_INPUT.`,
-                'It has no default, because a shared one would let anyone with the source mint tokens.'
-            ],
-            options
-        );
-        this.name = 'MissingJwtSecretError';
-    }
-}
+type LoginAccessToken<Role extends string> = {
+    /**
+     * The verified token.
+     */
+    verified: VerifiedJwt,
+    /**
+     * Its payload, read as that of a login's token.
+     */
+    payload: JwtAccessTokenPayload<Role, BaseUser<Role>>
+};
+
+/**
+ * The refresh token one rotation minted.
+ */
+type RotatedRefreshToken = {
+    /**
+     * The stored row, which holds the token hashed.
+     */
+    refreshToken: JwtRefreshToken,
+    /**
+     * The token itself, which is what the caller is handed.
+     */
+    value: string,
+    /**
+     * The `auth_time` of the login the rotation continues.
+     */
+    authTime: number
+};
 
 /**
  * Jwt auth strategy implementation of Zibri.
@@ -71,18 +92,28 @@ export class JwtAuthStrategy<
     RoleType extends string,
     UserType extends BaseUser<RoleType> = BaseUser<RoleType>
 >
-implements AuthStrategyInterface<
+implements AuthControllerStrategyInterface<
     RoleType,
     UserType,
     JwtAuthData<RoleType>,
-    JwtCredentialsDto,
-    JwtRequestPasswordResetData<RoleType, UserType>,
-    JwtConfirmPasswordResetData,
     JwtRefreshLoginData,
     OmitStrict<JwtRefreshLoginData, 'transaction'>
-> {
+>, TokenIntrospectingAuthStrategyInterface<RoleType, UserType> {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly name: string = 'jwt';
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly authDataModel: Newable<JwtAuthData<RoleType>> = JwtAuthData;
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly refreshLoginModel: Newable<JwtRefreshLoginDto> = JwtRefreshLoginDto;
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly logoutModel: Newable<JwtRefreshLoginDto> = JwtRefreshLoginDto;
+
+    // the tokens are the body of the response, which a redirect has none of
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly logsInWithResponse: boolean = false;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly securityScheme: OpenApiSecuritySchemeObject = {
@@ -92,211 +123,160 @@ implements AuthStrategyInterface<
         description: 'Enter your JWT token in the format `Bearer <token>`'
     };
 
-    // the current secret first, then every previous one. Non empty by construction, and the first
-    // entry is the only one anything signs with - the rest exist to verify tokens issued before a
-    // rotation
-    private readonly accessTokenSecrets: [string, ...string[]];
-    private readonly refreshTokenSecrets: [string, ...string[]];
-    private readonly accessTokenExpiresInMs: number;
+    // only the current secret ever signs. Verifying takes the current one first and then every
+    // previous one, which exist to verify tokens issued before a rotation. Access tokens are signed
+    // by the jwt service, which every strategy issuing them shares
+    private readonly refreshTokenSigningKey: JwtKey;
+    private readonly refreshTokenVerificationKeys: JwtKey[];
     private readonly refreshTokenExpiresInMs: number;
-    private readonly confirmPasswordResetUrl: string;
-    private readonly PasswordResetEmail: PasswordResetEmailTemplate<RoleType, UserType>;
-    private dummyPasswordHashPromise: Promise<HashString> | undefined;
+    private readonly requireDpop: boolean;
+
+    // read when used rather than injected, so that an application without the entity is told to
+    // declare it by init, instead of failing on a repository token while this is built
+    private get refreshTokenRepository(): Repository<JwtRefreshToken> {
+        return inject(repositoryTokenFor(JwtRefreshToken));
+    }
+
+    // read when used, since the websocket service is built with the auth service, which builds this.
+    // Every place below that ends a login tells it, so a socket that connected with an access token
+    // of the login is closed once the token is refused
+    private get websocketService(): WebsocketServiceInterface<BaseWebsocketConnection> {
+        return inject(ZIBRI_DI_TOKENS.WEBSOCKET_SERVICE);
+    }
 
     constructor(
-        @InjectRepository(JwtRefreshToken)
-        private readonly refreshTokenRepository: Repository<JwtRefreshToken>,
-        @InjectRepository(PasswordResetToken)
-        private readonly passwordResetTokenRepository: Repository<PasswordResetToken, PasswordResetTokenCreateData>,
-        @InjectRepository(JwtCredentials)
-        private readonly credentialsRepository: Repository<JwtCredentials, JwtCredentialsCreateData>,
         @Inject(ZIBRI_DI_TOKENS.JWT_AUTH_OPTIONS)
         options: JwtAuthOptions,
-        @Inject(ZIBRI_DI_TOKENS.PASSWORD_RESET_TOKEN_EXPIRES_IN_MS)
-        private readonly passwordResetTokenExpiresInMs: number,
         @Inject(ZIBRI_DI_TOKENS.USER_SERVICE)
         private readonly userService: UserServiceInterface,
-        @Inject(ZIBRI_DI_TOKENS.EMAIL_SERVICE)
-        private readonly emailService: EmailServiceInterface,
         @Inject(ZIBRI_DI_TOKENS.HASH_SERVICE)
-        private readonly hashService: HashServiceInterface
+        private readonly hashService: HashServiceInterface,
+        @Inject(ZIBRI_DI_TOKENS.JWT_SERVICE)
+        private readonly jwtService: JwtServiceInterface,
+        @Inject(ZIBRI_DI_TOKENS.DPOP_SERVICE)
+        private readonly dpopService: DpopServiceInterface,
+        @Inject(ZIBRI_DI_TOKENS.ACCESS_TOKEN_REVOCATION)
+        private readonly accessTokenRevocation: AccessTokenRevocation
     ) {
-        if (!options.accessTokenSecret) {
-            throw new MissingJwtSecretError('accessTokenSecret');
-        }
-        if (!options.refreshTokenSecret) {
+        const refreshTokenSecret: string | undefined = options.refreshTokenSecret;
+        // an empty string is an unset environment variable rather than a secret
+        if (!refreshTokenSecret) {
             throw new MissingJwtSecretError('refreshTokenSecret');
         }
-        const accessTokenSecrets: [string, ...string[]] = [options.accessTokenSecret, ...options.previousAccessTokenSecrets];
-        const refreshTokenSecrets: [string, ...string[]] = [options.refreshTokenSecret, ...options.previousRefreshTokenSecrets];
-        this.validateDistinctSecrets(accessTokenSecrets, refreshTokenSecrets);
+        this.requireDpop = options.requireDpop;
+        const refreshTokenVerificationKeys: JwtKey[] = [refreshTokenSecret, ...options.previousRefreshTokenSecrets]
+            .map(s => JwtUtilities.resolveVerificationKey(s));
+        this.validateDistinctSecrets(jwtService.getVerificationKeys(), refreshTokenVerificationKeys);
 
-        const confirmPasswordResetUrl: string | undefined = inject(ZIBRI_DI_TOKENS.CONFIRM_PASSWORD_RESET_URL);
-        if (!confirmPasswordResetUrl) {
-            throw new NoProviderError(ZIBRI_DI_TOKENS.CONFIRM_PASSWORD_RESET_URL, []);
-        }
-        const PasswordResetEmail: PasswordResetEmailTemplate<RoleType, UserType> | undefined = inject(
-            ZIBRI_DI_TOKENS.PASSWORD_RESET_EMAIL_TEMPLATE
-        );
-        if (!PasswordResetEmail) {
-            throw new NoProviderError(ZIBRI_DI_TOKENS.PASSWORD_RESET_EMAIL_TEMPLATE, []);
-        }
-
-        this.accessTokenSecrets = accessTokenSecrets;
-        this.refreshTokenSecrets = refreshTokenSecrets;
-        this.accessTokenExpiresInMs = options.accessTokenExpiresInMs;
+        this.refreshTokenSigningKey = JwtUtilities.resolveSigningKey(refreshTokenSecret);
+        this.refreshTokenVerificationKeys = refreshTokenVerificationKeys;
         this.refreshTokenExpiresInMs = options.refreshTokenExpiresInMs;
-        this.confirmPasswordResetUrl = confirmPasswordResetUrl;
-        this.PasswordResetEmail = PasswordResetEmail;
     }
 
     /**
-     * Refuses a configuration in which one secret can verify a token it did not sign.
+     * Refuses a configuration in which one key can verify a token it did not sign.
      *
-     * Which secret verifies a token is the only thing that keeps the two kinds apart, so an access
+     * Which key verifies a token is the only thing that keeps the two kinds apart, so an access
      * secret shared with a refresh secret turns a 30 day credential meant to be exchanged once into
-     * a bearer credential for as long as it lives. A previous secret repeated as the current one is
+     * a bearer credential for as long as it lives. A previous key repeated as the current one is
      * refused for the same reason it is pointless: it means a rotation that did not rotate, and
      * dropping it later would then invalidate live tokens rather than expired ones.
-     * @param accessTokenSecrets - Every secret an access token may verify against.
-     * @param refreshTokenSecrets - Every secret a refresh token may verify against.
-     * @throws When any secret appears more than once across the two lists.
+     * @param accessTokenKeys - Every key an access token may verify against.
+     * @param refreshTokenKeys - Every key a refresh token may verify against.
+     * @throws When any key appears more than once across the two lists.
      */
-    private validateDistinctSecrets(accessTokenSecrets: string[], refreshTokenSecrets: string[]): void {
-        const all: string[] = [...accessTokenSecrets, ...refreshTokenSecrets];
+    private validateDistinctSecrets(accessTokenKeys: JwtKey[], refreshTokenKeys: JwtKey[]): void {
+        // a key pair is told apart by its thumbprint, which is the same whether it was configured as
+        // the private or the public half. Prefixed, so a secret that happens to read like a
+        // thumbprint is still a different key
+        const all: string[] = [...accessTokenKeys, ...refreshTokenKeys]
+            .map(k => k.algorithm === 'HS256' ? `secret:${k.secret}` : `key:${k.kid}`);
         if (new Set(all).size === all.length) {
             return;
         }
         throw new InternalError([
-            'The configured jwt secrets are not all distinct.',
-            'Each kind of token is only distinguishable by the secret it verifies against, so',
+            'The configured jwt keys are not all distinct.',
+            'Each kind of token is only distinguishable by the key it verifies against, so',
             'sharing one lets a refresh token be presented as an access token.',
-            'Every entry across accessTokenSecret, previousAccessTokenSecrets, refreshTokenSecret',
+            'Every entry across accessTokenKey, previousAccessTokenKeys, refreshTokenSecret',
             'and previousRefreshTokenSecrets has to be a different value.'
         ]);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     init(app: ZibriApplication): void {
+        // first, since the cleanup job below needs it as well
+        validateEntitiesRegistered(JwtAuthStrategy.name, app, JwtRefreshToken);
         if (!app.options.cronJobs.includes(JwtRefreshTokenCleanupCronJob)) {
             app.options.cronJobs.push(JwtRefreshTokenCleanupCronJob);
         }
     }
 
-    /**
-     * The stored password for a user, or undefined when there is none to compare against.
-     *
-     * A user can exist without credentials - created by an admin, or registered through another
-     * strategy - and that has to answer the same as a wrong password rather than as an error.
-     * @param user - The user to look up.
-     * @returns The stored hash, or undefined when the user has no credentials.
-     */
-    private async findStoredPassword(user: UserType): Promise<HashString | undefined> {
-        try {
-            const credentials: JwtCredentials = await this.userService.resolveCredentialsFor(user);
-            return credentials.password;
-        }
-        catch {
-            return undefined;
-        }
-    }
-
-    /**
-     * Re-hashes a password that was just proven correct, if the stored hash is out of date.
-     *
-     * Here rather than in `AuthService` because this is the one moment the plaintext exists, and the
-     * user and stored hash are already loaded - driving it from the service would mean looking both
-     * up again, and it has no typed way to know where a strategy keeps its credentials.
-     *
-     * Deliberately does not fail the login: the caller proved who they are, and a write that did not
-     * happen is a hash that stays old rather than a reason to refuse them.
-     * @param user - The user that just logged in.
-     * @param password - The plaintext they logged in with.
-     * @param storedPassword - The hash it was compared against.
-     */
-    private async upgradeStoredPassword(user: UserType, password: string, storedPassword: HashString): Promise<void> {
-        try {
-            if (!await this.hashService.needsRehash(storedPassword)) {
-                return;
-            }
-            // written as plaintext on purpose: the entity hook hashes it on the way in, with whatever
-            // the current strategy and cost are, which is the whole point of the upgrade
-            await this.credentialsRepository.updateAll({ userId: user.id }, { password });
-        }
-        catch (error) {
-            inject(ZIBRI_DI_TOKENS.LOGGER).warn(
-                `Could not upgrade the stored password hash for user ${user.id}: ${String(error)}`
-            );
-        }
-    }
-
-    /**
-     * Something to compare a password against when there is nothing real to compare it against.
-     *
-     * Hashed from a value nobody holds, with the default strategy, so a comparison against it costs
-     * what a comparison against a real password costs and follows a change of strategy for free.
-     * Computed once and reused - the very first miss in a process pays for producing it, which is
-     * one request out of all of them.
-     * @returns The stand-in hash.
-     */
-    private async dummyPasswordHash(): Promise<HashString> {
-        this.dummyPasswordHashPromise ??= Promise.resolve(this.hashService.hash(randomBytes(32).toString('hex')));
-        return await this.dummyPasswordHashPromise;
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async startTransaction(): Promise<Transaction> {
+        return await this.refreshTokenRepository.dataSource.startTransaction({ isolationLevel: IsolationLevel.READ_COMMITTED });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async login(credentials: JwtCredentialsDto): Promise<JwtAuthData<RoleType>> {
-        try {
-            const foundUser: UserType | undefined = await this.userService.findByEmail(credentials.email, { required: false });
-            const storedPassword: HashString | undefined = foundUser == undefined
-                ? undefined
-                : await this.findStoredPassword(foundUser);
-
-            // one comparison on every path, against a stand-in when there is nothing to compare
-            // against. An unknown address used to answer before any key derivation ran while a known
-            // one waited for a full scrypt, which made the response time an account existence oracle
-            // - readable from anywhere, and unaffected by the messages being identical.
-            const passwordMatched: boolean = await this.hashService.equal(
-                credentials.password,
-                storedPassword ?? await this.dummyPasswordHash()
+    async startLogin(authentication: Authentication<UserType>, transaction: Transaction | undefined): Promise<JwtAuthData<RoleType>> {
+        const { user, authenticatedAt, federatedSession } = authentication;
+        // every token of this login carries the time from here on, refreshes included, and so does
+        // the family its refresh tokens share, which the access tokens name as the login
+        const authTime: number = Math.floor(authenticatedAt.getTime() / Ms.SECOND);
+        const familyId: string = UUIDUtilities.generate();
+        // the key the request proves it holds, which every token of the login is bound to from here on
+        const dpopKeyThumbprint: string | undefined = await this.resolveRequestKeyThumbprint();
+        if (dpopKeyThumbprint == undefined && this.requireDpop) {
+            throw new OAuth2Error(
+                OAuth2ErrorCode.INVALID_DPOP_PROOF,
+                $ts`A login is bound to a DPoP key, which the request carries no proof of.`
             );
-            if (foundUser == undefined || storedPassword == undefined || !passwordMatched) {
-                throw new UnauthorizedError($ts`Invalid email or password.`);
-            }
-            await this.upgradeStoredPassword(foundUser, credentials.password, storedPassword);
-
-            const accessTokenValue: string = await this.generateAccessToken(foundUser);
-            const refreshTokenValue: string = await this.generateRefreshToken(foundUser);
-            await this.createRefreshToken(foundUser, refreshTokenValue, UUIDUtilities.generate(), undefined);
-
-            return {
-                accessToken: {
-                    value: accessTokenValue,
-                    expirationDate: new Date(Date.now() + this.accessTokenExpiresInMs)
-                },
-                refreshToken: {
-                    value: refreshTokenValue,
-                    expirationDate: new Date(Date.now() + this.refreshTokenExpiresInMs)
-                },
-                userId: foundUser.id,
-                roles: foundUser.roles
-            };
         }
-        catch (error) {
-            // B4's uniformity is about the ways of being refused: every one of them has to answer
-            // the same, or the difference says whether the address is registered. A fault is not one
-            // of those, and folding it in here made a user store that is down answer exactly like a
-            // wrong password - to the caller, and in the audit trail, where an outage then reads as
-            // a credential stuffing run. It surfaces as a masked 500 instead.
-            if (!(error instanceof HttpError)) {
-                throw error;
-            }
-            throw new UnauthorizedError($ts`Invalid email or password.`);
-        }
+        const accessTokenValue: string = await this.generateAccessToken(user, authTime, familyId, dpopKeyThumbprint);
+        const refreshTokenValue: string = await this.generateRefreshToken(user, authTime);
+        await this.createRefreshToken(
+            user,
+            refreshTokenValue,
+            familyId,
+            FederatedSessionUtilities.toColumns(federatedSession),
+            dpopKeyThumbprint,
+            transaction
+        );
+
+        return {
+            accessToken: {
+                value: accessTokenValue,
+                expirationDate: new Date(Date.now() + this.jwtService.accessTokenExpiresInMs)
+            },
+            refreshToken: {
+                value: refreshTokenValue,
+                expirationDate: new Date(Date.now() + this.refreshTokenExpiresInMs)
+            },
+            userId: user.id,
+            roles: user.roles
+        };
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async logout(data: OmitStrict<JwtRefreshLoginData, 'transaction'>): Promise<void> {
+    async endLogins(userId: string, transaction: Transaction | undefined): Promise<void> {
+        // the refresh tokens only: an access token is signed rather than stored, so it stays valid
+        // until it expires - unless access tokens are revoked at once, which finds their family gone
+        await this.refreshTokenRepository.deleteAll({ userId }, { transaction });
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async endFederatedLogins(session: FederatedSessionMatch, transaction: Transaction | undefined): Promise<void> {
+        // every token of a family carries the session, so this ends whole families. The access tokens
+        // stay valid as with endLogins
+        const ended: JwtRefreshToken[] = await this.refreshTokenRepository.deleteAll(
+            FederatedSessionUtilities.toWhere(session),
+            { transaction, returnDeleted: true }
+        );
+        await this.websocketService.disconnectEndedLogins([...new Set(ended.map(token => token.userId))], transaction);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async logout(data: OmitStrict<JwtRefreshLoginData, 'transaction'>): Promise<FederatedSession | undefined> {
         try {
             // hashed to be searched for, because that is how it is stored. Has to name the same
             // strategy the property does, or the column is written one way and read another.
@@ -304,12 +284,15 @@ implements AuthStrategyInterface<
                 { where: { value: await this.hashService.hash(data.refreshToken, { strategy: Sha256HashStrategy }) }, required: false }
             );
             if (!refreshToken) {
-                return;
+                return undefined;
             }
             await this.refreshTokenRepository.deleteAll({ familyId: refreshToken.familyId });
+            await this.websocketService.disconnectEndedLogins([refreshToken.userId], undefined);
+            return FederatedSessionUtilities.fromColumns(refreshToken);
         }
         catch {
             // ignore
+            return undefined;
         }
     }
 
@@ -317,6 +300,8 @@ implements AuthStrategyInterface<
         foundUser: UserType,
         refreshTokenValue: string,
         familyId: string,
+        federatedSession: FederatedSessionColumns,
+        dpopKeyThumbprint: string | undefined,
         transaction: Transaction | undefined
     ): Promise<JwtRefreshToken> {
         const data: JwtRefreshTokenCreateDto = {
@@ -324,33 +309,44 @@ implements AuthStrategyInterface<
             value: refreshTokenValue,
             familyId,
             blacklisted: false,
-            expirationDate: new Date(Date.now() + this.refreshTokenExpiresInMs)
+            expirationDate: new Date(Date.now() + this.refreshTokenExpiresInMs),
+            dpopKeyThumbprint,
+            ...federatedSession
         };
         return await this.refreshTokenRepository.create(data, { transaction });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async refreshLogin(data: JwtRefreshLoginData): Promise<JwtAuthData<RoleType>> {
-        const refreshToken: JwtRefreshToken = await this.verifyAndResolveRefreshToken(data.refreshToken, data.transaction);
-        const user: UserType = await this.userService.findById(refreshToken.userId);
-        const accessTokenValue: string = await this.generateAccessToken(user);
+        const rotated: RotatedRefreshToken = await this.verifyAndResolveRefreshToken(data.refreshToken, data.transaction);
+        const user: UserType = await this.userService.findById(rotated.refreshToken.userId);
+        // the login's time, not now: a refresh is not a login, and minting it fresh here would let
+        // any client holding a refresh token present itself as having just logged in
+        const accessTokenValue: string = await this.generateAccessToken(
+            user,
+            rotated.authTime,
+            rotated.refreshToken.familyId,
+            rotated.refreshToken.dpopKeyThumbprint ?? undefined
+        );
 
         return {
             userId: user.id,
             roles: user.roles,
             refreshToken: {
-                value: refreshToken.value,
-                expirationDate: refreshToken.expirationDate
+                // the token rather than the row's value, which is its hash. Answering with that
+                // handed the client something no later refresh could ever match
+                value: rotated.value,
+                expirationDate: rotated.refreshToken.expirationDate
             },
             accessToken: {
                 value: accessTokenValue,
-                expirationDate: new Date(Date.now() + this.accessTokenExpiresInMs)
+                expirationDate: new Date(Date.now() + this.jwtService.accessTokenExpiresInMs)
             }
         };
     }
 
-    private async verifyAndResolveRefreshToken(tokenValue: string, transaction: Transaction): Promise<JwtRefreshToken> {
-        const encoded: EncodedJwt | undefined = await JwtUtilities.verify(tokenValue, this.refreshTokenSecrets, this.issuer);
+    private async verifyAndResolveRefreshToken(tokenValue: string, transaction: Transaction): Promise<RotatedRefreshToken> {
+        const encoded: EncodedJwt | undefined = await this.verifyRefreshToken(tokenValue);
         // the payload was read as an access token's here, which is the shape it never has. Nothing
         // happened to look at it, so the mistake was invisible - checking it is what keeps a token
         // signed for one purpose from being spent on the other.
@@ -375,12 +371,16 @@ implements AuthStrategyInterface<
         }
         if (refreshToken.blacklisted) {
             await this.refreshTokenRepository.deleteAll({ familyId: refreshToken.familyId }, { transaction });
+            await this.websocketService.disconnectEndedLogins([refreshToken.userId], transaction);
             throw new CredentialReusedError($ts`Invalid refresh token.`);
         }
         if (new Date(refreshToken.expirationDate).getTime() <= Date.now()) {
             await this.refreshTokenRepository.deleteAll({ familyId: refreshToken.familyId }, { transaction });
             throw new UnauthorizedError($ts`Invalid refresh token.`);
         }
+        // before it is spent, so that a refresh token stolen without the key it is bound to spends
+        // nothing: the login it belongs to goes on for whoever holds the key
+        await this.validateRefreshProof(refreshToken);
 
         // claimed before anything is minted, and only while it is still usable. The read above takes
         // no lock, so two requests carrying the same token both get this far - the condition on the
@@ -405,198 +405,288 @@ implements AuthStrategyInterface<
         }
 
         const user: UserType = await this.userService.findById(refreshToken.userId);
-        const refreshTokenValue: string = await this.generateRefreshToken(user);
+        const authTime: number = encoded.payload.auth_time;
+        const refreshTokenValue: string = await this.generateRefreshToken(user, authTime);
 
-        return await this.createRefreshToken(user, refreshTokenValue, refreshToken.familyId, transaction);
+        return {
+            refreshToken: await this.createRefreshToken(
+                user,
+                refreshTokenValue,
+                refreshToken.familyId,
+                // the session at a provider stays with the login, like its time and its key
+                FederatedSessionUtilities.toColumns(FederatedSessionUtilities.fromColumns(refreshToken)),
+                refreshToken.dpopKeyThumbprint ?? undefined,
+                transaction
+            ),
+            value: refreshTokenValue,
+            authTime
+        };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    async requestPasswordReset(data: JwtRequestPasswordResetData<RoleType, UserType>): Promise<void> {
-        if (await this.activePasswordResetTokenAlreadyExists(data.user, data.transaction)) {
-            // silently, because answering differently here told an unauthenticated caller that the
-            // address exists *and* that somebody recently asked to reset it. One live token at a
-            // time is still the rule - the account already has a usable one in its inbox, so there
-            // is nothing to do rather than something to refuse.
+    /**
+     * Refuses a refresh that does not prove it holds the key its login is bound to.
+     * @param refreshToken - The stored refresh token.
+     * @throws An OAuth2Error `invalid_dpop_proof` when the login is bound to a key the request proves no
+     * hold of, or is bound to none while logins have to be, or `use_dpop_nonce`.
+     */
+    private async validateRefreshProof(refreshToken: JwtRefreshToken): Promise<void> {
+        const bound: string | undefined = refreshToken.dpopKeyThumbprint ?? undefined;
+        if (bound == undefined && !this.requireDpop) {
             return;
         }
-
-        // kept here, because it does not survive being stored: the property is hashed on the way in,
-        // so the created entity holds the hash and this is the only moment the token itself exists.
-        // Reading it back off the entity mailed the user a hash of their own token.
-        const tokenValue: string = randomBytes(16).toString('hex');
-        const resetTokenData: PasswordResetTokenCreateData = {
-            value: tokenValue,
-            userId: data.user.id,
-            expirationDate: new Date(Date.now() + this.passwordResetTokenExpiresInMs)
-        };
-        await this.passwordResetTokenRepository.create(resetTokenData, { transaction: data.transaction });
-
-        const html: string = TsxUtilities.renderEmail(
-            this.PasswordResetEmail,
-            {
-                user: data.user,
-                confirmPasswordResetLink: `${data.emailData?.confirmPasswordResetUrl ?? this.confirmPasswordResetUrl}/${tokenValue}`
-            }
-        );
-
-        await this.emailService.queue({
-            recipients: [data.user.email],
-            subject: 'Password Reset',
-            html,
-            priority: EmailPriority.HIGH,
-            ...data.emailData,
-            // after the spread, so an application cannot ask for this one to be kept. The mail body
-            // carries the token in the clear - that is what a reset link is - and the queue row is
-            // deleted once it is sent. Retaining it would put back exactly the readable token that
-            // hashing the stored value removed, and keep it long after the token itself expired.
-            persist: false
-        });
+        if (bound == undefined || await this.resolveRequestKeyThumbprint() !== bound) {
+            throw new OAuth2Error(
+                OAuth2ErrorCode.INVALID_DPOP_PROOF,
+                $ts`The login is bound to a DPoP key, which the request proves no hold of.`
+            );
+        }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    async confirmPasswordReset(data: JwtConfirmPasswordResetData): Promise<void> {
-        const resetToken: PasswordResetToken | undefined = await this.passwordResetTokenRepository.findOne(
-            {
-                where: { value: await this.hashService.hash(data.resetToken, { strategy: Sha256HashStrategy }) },
-                transaction: data.transaction,
-                required: false
-            }
-        );
-        if (!resetToken) {
-            throw new UnauthorizedError($ts`Link invalid`);
-        }
-        if (new Date(resetToken.expirationDate).getTime() <= Date.now()) {
-            await this.passwordResetTokenRepository.deleteById(resetToken.id, { transaction: data.transaction });
-            throw new UnauthorizedError($ts`Link expired`);
-        }
-
-        const user: UserType = await this.userService.findById(resetToken.userId);
-        const credentials: JwtCredentials = await this.userService.resolveCredentialsFor(user);
-
-        await this.credentialsRepository.updateById(credentials.id, { password: data.newPassword }, { transaction: data.transaction });
-        await this.passwordResetTokenRepository.deleteById(resetToken.id, { transaction: data.transaction });
-        await this.refreshTokenRepository.deleteAll({ userId: resetToken.userId }, { transaction: data.transaction });
-        // TODO: set require password change to false
-    }
-
-    private async activePasswordResetTokenAlreadyExists(user: BaseUser<RoleType>, transaction: Transaction): Promise<boolean> {
-        const existingToken: PasswordResetToken | undefined = await this.passwordResetTokenRepository.findOne(
-            { where: { userId: user.id }, transaction, required: false }
-        );
-        if (existingToken) {
-            if (new Date(existingToken.expirationDate).getTime() > Date.now()) {
-                return true;
-            }
-            await this.passwordResetTokenRepository.deleteById(existingToken.id, { transaction });
-        }
-        return false;
+    /**
+     * The DPoP key the request being answered proves it holds, outside of a request to a resource.
+     * @returns The thumbprint of the key, or undefined when there is no request or it carries no proof.
+     */
+    private async resolveRequestKeyThumbprint(): Promise<string | undefined> {
+        const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
+        return context == undefined ? undefined : await this.dpopService.resolveProofThumbprint(context, undefined);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     hasCredential(context: HttpRequestContext | WebsocketRequestContext): boolean {
-        // a bearer token being present, not a valid one. Whether it verifies is what resolving it
-        // decides - answering false for a bad token would make a request carrying a bad token and a
-        // good cookie resolve as the cookie's user, which is exactly the mix this exists to refuse.
-        return this.extractAccessTokenFromRequestContext(context) != undefined;
+        // a bearer token shaped like a jwt being present, not a valid one. Whether it verifies is what
+        // resolving it decides - answering false for a bad token would make a request carrying a bad
+        // token and a good cookie resolve as the cookie's user, which is exactly the mix this exists
+        // to refuse. The shape is what leaves an opaque bearer token, such as an api key sent as one,
+        // to the strategy it belongs to, a token shaped like a client's to ClientAccessTokenAuthStrategy,
+        // so that a route naming this strategy stays one for people, and a token another issuer names
+        // to ProviderTokenAuthStrategy
+        return AuthorizationHeaderUtilities.findJwtKind(context, this.jwtService.issuer) === 'login';
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async resolveUser(context: HttpRequestContext | WebsocketRequestContext): Promise<UserType | undefined> {
-        const jwt: string | undefined = this.extractAccessTokenFromRequestContext(context);
-        if (!jwt) {
+        const token: LoginAccessToken<RoleType> | undefined = await this.findRequestLoginToken(context);
+        if (token == undefined) {
             return undefined;
         }
-        const data: EncodedJwt | undefined = await JwtUtilities.verify(jwt, this.accessTokenSecrets, this.issuer);
-        if (!data || !isJwtAccessTokenPayload<RoleType>(data.payload)) {
-            return undefined;
-        }
-
         // the token verifies over an account that may since have been deleted, which is "not logged
-        // in" rather than an error
-        return await this.userService.findById<RoleType, UserType, false>(data.payload.id, { required: false });
+        // in" rather than an error. Read beside whether the token is still live, which costs nothing
+        // while tokens are revoked on expiry
+        const [user, live] = await Promise.all([
+            this.userService.findById<RoleType, UserType, false>(token.payload.id, { required: false }),
+            this.isLoginLive(token.payload)
+        ]);
+        return live ? user : undefined;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async resolveClaimedUser(context: HttpRequestContext | WebsocketRequestContext): Promise<BaseUser<RoleType> | undefined> {
-        const jwt: string | undefined = this.extractAccessTokenFromRequestContext(context);
-        if (!jwt) {
-            return undefined;
-        }
-        const data: EncodedJwt | undefined = await JwtUtilities.verify(jwt, this.accessTokenSecrets, this.issuer);
-        if (!data || !isJwtAccessTokenPayload<RoleType>(data.payload)) {
+        const token: LoginAccessToken<RoleType> | undefined = await this.findRequestLoginToken(context);
+        if (token == undefined) {
             return undefined;
         }
         // everything a check needs is already in the payload - an id, an email and roles is a base
         // user. What it cannot carry is the rest of the application's own user entity, which is why
         // this is not the type resolveUser returns and why the current user never comes from here.
-        return { id: data.payload.id, email: data.payload.email, roles: data.payload.roles };
+        return { id: token.payload.id, email: token.payload.email, roles: token.payload.roles };
     }
 
-    private extractAccessTokenFromRequestContext(
-        context: HttpRequestContext | WebsocketRequestContext
-    ): string | undefined {
-        const authHeader: string | string[] | undefined = context.request.headers?.authorization;
-        if (authHeader == undefined || typeof authHeader !== 'string') {
-            return undefined;
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async resolveAuthenticatedAt(context: HttpRequestContext | WebsocketRequestContext): Promise<Date | undefined> {
+        const token: LoginAccessToken<RoleType> | undefined = await this.findRequestLoginToken(context);
+        return token == undefined ? undefined : new Date(token.payload.auth_time * Ms.SECOND);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async resolveExpiresAt(context: HttpRequestContext | WebsocketRequestContext): Promise<Date | undefined> {
+        const token: LoginAccessToken<RoleType> | undefined = await this.findRequestLoginToken(context);
+        return token == undefined ? undefined : new Date(token.verified.expiresAt * Ms.SECOND);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async introspectToken(token: string): Promise<IntrospectionResponse> {
+        // whoever the token is for: a service asking about it is not the application
+        const accessToken: LoginAccessToken<string> | undefined = await this.findLoginAccessToken(token, undefined);
+        if (accessToken != undefined) {
+            const [user, live] = await Promise.all([this.findActiveUser(accessToken.payload.id), this.isLoginLive(accessToken.payload)]);
+            if (user == undefined || !live) {
+                return { active: false };
+            }
+            return {
+                active: true,
+                // what a request with the token holds now
+                scope: user.roles.join(' '),
+                username: user.email,
+                token_type: accessToken.payload.cnf?.jkt == undefined ? 'Bearer' : 'DPoP',
+                exp: accessToken.verified.expiresAt,
+                iat: accessToken.verified.issuedAt,
+                sub: user.id,
+                aud: accessToken.verified.audience,
+                iss: this.jwtService.issuer,
+                ...accessToken.payload.cnf == undefined ? {} : { cnf: accessToken.payload.cnf }
+            };
         }
-        const parts: string[] = authHeader.split(' ');
-        if (parts.length !== 2 || parts[0] !== 'Bearer') {
-            return undefined;
+        const refreshToken: JwtRefreshToken | undefined = await this.findRefreshToken(token);
+        const user: BaseUser<string> | undefined = refreshToken == undefined ? undefined : await this.findActiveUser(refreshToken.userId);
+        if (refreshToken == undefined || user == undefined) {
+            return { active: false };
         }
-        return parts[1];
+        return {
+            active: true,
+            username: user.email,
+            token_type: 'refresh_token',
+            exp: Math.floor(new Date(refreshToken.expirationDate).getTime() / Ms.SECOND),
+            sub: user.id,
+            iss: this.jwtService.issuer
+        };
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async revokeToken(token: string): Promise<void> {
+        const accessToken: LoginAccessToken<string> | undefined = await this.findLoginAccessToken(token, undefined);
+        if (accessToken != undefined) {
+            if (this.accessTokenRevocation === 'onExpiry') {
+                throw new OAuth2Error(
+                    OAuth2ErrorCode.UNSUPPORTED_TOKEN_TYPE,
+                    $ts`Access tokens work until they expire, so they cannot be revoked.`
+                );
+            }
+            // the login the token belongs to, which is what it is checked against
+            await this.refreshTokenRepository.deleteAll({ familyId: accessToken.payload.sid });
+            await this.websocketService.disconnectEndedLogins([accessToken.payload.id], undefined);
+            return;
+        }
+        const refreshToken: JwtRefreshToken | undefined = await this.findRefreshToken(token);
+        if (refreshToken != undefined) {
+            // ends the login, as a logout does
+            await this.refreshTokenRepository.deleteAll({ familyId: refreshToken.familyId });
+            await this.websocketService.disconnectEndedLogins([refreshToken.userId], undefined);
+        }
     }
 
     /**
-     * Who this application says it is, on the tokens it signs and on the ones it accepts.
-     *
-     * The application's own name. Read per call rather than in the constructor, because a strategy
-     * can be constructed before the application data is registered.
-     * @returns The issuer to sign with and to require.
-     * @throws When the application has no name, since signing and verifying with an undefined issuer
-     * turns the check off rather than failing.
+     * Whether the login an access token belongs to has not ended. Always true while access tokens are
+     * revoked on expiry.
+     * @param payload - What the token says.
+     * @returns True while the token may still be used.
      */
-    private get issuer(): string {
-        const name: string | undefined = GlobalRegistry.getAppData('name');
-        if (name == undefined) {
-            throw new InternalError('Cannot issue or verify a jwt before the application has a name.');
+    private async isLoginLive(payload: JwtAccessTokenPayload<string, BaseUser<string>>): Promise<boolean> {
+        if (this.accessTokenRevocation === 'onExpiry') {
+            return true;
         }
-        return name;
+        // a logout, ended logins and a spent token reused all delete the family, and rotating it keeps it
+        return await this.refreshTokenRepository.findOne({ where: { familyId: payload.sid }, required: false }) != undefined;
     }
 
-    private async generateAccessToken(user: UserType): Promise<string> {
+    /**
+     * Finds a user who exists and is not deactivated.
+     * @param userId - The id of the user.
+     * @returns The user, or undefined.
+     */
+    private async findActiveUser(userId: string): Promise<UserType | undefined> {
+        const user: UserType | undefined = await this.userService.findById<RoleType, UserType, false>(userId, { required: false });
+        return user?.deactivatedAt == undefined ? user : undefined;
+    }
+
+    /**
+     * Finds what an access token of a login says.
+     * @param token - The token.
+     * @param audience - Who the token must be for, or undefined for anyone.
+     * @returns What it says, or undefined when it does not verify or is no login's.
+     */
+    private async findLoginAccessToken<Role extends string>(
+        token: string,
+        audience: string | undefined
+    ): Promise<LoginAccessToken<Role> | undefined> {
+        const verified: VerifiedJwt | undefined = await this.jwtService.findAccessToken(token, audience);
+        return verified != undefined && isJwtAccessTokenPayload<Role>(verified.payload)
+            ? { verified, payload: verified.payload }
+            : undefined;
+    }
+
+    /**
+     * Finds the stored refresh token a token is, while it may still be exchanged.
+     * @param token - The token.
+     * @returns The stored token, or undefined when it does not verify, is unknown, spent or expired.
+     */
+    private async findRefreshToken(token: string): Promise<JwtRefreshToken | undefined> {
+        const encoded: EncodedJwt | undefined = await this.verifyRefreshToken(token);
+        if (encoded == undefined || !isJwtRefreshTokenPayload(encoded.payload)) {
+            return undefined;
+        }
+        const refreshToken: JwtRefreshToken | undefined = await this.refreshTokenRepository.findOne({
+            where: { value: await this.hashService.hash(token, { strategy: Sha256HashStrategy }) },
+            required: false
+        });
+        if (refreshToken == undefined || refreshToken.blacklisted || new Date(refreshToken.expirationDate).getTime() <= Date.now()) {
+            return undefined;
+        }
+        return refreshToken;
+    }
+
+    private async findRequestLoginToken(
+        context: HttpRequestContext | WebsocketRequestContext
+    ): Promise<LoginAccessToken<RoleType> | undefined> {
+        const token: AuthorizationToken | undefined = AuthorizationHeaderUtilities.findToken(context);
+        // only a token of a login, and only one for this application
+        const found: LoginAccessToken<RoleType> | undefined = token == undefined
+            ? undefined
+            : await this.findLoginAccessToken<RoleType>(token.value, this.jwtService.issuer);
+        const keyThumbprint: string | undefined = found?.payload.cnf?.jkt;
+        if (token == undefined || found == undefined || (keyThumbprint == undefined && this.requireDpop)) {
+            return undefined;
+        }
+        // bound to a DPoP key, which the request proves it holds: a token stolen without the key is
+        // worth nothing
+        return await this.dpopService.isSentAsBound(context, token, keyThumbprint) ? found : undefined;
+    }
+
+    private async verifyRefreshToken(token: string): Promise<EncodedJwt | undefined> {
+        return await JwtUtilities.verify(
+            token,
+            this.refreshTokenVerificationKeys,
+            { issuer: this.jwtService.issuer, audience: undefined, type: 'JWT' }
+        );
+    }
+
+    private async generateAccessToken(
+        user: UserType,
+        authTime: number,
+        familyId: string,
+        dpopKeyThumbprint: string | undefined
+    ): Promise<string> {
         const payload: JwtAccessTokenPayload<RoleType, UserType> = {
             id: user.id,
             roles: user.roles,
-            email: user.email
+            email: user.email,
+            auth_time: authTime,
+            sid: familyId,
+            ...dpopKeyThumbprint == undefined ? {} : { cnf: { jkt: dpopKeyThumbprint } }
         };
 
         try {
-            return await JwtUtilities.sign(
-                payload,
-                // always the current secret. The rest of the list only ever verifies
-                this.accessTokenSecrets[0],
-                {
-                    expiresIn: this.accessTokenExpiresInMs / Ms.SECOND,
-                    // refresh tokens carried this already; access tokens did not, and nothing checked
-                    // it on either. Signed and required on both now.
-                    issuer: this.issuer
-                }
-            );
+            // for this application, so a service verifying tokens by the published keys can tell the
+            // ones that are for it apart
+            return await this.jwtService.signAccessToken(payload, this.jwtService.issuer);
         }
         catch (error) {
             throw new UnauthorizedError($ts`Error generating token`, { cause: error });
         }
     }
 
-    private async generateRefreshToken(user: UserType): Promise<string> {
+    private async generateRefreshToken(user: UserType, authTime: number): Promise<string> {
         const payload: JwtRefreshTokenPayload<RoleType, UserType> = {
-            userId: user.id
+            userId: user.id,
+            auth_time: authTime
         };
 
-        return await JwtUtilities.sign(payload, this.refreshTokenSecrets[0], {
-            expiresIn: this.refreshTokenExpiresInMs / Ms.SECOND,
-            issuer: this.issuer,
-            jwtid: UUIDUtilities.generate()
+        return await JwtUtilities.sign(payload, this.refreshTokenSigningKey, {
+            expiresInMs: this.refreshTokenExpiresInMs,
+            issuer: this.jwtService.issuer,
+            // only ever read here, and told apart from an access token by its key and its typ
+            audience: undefined,
+            type: 'JWT',
+            jwtId: UUIDUtilities.generate()
         });
     }
 }

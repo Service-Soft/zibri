@@ -1,7 +1,7 @@
 import os from 'node:os';
 
-import { Registry, Counter, Histogram, collectDefaultMetrics, Gauge, MetricObjectWithValues, MetricValue } from 'prom-client';
-import si from 'systeminformation';
+import type { Registry, Counter, Histogram, Gauge, MetricObjectWithValues, MetricValue } from 'prom-client';
+import type { Systeminformation } from 'systeminformation';
 
 import { CollectMetricsCronJob } from './collect-metrics.cron-job';
 import { CounterInterface } from './counter.interface';
@@ -20,6 +20,7 @@ import { HttpRequest } from '../http/http-request.model';
 import { HttpResponse } from '../http/http-response.model';
 import { MiddlewarePhase } from '../http/middleware-phase.enum';
 import { RouteLabelUtilities } from '../http/route-label.utilities';
+import { optionalPeer } from '../utilities/optional-peer.function';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 class PromCounter implements CounterInterface {
@@ -72,12 +73,22 @@ export class PrometheusMetricsService implements MetricsServiceInterface, OnAppI
     private readonly histograms: Map<string, Histogram<string>> = new Map<string, Histogram<string>>();
     private readonly metricSnapshots: MetricsSnapshot[] = [];
 
+    // eslint-disable-next-line sonar/no-duplicate-string
+    private get promClient(): typeof import('prom-client') {
+        // eslint-disable-next-line sonar/no-duplicate-string
+        return optionalPeer<typeof import('prom-client')>('prom-client', 'Default metrics service implementation of Zibri.');
+    }
+
+    private get si(): typeof import('systeminformation') {
+        return optionalPeer<typeof import('systeminformation')>('systeminformation', 'Default metrics service implementation of Zibri.');
+    }
+
     constructor(
         @Inject(ZIBRI_DI_TOKENS.ASSET_SERVICE)
         private readonly assetService: AssetServiceInterface
     ) {
-        this.registry = new Registry();
-        collectDefaultMetrics({ register: this.registry, eventLoopMonitoringPrecision: 10 });
+        this.registry = new this.promClient.Registry();
+        this.promClient.collectDefaultMetrics({ register: this.registry, eventLoopMonitoringPrecision: 10 });
 
         this.getCounter('http_requests_total', ['method', 'route', 'status_code']);
         this.getHistogram(
@@ -88,6 +99,8 @@ export class PrometheusMetricsService implements MetricsServiceInterface, OnAppI
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     onAppInit(app: ZibriApplication): void {
+        optionalPeer('systeminformation', 'Default metrics service implementation of Zibri.');
+
         if (!app.options.cronJobs.includes(CollectMetricsCronJob)) {
             app.options.cronJobs.push(CollectMetricsCronJob);
         }
@@ -126,7 +139,7 @@ export class PrometheusMetricsService implements MetricsServiceInterface, OnAppI
     // eslint-disable-next-line jsdoc/require-jsdoc
     getCounter(name: CounterMetricName, labelNames: string[] = []): PromCounter {
         if (!this.counters.has(name)) {
-            this.counters.set(name, new Counter({ name, help: name, labelNames, registers: [this.registry] }));
+            this.counters.set(name, new this.promClient.Counter({ name, help: name, labelNames, registers: [this.registry] }));
         }
         // eslint-disable-next-line typescript/no-non-null-assertion
         return new PromCounter(this.counters.get(name)!);
@@ -135,7 +148,7 @@ export class PrometheusMetricsService implements MetricsServiceInterface, OnAppI
     // eslint-disable-next-line jsdoc/require-jsdoc
     getGauge(name: GaugeMetricName, labelNames: string[] = []): PromGauge {
         if (!this.gauges.has(name)) {
-            this.gauges.set(name, new Gauge({ name, help: name, labelNames, registers: [this.registry] }));
+            this.gauges.set(name, new this.promClient.Gauge({ name, help: name, labelNames, registers: [this.registry] }));
         }
         // eslint-disable-next-line typescript/no-non-null-assertion
         return new PromGauge(this.gauges.get(name)!);
@@ -144,7 +157,7 @@ export class PrometheusMetricsService implements MetricsServiceInterface, OnAppI
     // eslint-disable-next-line jsdoc/require-jsdoc
     getHistogram(name: HistogramMetricName, labelNames: string[] = [], buckets: number[] = []): PromHistogram {
         if (!this.histograms.has(name)) {
-            this.histograms.set(name, new Histogram({ name, help: name, labelNames, buckets, registers: [this.registry] }));
+            this.histograms.set(name, new this.promClient.Histogram({ name, help: name, labelNames, buckets, registers: [this.registry] }));
         }
         // eslint-disable-next-line typescript/no-non-null-assertion
         return new PromHistogram(this.histograms.get(name)!);
@@ -154,7 +167,7 @@ export class PrometheusMetricsService implements MetricsServiceInterface, OnAppI
     async collect(): Promise<void> {
         // one entry per interface, and there can be none: a container with no interface of its own,
         // or a probe the host would not answer
-        const stats: si.Systeminformation.NetworkStatsData[] = await si.networkStats();
+        const stats: Systeminformation.NetworkStatsData[] = await this.si.networkStats();
 
         const json: MetricObjectWithValues<MetricValue<string>>[] = await this.registry.getMetricsAsJSON();
         const metrics: Metric[] = json.flatMap(m => m.values.map(s => ({

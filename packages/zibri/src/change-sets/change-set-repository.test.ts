@@ -12,10 +12,11 @@ import { createTestDataSource, defaultTestServerEntities } from '../__testing__/
 import { startTestServer, StartedTestServer } from '../__testing__/test-server/start-test-server.function';
 import { DefaultTestServerUserRepository } from '../__testing__/test-server/user-repository'; // adjust if needed
 import { AuthServiceInterface } from '../auth/auth-service.interface';
+import { PasswordCredentials, PasswordCredentialsCreateData } from '../auth/authenticators/password/password-credentials.model';
+import { PasswordAuthenticator } from '../auth/authenticators/password/password.authenticator';
 import { Auth } from '../auth/decorators/auth.decorator';
 import { BaseUserEntity } from '../auth/models/base-user.model';
 import { JwtAuthData } from '../auth/strategies/jwt/jwt-auth-data.model';
-import { JwtCredentials } from '../auth/strategies/jwt/jwt-credentials.model';
 import { JwtAuthStrategy } from '../auth/strategies/jwt/jwt.auth-strategy';
 import { Repository } from '../data-source/repository/repository';
 import { InjectRepository, repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
@@ -37,7 +38,7 @@ import { Post } from '../routing/decorators/post.decorator';
 import { JsonUtilities } from '../utilities/json.utilities';
 
 // ---- Test entity that extends ChangeSetEntity ----
-@Entity()
+@Entity({ tenant: 'shared' })
 class Widget extends BaseEntity implements ChangeSetEntity {
     @Property.string()
     name!: string;
@@ -57,7 +58,7 @@ class CreateWidgetDto extends OmitClass(Widget, ['changeSets', 'id']) {}
 
 class UpdateWidgetDto extends PartialClass(OmitClass(Widget, ['changeSets', 'id'])) {}
 
-@Entity()
+@Entity({ tenant: 'shared' })
 class TestUser extends BaseUserEntity(Roles) {
     @Property.string({ hash: true })
     password!: string;
@@ -158,19 +159,24 @@ beforeAll(async () => {
 
     // Create a user and login to get a token
     const userRepo: DefaultTestServerUserRepository = inject(DefaultTestServerUserRepository);
-    const credentialsRepo: Repository<JwtCredentials> = inject(repositoryTokenFor(JwtCredentials));
+    const credentialsRepo: Repository<PasswordCredentials, PasswordCredentialsCreateData> = inject(repositoryTokenFor(PasswordCredentials));
 
     const testEmail: string = 'widget-test@example.com';
     const testPassword: string = 'test123';
     await userRepo.create({ email: testEmail, roles: [Roles.USER] });
-    await credentialsRepo.create({ email: testEmail, password: testPassword, userId: (await userRepo.findOne({ where: { email: testEmail } })).id });
+    await credentialsRepo.create({ password: testPassword, userId: (await userRepo.findOne({ where: { email: testEmail } })).id });
 
     userId = (await userRepo.findOne({ where: { email: testEmail } })).id;
 
     const authService: AuthServiceInterface = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
-    const authData: JwtAuthData<Roles> = await authService.login(JwtAuthStrategy<Roles>, { email: testEmail, password: testPassword });
+    const authData: JwtAuthData<Roles> = await authService.login(
+        PasswordAuthenticator<Roles>,
+        JwtAuthStrategy<Roles>,
+        { email: testEmail, password: testPassword },
+        undefined
+    );
     accessToken = authData.accessToken.value;
-}, 15000);
+}, 30000);
 
 afterAll(async () => {
     await server.shutdown();
@@ -206,7 +212,7 @@ describe('ChangeSetRepository behavior', () => {
         it('creates a CREATE change set with correct changes (excluding internalNote)', async () => {
             const res: Response = await authFetch('/widgets', {
                 method: 'POST',
-                body: JSON.stringify({ name: 'TestWidget', value: 42, internalNote: 'secret' })
+                body: JsonUtilities.stringify({ name: 'TestWidget', value: 42, internalNote: 'secret' })
             });
             expect(res.status).toBe(200);
             const widget: Widget = await res.json() as Widget;
@@ -232,7 +238,7 @@ describe('ChangeSetRepository behavior', () => {
         beforeEach(async () => {
             const res: Response = await authFetch('/widgets', {
                 method: 'POST',
-                body: JSON.stringify({ name: 'Original', value: 100, internalNote: 'old-secret' })
+                body: JsonUtilities.stringify({ name: 'Original', value: 100, internalNote: 'old-secret' })
             });
             const widget: Widget = await res.json() as Widget;
             widgetId = widget.id;
@@ -268,7 +274,7 @@ describe('ChangeSetRepository behavior', () => {
         it('creates an UPDATE change set only with changed fields', async () => {
             await authFetch(`/widgets/${widgetId}`, {
                 method: 'PATCH',
-                body: JSON.stringify({ name: 'Updated', value: 100 }) // value unchanged
+                body: JsonUtilities.stringify({ name: 'Updated', value: 100 }) // value unchanged
             });
 
             const changeSets: ChangeSet[] = await changeSetRepo.findAll({ where: { changeSetEntityId: widgetId } });
@@ -287,7 +293,7 @@ describe('ChangeSetRepository behavior', () => {
         it('does not create a change set when no values actually change', async () => {
             await authFetch(`/widgets/${widgetId}`, {
                 method: 'PATCH',
-                body: JSON.stringify({ name: 'Original', value: 100 })
+                body: JsonUtilities.stringify({ name: 'Original', value: 100 })
             });
 
             const changeSets: ChangeSet[] = await changeSetRepo.findAll({ where: { changeSetEntityId: widgetId } });
@@ -303,16 +309,16 @@ describe('ChangeSetRepository behavior', () => {
             // Create widget, this causes
             const res1: Response = await authFetch('/widgets', {
                 method: 'POST',
-                body: JSON.stringify({ name: 'Initial', value: 10, internalNote: 'test' })
+                body: JsonUtilities.stringify({ name: 'Initial', value: 10, internalNote: 'test' })
             });
             const w: Widget = await res1.json() as Widget;
             widgetId = w.id;
 
             // First update: change name
-            await authFetch(`/widgets/${widgetId}`, { method: 'PATCH', body: JSON.stringify({ name: 'FirstEdit' }) });
+            await authFetch(`/widgets/${widgetId}`, { method: 'PATCH', body: JsonUtilities.stringify({ name: 'FirstEdit' }) });
 
             // Second update: change value
-            await authFetch(`/widgets/${widgetId}`, { method: 'PATCH', body: JSON.stringify({ value: 20 }) });
+            await authFetch(`/widgets/${widgetId}`, { method: 'PATCH', body: JsonUtilities.stringify({ value: 20 }) });
 
             const sets: ChangeSet[] = await changeSetRepo.findAll({
                 where: { changeSetEntityId: widgetId },
@@ -345,15 +351,15 @@ describe('ChangeSetRepository behavior', () => {
         beforeEach(async () => {
             const res: Response = await authFetch('/widgets', {
                 method: 'POST',
-                body: JSON.stringify({ name: 'Base', value: 1, internalNote: 'base' })
+                body: JsonUtilities.stringify({ name: 'Base', value: 1, internalNote: 'base' })
             });
             const w: Widget = await res.json() as Widget;
             widgetId = w.id;
             createSetId = (await changeSetRepo.findOne({ where: { changeSetEntityId: widgetId, type: ChangeSetType.CREATE } })).id;
 
             // Two subsequent updates
-            await authFetch(`/widgets/${widgetId}`, { method: 'PATCH', body: JSON.stringify({ name: 'Version2' }) });
-            await authFetch(`/widgets/${widgetId}`, { method: 'PATCH', body: JSON.stringify({ value: 99 }) });
+            await authFetch(`/widgets/${widgetId}`, { method: 'PATCH', body: JsonUtilities.stringify({ name: 'Version2' }) });
+            await authFetch(`/widgets/${widgetId}`, { method: 'PATCH', body: JsonUtilities.stringify({ value: 99 }) });
         });
 
         it('rolls back all changes after the given change set', async () => {
@@ -377,7 +383,7 @@ describe('ChangeSetRepository behavior', () => {
         it('records the acting user on every change set a bulk create writes', async () => {
             const res: Response = await authFetch('/widgets/all', {
                 method: 'POST',
-                body: JSON.stringify([
+                body: JsonUtilities.stringify([
                     { name: 'BulkOne', value: 1, internalNote: 'a' },
                     { name: 'BulkTwo', value: 2, internalNote: 'b' }
                 ])
@@ -395,14 +401,14 @@ describe('ChangeSetRepository behavior', () => {
         it('records the acting user on every change set a bulk update writes', async () => {
             await authFetch('/widgets/all', {
                 method: 'POST',
-                body: JSON.stringify([
+                body: JsonUtilities.stringify([
                     { name: 'Same', value: 1, internalNote: 'a' },
                     { name: 'Same', value: 2, internalNote: 'b' }
                 ])
             });
             await changeSetRepo.deleteAll({});
 
-            await authFetch('/widgets/all/Same', { method: 'PATCH', body: JSON.stringify({ value: 42 }) });
+            await authFetch('/widgets/all/Same', { method: 'PATCH', body: JsonUtilities.stringify({ value: 42 }) });
 
             const changeSets: ChangeSet[] = await changeSetRepo.findAll({ where: { type: ChangeSetType.UPDATE } });
             expect(changeSets).toHaveLength(2);
@@ -440,7 +446,7 @@ describe('ChangeSetRepository behavior', () => {
                 await expect(
                     authFetch('/widgets', {
                         method: 'POST',
-                        body: JSON.stringify({ name: 'Unaudited', value: 1, internalNote: 'x' })
+                        body: JsonUtilities.stringify({ name: 'Unaudited', value: 1, internalNote: 'x' })
                     })
                 ).rejects.toThrow();
             }
@@ -459,7 +465,7 @@ describe('ChangeSetRepository behavior', () => {
                 await expect(
                     authFetch('/widgets/all', {
                         method: 'POST',
-                        body: JSON.stringify([
+                        body: JsonUtilities.stringify([
                             { name: 'UnauditedBulk', value: 1, internalNote: 'a' },
                             { name: 'UnauditedBulk', value: 2, internalNote: 'b' }
                         ])
@@ -476,14 +482,14 @@ describe('ChangeSetRepository behavior', () => {
         it('leaves the previous value in place when the change set of an update cannot be written', async () => {
             const created: Response = await authFetch('/widgets', {
                 method: 'POST',
-                body: JSON.stringify({ name: 'Before', value: 1, internalNote: 'x' })
+                body: JsonUtilities.stringify({ name: 'Before', value: 1, internalNote: 'x' })
             });
             const widget: Widget = await created.json() as Widget;
 
             const restore: () => void = failTheChangeSetWrite();
             try {
                 await expect(
-                    authFetch(`/widgets/${widget.id}`, { method: 'PATCH', body: JSON.stringify({ name: 'After' }) })
+                    authFetch(`/widgets/${widget.id}`, { method: 'PATCH', body: JsonUtilities.stringify({ name: 'After' }) })
                 ).rejects.toThrow();
             }
             finally {

@@ -6,12 +6,23 @@ import { HashStrategyEntity, HashStrategyStatus } from './strategies/hash-strate
 import { ScryptHashStrategy } from './strategies/scrypt.hash-strategy';
 import { Sha256HashStrategy } from './strategies/sha256.hash-strategy';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
+import { startAndStopTestServerWithout } from '../../__testing__/test-server/start-and-stop-test-server-without.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { defineProvider } from '../../di/models/di-provider.model';
+
+// first, for the reason on startAndStopTestServerWithout
+describe('HashService — starting', () => {
+    test('refuses to start without its entity, and names it', async () => {
+        const start: Promise<void> = startAndStopTestServerWithout([HashStrategyEntity]);
+
+        await expect(start).rejects.toThrow('Error initializing HashService');
+        await expect(start).rejects.toThrow(/HashStrategyEntity/);
+    }, 30000);
+});
 
 describe('HashService', () => {
     let server: StartedTestServer;

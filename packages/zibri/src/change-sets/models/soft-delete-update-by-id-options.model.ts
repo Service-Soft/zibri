@@ -1,3 +1,4 @@
+import { SoftDeletedRows } from './soft-deleted-rows.type';
 import { UpdateByIdOptions } from '../../data-source/models/options/update-by-id-options.model';
 import { BaseEntity } from '../../entity/base-entity.model';
 
@@ -6,7 +7,8 @@ import { BaseEntity } from '../../entity/base-entity.model';
  */
 export type SoftDeleteUpdateByIdOptions<T extends BaseEntity> = UpdateByIdOptions<T> & {
     /**
-     * Whether or not soft deleted entities should be included.
+     * Whether the entity is updated when it is soft deleted, or only then. `exclude` when it is not
+     * given.
      */
-    withDeleted?: boolean
+    deleted?: SoftDeletedRows
 };

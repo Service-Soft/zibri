@@ -1,10 +1,12 @@
 import { Readable } from 'stream';
 
-import { buildCspOptions, CspOptions } from './csp-options.model';
+import { buildCspOptions, CspOptions, CspOptionsInput } from './csp-options.model';
+import { type HttpRequestContext } from '../../context/request/http-request.context';
+import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../../context/request/request-context-token.model';
+import { type WebsocketRequestContext } from '../../context/request/websocket-request.context';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { Property } from '../../entity/decorators/property.decorator';
-import { DeepPartial } from '../../types/deep-partial.type';
 import { SelfDescribing } from '../../types/self-describing.type';
 
 /**
@@ -15,7 +17,7 @@ export type HtmlResponseOptions = {
      * The configuration for CSP headers.
      * Can either be false to not set any, true to set the default CSP headers or a custom configuration.
      */
-    csp?: boolean | DeepPartial<CspOptions>
+    csp?: boolean | CspOptionsInput
 };
 
 /**
@@ -36,7 +38,14 @@ export class HtmlResponse implements SelfDescribing {
     @Property.string({ exclude: true })
     readonly className: 'HtmlResponse' = 'HtmlResponse';
 
-    private constructor(readonly data: Readable | string, readonly csp: boolean | CspOptions) {}
+    private constructor(
+        readonly data: Readable | string,
+        readonly csp: boolean | CspOptions,
+        /**
+         * The csp nonce of the request the html was created in, which is the one its tags carry.
+         */
+        readonly nonce: string | undefined
+    ) {}
 
     /**
      * Creates the response from the given html string.
@@ -46,7 +55,7 @@ export class HtmlResponse implements SelfDescribing {
      */
     static fromString(html: string, options?: HtmlResponseOptions): HtmlResponse {
         const csp: boolean | CspOptions = buildCspOptions(options?.csp, inject(ZIBRI_DI_TOKENS.DEFAULT_CSP_OPTIONS));
-        return new this(html, csp);
+        return new this(html, csp, this.resolveCurrentNonce());
     }
 
     /**
@@ -57,7 +66,12 @@ export class HtmlResponse implements SelfDescribing {
      */
     static fromStream(stream: Readable, options?: HtmlResponseOptions): HtmlResponse {
         const csp: boolean | CspOptions = buildCspOptions(options?.csp, inject(ZIBRI_DI_TOKENS.DEFAULT_CSP_OPTIONS));
-        return new this(stream, csp);
+        return new this(stream, csp, this.resolveCurrentNonce());
+    }
+
+    private static resolveCurrentNonce(): string | undefined {
+        const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
+        return context?.get(ZIBRI_REQUEST_CONTEXT_TOKENS.NONCE);
     }
 }
 

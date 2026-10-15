@@ -64,9 +64,15 @@ ago. So they get re-read against the source periodically, and the finding each o
 written into the comment above it with the file and line that proves it. If you fix something, the
 todo is the thing to check.
 
-`auth-and-security.evaluation.test.ts` was last audited in full: all 14 todos still describe real
-gaps. Two comments were sharpened in the process, both because the original wording would have sent
-a fix to the wrong place:
+`auth-and-security.evaluation.test.ts` was audited in full twice. The first time all 14 todos still
+described real gaps. The second time, after most of chapter 03 had closed, seven of the remaining
+nine stood for fixed findings. Four were already tested elsewhere and are comments now. Three got
+the test they described, and one of those found a bug: a user store that was down still answered
+like a wrong password, because the user service turned every failed lookup into "not found". The two
+left are chapter 03's section H, capabilities that do not exist.
+
+Two comments were sharpened in the first round, both because the original wording would have sent a
+fix to the wrong place:
 
 - the JWT revocation todo said the strategy "never consults the store". `resolveUser` does
   (`jwt.auth-strategy.ts:326`); `hasRole` does not (`:349`). The bug is that the two halves of one
@@ -74,7 +80,12 @@ a fix to the wrong place:
 - the asymmetric-algorithm todo now records that `JwtUtilities.verify` passes no `algorithms`
   allowlist. That is inert while the secret is a `string`, because jsonwebtoken then only allows
   HMAC — but it turns into algorithm confusion the moment someone adds public key support without
-  adding the allowlist in the same change.
+  adding the allowlist in the same change. Public key support has since landed with the allowlist
+  pinned per key (`jwt-auth.asymmetric.test.ts`), and the todo is a pointer now.
+
+`scaling-and-infrastructure.evaluation.test.ts` was audited too, and has no todos left: eight of its
+eleven pointed at findings already proven elsewhere, and are comments naming where; the other three
+got the test they described. One of those, 01 §C3, had been marked closed with nothing holding it.
 
 ### Uncaught exceptions cannot be observed with a listener
 
@@ -245,6 +256,26 @@ never mistaken for an unaudited one:
   was 87µs before the fix, so the bar has room. The other one, 02 §M2 above, needed no threshold at
   all, and is the better shape where the alternative implementation can be run alongside.
 
+- `websocket.evaluation.test.ts` — [04 §3.11](../../../../evaluation/04-infrastructure-subsystems.md),
+  a websocket message written three times. Green, and built like 02 §M2 above: a control that the
+  client still receives the json the round trip produced, and a send measured against the midpoint
+  between one pass and three over the same message. It times `sendToAll` in process rather than a
+  round trip, because a broadcast is written synchronously, once for every client, before the call
+  returns. It was 42ms against a 22ms bar with the round trip put back, and about 16ms without.
+
+- `static-assets.evaluation.test.ts` — [04 §3.12](../../../../evaluation/04-infrastructure-subsystems.md),
+  static assets served with no cache headers. Withdrawn, and green on its first run once the client
+  asked the way a browser does. That condition is the part to read: node's fetch adds
+  `cache-control: no-cache` to any request carrying `if-none-match`, and the server rightly answers
+  that with the whole file. So the first run was red for both routes, and it looked like the finding
+  confirmed. The same override is in the 02 §M11 case of `http-and-observability.evaluation.test.ts`.
+
+- `mail-queue.evaluation.test.ts` — [04 §3.5](../../../../evaluation/04-infrastructure-subsystems.md),
+  the half that was withdrawn: three reads per pass and one write per mail. It asserts what each is
+  for rather than counting them. One is that a flood of HIGH still leaves NORMAL and LOW a slot in the
+  first pass, which one ordered read would not. The other is that a mail's row is written while
+  another mail of the same pass is still being sent, which a batched write would not.
+
 - `error-logging.evaluation.test.ts` — [02 §M6](../../../../evaluation/02-http-runtime-core.md), a
   5xx that could not be diagnosed from the logs. It is the one file in the suite that turns the
   **access log** on, through a `ZIBRI_DI_TOKENS.ACCESS_LOG` provider override, because the feature is
@@ -301,7 +332,10 @@ never mistaken for an unaudited one:
   is a seam finding with no finding filed.
 
 - `backup.evaluation.test.ts` — [01 §C6](../../../../evaluation/01-data-layer.md), a backup of one
-  application dumping the whole cluster. Green except its two todos. The file is worth reading for
+  application dumping the whole cluster. Its last todo, a role with neither SUPERUSER nor CREATEROLE,
+  became a case once `zibri-testing` stopped connecting every data source as the container's
+  superuser: every case in the file runs as such a role now, and that one asks the server to confirm
+  it before taking and restoring a backup. The file is worth reading for
   what the first run cost rather than for the result: seven of nine passed immediately and the
   round-trip did not, because the obvious fix — `pg_dump --schema <s> --clean` — makes the *schema*
   one of the dumped objects and so emits `DROP SCHEMA`, which postgres refuses while an extension
@@ -350,10 +384,14 @@ never mistaken for an unaudited one:
 | `bootstrap.evaluation.test.ts` | [02 §C5](../../../../evaluation/02-http-runtime-core.md), [02 §C7](../../../../evaluation/02-http-runtime-core.md), [04 §1.3b](../../../../evaluation/04-infrastructure-subsystems.md), [05 §D10](../../../../evaluation/05-di-metadata-and-packaging.md) | yes |
 | `schema-management.evaluation.test.ts` | [01 §C1](../../../../evaluation/01-data-layer.md) | yes |
 | `backup.evaluation.test.ts` | [01 §C6](../../../../evaluation/01-data-layer.md) | yes |
+| `trigram-extension.evaluation.test.ts` | [01 §C4](../../../../evaluation/01-data-layer.md) | yes |
 | `scaling-and-infrastructure.evaluation.test.ts` | [04-infrastructure-subsystems.md](../../../../evaluation/04-infrastructure-subsystems.md) | no |
 | `di-and-packaging.evaluation.test.ts` | [05](../../../../evaluation/05-di-metadata-and-packaging.md), [06](../../../../evaluation/06-tooling-ci-and-testing.md) | no |
 | `http-client.evaluation.test.ts` | [04 §4.1, §4.2, §4.3](../../../../evaluation/04-infrastructure-subsystems.md) | no |
 | `logging.evaluation.test.ts` | [04 §3.2](../../../../evaluation/04-infrastructure-subsystems.md) | no |
+| `websocket.evaluation.test.ts` | [04 §3.11](../../../../evaluation/04-infrastructure-subsystems.md) | no |
+| `static-assets.evaluation.test.ts` | [04 §3.12](../../../../evaluation/04-infrastructure-subsystems.md) | no |
+| `mail-queue.evaluation.test.ts` | [04 §3.5](../../../../evaluation/04-infrastructure-subsystems.md) | no |
 | `invoicing.evaluation.test.ts` | [04 §1.11](../../../../evaluation/04-infrastructure-subsystems.md) | yes |
 
 `bootstrap.evaluation.test.ts` exists because an application holds the process while it is running:

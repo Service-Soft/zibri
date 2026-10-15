@@ -4,6 +4,8 @@ import path from 'node:path';
 
 import { describe, expect, it } from '@jest/globals';
 
+import { JsonUtilities } from '../utilities/json.utilities';
+
 /**
  * What a consumer has to install, checked by not installing it.
  *
@@ -36,9 +38,9 @@ const builtXlfTransform: string = path.join(
  * @returns Their package names.
  */
 function optionalPeers(): string[] {
-    const manifest: { peerDependenciesMeta?: Record<string, { optional?: boolean }> } = JSON.parse(
+    const manifest: { peerDependenciesMeta?: Record<string, { optional?: boolean }> } = JsonUtilities.parse(
         readFileSync(path.join(packageDir, 'package.json'), 'utf8')
-    ) as { peerDependenciesMeta?: Record<string, { optional?: boolean }> };
+    );
     return Object.entries(manifest.peerDependenciesMeta ?? {})
         .filter(([, meta]) => meta.optional === true)
         .map(([name]) => name);
@@ -56,7 +58,7 @@ function optionalPeers(): string[] {
 function hiding(names: string[]): string {
     return `
         import Module from 'node:module';
-        const hidden = ${JSON.stringify(names)};
+        const hidden = ${JsonUtilities.stringify(names)};
         const resolve = Module._resolveFilename;
         Module._resolveFilename = function (request, ...rest) {
             if (hidden.includes(request)) {
@@ -85,7 +87,7 @@ function inConsumerProcess<T>(script: string): T {
         // whole run rather than fail this test
         timeout: 60_000
     });
-    return JSON.parse(output) as T;
+    return JsonUtilities.parse(output);
 }
 
 /**
@@ -97,11 +99,11 @@ function inConsumerProcess<T>(script: string): T {
 function runningJob(filePath: string, data: Record<string, unknown> = {}): string {
     return `
         import { Worker } from 'node:worker_threads';
-        const worker = new Worker(${JSON.stringify(builtWorker)}, { workerData: {} });
+        const worker = new Worker(${JsonUtilities.stringify(builtWorker)}, { workerData: {} });
         const result = await new Promise((resolve, reject) => {
             worker.on('message', message => {
                 if (message.type === 'initialization') {
-                    worker.postMessage({ ...${JSON.stringify(data)}, filePath: ${JSON.stringify(filePath)} });
+                    worker.postMessage({ ...${JsonUtilities.stringify(data)}, filePath: ${JsonUtilities.stringify(filePath)} });
                     return;
                 }
                 if (message.type === 'completion') {
@@ -131,7 +133,7 @@ describe('ts-node', () => {
         const res: { installed: boolean, hidden: boolean } = inConsumerProcess(`
             const { createRequire } = await import('node:module');
             const require = createRequire(process.cwd() + '/index.cjs');
-            const { isTsNodeInstalled } = require(${JSON.stringify(builtRegister)});
+            const { isTsNodeInstalled } = require(${JsonUtilities.stringify(builtRegister)});
             const installed = isTsNodeInstalled();
             ${hiding(['ts-node'])}
             console.log(JSON.stringify({ installed, hidden: isTsNodeInstalled() }));
@@ -185,7 +187,7 @@ describe('ts-node', () => {
             ${hiding(['ts-node'])}
             const { createRequire } = await import('node:module');
             const require = createRequire(process.cwd() + '/index.cjs');
-            const { registerTsNode } = require(${JSON.stringify(builtRegister)});
+            const { registerTsNode } = require(${JsonUtilities.stringify(builtRegister)});
             let message = 'it did not fail';
             try {
                 registerTsNode('The worker file /somewhere/report.worker.ts');
@@ -280,7 +282,7 @@ describe('typescript', () => {
             ${hiding(['typescript'])}
             const { createRequire } = await import('node:module');
             const require = createRequire(process.cwd() + '/index.cjs');
-            const { transformSourceTranslationOriginTokens } = require(${JSON.stringify(builtXlfTransform)});
+            const { transformSourceTranslationOriginTokens } = require(${JsonUtilities.stringify(builtXlfTransform)});
             let message = 'it did not fail';
             try {
                 // no origins, so nothing is read: the question is whether asking at all names the
@@ -335,6 +337,129 @@ describe('socket.io-adapter', () => {
         // `class DataSourceWebsocketAdapter extends ClusterAdapter` is a value used at module
         // scope, and the barrel exports the module - so socket.io's own adapter package was
         // resolved by every consumer, websockets or not, while socket.io beside it was optional.
+        expect(res.loaded).toBe(true);
+    });
+});
+
+describe('ssh2', () => {
+
+    it('is an optional peer dependency', () => {
+        // only the sftp backup transport uses it, and an application that stores its backups anywhere
+        // else never reaches for it
+        expect(optionalPeers()).toContain('ssh2');
+    });
+
+    it('is not needed to load the framework', () => {
+        const res: { loaded: boolean } = inConsumerProcess(`
+            ${hiding(['ssh2'])}
+            const { createRequire } = await import('node:module');
+            const require = createRequire(process.cwd() + '/index.cjs');
+            const zibri = require('zibri');
+            console.log(JSON.stringify({ loaded: typeof zibri.BaseSftpBackupTransport === 'function' }));
+        `);
+
+        expect(res.loaded).toBe(true);
+    });
+
+    it('says so by name when an sftp backup transport is built without it', () => {
+        const res: { message: string } = inConsumerProcess(`
+            ${hiding(['ssh2'])}
+            const { createRequire } = await import('node:module');
+            const require = createRequire(process.cwd() + '/index.cjs');
+            const { BaseSftpBackupTransport } = require('zibri');
+            let message = 'it did not fail';
+            try {
+                new (class extends BaseSftpBackupTransport {})();
+            }
+            catch (error) {
+                message = error.message;
+            }
+            console.log(JSON.stringify({ message }));
+        `);
+
+        // when the transport is built rather than at the first backup, which can be days after the
+        // deployment that left the package out
+        expect(res.message).toContain('ssh2');
+        expect(res.message).toContain('npm i ssh2');
+    });
+});
+
+describe('re2', () => {
+
+    it('is an optional peer dependency', () => {
+        // only a declared regex runs through it, and most applications declare none
+        expect(optionalPeers()).toContain('re2');
+    });
+
+    it('is not needed to load the framework', () => {
+        const res: { loaded: boolean } = inConsumerProcess(`
+            ${hiding(['re2'])}
+            const { createRequire } = await import('node:module');
+            const require = createRequire(process.cwd() + '/index.cjs');
+            const zibri = require('zibri');
+            console.log(JSON.stringify({ loaded: typeof zibri.ZibriApplication === 'function' }));
+        `);
+
+        expect(res.loaded).toBe(true);
+    });
+
+    it('says so by name when a regex is declared without it', () => {
+        const res: { message: string } = inConsumerProcess(`
+            ${hiding(['re2'])}
+            const { createRequire } = await import('node:module');
+            const require = createRequire(process.cwd() + '/index.cjs');
+            const { Property } = require('zibri');
+            let message = 'it did not fail';
+            try {
+                class Account {}
+                Property.string({ regex: /^\\d+$/ })(Account.prototype, 'code');
+            }
+            catch (error) {
+                message = error.message;
+            }
+            console.log(JSON.stringify({ message }));
+        `);
+
+        // where the property is declared rather than at the first request that sends one
+        expect(res.message).toContain('re2');
+        expect(res.message).toContain('npm i re2');
+    });
+});
+
+describe('every optional peer', () => {
+
+    it('is listed where a reader looks for what to install', () => {
+        const gettingStarted: string = readFileSync(path.join(packageDir, 'docs', 'getting-started.md'), 'utf8');
+        const section: string = gettingStarted.slice(
+            gettingStarted.indexOf('### Optional packages'),
+            gettingStarted.indexOf('## Usage')
+        );
+        const listed: Set<string> = new Set([...section.matchAll(/`([^`]+)`/g)].map(match => match[1] ?? ''));
+
+        // a package the table leaves out is one an upgrade finds missing at the first boot. The table
+        // named `pg` alone for postgres, which also refuses to start without `pg-query-stream`, and
+        // left out tracing, sftp backups and translation extraction entirely
+        expect(optionalPeers().filter(name => !listed.has(name))).toStrictEqual([]);
+    });
+});
+
+describe('socket.io-parser', () => {
+
+    it('is an optional peer dependency', () => {
+        // the websocket server reads what clients send with its decoder, so it is needed exactly
+        // when socket.io is, and it arrives with socket.io
+        expect(optionalPeers()).toContain('socket.io-parser');
+    });
+
+    it('is not needed to load the framework', () => {
+        const res: { loaded: boolean } = inConsumerProcess(`
+            ${hiding(['socket.io', 'socket.io-adapter', 'socket.io-parser'])}
+            const { createRequire } = await import('node:module');
+            const require = createRequire(process.cwd() + '/index.cjs');
+            const zibri = require('zibri');
+            console.log(JSON.stringify({ loaded: typeof zibri.ZibriApplication === 'function' }));
+        `);
+
         expect(res.loaded).toBe(true);
     });
 });

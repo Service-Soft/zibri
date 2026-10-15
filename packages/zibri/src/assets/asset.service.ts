@@ -16,7 +16,7 @@ import { $ts } from '../localization/translate.function';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { FileResponse } from '../parsing/form-data/file-response.model';
 import { Route } from '../routing/controller-route-configuration.model';
-import { FsUtilities, FsPath } from '../utilities/fs.utilities';
+import { FsUtilities, type FsPath } from '../utilities/fs.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
@@ -40,18 +40,24 @@ type WalkedPath = { relPath: string, isFile: boolean };
 @Injectable({ register: 'onUse' })
 export class AssetService implements AssetServiceInterface, OnAppInit {
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly assetsPath: FsPath = FsUtilities.getPath(__dirname, 'assets');
+    readonly assetsPath: FsPath;
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly publicAssetsPath: FsPath = FsUtilities.getPath(this.assetsPath, 'public');
+    readonly publicAssetsPath: FsPath;
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly componentTemplatePath: FsPath = FsUtilities.getPath(this.assetsPath, 'templates', 'components');
+    readonly componentTemplatePath: FsPath;
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly assetsRoute: Route = '/assets';
 
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
-        private readonly logger: LoggerInterface
-    ) {}
+        private readonly logger: LoggerInterface,
+        @Inject(ZIBRI_DI_TOKENS.ASSETS_PATH)
+        assetsPath: FsPath
+    ) {
+        this.assetsPath = assetsPath;
+        this.publicAssetsPath = FsUtilities.getPath(assetsPath, 'public');
+        this.componentTemplatePath = FsUtilities.getPath(assetsPath, 'templates', 'components');
+    }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     onAppInit(app: ZibriApplication): void {

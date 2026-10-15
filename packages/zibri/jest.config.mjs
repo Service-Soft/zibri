@@ -5,10 +5,14 @@ const config = {
     rootDir: 'src',
     transform: {
         '^.+.tsx?$': ['ts-jest'],
-        // @faker-js/faker ships as ESM-only .js since v10; matching it here (and un-ignoring it
-        // below) lets ts-jest down-compile "import"/"export" to CommonJS for Jest's runtime.
-        '/node_modules/@faker-js/faker/.+\\.js$': [
-            'ts-jest', {
+        // @faker-js/faker ships as ESM-only .js since v10, and jose, openid-client and the
+        // oauth4webapi it is built on always have; matching them here (and un-ignoring them below)
+        // lets ts-jest down-compile "import"/"export" to CommonJS for Jest's runtime. The framework's
+        // optionalPeer goes through it too: inside a test, the require createRequire hands back is
+        // Jest's own.
+        '/node_modules/(@faker-js/faker|jose|openid-client|oauth4webapi)/.+\\.js$': [
+            'ts-jest',
+            {
                 tsconfig: {
                     allowJs: true,
                     module: 'commonjs'
@@ -16,7 +20,7 @@ const config = {
             }
         ]
     },
-    transformIgnorePatterns: ['/node_modules/(?!@faker-js/faker/)'],
+    transformIgnorePatterns: ['/node_modules/(?!(@faker-js/faker|jose|openid-client|oauth4webapi)/)'],
     // The harness is a package of its own, and this suite is its consumer - but it is also the
     // framework the harness imports. Both names resolve to the sources beside this file rather than
     // to a built `dist`: one physical copy of the framework in the process (two would be refused at

@@ -38,27 +38,33 @@ export type BackupDigest = {
 };
 
 /**
+ * Changes data on its way to the file it is staged in.
+ */
+export type StagingTransform = (source: AsyncIterable<Buffer>) => AsyncIterable<Buffer>;
+
+/**
  * Writes a stream to a file on the way past, measuring what goes through it.
  * @param data - The stream to write.
  * @param p - The file to write it to.
- * @returns What was written, once the file holds all of it.
+ * @param transform - Applied after the data is measured and before it is written, so the digest
+ * describes the data as it arrived.
+ * @returns What arrived, once the file holds all of it.
  */
-export async function stage(data: Readable, p: FsPath): Promise<BackupDigest> {
+export async function stage(data: Readable, p: FsPath, transform?: StagingTransform): Promise<BackupDigest> {
     const digest: Hash = createHash(BACKUP_CHECKSUM_ALGORITHM);
     let size: number = 0;
 
-    await pipeline(
-        data,
-        async function* measured(source: AsyncIterable<unknown>): AsyncGenerator<Buffer> {
-            for await (const chunk of source) {
-                const buffer: Buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk));
-                digest.update(buffer);
-                size += buffer.length;
-                yield buffer;
-            }
-        },
-        FsUtilities.createWriteStream(p)
-    );
+    const measured: StagingTransform = async function* (source: AsyncIterable<unknown>): AsyncGenerator<Buffer> {
+        for await (const chunk of source) {
+            const buffer: Buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk));
+            digest.update(buffer);
+            size += buffer.length;
+            yield buffer;
+        }
+    };
+    await (transform
+        ? pipeline(data, measured, transform, FsUtilities.createWriteStream(p))
+        : pipeline(data, measured, FsUtilities.createWriteStream(p)));
 
     return { checksum: digest.digest('hex'), size };
 }

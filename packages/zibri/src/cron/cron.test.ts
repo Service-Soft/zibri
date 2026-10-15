@@ -7,6 +7,7 @@ import { CronService } from './cron.service';
 import { noOp } from '../__testing__/constants';
 import { createTestDataSource, defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
+import { startAndStopTestServerWithout } from '../__testing__/test-server/start-and-stop-test-server-without.function';
 import { startTestServer, StartedTestServer } from '../__testing__/test-server/start-test-server.function';
 import { ZibriApplication } from '../application/application';
 import { Repository } from '../data-source/repository/repository';
@@ -78,6 +79,18 @@ class AutoRegisteredCronJob extends CronJob {
 // these hooks are scoped to it (Jest cascades beforeEach/beforeAll to nested describes, not to sibling
 // ones declared elsewhere in the file), including afterAppInit's reInit() call further down, which
 // invalidates every previously-injected reference.
+// first, for the reason on startAndStopTestServerWithout
+describe('CronService — starting', () => {
+    it('refuses to start without CronJobEntity, and names it', async () => {
+        const start: Promise<void> = startAndStopTestServerWithout([CronJobEntity], {
+            // the harness stubs the scheduler
+            providers: [...defaultTestServerProviders, defineProvider({ token: ZIBRI_DI_TOKENS.CRON_SERVICE, useClass: CronService })]
+        });
+
+        await expect(start).rejects.toThrow(/Error initializing CronService[\S\s]*CronJobEntity/);
+    }, 30000);
+});
+
 describe('CronService / CronJob — real server', () => {
     let server: StartedTestServer;
     let cronService: CronService;
@@ -101,7 +114,7 @@ describe('CronService / CronJob — real server', () => {
         await server.start();
         cronService = inject(CronService);
         cronJobRepo = inject(repositoryTokenFor(CronJobEntity));
-    }, 15000);
+    }, 30000);
 
     afterAll(async () => {
         await server.shutdown();
@@ -281,6 +294,41 @@ describe('CronService / CronJob — real server', () => {
             // there is no point to measure "since" from, and treating the whole schedule as
             // outstanding would fire every job on the first boot of every new environment
             expect(onTickImpl).not.toHaveBeenCalled();
+        });
+
+        it('makes up a missed run once across instances rather than once per instance', async () => {
+            // two jobs of the same name are two replicas coming back from the same outage: both read
+            // the same last run, both find the same missed slot, and the claim on that slot's own key
+            // decides. Once a minute rather than once a second, so no scheduled tick lands inside
+            // the test and gets counted as a make-up run.
+            // eslint-disable-next-line typescript/typedef
+            const onTickImpl = jest.fn(noOp);
+            const first: CronJob = makeCronJob({
+                name: 'catches-up-once',
+                cron: CronExpression.every(1, 'minutes').build(),
+                catchUpWithinMs: Ms.MINUTE * 5,
+                distributed: true,
+                syncToDataSource: true,
+                onTickImpl
+            });
+            const second: CronJob = makeCronJob({
+                name: 'catches-up-once',
+                cron: CronExpression.every(1, 'minutes').build(),
+                catchUpWithinMs: Ms.MINUTE * 5,
+                distributed: true,
+                syncToDataSource: true,
+                onTickImpl
+            });
+
+            await cronService.schedule(first);
+            await cronService.schedule(second);
+            const outageStart: Date = new Date(Date.now() - (Ms.MINUTE * 2));
+            backdateLastRun(first, outageStart);
+            backdateLastRun(second, outageStart);
+
+            await cronService.afterAppStart();
+
+            expect(onTickImpl).toHaveBeenCalledTimes(1);
         });
 
         it('keeps the schedule an operator changed at runtime', async () => {

@@ -79,6 +79,14 @@ export interface EncryptionStrategyInterface<
      */
     readonly version: string,
     /**
+     * Whether the strategy can encrypt and decrypt while a migration runs.
+     *
+     * Migrations run before the application is initialized, so a strategy that relies on something
+     * set up while it is - a client of a key management service started by another provider, for
+     * one - cannot. A migration using a strategy that says false is refused, naming the strategy.
+     */
+    readonly usableInMigrations: boolean,
+    /**
      * Encrypts the given value with the given options.
      */
     encrypt: (value: string, options: TEncryptOptions) => EncryptionString | Promise<EncryptionString>,

@@ -10,17 +10,13 @@ import { MetadataUtilities } from '../../utilities/metadata.utilities';
  * from evaluation/01-data-layer.md (C2, C3).
  *
  * Almost everything here only goes wrong with more than one instance, and a single jest process
- * cannot observe that. Those entries are `it.todo` rather than assertions about the source: a todo
- * states what the cluster harness has to prove and cannot report itself as fixed, which is exactly
- * what the source greps did three separate times.
+ * cannot observe that. Those findings are proven in ./cluster, one forked process per instance
+ * against shared containers, and the findings observable in one process are tested for real in the
+ * files noted against them. What is left here is a map from each finding to where it is held, plus
+ * the two checks below.
  *
- * Running two instances needs two processes, because GlobalRegistry is static and
- * markAppAsCreated() throws on a second ZibriApplication - that constraint is itself finding C7 in
- * evaluation/02-http-runtime-core.md. The harness is therefore: one postgres container, N forked
- * children each booting an app against it, assertions made from the parent over a plain pg client.
- *
- * The few findings here that are observable in one process are tested for real, either below or in
- * the sibling files noted against them.
+ * The map is comments rather than `it.todo`: a todo states a proof that is still owed, so one left
+ * behind after the proof exists reports a closed finding as open.
  */
 
 describe('evaluation/04-infrastructure-subsystems', () => {
@@ -30,9 +26,11 @@ describe('evaluation/04-infrastructure-subsystems', () => {
         // booting simultaneously, one migration row, all three up. It used to be read-applied-
         // versions then run with no lock, so a rolling deploy ran the same DDL on every replica.
 
-        // any migration whose version is above the app version is reverted at startup, so an old
-        // pod restarting mid-deploy destroys the schema the new pods are using
-        it.todo('does not revert migrations when an older instance rejoins the cluster');
+        // C3 is CLOSED and tested for real in ../../data-source/migration/migration-downgrade.test.ts,
+        // in one process because refusing is a property of one instance booting: a database holding a
+        // migration newer than the app, whether this build carries it or not, stops the boot and no
+        // `down` runs. Any migration above the app version used to be reverted at startup, so an old
+        // pod restarting mid deploy took the schema away from the new pods serving on it.
     });
 
     describe('1.1 / 1.2 / 1.3 - cron across replicas', () => {
@@ -40,29 +38,24 @@ describe('evaluation/04-infrastructure-subsystems', () => {
         // grouped by scheduled tick, exactly one writer per group. It is not restated here,
         // because a single process cannot tell the fixed behavior from the broken one.
 
-        // findOne ?? create against a unique name, so simultaneous boots collide and the losing
-        // replica throws during afterAppInit and fails to start. Needs the cluster harness with
-        // bootMode: 'simultaneous', which exists for exactly this.
-        it.todo('registers a job without colliding when several instances boot together');
+        // 1.2 is CLOSED and proven for real in ./cluster/migrations.cluster.test.ts, which boots three
+        // replicas with bootMode: 'simultaneous' against an empty table - and every one of them
+        // registers the framework's own cron jobs on the way up. It was findOne ?? create against a
+        // unique name, so the losing replica threw during afterAppInit and failed to start.
 
         // 1.3 is CLOSED and proven for real in ../../cron/cron.test.ts: a job that does not ask for a
         // startup run does not get one, and two instances of a distributed job that do ask for one
-        // produce a single tick between them rather than one each. runOnInit used to default to true
-        // *and* to bypass the coordinator outright, because `task.execute()` runs what it is given
-        // without asking anybody.
-
-        // the startup election is keyed on the slot the run happens ahead of, which every replica of
-        // one rolling deploy computes identically. Two forked instances are what shows that.
-        it.todo('elects one instance for the startup run when several boot together');
+        // produce a single tick between them rather than one each. ./cluster/cron-startup.cluster.test.ts
+        // shows the same for instances booting after the first one's claim on a scheduled execution
+        // would have lapsed, which is what a slow rolling deploy is.
+        // runOnInit used to default to true *and* to bypass the coordinator outright, because
+        // `task.execute()` runs what it is given without asking anybody.
 
         // 2.11 is CLOSED and proven for real in ../../cron/cron.test.ts: a job with
-        // `catchUpWithinMs` set runs once for the slot it missed, and one without still does not.
-        // `lastRun` used to be written on every tick and never read by anything.
-
-        // the make-up run is claimed on the key that slot's own execution would have used, so an
-        // instance rejoining a cluster that already ran it does nothing. Two forked instances show
-        // that; one process cannot.
-        it.todo('does not repeat a make-up run another instance already performed');
+        // `catchUpWithinMs` set runs once for the slot it missed, one without still does not, and
+        // two instances coming back from the same outage make it up once between them. `lastRun`
+        // used to be written on every tick and never read by anything. An instance rejoining later
+        // reads the `lastRun` the make-up run wrote, so it finds nothing missed at all.
 
         it('claims a scheduled execution rather than the job as a whole', () => {
             const props: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(Lease);
@@ -91,19 +84,18 @@ describe('evaluation/04-infrastructure-subsystems', () => {
         });
     });
 
-    describe('1.4 / 1.5 / 2.4 - the event system', () => {
+    describe('1.4 / 1.5 / 2.3 / 2.4 - the event system', () => {
         // 1.4 and 1.5 are CLOSED and proven for real in ./cluster/events.cluster.test.ts: an event
         // whose replica is killed mid hook is finished exactly once by a survivor, and a hook that
         // outlives its claim does not get run a second time. Delivery used to be an in-process rxjs
         // Subject over a row nothing polled, and the replay in onAppStart re-emitted every
         // unfinished event on every replica with no claim at all.
 
-        // the subscriber run row is written whether the hook succeeded or failed, then the event
-        // flips to FINISHED and the cleanup cron deletes it. docs/events.md promises the opposite.
-        it.todo('retries a subscriber whose hook threw, instead of marking the event finished');
-
-        // the retry loop has no delay and no jitter
-        it.todo('backs off between subscriber retries');
+        // 2.3 and 2.4 are CLOSED together and tested for real in ../../event/event.service.test.ts:
+        // one attempt per delivery with the backoff on the row, and a subscriber that spends every
+        // attempt leaves the event FAILED rather than FINISHED, which the cleanup cron does not
+        // delete. The run row used to be written whether the hook succeeded or not, and the retries
+        // were a tight loop within microseconds.
     });
 
     describe('1.6 / 1.7 / 2.2 - the mail queue', () => {
@@ -138,9 +130,9 @@ describe('evaluation/04-infrastructure-subsystems', () => {
         // tier over a shared valkey one - the only arrangement where a stale local tier is visible.
         // Invalidations used to stay inside the process that made them.
 
-        // hits/misses are declared in initMetrics and never incremented, so the hit rate dashboard
-        // reads a permanent zero
-        it.todo('records hit and miss metrics for a multi tier cache');
+        // 3.9 is CLOSED and tested in ./caching.evaluation.test.ts, both halves: concurrent misses
+        // share one origin call, and the hit and miss counters move. They used to be declared in
+        // initMetrics and never incremented, so the hit rate dashboard read a permanent zero.
     });
 
     describe('1.10 - websocket fan out', () => {
@@ -159,20 +151,16 @@ describe('evaluation/04-infrastructure-subsystems', () => {
     });
 
     describe('2.6 / 2.7 / 2.8 / 2.9 / 2.10 - the worker pool', () => {
-        // a worker with no assigned job that exits is never removed from idleWorkers and never
-        // replaced, so the pool silently degrades to zero throughput
-        it.todo('replaces a worker that died while it was idle');
-
-        // there is no onAppStart recovery, so a restart abandons the in-memory queue and leaves
-        // rows stuck at IN_PROGRESS forever with no reaper
-        it.todo('recovers jobs that were queued when the process died');
-
-        // the handler reports and continues, leaving module level state corrupted for the next job
-        it.todo('terminates a worker that hit an uncaught exception');
-
-        // workerData.func is persisted on ThreadJobEntity and re-evaluated on requeue, so write
-        // access to that table is remote code execution in a worker thread
-        it.todo('does not execute a function body that came out of the database');
+        // 2.6, 2.7, 2.8 and 2.9 are CLOSED and tested for real in
+        // ../../multithreading/services/multithreading.service.test.ts, each against a real pool:
+        // - 2.6: an idle worker is terminated directly and the next job still runs. A dead idle worker
+        //   used to stay on idleWorkers and be handed the next job, until the pool did nothing at all.
+        // - 2.7: rows left behind by a previous run, started or not, are picked up after a restart
+        //   through the real lifecycle. There was no recovery, so they stayed IN_PROGRESS forever.
+        // - 2.8: a one thread pool runs a second job after the first threw from a timer. The handler
+        //   used to report and carry on, handing a corrupted thread to the next job.
+        // - 2.9: a job carrying a function rather than a file is refused. The function body used to be
+        //   persisted and evaluated again on requeue, so write access to the table ran code.
 
         // 2.10 and 2.12 are CLOSED and tested for real in
         // ../../multithreading/services/multithreading.service.test.ts. The non-priority branch used
@@ -198,6 +186,27 @@ describe('evaluation/04-infrastructure-subsystems', () => {
         // the per-call stack capture is observed for real in ./logging.evaluation.test.ts
     });
 
+    describe('3.5 - mail queue reads and writes', () => {
+        // the batch size is CLOSED (`sendBatchSize`), and the rest is WITHDRAWN and held by
+        // ./mail-queue.evaluation.test.ts. The three reads are the per priority reservation, which
+        // one ordered read cannot keep, and the write per mail is what keeps a crash to one resent
+        // mail rather than a whole pass.
+    });
+
+    describe('3.11 - websocket serialization', () => {
+        // 3.11 is CLOSED and measured in ./websocket.evaluation.test.ts. The service turned every
+        // message into json and back only so socket.io's plain json encoder would not throw on a
+        // bigint, and socket.io then wrote it again. The acknowledgement path skipped the round trip
+        // and so threw on a bigint, which ../../websocket/services/websocket-payload.test.ts holds.
+    });
+
+    describe('3.12 - static asset caching', () => {
+        // 3.12 is WITHDRAWN and observed in ./static-assets.evaluation.test.ts. Both the static
+        // middleware and the favicon route send `max-age=0` with an ETag and a last-modified, so a
+        // browser confirms its copy and is answered 304. Compression is the application's own
+        // middleware, in front of both.
+    });
+
     describe('5.2 - swapping in real infrastructure', () => {
         // the email row is CLOSED, tested in ./email-transport.evaluation.test.ts against a
         // transport that is neither smtp nor nodemailer, and in ./email-failure.evaluation.test.ts
@@ -208,11 +217,12 @@ describe('evaluation/04-infrastructure-subsystems', () => {
         //
         // The email rate limiter store is WITHDRAWN for the same reason as 1.7, and the events,
         // cron and websocket rows closed under 1.4, 1.1 and 1.10.
-
-        // BackupTransportInterface exists and only FsBackupTransport implements it, so this is a
-        // missing implementation rather than a missing seam - S3 or GCS, plus the checksum and
-        // restore verification 5.4 asks for
-        it.todo('stores a backup somewhere other than the local filesystem');
+        //
+        // The backup row is CLOSED and proven for real against a real server each:
+        // ../../backup/transports/s3.backup-transport.test.ts against an S3 gateway that checks every
+        // signature, and ../../backup/transports/sftp.backup-transport.test.ts against OpenSSH. Both
+        // take a backup through BackupService and restore it. The checksum and restore verification
+        // 5.4 asks for closed under 5.4.
     });
 
     // 4.1 and 4.2, the http client retry policy and body reads, are observed for real in

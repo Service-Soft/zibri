@@ -14,7 +14,7 @@ number of contributors, adoption, "it's new". None of the findings below rest on
 ## Verdict
 
 Zibri is a coherent, well-crafted, unusually broad **single-instance** framework.
-It is not adoptable as a primary backend platform for a large organization today, and the
+It is not adoptable as a primary backend platform for a large organization today, and the 
 reasons are architectural rather than bug-shaped.
 
 The blockers cluster into six groups. Any one of them independently fails a standard
@@ -368,6 +368,16 @@ example: it is an empty interface an application fills in by declaration merging
 merge into it, and with them in the program `keyof ZibriEventMap` is a real union. Without them it
 is `never`, and `Record<never, …>` has no key that can be read. The first line was green and the
 build failed with three errors.
+
+**The evaluation suites are red on purpose**, one test per open finding they hold, so a red run of
+`test:evaluation` is not a broken build. **A red test is only evidence of an open finding while the
+finding still wants what the test asserts.** Triaging the suites against the chapters found tests
+asserting designs that were decided against — the mail queue's `attempts` and `lastError` on `Email`
+(04 §2.2), a `databaseDefault` option (01 §M9), `exactOptionalPropertyTypes` (05 §M2), a `./testing`
+subpath (06 §T2) — and each was rewritten to assert what was built, or removed. Todos that stood for
+closed findings became pointers to the test that proves them, or got that test (01 §C3's had none at
+all); writing those found two defects, each fixed in its own finding (04 §1.3, 03 §G1). The last
+todo, 03 §H19's, became a pointer once the auth routes were built.
 
 ## Severity legend
 

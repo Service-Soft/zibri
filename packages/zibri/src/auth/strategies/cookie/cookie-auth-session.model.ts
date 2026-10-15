@@ -6,7 +6,7 @@ import { OmitClass } from '../../../entity/omit-class.model';
 /**
  * A cookie auth session.
  */
-@Entity({ allowOrphan: true })
+@Entity({ tenant: 'shared', allowOrphan: true })
 export class CookieAuthSession extends BaseEntity {
     /**
      * The id of the user that this session belong to.

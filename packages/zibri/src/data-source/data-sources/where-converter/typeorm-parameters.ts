@@ -33,15 +33,38 @@ export class TypeOrmParameters {
      * @throws When the value is not something a database column can hold.
      */
     add(value: unknown): string {
+        this.validateBindable(value);
+        const name: string = this.nextName();
+        this.values[name] = value;
+        return `:${name}`;
+    }
+
+    /**
+     * Registers a list of values as one value and returns the placeholder that stands in for it.
+     *
+     * For a dialect that binds a list as a single value, where a statement then binds one value
+     * however long the list is.
+     * @param values - The values to bind together.
+     * @returns The placeholder to write into the statement.
+     * @throws When one of the values is not something a database column can hold.
+     */
+    addList(values: unknown[]): string {
+        // a statement binds a bounded number of values - 65535 on postgres - and a list is as long as
+        // whoever wrote the filter made it, so binding it value by value fails past a length nobody chose
+        for (const value of values) {
+            this.validateBindable(value);
+        }
+        const name: string = this.nextName();
+        this.values[name] = values;
+        return `:${name}`;
+    }
+
+    private validateBindable(value: unknown): void {
         if (
             value !== null && typeof value !== 'string' && typeof value !== 'number'
             && typeof value !== 'boolean' && !(value instanceof Date)
         ) {
             throw new InternalError(`Cannot use a value of type "${typeof value}" in a sql statement`);
         }
-
-        const name: string = this.nextName();
-        this.values[name] = value;
-        return `:${name}`;
     }
 }

@@ -33,6 +33,8 @@ export class InMemoryTransaction implements Transaction, InMemoryScope {
 
     private finished: boolean = false;
 
+    private readonly committedWork: (() => Promise<void>)[] = [];
+
     constructor(private readonly store: InMemoryStore) {}
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -118,7 +120,7 @@ export class InMemoryTransaction implements Transaction, InMemoryScope {
         return this.store.nextSequenceValue(tableName);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async commit(): Promise<void> {
         this.assertOpen();
         this.finished = true;
@@ -136,11 +138,20 @@ export class InMemoryTransaction implements Transaction, InMemoryScope {
             this.store.writeJoin(key, members);
         }
         this.discard();
+        for (const work of this.committedWork.splice(0)) {
+            await work();
+        }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    afterCommit(work: () => Promise<void>): void {
+        this.committedWork.push(work);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
     async rollback(): Promise<void> {
         this.finished = true;
+        this.committedWork.length = 0;
         this.discard();
     }
 

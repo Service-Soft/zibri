@@ -22,6 +22,8 @@ import { Profile } from './mocks/entities/profile.entity';
 import { Role } from './mocks/entities/role.entity';
 import { mockCreateUserData, User, UserCreateData } from './mocks/entities/user.entity';
 import { defaultTestServerEntities } from './test-server/create-test-data-source.function';
+// eslint-disable-next-line eslintImport/no-unassigned-import
+import './test-server/membership-repository';
 import { defaultTestServerPlugins } from './test-server/plugins';
 import { defaultTestServerProviders } from './test-server/providers';
 // eslint-disable-next-line eslintImport/no-unassigned-import
@@ -402,6 +404,27 @@ describe('InMemoryDataSource', () => {
         await committed.commit();
 
         expect((await users.findById(kept.id)).name).toBe('Kept');
+    });
+
+    it('runs the work waiting for a commit once it is done, and drops it on a rollback', async () => {
+        const users: Repository<User> = started.dataSource.getRepository(User);
+        const ran: string[] = [];
+
+        const rolledBack: Transaction = started.dataSource.startTransaction();
+        rolledBack.afterCommit(async () => await Promise.resolve(void ran.push('rolled back')));
+        await rolledBack.rollback();
+
+        const committed: Transaction = started.dataSource.startTransaction();
+        const kept: User = await users.create(mockCreateUserData({ name: 'Seen' }), { transaction: committed });
+        committed.afterCommit(async () => {
+            // the commit is done by the time the work runs, so it sees what was written
+            ran.push((await users.findById(kept.id)).name);
+        });
+        committed.afterCommit(async () => await Promise.resolve(void ran.push('second')));
+        expect(ran).toEqual([]);
+        await committed.commit();
+
+        expect(ran).toEqual(['Seen', 'second']);
     });
 
     it('updates and deletes every row a filter matches', async () => {

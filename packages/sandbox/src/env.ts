@@ -37,6 +37,21 @@ export function requireEnv(key: string): string {
 }
 
 /**
+ * Reads a yes-or-no variable the application cannot run without.
+ * @param key - The name of the variable, which holds "true" or "false".
+ * @returns Whether it is "true".
+ * @throws When it is anything but "true" or "false", naming the variable. A typo stops here,
+ * rather than reading as "false" and turning off what it was meant to turn on.
+ */
+export function requireBooleanEnv(key: string): boolean {
+    const value: string = requireEnv(key);
+    if (value !== 'true' && value !== 'false') {
+        throw new Error(`The environment variable "${key}" has to be "true" or "false", got "${value}".`);
+    }
+    return value === 'true';
+}
+
+/**
  * Reads a variable the application runs without.
  * @param key - The name of the variable.
  * @returns Its value, or an empty string when it is unset.

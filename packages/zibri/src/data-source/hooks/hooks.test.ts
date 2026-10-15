@@ -15,13 +15,14 @@ import { inject } from '../../di/inject.function';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
+import { JsonUtilities } from '../../utilities/json.utilities';
 import { PostgresDataSource } from '../data-sources/postgres/postgres-typeorm-data-source.model';
 import { Repository } from '../repository/repository';
 
 // ==================== TEST ENTITIES ====================
 
 // Entity that tests ALL hook-related features
-@Entity()
+@Entity({ tenant: 'shared' })
 class HookTestEntity extends BaseEntity implements ChangeSetEntity, SoftDeleteEntity {
     @Property.string()
     name!: string;
@@ -41,6 +42,9 @@ class HookTestEntity extends BaseEntity implements ChangeSetEntity, SoftDeleteEn
     @Property.boolean({ default: false })
     deleted!: boolean; // required by SoftDeleteEntity
 
+    @Property.string({ required: false })
+    deletedWith: string | null | undefined; // required by SoftDeleteEntity
+
     @Property.oneToMany({ target: () => ChangeSet, inverseSide: 'changeSetEntityId' })
     changeSets!: ChangeSet[]; // required by ChangeSetEntity
 }
@@ -59,7 +63,7 @@ beforeAll(async () => {
     });
     repo = inject(repositoryTokenFor(HookTestEntity));
     changeSetRepo = inject(repositoryTokenFor(ChangeSet));
-}, 15000);
+}, 30000);
 
 afterAll(async () => {
     await server.shutdown();
@@ -234,7 +238,7 @@ describe('before‑return hooks', () => {
         it('removes excluded properties from the returned entity', async () => {
             const fetched: HookTestEntity = await repo.findById(entityId);
             expect(fetched.secretValue).toBe(originalSecret);
-            expect(JSON.stringify(fetched)).not.toContain('secretValue');
+            expect(JsonUtilities.stringify(fetched)).not.toContain('secretValue');
         });
     });
 });

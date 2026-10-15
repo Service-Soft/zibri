@@ -9,7 +9,6 @@ import { MimeType } from '../../http/mime-type.enum';
 import { HttpClientResponse } from '../../http-client/http-client-response.model';
 import { StreamBodyMetadata } from '../../routing/decorators/body-metadata.model';
 import { BigNumber, NumberUtilities } from '../../utilities/number.utilities';
-import { WebsocketRequest } from '../../websocket/models/websocket-request.model';
 import { BodyParserInterface } from '../body-parser.interface';
 import { BodyParser } from '../decorators/body-parser.decorator';
 
@@ -31,9 +30,8 @@ export class StreamBodyParser implements BodyParserInterface<MimeType.OCTET_STRE
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    parseFromWebsocketRequest(req: WebsocketRequest, bodyMetadata: StreamBodyMetadata): unknown {
+    parseFromWebsocketRequest(): unknown {
         throw new UnsupportedMediaTypeError(MimeType.OCTET_STREAM);
-
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

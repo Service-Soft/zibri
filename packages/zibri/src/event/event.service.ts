@@ -9,7 +9,7 @@ import { EventSubscriberRun, EventSubscriberRunCreateData, EventSubscriberRunSta
 import { Event, EventCreateData, EventStatus } from './event.model';
 import { ZibriApplication } from '../application/application';
 import { Repository } from '../data-source/repository/repository';
-import { InjectRepository } from '../di/decorators/inject-repository.decorator';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
@@ -21,6 +21,8 @@ import { type LeaseServiceInterface } from '../leases/lease-service.interface';
 import { errorToLoggedError } from '../logging/error-to-logged-error.function';
 import { LoggedError } from '../logging/logged-error.model';
 import { type LoggerInterface } from '../logging/logger.interface';
+import { type TenantServiceInterface } from '../tenancy/tenant-service.interface';
+import { Newable } from '../types/newable.type';
 import { Ms } from '../utilities/ms';
 import { PromiseUtilities } from '../utilities/promise.utilities';
 import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function';
@@ -81,26 +83,59 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
     protected runningHooks: number = 0;
 
     constructor(
-        @InjectRepository(Event)
-        protected readonly eventRepository: Repository<
-            Event<ZibriEventMap[keyof ZibriEventMap]>,
-            EventCreateData<ZibriEventMap[keyof ZibriEventMap]>
-        >,
-        @InjectRepository(EventSubscriberRun)
-        protected readonly eventSubscriberRunRepository: Repository<
-            EventSubscriberRun<ZibriEventMap[keyof ZibriEventMap]>,
-            EventSubscriberRunCreateData<ZibriEventMap[keyof ZibriEventMap]>
-        >,
-        @InjectRepository(EventSubscriberRegistration)
-        protected readonly eventSubscriberRegistrationRepository: Repository<
-            EventSubscriberRegistration,
-            EventSubscriberRegistrationCreateData
-        >,
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
         protected readonly logger: LoggerInterface,
         @Inject(ZIBRI_DI_TOKENS.LEASE_SERVICE)
         protected readonly leaseService: LeaseServiceInterface
     ) { }
+
+    // the three below are read when used rather than injected, so that an application without the
+    // entities is told which ones to declare by onAppInit, instead of failing on a repository token
+    // while this is built.
+    //
+    // The first two name the instantiation, because the class alone only says Event<unknown>. It is
+    // checked rather than asserted - the generic constructor has to be assignable to it.
+
+    /**
+     * The repository of the stored events.
+     * @returns The repository.
+     */
+    protected get eventRepository(): Repository<
+        Event<ZibriEventMap[keyof ZibriEventMap]>,
+        EventCreateData<ZibriEventMap[keyof ZibriEventMap]>
+    > {
+        return inject(repositoryTokenFor<Newable<Event<ZibriEventMap[keyof ZibriEventMap]>>>(Event));
+    }
+
+    /**
+     * The repository of the runs each subscriber owes an event.
+     * @returns The repository.
+     */
+    protected get eventSubscriberRunRepository(): Repository<
+        EventSubscriberRun<ZibriEventMap[keyof ZibriEventMap]>,
+        EventSubscriberRunCreateData<ZibriEventMap[keyof ZibriEventMap]>
+    > {
+        return inject(repositoryTokenFor<Newable<EventSubscriberRun<ZibriEventMap[keyof ZibriEventMap]>>>(EventSubscriberRun));
+    }
+
+    /**
+     * Runs the work for an event in the tenant it was emitted in.
+     * @returns The tenant service.
+     */
+    protected get tenantService(): TenantServiceInterface {
+        return inject(ZIBRI_DI_TOKENS.TENANT_SERVICE);
+    }
+
+    /**
+     * The repository of the subscribers each instance has registered.
+     * @returns The repository.
+     */
+    protected get eventSubscriberRegistrationRepository(): Repository<
+        EventSubscriberRegistration,
+        EventSubscriberRegistrationCreateData
+    > {
+        return inject(repositoryTokenFor(EventSubscriberRegistration));
+    }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     onAppInit(app: ZibriApplication): void {
@@ -269,9 +304,17 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
             ...[...this.subscriptionsForAll].map((s): [string, string] => [s.id, ALL_EVENTS_TYPE])
         ];
 
-        for (const [subscriberId, eventType] of local) {
-            await this.registerSubscriber(subscriberId, eventType);
-        }
+        // one write for every subscriber this instance hosts, rather than a round trip each on every
+        // poll. `subscribe` hands back the existing subscription for a pair it already has, so no
+        // pair appears twice
+        const expiresAt: Date = new Date(Date.now() + inject(ZIBRI_DI_TOKENS.EVENT_SUBSCRIBER_REGISTRATION_TTL_IN_MS));
+        await this.eventSubscriberRegistrationRepository.upsertAll(
+            ['subscriberId', 'eventType'],
+            local.map(([subscriberId, eventType]) => ({
+                create: { subscriberId, eventType, expiresAt },
+                onConflict: { expiresAt: { set: expiresAt } }
+            }))
+        );
         await this.eventSubscriberRegistrationRepository.deleteAll({ expiresAt: { before: new Date() } });
     }
 
@@ -343,7 +386,7 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
     ): Promise<void> {
         this.runningHooks++;
         try {
-            await this.runHook(hook, event, options);
+            await this.runInTenantOf(event, async () => await this.runHook(hook, event, options));
         }
         catch (error) {
             this.logger.error(
@@ -355,6 +398,19 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
         finally {
             this.runningHooks--;
         }
+    }
+
+    /**
+     * Runs work in the tenant an event was emitted in.
+     *
+     * The poll hands out the events of every tenant from outside all of them, so a hook, the run it
+     * records and the settling of the event would otherwise reach the rows of no tenant only.
+     * @param event - The event the work is for.
+     * @param work - The work.
+     * @returns What the work returns.
+     */
+    private async runInTenantOf<R>(event: Event<unknown>, work: () => Promise<R>): Promise<R> {
+        return event.tenantId == undefined ? await work() : await this.tenantService.runAs(event.tenantId, work);
     }
 
     /**
@@ -539,14 +595,16 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
         const events: Event<ZibriEventMap[keyof ZibriEventMap]>[] = await this.eventRepository.findAll({
             where: { status: EventStatus.CREATED },
             relations: ['eventSubscriberRuns'],
-            take: inject(ZIBRI_DI_TOKENS.EVENT_MAX_CONCURRENT_HOOKS)
+            take: inject(ZIBRI_DI_TOKENS.EVENT_MAX_CONCURRENT_HOOKS),
+            // the events of every tenant are owed the same, and each is then handled in its own
+            acrossTenants: true
         });
 
         // chunked rather than serial, because each event is independent - and chunked rather than
         // all at once, because this is exactly the path a backlog arrives on: an instance that died
         // holding work leaves every one of its events here at the same time, and a fan out the size
         // of that backlog would be the recovery hurting more than the outage.
-        await PromiseUtilities.allChunked(events, async event => {
+        await PromiseUtilities.allChunked(events, async event => await this.runInTenantOf(event, async () => {
             // an event is finished when nobody still owes it a run, and that can become true without
             // anything happening to the event: the last instance hosting a subscriber goes away and
             // its registration lapses. Nothing else would notice - a subscriber that already ran is
@@ -558,7 +616,7 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
                 return;
             }
             this.eventSubject.next(event);
-        });
+        }));
     }
 
     /**

@@ -3,6 +3,7 @@ import { ArrayParamItemMetadataInput, ArrayParamItemMetadata } from './models/ar
 import { OneOfParamMetadata, OneOfQueryParamMetadataInput, PathParamShapeMetadataInput } from './models/one-of-param-metadata.model';
 import { createAnyOfShapesMetadata } from '../entity/decorators/property.decorator';
 import { InternalError } from '../error-handling/internal-error.model';
+import { RegexUtilities } from '../utilities/regex.utilities';
 
 const pathParamShapeTypes: PathParamShapeMetadataInput['type'][] = ['string', 'number', 'boolean', 'date'];
 
@@ -16,6 +17,7 @@ const pathParamShapeTypes: PathParamShapeMetadataInput['type'][] = ['string', 'n
 export function createPathParamMetadata(name: string, data: PathParamMetadataInput): PathParamMetadata {
     switch (data.type) {
         case 'string': {
+            RegexUtilities.validateLinear(name, data.regex);
             return {
                 name,
                 required: true,
@@ -26,8 +28,6 @@ export function createPathParamMetadata(name: string, data: PathParamMetadataInp
                 minLength: undefined,
                 regex: undefined,
                 enum: undefined,
-                encryption: false,
-                hash: false,
                 ...data
             };
         }
@@ -99,6 +99,7 @@ function createOneOfParamMetadata(name: string, data: OneOfQueryParamMetadataInp
 export function createQueryParamMetadata(name: string, data: QueryParamMetadataInput): QueryParamMetadata {
     switch (data.type) {
         case 'string': {
+            RegexUtilities.validateLinear(name, data.regex);
             return {
                 name,
                 required: true,
@@ -109,8 +110,6 @@ export function createQueryParamMetadata(name: string, data: QueryParamMetadataI
                 minLength: undefined,
                 regex: undefined,
                 enum: undefined,
-                encryption: false,
-                hash: false,
                 ...data
             };
         }
@@ -199,6 +198,7 @@ export function createArrayParamItemMetadata(
             };
         }
         case 'string': {
+            RegexUtilities.validateLinear(fullPropertyKey, data.regex);
             return {
                 required: true,
                 unique: false,
@@ -208,8 +208,6 @@ export function createArrayParamItemMetadata(
                 minLength: undefined,
                 regex: undefined,
                 enum: undefined,
-                hash: false,
-                encryption: false,
                 ...data
             };
         }

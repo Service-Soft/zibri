@@ -27,9 +27,9 @@ export type MailingListQueueEmailData<T> = OmitStrict<
 };
 
 /**
- * The required data to create a new mailing list subscriber.
+ * The required data to create a new mailing list subscriber, in the active tenant.
  */
-export class MailingListSubscriberCreateData extends OmitClass(MailingListSubscriber, ['id']) {}
+export class MailingListSubscriberCreateData extends OmitClass(MailingListSubscriber, ['id', 'tenantId']) {}
 
 /**
  * Interface for a mailing list service.
@@ -61,15 +61,16 @@ export interface MailingListServiceInterface {
      */
     unsubscribeFromList: (listId: string, subscriberId: string) => Promise<void>,
     /**
-     * Gets the subscribe confirmation link for the list with the given id and the confirmationToken.
+     * Resolves the subscribe confirmation link for the list with the given id and the
+     * confirmationToken. Every link names the active tenant, through `TenantService.resolveTenantUrl`.
      */
-    getSubscribeConfirmationLink: (listId: string, confirmationToken: string) => string,
+    resolveSubscribeConfirmationLink: (listId: string, confirmationToken: string) => Promise<string>,
     /**
-     * Gets the unsubscribe link for the list with the given id and the subscriber with the given id.
+     * Resolves the unsubscribe link for the list with the given id and the subscriber with the given id.
      */
-    getUnsubscribeLink: (listId: string, subscriberId: string) => string,
+    resolveUnsubscribeLink: (listId: string, subscriberId: string) => Promise<string>,
     /**
-     * Gets the link to the manage preferences page for the subscriber with the given id.
+     * Resolves the link to the manage preferences page for the subscriber with the given id.
      */
-    getManagePreferencesLink: (subscriberId: string) => string
+    resolveManagePreferencesLink: (subscriberId: string) => Promise<string>
 }

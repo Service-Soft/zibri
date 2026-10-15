@@ -14,7 +14,12 @@ export type BaseUser<Role extends string> = BaseEntity & {
     /**
      * The roles of the user.
      */
-    roles: Role[]
+    roles: Role[],
+    /**
+     * When the user was deactivated. A deactivated user cannot log in, and no request acts as them,
+     * until they are reactivated. Undefined or null for an active user.
+     */
+    deactivatedAt?: Date | null
 };
 
 // eslint-disable-next-line jsdoc/require-returns
@@ -33,6 +38,9 @@ export function BaseUserEntity<Role extends string>(
         // eslint-disable-next-line jsdoc/require-jsdoc
         @Property.array({ items: { type: 'string', enum: roleValue } })
         roles!: Role[];
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        @Property.date({ required: false })
+        deactivatedAt?: Date | null;
     }
 
     return Temp;

@@ -148,6 +148,28 @@ describe('validateString', () => {
         });
     });
 
+    describe('phone format', () => {
+        it('accepts a number in international format', async () => {
+            const problems: ValidationProblem[] = await validateString('phone', '+4915112345678', meta({ format: 'phone' }), undefined, undefined);
+            expect(problems).toEqual([]);
+        });
+
+        it('rejects a number without the country code', async () => {
+            const problems: ValidationProblem[] = await validateString('phone', '015112345678', meta({ format: 'phone' }), undefined, undefined);
+            expect(problems).toHaveLength(1);
+        });
+
+        it('rejects a number with spaces', async () => {
+            const problems: ValidationProblem[] = await validateString('phone', '+49 151 12345678', meta({ format: 'phone' }), undefined, undefined);
+            expect(problems).toHaveLength(1);
+        });
+
+        it('rejects a number longer than 15 digits', async () => {
+            const problems: ValidationProblem[] = await validateString('phone', '+1234567890123456', meta({ format: 'phone' }), undefined, undefined);
+            expect(problems).toHaveLength(1);
+        });
+    });
+
     it('validates against a custom regex', async () => {
         const digitsOnly: RegExp = /^\d+$/;
         await expect(validateString('code', '12345', meta({ regex: digitsOnly }), undefined, undefined)).resolves.toEqual([]);

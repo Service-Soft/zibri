@@ -7,8 +7,13 @@ import { OmitStrict } from '../../types/omit-strict.type';
 /**
  * Defines a single value change of an change set.
  */
-@Entity()
+@Entity({ allowOrphan: true, allowDuplicate: true })
 export class Change<T = unknown> extends BaseEntity {
+    /**
+     * The tenant of the change set this change belongs to.
+     */
+    @Property.string({ format: 'uuid', required: false })
+    tenantId?: string | null;
     /**
      * The key of the value that has been changed.
      */

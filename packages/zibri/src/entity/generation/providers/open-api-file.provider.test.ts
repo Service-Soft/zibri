@@ -25,7 +25,7 @@ describe('OpenApiFileProvider', () => {
     });
 
     it('exposes the constructor arguments, using the documented defaults', () => {
-        const provider: OpenApiFileProvider = new OpenApiFileProvider('MyApi', FsUtilities.getPath(workDir, 'unused.json'));
+        const provider: OpenApiFileProvider = new OpenApiFileProvider({ prefix: 'MyApi', filePath: FsUtilities.getPath(workDir, 'unused.json') });
         expect(provider.prefix).toBe('MyApi');
         expect(provider.generateSchemasFromPaths).toBe(false);
         expect(provider.markAsEntities).toBe(false);
@@ -35,7 +35,7 @@ describe('OpenApiFileProvider', () => {
         const filePath: FsPath = FsUtilities.getPath(workDir, 'v31-spec.json');
         await FsUtilities.createFile(filePath, JsonUtilities.stringify(v31Spec));
 
-        const provider: OpenApiFileProvider = new OpenApiFileProvider('MyApi', filePath);
+        const provider: OpenApiFileProvider = new OpenApiFileProvider({ prefix: 'MyApi', filePath });
         const spec: OpenApiDefinition = await provider.resolveSpec();
 
         expect(spec).toEqual(v31Spec);
@@ -51,7 +51,7 @@ describe('OpenApiFileProvider', () => {
         };
         await FsUtilities.createFile(filePath, JsonUtilities.stringify(v30Spec));
 
-        const provider: OpenApiFileProvider = new OpenApiFileProvider('MyApi', filePath);
+        const provider: OpenApiFileProvider = new OpenApiFileProvider({ prefix: 'MyApi', filePath });
         const spec: OpenApiDefinition = await provider.resolveSpec();
 
         expect(spec.openapi).toBe('3.1.0');
@@ -61,7 +61,7 @@ describe('OpenApiFileProvider', () => {
         const filePath: FsPath = FsUtilities.getPath(workDir, 'unsupported-spec.json');
         await FsUtilities.createFile(filePath, JsonUtilities.stringify({ openapi: '4.0.0' }));
 
-        const provider: OpenApiFileProvider = new OpenApiFileProvider('MyApi', filePath);
+        const provider: OpenApiFileProvider = new OpenApiFileProvider({ prefix: 'MyApi', filePath });
         await expect(provider.resolveSpec()).rejects.toThrow('Unsupported OpenAPI version');
     });
 });

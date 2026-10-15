@@ -1,6 +1,7 @@
 import { type ArrayPropertyItemMetadata, type ArrayPropertyItemMetadataInput } from './array-property-metadata.model';
 import { BasePropertyMetadata } from './base-property-metadata.model';
 import { type FilePropertyMetadata } from './file-property-metadata.model';
+import { type StringPropertyMetadataInput } from './string-property-metadata.model';
 import { ExcludeStrict } from '../../types/exclude-strict.type';
 import { OmitStrict } from '../../types/omit-strict.type';
 
@@ -29,8 +30,11 @@ export type OneOfShapeMetadata = ExcludeStrict<ArrayPropertyItemMetadata, OneOfP
 /**
  * Input metadata of one of the shapes a value can be.
  */
-// eslint-disable-next-line jsdoc/require-jsdoc
-export type OneOfShapeMetadataInput = Exclude<ArrayPropertyItemMetadataInput, { type: 'oneOf' } | { type: 'file' }>;
+export type OneOfShapeMetadataInput<TStringInput = StringPropertyMetadataInput> = Exclude<
+    ArrayPropertyItemMetadataInput<TStringInput>,
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    { type: 'oneOf' } | { type: 'file' }
+>;
 
 /**
  * Input metadata of several shapes, by name.
@@ -38,15 +42,17 @@ export type OneOfShapeMetadataInput = Exclude<ArrayPropertyItemMetadataInput, { 
  * An interface rather than a record, because a shape can be an array whose items are one of several
  * shapes again, and only an interface lets the input types refer to each other that way.
  */
-export interface OneOfShapesMetadataInput {
-    [name: string]: OneOfShapeMetadataInput
+export interface OneOfShapesMetadataInput<TStringInput = StringPropertyMetadataInput> {
+    [name: string]: OneOfShapeMetadataInput<TStringInput>
 }
 
 /**
  * Input metadata for a property that holds one of several named shapes.
  */
 export type OneOfPropertyMetadataInput<
-    Shapes extends OneOfShapesMetadataInput = OneOfShapesMetadataInput
+    // unconstrained, because the decorator checks the shapes as declared, each string against the
+    // strategy it names, and that check is a type of its own rather than one instantiation of these
+    Shapes = OneOfShapesMetadataInput
 > = Partial<OmitStrict<OneOfPropertyMetadata, 'type' | 'shapes'>> & {
     /**
      * What the value can be, by name. The property is declared as `OneOf` of the same names.

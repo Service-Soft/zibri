@@ -26,6 +26,9 @@ export type CacheStoreConfig = {
 
 /**
  * Interface for an cache store.
+ *
+ * A store keys each entry by what `cacheKeyOf` makes of its key. That is what tells two equal object
+ * keys to be one entry, and what keeps the entries of each tenant apart.
  */
 export interface CacheStoreInterface<K, V> {
     /**

@@ -1,5 +1,6 @@
 import { SoftDeleteEntity } from './soft-delete-entity.model';
 import { SoftDeleteWhere } from './soft-delete-where.model';
+import { SoftDeletedRows } from './soft-deleted-rows.type';
 import { CountOptions } from '../../data-source/models/options/count-options.model';
 import { OmitStrict } from '../../types/omit-strict.type';
 
@@ -12,7 +13,7 @@ export type SoftDeleteCountOptions<T extends SoftDeleteEntity> = OmitStrict<Coun
      */
     where?: SoftDeleteWhere<T>,
     /**
-     * Whether or not soft deleted entities should be included.
+     * Which soft deleted entities are counted. `exclude` when it is not given.
      */
-    withDeleted?: boolean
+    deleted?: SoftDeletedRows
 };

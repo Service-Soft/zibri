@@ -86,6 +86,7 @@ export const blockedSectionKey: string = 'cluster.shutdown-blocked-section';
 class ShutdownValKeyDataSource extends ValKeyDataSource {
     override options: ValKeyOptions = {
         host: 'localhost',
+        useTLS: false,
         keyPrefix: 'cluster-shutdown'
     };
     entities: Newable<BaseEntity>[] = defaultTestValKeyEntities;

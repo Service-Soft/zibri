@@ -36,6 +36,10 @@ export class ThreadJob<
      */
     readonly id: string;
     /**
+     * The tenant the job was queued in, or undefined for one queued outside every tenant.
+     */
+    readonly tenantId: string | undefined;
+    /**
      * The status of the job.
      */
     status: ThreadJobStatus;
@@ -83,6 +87,7 @@ export class ThreadJob<
         this.type = type;
         this.queuedAtMs = entity.queuedAtMs;
         this.id = entity.id;
+        this.tenantId = entity.tenantId ?? undefined;
         this.status = entity.status;
         this.workerData = entity.workerData;
         this.onMessage = functions?.onMessage;

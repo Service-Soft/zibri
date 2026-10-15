@@ -84,4 +84,38 @@ describe('CacheInvalidate decorator', () => {
 
         expect(wrapInvalidateSpy).toHaveBeenCalledTimes(1);
     });
+
+    describe('what its tag provider may take', () => {
+        it('takes fewer arguments than the method, typed as the method declares them', async () => {
+            // the method's arguments were inferred from the provider as well, so one reading fewer of
+            // them asked for a method taking only those, and did not compile
+            class Service {
+                @CacheInvalidate(InvalidateAffectedCache, { invalidatesTags: tag => [tag.toLowerCase()] })
+                // eslint-disable-next-line typescript/require-await
+                async update(tag: string, count: number): Promise<string> {
+                    return `${tag}:${count}`;
+                }
+            }
+            const affectedCache: InvalidateAffectedCache = inject(InvalidateAffectedCache);
+            cacheService.caches.push(affectedCache);
+            await affectedCache.store.set('a1', createCachedValue('affected', ['invalidate-me']));
+
+            await new Service().update('INVALIDATE-ME', 1);
+
+            expect(await affectedCache.store.get('a1')).toBeUndefined();
+        });
+
+        it('refuses a provider the method does not fit', () => {
+            class Service {
+                // @ts-expect-error - the provider reads a number where the method takes a string
+                @CacheInvalidate(InvalidateAffectedCache, { invalidatesTags: (count: number) => [`${count}`] })
+                // eslint-disable-next-line typescript/require-await
+                async update(tag: string): Promise<string> {
+                    return tag;
+                }
+            }
+
+            expect(Object.getOwnPropertyNames(Service.prototype)).toContain('update');
+        });
+    });
 });

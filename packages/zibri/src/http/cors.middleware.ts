@@ -91,9 +91,15 @@ export function corsMiddleware(options: CorsOptions): RequestHandler {
         allowedHeaders ??= [
             KnownHeader.CONTENT_TYPE,
             KnownHeader.AUTHORIZATION,
+            KnownHeader.DPOP,
             KnownHeader.X_VERSION,
             inject(ZIBRI_DI_TOKENS.CSRF_TOKEN_HEADER),
             inject(ZIBRI_DI_TOKENS.OTP_HEADER),
+            inject(ZIBRI_DI_TOKENS.PASSKEY_HEADER),
+            inject(ZIBRI_DI_TOKENS.EMAIL_CODE_HEADER),
+            inject(ZIBRI_DI_TOKENS.SMS_CODE_HEADER),
+            inject(ZIBRI_DI_TOKENS.RECOVERY_CODE_HEADER),
+            inject(ZIBRI_DI_TOKENS.API_KEY_HEADER),
             KnownHeader.TRACEPARENT,
             KnownHeader.TRACESTATE,
             ...options.additionalAllowedHeaders ?? []
@@ -101,9 +107,11 @@ export function corsMiddleware(options: CorsOptions): RequestHandler {
         // a browser hides every response header a page did not ask to see, so headers the framework
         // answers *with* have to be listed as well. The csrf token is the one that matters: it is
         // reissued on the response whose session rotated, and a page that cannot read it goes on
-        // sending the token that was just retired.
+        // sending the token that was just retired. A DPoP nonce likewise, which a page signs its next
+        // proof with.
         exposedHeaders ??= [
             inject(ZIBRI_DI_TOKENS.CSRF_TOKEN_HEADER),
+            KnownHeader.DPOP_NONCE,
             KnownHeader.TRACERESPONSE
         ].join(', ');
 

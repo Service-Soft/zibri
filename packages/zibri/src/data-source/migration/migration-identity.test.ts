@@ -44,7 +44,8 @@ class MigrationIdentityDataSource extends PostgresDataSource {
         host: 'localhost',
         username: 'postgres',
         password: 'password',
-        database: 'db'
+        database: 'db',
+        ssl: false
     };
     entities: Newable<BaseEntity>[] = defaultTestServerEntities;
     override migrations: Newable<Migration>[] = [FirstChangeOfTheRelease, SecondChangeOfTheRelease];

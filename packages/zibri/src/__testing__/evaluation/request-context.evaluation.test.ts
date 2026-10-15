@@ -7,14 +7,14 @@ import { OtpCredentials } from '../../auth/2fa/methods/otp/otp-credentials.model
 import { OtpTwoFactorMethod } from '../../auth/2fa/methods/otp/otp.two-factor-method';
 import { OTP_PERIOD_IN_SECONDS } from '../../auth/2fa/methods/otp/otp.utilities';
 import { type TwoFactorServiceInterface } from '../../auth/2fa/two-factor-service.interface';
+import { AuthController } from '../../auth/auth-controller/auth-controller.model';
+import { PasswordCredentials, PasswordCredentialsCreateData } from '../../auth/authenticators/password/password-credentials.model';
+import { PasswordAuthenticator } from '../../auth/authenticators/password/password.authenticator';
 import { Auth } from '../../auth/decorators/auth.decorator';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
-import { CookieAuthCredentials } from '../../auth/strategies/cookie/cookie-auth-credentials.model';
 import { CookieAuthRefreshSession } from '../../auth/strategies/cookie/cookie-auth-refresh-session.model';
 import { CookieAuthSession } from '../../auth/strategies/cookie/cookie-auth-session.model';
 import { CookieAuthStrategy } from '../../auth/strategies/cookie/cookie-auth.auth-strategy';
-import { JwtAuthController } from '../../auth/strategies/jwt/jwt-auth.controller';
-import { JwtCredentials, JwtCredentialsCreateData } from '../../auth/strategies/jwt/jwt-credentials.model';
 import { JwtAuthStrategy } from '../../auth/strategies/jwt/jwt.auth-strategy';
 import { HttpRequestContext } from '../../context/request/http-request.context';
 import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../../context/request/request-context-token.model';
@@ -30,6 +30,7 @@ import { InternalError } from '../../error-handling/internal-error.model';
 import { Controller } from '../../routing/decorators/controller.decorator';
 import { Get } from '../../routing/decorators/get.decorator';
 import { Newable } from '../../types/newable.type';
+import { JsonUtilities } from '../../utilities/json.utilities';
 import { Ms } from '../../utilities/ms';
 import { JwtUser } from '../mocks/entities/jwt-user.entity';
 import { Roles } from '../mocks/entities/roles.enum';
@@ -59,7 +60,7 @@ import { StartedTestServer, startTestServer } from '../test-server/start-test-se
 const password: string = 'secure123';
 
 const dataSourceClass: Newable<PostgresDataSource> = createTestDataSource({
-    entities: [...defaultTestServerEntities, CookieAuthCredentials, CookieAuthSession, CookieAuthRefreshSession]
+    entities: [...defaultTestServerEntities, CookieAuthSession, CookieAuthRefreshSession]
 });
 
 /**
@@ -87,6 +88,13 @@ let instancesBuilt: number = 0;
 class PerRequestService {
     readonly id: number = ++instancesBuilt;
 }
+
+@Controller('/auth', { versions: 'all' })
+class EvaluationAuthController extends AuthController({
+        strategies: [JwtAuthStrategy, CookieAuthStrategy],
+        authenticators: [PasswordAuthenticator],
+        twoFactorMethods: [OtpTwoFactorMethod]
+    }) {}
 
 @Controller('/evaluation-context')
 class EvaluationContextController {
@@ -185,11 +193,11 @@ async function enrollInOtp(): Promise<string> {
 beforeAll(async () => {
     server = await startTestServer({
         dataSources: [dataSourceClass],
-        controllers: [EvaluationContextController, JwtAuthController],
+        controllers: [EvaluationContextController, EvaluationAuthController],
         // two of them, because a route naming one is the only way to observe that the name is read.
-        // Only the jwt one has its controller mounted - the caller below logs in with a bearer token
-        // and is then a caller the cookie strategy has never heard of, which is exactly the case
-        // `@CurrentUser(true, [CookieAuthStrategy])` exists to refuse.
+        // The caller below logs in with a bearer token and is then a caller the cookie strategy has
+        // never heard of, which is exactly the case `@CurrentUser(true, [CookieAuthStrategy])` exists
+        // to refuse.
         authStrategies: [JwtAuthStrategy, CookieAuthStrategy],
         twoFactorMethods: [OtpTwoFactorMethod],
         providers: [
@@ -202,13 +210,13 @@ beforeAll(async () => {
 
     const email: string = 'request-context-evaluation@example.com';
     user = await inject(repositoryTokenFor(JwtUser)).create({ email, roles: [Roles.USER] });
-    const credentials: Repository<JwtCredentials, JwtCredentialsCreateData> = inject(repositoryTokenFor(JwtCredentials));
-    await credentials.create({ email, password, userId: user.id });
+    const credentials: Repository<PasswordCredentials, PasswordCredentialsCreateData> = inject(repositoryTokenFor(PasswordCredentials));
+    await credentials.create({ password, userId: user.id });
 
-    const res: globalThis.Response = await fetch(`${baseUrl}/auth/login`, {
+    const res: globalThis.Response = await fetch(`${baseUrl}/auth/login?strategy=jwt`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JsonUtilities.stringify({ email, password })
     });
     const data: { accessToken: { value: string } } = await res.json() as { accessToken: { value: string } };
     accessToken = data.accessToken.value;

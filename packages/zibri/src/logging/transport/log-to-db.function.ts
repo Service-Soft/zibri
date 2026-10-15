@@ -9,9 +9,11 @@ import { Log } from '../log.model';
  * One statement for the whole batch rather than one per entry. The logger buffers, so the entries
  * arrive together anyway - writing them one at a time was a round trip per log call, on a path an
  * application takes once per request now that there is an access log.
+ *
+ * Across tenants, since a batch holds the entries of every tenant, each naming its own.
  * @param logs - The logs to save, oldest first.
  */
 export async function logToDb(logs: Log[]): Promise<void> {
     const logRepository: Repository<Log> = inject(repositoryTokenFor(Log));
-    await logRepository.createAll(logs, { allowId: true });
+    await logRepository.createAll(logs, { allowId: true, acrossTenants: true });
 }

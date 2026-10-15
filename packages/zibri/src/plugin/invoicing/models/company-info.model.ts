@@ -1,7 +1,27 @@
 /**
- * Contains base information about a company.
+ * Contains base information about the company that issues an invoice.
  */
 export type CompanyInfo = {
+    /**
+     * The logo shown in the header of the invoice, if any. Available options:
+     *
+     * - A reference by name to an image defined in the `images` of the invoicing options
+     * - A data URL
+     * - A remote URL via http:// or https://.
+     *
+     * Supported image formats: JPEG, PNG.
+     */
+    readonly logo?: string,
+    /**
+     * The name of the bank to display in the footer.
+     * Can be omitted.
+     */
+    readonly bankName?: string,
+    /**
+     * The tax office to display in the footer.
+     * Can be omitted.
+     */
+    readonly taxOffice?: string,
     /**
      * The name of the company.
      */

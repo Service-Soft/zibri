@@ -155,7 +155,8 @@ module.exports = {
             {
                 test: /\.tsx?$/,
                 exclude: tsxTemplateDirs,
-                use: 'ts-loader'
+                loader: 'ts-loader',
+                options: { onlyCompileBundledFiles: true }
             },
             {
                 test: /\.js$/,

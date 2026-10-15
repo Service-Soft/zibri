@@ -68,6 +68,7 @@ const lockKey: string = 'cluster.critical-section';
 class ClusterLockValKeyDataSource extends ValKeyDataSource {
     override options: ValKeyOptions = {
         host: 'localhost',
+        useTLS: false,
         keyPrefix: 'cluster-lock'
     };
     entities: Newable<BaseEntity>[] = defaultTestValKeyEntities;

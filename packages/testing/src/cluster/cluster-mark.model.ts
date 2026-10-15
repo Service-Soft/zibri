@@ -17,7 +17,7 @@ import { BaseEntity, Entity, Property } from 'zibri';
 // allowOrphan, because this is exported from the package's barrel: importing anything from
 // `zibri-testing` registers it, and an application that runs no cluster test has no reason to carry
 // the table. The shipped plugins declare their entities the same way, for the same reason.
-@Entity({ allowOrphan: true })
+@Entity({ tenant: 'shared', allowOrphan: true })
 export class ClusterMark extends BaseEntity {
     /**
      * The id of the instance that wrote this row.

@@ -21,7 +21,7 @@ Zibri aims to take care of most of your multi threading concerns, including:
 | `reportProgress` | function | Reports the progress (0-100) of a running thread job |
 | `MultithreadingOptions` | type | Options accepted by the `MULTITHREADING_OPTIONS` DI token |
 | `ZIBRI_DI_TOKENS.MULTITHREADING_OPTIONS` | DI token | Overrides worker pool defaults |
-| `ThreadJobEntity` | entity | The queue itself. Must be registered in a data source |
+| `ThreadJobEntity` | entity | The queue itself |
 | `RunQueuedThreadJobsCronJob` | cron job | Looks for work this instance could take. Registered for you |
 
 ## Usage
@@ -118,6 +118,8 @@ Before an instance runs a job it takes a [lease](./leases.md) on it, and holds t
 
 A `run` call is the exception. Its function never leaves the process that called it, so it waits in that process — ordered against the queued jobs by when it was queued, not before or after them as a class.
 
+A job queued in a [tenant](./tenancy.md#work-outside-a-request) belongs to it, and its `onMessage`, `onComplete`, `onError` and `onCancel` run in that tenant. Waiting for it from another tenant answers like waiting for a job that does not exist.
+
 ### Surviving a restart
 Shutting down marks every job still running as `INTERRUPTED` before the workers stop, and hands back their claims — a job that ran halfway is not the same as one that never started, and `startedAtMs` and `progress` are kept as the record of how far it got. It is not a drain: a job's default timeout is an hour and a pod's grace period is seconds, so waiting is not on offer. What it is, is a handover: the claim is free the moment the process lets go of it, so another instance takes the job over straight away rather than waiting for anything to lapse.
 
@@ -125,7 +127,7 @@ An instance picks work up when it starts, when it queues something, when one of 
 
 **The claim is what says an instance is still there, not the row.** An `IN_PROGRESS` row left by a killed pod is identical to one another instance is working on right now, so the row cannot answer it. A live owner renews its claim; one that stopped existing lets it lapse, and the job is taken over within `30 seconds` of that.
 
-**Jobs run at least once, not exactly once.** An instance can finish a job and be killed before writing that down, and a job taken over runs again from the beginning — `progress` goes back to zero, because it describes the run rather than the job. A job whose side effects must not happen twice has to be safe to repeat, the same as in any other durable queue.
+**Jobs run at least once, not exactly once.** An instance can finish a job and be killed before writing that down, or fail to reach the data source when it tries to, and a job taken over runs again from the beginning — `progress` goes back to zero, because it describes the run rather than the job. A job whose side effects must not happen twice has to be safe to repeat, the same as in any other durable queue.
 
 Work is picked up on start rather than on init deliberately: a pod that comes up and never becomes ready does not work through the backlog.
 

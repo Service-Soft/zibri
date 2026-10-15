@@ -56,14 +56,27 @@ export abstract class PromiseUtilities {
         options?: ChunkingOptions
     ): Promise<Awaited<R>[]> {
         const results: Awaited<R>[] = [];
-        const chunkSize: number = options?.chunkSize ?? this.defaultChunkSize;
 
-        for (let i: number = 0; i < items.length; i += chunkSize) {
-            const promises: (R | Promise<R>)[] = items.slice(i, i + chunkSize).map(fn);
+        for (const chunk of this.resolveChunks(items, options?.chunkSize ?? this.defaultChunkSize)) {
+            const promises: (R | Promise<R>)[] = chunk.map(fn);
             results.push(...await Promise.all(promises));
         }
 
         return results;
+    }
+
+    /**
+     * Splits items into consecutive chunks, keeping their order.
+     * @param items - The items to split.
+     * @param chunkSize - How many items one chunk holds at most.
+     * @returns The chunks, every one full except possibly the last.
+     */
+    static resolveChunks<T>(items: T[], chunkSize: number): T[][] {
+        const res: T[][] = [];
+        for (let i: number = 0; i < items.length; i += chunkSize) {
+            res.push(items.slice(i, i + chunkSize));
+        }
+        return res;
     }
 
     /**

@@ -47,6 +47,8 @@ const EXPLICITLY_CREATED_FILES: string[] = [
     'src/data-sources/index.ts',
     'src/repositories/index.ts',
     'src/repositories/user.repository.ts',
+    'src/repositories/membership.repository.ts',
+    'src/controllers/auth.controller.ts',
     'src/controllers/health.controller.ts',
     'src/controllers/page.controller.ts',
     'src/controllers/index.ts',
@@ -54,6 +56,7 @@ const EXPLICITLY_CREATED_FILES: string[] = [
     'src/models/generated/providers.ts',
     'src/models/roles.enum.ts',
     'src/models/user.model.ts',
+    'src/models/membership.model.ts',
     'src/cron/index.ts',
     'src/services/index.ts'
 ];

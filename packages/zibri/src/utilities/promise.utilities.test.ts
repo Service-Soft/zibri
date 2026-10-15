@@ -55,6 +55,16 @@ describe('PromiseUtilities', () => {
         });
     });
 
+    describe('resolveChunks', () => {
+        it('splits the items in order, with only the last chunk short', () => {
+            expect(PromiseUtilities.resolveChunks([1, 2, 3, 4, 5, 6, 7], 3)).toEqual([[1, 2, 3], [4, 5, 6], [7]]);
+        });
+
+        it('returns no chunks for no items', () => {
+            expect(PromiseUtilities.resolveChunks([], 3)).toEqual([]);
+        });
+    });
+
     describe('anyValueTrue', () => {
         it('returns true if any item resolves to true', async () => {
             const result: boolean = await PromiseUtilities.anyValueTrue([1, 2, 3], n => n === 2);

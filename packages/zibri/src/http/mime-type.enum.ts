@@ -16,6 +16,7 @@ export enum MimeType {
     TAR = 'application/x-tar',
     WASM = 'application/wasm',
     JSON_LD = 'application/ld+json',
+    JSON_SCIM = 'application/scim+json',
     // eslint-disable-next-line cspell/spellchecker
     NDJSON = 'application/x-ndjson',
     XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -66,6 +67,7 @@ export type FileMimeType = ExcludeStrict<
     | MimeType.FORM_DATA
     | MimeType.FORM_URL_ENCODED
     | MimeType.EVENT_STREAM
+    | MimeType.JSON_SCIM
 >;
 
 /**

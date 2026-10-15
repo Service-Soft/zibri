@@ -9,6 +9,12 @@ import { Property } from '../../../entity/decorators/property.decorator';
 @Entity({ allowOrphan: true })
 export class MailingListSubscriber extends BaseEntity {
     /**
+     * The tenant whose mailing lists the subscriber is subscribed to.
+     */
+    @Property.string({ format: 'uuid' })
+    tenantId!: string;
+
+    /**
      * The optional name of the subscriber.
      */
     @Property.string({ required: false })

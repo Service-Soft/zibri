@@ -33,6 +33,7 @@
         "clear": "rm -rf sandbox && mkdir sandbox && npm run start n api",
         "lint": "eslint . --max-warnings=0",
         "lint:fix": "eslint . --max-warnings=0 --fix",
+        "typecheck": "tsc -p tsconfig.json --noEmit",
         "prepublishOnly": "npm run build",
         "test": "npm run test:normal && npm run test:heavy",
         "test:normal": "jest --testPathPatterns='^(?!.*\\.heavy\\.test\\.ts$).*'",
@@ -48,12 +49,12 @@
     "devDependencies": {
         "@jest/globals": "^30.4.1",
         "@types/figlet": "^1.7.0",
-        "@types/node": "^22.19.17",
-        "eslint": "^9.24.0",
+        "@types/node": "^24.0.0",
+        "eslint": "^9.36.0",
         "eslint-config-service-soft": "^2.1.6",
         "jest": "^30.4.2",
         "jest-diff": "^30.4.1",
         "ts-jest": "^29.4.11",
-        "typescript": "^5.8.3"
+        "typescript": "^5.9.2"
     }
 }

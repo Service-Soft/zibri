@@ -14,7 +14,7 @@ import { DataSourceInterface } from '../data-sources/data-source.interface';
 import { PostgresDataSource } from '../data-sources/postgres/postgres-typeorm-data-source.model';
 import { Repository } from '../repository/repository';
 
-@Entity()
+@Entity({ tenant: 'shared' })
 class Item {
     @Property.string({ primary: true })
     id!: string;

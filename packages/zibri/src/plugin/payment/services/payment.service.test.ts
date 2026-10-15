@@ -10,6 +10,7 @@ import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../di/inject.function';
 import { defineProvider } from '../../../di/models/di-provider.model';
 import { type LoggerInterface } from '../../../logging/logger.interface';
+import { type TenantServiceInterface } from '../../../tenancy/tenant-service.interface';
 import { UUIDUtilities } from '../../../utilities/uuid.utilities';
 import { KnownPaymentMethod, PaymentMethod } from '../models/payment-method.model';
 import { PaymentPluginOptionsInput } from '../models/payment-plugin-options-input.model';
@@ -42,18 +43,18 @@ function createFakeProvider(): AnyPaymentProviderInterface & Record<string, any>
     };
 }
 
-function createPayment(status: PaymentStatus): Payment<KnownPaymentMethod.PAY_PAL, Record<string, unknown>> {
-    return {
-        id: UUIDUtilities.generate(),
-        transactionId: UUIDUtilities.generate(),
-        createdAt: new Date(),
-        status,
-        amount: 10,
-        currencyCode: 'EUR',
-        paymentMethod: KnownPaymentMethod.PAY_PAL,
-        data: undefined,
-        error: undefined
-    };
+/**
+ * The tenant every payment of this suite is stored in.
+ */
+const tenantId: string = UUIDUtilities.generate();
+
+/**
+ * Runs work in the tenant of this suite's payments.
+ * @param work - The work.
+ * @returns What the work returns.
+ */
+async function inTenant<T>(work: () => Promise<T>): Promise<T> {
+    return await inject<TenantServiceInterface>(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(tenantId, work);
 }
 
 describe('PaymentService', () => {
@@ -61,6 +62,23 @@ describe('PaymentService', () => {
     let paymentService: PaymentServiceInterface<[KnownPaymentMethod.PAY_PAL], [AnyPaymentProviderInterface]>;
     let paymentRepository: Repository<Payment<KnownPaymentMethod, Record<string, unknown>>>;
     let provider: ReturnType<typeof createFakeProvider>;
+
+    /**
+     * Stores a payment in the given status. A transition is judged by the stored payment, so the
+     * one it is handed has to be stored.
+     * @param status - The status.
+     * @returns The payment.
+     */
+    async function createPayment(status: PaymentStatus): Promise<Payment<KnownPaymentMethod.PAY_PAL, Record<string, unknown>>> {
+        const payment: Payment<KnownPaymentMethod, Record<string, unknown>> = await inTenant(async () => await paymentRepository.create({
+            transactionId: UUIDUtilities.generate(),
+            status,
+            amount: 10,
+            currencyCode: 'EUR',
+            paymentMethod: KnownPaymentMethod.PAY_PAL
+        }));
+        return { ...payment, paymentMethod: KnownPaymentMethod.PAY_PAL };
+    }
 
     beforeAll(async () => {
         provider = createFakeProvider();
@@ -99,26 +117,31 @@ describe('PaymentService', () => {
     });
 
     describe('validatePaymentData', () => {
-        it('rejects a duplicate transactionId', async () => {
+        it('rejects a duplicate transactionId in the tenant', async () => {
+            const tenants: TenantServiceInterface = inject(ZIBRI_DI_TOKENS.TENANT_SERVICE);
+            const ownTenantId: string = UUIDUtilities.generate();
             const transactionId: string = UUIDUtilities.generate();
-            await paymentRepository.create({
+            await tenants.runAs(ownTenantId, async () => await paymentRepository.create({
                 transactionId,
                 status: PaymentStatus.CREATED,
                 amount: 1,
                 currencyCode: 'EUR',
                 paymentMethod: KnownPaymentMethod.PAY_PAL
-            });
+            }));
 
-            await expect(
-                paymentService.validatePaymentData(KnownPaymentMethod.PAY_PAL, { transactionId, amount: 1, currencyCode: 'EUR' })
-            ).rejects.toThrow(/already exists/);
+            const validate: () => Promise<void> = async () => {
+                await paymentService.validatePaymentData(KnownPaymentMethod.PAY_PAL, { transactionId, amount: 1, currencyCode: 'EUR' });
+            };
+            await expect(tenants.runAs(ownTenantId, validate)).rejects.toThrow(/already exists/);
+            // another tenant's payment of the same transactionId is none of this one
+            await expect(tenants.runAs(UUIDUtilities.generate(), validate)).resolves.toBeUndefined();
         });
     });
 
     describe('confirmPaymentReservation', () => {
         it('calls the provider when status is CREATED', async () => {
-            const payment: Payment<KnownPaymentMethod.PAY_PAL, Record<string, unknown>> = createPayment(PaymentStatus.CREATED);
-            await paymentService.confirmPaymentReservation(payment);
+            const payment: Payment<KnownPaymentMethod.PAY_PAL, Record<string, unknown>> = await createPayment(PaymentStatus.CREATED);
+            await inTenant(async () => await paymentService.confirmPaymentReservation(payment));
             expect(provider.confirmPaymentReservation).toHaveBeenCalledTimes(1);
         });
 
@@ -126,9 +149,9 @@ describe('PaymentService', () => {
             const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
             // eslint-disable-next-line typescript/typedef
             const warnSpy = jest.spyOn(logger, 'warn');
-            const payment: Payment<KnownPaymentMethod.PAY_PAL, Record<string, unknown>> = createPayment(PaymentStatus.RESERVED);
+            const payment: Payment<KnownPaymentMethod.PAY_PAL, Record<string, unknown>> = await createPayment(PaymentStatus.RESERVED);
 
-            await paymentService.confirmPaymentReservation(payment);
+            await inTenant(async () => await paymentService.confirmPaymentReservation(payment));
 
             expect(provider.confirmPaymentReservation).not.toHaveBeenCalled();
             expect(warnSpy).toHaveBeenCalled();
@@ -136,91 +159,91 @@ describe('PaymentService', () => {
         });
 
         it('throws for any other status', async () => {
-            const payment: Payment<KnownPaymentMethod.PAY_PAL, Record<string, unknown>> = createPayment(PaymentStatus.PAID);
-            await expect(paymentService.confirmPaymentReservation(payment)).rejects.toThrow(/Cannot confirm payment/);
+            const payment: Payment<KnownPaymentMethod.PAY_PAL, Record<string, unknown>> = await createPayment(PaymentStatus.PAID);
+            await expect(inTenant(async () => await paymentService.confirmPaymentReservation(payment))).rejects.toThrow(/Cannot confirm payment/);
             expect(provider.confirmPaymentReservation).not.toHaveBeenCalled();
         });
     });
 
     describe('confirmPayment', () => {
         it('calls the provider when status is CREATED', async () => {
-            const payment: Payment<KnownPaymentMethod.PAY_PAL, Record<string, unknown>> = createPayment(PaymentStatus.CREATED);
-            await paymentService.confirmPayment(payment);
+            const payment: Payment<KnownPaymentMethod.PAY_PAL, Record<string, unknown>> = await createPayment(PaymentStatus.CREATED);
+            await inTenant(async () => await paymentService.confirmPayment(payment));
             expect(provider.confirmPayment).toHaveBeenCalledTimes(1);
         });
 
         it('no-ops with a warning when already PAID', async () => {
-            const payment: Payment<KnownPaymentMethod.PAY_PAL, Record<string, unknown>> = createPayment(PaymentStatus.PAID);
-            await paymentService.confirmPayment(payment);
+            const payment: Payment<KnownPaymentMethod.PAY_PAL, Record<string, unknown>> = await createPayment(PaymentStatus.PAID);
+            await inTenant(async () => await paymentService.confirmPayment(payment));
             expect(provider.confirmPayment).not.toHaveBeenCalled();
         });
 
         it('throws for any other status', async () => {
-            const payment: Payment<KnownPaymentMethod.PAY_PAL, Record<string, unknown>> = createPayment(PaymentStatus.CANCELLED);
-            await expect(paymentService.confirmPayment(payment)).rejects.toThrow(/Cannot confirm payment/);
+            const payment: Payment<KnownPaymentMethod.PAY_PAL, Record<string, unknown>> = await createPayment(PaymentStatus.CANCELLED);
+            await expect(inTenant(async () => await paymentService.confirmPayment(payment))).rejects.toThrow(/Cannot confirm payment/);
         });
     });
 
     describe('collectPaymentFromReservation', () => {
         it('calls the provider when status is RESERVED', async () => {
-            const payment: Payment<KnownPaymentMethod.PAY_PAL, Record<string, unknown>> = createPayment(PaymentStatus.RESERVED);
-            await paymentService.collectPaymentFromReservation(payment);
+            const payment: Payment<KnownPaymentMethod.PAY_PAL, Record<string, unknown>> = await createPayment(PaymentStatus.RESERVED);
+            await inTenant(async () => await paymentService.collectPaymentFromReservation(payment));
             expect(provider.collectPaymentFromReservation).toHaveBeenCalledTimes(1);
         });
 
         it('no-ops with a warning when already PAID', async () => {
-            const payment: Payment<KnownPaymentMethod.PAY_PAL, Record<string, unknown>> = createPayment(PaymentStatus.PAID);
-            await paymentService.collectPaymentFromReservation(payment);
+            const payment: Payment<KnownPaymentMethod.PAY_PAL, Record<string, unknown>> = await createPayment(PaymentStatus.PAID);
+            await inTenant(async () => await paymentService.collectPaymentFromReservation(payment));
             expect(provider.collectPaymentFromReservation).not.toHaveBeenCalled();
         });
 
         it('throws for any other status', async () => {
-            const payment: Payment<KnownPaymentMethod.PAY_PAL, Record<string, unknown>> = createPayment(PaymentStatus.CREATED);
-            await expect(paymentService.collectPaymentFromReservation(payment)).rejects.toThrow(/Can only collect/);
+            const payment: Payment<KnownPaymentMethod.PAY_PAL, Record<string, unknown>> = await createPayment(PaymentStatus.CREATED);
+            await expect(inTenant(async () => await paymentService.collectPaymentFromReservation(payment))).rejects.toThrow(/Can only collect/);
         });
     });
 
     describe('cancelPayment', () => {
         it('calls the provider when status is CREATED', async () => {
-            const payment: Payment<KnownPaymentMethod.PAY_PAL, Record<string, unknown>> = createPayment(PaymentStatus.CREATED);
-            await paymentService.cancelPayment(payment);
+            const payment: Payment<KnownPaymentMethod.PAY_PAL, Record<string, unknown>> = await createPayment(PaymentStatus.CREATED);
+            await inTenant(async () => await paymentService.cancelPayment(payment));
             expect(provider.cancelPayment).toHaveBeenCalledTimes(1);
         });
 
         it('calls the provider when status is RESERVED', async () => {
-            const payment: Payment<KnownPaymentMethod.PAY_PAL, Record<string, unknown>> = createPayment(PaymentStatus.RESERVED);
-            await paymentService.cancelPayment(payment);
+            const payment: Payment<KnownPaymentMethod.PAY_PAL, Record<string, unknown>> = await createPayment(PaymentStatus.RESERVED);
+            await inTenant(async () => await paymentService.cancelPayment(payment));
             expect(provider.cancelPayment).toHaveBeenCalledTimes(1);
         });
 
         it('no-ops with a warning when already CANCELLED', async () => {
-            const payment: Payment<KnownPaymentMethod.PAY_PAL, Record<string, unknown>> = createPayment(PaymentStatus.CANCELLED);
-            await paymentService.cancelPayment(payment);
+            const payment: Payment<KnownPaymentMethod.PAY_PAL, Record<string, unknown>> = await createPayment(PaymentStatus.CANCELLED);
+            await inTenant(async () => await paymentService.cancelPayment(payment));
             expect(provider.cancelPayment).not.toHaveBeenCalled();
         });
 
         it('throws when the payment is already PAID (fully captured)', async () => {
-            const payment: Payment<KnownPaymentMethod.PAY_PAL, Record<string, unknown>> = createPayment(PaymentStatus.PAID);
-            await expect(paymentService.cancelPayment(payment)).rejects.toThrow(/Cannot cancel payment/);
+            const payment: Payment<KnownPaymentMethod.PAY_PAL, Record<string, unknown>> = await createPayment(PaymentStatus.PAID);
+            await expect(inTenant(async () => await paymentService.cancelPayment(payment))).rejects.toThrow(/Cannot cancel payment/);
         });
     });
 
     describe('refundPayment', () => {
         it('calls the provider when status is PAID', async () => {
-            const payment: Payment<KnownPaymentMethod.PAY_PAL, Record<string, unknown>> = createPayment(PaymentStatus.PAID);
-            await paymentService.refundPayment(payment);
+            const payment: Payment<KnownPaymentMethod.PAY_PAL, Record<string, unknown>> = await createPayment(PaymentStatus.PAID);
+            await inTenant(async () => await paymentService.refundPayment(payment));
             expect(provider.refundPayment).toHaveBeenCalledTimes(1);
         });
 
         it('no-ops with a warning when already REFUNDED', async () => {
-            const payment: Payment<KnownPaymentMethod.PAY_PAL, Record<string, unknown>> = createPayment(PaymentStatus.REFUNDED);
-            await paymentService.refundPayment(payment);
+            const payment: Payment<KnownPaymentMethod.PAY_PAL, Record<string, unknown>> = await createPayment(PaymentStatus.REFUNDED);
+            await inTenant(async () => await paymentService.refundPayment(payment));
             expect(provider.refundPayment).not.toHaveBeenCalled();
         });
 
         it('throws for a non-PAID status', async () => {
-            const payment: Payment<KnownPaymentMethod.PAY_PAL, Record<string, unknown>> = createPayment(PaymentStatus.CREATED);
-            await expect(paymentService.refundPayment(payment)).rejects.toThrow(/Cannot refund payment/);
+            const payment: Payment<KnownPaymentMethod.PAY_PAL, Record<string, unknown>> = await createPayment(PaymentStatus.CREATED);
+            await expect(inTenant(async () => await paymentService.refundPayment(payment))).rejects.toThrow(/Cannot refund payment/);
         });
     });
 });

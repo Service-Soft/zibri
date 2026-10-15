@@ -1,17 +1,17 @@
-// eslint-disable-next-line eslintImport/no-unassigned-import, eslintImport/order
-import './cluster-module-paths'; // first, and before anything that could load the framework: it decides which copy of it this process gets.
-
+// which copy of the framework this process gets is decided before this file runs: the parent
+// preloads cluster-module-paths into every thread of the instance
 import { createRequire } from 'node:module';
 import { AddressInfo } from 'node:net';
 
 // eslint-disable-next-line eslintImport/no-unassigned-import
 import 'reflect-metadata'; // has to come before every zibri import below: they are all decorated.
-import { DataSourceInterface, FsPath, initDiContainer, inject, Newable, ZibriApplication, ZibriApplicationOptions } from 'zibri';
+import { DataSourceInterface, DiProvider, FsPath, initDiContainer, inject, Newable, ZibriApplication, ZibriApplicationOptions } from 'zibri';
 
 import { defaultClusterDataSources } from './cluster-data-sources';
 import { requireClusterEnv } from './cluster-env.function';
 import { CLUSTER_DATA_SOURCE_PORTS_ENV, CLUSTER_INSTANCE_OPTIONS_ENV, CLUSTER_SCRATCH_PATH_ENV, ClusterInstanceMessage } from './cluster-message.model';
 import { defaultClusterProviders } from './cluster-providers';
+import { registerAheadOfInit } from '../register-ahead-of-init.function';
 import { resolveApplicationOptions } from '../resolve-application-options.function';
 import { scratchProviders } from '../scratch-directory.function';
 import { applyContainerPort, needsContainer, TestDataSource } from '../start-data-source-containers.function';
@@ -98,7 +98,30 @@ async function boot(): Promise<void> {
     // there are or in which order - the mapped ports are indexed by that.
     const dataSources: Newable<DataSourceInterface>[] = options.dataSources ?? defaultClusterDataSources;
 
+    // the same resolution a single process test server does, so a scenario reads the same whether it
+    // runs in one process or across several. The name is this file's own rather than the
+    // application's: every replica has to boot under one name, because the jwt strategy issues and
+    // verifies tokens under it, and the data sources are the ones the parent already started
+    // containers for.
+    const resolved: ZibriApplicationOptions = resolveApplicationOptions(options, {
+        name: CLUSTER_APP_NAME,
+        dataSources: () => dataSources,
+        providers: defaultClusterProviders
+    });
+    // the directory the parent made for this cluster, so what the replicas record lands somewhere it
+    // can be looked at and removed rather than beside whichever copy of the framework this process
+    // loaded
+    const providers: DiProvider<unknown>[] = [
+        ...scratchProviders(requireClusterEnv(CLUSTER_SCRATCH_PATH_ENV) as FsPath),
+        ...resolved.providers ?? []
+    ];
+
     initDiContainer();
+    // before the data sources below are built, because building one builds what it injects, and the
+    // container keeps that. The auth service reaches the lease service through the two factor
+    // service, so without this every replica held the default lease drain rather than its own - and
+    // a drain longer than the harness waits for a replica to exit was a grant never handed back
+    registerAheadOfInit(providers);
 
     // only the data sources that need a server of their own were given a container, and only a
     // container has a port to map. An in process one is declared like any other and skipped here.
@@ -116,26 +139,12 @@ async function boot(): Promise<void> {
         applyContainerPort(dataSource, port);
     }
 
-    // the same resolution a single process test server does, so a scenario reads the same whether it
-    // runs in one process or across several. The name is this file's own rather than the
-    // application's: every replica has to boot under one name, because the jwt strategy issues and
-    // verifies tokens under it, and the data sources are the ones the parent already started
-    // containers for.
-    const resolved: ZibriApplicationOptions = resolveApplicationOptions(options, {
-        name: CLUSTER_APP_NAME,
-        dataSources: () => dataSources,
-        providers: defaultClusterProviders
-    });
-
     const app: ZibriApplication = new ZibriApplication({
         ...resolved,
         name: CLUSTER_APP_NAME,
         baseUrl: 'http://127.0.0.1',
         dataSources,
-        // the directory the parent made for this cluster, so what the replicas record lands
-        // somewhere it can be looked at and removed rather than beside whichever copy of the
-        // framework this process loaded
-        providers: [...scratchProviders(requireClusterEnv(CLUSTER_SCRATCH_PATH_ENV) as FsPath), ...resolved.providers ?? []]
+        providers
     });
 
     // process.exit inside shutdown() needs no stubbing here, unlike in startTestServer: ending the

@@ -1,17 +1,17 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { openApiToV3 } from './open-api-to-v3.function';
+import { OpenApiConvertUtilities } from './open-api-convert.utilities';
 import { OpenApiDefinition } from '../../../open-api/open-api.model';
 
-describe('openApiToV3', () => {
+describe('OpenApiConvertUtilities.toV3', () => {
     it('throws when given a non-object document', async () => {
-        await expect(openApiToV3(undefined)).rejects.toThrow('Invalid OpenAPI document');
-        await expect(openApiToV3('not a spec')).rejects.toThrow('Invalid OpenAPI document');
-        await expect(openApiToV3(42)).rejects.toThrow('Invalid OpenAPI document');
+        await expect(OpenApiConvertUtilities.toV3(undefined)).rejects.toThrow('Invalid OpenAPI document');
+        await expect(OpenApiConvertUtilities.toV3('not a spec')).rejects.toThrow('Invalid OpenAPI document');
+        await expect(OpenApiConvertUtilities.toV3(42)).rejects.toThrow('Invalid OpenAPI document');
     });
 
     it('throws when given an array', async () => {
-        await expect(openApiToV3([])).rejects.toThrow('Invalid OpenAPI document');
+        await expect(OpenApiConvertUtilities.toV3([])).rejects.toThrow('Invalid OpenAPI document');
     });
 
     it('converts a swagger 2.0 document to openapi 3.1', async () => {
@@ -37,7 +37,7 @@ describe('openApiToV3', () => {
             }
         };
 
-        const res: OpenApiDefinition = await openApiToV3(spec);
+        const res: OpenApiDefinition = await OpenApiConvertUtilities.toV3(spec);
 
         expect(res.openapi).toBe('3.1.0');
         expect(res.info).toEqual({ title: 'legacy', version: '1.0' });
@@ -52,7 +52,7 @@ describe('openApiToV3', () => {
             paths: {}
         };
 
-        const res: OpenApiDefinition = await openApiToV3(spec);
+        const res: OpenApiDefinition = await OpenApiConvertUtilities.toV3(spec);
 
         expect(res).toBe(spec);
     });
@@ -72,7 +72,7 @@ describe('openApiToV3', () => {
             }
         };
 
-        const res: OpenApiDefinition = await openApiToV3(spec);
+        const res: OpenApiDefinition = await OpenApiConvertUtilities.toV3(spec);
 
         expect(res.openapi).toBe('3.1.0');
         expect(res.info).toEqual(spec.info);
@@ -86,10 +86,10 @@ describe('openApiToV3', () => {
             paths: {}
         };
 
-        await expect(openApiToV3(spec)).rejects.toThrow('Unsupported OpenAPI version');
+        await expect(OpenApiConvertUtilities.toV3(spec)).rejects.toThrow('Unsupported OpenAPI version');
     });
 
     it('throws when neither "swagger" nor a recognizable "openapi" field is present', async () => {
-        await expect(openApiToV3({ info: { title: 'test', version: '1.0' } })).rejects.toThrow('Unsupported OpenAPI version');
+        await expect(OpenApiConvertUtilities.toV3({ info: { title: 'test', version: '1.0' } })).rejects.toThrow('Unsupported OpenAPI version');
     });
 });

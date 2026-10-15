@@ -1,9 +1,10 @@
 import { defaultTestProviders } from 'zibri-testing';
 
-import { PasswordResetEmailTemplate } from '../../auth/strategies/jwt/jwt-auth.controller';
+import { PasswordResetEmailTemplate } from '../../auth/authenticators/password/password-reset-email-template.model';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { defineProvider, DiProvider } from '../../di/models/di-provider.model';
 import { LocalizeService } from '../../localization/localize.service';
+import { Ms } from '../../utilities/ms';
 import { compileTsxTemplate } from '../compile-tsx-template.function';
 import { testVersionsFolder } from '../constants';
 
@@ -41,5 +42,12 @@ export const defaultTestServerProviders: DiProvider<unknown>[] = [
     defineProvider({
         token: ZIBRI_DI_TOKENS.LOCALIZE_SERVICE,
         useClass: TestLocalizeService
+    }),
+    // what an application with websockets has to say, said once for the suites that only boot a
+    // websocket controller. Here rather than in the harness's defaults: an application's own tests
+    // should fail the way the application does when it forgot
+    defineProvider({
+        token: ZIBRI_DI_TOKENS.WEBSOCKET_OPTIONS_INPUT,
+        useValue: { messageRetentionInMs: Ms.DAY }
     })
 ];

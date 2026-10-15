@@ -1,5 +1,6 @@
 import { BadRequestError } from '../../error-handling/errors/bad-request.error';
 import { $ts } from '../../localization/translate.function';
+import { JsonUtilities } from '../../utilities/json.utilities';
 
 /**
  * What a keyset cursor carries, before it is encoded.
@@ -63,7 +64,7 @@ function isKeysetCursorPayload(value: unknown): value is KeysetCursorPayload {
  */
 export function encodeKeysetCursor(content: KeysetCursorContent): string {
     const payload: KeysetCursorPayload = { order: content.order, values: content.values };
-    return Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
+    return Buffer.from(JsonUtilities.stringify(payload), 'utf8').toString('base64url');
 }
 
 /**
@@ -80,7 +81,7 @@ export function encodeKeysetCursor(content: KeysetCursorContent): string {
 export function decodeKeysetCursor(cursor: string, expectedOrder: string): (string | number | boolean)[] {
     let parsed: unknown;
     try {
-        parsed = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
+        parsed = JsonUtilities.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
     }
     catch (error) {
         throw new BadRequestError($ts`The cursor could not be read.`, { cause: error });

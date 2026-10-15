@@ -30,6 +30,7 @@ export const DiVariants = {
     RATE_LIMITER: new DiVariant('rate-limiter'),
     CACHE: new DiVariant('cache'),
     USER_REPO: new DiVariant('user-repo'),
+    MEMBERSHIP_REPO: new DiVariant('membership-repo'),
     CONTROLLER: new DiVariant('controller'),
     WEBSOCKET_CONTROLLER: new DiVariant('websocket-controller'),
     BACKUP_RESOURCE: new DiVariant('backup-resource'),

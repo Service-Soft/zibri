@@ -1,7 +1,10 @@
 import { Readable } from 'node:stream';
 
-import { EntityManager, EntitySchema, EntitySchemaColumnOptions, EntitySchemaIndexOptions, EntitySchemaRelationOptions, QueryRunner, Table, TableColumn, TableColumnOptions, DataSource as TODataSource, EntityMetadata as TOEntityMetadata, QueryFailedError as TOQueryFailedError, FindOptionsWhere as ToFindOptionsWhere } from 'typeorm';
+import { EntityManager, EntitySchema, EntitySchemaColumnOptions, EntitySchemaIndexOptions, EntitySchemaRelationOptions, QueryRunner, Table, TableColumn, TableColumnOptions, TableForeignKey, DataSource as TODataSource, EntityMetadata as TOEntityMetadata, QueryFailedError as TOQueryFailedError, FindOptionsWhere as ToFindOptionsWhere } from 'typeorm';
+import { ConnectionMetadataBuilder } from 'typeorm/connection/ConnectionMetadataBuilder.js';
 import { ColumnMetadata } from 'typeorm/metadata/ColumnMetadata.js';
+import { ForeignKeyMetadata } from 'typeorm/metadata/ForeignKeyMetadata.js';
+import { RelationMetadata as TORelationMetadata } from 'typeorm/metadata/RelationMetadata.js';
 
 import { DataSourceInitializationError } from './data-source-initialization.error';
 import { DataSourceInterface, RepositoryTypeForEntity, SCHEMA_LOCK_KEY, StartTransactionOptions } from './data-source.interface';
@@ -20,44 +23,138 @@ import { Inject } from '../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { EntityMetadata } from '../../entity/decorators/entity.decorator';
-import { PropertyMetadata, PropertyMetadataInput, RelationMetadata } from '../../entity/decorators/property.decorator';
+import { PropertyMetadata, RelationMetadata } from '../../entity/decorators/property.decorator';
 import { EntityMetadataMissingError } from '../../entity/entity-metadata-missing.error';
-import { FilePropertyMetadata } from '../../entity/models/file-property-metadata.model';
-import { NumberFormat, NumberPropertyMetadataInput } from '../../entity/models/number-property-metadata.model';
+import { NumberFormat } from '../../entity/models/number-property-metadata.model';
 import { Relation } from '../../entity/models/relation.enum';
 import { coversEveryRow, UniqueGroup } from '../../entity/models/unique-declaration.model';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { KeyGroups, keyGroupsOf } from '../../global/model-registry/key-descriptor';
 import { type LoggerInterface } from '../../logging/logger.interface';
-import { DeepPartial } from '../../types/deep-partial.type';
 import { ExcludeStrict } from '../../types/exclude-strict.type';
 import { Newable } from '../../types/newable.type';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
+import { PromiseUtilities } from '../../utilities/promise.utilities';
 import { TypeOrmUtilities } from '../../utilities/typeorm.utilities';
 import { SemVerVersion } from '../../versioning/sem-ver.utilities';
 import { registerRepositoryProvidersFor } from '../entity-ownership.function';
 import { getDefaultBeforeReturnHook, getDefaultBeforeSaveHook } from '../hooks/hooks.default';
-import { indexName } from '../index-name.function';
-import { MistypedJsonValue } from '../json-value-type-mismatch.error';
+import { indexName, trigramIndexName } from '../index-name.function';
+import { MigratedEntityUtilities } from '../migration/migrated-entity.utilities';
 import { MigrationEntity } from '../migration/migration-entity.model';
 import { Migration } from '../migration/migration.model';
-import { revertMigrationsAfter, runMigrations } from '../migration/run-migrations.function';
-import { AtomicUpdate } from '../models/atomic-update.model';
+import { recordKeyReconciliation, revertMigrationsAfter, runMigrations } from '../migration/run-migrations.function';
+import { AddPropertyToEntityInput } from '../models/add-property-to-entity-input.model';
+import { ChangePropertyOfEntityInput } from '../models/change-property-of-entity-input.model';
 import { ColumnType } from '../models/column-type.model';
-import { DataSourceOptions } from '../models/data-source-options.model';
+import { CreateEntityInput } from '../models/create-entity-input.model';
+import { DataSourceOptions, ResolvedDataSourceOptions } from '../models/data-source-options.model';
+import { MergeEntityInput } from '../models/merge-entity-input.model';
+import { MigrationPropertyMetadata } from '../models/migration-property-metadata.model';
+import { RefusedValue } from '../models/refused-value.model';
+import { RemovePropertyFromEntityInput } from '../models/remove-property-from-entity-input.model';
+import { RenameEntityInput } from '../models/rename-entity-input.model';
+import { ResolvedPropertyConversion } from '../models/resolved-property-conversion.model';
 import { SchemaManagement } from '../models/schema-management.model';
+import { UpsertRow } from '../models/upsert-row.model';
 import { Where, WhereFilter } from '../models/where/where-filter.model';
 import { Repository } from '../repository/repository';
+import { MistypedStoredValue } from '../stored-value-type-mismatch.error';
 import { Transaction } from '../transaction/transaction.model';
 import { TypeOrmTransaction } from '../transaction/typeorm-transaction.model';
 import { uniqueConstraintName } from '../unique-constraint-name.function';
-import { uniqueGroupFor } from '../unique-group-for.function';
+import { UniqueConstraintViolationError } from '../unique-constraint-violation.error';
+import { UpsertIdentityUtilities } from '../upsert-identity.utilities';
+import { ValueConversionUtilities } from '../value-conversion.utilities';
 import { keyWhereToSql } from '../where/key-where-to-sql.function';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 export type ToColumnMappableTypes = ExcludeStrict<PropertyMetadata, RelationMetadata<BaseEntity>>['type'];
+
+/**
+ * A table built from what a migration says, as synchronizing would create it.
+ */
+type MigratedTable = {
+    /**
+     * The table.
+     */
+    table: Table,
+    /**
+     * The metadata the orm built it from.
+     */
+    metadata: TOEntityMetadata
+};
+
+/**
+ * A join table that a renamed entity takes part in, as it is stored and as it is stored afterwards.
+ */
+export type RenamedJoinTable = {
+    /**
+     * Its name now.
+     */
+    currentName: string,
+    /**
+     * Its name afterwards.
+     */
+    name: string,
+    /**
+     * Each of its columns, as its name now and afterwards.
+     */
+    columns: [string, string][],
+    /**
+     * The columns referring to the renamed entity, as they are named now.
+     */
+    entityColumns: string[]
+};
+
+/**
+ * The rows a migration merges from one table into another, as far as every dialect resolves them
+ * the same way.
+ */
+export type MergedRows = {
+    /**
+     * The table the rows are merged from.
+     */
+    currentTableName: string,
+    /**
+     * The table they are merged into.
+     */
+    tableName: string,
+    /**
+     * The columns both tables have, which are the ones copied.
+     */
+    columns: string[],
+    /**
+     * The primary key column of the table merged into.
+     */
+    primaryColumn: string,
+    /**
+     * The uniques the entity declares, as their columns and, for one over some of the rows, the
+     * condition it was created with. A row breaking one of them, or the primary key, is left out.
+     */
+    uniques: MergedUnique[],
+    /**
+     * The join tables of the rows merged from, which hold relations of the rows that are copied.
+     */
+    joinTables: RenamedJoinTable[]
+};
+
+/**
+ * A unique of the table rows are merged into.
+ */
+export type MergedUnique = {
+    /**
+     * Its columns.
+     */
+    columns: string[],
+    /**
+     * The condition it was created with, without the `WHERE` keyword, or undefined when it covers
+     * every row.
+     */
+    where: string | undefined
+};
 
 /**
  * One column change of an upsert, already resolved from a property to a column name.
@@ -116,26 +213,64 @@ export type UpsertInput = {
      */
     tableName: string,
     /**
-     * What identifies the row, as the statement has to refer to it.
+     * The id column of the table.
+     */
+    idColumn: string,
+    /**
+     * What identifies a row, as the statement has to refer to it.
      */
     conflict: UpsertConflictTarget,
     /**
-     * The full row to insert when nothing conflicts.
+     * The columns every row is inserted with.
      */
-    insert: {
-        /**
-         * The column to write.
-         */
-        column: string,
+    columns: string[],
+    /**
+     * The rows to insert, and what to change for each one whose insert conflicts.
+     */
+    rows: UpsertInputRow[],
+    /**
+     * The rows the changes may be applied to, or undefined for any row.
+     */
+    reachable: UpsertReachable | undefined
+};
+
+/**
+ * One row of an upsert, resolved to columns.
+ */
+export type UpsertInputRow = {
+    /**
+     * The id the row is inserted with, which tells its changes apart from those of the other rows.
+     */
+    id: unknown,
+    /**
+     * One value per column of the insert, or `default` for a column this row gives no value for.
+     */
+    values: ({
         /**
          * The value to write.
          */
         value: unknown
-    }[],
+    } | 'default')[],
     /**
-     * The changes to apply when the insert does conflict.
+     * The changes to apply when the insert of this row conflicts.
      */
     updates: UpsertUpdate[]
+};
+
+/**
+ * The rows the update half of an upsert may be applied to, as a statement selecting the id of the
+ * row the insert conflicted with when it is one of them.
+ */
+export type UpsertReachable = {
+    /**
+     * The statement selecting the id, with its placeholders numbered from the first. It refers to the
+     * conflicting row by the table's own name.
+     */
+    sql: string,
+    /**
+     * The parameter values, in the order the statement refers to them.
+     */
+    params: unknown[]
 };
 
 /**
@@ -150,6 +285,20 @@ export type UpsertSql = {
      * The parameter values, in the order the statement refers to them.
      */
     params: unknown[]
+};
+
+/**
+ * One statement of an upsert, together with the rows it writes.
+ */
+type UpsertStatement<T extends BaseEntity> = {
+    /**
+     * The rows the statement writes.
+     */
+    rows: UpsertRow<T>[],
+    /**
+     * The statement.
+     */
+    sql: UpsertSql
 };
 
 /**
@@ -182,21 +331,24 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
     /**
      * The configuration options of the data source.
      */
-    readonly options: Partial<OmitStrict<TOptions, 'type' | 'entities'>> = {};
+    abstract readonly options: OmitStrict<TOptions, 'type' | 'entities'>;
 
     /**
      * The default configuration options of the data source.
      */
-    protected abstract readonly defaultOptions: OmitStrict<TOptions, 'type' | 'entities'>;
+    protected abstract readonly defaultOptions: ResolvedDataSourceOptions<Partial<OmitStrict<TOptions, 'type' | 'entities'>>>;
 
     // eslint-disable-next-line jsdoc/require-returns
     /**
      * Combination of the default and user provided options.
      */
-    protected get fullOptions(): OmitStrict<TOptions, 'type' | 'entities'> {
+    protected get fullOptions(): ResolvedDataSourceOptions<OmitStrict<TOptions, 'type' | 'entities'>> {
         return {
             ...this.defaultOptions,
-            ...this.options
+            ...this.options,
+            // named once more, because an option the consumer leaves undefined would otherwise
+            // replace the default with nothing
+            maxBoundValuesPerStatement: this.options.maxBoundValuesPerStatement ?? this.defaultOptions.maxBoundValuesPerStatement
         };
     }
 
@@ -251,6 +403,59 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
      */
     protected abstract numberColumnType(format: NumberFormat): ColumnType;
 
+    /**
+     * Changes what a column is stored as, converting the values it already holds.
+     *
+     * Leaves the column of the changed column's type, length and collation, and without a default.
+     *
+     * Abstract because converting in place is a statement each store spells its own way, and the
+     * orm's own answer to a changed type is to drop the column and add it again - which is what a
+     * migration changing a property must never do to the rows it is migrating.
+     * @param queryRunner - The query runner of the migration's transaction.
+     * @param tableName - The table the column belongs to.
+     * @param current - The column as it is stored now.
+     * @param changed - The column as it is to be stored.
+     * @param conversion - What each stored value becomes, as {@link ValueConversionUtilities} defines it.
+     */
+    protected abstract convertColumnInPlace(
+        queryRunner: QueryRunner,
+        tableName: string,
+        current: TableColumn,
+        changed: TableColumn,
+        conversion: ResolvedPropertyConversion
+    ): Promise<void>;
+
+    /**
+     * Finds the stored values a property change cannot convert, before it changes anything.
+     *
+     * Abstract because it is a query each store spells its own way, while what it has to answer is
+     * the same everywhere: what {@link ValueConversionUtilities.resolveConvertedValue} refuses.
+     * @param queryRunner - The query runner of the migration's transaction.
+     * @param tableName - The table the column belongs to.
+     * @param current - The column as it is stored now.
+     * @param changed - The column as it is to be stored.
+     * @param conversion - What each stored value becomes.
+     * @returns Each distinct value that cannot be converted, and why.
+     */
+    protected abstract findRefusedValues(
+        queryRunner: QueryRunner,
+        tableName: string,
+        current: TableColumn,
+        changed: TableColumn,
+        conversion: ResolvedPropertyConversion
+    ): Promise<RefusedValue[]>;
+
+    /**
+     * Makes the indexes and uniques of every entity's table match what the entities declare.
+     *
+     * Creates every declared one the table does not have, over the rows already stored, and drops
+     * every one the data source created that no entity declares anymore. Runs once the migrations
+     * have, while the schema lock is held.
+     * @returns Whether anything was created or dropped.
+     * @throws When stored rows break a declared unique, naming the values they share.
+     */
+    protected abstract reconcileKeys(): Promise<boolean>;
+
     abstract validateBackupConfiguration(): void | Promise<void>;
     abstract createBackupData(): Readable | Promise<Readable>;
     abstract restoreBackup(backupData: Readable): void | Promise<void>;
@@ -275,9 +480,10 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
      * is not. Only json columns can hold a value the model contradicts - every other column is the
      * type it declares, checked by the server on the way in.
      * @param error - The error the query failed with.
+     * @param entityName - The name of the entity the query was made for, which the path starts at.
      * @returns What was found, or undefined when the query failed for some other reason.
      */
-    abstract mistypedJsonValue(error: TOQueryFailedError): MistypedJsonValue | undefined;
+    abstract mistypedJsonValue(error: TOQueryFailedError, entityName: string): MistypedStoredValue | undefined;
 
     /**
      * Transforms the given Zibri where filter to typeorm's FindOptionsWhere.
@@ -329,6 +535,12 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
         await this.schemaLock(SCHEMA_LOCK_KEY, async () => {
             await this.runMigrations();
 
+            // after the migrations, which may have renamed or removed what a declaration covers, and
+            // only where the migrations own the schema: synchronizing makes the indexes and uniques
+            // match on its own, and an external owner is told what is missing instead
+            if (this.schemaManagement === 'migrations' && await this.reconcileKeys()) {
+                await recordKeyReconciliation(this.constructor as Newable<DataSourceInterface>);
+            }
             if (this.schemaManagement !== 'synchronize') {
                 return;
             }
@@ -378,32 +590,33 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
     protected abstract schemaLock<T>(key: string, fn: () => Promise<T>): Promise<T>;
 
     /**
-     * Inserts a row, or applies the given changes to the row that already holds the identity, as one
+     * Inserts each row, or applies its changes to the row that already holds its identity, as one
      * statement the database performs atomically.
      *
      * One statement is how a sql data source answers this, so it needs no transaction of its own -
      * a statement is already the smallest thing the database will not interleave. A transaction is
-     * still honored when the caller passes one, so the row can be used before it commits and rolls
+     * still honored when the caller passes one, so the rows can be used before it commits and roll
      * back with it.
      *
      * Everything that is the same across dialects happens here: resolving properties to columns,
-     * finding the unique constraint the identity refers to, and reading the returned row back into
-     * an entity. Only the statement itself is dialect specific, which is what `buildUpsertSql` is for.
+     * finding the unique constraint the identity refers to, and reading the returned rows back into
+     * entities. Only the statement itself is dialect specific, which is what `buildUpsertSql` is for.
      * @param entityClass - The entity to upsert.
-     * @param identity - The properties identifying the row. Must be declared together in `uniques`.
-     * @param create - The full row to insert when nothing matches the identity yet.
-     * @param onConflict - The changes to apply when a row already matches.
+     * @param identity - The properties identifying each row. Must be declared together in `uniques`.
+     * @param rows - What to insert, and what to change when the identity is already held.
      * @param transaction - The transaction to run in.
-     * @returns The row as it is after the statement.
-     * @throws When the entity declares no unique group covering the identity, or nothing came back.
+     * @param reachable - The rows the changes may be applied to, or undefined for any row.
+     * @returns The rows as they are after the statement, in the order they were given.
+     * @throws When the entity declares no unique group covering the identity, or a row holding one is
+     * not one `reachable` allows.
      */
     async upsert<T extends BaseEntity>(
         entityClass: Newable<T>,
-        identity: DeepPartial<T>,
-        create: DeepPartial<T>,
-        onConflict: AtomicUpdate<T>,
-        transaction: Transaction | undefined
-    ): Promise<T> {
+        identity: string[],
+        rows: UpsertRow<T>[],
+        transaction: Transaction | undefined,
+        reachable: Where<T> | undefined
+    ): Promise<T[]> {
         if (!this.ds) {
             throw new DataSourceInitializationError();
         }
@@ -419,40 +632,225 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
             return found.databaseName;
         };
 
-        const updates: UpsertUpdate[] = [];
-        for (const [key, change] of ObjectUtilities.entries(onConflict)) {
-            if (change == undefined) {
-                continue;
-            }
-            updates.push(
-                'increment' in change
-                    ? { column: column(String(key)), increment: change.increment }
-                    : { column: column(String(key)), value: change.set }
-            );
-        }
-        if (!updates.length) {
-            throw new InternalError('upsert was called with an empty onConflict, so the conflict path would do nothing.');
-        }
-
-        const created: [string, unknown][] = Object.entries(create);
-        const { sql, params }: UpsertSql = this.buildUpsertSql({
+        const reachableIds: UpsertReachable | undefined = reachable == undefined
+            ? undefined
+            : this.selectReachableIds(manager, entityClass, reachable, metadata.tableName, column('id'));
+        const conflict: UpsertConflictTarget = this.conflictTargetFor(entityClass, identity, column);
+        const statementFor: (pending: UpsertRow<T>[]) => UpsertSql = pending => this.buildUpsertSql({
             tableName: metadata.tableName,
-            conflict: this.conflictTargetFor(entityClass, Object.keys(identity), column),
-            insert: created.map(([key, value]) => ({ column: column(key), value })),
-            updates
+            idColumn: column('id'),
+            conflict,
+            ...this.resolveUpsertInputRows(pending, column),
+            reachable: reachableIds
         });
-
-        const rows: Record<string, unknown>[] = await manager.query(sql, params);
 
         // through the same walk a write's returned rows go through, rather than copying values onto
         // the entity: a column carries what has to happen on the way out - a json document parsed, a
         // number given back the precision its column keeps - and a relation the entity does not
         // declare a key for carries a column the orm invented, which is not a property at all
-        const [res] = TypeOrmUtilities.toEntities(entityClass, TypeOrmUtilities.declaredColumnsOf(metadata), rows);
-        if (res == undefined) {
+        const run: (on: EntityManager, statements: UpsertStatement<T>[]) => Promise<Map<UpsertRow<T>, T>> = async (on, statements) => {
+            const paired: Map<UpsertRow<T>, T>[] = await PromiseUtilities.allChunked(statements, async statement => {
+                const returned: unknown = await on.query(statement.sql.sql, statement.sql.params);
+                const entities: T[] = TypeOrmUtilities.toEntities(entityClass, TypeOrmUtilities.declaredColumnsOf(metadata), returned);
+                return this.pairUpserted(identity, statement.rows, entities);
+            });
+            return new Map(paired.flatMap(p => [...p]));
+        };
+        // in one order whatever order they were given in. A statement locks each row it conflicts
+        // with as it reaches it, so two batches naming the same rows in opposite orders would each
+        // hold what the other waits on until the database ends one of them. By identity, every batch
+        // takes what it shares with another in the same order. The caller still gets its own order
+        // back, because the rows are paired by identity rather than by position
+        const identities: Map<UpsertRow<T>, string> = new Map(
+            rows.map(row => [row, UpsertIdentityUtilities.resolveValues(identity, row.create)])
+        );
+        const ordered: UpsertRow<T>[] = [...rows].sort((a, b) => {
+            const left: string = identities.get(a) ?? '';
+            const right: string = identities.get(b) ?? '';
+            return left < right ? -1 : left > right ? 1 : 0;
+        });
+        const statements: UpsertStatement<T>[] = this.resolveUpsertStatements(ordered, statementFor);
+        const write: (on: EntityManager) => Promise<Map<UpsertRow<T>, T>> = async on => {
+            const res: Map<UpsertRow<T>, T> = await run(on, statements);
+            // a row that came back with nothing conflicted with a row it was not allowed to change -
+            // or with one committed after the statement began: the conflict is judged against the
+            // newest row, and the select deciding which rows may be changed against what the
+            // statement could see when it started, which is not that row yet. A fresh statement sees
+            // it, so those rows are asked once more and land if they may. Nothing of theirs was
+            // written by the first run, so running them again changes nothing twice
+            const missing: UpsertRow<T>[] = ordered.filter(row => !res.has(row));
+            if (missing.length && reachable != undefined) {
+                for (const [row, entity] of await run(on, this.resolveUpsertStatements(missing, statementFor))) {
+                    res.set(row, entity);
+                }
+            }
+            return res;
+        };
+
+        // one statement is atomic on its own. A batch past what one statement binds is several, held
+        // together the way one statement holds itself - unless the caller's own transaction already
+        // does. Either way they share one connection, so the statements handed over together still
+        // reach the server one after the other, and one failing rolls back the rest with it
+        const written: Map<UpsertRow<T>, T> = transaction == undefined && statements.length > 1
+            ? await this.ds.transaction(async own => await write(own))
+            : await write(manager);
+
+        return rows.map(row => {
+            const res: T | undefined = written.get(row);
+            if (res != undefined) {
+                return res;
+            }
+            if (reachable != undefined) {
+                // what inserting the identity would have answered, since to this caller the row
+                // holding it is not there
+                const group: UniqueGroup = UpsertIdentityUtilities.resolveUniqueGroup(entityClass, identity);
+                throw new UniqueConstraintViolationError(entityClass.name, group.properties);
+            }
             throw new InternalError('upsert returned no row, which should not be reachable.');
+        });
+    }
+
+    /**
+     * Splits the rows of an upsert into statements that each bind no more values than
+     * `maxBoundValuesPerStatement`.
+     * @param rows - The rows to write.
+     * @param statementFor - Builds the statement for some of the rows.
+     * @returns The statements, each with the rows it writes.
+     */
+    private resolveUpsertStatements<T extends BaseEntity>(
+        rows: UpsertRow<T>[],
+        statementFor: (pending: UpsertRow<T>[]) => UpsertSql
+    ): UpsertStatement<T>[] {
+        const sql: UpsertSql = statementFor(rows);
+        if (sql.params.length <= this.fullOptions.maxBoundValuesPerStatement || rows.length === 1) {
+            return [{ rows, sql }];
+        }
+        // halved rather than cut to a size worked out up front, because how many values a row binds
+        // is the dialect's to say and differs per row: one leaves a column to its default, another
+        // changes more columns on a conflict
+        const half: number = Math.ceil(rows.length / 2);
+        return [
+            ...this.resolveUpsertStatements(rows.slice(0, half), statementFor),
+            ...this.resolveUpsertStatements(rows.slice(half), statementFor)
+        ];
+    }
+
+    /**
+     * Resolves the rows of an upsert to the columns one statement inserts them with.
+     * @param rows - The rows to insert, and what to change for each one whose insert conflicts.
+     * @param column - Resolves a property to the column it is stored in.
+     * @returns The columns, and each row's values and changes.
+     * @throws When a row has nothing to change on a conflict.
+     */
+    private resolveUpsertInputRows<T extends BaseEntity>(
+        rows: UpsertRow<T>[],
+        column: (property: string) => string
+    ): Pick<UpsertInput, 'columns' | 'rows'> {
+        // every property any row names, because one statement inserts every row with the same columns
+        const properties: string[] = [...new Set(rows.flatMap(row => Object.keys(row.create)))];
+        return {
+            columns: properties.map(p => column(p)),
+            rows: rows.map(row => {
+                const values: Map<string, unknown> = new Map(Object.entries(row.create));
+                const updates: UpsertUpdate[] = [];
+                for (const [key, change] of ObjectUtilities.entries(row.onConflict)) {
+                    if (change == undefined) {
+                        continue;
+                    }
+                    updates.push(
+                        'increment' in change
+                            ? { column: column(key), increment: change.increment }
+                            : { column: column(key), value: change.set }
+                    );
+                }
+                if (!updates.length) {
+                    throw new InternalError('upsert was called with an empty onConflict, so the conflict path would do nothing.');
+                }
+                return {
+                    id: values.get('id'),
+                    // a property this row leaves out is written the way inserting it alone would write it
+                    values: properties.map(p => values.has(p) ? { value: values.get(p) } : 'default'),
+                    updates
+                };
+            })
+        };
+    }
+
+    /**
+     * Pairs the rows an upsert statement returned with the rows it was given.
+     *
+     * A statement promises no order for what it returns, and leaves out a row it was not allowed to
+     * change. What both sides hold is the identity, which a change on conflict leaves as it is.
+     * @param identity - The properties identifying each row.
+     * @param rows - The rows the statement was given.
+     * @param returned - The rows it returned.
+     * @returns The row written for each row given, keyed by the row given. A row missing from it was
+     * not written.
+     * @throws When a returned row pairs with none of the rows given.
+     */
+    private pairUpserted<T extends BaseEntity>(
+        identity: string[],
+        rows: UpsertRow<T>[],
+        returned: T[]
+    ): Map<UpsertRow<T>, T> {
+        const [onlyRow] = rows;
+        const [onlyReturned] = returned;
+        // one row given and one returned are each other's, whatever form the database gave the
+        // values back in
+        if (rows.length === 1 && returned.length === 1 && onlyRow != undefined && onlyReturned != undefined) {
+            return new Map([[onlyRow, onlyReturned]]);
+        }
+
+        const byIdentity: Map<string, T> = new Map(returned.map(r => [UpsertIdentityUtilities.resolveValues(identity, r), r]));
+        const res: Map<UpsertRow<T>, T> = new Map();
+        for (const row of rows) {
+            const written: T | undefined = byIdentity.get(UpsertIdentityUtilities.resolveValues(identity, row.create));
+            if (written != undefined) {
+                res.set(row, written);
+            }
+        }
+        // a returned row that pairs with nothing was written but cannot be told apart from one that
+        // was refused, and running its row again would apply its change twice
+        if (res.size !== returned.length) {
+            throw new InternalError(
+                'upsert returned a row whose identity matches none of the rows it was given, so the rows cannot be paired.'
+            );
         }
         return res;
+    }
+
+    /**
+     * Builds the statement selecting the id of the row an upsert conflicted with, when its update
+     * half may apply to that row.
+     *
+     * Through the same conversion a read's filter goes through, so the rows an upsert may land on are
+     * exactly the rows a read with that filter would find.
+     * @param manager - What the upsert runs on.
+     * @param entityClass - The entity being upserted.
+     * @param reachable - The filter those rows match.
+     * @param tableName - The table the upsert writes to, which is how the statement names the row it
+     * conflicted with.
+     * @param idColumn - The id column of that table.
+     * @returns The statement and its parameters.
+     */
+    private selectReachableIds<T extends BaseEntity>(
+        manager: EntityManager,
+        entityClass: Newable<T>,
+        reachable: Where<T>,
+        tableName: string,
+        idColumn: string
+    ): UpsertReachable {
+        const escape: (name: string) => string = name => manager.connection.driver.escape(name);
+        // asked about the one row the conflict landed on rather than about every row the filter
+        // matches: the filter is the caller's scope alone, which can match most of a table, and this
+        // keeps what the statement binds from growing with the rows the batch writes
+        const [sql, params] = manager
+            .createQueryBuilder(entityClass, 'reachable')
+            .setFindOptions({ where: this.whereFilterToFindOptionsWhere(reachable, entityClass) })
+            .andWhere(`${escape('reachable')}.${escape(idColumn)} = ${escape(tableName)}.${escape(idColumn)}`)
+            .select('reachable.id')
+            .getQueryAndParameters();
+        return { sql, params };
     }
 
     /**
@@ -485,7 +883,7 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
         identityKeys: string[],
         column: (property: string) => string
     ): UpsertConflictTarget {
-        const declared: UniqueGroup = uniqueGroupFor(entityClass, identityKeys);
+        const declared: UniqueGroup = UpsertIdentityUtilities.resolveUniqueGroup(entityClass, identityKeys);
         const entityMetadata: EntityMetadata | undefined = MetadataUtilities.getEntityMetadata(entityClass);
         if (!entityMetadata) {
             throw new EntityMetadataMissingError(entityClass);
@@ -568,7 +966,8 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
         const driver: TypeOrmRepositoryDriver<T> = new TypeOrmRepositoryDriver(
             cls,
             this.ds.getRepository(cls),
-            this
+            this,
+            this.fullOptions.maxBoundValuesPerStatement
         );
 
         if (isSoftDeleteEntityNewable(cls)) {
@@ -612,70 +1011,441 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async addPropertyToEntity<T extends BaseEntity>(
-        entity: Newable<T>,
-        key: keyof T,
-        transaction: Transaction
+    async addPropertyToEntity<T extends BaseEntity>({ entity, property, transaction }: AddPropertyToEntityInput<T>): Promise<void> {
+        const queryRunner: QueryRunner = TypeOrmUtilities.toTypeOrmTransaction(transaction).queryRunner;
+        const tableName: string = MigratedEntityUtilities.resolveTableName(entity);
+        const migrated: MigratedTable = await this.buildMigratedTable(
+            MigratedEntityUtilities.defineEntity(tableName, { [String(property.name)]: property })
+        );
+        const column: TableColumn = this.findMigratedColumn(migrated, String(property.name));
+
+        // nullable whatever the property says, because the rows already stored have no value for it
+        // yet - the migration fills them, and changing the property afterwards makes it required
+        await queryRunner.addColumn(tableName, new TableColumn({ ...column, isNullable: true }));
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async changePropertyOfEntity<T extends BaseEntity, C extends MigrationPropertyMetadata, M extends MigrationPropertyMetadata>(
+        input: ChangePropertyOfEntityInput<T, C, M>
     ): Promise<void> {
-        const col: TableColumnOptions = this.propertyToTableColumnOptions(entity, key);
-        await TypeOrmUtilities.toTypeOrmTransaction(transaction).queryRunner.addColumn(
-            TypeOrmUtilities.getEntityMetadata(entity, transaction).tableName,
-            new TableColumn({ ...col, isNullable: true })
+        const conversion: ResolvedPropertyConversion = ValueConversionUtilities.resolveConversion(input);
+        const queryRunner: QueryRunner = TypeOrmUtilities.toTypeOrmTransaction(input.transaction).queryRunner;
+        const tableName: string = TypeOrmUtilities.getEntityMetadata(input.entity, input.transaction).tableName;
+
+        // the column as the database holds it rather than as the class declares it: a rename is the
+        // one change where the class has no column under the stored name any more
+        const current: TableColumn | undefined = (await queryRunner.getTable(tableName))?.findColumnByName(conversion.currentName);
+        if (current == undefined) {
+            throw new InternalError(
+                `Cannot change ${conversion.entity}.${conversion.currentName}, because nothing is stored under that name.`
+            );
+        }
+        // the columns the migration describes rather than the ones the entity declares now, since the
+        // entity may have changed again by the time an old migration runs
+        const described: TableColumn = await this.buildMigratedColumn(tableName, conversion.currentName, input.currentProperty);
+        if (!this.isSameColumnType(current, described)) {
+            throw new InternalError(
+                `Cannot change ${conversion.entity}.${conversion.currentName}, because it is stored as`
+                + ` ${queryRunner.connection.driver.createFullType(current)}, and the current property describes`
+                + ` ${queryRunner.connection.driver.createFullType(described)}.`
+            );
+        }
+        const changed: TableColumn = await this.buildMigratedColumn(tableName, conversion.changedName, input.property);
+        // a unique is migrated by the unique helpers, not by changing its property. The column read
+        // from the database is unique when a unique covers it alone, and the one built from the
+        // migration never is - which changeColumn takes for dropping that unique
+        changed.isUnique = current.isUnique;
+
+        // every value checked before anything changes, so that a migration that cannot convert one
+        // fails naming all of them rather than with whatever the database makes of the first
+        ValueConversionUtilities.validateNothingRefused(
+            conversion,
+            await this.findRefusedValues(queryRunner, tableName, current, changed, conversion)
+        );
+
+        // the same test typeorm's changeColumn applies, because what it answers with for these is a
+        // drop and an add: the column comes back empty, and a required one cannot come back at all
+        // on a table that has rows
+        const changesType: boolean = !this.isSameColumnType(current, changed);
+        if (!changesType && !conversion.values.length) {
+            await queryRunner.changeColumn(tableName, current, changed);
+            return;
+        }
+
+        // so the values change here, in place, and typeorm is left the parts it does change in
+        // place - a rename, nullability, a default
+        await this.convertColumnInPlace(queryRunner, tableName, current, changed, conversion);
+        const converted: TableColumn = current.clone();
+        converted.type = changed.type;
+        converted.length = changed.length;
+        converted.isArray = changed.isArray;
+        // the conversion collates as the changed column does, which for a type that is not text is
+        // not at all - left as it was, the orm would set the old text collation on a number column
+        converted.collation = changed.collation;
+        // dropped with the conversion, because a default of the old type need not be one of the new
+        converted.default = undefined;
+        await queryRunner.changeColumn(tableName, converted, changed);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async removePropertyFromEntity<T extends BaseEntity>(input: RemovePropertyFromEntityInput<T>): Promise<void> {
+        await TypeOrmUtilities.toTypeOrmTransaction(input.transaction).queryRunner.dropColumn(
+            TypeOrmUtilities.getEntityMetadata(input.entity, input.transaction).tableName,
+            String(input.propertyKey)
         );
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async changePropertyOfEntity<T extends BaseEntity>(
-        entity: Newable<T>,
-        oldColumn: keyof T | string & {},
-        newColumn: PropertyMetadataInput & {
-            /**
-             * The name of the new column.
-             */
-            name?: keyof T | string & {},
-            /**
-             * The type of the new column.
-             */
-            type: ExcludeStrict<PropertyMetadata, RelationMetadata<BaseEntity> | FilePropertyMetadata>['type']
-        },
-        transaction: Transaction
-    ): Promise<void> {
-        const entityMetadata: TOEntityMetadata = TypeOrmUtilities.getEntityMetadata(entity, transaction);
-        const columnMetadata: ColumnMetadata = TypeOrmUtilities.getColumnMetadata(entity, oldColumn, transaction);
+    async renameEntity<T extends BaseEntity>({ entity, currentTableName, transaction }: RenameEntityInput<T>): Promise<void> {
+        const queryRunner: QueryRunner = TypeOrmUtilities.toTypeOrmTransaction(transaction).queryRunner;
+        const tableName: string = MigratedEntityUtilities.resolveTableName(entity);
+        if (await queryRunner.hasTable(tableName)) {
+            throw new InternalError(
+                `Cannot rename ${currentTableName} to ${tableName}, because something is stored under ${tableName} already.`
+            );
+        }
+        if (!await queryRunner.hasTable(currentTableName)) {
+            throw new InternalError(
+                `Cannot rename ${currentTableName} to ${tableName}, because nothing is stored under ${currentTableName}.`
+            );
+        }
 
-        const col: TableColumnOptions = {
-            ...columnMetadata,
-            ...newColumn,
-            enum: 'enum' in newColumn && newColumn.enum
-                ? ObjectUtilities.values(newColumn.enum).map(v => String(v))
-                : columnMetadata.enum
-                    ? columnMetadata.enum.map(v => String(v))
-                    : undefined,
-            name: String(newColumn.name ?? oldColumn),
-            type: TypeOrmUtilities.normalizeColumnType(
-                this.ds,
-                {
-                    precision: undefined,
-                    scale: undefined,
-                    ...columnMetadata,
-                    ...newColumn,
-                    // through the same route a column declared on an entity takes, so that a
-                    // migration changing a property to one of the number formats lands the column
-                    // the entity would have declared for it. The cast is what asking for the format
-                    // costs: the input types omit `type`, so the union has nothing to narrow on and
-                    // the check above is the only thing that knows which member this is
-                    type: newColumn.type === 'number'
-                        ? this.numberColumnType((newColumn as NumberPropertyMetadataInput).format ?? 'number')
-                        : this.fullColumnTypeMapping[newColumn.type]
+        const joinTables: RenamedJoinTable[] = await this.resolveRenamedJoinTables(entity, currentTableName);
+        // the orm's own renames, because they also rename what it named after the table or column -
+        // its primary keys, foreign keys and indexes
+        await queryRunner.renameTable(currentTableName, tableName);
+        for (const joinTable of joinTables) {
+            if (joinTable.currentName !== joinTable.name) {
+                await queryRunner.renameTable(joinTable.currentName, joinTable.name);
+            }
+            for (const [current, changed] of joinTable.columns.filter(([a, b]) => a !== b)) {
+                await queryRunner.renameColumn(joinTable.name, current, changed);
+            }
+        }
+        await this.renameDeclaredKeys(queryRunner, currentTableName, tableName);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async mergeEntity<T extends BaseEntity>({ entity, currentTableName, transaction }: MergeEntityInput<T>): Promise<void> {
+        const queryRunner: QueryRunner = TypeOrmUtilities.toTypeOrmTransaction(transaction).queryRunner;
+        const tableName: string = MigratedEntityUtilities.resolveTableName(entity);
+        const current: Table | undefined = await queryRunner.getTable(currentTableName);
+        if (current == undefined) {
+            throw new InternalError(
+                `Cannot merge ${currentTableName} into ${tableName}, because nothing is stored under ${currentTableName}.`
+            );
+        }
+        const stored: Table | undefined = await queryRunner.getTable(tableName);
+        // into nothing, which is what renaming is
+        if (stored == undefined) {
+            await this.renameEntity({ entity, currentTableName, transaction });
+            return;
+        }
+
+        const metadata: TOEntityMetadata = TypeOrmUtilities.getEntityMetadata(entity, transaction);
+        const currentColumns: Set<string> = new Set(current.columns.map(c => c.name));
+        const joinTables: RenamedJoinTable[] = [];
+        // a join table that is not there holds no relation, because the entities merged from had none
+        for (const joinTable of await this.resolveRenamedJoinTables(entity, currentTableName)) {
+            if (await queryRunner.hasTable(joinTable.currentName)) {
+                joinTables.push(joinTable);
+            }
+        }
+        await this.mergeRows(queryRunner, {
+            currentTableName,
+            tableName,
+            columns: stored.columns.map(c => c.name).filter(name => currentColumns.has(name)),
+            primaryColumn: metadata.primaryColumns[0]?.databaseName ?? 'id',
+            uniques: keyGroupsOf(entity).uniques.map(u => ({
+                columns: u.properties.map(p => metadata.findColumnWithPropertyName(p)?.databaseName ?? p),
+                where: u.where == undefined || coversEveryRow(u.where) ? undefined : keyWhereToSql(entity, u.where)
+            })),
+            joinTables
+        });
+
+        await this.pointForeignKeysAt(queryRunner, currentTableName, tableName);
+        for (const joinTable of joinTables) {
+            await queryRunner.dropTable(joinTable.currentName);
+        }
+        await queryRunner.dropTable(currentTableName);
+    }
+
+    /**
+     * Copies the rows a migration merges, and the relations they hold.
+     *
+     * Leaves out every row breaking the primary key or a unique of the table it is merged into, with
+     * its relations. Runs before the tables merged from are dropped.
+     * @param queryRunner - The query runner of the migration's transaction.
+     * @param merge - What to merge.
+     */
+    protected abstract mergeRows(queryRunner: QueryRunner, merge: MergedRows): Promise<void>;
+
+    /**
+     * Points the foreign keys of the entities' tables that refer to one table at another.
+     * @param queryRunner - The query runner of the migration's transaction.
+     * @param currentTableName - The table they refer to now.
+     * @param tableName - The table they refer to afterwards.
+     */
+    private async pointForeignKeysAt(queryRunner: QueryRunner, currentTableName: string, tableName: string): Promise<void> {
+        for (const metadata of queryRunner.connection.entityMetadatas) {
+            const table: Table | undefined = await queryRunner.getTable(metadata.tablePath);
+            const pointing: TableForeignKey[] = table?.foreignKeys
+                .filter(fk => queryRunner.connection.driver.parseTableName(fk.referencedTableName).tableName === currentTableName)
+                ?? [];
+            if (table == undefined || !pointing.length) {
+                continue;
+            }
+            await queryRunner.dropForeignKeys(table, pointing);
+            await queryRunner.createForeignKeys(table, pointing.map(fk => {
+                const pointed: TableForeignKey = fk.clone();
+                pointed.referencedTableName = tableName;
+                return pointed;
+            }));
+        }
+    }
+
+    /**
+     * Renames the indexes and uniques an entity declares along with the table they are on.
+     *
+     * The data source names each of them after the table, and keeps them by that name.
+     * @param queryRunner - The query runner of the migration's transaction.
+     * @param currentTableName - The name the table had.
+     * @param tableName - The name it has now.
+     */
+    protected abstract renameDeclaredKeys(queryRunner: QueryRunner, currentTableName: string, tableName: string): Promise<void>;
+
+    /**
+     * Resolves the join tables an entity takes part in, as they are named while the entity is stored
+     * under another table name, and as they are named once it is not.
+     * @param entity - The entity being renamed.
+     * @param currentTableName - The table name it is stored under now.
+     * @returns Every join table at either end of one of its many to many relations.
+     * @throws When the data source has not been initialized.
+     */
+    private async resolveRenamedJoinTables(entity: Newable<BaseEntity>, currentTableName: string): Promise<RenamedJoinTable[]> {
+        if (!this.ds) {
+            throw new DataSourceInitializationError();
+        }
+        // an entity of no data source is in no relation here
+        if (!this.entities.includes(entity)) {
+            return [];
+        }
+        // built again with the entity under its current table name, so that the orm names the join
+        // tables and their columns the way it named them when it created them - rather than this
+        // repeating its naming rules
+        const schemas: EntitySchema[] = this.getDistinctEntities().map(e => {
+            const schema: EntitySchema = this.createSchemaForEntity(e);
+            return e === entity ? new EntitySchema({ ...schema.options, tableName: currentTableName }) : schema;
+        });
+        const current: TOEntityMetadata[] = await new ConnectionMetadataBuilder(this.ds).buildEntityMetadatas(schemas);
+
+        const res: RenamedJoinTable[] = [];
+        for (const relation of current.flatMap(m => m.manyToManyRelations)) {
+            const involved: boolean = relation.entityMetadata.target === entity || relation.inverseEntityMetadata.target === entity;
+            if (relation.isOwning && relation.junctionEntityMetadata != undefined && involved) {
+                res.push(this.toRenamedJoinTable(this.ds, entity, relation, relation.junctionEntityMetadata));
+            }
+        }
+        return res;
+    }
+
+    /**
+     * Pairs the join table of a relation as it is named while an entity is stored under another table
+     * name with the one it is named once it is not.
+     * @param ds - The connection, whose metadata names the join tables as they are named afterwards.
+     * @param entity - The entity being renamed.
+     * @param relation - The relation, built with the entity under its current table name.
+     * @param joinTable - Its join table, built the same way.
+     * @returns The join table, as it is named now and afterwards.
+     * @throws When the connection built no join table for the relation.
+     */
+    private toRenamedJoinTable(
+        ds: TODataSource,
+        entity: Newable<BaseEntity>,
+        relation: TORelationMetadata,
+        joinTable: TOEntityMetadata
+    ): RenamedJoinTable {
+        const renamed: TOEntityMetadata | undefined = ds.getMetadata(relation.entityMetadata.target)
+            .findRelationWithPropertyPath(relation.propertyPath)
+            ?.junctionEntityMetadata;
+        if (renamed == undefined) {
+            throw new InternalError(`The join table of ${relation.entityMetadata.name}.${relation.propertyPath} was not built.`);
+        }
+        // in the same order both times: the columns of the owning side, then the inverse side's
+        const columns: [string, string][] = joinTable.columns.map((c, i): [string, string] => [
+            c.databaseName,
+            renamed.columns[i]?.databaseName ?? c.databaseName
+        ]);
+        const entityColumns: string[] = [
+            ...relation.entityMetadata.target === entity ? joinTable.ownerColumns : [],
+            ...relation.inverseEntityMetadata.target === entity ? joinTable.inverseColumns : []
+        ].map(c => c.databaseName);
+        return { currentName: joinTable.tableName, name: renamed.tableName, columns, entityColumns };
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async createEntity<T extends BaseEntity>({ entity, transaction, properties }: CreateEntityInput<T>): Promise<void> {
+        const queryRunner: QueryRunner = TypeOrmUtilities.toTypeOrmTransaction(transaction).queryRunner;
+        if (properties !== 'resolveFromEntity') {
+            const migrated: MigratedTable = await this.buildMigratedTable(
+                MigratedEntityUtilities.defineEntity(MigratedEntityUtilities.resolveTableName(entity), properties)
+            );
+            await queryRunner.createTable(migrated.table, false, false, true);
+            return;
+        }
+
+        const metadata: TOEntityMetadata = TypeOrmUtilities.getEntityMetadata(entity, transaction);
+        // with the join table of each many to many relation it owns, which the orm builds rather than
+        // an entity declaring it - so it is part of creating the entity or of nothing
+        const tables: TOEntityMetadata[] = [
+            metadata,
+            ...metadata.manyToManyRelations.flatMap(r => r.isOwning && r.junctionEntityMetadata ? [r.junctionEntityMetadata] : [])
+        ];
+
+        for (const table of tables) {
+            // a join table's indexes are the orm's, named its own way, and nothing else keeps them
+            const built: Table = Table.create(table, queryRunner.connection.driver);
+            const created: Table = table === metadata ? this.withoutDeclaredKeys(built, table.tableName) : built;
+            await queryRunner.createTable(created, false, false, true);
+        }
+        await this.createForeignKeysOf(queryRunner, tables.map(t => t.tablePath));
+    }
+
+    /**
+     * Takes the indexes and uniques an entity declares off a table about to be created.
+     *
+     * The data source creates those itself once the migrations have run, as it does for an entity
+     * that already exists - so they have one owner, whichever way an entity came to be stored. What
+     * the orm adds for a relation stays.
+     * @param table - The table as the orm builds it.
+     * @param tableName - The name of the table.
+     * @returns The table, without them.
+     */
+    private withoutDeclaredKeys(table: Table, tableName: string): Table {
+        table.uniques = table.uniques.filter(u => !this.isDeclaredKeyName(u.name, tableName));
+        table.indices = table.indices.filter(i => !this.isDeclaredKeyName(i.name, tableName));
+        // a column the orm marks unique gets a constraint of its own when the table is created, under
+        // a name only the orm arrives at - so it is unique only where a unique that stays says so
+        for (const column of table.columns) {
+            column.isUnique = table.uniques.some(u => u.columnNames.length === 1 && u.columnNames[0] === column.name);
+        }
+        return table;
+    }
+
+    /**
+     * Whether an index or unique of a table is one the data source keeps as an entity declares it.
+     * @param name - The name of the index or unique.
+     * @param tableName - The table it is on.
+     * @returns True when the data source named it, or the orm did with its own default names, and so
+     * the data source creates and drops it.
+     */
+    protected isDeclaredKeyName(name: string | undefined, tableName: string): boolean {
+        // the orm's default names as well: this data source names every index and unique it declares
+        // itself, so one of those on an entity's table was left by 2.x, which let the orm name them -
+        // and is replaced like any other the entity no longer declares. A relation's own (REL_) stays
+        const prefixes: string[] = [
+            uniqueConstraintName(tableName, []),
+            indexName(tableName, []),
+            trigramIndexName(tableName, ''),
+            'UQ_',
+            'IDX_'
+        ];
+        return name != undefined && prefixes.some(prefix => name.startsWith(prefix));
+    }
+
+    /**
+     * Creates the foreign keys that tables just created complete.
+     *
+     * A foreign key needs the tables at both of its ends, so each one is created by whichever of
+     * the two comes second - which lets a migration create its entities in any order, two that
+     * point at each other included.
+     * @param queryRunner - The query runner of the migration's transaction.
+     * @param created - The tables just created.
+     */
+    private async createForeignKeysOf(queryRunner: QueryRunner, created: string[]): Promise<void> {
+        for (const owner of queryRunner.connection.entityMetadatas) {
+            const candidates: ForeignKeyMetadata[] = owner.foreignKeys
+                .filter(fk => created.includes(owner.tablePath) || created.includes(fk.referencedTablePath));
+            if (!candidates.length) {
+                continue;
+            }
+            const stored: Table | undefined = await queryRunner.getTable(owner.tablePath);
+            if (stored == undefined) {
+                continue;
+            }
+            const missing: TableForeignKey[] = [];
+            for (const fk of candidates) {
+                if (!stored.foreignKeys.some(existing => existing.name === fk.name) && await queryRunner.hasTable(fk.referencedTablePath)) {
+                    missing.push(TableForeignKey.create(fk, queryRunner.connection.driver));
                 }
-            )
-        };
+            }
+            if (missing.length) {
+                await queryRunner.createForeignKeys(stored, missing);
+            }
+        }
+    }
 
-        await TypeOrmUtilities.toTypeOrmTransaction(transaction).queryRunner.changeColumn(
-            entityMetadata.tableName,
-            String(oldColumn),
-            new TableColumn(col)
+    /**
+     * Builds the table an entity class built from a migration describes, the way synchronizing
+     * would create it.
+     * @param cls - The class built from the migration.
+     * @returns The table, and the metadata it was built from.
+     * @throws When the data source has not been initialized.
+     */
+    private async buildMigratedTable(cls: Newable<BaseEntity>): Promise<MigratedTable> {
+        if (!this.ds) {
+            throw new DataSourceInitializationError();
+        }
+        // through the orm's own metadata builder, so that the class is read exactly as an entity of
+        // this data source would be - without registering it as one
+        const [metadata]: TOEntityMetadata[] = await new ConnectionMetadataBuilder(this.ds)
+            .buildEntityMetadatas([this.createSchemaForEntity(cls)]);
+        if (metadata == undefined) {
+            throw new InternalError(`The migration's description of "${cls.name}" built no table.`);
+        }
+        return { table: Table.create(metadata, this.ds.driver), metadata };
+    }
+
+    /**
+     * Builds the column of a property a migration describes, the way synchronizing would create it.
+     * @param tableName - The table the column belongs to.
+     * @param name - The name of the property.
+     * @param metadata - What the migration says about the property.
+     * @returns The column.
+     */
+    private async buildMigratedColumn(tableName: string, name: string, metadata: MigrationPropertyMetadata): Promise<TableColumn> {
+        return this.findMigratedColumn(
+            await this.buildMigratedTable(MigratedEntityUtilities.defineEntity(tableName, { [name]: metadata })),
+            name
         );
+    }
+
+    /**
+     * Whether two columns store the same type of value.
+     * @param a - The one column.
+     * @param b - The other column.
+     * @returns True when type, length and being an array all match - what the database stores, rather
+     * than whether it takes no value or what it defaults to.
+     */
+    private isSameColumnType(a: TableColumn, b: TableColumn): boolean {
+        // a column without a length has an empty one read from the database and none built from
+        // metadata, which is the same thing
+        return a.type === b.type && (a.length || undefined) === (b.length || undefined) && a.isArray === b.isArray;
+    }
+
+    /**
+     * Finds a column of a table built from a migration.
+     * @param migrated - The table.
+     * @param name - The column's name.
+     * @returns The column.
+     * @throws When the table has no such column.
+     */
+    private findMigratedColumn(migrated: MigratedTable, name: string): TableColumn {
+        const column: TableColumn | undefined = migrated.table.findColumnByName(name);
+        if (column == undefined) {
+            throw new InternalError(`The migration's description of ${migrated.table.name} has no column "${name}".`);
+        }
+        return column;
     }
 
     /**
@@ -683,8 +1453,19 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
      * @returns TypeOrm entity schemas.
      */
     protected getEntitySchemas(): EntitySchema[] {
-        const schemas: EntitySchema[] = this.entities.map(e => this.createSchemaForEntity(e));
+        const schemas: EntitySchema[] = this.getDistinctEntities().map(e => this.createSchemaForEntity(e));
         return schemas;
+    }
+
+    /**
+     * Gets the entities of this data source, each once.
+     * @returns The entities.
+     */
+    private getDistinctEntities(): Newable<BaseEntity>[] {
+        // an entity listed twice is still one entity, as resolveEntityOwnership has it. Given two
+        // schemas of one class, the orm collects the indices of both under that class and creates
+        // each of them twice, which the second time fails on the name
+        return [...new Set(this.entities)];
     }
 
     /**
@@ -694,7 +1475,7 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
      * @returns TypeOrm column options.
      * @throws When no data source has been provided or no column metadata could be found.
      */
-    protected propertyToTableColumnOptions<T extends BaseEntity>(entity: Newable<T>, property: keyof T): TableColumnOptions {
+    protected propertyToTableColumnOptions<T extends BaseEntity>(entity: Newable<T>, property: keyof T | string & {}): TableColumnOptions {
         if (!this.ds) {
             throw new DataSourceInitializationError();
         }
@@ -776,28 +1557,29 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
             tableName: entityMetadata.tableName,
             columns,
             relations,
-            // named explicitly rather than left to typeorm's generated hash, because a migration
-            // adding or dropping the constraint has to be able to refer to it by name. Only the
-            // groups covering every row: a constraint cannot be given a predicate, so the ones that
-            // leave rows out are created as indices below
-            uniques: entityMetadata.uniques
-                ?.filter(g => coversEveryRow(g.where))
+            // named explicitly rather than left to typeorm's generated hash, because keeping the
+            // uniques an entity declares tells them apart by name, and an upsert names one as its
+            // conflict target. The property's own and the entity's alike: a
+            // property's used to reach the column as typeorm's own unique, under a name nothing else
+            // could arrive at, so an upsert identified by it named a constraint that did not exist.
+            // Only the groups covering every row: a constraint cannot be given a predicate, so the
+            // ones that leave rows out are created as indices below
+            uniques: groups.uniques
+                .filter(g => coversEveryRow(g.where))
                 .map(g => ({ name: uniqueConstraintName(entityMetadata.tableName, g.properties), columns: g.properties })),
             indices: [
                 ...groups.indexes.map(c => ({ name: indexName(entityMetadata.tableName, c), columns: c })),
-                // a unique that covers only some rows is one of these rather than a constraint, and
-                // it keeps the constraint's name because it is still what a migration refers to when
-                // it adds or drops the uniqueness of those columns
-                ...groups.uniques.flatMap(g => g.where == undefined || coversEveryRow(g.where)
-                    ? []
-                    : [
-                        {
-                            name: uniqueConstraintName(entityMetadata.tableName, g.properties),
-                            columns: g.properties,
-                            unique: true,
-                            where: keyWhereToSql(cls, g.where)
-                        }
-                    ]),
+                // a unique that covers only some rows is one of these rather than a constraint, named
+                // with the rows it covers: one whose condition changes is then another index, which
+                // keeping the declared ones replaces rather than leaving the old condition in force
+                ...groups.uniques.flatMap(g => {
+                    if (g.where == undefined || coversEveryRow(g.where)) {
+                        return [];
+                    }
+                    const where: string = keyWhereToSql(cls, g.where);
+                    const name: string = uniqueConstraintName(entityMetadata.tableName, g.properties, where);
+                    return [{ name, columns: g.properties, unique: true, where }];
+                }),
                 ...this.indicesOwnedBySelf(cls, entityMetadata.tableName)
             ]
         });
@@ -871,17 +1653,9 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
             await runner.connect();
             const schema: EntitySchema = this.createSchemaForEntity(MigrationEntity);
             const metadata: TOEntityMetadata = this.ds.getMetadata(schema);
-            const table: Table = new Table({
-                name: metadata.tablePath,
-                columns: metadata.columns.map(col => ({
-                    name: col.databaseName,
-                    ...col,
-                    enum: col.enum?.map(v => String(v)),
-                    type: TypeOrmUtilities.normalizeColumnType(this.ds, col)
-                }))
-            });
-            await runner.createTable(table, true);
-
+            // built the way createEntity builds a table, so the unique on the name is created with it -
+            // columns alone leave out every constraint the entity declares
+            await runner.createTable(Table.create(metadata, this.ds.driver), true);
         }
         finally {
             await runner.release();

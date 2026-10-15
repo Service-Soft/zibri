@@ -79,7 +79,10 @@ describe('NewCommand (sandbox parity, without installing)', () => {
         // the only thing stubbed. `zi new` calls out twice, both times to npm, and neither call
         // writes a file this compares - so what is left running is the whole generator.
         jest.spyOn(CPUtilities, 'exec').mockResolvedValue(undefined);
-        await quietly(async () => new NewCommand().start(['n', 'sandbox']));
+        // no ci workflow: the sandbox lives inside this repository, whose own workflows are the ones
+        // GitHub runs, so it has none of its own to compare against. new.command.test.ts reads the
+        // generated one and the heavy suite runs it
+        await quietly(async () => new NewCommand().start(['n', 'sandbox', 'none']));
     }, PARITY_TIMEOUT_MS);
 
     afterAll(async () => {
@@ -154,9 +157,9 @@ describe('NewCommand (sandbox parity, without installing)', () => {
         const read: Set<string> = new Set<string>();
         for (const relativePath of AUTHORED_CODE_PATHS) {
             const content: string = await FsUtilities.readFile(path.join(appDir, relativePath) as Path);
-            // every form the scaffold reads one by: the two helpers it names a variable through, and
+            // every form the scaffold reads one by: the helpers it names a variable through, and
             // process.env itself for anything reaching past them
-            for (const match of content.matchAll(/(?:process\.env\[|requireEnv\(|optionalEnv\()'([\dA-Z_]+)'/g)) {
+            for (const match of content.matchAll(/(?:process\.env\[|requireEnv\(|requireBooleanEnv\(|optionalEnv\()'([\dA-Z_]+)'/g)) {
                 read.add(match[1]);
             }
         }

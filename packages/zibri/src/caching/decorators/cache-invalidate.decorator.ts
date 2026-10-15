@@ -16,7 +16,9 @@ export function CacheInvalidate<
     TArgs extends unknown[]
 >(
     cacheToken: DiToken<C>,
-    options: CacheWrapInvalidateOptions<TArgs, CacheTag>
+    // TArgs is the decorated method's, inferred from the method alone through the decorator this
+    // returns, so a tag provider may take fewer arguments than the method - see CacheWrite
+    options: NoInfer<CacheWrapInvalidateOptions<TArgs, CacheTag>>
 ) {
     return (
         target: object,

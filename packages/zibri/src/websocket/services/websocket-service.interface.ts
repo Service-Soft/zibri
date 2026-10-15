@@ -1,3 +1,5 @@
+import { Transaction } from '../../data-source/transaction/transaction.model';
+import { ChangedMembership } from '../../tenancy/membership/changed-membership.model';
 import { Newable } from '../../types/newable.type';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { BaseWebsocketConnection } from '../models/connection/base-websocket-connection.model';
@@ -121,9 +123,21 @@ export interface WebsocketServiceInterface<Connection extends BaseWebsocketConne
      */
     sendToChannel: <B extends boolean>(data: WebsocketSendToChannelData<B>) => WebsocketSendToMultipleResult<B, Connection>,
     /**
-     * Sends a message to all connections.
+     * Sends a message to all connections, or inside a tenant to the connections of its members.
      */
     sendToAll: <B extends boolean>(data: WebsocketSendToAllData<B>) => WebsocketSendToMultipleResult<B, Connection>,
+    /**
+     * Brings which tenants' messages the connections of users receive in line with their memberships
+     * as they are stored, on every instance.
+     */
+    updateTenantRooms: (memberships: ChangedMembership[]) => Promise<void>,
+    /**
+     * Closes the connections of the given users, on every instance, whose credential no longer
+     * resolves to their user. Called wherever logins end, once the transaction that ended them
+     * commits, so that a socket receives for as long as its credential would be accepted by a request
+     * and no longer.
+     */
+    disconnectEndedLogins: (userIds: string[], transaction: Transaction | undefined) => Promise<void>,
     /**
      * Disconnects the given connection.
      */

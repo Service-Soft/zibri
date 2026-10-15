@@ -114,4 +114,30 @@ describe('evaluation/04-infrastructure-subsystems 2.7 / 2.10 - the queue across 
         // the work runs again from the beginning rather than resuming, which is the at-least-once
         // the docs promise - the wait above is a lapsed claim plus a full second run of the job
     }, 60000);
+
+    // the harness rather than the queue, but only a thread job can show it: an instance's worker
+    // threads never run its entry, so whatever decides which copy of the shared packages the instance
+    // gets has to reach them some other way - or every job runs against whatever is built
+    it('runs a job against the same copy of the shared packages as the instance it runs on', async () => {
+        if (!cluster) {
+            throw new Error('the cluster did not start');
+        }
+        const running: StartedTestCluster = cluster;
+        const first: ClusterInstance = running.instanceAt(0);
+
+        const modulePathRes: Response = await fetch(`${first.baseUrl}/cluster-jobs/module-path`);
+        expect(modulePathRes.status).toBe(200);
+        const instanceModulePath: string = (await modulePathRes.text()).replaceAll('"', '');
+
+        const queueRes: Response = await fetch(`${first.baseUrl}/cluster-jobs/queue-module-path`, { method: 'POST' });
+        expect(queueRes.status).toBe(200);
+        const jobId: string = (await queueRes.text()).replaceAll('"', '');
+
+        const settled: string = await running.waitFor(
+            async () => await readJob(first.baseUrl, jobId),
+            value => value.startsWith('COMPLETED:') || value.startsWith('FAILED:'),
+            { timeoutInMs: 20000 }
+        );
+        expect(settled).toBe(`COMPLETED:${instanceModulePath}`);
+    }, 40000);
 });

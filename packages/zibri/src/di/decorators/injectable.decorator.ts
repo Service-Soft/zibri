@@ -37,9 +37,7 @@ export function Injectable<T>(options: InjectableOptions<T> = {}): ClassDecorato
 
     return target => {
         MetadataUtilities.setDiToken(target, token);
-        // eslint-disable-next-line unicorn/error-message
-        const stack: string = new Error().stack ?? '';
-        MetadataUtilities.setFilePath(target, stack);
+        MetadataUtilities.setFilePath(target);
 
         const variants: DiVariant[] = variant ? [variant] : [];
 

@@ -20,5 +20,13 @@ export type Transaction = {
     /**
      * Rolls back the transaction.
      */
-    rollback: () => void | Promise<void>
+    rollback: () => void | Promise<void>,
+    /**
+     * Runs work once the transaction is committed, and never when it is rolled back.
+     *
+     * For what has to follow a write that landed, such as telling another part of the application
+     * about it. The work runs once the commit is done, in the order it was added. It handles its own
+     * failures, since the commit has happened either way.
+     */
+    afterCommit: (work: () => Promise<void>) => void
 };

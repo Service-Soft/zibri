@@ -10,6 +10,7 @@ import ts from 'typescript';
 // type only on purpose: loading the fixture here would declare its entity and its injectables into
 // this process's registries, which is the one thing running each build in a child avoids
 import type { ProbeResult } from '../__testing__/build-toolchains/consumer-application.fixture';
+import { JsonUtilities } from '../utilities/json.utilities';
 
 /**
  * Which toolchains an application can be built with, checked by building one with each of them.
@@ -132,7 +133,7 @@ function probeOf(toolchain: Toolchain): ProbeResult {
 
     const output: string = execFileSync(
         process.execPath,
-        ['-e', `console.log(JSON.stringify(require(${JSON.stringify(compiledPath)}).probe()));`],
+        ['-e', `console.log(JSON.stringify(require(${JsonUtilities.stringify(compiledPath)}).probe()));`],
         {
             // the package, so that `zibri` resolves the way it does for anything else in the repo
             cwd: packageDir,
@@ -145,8 +146,9 @@ function probeOf(toolchain: Toolchain): ProbeResult {
     );
     // the last line rather than the whole of it: anything the framework prints while loading comes
     // first, and the answer is what was printed last
-    const result: ProbeResult = JSON.parse(output.trim().split('\n')
-        .at(-1) ?? '') as ProbeResult;
+    const result: ProbeResult = JsonUtilities.parse(output.trim()
+        .split('\n')
+        .at(-1) ?? '');
     probes.set(toolchain.name, result);
     return result;
 }
@@ -181,8 +183,31 @@ describe('build toolchains', () => {
         // the two metadata-dependent answers are what the styles differ over, and everything else is
         // what the promise is about - so this compares the rest as a whole rather than property by
         // property, which is what catches the thing nobody thought to assert
-        expect({ ...result, untagged: undefined, contradictedFormat: undefined })
-            .toEqual({ ...control, untagged: undefined, contradictedFormat: undefined });
+        expect({ ...result, untagged: undefined, ownEmptyConstructor: undefined, contradictedFormat: undefined })
+            .toEqual({ ...control, untagged: undefined, ownEmptyConstructor: undefined, contradictedFormat: undefined });
+    });
+
+    it.each(TOOLCHAINS)('builds a class with the constructor it inherits with $name', toolchain => {
+        // the parent names its tokens, which needs nothing recorded - so the subclass, declaring no
+        // constructor and reporting an arity of 0, is built with what the parent asks for
+        expect(probeOf(toolchain).inherited).toEqual({ name: 'it resolved', message: 'hello' });
+    });
+
+    it.each(TOOLCHAINS.filter(t => t.carriesTypeMetadata))('builds a class declaring a constructor that takes nothing with $name', toolchain => {
+        // the recorded, empty parameter list is what says the class declares a constructor of its own
+        expect(probeOf(toolchain).ownEmptyConstructor).toEqual({ name: 'it resolved', message: 'hello' });
+    });
+
+    it.each(TOOLCHAINS.filter(t => !t.carriesTypeMetadata))('refuses a class declaring a constructor that takes nothing with $name', toolchain => {
+        const result: ProbeResult = probeOf(toolchain);
+
+        // chosen, and the cost of the second style: without anything recorded, a declared
+        // constructor taking nothing looks exactly like an inherited one, and building it as if it
+        // were inherited would hand its parent undefined without a word. Refused, with the remedy
+        // that works under every build
+        expect(result.ownEmptyConstructor.name).toBe('UninjectableParameterError');
+        expect(result.ownEmptyConstructor.message).toContain('"SelfSupplyingService", taken from the constructor of "UntaggedGreetingBase"');
+        expect(result.ownEmptyConstructor.message).toContain('@Inject');
     });
 
     it.each(TOOLCHAINS.filter(t => t.carriesTypeMetadata))('injects by declared type with $name', toolchain => {

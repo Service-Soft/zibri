@@ -1,6 +1,5 @@
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
-import { DeepPartial } from '../../types/deep-partial.type';
 import { ObjectUtilities } from '../../utilities/object.utilities';
 import { toKebabCase } from '../../utilities/to-kebab-case.function';
 
@@ -73,13 +72,18 @@ export type CspOptions = {
 };
 
 /**
+ * The CSP directives to set, each one replacing the default's value for it.
+ */
+export type CspOptionsInput = Partial<CspOptions>;
+
+/**
  * Builds csp options from the given input and default options.
  * @param options - The input options.
  * @param defaultValue - The default values to fall back to.
  * @returns Valid CSP options.
  */
 export function buildCspOptions(
-    options: DeepPartial<CspOptions> | boolean | undefined,
+    options: CspOptionsInput | boolean | undefined,
     defaultValue: boolean | CspOptions
 ): CspOptions | boolean {
     if (typeof options === 'boolean') {
@@ -97,10 +101,16 @@ export function buildCspOptions(
 /**
  * Builds the Content-Security-Policy headers from the given options.
  * @param options - The CSP options to build the headers from.
+ * @param nonce - The nonce of the response being written, added to `script-src` unless that already allows every inline script.
  * @returns The CSP header as a string.
  */
-export function buildCspHeaders(options: CspOptions): string {
-    return ObjectUtilities.entries(options)
+export function buildCspHeaders(options: CspOptions, nonce: string | undefined): string {
+    // a browser that finds a nonce in script-src ignores 'unsafe-inline' there, so adding one would
+    // forbid the inline scripts the policy allows - while the script the nonce exists for already runs
+    const withNonce: CspOptions = nonce == undefined || options.scriptSrc.includes('\'unsafe-inline\'')
+        ? options
+        : { ...options, scriptSrc: [...options.scriptSrc, `'nonce-${nonce}'`] };
+    return ObjectUtilities.entries(withNonce)
         .map(([key, value]) => {
             if (!value?.length) {
                 return undefined;

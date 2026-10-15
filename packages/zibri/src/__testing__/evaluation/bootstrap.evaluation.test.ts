@@ -14,6 +14,8 @@ import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { defineProvider } from '../../di/models/di-provider.model';
 import { BaseEntity } from '../../entity/base-entity.model';
+import { Entity } from '../../entity/decorators/entity.decorator';
+import { Property } from '../../entity/decorators/property.decorator';
 import { LogLevel } from '../../logging/log-level.enum';
 import { Log } from '../../logging/log.model';
 import { type LoggerInterface } from '../../logging/logger.interface';
@@ -233,6 +235,29 @@ describe('evaluation - application bootstrap', () => {
     });
 
     // Kept last on purpose, and its two cases are in the order they are for the same reason.
+    describe('01 MINOR - a relation naming an inverse side that is not there', () => {
+        it('is refused with a message naming it, rather than a TypeError while the schema is built', async () => {
+            @Entity({ tenant: 'shared', allowOrphan: true })
+            class EvalShelf extends BaseEntity {
+                @Property.oneToMany({ target: () => EvalBook, inverseSide: 'shelf' })
+                books!: EvalBook[];
+            }
+
+            @Entity({ tenant: 'shared', allowOrphan: true })
+            class EvalBook extends BaseEntity {
+                // undecorated, which the type of `inverseSide` cannot tell from declared
+                shelf?: EvalShelf;
+            }
+
+            // "Cannot read properties of undefined (reading 'cascade')", from the step that turns
+            // the relation into postgres options. allowOrphan because the data source class this
+            // declares stays registered, and every case after this one would find it unused
+            await expect(startTestServer({
+                dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, EvalShelf, EvalBook], allowOrphan: true })]
+            })).rejects.toThrow(/EvalShelf\.books names "shelf", which EvalBook does not declare/);
+        }, 90000);
+    });
+
     // @DataSource registers into the static GlobalRegistry at decoration time and nothing takes it
     // back out, so a class declared in one test is visible to every test after it. The second case
     // deliberately declares one that is *not* allowed to be an orphan, which means nothing may boot
@@ -246,7 +271,8 @@ describe('evaluation - application bootstrap', () => {
                     host: 'localhost',
                     username: 'postgres',
                     password: 'password',
-                    database: 'db'
+                    database: 'db',
+                    ssl: false
                 };
 
                 entities: Newable<BaseEntity>[] = defaultTestServerEntities;
@@ -271,7 +297,8 @@ describe('evaluation - application bootstrap', () => {
                     host: 'localhost',
                     username: 'postgres',
                     password: 'password',
-                    database: 'db'
+                    database: 'db',
+                    ssl: false
                 };
 
                 entities: Newable<BaseEntity>[] = defaultTestServerEntities;

@@ -2,16 +2,40 @@ import { HashOptions, HashServiceInterface } from './hash-service.interface';
 import { HashContent, HashString, HashUtilities } from './hash.utilities';
 import { HashStrategyEntity, HashStrategyEntityCreateData, HashStrategyStatus } from './strategies/hash-strategy-entity.model';
 import { HashStrategyInterface } from './strategies/hash-strategy.interface';
+import { ZibriApplication } from '../../application/application';
 import { Repository } from '../../data-source/repository/repository';
-import { InjectRepository } from '../../di/decorators/inject-repository.decorator';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../di/decorators/inject.decorator';
 import { Injectable } from '../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { register } from '../../di/register.function';
+import type { BaseEntity } from '../../entity/base-entity.model';
+import { type PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { InternalError } from '../../error-handling/internal-error.model';
+import { ModelRegistry } from '../../global/model-registry/model.registry';
 import { OnAppInit } from '../../global/on-app-init.interface';
 import type { Newable } from '../../types/newable.type';
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function';
+
+/**
+ * A property a unique declaration names, hashed by a strategy known before any row is written.
+ */
+type UniqueHashedProperty = {
+    /**
+     * The entity declaring it, for the message.
+     */
+    entityName: string,
+    /**
+     * The property.
+     */
+    key: string,
+    /**
+     * How it is hashed: with the default strategy, or the one named.
+     */
+    hash: true | HashOptions<Record<string, unknown>>
+};
 
 /**
  * An error to throw during hash service initialization.
@@ -29,29 +53,43 @@ class InitHashServiceError extends InternalError {
  */
 @Injectable({ register: 'onUse' })
 export class HashService implements HashServiceInterface, OnAppInit {
-    private readonly strategies: HashStrategyInterface<Record<string, unknown>>[] = [];
+    private loadedStrategies: HashStrategyInterface<Record<string, unknown>>[] | undefined;
+
+    // built when first asked for rather than in onAppInit, because migrations run before it and may
+    // write hashed values. Nothing a strategy needs waits for the application: it is built by the
+    // container and hashes in process
+    private get strategies(): HashStrategyInterface<Record<string, unknown>>[] {
+        this.loadedStrategies ??= this.hashStrategies.map(strategy => {
+            register({ token: strategy, useClass: strategy });
+            return inject(strategy);
+        });
+        return this.loadedStrategies;
+    }
 
     private hasCreatedInitialDefaultStrategy: boolean = false;
 
+    // read when used rather than injected, so that an application without the entity is told to
+    // declare it by onAppInit, instead of failing on a repository token while this is built
+    private get hashStrategyRepository(): Repository<HashStrategyEntity, HashStrategyEntityCreateData> {
+        return inject(repositoryTokenFor(HashStrategyEntity));
+    }
+
     constructor(
-        @InjectRepository(HashStrategyEntity)
-        private readonly hashStrategyRepository: Repository<HashStrategyEntity, HashStrategyEntityCreateData>,
         @Inject(ZIBRI_DI_TOKENS.HASH_STRATEGIES)
         private readonly hashStrategies: Newable<HashStrategyInterface<Record<string, unknown>>>[]
     ) {}
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async onAppInit(): Promise<void> {
+    async onAppInit(app: ZibriApplication): Promise<void> {
+        // at every boot that uses this implementation, since its lifecycle hook makes every boot build it
+        validateEntitiesRegistered(HashService.name, app, HashStrategyEntity);
         if (!this.hashStrategies.length) {
             throw new InitHashServiceError('Needs to provide at least one hash strategy.');
-        }
-        for (const strategy of this.hashStrategies) {
-            register({ token: strategy, useClass: strategy });
-            this.strategies.push(inject(strategy));
         }
         this.validateNoDuplicateHashStrategy();
         await this.validateNoMissingHashStrategy();
         this.validateStrategyNamesAndVersions();
+        await this.validateUniqueHashesCompare(app);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -193,6 +231,63 @@ export class HashService implements HashServiceInterface, OnAppInit {
                 'Did you remove them?'
             ]);
         }
+    }
+
+    /**
+     * Refuses a unique declaration over a property hashed by a strategy that does not hash one value
+     * the same way every time.
+     *
+     * A unique declaration compares what is stored, and a salted hash of the same value is stored
+     * differently each time, so the declaration would reject nothing while reading as if it did. Only
+     * the built strategy says whether it is deterministic, which is why this is decided here rather
+     * than where the entity is declared. A hash decided per row is refused there instead.
+     * @param app - The application, whose data sources hold the entities.
+     * @throws When a unique declaration names such a property.
+     */
+    private async validateUniqueHashesCompare(app: ZibriApplication): Promise<void> {
+        const declared: UniqueHashedProperty[] = app.options.dataSources
+            .flatMap(dataSourceClass => inject(dataSourceClass).entities)
+            .flatMap(entityClass => this.findUniqueHashedProperties(entityClass));
+        // read once and only when asked for, since it is a read of the strategy table
+        const defaultStrategy: HashStrategyInterface<Record<string, unknown>> | undefined = declared.some(d => d.hash === true)
+            ? await this.findDefaultStrategy()
+            : undefined;
+
+        const refused: string[] = declared.flatMap(({ entityName, key, hash }) => {
+            const strategy: HashStrategyInterface<Record<string, unknown>> | undefined = hash === true
+                ? defaultStrategy
+                : this.strategies.find(s => s instanceof hash.strategy);
+            return strategy == undefined || strategy.deterministic ? [] : [`- ${entityName}.${key}, hashed with "${strategy.name}"`];
+        });
+        if (!refused.length) {
+            return;
+        }
+        throw new InitHashServiceError([
+            'These properties are declared unique, and hashed by a strategy that does not hash one value the same way twice:',
+            ...refused,
+            'Their stored values never repeat, so the declaration would reject nothing.',
+            'Hash them with a deterministic strategy, eg. "hash: { strategy: Sha256HashStrategy }", or drop the unique.'
+        ]);
+    }
+
+    /**
+     * The properties of an entity that a unique declaration names and that are hashed by a strategy
+     * known before a row is written.
+     * @param entityClass - The entity.
+     * @returns Those properties, with how each one is hashed.
+     */
+    private findUniqueHashedProperties(entityClass: Newable<BaseEntity>): UniqueHashedProperty[] {
+        const properties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(entityClass);
+        const keys: string[] = [...new Set(ModelRegistry.get(entityClass).keyDescriptor.uniques.flatMap(g => g.properties))];
+        return keys.flatMap(key => {
+            const metadata: PropertyMetadata | undefined = properties[key];
+            const hash: unknown = metadata != undefined && 'hash' in metadata ? metadata.hash : undefined;
+            return hash === true || this.isHashOptions(hash) ? [{ entityName: entityClass.name, key, hash }] : [];
+        });
+    }
+
+    private isHashOptions(value: unknown): value is HashOptions<Record<string, unknown>> {
+        return typeof value === 'object' && value != undefined && 'strategy' in value;
     }
 
     private validateStrategyNamesAndVersions(): void {

@@ -27,10 +27,15 @@ type ExtractWrapWriteOptions<C, TArgs extends unknown[]>
 // eslint-disable-next-line jsdoc/require-jsdoc, typescript/no-explicit-any
 export function CacheWrite<C extends { wrapWrite: (...args: any[]) => any }, K, V, TArgs extends unknown[]>(
     cacheToken: DiToken<C>,
-    keyFn: ExtractCacheWriteResultAvailable<C> extends true
+    // TArgs and V are the decorated method's, inferred from the method alone through the decorator
+    // this returns: a key provider taking fewer arguments than the method is an ordinary one, and
+    // inferred from as well, `(result) => result.id` asked for a method that takes nothing. Around the
+    // whole provider rather than its arguments, because a NoInfer spread into a parameter list is
+    // compared as a tuple of fixed length
+    keyFn: NoInfer<ExtractCacheWriteResultAvailable<C> extends true
         ? ResultCacheKeyProvider<K, V, TArgs>
-        : CacheKeyProvider<K, TArgs>,
-    options?: ExtractWrapWriteOptions<C, TArgs>
+        : CacheKeyProvider<K, TArgs>>,
+    options?: NoInfer<ExtractWrapWriteOptions<C, TArgs>>
 ) {
     return function decorator(
         target: object,

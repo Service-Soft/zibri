@@ -1,10 +1,12 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
+import { CacheInvalidation } from './cache-invalidation.model';
 import { type CacheServiceInterface } from './cache-service.interface';
 import { CacheService } from './cache.service';
 import { Cache } from './decorators/cache.decorator';
 import { CachedValue } from './store/cached-value.model';
 import { InMemoryCacheStore } from './store/in-memory.cache-store';
+import { startAndStopTestServerWithout } from '../__testing__/test-server/start-and-stop-test-server-without.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { Inject } from '../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
@@ -104,6 +106,15 @@ class UnrelatedTagCache extends WriteThroughReadThroughCache<string, string, 'Un
 function createCachedValue<V>(value: V, tags: string[]): CachedValue<V> {
     return { value, tags, createdAt: new Date() };
 }
+
+// first, for the reason on startAndStopTestServerWithout
+describe('CacheService — starting', () => {
+    // every application has a cache, since the encryption key cache is one
+    it('refuses to start without CacheInvalidation, and names it', async () => {
+        await expect(startAndStopTestServerWithout([CacheInvalidation]))
+            .rejects.toThrow(/Error initializing CacheService[\S\s]*CacheInvalidation/);
+    }, 30000);
+});
 
 describe('CacheService', () => {
     let server: StartedTestServer;

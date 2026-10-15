@@ -11,7 +11,8 @@ Zibri ships with a few built-in plugins for common concerns (invoicing, mailing 
 | `ZibriMailingListPlugin` | class | Built-in plugin for managing mailing lists |
 | `ZibriPaymentPlugin` | class | Built-in plugin for handling payments |
 | `MailingListController` | class | Controller for the mailing list plugin, must be registered manually |
-| `ZIBRI_INVOICING_PLUGIN_DI_TOKENS` | DI tokens | Configuration tokens for `ZibriInvoicingPlugin` (eg. `OPTIONS_INPUT`) |
+| `ZIBRI_INVOICING_PLUGIN_DI_TOKENS` | DI tokens | Configuration tokens for `ZibriInvoicingPlugin` (eg. `COMPANY_INFO_SERVICE`, `OPTIONS_INPUT`) |
+| `CompanyInfoServiceInterface`, `CompanyInfo` | type | What the service under `COMPANY_INFO_SERVICE` answers: the company a tenant issues its invoices as |
 | `ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS` | DI tokens | Configuration tokens for `ZibriMailingListPlugin` (eg. email/page templates) |
 | `ZIBRI_PAYMENT_PLUGIN_DI_TOKENS` | DI tokens | Configuration tokens for `ZibriPaymentPlugin` (eg. `OPTIONS_INPUT`) |
 
@@ -42,27 +43,35 @@ Some plugins also require you to provide configuration or additional controllers
 #### ZibriInvoicingPlugin
 Adds support for generating invoices, including invoice numbering, tax calculation and PDF rendering (with EN16931/XRechnung/Peppol conformance).
 <br>
-It requires you to provide company information via the `ZIBRI_INVOICING_PLUGIN_DI_TOKENS.OPTIONS_INPUT` token, as there is no sensible default for it:
+Each [tenant](./tenancy.md) issues its own invoices: an invoice belongs to the tenant it is created in, and each tenant numbers its invoices on its own. Tell the plugin which company a tenant issues them as, with its address, tax number, bank details and logo, through a service under `ZIBRI_INVOICING_PLUGIN_DI_TOKENS.COMPANY_INFO_SERVICE`. An application using the plugin without one does not start:
 
 ```ts
+// src/services/company-info.service.ts
+import { CompanyInfo, CompanyInfoServiceInterface, inject, Repository, repositoryTokenFor } from 'zibri';
+
+import { TenantSettings } from '../models/tenant-settings.model';
+
+export class CompanyInfoService implements CompanyInfoServiceInterface {
+    async resolveCompanyInfo(tenantId: string): Promise<CompanyInfo> {
+        const settings: Repository<TenantSettings> = inject(repositoryTokenFor(TenantSettings));
+        return (await settings.findOne({ where: { tenantId }, acrossTenants: true })).companyInfo;
+    }
+}
+```
+
+```ts
+// src/providers.ts
 import { defineProvider, ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from 'zibri';
 
-defineProvider({
-    token: ZIBRI_INVOICING_PLUGIN_DI_TOKENS.OPTIONS_INPUT,
-    useFactory: () => ({
-        companyInfo: {
-            address: { street: '', number: '', postcode: '', city: '', countryId: '' },
-            name: '',
-            fullName: '',
-            email: '',
-            phone: ''
-        }
-    })
-});
+defineProvider({ token: ZIBRI_INVOICING_PLUGIN_DI_TOKENS.COMPANY_INFO_SERVICE, useClass: CompanyInfoService });
 ```
+
+The pdf and the electronic invoice of an invoice name the company of the invoice's own tenant. Labels, font sizes and the numbering format are the same for every tenant, and go into `ZIBRI_INVOICING_PLUGIN_DI_TOKENS.OPTIONS_INPUT`.
 
 #### ZibriMailingListPlugin
 Adds support for managing mailing lists, including subscribing, confirming subscriptions, unsubscribing and managing preferences.
+<br>
+Each [tenant](./tenancy.md) has its own mailing lists and subscribers. The links in the emails, such as the one to unsubscribe, name the tenant through [`resolveTenantUrl`](./tenancy.md#the-tenant-of-a-request), so following one opens the page in that tenant. The base email template gets them as `unsubscribeLink` and `managePreferencesLink`.
 <br>
 It requires you to provide the email/page templates it uses (eg. `SUBSCRIBE_CONFIRMATION_EMAIL_TEMPLATE`, `PREFERENCES_PAGE_TEMPLATE`) via the `ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS` tokens.
 <br>
@@ -80,7 +89,9 @@ export const withMailingList: OmitStrict<ZibriApplicationOptions, 'dataSources'>
 #### ZibriPaymentPlugin
 Adds support for handling payments via configurable payment providers (eg. `PayPalPaymentProvider`) and payment methods.
 <br>
-Just like the invoicing plugin, it requires you to provide your payment methods and providers via `ZIBRI_PAYMENT_PLUGIN_DI_TOKENS.OPTIONS_INPUT`, as there is no sensible default for it.
+It requires you to provide your payment methods and providers via `ZIBRI_PAYMENT_PLUGIN_DI_TOKENS.OPTIONS_INPUT`, as there is no sensible default for it. The providers are the same for every tenant, and each payment belongs to the [tenant](./tenancy.md) it is made in: a `transactionId` is unique among the payments of its tenant.
+
+A step of a payment - confirming, collecting, cancelling, refunding - is decided by the payment as it is stored, one step of a payment at a time across every instance, and the payment you pass is updated with the result. A step the stored status does not allow answers `409`, and so does a `transactionId` that is already used; payment data that is not valid answers `400`. `FAILED` means the provider declined. Every call that moves money carries an idempotency key, so you can repeat the step.
 
 ### Writing a custom plugin
 A custom plugin extends the abstract `ZibriPlugin` class:

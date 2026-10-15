@@ -14,6 +14,14 @@ import { Repository } from '../repository/repository';
 export type MigrationWithName = { migration: Migration, name: string };
 
 /**
+ * The name a data source records under when it changes its indexes and uniques to match the entities.
+ *
+ * Kept with the migrations because it is the same kind of record: a change to what is stored, made
+ * by one version of the app, that an older version was never built for.
+ */
+export const KEY_RECONCILIATION_NAME: string = 'zibri:indexes-and-uniques';
+
+/**
  * Applies every migration of a data source that the database has not recorded yet.
  *
  * This is independent of the underlying storage and shared by all data sources.
@@ -86,13 +94,41 @@ export async function revertMigrationsAfter(
     targetVersion: SemVerVersion
 ): Promise<void> {
     const applied: MigrationEntity[] = await appliedMigrations(dataSourceClass);
-    const recorded: MigrationEntity[] = applied.filter(m => SemVerUtilities.compare(m.version, targetVersion) === 'bigger');
+    const recorded: MigrationEntity[] = applied.filter(m => m.name !== KEY_RECONCILIATION_NAME
+        && SemVerUtilities.compare(m.version, targetVersion) === 'bigger');
+    const reconciliation: MigrationEntity | undefined = applied.find(m => m.name === KEY_RECONCILIATION_NAME
+        && SemVerUtilities.compare(m.version, targetVersion) === 'bigger');
 
-    if (!recorded.length) {
+    if (!recorded.length && reconciliation == undefined) {
         logger.info(`No migration is newer than ${targetVersion}, so there is nothing to revert.`);
         return;
     }
 
+    await revertRecorded(recorded, migrations, logger, targetVersion);
+
+    // forgotten rather than reverted, and only once the migrations are: there is no down to run and
+    // none is needed - the build returned to brings the indexes and uniques back to what its own
+    // entities declare when it boots, which this record would otherwise refuse to let it do
+    if (reconciliation != undefined) {
+        await inject(repositoryTokenFor(MigrationEntity, dataSourceClass)).deleteById(reconciliation.id);
+        logger.info(`    > leaves the indexes and uniques of ${reconciliation.version} to the build reverted to`);
+    }
+}
+
+/**
+ * Reverts the given recorded migrations, newest first.
+ * @param recorded - The recorded migrations to revert.
+ * @param migrations - The migration classes of the data source.
+ * @param logger - The logger to report the progress with.
+ * @param targetVersion - The version the database is being brought back to.
+ * @throws When one of them is not carried by this build, so there is no `down` to run.
+ */
+async function revertRecorded(
+    recorded: MigrationEntity[],
+    migrations: Newable<Migration>[],
+    logger: LoggerInterface,
+    targetVersion: SemVerVersion
+): Promise<void> {
     const declared: MigrationWithName[] = migrations.map(m => ({ migration: inject(m), name: m.name }));
     const declaredNames: Set<string> = new Set(declared.map(m => m.name));
 
@@ -117,6 +153,26 @@ export async function revertMigrationsAfter(
         logger.info(`    > runs down migration ${migration.name}`);
         await migration.migration.runDown();
     }
+}
+
+/**
+ * Records that this version of the app changed the indexes and uniques of a data source.
+ *
+ * What makes an older version refuse to start afterwards, the way it refuses a database migrated past
+ * it: one booting after this would otherwise change them back to what its own entities declare,
+ * taking away a unique the newer instances rely on.
+ * @param dataSourceClass - The data source whose indexes and uniques changed.
+ * @throws When no app version could be resolved.
+ */
+export async function recordKeyReconciliation(dataSourceClass: Newable<DataSourceInterface>): Promise<void> {
+    const version: SemVerVersion = resolveAppVersion();
+    const migrationsRepository: Repository<MigrationEntity> = inject(repositoryTokenFor(MigrationEntity, dataSourceClass));
+    const recorded: MigrationEntity | undefined = (await migrationsRepository.findAll({ where: { name: KEY_RECONCILIATION_NAME } })).at(0);
+    if (recorded == undefined) {
+        await migrationsRepository.create({ name: KEY_RECONCILIATION_NAME, version, ranAt: new Date() });
+        return;
+    }
+    await migrationsRepository.updateById(recorded.id, { version, ranAt: new Date() });
 }
 
 /**

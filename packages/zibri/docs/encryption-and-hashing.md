@@ -7,7 +7,7 @@ Encryption and hashing of entity properties can be easily defined via the `@Prop
 | `Property.string` | decorator | Marks a string property for encryption/hashing (among other things) |
 | `HashString` | type | Type of a hashed property's value |
 | `Sha256HashStrategy` | class | Unsalted hash for values that must stay findable. Never for passwords |
-| `ZIBRI_DI_TOKENS.ENCRYPTION_MASTER_OPTIONS` | DI token | The key that encrypts the encryption keys. No default, required for any encryption |
+| `ZIBRI_DI_TOKENS.ENCRYPTION_MASTER_OPTIONS` | DI token | The key that encrypts the encryption keys. No default, required by the default encryption service |
 | `EncryptionStrategyInterface` | interface | What an encryption algorithm implements, including a kms or hsm backed one |
 | `ZIBRI_DI_TOKENS.ENCRYPTION_SERVICE` | DI token | Injects the encryption service for manual encryption |
 | `ZIBRI_DI_TOKENS.HASH_SERVICE` | DI token | Injects the hash service for manual hashing |
@@ -18,10 +18,13 @@ Encryption and hashing of entity properties can be easily defined via the `@Prop
 ### Defining encrypted/hashed properties
 ```ts
 // src/models/secret.model.ts
-import { AesGcmEncryptionStrategy, BaseEncryptOptions, BaseEntity, defineProvider, EncryptionKey, EncryptionKeyStatus, EncryptionServiceInterface, EncryptionString, EncryptionStrategyInterface, Entity, HashServiceInterface, HashString, OmitClass, Property, Repository, ScryptCost, Sha256HashStrategy, ZIBRI_DI_TOKENS } from 'zibri';
+import { AesGcmEncryptionStrategy, BaseEncryptOptions, BaseEntity, defineProvider, EncryptionKey, EncryptionKeyStatus, EncryptionServiceInterface, EncryptionString, EncryptionStrategyInterface, Entity, HashServiceInterface, HashString, OmitClass, Property, Repository, RetiredKeyUsage, ScryptCost, Sha256HashStrategy, ZIBRI_DI_TOKENS } from 'zibri';
 
 @Entity()
 export class Secret extends BaseEntity {
+    @Property.string({ format: 'uuid' })
+    tenantId!: string;
+
     // Alternatively you can also provide an options object to encryption instead of the boolean flag.
     @Property.string({ encryption: true })
     encryptedValue!: string;
@@ -32,7 +35,9 @@ export class Secret extends BaseEntity {
 }
 ```
 
-This will encrypt/hash any values that are stored in a data source via a repository.
+This will encrypt/hash any values that are stored in a data source via a repository. The same flags work on the string items of an array and on a string shape of `@Property.oneOf`, and each shape can name a strategy of its own.
+
+A property holding an encrypted or hashed value stays out of change sets unless it declares `excludeFromChangeSets: false`.
 
 ### Create data typing
 A hashed property is typed as `HashString` on the entity (a branded type), but a plain `string` is what you actually pass in when creating one. The branding only exists after the value has been hashed.
@@ -42,7 +47,7 @@ Encryption does not have this problem, as the value might be automatically decry
 You can solve this inconsistency by defining a separate create-data class and override the hashed property back to type `string`:
 
 ```ts
-@Entity()
+@Entity({ tenant: 'shared' })
 export class Credentials extends BaseEntity {
     @Property.string({ hash: true })
     password!: HashString;
@@ -54,7 +59,7 @@ export class CredentialsCreateData extends OmitClass(Credentials, ['id', 'passwo
 }
 ```
 
-See `JwtCredentials`/`JwtCredentialsCreateData` in the auth module for a real example of this split.
+See `PasswordCredentials`/`PasswordCredentialsCreateData` in the auth module for a real example of this split.
 
 ### Where an encrypted value is allowed to be
 Encryption protects a value that was *read*. On its own it does nothing about a value that was
@@ -84,6 +89,9 @@ Turn the binding off for a property where that trade is the wrong way round:
 ```ts
 @Entity()
 export class SharedSecret extends BaseEntity {
+    @Property.string({ format: 'uuid' })
+    tenantId!: string;
+
     @Property.string({ encryption: { bindToRow: false } })
     sharedSecret!: string;
 }
@@ -132,6 +140,32 @@ rather than only new writes.
 Once the job has nothing left to do, the old key can be deleted. Deprecating the *default* key is
 refused — something has to be the key new values are written with.
 
+### Telling when a rotation is done
+`resolveRetiredKeyUsage()` counts what is still encrypted under every key being retired: the stored
+values under each deprecated data key, and the data keys and recorded backups that need each entry of
+`oldMasterKeys` and `oldMasterStrategies`:
+
+```ts
+export async function findUnusedRetiredKeyIds(encryptionService: EncryptionServiceInterface): Promise<string[]> {
+    const usage: RetiredKeyUsage = await encryptionService.resolveRetiredKeyUsage();
+    return usage.dataKeys.filter(k => k.values === 0).map(k => k.keyId);
+}
+```
+
+It counts what the framework stores: the values of the encrypted properties your models declare, the
+data keys, and the backups recorded in the database. A value you encrypt yourself with `encrypt`, or
+one in a column no model declares any more, is not counted, and the rotation job does not rewrite it
+either. Rotating those is up to you.
+
+A backup that holds the data source the data keys are stored in brings its data keys back when it is
+restored, so it counts towards the master keys they were encrypted under, whether or not the backup
+itself is encrypted. A backup that does not hold that data source needs its data keys to still exist,
+so it counts towards every data key there was when it was taken. Each backup records which keys it
+needs when it is taken, in `masterKeys` and `dataKeyIds`.
+
+The count reads every row of every entity holding an encrypted property, as one full pass of the
+rotation job does, so call it when you mean to retire something.
+
 ### Reading a value as it is stored
 Every read decrypts by default. Pass `autoDecrypt: false` to get the values exactly as they sit in the
 data source instead:
@@ -171,6 +205,9 @@ the same hash and the column stays searchable:
 ```ts
 @Entity()
 export class ApiToken extends BaseEntity {
+    @Property.string({ format: 'uuid' })
+    tenantId!: string;
+
     @Property.string({ unique: true, hash: { strategy: Sha256HashStrategy } })
     value!: HashString;
 }
@@ -196,6 +233,14 @@ export async function findToken(
 The builtin password reset and JWT refresh tokens are stored this way, which is why a leaked database
 copy contains no token that can be replayed against the api.
 
+`unique` on a hashed property needs a deterministic strategy too. A salted hash of one value is
+stored differently every time, so a unique declaration on it rejects nothing: the application refuses
+to start with one, and an entity whose hash is a function chosen per row is refused where it is
+declared.
+
+`unique` on an encrypted property is refused where it is declared. One value is stored differently
+under each key it is encrypted with, so after a key rotation the declaration could not reject it.
+
 ### Manual encryption/hashing
 To manually encrypt or hash a value Zibri provides the `ZIBRI_DI_TOKENS.ENCRYPTION_SERVICE` and `ZIBRI_DI_TOKENS.HASH_SERVICE` injection tokens.
 
@@ -207,9 +252,9 @@ unqualified `hash: true` uses, which in practice means every stored password. A 
 deterministic strategies is refused at the first hash rather than quietly used.
 
 ### The master key
-**Encryption needs `ZIBRI_DI_TOKENS.ENCRYPTION_MASTER_OPTIONS`**, which has no default — the service
-throws without it. That includes the builtin TOTP second factor, whose secret is an encrypted
-property, so an application using it has to configure this before anyone can enroll:
+**The default encryption service needs `ZIBRI_DI_TOKENS.ENCRYPTION_MASTER_OPTIONS`**, which has no
+default. It starts with every application, whether or not anything is encrypted, and refuses to start
+without it:
 
 ```ts
 defineProvider({
@@ -224,11 +269,14 @@ defineProvider({
 Nothing in the database is encrypted with this key. Data keys are generated per strategy, stored in
 the key table, and it is *those* that the master key encrypts — so the master key is what a stolen
 database dump does not contain, and rotating it rewrites a handful of key rows rather than every
-encrypted column.
+encrypted column. The keys of [encrypted backups](./backup.md#encrypting-backups) are encrypted with
+it as well.
 
 Old master keys and strategies go in `oldMasterKeys` and `oldMasterStrategies`, which is what makes
 replacing one possible: key rows written under the old key still decrypt, and get rewritten under
-the current one.
+the current one. A backup taken under an old key is restored with it, so keep an old key listed for
+as long as you keep backups taken under it. [`resolveRetiredKeyUsage()`](#telling-when-a-rotation-is-done)
+counts both.
 
 #### Keeping the key material off the host
 `currentMasterKey.value` is typed by the strategy, not by the framework — `EncryptionStrategyInterface<TKey>`
@@ -246,6 +294,7 @@ type KmsKeyHandle = { arn: string };
 class KmsEncryptionStrategy implements EncryptionStrategyInterface<KmsKeyHandle> {
     readonly name: string = 'kms';
     readonly version: string = 'v1';
+    readonly usableInMigrations: boolean = true;
 
     async encrypt(value: string, options: BaseEncryptOptions<KmsKeyHandle>): Promise<EncryptionString> {
         // options.key is the handle. The plaintext leaves the process, the key never enters it
@@ -273,6 +322,8 @@ class KmsEncryptionStrategy implements EncryptionStrategyInterface<KmsKeyHandle>
     }
 }
 ```
+
+`usableInMigrations` says whether a strategy works while [migrations](./data-source.md#handling-migrations) run, which is before the application is initialized. Set it to `false` when what it calls is set up by a provider during initialization. A migration that encrypts or decrypts with such a strategy is refused, and the error names the strategy.
 
 Used as the **master** strategy this is textbook envelope encryption: the data key is generated
 locally, handed to the service to wrap, and the wrap is the only call that crosses the network — once

@@ -11,7 +11,12 @@ import { type CurrencyCode } from '../../../localization/models/currency-code.mo
 @Entity({ allowOrphan: true })
 export class Invoice extends BaseEntity {
     /**
-     * The unique invoice number for this invoice.
+     * The tenant that issued the invoice.
+     */
+    @Property.string({ format: 'uuid' })
+    tenantId!: string;
+    /**
+     * The invoice number, unique among the invoices of its tenant.
      */
     @Property.string({ unique: true })
     number!: string;

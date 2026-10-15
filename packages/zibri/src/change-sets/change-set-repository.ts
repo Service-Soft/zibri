@@ -20,6 +20,8 @@ import { UpdateAllOptions } from '../data-source/models/options/update-all-optio
 import { UpdateByIdOptions } from '../data-source/models/options/update-by-id-options.model';
 import { Where } from '../data-source/models/where/where-filter.model';
 import { Repository, WrittenUpdate } from '../data-source/repository/repository';
+import { ScopedWhere } from '../data-source/scopes/scope-where.utilities';
+import { TenantUtilities } from '../data-source/tenancy/tenant.utilities';
 import { PropertyMetadata } from '../entity/decorators/property.decorator';
 import { BadRequestError } from '../error-handling/errors/bad-request.error';
 import { InternalError } from '../error-handling/internal-error.model';
@@ -145,7 +147,8 @@ export class ChangeSetRepository<
             // every matching row, because the update below writes every matching row - the two have
             // to cover the same set or the change sets describe a different update than the one that
             // happened. That a bulk update reads its rows at all is 01-data-layer M3
-            const original: T[] = await this.findAll({ where, ...inTransaction, take: 'all' });
+            const reach: ScopedWhere<T> = this.resolveWriteWhere(where, inTransaction);
+            const original: T[] = reach.matchesNothing ? [] : await this.findAll({ where: reach.where, ...inTransaction, take: 'all' });
             const originalById: Map<T['id'], T> = new Map(original.map(row => [row.id, row]));
 
             const updates: WrittenUpdate<T>[] = await this.saveUpdateAll(where, data, inTransaction);
@@ -420,8 +423,12 @@ export class ChangeSetRepository<
         // filter, and nothing afterwards says which half it got to
         return await this.inTransaction(options, async transaction => {
             const inTransaction: BaseRepositoryOptions = { ...options, transaction };
-            // a rollback covers everything the filter matches or it is not a rollback of that filter
-            const entitiesToRollback: T[] = await this.findAll({ where: where, ...inTransaction, take: 'all' });
+            // a rollback covers everything the filter matches or it is not a rollback of that filter -
+            // of the rows it may change, which inside a tenant leaves out the ones of no tenant
+            const reach: ScopedWhere<T> = this.resolveWriteWhere(where, inTransaction);
+            const entitiesToRollback: T[] = reach.matchesNothing
+                ? []
+                : await this.findAll({ where: reach.where, ...inTransaction, take: 'all' });
             await PromiseUtilities.allChunked(
                 entitiesToRollback,
                 e => this.rollbackToTimestamp(e, timestampInNs, createChangeSet, preserveCreateChangeSet, inTransaction)
@@ -461,13 +468,27 @@ export class ChangeSetRepository<
         }
 
         const changeSetData: CreateChangeSetData = {
+            tenantId: this.resolveChangeSetTenant(entityPriorChanges),
             changeSetEntityId: entityPriorChanges.id,
             type: type,
             createdAt: nowInNs(),
             createdBy: await this.getCreatedBy(),
             changes
         };
-        await this.changeSetRepository.create(changeSetData, { transaction: options?.transaction });
+        await this.changeSetRepository.create(changeSetData, { transaction: options?.transaction, acrossTenants: true });
+    }
+
+    /**
+     * Resolves the tenant a change set belongs to: the one of the row it describes.
+     *
+     * Rather than the tenant active while the change is written, which is none for a change made
+     * across tenants - and a change set of no tenant is history every tenant reads.
+     * @param row - The row the change set describes.
+     * @returns Its tenant, or null for a row of no tenant.
+     */
+    private resolveChangeSetTenant(row: T): string | null {
+        // eslint-disable-next-line unicorn/no-null
+        return TenantUtilities.resolveTenantOf(row, this.entityClass) ?? null;
     }
 
     /**
@@ -508,6 +529,7 @@ export class ChangeSetRepository<
                 ]);
 
                 return {
+                    tenantId: this.resolveChangeSetTenant(e),
                     changeSetEntityId: e.id,
                     type,
                     createdAt: nowInNs(),
@@ -522,7 +544,7 @@ export class ChangeSetRepository<
         if (!force && !changeSetData.length) {
             return;
         }
-        await this.changeSetRepository.createAll(changeSetData, { transaction: options?.transaction });
+        await this.changeSetRepository.createAll(changeSetData, { transaction: options?.transaction, acrossTenants: true });
     }
 
     /**

@@ -1,6 +1,17 @@
 import { InternalError } from '../../error-handling/internal-error.model';
 
 /**
+ * The longest password the builtin auth routes accept, in characters.
+ *
+ * Bounds what a single login or password reset hashes. Use it on your own password fields too, so
+ * a password set through them is one the builtin routes accept.
+ */
+// 1024 rather than the 64 NIST asks verifiers to permit at least: far past any passphrase or
+// password manager output, and still small enough that a key derivation over it costs what one
+// over a normal password does
+export const PASSWORD_MAX_LENGTH: number = 1024;
+
+/**
  * A string with hashed data stored inside of it.
  */
 export type HashString = string & {

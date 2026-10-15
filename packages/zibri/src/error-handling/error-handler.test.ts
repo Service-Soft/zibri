@@ -1,13 +1,18 @@
 import assert from 'node:assert';
 
 import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from '@jest/globals';
+import { createInMemoryDataSource } from 'zibri-testing';
 
+import { CustomBodyHttpError } from './errors/custom-body-http.error';
 import { NotFoundError } from './errors/not-found.error';
 import { TooManyRequestsError } from './errors/too-many-requests.error';
 import { InternalError } from './internal-error.model';
+import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
+import { HttpStatus } from '../http/http-status.enum';
+import { JsonMimeType } from '../http/json-mime-type.type';
 import { KnownHeader } from '../http/known-header.enum';
 import { MimeType } from '../http/mime-type.enum';
 import { $ts } from '../localization/translate.function';
@@ -16,8 +21,26 @@ import { FailedRateLimitResult } from '../rate-limiting/rate-limit-result.model'
 import { Controller } from '../routing/decorators/controller.decorator';
 import { Get } from '../routing/decorators/get.decorator';
 
+/**
+ * An error of a protocol that says what its errors look like.
+ */
+class ProtocolError extends CustomBodyHttpError {
+    readonly body: unknown = { schemas: ['urn:ietf:params:scim:api:messages:2.0:Error'], status: '409', scimType: 'uniqueness' };
+    readonly mimeTypes: JsonMimeType[] = [MimeType.JSON_SCIM, MimeType.JSON];
+
+    constructor() {
+        super($ts`taken`, HttpStatus.CONFLICT, $ts`Conflict`, undefined);
+        this.name = 'ProtocolError';
+    }
+}
+
 @Controller('/error-cases')
 class ErrorCasesController {
+    @Get('/protocol')
+    protocol(): never {
+        throw new ProtocolError();
+    }
+
     @Get('/not-found')
     notFound(): never {
         throw new NotFoundError($ts`nothing here`);
@@ -53,7 +76,11 @@ describe('errorHandler', () => {
     let baseUrl: string;
 
     beforeAll(async () => {
-        server = await startTestServer({ controllers: [ErrorCasesController] });
+        // in memory: nothing here reads a table, and the suite runs without a container
+        server = await startTestServer({
+            controllers: [ErrorCasesController],
+            dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities })]
+        });
         baseUrl = await server.start();
     }, 15000);
 
@@ -75,6 +102,16 @@ describe('errorHandler', () => {
         expect(body.status).toBe(404);
         expect(body.name).toBe('NotFoundError');
         expect(body.paragraphs).toEqual(['nothing here']);
+    });
+
+    it('answers an error with a body of its own with that body, in the json type the request accepts', async () => {
+        const res: Response = await fetch(`${baseUrl}/error-cases/protocol`);
+        expect(res.status).toBe(409);
+        expect(res.headers.get(KnownHeader.CONTENT_TYPE)).toMatch(/^application\/scim\+json/);
+        expect(await res.json()).toEqual({ schemas: ['urn:ietf:params:scim:api:messages:2.0:Error'], status: '409', scimType: 'uniqueness' });
+
+        const json: Response = await fetch(`${baseUrl}/error-cases/protocol`, { headers: { [KnownHeader.ACCEPT]: MimeType.JSON } });
+        expect(json.headers.get(KnownHeader.CONTENT_TYPE)).toMatch(/^application\/json/);
     });
 
     it('converts a non-HttpError into a 500 internal server error response', async () => {

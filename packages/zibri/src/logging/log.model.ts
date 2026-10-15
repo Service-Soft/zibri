@@ -10,6 +10,11 @@ import { Property } from '../entity/decorators/property.decorator';
 @Entity({ allowOrphan: true })
 export class Log extends BaseEntity {
     /**
+     * The tenant the entry was logged in, or null for one logged outside every tenant.
+     */
+    @Property.string({ format: 'uuid', required: false })
+    tenantId?: string | null;
+    /**
      * The log level.
      */
     @Property.number({ enum: LogLevel })

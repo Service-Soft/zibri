@@ -8,13 +8,37 @@ import { EncryptionService } from './encryption.service';
 import { EncryptionString } from './encryption.utilities';
 import { AesGcmEncryptionStrategy } from './strategies/aes-gcm.encryption-strategy';
 import { EncryptionStrategyEntity } from './strategies/encryption-strategy-entity.model';
+import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
+import { startAndStopTestServerWithout } from '../../__testing__/test-server/start-and-stop-test-server-without.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
+import { defineProvider } from '../../di/models/di-provider.model';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { OtpCredentials } from '../2fa/methods/otp/otp-credentials.model';
+
+// first, for the reason on startAndStopTestServerWithout
+describe('EncryptionService — starting', () => {
+    test('refuses to start without its entities, and names both', async () => {
+        const start: Promise<void> = startAndStopTestServerWithout([EncryptionKey, EncryptionStrategyEntity]);
+
+        await expect(start).rejects.toThrow('Error initializing EncryptionService');
+        await expect(start).rejects.toThrow(/EncryptionStrategyEntity[\S\s]*EncryptionKey/);
+    }, 30000);
+
+    test('refuses to start without the master key options, whether or not anything is encrypted', async () => {
+        const start: Promise<void> = startAndStopTestServerWithout([], {
+            providers: [
+                ...defaultTestServerProviders,
+                defineProvider({ token: ZIBRI_DI_TOKENS.ENCRYPTION_MASTER_OPTIONS, useValue: undefined })
+            ]
+        });
+
+        await expect(start).rejects.toThrow('No provider for token "zi.encryption_master_options"');
+    }, 30000);
+});
 
 describe('EncryptionService', () => {
     let server: StartedTestServer;

@@ -1,31 +1,19 @@
 import { BaseParamMetadata } from './base-param-metadata.model';
-import { BaseDecryptOptions, BaseEncryptOptions } from '../../auth/encryption/strategies/encryption-strategy.interface';
-import { AnyObject } from '../../entity/any-object.model';
-import { StringPropertyMetadata } from '../../entity/models/string-property-metadata.model';
+import { StoredStringPropertyMetadata } from '../../entity/models/string-property-metadata.model';
 import { OmitStrict } from '../../types/omit-strict.type';
 
 /**
  * Metadata for string parameters.
  */
-export type StringParamMetadata<
-    Data,
-    TKey,
-    TEncryptOptions extends BaseEncryptOptions<TKey>,
-    TDecryptOptions extends BaseDecryptOptions<TKey>,
-    THashOptions extends AnyObject
-> = BaseParamMetadata & OmitStrict<
-    StringPropertyMetadata<Data, TKey, TEncryptOptions, TDecryptOptions, THashOptions>,
+export type StringParamMetadata = BaseParamMetadata & OmitStrict<
+    StoredStringPropertyMetadata,
+    // encryption and hashing are what a repository does to a value it stores, and a parameter is read
+    // from a request rather than stored - so nothing would ever act on either flag here
     'primary' | 'default' | 'exclude' | 'excludeFromChangeSets' | 'index' | 'fuzzySearchable' | 'optimisticLocking'
+    | 'encryption' | 'hash'
 >;
 
 /**
  * Metadata Input for string parameters.
  */
-export type StringParamMetadataInput<
-    Data,
-    TKey,
-    TEncryptOptions extends BaseEncryptOptions<TKey>,
-    TDecryptOptions extends BaseDecryptOptions<TKey>,
-    THashOptions extends AnyObject
-> = Partial<OmitStrict<StringParamMetadata<Data, TKey, TEncryptOptions, TDecryptOptions, THashOptions>, 'name'>>
-    & Pick<StringParamMetadata<Data, TKey, TEncryptOptions, TDecryptOptions, THashOptions>, 'type'>;
+export type StringParamMetadataInput = Partial<OmitStrict<StringParamMetadata, 'name'>> & Pick<StringParamMetadata, 'type'>;

@@ -8,7 +8,9 @@ import { EventSubscriberRun, EventSubscriberRunStatus } from './event-subscriber
 import { Event, EventStatus } from './event.model';
 import { EventSubscription } from './event.service';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
+import { startAndStopTestServerWithout } from '../__testing__/test-server/start-and-stop-test-server-without.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
+import { waitUntil } from '../__testing__/wait-until.function';
 import { Repository } from '../data-source/repository/repository';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
@@ -65,16 +67,15 @@ declare module './event-service.interface' {
  */
 const maxConcurrentHooks: number = 2;
 
-async function waitUntil(predicate: () => Promise<boolean> | boolean, timeoutMs: number = 3000): Promise<void> {
-    const start: number = Date.now();
-    while (Date.now() - start < timeoutMs) {
-        if (await predicate()) {
-            return;
-        }
-        await new Promise(resolve => setTimeout(resolve, 20));
-    }
-    throw new Error('waitUntil: condition was not met in time');
-}
+// first, for the reason on startAndStopTestServerWithout
+describe('EventService — starting', () => {
+    it('refuses to start without its entities, and names all three', async () => {
+        const start: Promise<void> = startAndStopTestServerWithout([Event, EventSubscriberRun, EventSubscriberRegistration]);
+
+        await expect(start).rejects.toThrow('Error initializing EventService');
+        await expect(start).rejects.toThrow(/Event[\S\s]*EventSubscriberRun[\S\s]*EventSubscriberRegistration/);
+    }, 30000);
+});
 
 describe('EventService', () => {
     let server: StartedTestServer;
@@ -100,7 +101,7 @@ describe('EventService', () => {
         eventRepo = inject(repositoryTokenFor(Event));
         eventSubscriberRunRepo = inject(repositoryTokenFor(EventSubscriberRun));
         registrationRepo = inject(repositoryTokenFor(EventSubscriberRegistration));
-    }, 15000);
+    }, 30000);
 
     afterAll(async () => {
         await server?.shutdown();

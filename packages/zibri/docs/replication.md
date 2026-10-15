@@ -27,9 +27,6 @@ No configuration beyond the shared data source. Each is held by a test in
 | Schema setup does not race on boot, whichever `schemaManagement` you chose | A named lock over the whole schema setup |
 | Invoice numbers do not collide, and roll back with their invoice | An `upsert`, not a lock — see [data-source.md](./data-source.md#making-your-own-writes-safe-across-instances) |
 
-The entities behind these have to be registered in a data source, the same as any other entity:
-`Lease`, `Event`, `EventSubscriberRun`, `CacheInvalidation`, `ThreadJobEntity`.
-
 ## What needs configuring
 
 ### Websockets
@@ -45,11 +42,9 @@ import { Auth, Controller, defineProvider, Get, GlobalRegistry, Ms, ServiceUnava
 import { MyValKeyDataSource } from './data-sources';
 
 defineProvider({
-    token: ZIBRI_DI_TOKENS.WEBSOCKET_OPTIONS,
+    token: ZIBRI_DI_TOKENS.WEBSOCKET_OPTIONS_INPUT,
     useFactory: () => ({
-        timeoutInMs: Ms.SECOND * 5,
-        handlerInMs: Ms.SECOND * 30,
-        isAllowedToConnect: () => true,
+        messageRetentionInMs: Ms.DAY,
         adapterDataSource: MyValKeyDataSource
     })
 })

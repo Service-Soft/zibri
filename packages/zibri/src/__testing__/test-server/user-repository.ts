@@ -1,8 +1,8 @@
 import { UserRepo } from '../../auth/decorators/user-repo.decorator';
-import { JwtCredentials } from '../../auth/strategies/jwt/jwt-credentials.model';
 import { UserRepositoryInterface } from '../../auth/user/user-repository.interface';
 import { getDefaultBeforeReturnHook, getDefaultBeforeSaveHook } from '../../data-source/hooks/hooks.default';
 import { Repository } from '../../data-source/repository/repository';
+import { Transaction } from '../../data-source/transaction/transaction.model';
 import { InjectRepository } from '../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
@@ -12,15 +12,13 @@ import { Roles } from '../mocks/entities/roles.enum';
 
 @UserRepo()
 export class DefaultTestServerUserRepository extends Repository<JwtUser>
-    implements UserRepositoryInterface<Roles, JwtUser, JwtCredentials> {
+    implements UserRepositoryInterface<Roles, JwtUser> {
 
     constructor(
         @InjectRepository(JwtUser)
         repo: Repository<JwtUser>,
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
-        logger: LoggerInterface,
-        @InjectRepository(JwtCredentials)
-        private readonly credentialsRepository: Repository<JwtCredentials>
+        logger: LoggerInterface
     ) {
         super(JwtUser, repo, logger, repo.dataSource, getDefaultBeforeSaveHook(), getDefaultBeforeReturnHook());
     }
@@ -29,7 +27,7 @@ export class DefaultTestServerUserRepository extends Repository<JwtUser>
         return await this.findOne({ where: { email } });
     }
 
-    async resolveCredentialsFor(user: JwtUser): Promise<JwtCredentials> {
-        return await this.credentialsRepository.findOne({ where: { userId: user.id } });
+    async updateDeactivatedAt(id: string, deactivatedAt: Date | null, transaction: Transaction | undefined): Promise<void> {
+        await this.updateById(id, { deactivatedAt }, { transaction });
     }
 }

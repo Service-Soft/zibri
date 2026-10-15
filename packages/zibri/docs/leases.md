@@ -8,7 +8,7 @@ This is the tool. For what it is used for, see [replication.md](./replication.md
 ## Key exports
 | Export | Kind | Purpose |
 |---|---|---|
-| `Lease` | entity | Where a grant lives. Must be registered in exactly one data source |
+| `Lease` | entity | Where a grant lives |
 | `LeaseOptions` | type | What to take: `key`, `leaseInMs`, and the two axes below |
 | `LeaseSetOptions` | type | The same without `key` or `mode`, for taking several at once |
 | `LeaseAcquisitionMode` | type | `'wait'` or `'skip'` - what to do when somebody else holds it |

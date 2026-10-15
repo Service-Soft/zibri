@@ -8,6 +8,8 @@ import { EmailWrapper } from './email-wrapper';
 export const MailingListBaseEmail: MailingListBaseEmailTemplate = ({
     list,
     subscriber,
+    unsubscribeLink,
+    managePreferencesLink,
     html,
     title
 }) => {
@@ -22,7 +24,7 @@ export const MailingListBaseEmail: MailingListBaseEmailTemplate = ({
                     </MjColumn>
                 </MjSection>
 
-                <BaseEmailFooter mailingListData={{ list, subscriber }}/>
+                <BaseEmailFooter mailingListData={{ list, subscriber, unsubscribeLink, managePreferencesLink }}/>
             </EmailWrapper>
         </BaseEmail>
     );

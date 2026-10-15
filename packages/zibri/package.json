@@ -16,9 +16,10 @@
     },
     "files": [
         "./src",
-        "!src/__testing__/**",
+        "!src/**/__testing__/**",
         "!src/**/test/**",
         "!src/**/*.test.ts",
+        "!src/**/*.cases.ts",
         "!src/**/*.test.worker.*",
         "./dist",
         "./README.md",
@@ -29,12 +30,13 @@
         "node": ">=24"
     },
     "scripts": {
-        "test": "npm run test:normal && npm run test:heavy && npm run test:evaluation && npm run test:cluster",
+        "test": "npm run test:normal && npm run test:heavy && npm run test:evaluation && npm run test:cluster && npm run test:benchmark",
         "test:ci": "npm run test:coverage",
-        "test:heavy": "jest --runInBand --testPathPatterns='(multithreading\\.service\\.performance\\.test\\.ts|pay-pal\\.payment-provider\\.test\\.ts)'",
-        "test:normal": "jest --testPathPatterns='^(?!.*(multithreading\\.service\\.performance\\.test\\.ts|pay-pal\\.payment-provider\\.test\\.ts|\\.evaluation\\.test\\.ts|\\.cluster\\.test\\.ts)).*'",
+        "test:heavy": "jest --runInBand --testPathPatterns='(multithreading\\.service\\.performance\\.test\\.ts|pay-pal\\.payment-provider\\.test\\.ts|base-keycloak\\.authenticator\\.test\\.ts|\\.heavy\\.test\\.ts)'",
+        "test:normal": "jest --testPathPatterns='^(?!.*(multithreading\\.service\\.performance\\.test\\.ts|pay-pal\\.payment-provider\\.test\\.ts|base-keycloak\\.authenticator\\.test\\.ts|\\.heavy\\.test\\.ts|\\.evaluation\\.test\\.ts|\\.cluster\\.test\\.ts|\\.benchmark\\.test\\.ts)).*'",
         "test:evaluation": "jest --testPathPatterns='\\.evaluation\\.test\\.ts$'",
         "test:cluster": "jest --runInBand --testPathPatterns='\\.cluster\\.test\\.ts$'",
+        "test:benchmark": "jest --runInBand --testPathPatterns='\\.benchmark\\.test\\.ts$'",
         "test:coverage": "npm run test:coverage:normal && npm run test:coverage:heavy && npm run test:coverage:merge",
         "test:coverage:normal": "npm run test:normal -- --coverage --coverageDirectory=__testing__/coverage/raw/normal --coverageReporters=json",
         "test:coverage:heavy": "npm run test:heavy -- --coverage --coverageDirectory=__testing__/coverage/raw/heavy --coverageReporters=json",
@@ -42,11 +44,12 @@
         "start": "npm run watch:cjs",
         "watch:cjs": "tsc -p tsconfig.cjs.json --watch",
         "build:prod": "npm run build && typedoc",
-        "build:cjs": "tsc -p tsconfig.cjs.json",
+        "build:cjs": "tsc -p tsconfig.cjs.code.json && tsc -p tsconfig.cjs.declarations.json",
         "build:clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
         "build": "npm run build:clean && npm run build:cjs",
         "lint": "eslint . --max-warnings=0",
-        "lint:fix": "eslint . --max-warnings=0 --fix"
+        "lint:fix": "eslint . --max-warnings=0 --fix",
+        "typecheck": "tsc -p tsconfig.json --noEmit"
     },
     "keywords": [
         "Zibri",
@@ -57,25 +60,37 @@
     "license": "MIT",
     "description": "TS Backend Framework",
     "peerDependencies": {
+        "@fastify/busboy": "^3.2.0",
+        "@node-saml/node-saml": "^5.1.0",
         "@opentelemetry/api": "^1.9.1",
         "@opentelemetry/exporter-trace-otlp-http": "^0.222.0",
         "@opentelemetry/resources": "^2.11.0",
         "@opentelemetry/sdk-trace-node": "^2.11.0",
+        "@simplewebauthn/server": "^14.0.3",
+        "@valkey/valkey-glide": "^2.5.0",
         "bcryptjs": "^3.0.3",
         "bignumber.js": "^11.1.1",
-        "handlebars": "^4.7.9",
-        "jsonwebtoken": "^9.0.3",
+        "handlebars": "^4.7.10",
+        "jose": "^6.2.12",
+        "ldapts": "^9.2.0",
+        "nodemailer": "^10.0.13",
+        "openid-client": "^6.8.8",
         "otpauth": "^9.5.1",
         "pdfmake": "^0.2.23",
         "pg": "^8.21.0",
         "pg-query-stream": "^4.10.3",
-        "@valkey/valkey-glide": "^2.5.0",
+        "prom-client": "^15.1.3",
+        "re2": "^1.27.0",
         "rxjs": "^7.8.2",
+        "saxes": "^6.0.0",
         "socket.io": "^4.8.3",
         "socket.io-adapter": "^2.5.5",
+        "socket.io-parser": "^4.2.4",
+        "ssh2": "^1.17.0",
+        "swagger2openapi": "^7.0.8",
+        "systeminformation": "^5.31.6",
         "ts-node": "^10.9.2",
         "typescript": "^5.9.2",
-        "saxes": "^6.0.0",
         "zibri-tsx": "^3.0.0"
     },
     "peerDependenciesMeta": {
@@ -109,6 +124,9 @@
         "ts-node": {
             "optional": true
         },
+        "nodemailer": {
+            "optional": true
+        },
         "otpauth": {
             "optional": true
         },
@@ -121,63 +139,106 @@
         "socket.io-adapter": {
             "optional": true
         },
+        "socket.io-parser": {
+            "optional": true
+        },
         "typescript": {
             "optional": true
         },
         "saxes": {
             "optional": true
+        },
+        "ssh2": {
+            "optional": true
+        },
+        "re2": {
+            "optional": true
+        },
+        "jose": {
+            "optional": true
+        },
+        "openid-client": {
+            "optional": true
+        },
+        "@simplewebauthn/server": {
+            "optional": true
+        },
+        "prom-client": {
+            "optional": true
+        },
+        "@fastify/busboy": {
+            "optional": true
+        },
+        "systeminformation": {
+            "optional": true
+        },
+        "swagger2openapi": {
+            "optional": true
+        },
+        "@node-saml/node-saml": {
+            "optional": true
+        },
+        "ldapts": {
+            "optional": true
         }
     },
     "dependencies": {
-        "@fastify/busboy": "^3.2.0",
         "express": "^5.2.1",
         "node-cron": "^4.2.1",
-        "nodemailer": "^9.0.1",
-        "prom-client": "^15.1.3",
+        "path-to-regexp": "^8.0.0",
         "reflect-metadata": "^0.2.2",
-        "swagger2openapi": "^7.0.8",
-        "systeminformation": "^5.31.6",
         "typeorm": "^0.3.29"
     },
     "devDependencies": {
         "@faker-js/faker": "^10.6.0",
+        "@fastify/busboy": "^3.2.3",
         "@jest/globals": "^30.4.1",
+        "@node-saml/node-saml": "^5.1.0",
         "@opentelemetry/api": "^1.9.1",
         "@opentelemetry/exporter-trace-otlp-http": "^0.222.0",
         "@opentelemetry/resources": "^2.11.0",
         "@opentelemetry/sdk-trace-node": "^2.11.0",
+        "@simplewebauthn/server": "^14.0.3",
         "@swc/core": "^1.15.40",
         "@testcontainers/postgresql": "^12.0.0",
         "@types/express": "^5.0.6",
-        "@types/jsonwebtoken": "^9.0.10",
-        "@types/node": "^25.9.1",
-        "@types/nodemailer": "^8.0.0",
+        "@types/node": "^24.0.0",
         "@types/pdfmake": "^0.2.11",
+        "@types/ssh2": "^1.15.5",
         "@types/swagger2openapi": "^7.0.4",
+        "@valkey/valkey-glide": "^2.5.0",
         "bcryptjs": "^3.0.3",
         "esbuild": "^0.25.12",
         "eslint": "^9.36.0",
         "eslint-config-service-soft": "^2.1.6",
         "form-data": "^4.0.6",
+        "handlebars": "^4.7.10",
         "jest": "^30.4.2",
+        "jose": "^6.2.12",
+        "ldapts": "^9.2.0",
+        "nodemailer": "^10.1.0",
         "npm-run-all": "^4.1.5",
         "nyc": "^18.0.0",
         "openapi3-ts": "^4.5.0",
-        "playwright": "^1.61.1",
-        "socket.io-client": "^4.8.3",
-        "testcontainers": "^12.0.0",
-        "ts-jest": "^29.4.11",
-        "typedoc": "^0.28.19",
-        "typescript": "^5.9.2",
-        "zibri-testing": "^3.0.0",
-        "pg": "^8.21.0",
-        "pg-query-stream": "^4.10.3",
-        "@valkey/valkey-glide": "^2.5.0",
-        "handlebars": "^4.7.9",
+        "openid-client": "^6.8.8",
         "otpauth": "^9.5.1",
         "pdfmake": "^0.2.23",
+        "pg": "^8.21.0",
+        "pg-query-stream": "^4.10.3",
+        "playwright": "^1.61.1",
+        "prom-client": "^15.1.3",
+        "re2": "^1.27.0",
+        "saxes": "^6.0.0",
         "socket.io": "^4.8.3",
+        "socket.io-client": "^4.8.3",
+        "ssh2": "^1.17.0",
+        "swagger2openapi": "^7.0.8",
+        "systeminformation": "^5.33.15",
+        "testcontainers": "^12.0.0",
+        "ts-jest": "^29.4.11",
         "ts-node": "^10.9.2",
-        "saxes": "^6.0.0"
+        "typedoc": "^0.28.19",
+        "typescript": "^5.9.2",
+        "zibri-testing": "^3.0.0"
     }
 }

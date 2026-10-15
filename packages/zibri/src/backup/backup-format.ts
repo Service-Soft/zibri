@@ -7,9 +7,10 @@
  * changes and at no other time, which is usually never.
  *
  * What it covers is what the framework writes: the record beside the data - including which fields a
- * restore reads out of it - and the layout a transport stores under. It says nothing about what a
- * resource's own `createBackupData` produces, because that format belongs to the resource: a postgres
- * dump is read by postgres, and which versions of it can is postgres's contract rather than this one.
+ * restore reads out of it - the layout a transport stores under, and how encrypted data is sealed. It
+ * says nothing about what a resource's own `createBackupData` produces, because that format belongs to
+ * the resource: a postgres dump is read by postgres, and which versions of it can is postgres's
+ * contract rather than this one.
  */
 export const BACKUP_FORMAT_VERSION: number = 1;
 

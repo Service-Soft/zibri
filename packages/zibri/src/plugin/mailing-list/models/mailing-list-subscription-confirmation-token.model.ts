@@ -9,6 +9,12 @@ import { OmitClass } from '../../../entity/omit-class.model';
 @Entity({ allowOrphan: true })
 export class MailingListSubscriptionConfirmationToken extends BaseEntity {
     /**
+     * The tenant of the mailing list the token confirms a subscription to.
+     */
+    @Property.string({ format: 'uuid' })
+    tenantId!: string;
+
+    /**
      * The expiration date of the confirmation token.
      */
     @Property.date()
@@ -40,6 +46,9 @@ export class MailingListSubscriptionConfirmationToken extends BaseEntity {
 }
 
 /**
- * The data to create a new mailing list subscription confirmation token.
+ * The data to create a new mailing list subscription confirmation token, in the active tenant.
  */
-export class MailingListSubscriptionConfirmationTokenCreateData extends OmitClass(MailingListSubscriptionConfirmationToken, ['id']) {}
+export class MailingListSubscriptionConfirmationTokenCreateData extends OmitClass(
+    MailingListSubscriptionConfirmationToken,
+    ['id', 'tenantId']
+) {}

@@ -46,6 +46,11 @@ export enum EventSubscriberRunStatus {
 @Entity({ allowOrphan: true, uniques: [['eventId', 'subscriberId']] })
 export class EventSubscriberRun<T> extends BaseEntity {
     /**
+     * The tenant of the event this run belongs to, or null for an event of no tenant.
+     */
+    @Property.string({ format: 'uuid', required: false })
+    tenantId?: string | null;
+    /**
      * The timestamp at which the event run has been created.
      */
     @Property.date({ default: () => new Date() })

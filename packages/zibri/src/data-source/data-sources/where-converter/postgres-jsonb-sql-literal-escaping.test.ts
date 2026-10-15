@@ -17,7 +17,7 @@ class ContactDetails {
     note!: string;
 }
 
-@Entity()
+@Entity({ tenant: 'shared' })
 class Contact extends BaseEntity {
     @Property.string()
     name!: string;

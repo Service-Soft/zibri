@@ -36,7 +36,8 @@ describe('evaluation/01-data-layer C1 - schema management must be stated, not as
                 host: 'localhost',
                 username: 'postgres',
                 password: 'password',
-                database: 'db'
+                database: 'db',
+                ssl: false
             };
 
             entities: Newable<BaseEntity>[] = defaultTestServerEntities;

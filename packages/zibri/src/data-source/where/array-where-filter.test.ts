@@ -14,7 +14,7 @@ import { Repository } from '../repository/repository';
 
 // ---------- Test entities ----------
 
-@Entity()
+@Entity({ tenant: 'shared' })
 class Category extends BaseEntity {
     @Property.string()
     name!: string;
@@ -23,7 +23,7 @@ class Category extends BaseEntity {
     posts!: Post[];
 }
 
-@Entity()
+@Entity({ tenant: 'shared' })
 class Comment extends BaseEntity {
     @Property.string()
     text!: string;
@@ -51,7 +51,7 @@ class Metadata {
     reviews: Review[] | null | undefined;
 }
 
-@Entity()
+@Entity({ tenant: 'shared' })
 class Post extends BaseEntity {
     @Property.string()
     title!: string;

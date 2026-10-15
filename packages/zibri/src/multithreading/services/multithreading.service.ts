@@ -12,10 +12,11 @@ import { ThreadJobWorker } from './thread-job-worker';
 import { ZibriApplication } from '../../application/application';
 import { AlsUtilities } from '../../context/als.utilities';
 import { Repository } from '../../data-source/repository/repository';
-import { InjectRepository } from '../../di/decorators/inject-repository.decorator';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../di/decorators/inject.decorator';
 import { Injectable } from '../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
+import { inject } from '../../di/inject.function';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { OnAppInit } from '../../global/on-app-init.interface';
 import { OnAppShutdown } from '../../global/on-app-shutdown.interface';
@@ -24,12 +25,14 @@ import { type LeaseServiceInterface } from '../../leases/lease-service.interface
 import { errorToLoggedError } from '../../logging/error-to-logged-error.function';
 import { LoggedError } from '../../logging/logged-error.model';
 import { type LoggerInterface } from '../../logging/logger.interface';
+import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { FsUtilities, type FsPath } from '../../utilities/fs.utilities';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { PromiseUtilities, TimeoutError } from '../../utilities/promise.utilities';
 import { isTsNodeInstalled, needsTsNode } from '../../utilities/register-ts-node.function';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function';
 import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from '../models/base-thread-job-worker-data.model';
 import { type MultithreadingOptions } from '../models/multithreading-options.model';
 import { ThreadJobData, ThreadJobDataFunctions } from '../models/thread-job-data.model';
@@ -199,9 +202,13 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
      */
     private readonly pendingFunctions: Map<string, ThreadJobDataFunctions> = new Map();
     /**
-     * Whether a round of handing work to free workers is already running.
+     * The round of handing work to free workers that is running, if one is.
      */
-    private selectionInProgress: boolean = false;
+    private selectionRound: Promise<void> | undefined;
+    /**
+     * The worker messages, exits, errors and timeouts whose handling has not finished yet.
+     */
+    private readonly eventsInHandling: Set<Promise<void>> = new Set();
     /**
      * Whether something asked for another round while one was running.
      */
@@ -229,10 +236,6 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         private readonly options: MultithreadingOptions,
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
         private readonly logger: LoggerInterface,
-        @InjectRepository(ThreadJobEntity)
-        private readonly threadJobEntityRepository: Repository<
-            ThreadJobEntity<BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>, unknown>
-        >,
         @Inject(ZIBRI_DI_TOKENS.LEASE_SERVICE)
         private readonly leaseService: LeaseServiceInterface,
         @Inject(ZIBRI_DI_TOKENS.ZIBRI_PACKAGE_ROOT)
@@ -249,8 +252,41 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         );
     }
 
+    /**
+     * Calls back the code that queued a job, in the tenant it was queued in.
+     *
+     * What a worker reports arrives outside every tenant, so a callback would otherwise reach the rows
+     * of no tenant only, and send what it sends to every tenant.
+     * @param job - The job the callback belongs to.
+     * @param notify - Calls the callback, if the job was queued with one.
+     */
+    private async callBackInTenantOf(
+        job: ThreadJob<BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>, unknown>,
+        notify: () => void
+    ): Promise<void> {
+        if (job.tenantId == undefined) {
+            notify();
+            return;
+        }
+        const tenantService: TenantServiceInterface = inject(ZIBRI_DI_TOKENS.TENANT_SERVICE);
+        await tenantService.runAs(job.tenantId, () => {
+            notify();
+            return Promise.resolve();
+        });
+    }
+
+    // read when used rather than injected, so that an application without the entity is told to
+    // declare it by onAppInit, instead of failing on a repository token while this is built
+    private get threadJobEntityRepository(): Repository<
+        ThreadJobEntity<BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>, unknown>
+    > {
+        return inject(repositoryTokenFor(ThreadJobEntity));
+    }
+
     // eslint-disable-next-line jsdoc/require-jsdoc
     async onAppInit(app: ZibriApplication): Promise<void> {
+        // the queue lives in the table, and the pool below starts reading it as soon as the app starts
+        validateEntitiesRegistered(MultithreadingService.name, app, ThreadJobEntity);
         await this.validateInputs();
 
         // every instance has its own workers to keep busy, so every instance has to look for work -
@@ -309,9 +345,10 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         const worker: Worker = new Worker(this.threadJobWorkerFilePath, { workerData: {} });
         const threadJobWorker: ThreadJobWorker = new ThreadJobWorker(worker, priority, worker.threadId);
 
-        worker.on('message', m => void this.handleWorkerMessage(m, threadJobWorker.threadId));
-        worker.on('exit', code => void this.handleWorkerExit(code, threadJobWorker.threadId));
-        worker.on('error', (error: Error) => void this.handleWorkerError(error, threadJobWorker.threadId));
+        const threadId: number = threadJobWorker.threadId;
+        worker.on('message', m => void this.trackWorkerEvent(this.handleWorkerMessage(m, threadId), threadId));
+        worker.on('exit', code => void this.trackWorkerEvent(this.handleWorkerExit(code, threadId), threadId));
+        worker.on('error', (error: Error) => void this.trackWorkerEvent(this.handleWorkerError(error, threadId), threadId));
 
         this.idleWorkers.push(threadJobWorker);
     }
@@ -592,12 +629,21 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         // a worker to replace, which would start threads as the process is trying to end
         this.poolState = 'stopped';
 
+        // a worker event being handled and a round of handing out work both read and write the
+        // table, and the data source goes away once shutdown is over - a query still running then
+        // is cut off underneath them. Waited for rather than abandoned, because both are short: a
+        // round hands a job to a worker without waiting for it, and stops at the next job now that
+        // the pool is stopped
+        await Promise.allSettled([this.selectionRound, ...this.eventsInHandling]);
+
         await this.releaseUnfinishedJobs();
 
         await Promise.all([
             ...this.workers.map(w => w.worker.terminate()),
             ...this.idleWorkers.map(w => w.worker.terminate())
         ]);
+        // and again for whatever a worker reported while the jobs were being released
+        await Promise.allSettled(this.eventsInHandling);
 
         this.idleWorkers = [];
         this.workers = [];
@@ -626,10 +672,11 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
             running.filter(j => j.type === 'job' && j.status === ThreadJobStatus.IN_PROGRESS),
             async job => {
                 try {
-                    await this.threadJobEntityRepository.updateById(job.id, {
-                        status: ThreadJobStatus.INTERRUPTED,
-                        threadId: undefined
-                    });
+                    await this.threadJobEntityRepository.updateById(
+                        job.id,
+                        { status: ThreadJobStatus.INTERRUPTED, threadId: undefined },
+                        { acrossTenants: true }
+                    );
                 }
                 catch (error) {
                     // never worth holding up a shutdown: the row keeps saying IN_PROGRESS, and
@@ -659,26 +706,35 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         // one round at a time. A round reads the table before it takes a worker out of the idle
         // list, so two of them overlapping - a completion and the poll, which is the ordinary case -
         // would both see the same free worker and both post a job to it.
-        if (this.selectionInProgress) {
+        if (this.selectionRound) {
             // and whatever asked while a round was running is answered by running another one after
             // it, rather than by that caller waiting for a round that has already read past its job
             this.selectionRequested = true;
             return;
         }
 
-        this.selectionInProgress = true;
+        this.selectionRound = this.runSelectionRounds();
         try {
-            do {
-                this.selectionRequested = false;
-                while (this.idleWorkers.length && await this.startNextJob()) {
-                    // filling one worker at a time until a round finds nothing to start
-                }
-            }
-            while (this.selectionRequested);
+            await this.selectionRound;
         }
         finally {
-            this.selectionInProgress = false;
+            this.selectionRound = undefined;
         }
+    }
+
+    /**
+     * Hands work to free workers until there is nothing left to hand out or nobody left to take it.
+     */
+    private async runSelectionRounds(): Promise<void> {
+        // the pool state is read before every job rather than once, because shutting down waits for
+        // the round, and a round that went on starting jobs would keep it waiting
+        do {
+            this.selectionRequested = false;
+            while (this.poolState !== 'stopped' && this.idleWorkers.length && await this.startNextJob()) {
+                // filling one worker at a time until a round finds nothing to start
+            }
+        }
+        while (this.selectionRequested && this.poolState !== 'stopped');
     }
 
     /**
@@ -753,7 +809,9 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         >[] = await this.threadJobEntityRepository.findAll({
             where: { status: { oneOf: CLAIMABLE_STATUSES }, priority },
             order: { queuedAtMs: 'ASC' },
-            take: CANDIDATE_BATCH_SIZE
+            take: CANDIDATE_BATCH_SIZE,
+            // one pool serves every tenant, whichever of them asked for this round
+            acrossTenants: true
         });
 
         return [
@@ -921,11 +979,10 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         worker: ThreadJobWorker
     ): Promise<void> {
         worker.worker.postMessage(job.workerData);
-        // eslint-disable-next-line typescript/no-misused-promises
-        worker.timeout = setTimeout(async () => {
-            await this.updateThreadJobById(job.id, { error: errorToLoggedError(new TimeoutError()) });
-            await worker.worker.terminate();
-        }, job.timeout);
+        worker.timeout = setTimeout(
+            () => void this.trackWorkerEvent(this.stopOverdueJob(job, worker), worker.threadId),
+            job.timeout
+        );
 
         // progress goes back to zero because the job starts from the beginning: a job taken over
         // from an instance that stopped existing keeps how far *it* got on the row until here, which
@@ -934,6 +991,46 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
             job.id,
             { startedAtMs: Date.now(), status: ThreadJobStatus.IN_PROGRESS, threadId: worker.threadId, progress: 0 }
         );
+    }
+
+    /**
+     * Stops a job that ran past its timeout.
+     * @param job - The job that is overdue.
+     * @param worker - The worker running it.
+     */
+    private async stopOverdueJob(
+        job: ThreadJob<BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>, unknown>,
+        worker: ThreadJobWorker
+    ): Promise<void> {
+        try {
+            await this.updateThreadJobById(job.id, { error: errorToLoggedError(new TimeoutError()) });
+        }
+        finally {
+            // stopped whether or not the reason could be written down: the exit is what fails the
+            // job and hands the thread back, and a job nobody stops runs for as long as it likes
+            await worker.worker.terminate();
+        }
+    }
+
+    /**
+     * Handles something a worker did, where shutting down can wait for it.
+     *
+     * A worker's messages, its exit, its errors and its timeout all arrive through callbacks nothing
+     * awaits, so a failure here would otherwise reach nobody. It is logged here instead.
+     * @param handling - The handling of it, already started.
+     * @param threadId - The thread it came from.
+     */
+    private async trackWorkerEvent(handling: Promise<void>, threadId: number): Promise<void> {
+        this.eventsInHandling.add(handling);
+        try {
+            await handling;
+        }
+        catch (error) {
+            this.logger.error(new InternalError(`Could not handle an event of thread job worker ${threadId}`, { cause: error }));
+        }
+        finally {
+            this.eventsInHandling.delete(handling);
+        }
     }
 
     private async handleWorkerMessage<MessageType>(message: MessageType, threadId: number): Promise<void> {
@@ -951,33 +1048,43 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         }
 
         if (!this.isThreadJobMessage(message)) {
-            job.onMessage?.(message);
+            await this.callBackInTenantOf(job, () => job.onMessage?.(message));
             return;
         }
 
         switch (message.type) {
             case 'progress': {
-                await this.updateThreadJobById(job.id, { progress: message.progress });
-                if (message.progress === 100) {
+                if (message.progress !== 100) {
+                    await this.updateThreadJobById(job.id, { progress: message.progress });
+                    return;
+                }
+                try {
+                    await this.updateThreadJobById(job.id, { progress: message.progress });
                     await this.updateThreadJobById(
                         job.id,
                         { status: ThreadJobStatus.COMPLETED, threadId: undefined, stoppedAtMs: Date.now() }
                     );
-                    job.onComplete?.();
+                    await this.callBackInTenantOf(job, () => job.onComplete?.());
+                }
+                finally {
                     await this.handleJobCompletion(job, threadId);
                 }
                 return;
             }
             case 'completion': {
-                await this.updateThreadJobById(job.id, {
-                    status: ThreadJobStatus.COMPLETED,
-                    threadId: undefined,
-                    stoppedAtMs: Date.now(),
-                    progress: 100,
-                    result: message.result
-                });
-                job.onComplete?.();
-                await this.handleJobCompletion(job, threadId);
+                try {
+                    await this.updateThreadJobById(job.id, {
+                        status: ThreadJobStatus.COMPLETED,
+                        threadId: undefined,
+                        stoppedAtMs: Date.now(),
+                        progress: 100,
+                        result: message.result
+                    });
+                    await this.callBackInTenantOf(job, () => job.onComplete?.());
+                }
+                finally {
+                    await this.handleJobCompletion(job, threadId);
+                }
                 return;
             }
             case 'status': {
@@ -985,21 +1092,26 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
                 return;
             }
             case 'error': {
-                await this.updateThreadJobById(
-                    job.id,
-                    { status: ThreadJobStatus.FAILED, threadId: undefined, stoppedAtMs: Date.now(), error: message.error }
-                );
-                job.onError?.(toThrownError(message.error));
-                if (message.fatal) {
-                    // the worker is ending itself, so it must not go back on the idle list for the
-                    // moment it has left - the next job would be posted to a thread already on its
-                    // way out. Its exit is what takes it out of the pool and starts a replacement;
-                    // the queue moves on with whatever other workers are free.
-                    this.settleJob(job);
-                    await this.startQueuedJobs();
-                    return;
+                try {
+                    await this.updateThreadJobById(
+                        job.id,
+                        { status: ThreadJobStatus.FAILED, threadId: undefined, stoppedAtMs: Date.now(), error: message.error }
+                    );
+                    await this.callBackInTenantOf(job, () => job.onError?.(toThrownError(message.error)));
                 }
-                await this.handleJobCompletion(job, threadId);
+                finally {
+                    if (message.fatal) {
+                        // the worker is ending itself, so it must not go back on the idle list for the
+                        // moment it has left - the next job would be posted to a thread already on its
+                        // way out. Its exit is what takes it out of the pool and starts a replacement;
+                        // the queue moves on with whatever other workers are free.
+                        this.settleJob(job);
+                        await this.startQueuedJobs();
+                    }
+                    else {
+                        await this.handleJobCompletion(job, threadId);
+                    }
+                }
                 return;
             }
             case 'initialization': {
@@ -1008,6 +1120,17 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         }
     }
 
+    /**
+     * Settles a job that is over and hands its worker back.
+     *
+     * Every path that writes how a job ended calls this in a `finally`, so it runs whether or not
+     * that write went through. A job whose ending could not be written keeps a row saying it is
+     * running, with its claim handed back, so it is taken over and run again like the job of an
+     * instance that stopped. Holding on to the worker instead stopped the whole pool behind it, and
+     * the claim went on being renewed, so no other instance could take the job either.
+     * @param job - The job that is over, however it ended.
+     * @param threadId - The thread it ran on.
+     */
     private async handleJobCompletion<WorkerData extends BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>, ResultType>(
         job: ThreadJob<WorkerData, ResultType>,
         threadId: number
@@ -1139,24 +1262,30 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         }
 
         if (exitCode !== 0) {
-            await this.updateThreadJobById(job.id, {
-                stoppedAtMs: Date.now(),
-                status: ThreadJobStatus.FAILED,
-                threadId: undefined
-            });
-
-            await this.handleJobCompletion(job, threadId);
+            try {
+                await this.updateThreadJobById(job.id, {
+                    stoppedAtMs: Date.now(),
+                    status: ThreadJobStatus.FAILED,
+                    threadId: undefined
+                });
+            }
+            finally {
+                await this.handleJobCompletion(job, threadId);
+            }
             return;
         }
 
-        await this.updateThreadJobById(job.id, {
-            stoppedAtMs: Date.now(),
-            status: ThreadJobStatus.CANCELLED,
-            threadId: undefined
-        });
-
-        job.onCancel?.();
-        await this.handleJobCompletion(job, threadId);
+        try {
+            await this.updateThreadJobById(job.id, {
+                stoppedAtMs: Date.now(),
+                status: ThreadJobStatus.CANCELLED,
+                threadId: undefined
+            });
+            await this.callBackInTenantOf(job, () => job.onCancel?.());
+        }
+        finally {
+            await this.handleJobCompletion(job, threadId);
+        }
     }
 
     /**
@@ -1180,14 +1309,17 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
             return;
         }
 
-        await this.updateThreadJobById(job.id, {
-            stoppedAtMs: Date.now(),
-            status: ThreadJobStatus.FAILED,
-            error: errorToLoggedError(error),
-            threadId: undefined
-        });
-
-        await this.handleJobCompletion(job, threadId);
+        try {
+            await this.updateThreadJobById(job.id, {
+                stoppedAtMs: Date.now(),
+                status: ThreadJobStatus.FAILED,
+                error: errorToLoggedError(error),
+                threadId: undefined
+            });
+        }
+        finally {
+            await this.handleJobCompletion(job, threadId);
+        }
     }
 
     private async updateThreadJobById(
@@ -1211,7 +1343,9 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         if (job?.type === 'function') {
             return;
         }
-        await this.threadJobEntityRepository.updateById(id, data);
+        // across tenants, because what a worker reports arrives outside the tenant its job was queued
+        // in - and the job was found by its id, which names one row whatever tenant it belongs to
+        await this.threadJobEntityRepository.updateById(id, data, { acrossTenants: true });
     }
 
     private isThreadJobMessage(value: unknown): value is ThreadJobMessage {

@@ -7,12 +7,16 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import express from 'express';
 import NodeFormData from 'form-data';
 
+import { HttpClientOptionsInput } from './http-client-options.model';
 import { HttpClientResponse } from './http-client-response.model';
 import { HttpClientError } from './http-client.error';
 import { HttpClientInterface } from './http-client.interface';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { DiContainer } from '../di/di-container';
 import { initDiContainer } from '../di/init-di-container.function';
 import { inject } from '../di/inject.function';
+import { defineProvider } from '../di/models/di-provider.model';
+import { register } from '../di/register.function';
 import { Property } from '../entity/decorators/property.decorator';
 import { HttpMethod } from '../http/http-method.enum';
 import { KnownHeader } from '../http/known-header.enum';
@@ -36,7 +40,7 @@ class FormDataItem {
     @Property.file({ allowedMimeTypes: [MimeType.JSON] })
     file!: File;
 
-    @Property.array({ items: { type: 'file' }, totalMaxSize: '5mb' })
+    @Property.array({ items: { type: 'file', allowedMimeTypes: 'all' }, totalMaxSize: '5mb' })
     files!: File[];
 }
 
@@ -281,5 +285,108 @@ describe('get / put / patch / delete / headers / query params / error handling',
                 headers: {}
             }
         });
+    });
+});
+
+/**
+ * The http client, with the given options over the defaults.
+ * @param options - What the application configures.
+ * @returns The client.
+ */
+function clientWith(options: HttpClientOptionsInput): HttpClientInterface {
+    DiContainer.reset();
+    initDiContainer();
+    register(defineProvider({ token: ZIBRI_DI_TOKENS.HTTP_CLIENT_OPTIONS_INPUT, useValue: options }));
+    return inject(ZIBRI_DI_TOKENS.HTTP_CLIENT);
+}
+
+describe('fetchForLibrary', () => {
+    let server: Server;
+    let baseUrl: string;
+
+    beforeAll(async () => {
+        const app: express.Express = express();
+        app.use(express.urlencoded({ extended: false }));
+        app.post('/token', (req, res) => {
+            res.json({
+                method: req.method,
+                authorization: req.headers.authorization,
+                // eslint-disable-next-line typescript/no-unsafe-assignment
+                body: req.body
+            });
+        });
+        app.post('/refused', (_req, res) => {
+            res.status(400).json({ error: 'invalid_grant' });
+        });
+        app.get('/no-content', (_req, res) => {
+            res.status(204).end();
+        });
+        app.get('/large', (_req, res) => {
+            res.type('text/plain').send('x'.repeat(2048));
+        });
+        server = createServer(app);
+        await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+        baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    });
+
+    afterAll(async () => {
+        await new Promise<void>((resolve, reject) => server.close((err) => err ? reject(err) : resolve()));
+    });
+
+    it('sends the method, headers and body it is given', async () => {
+        const res: Response = await clientWith({}).fetchForLibrary(`${baseUrl}/token`, {
+            method: 'POST',
+            headers: { authorization: 'Basic abc', 'content-type': MimeType.FORM_URL_ENCODED },
+            body: new URLSearchParams({ grant_type: 'authorization_code', code: 'the-code' })
+        });
+
+        expect(res.status).toBe(200);
+        expect(await res.json()).toEqual({
+            method: 'POST',
+            authorization: 'Basic abc',
+            body: { grant_type: 'authorization_code', code: 'the-code' }
+        });
+    });
+
+    it('hands back a status that is not ok as a response, with its body', async () => {
+        const res: Response = await clientWith({}).fetchForLibrary(`${baseUrl}/refused`, { method: 'POST' });
+
+        expect(res.status).toBe(400);
+        expect(await res.json()).toEqual({ error: 'invalid_grant' });
+    });
+
+    it('hands back a response without a body', async () => {
+        const res: Response = await clientWith({}).fetchForLibrary(`${baseUrl}/no-content`, {});
+
+        expect(res.status).toBe(204);
+        expect(await res.text()).toBe('');
+    });
+
+    it('refuses a body larger than the application allows', async () => {
+        await expect(clientWith({ defaultMaxResponseSize: '1kb' }).fetchForLibrary(`${baseUrl}/large`, {}))
+            .rejects
+            .toThrow('Could not read the response body');
+    });
+
+    it('reads a body larger than the application allows when the call allows it', async () => {
+        const res: Response = await clientWith({ defaultMaxResponseSize: '1kb' })
+            .fetchForLibrary(`${baseUrl}/large`, {}, { maxResponseSize: '4kb' });
+
+        expect(await res.text()).toHaveLength(2048);
+    });
+
+    it('goes out through the dispatcher the application configured', async () => {
+        const http: HttpClientInterface = clientWith({
+            dispatcher: {
+                dispatch: () => {
+                    throw new Error('refused by the corporate proxy');
+                }
+            }
+        });
+
+        const error: unknown = await http.fetchForLibrary(`${baseUrl}/no-content`, {}).catch((error_: unknown) => error_);
+
+        // fetch hangs the reason off `cause`, and instanceof does not work across jest's realms
+        expect(error).toMatchObject({ cause: { message: 'refused by the corporate proxy' } });
     });
 });

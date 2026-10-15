@@ -4,15 +4,17 @@ import { CreateEmailData, QueueEmailData } from './models/create-email-data.mode
 import { Email } from './models/email.model';
 import { SendQueuedEmailsCronJob } from './send-queued-emails.cron-job';
 import { Repository } from '../data-source/repository/repository';
-import { InjectRepository } from '../di/decorators/inject-repository.decorator';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { inject } from '../di/inject.function';
 import { TooManyRequestsError } from '../error-handling/errors/too-many-requests.error';
 import { OnAppInit } from '../global/on-app-init.interface';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { FsUtilities } from '../utilities/fs.utilities';
 import { Ms } from '../utilities/ms';
+import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function';
 import { EmailAttachment } from './models/email-attachment.model';
 import { EmailConfig, EmailConfigInput } from './models/email-config.model';
 import { type LeaseServiceInterface } from '../leases/lease-service.interface';
@@ -22,6 +24,7 @@ import { InternalError } from '../error-handling/internal-error.model';
 import { OnAppShutdown } from '../global/on-app-shutdown.interface';
 import { RateLimited } from '../rate-limiting/decorators/rate-limited.decorator';
 import { RateLimitKeys } from '../rate-limiting/rate-limit-keys';
+import { type TenantServiceInterface } from '../tenancy/tenant-service.interface';
 import { TraceSpanKind } from '../tracing/trace-span-kind.enum';
 import { TraceSpanInterface } from '../tracing/trace-span.interface';
 import { TracingUtilities } from '../tracing/tracing.utilities';
@@ -64,8 +67,6 @@ export class EmailService implements EmailServiceInterface, OnAppInit, OnAppShut
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
         private readonly logger: LoggerInterface,
-        @InjectRepository(Email)
-        private readonly emailRepository: Repository<Email, CreateEmailData>,
         @Inject(ZIBRI_DI_TOKENS.LEASE_SERVICE)
         private readonly leaseService: LeaseServiceInterface,
         @Inject(ZIBRI_DI_TOKENS.EMAIL_CONFIG)
@@ -93,8 +94,16 @@ export class EmailService implements EmailServiceInterface, OnAppInit, OnAppShut
         };
     }
 
+    // read when used rather than injected, so that an application without the entity is told to
+    // declare it by onAppInit, instead of failing on a repository token while this is built
+    private get emailRepository(): Repository<Email, CreateEmailData> {
+        return inject(repositoryTokenFor(Email));
+    }
+
     // eslint-disable-next-line jsdoc/require-jsdoc
     onAppInit(app: ZibriApplication): void {
+        // every mail goes through the queue, so the table is needed whenever this is the email service
+        validateEntitiesRegistered(EmailService.name, app, Email);
         if (!app.options.cronJobs.includes(SendQueuedEmailsCronJob)) {
             app.options.cronJobs.push(SendQueuedEmailsCronJob);
         }
@@ -199,7 +208,23 @@ export class EmailService implements EmailServiceInterface, OnAppInit, OnAppShut
     // happened to trigger it.
     @RateLimited(ZIBRI_DI_TOKENS.EMAIL_RATE_LIMITER, { countFn: emails => emails.length, keyFn: RateLimitKeys.GLOBAL })
     protected async sendMany(emails: Email[]): Promise<void> {
-        await Promise.all(emails.map(m => this.send(m)));
+        await Promise.all(emails.map(m => this.sendInTenantOf(m)));
+    }
+
+    /**
+     * Sends out the given email in the tenant it was queued in.
+     *
+     * The queue is drained from outside every tenant, so the transport, and whatever it logs, would
+     * otherwise act for no tenant.
+     * @param email - The email to send out.
+     */
+    private async sendInTenantOf(email: Email): Promise<void> {
+        if (email.tenantId == undefined) {
+            await this.send(email);
+            return;
+        }
+        const tenantService: TenantServiceInterface = inject(ZIBRI_DI_TOKENS.TENANT_SERVICE);
+        await tenantService.runAs(email.tenantId, async () => await this.send(email));
     }
 
     /**
@@ -220,19 +245,20 @@ export class EmailService implements EmailServiceInterface, OnAppInit, OnAppShut
         // owed, and leaves a rejected password reset or 2fa code with nothing behind it but a log
         // line. The row stays FAILED, which findMails does not pick up, so this is a record rather
         // than a retry.
+        // across tenants, for the reason findMails reads that way
         if (status === EmailStatus.FAILED) {
             const rejectedRecipients: string[] = res.rejectedRecipients;
             this.logger.warn(`mail to ${rejectedRecipients.join(', ')} was rejected`);
-            await this.emailRepository.updateById(email.id, { status, rejectedRecipients });
+            await this.emailRepository.updateById(email.id, { status, rejectedRecipients }, { acrossTenants: true });
             return;
         }
 
         if (email.persist) {
-            await this.emailRepository.updateById(email.id, { status });
+            await this.emailRepository.updateById(email.id, { status }, { acrossTenants: true });
             return;
         }
 
-        await this.emailRepository.deleteById(email.id);
+        await this.emailRepository.deleteById(email.id, { acrossTenants: true });
     }
 
     /**
@@ -266,7 +292,9 @@ export class EmailService implements EmailServiceInterface, OnAppInit, OnAppShut
                 status: EmailStatus.QUEUED,
                 priority
             },
-            take: amount
+            take: amount,
+            // one queue for every tenant: the mail server and its limit are the deployment's
+            acrossTenants: true
         });
     }
 }

@@ -12,7 +12,7 @@ import { OmitStrict } from '../../types/omit-strict.type';
  * ```ts
  * \@UserRepo(User)
  * export class UserRepository extends Repository<User, UserCreateData>
- *     implements UserRepositoryInterface<Roles, User, JwtCredentials> {
+ *     implements UserRepositoryInterface<Roles, User> {
  *
  *     constructor(
  *         \@InjectRepository(User)

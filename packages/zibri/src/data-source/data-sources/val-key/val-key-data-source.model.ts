@@ -1,7 +1,9 @@
 import { Readable } from 'node:stream';
+import { StringDecoder } from 'node:string_decoder';
 
 import type { Batch, GlideClient, GlideClientConfiguration, GlideString, PubSubMsg, Script } from '@valkey/valkey-glide';
 
+import { scanValKeyKeys } from './scan-val-key-keys.function';
 import { valKeyGlide } from './val-key-glide.function';
 import { type AuthServiceInterface } from '../../../auth/auth-service.interface';
 import { ChangeSetRepository } from '../../../change-sets/change-set-repository';
@@ -16,28 +18,39 @@ import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../di/inject.function';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { EntityMetadata } from '../../../entity/decorators/entity.decorator';
-import { PropertyMetadata, PropertyMetadataInput, RelationMetadata } from '../../../entity/decorators/property.decorator';
+import { PropertyMetadata } from '../../../entity/decorators/property.decorator';
 import { EntityMetadataMissingError } from '../../../entity/entity-metadata-missing.error';
-import { FilePropertyMetadata } from '../../../entity/models/file-property-metadata.model';
 import { InternalError } from '../../../error-handling/internal-error.model';
-import { HeldLease } from '../../../leases/held-lease.model';
+import { HeldLease, KeptGrant } from '../../../leases/held-lease.model';
 import { type LoggerInterface } from '../../../logging/logger.interface';
-import { ExcludeStrict } from '../../../types/exclude-strict.type';
 import { Newable } from '../../../types/newable.type';
 import { OmitStrict } from '../../../types/omit-strict.type';
+import { JsonUtilities } from '../../../utilities/json.utilities';
 import { MetadataUtilities } from '../../../utilities/metadata.utilities';
 import { ObjectUtilities } from '../../../utilities/object.utilities';
+import { PromiseUtilities } from '../../../utilities/promise.utilities';
 import { UUIDUtilities } from '../../../utilities/uuid.utilities';
 import { SemVerVersion } from '../../../versioning/sem-ver.utilities';
 import { RepositoryDriverInterface } from '../../driver/repository-driver.interface';
-import { ValKeyRepositoryDriver } from '../../driver/val-key.repository-driver';
+import { StoredRowChange, ValKeyRepositoryDriver } from '../../driver/val-key.repository-driver';
 import { registerRepositoryProvidersFor } from '../../entity-ownership.function';
 import { getDefaultBeforeReturnHook, getDefaultBeforeSaveHook } from '../../hooks/hooks.default';
+import { MigratedEntityUtilities } from '../../migration/migrated-entity.utilities';
 import { Migration } from '../../migration/migration.model';
-import { revertMigrationsAfter, runMigrations } from '../../migration/run-migrations.function';
+import { recordKeyReconciliation, revertMigrationsAfter, runMigrations } from '../../migration/run-migrations.function';
+import { AddPropertyToEntityInput } from '../../models/add-property-to-entity-input.model';
+import { ChangePropertyOfEntityInput } from '../../models/change-property-of-entity-input.model';
+import { ConvertedValue } from '../../models/converted-value.model';
+import { MergeEntityInput } from '../../models/merge-entity-input.model';
+import { MigrationPropertyMetadata } from '../../models/migration-property-metadata.model';
+import { RefusedValue } from '../../models/refused-value.model';
+import { RemovePropertyFromEntityInput } from '../../models/remove-property-from-entity-input.model';
+import { RenameEntityInput } from '../../models/rename-entity-input.model';
+import { ResolvedPropertyConversion } from '../../models/resolved-property-conversion.model';
 import { Repository } from '../../repository/repository';
 import { Transaction } from '../../transaction/transaction.model';
-import { ValKeyTransaction } from '../../transaction/val-key-transaction.model';
+import { ValKeyTransaction, ValKeyTransactionGrants } from '../../transaction/val-key-transaction.model';
+import { ValueConversionUtilities } from '../../value-conversion.utilities';
 import { DataSourceInitializationError } from '../data-source-initialization.error';
 import { DataSourceInterface, RepositoryTypeForEntity, SCHEMA_LOCK_KEY, StartTransactionOptions } from '../data-source.interface';
 import { DataSourceSubscription, PubSubDataSourceInterface } from '../pub-sub-data-source.interface';
@@ -45,7 +58,13 @@ import { DataSourceSubscription, PubSubDataSourceInterface } from '../pub-sub-da
 /**
  * ValKey-specific connection options.
  */
-export type ValKeyOptions = OmitStrict<GlideClientConfiguration, 'addresses'> & {
+export type ValKeyOptions = OmitStrict<GlideClientConfiguration, 'addresses' | 'useTLS'> & {
+    /**
+     * Whether the connection uses tls.
+     *
+     * `true` encrypts it and verifies the server's certificate, `false` connects unencrypted.
+     */
+    useTLS: boolean,
     /**
      * The host of the valkey server.
      * @default 'localhost'
@@ -89,9 +108,9 @@ type ValKeyBackupEntry = {
  */
 type UpdateStoredRowsResult = {
     /**
-     * The updated values.
+     * The updated values, if any.
      */
-    values: Record<string, string>,
+    values?: Record<string, string>,
     /**
      * Keys to remove, if any.
      */
@@ -117,6 +136,14 @@ const RESTORE_STAGING_SEGMENT: string = 'zibri.restore';
 const LOCK_RETRY_IN_MS: number = 100;
 
 /**
+ * How many locks one call of the renew or release script covers.
+ *
+ * Bounded rather than all of them, because a script runs alone on the server and a transaction holds
+ * as many locks as it wrote rows.
+ */
+const LOCKS_PER_SCRIPT: number = 1000;
+
+/**
  * How long a transaction may sit idle before it is rolled back, when it does not say for itself.
  *
  * Valkey has no server side equivalent of postgres' idle_in_transaction_session_timeout, so the
@@ -128,9 +155,13 @@ const LOCK_RETRY_IN_MS: number = 100;
 const DEFAULT_TRANSACTION_IDLE_TIMEOUT_IN_MS: number = 10000;
 
 /**
- * The two lua scripts a lock needs, each once it has been built.
+ * The lua scripts a lock needs, each once it has been built.
  */
 type LockScripts = {
+    /**
+     * Takes locks that are free, in the order given, up to the first one somebody else holds.
+     */
+    acquire?: Script,
     /**
      * Frees a lock this caller still holds.
      */
@@ -152,29 +183,60 @@ type LockScripts = {
 const lockScripts: LockScripts = {};
 
 /**
- * Frees the lock, but only when it is still the one this caller took.
+ * Takes the given locks in the order they are given, and stops at the first one somebody else holds.
+ * Answers how many it took, which are always the first ones.
+ *
+ * Stopping rather than skipping is what keeps the order: a caller holds a prefix of its keys and
+ * waits on the next one, exactly as it would taking them one by one, so two callers that sort their
+ * keys the same way can never each hold what the other waits on. A key this caller already holds
+ * counts as taken.
+ * @returns The script.
+ */
+function acquireLockScript(): Script {
+    lockScripts.acquire ??= new (valKeyGlide().Script)(
+        'for i = 1, #KEYS do '
+        + 'local holder = redis.call("get", KEYS[i]) '
+        + 'if not holder then redis.call("set", KEYS[i], ARGV[1], "PX", ARGV[2]) '
+        + 'elseif holder ~= ARGV[1] then return i - 1 end '
+        + 'end return #KEYS'
+    );
+    return lockScripts.acquire;
+}
+
+/**
+ * Frees the locks among the given keys that are still the ones this caller took, and answers how
+ * many that was.
  *
  * `del` on its own cannot express that. Without the check, a holder whose lease had already expired
  * would delete whatever key now sits there - which is somebody else's lock - and every later caller
  * would then be releasing the lock of the one before it.
+ *
+ * Every key in one call, because a transaction holds one lock per key it wrote, and a round trip per
+ * lock is as many requests at once as the transaction wrote rows.
  * @returns The script.
  */
 function releaseLockScript(): Script {
     lockScripts.release ??= new (valKeyGlide().Script)(
-        'if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("del", KEYS[1]) else return 0 end'
+        'local n = 0 for i = 1, #KEYS do '
+        + 'if redis.call("get", KEYS[i]) == ARGV[1] then n = n + redis.call("del", KEYS[i]) end '
+        + 'end return n'
     );
     return lockScripts.release;
 }
 
 /**
- * Pushes the expiry out, but only while the lock is still this caller's.
+ * Pushes the expiry of the given locks out, but only of those still this caller's, and answers how
+ * many that was.
  *
- * Returning 0 means it is not, and no amount of extending would make it so again.
+ * Fewer than were given means some are not, and no amount of extending would make them so again.
+ * Every key in one call, for the reason the release takes them together.
  * @returns The script.
  */
 function renewLockScript(): Script {
     lockScripts.renew ??= new (valKeyGlide().Script)(
-        'if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("pexpire", KEYS[1], ARGV[2]) else return 0 end'
+        'local n = 0 for i = 1, #KEYS do '
+        + 'if redis.call("get", KEYS[i]) == ARGV[1] then n = n + redis.call("pexpire", KEYS[i], ARGV[2]) end '
+        + 'end return n'
     );
     return lockScripts.renew;
 }
@@ -201,12 +263,12 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
     /**
      * The configuration options of the data source.
      */
-    readonly options: ValKeyOptions = {};
+    abstract readonly options: ValKeyOptions;
 
     /**
      * The default configuration options of the data source.
      */
-    protected readonly defaultOptions: ValKeyOptions = {
+    protected readonly defaultOptions: Partial<ValKeyOptions> = {
         host: 'localhost',
         port: 6379,
         keyPrefix: 'zibri',
@@ -284,7 +346,29 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         // race a sql data source has with its schema, minus the ddl
         await this.schemaLock(SCHEMA_LOCK_KEY, async () => {
             await this.runMigrations();
+            if (await this.reconcileKeys()) {
+                await recordKeyReconciliation(this.constructor as Newable<DataSourceInterface>);
+            }
         });
+    }
+
+    /**
+     * Brings the indexes and uniques kept for every entity in line with what the entities declare.
+     * @returns Whether any entity's changed.
+     * @throws When stored rows break a unique an entity declares.
+     */
+    private async reconcileKeys(): Promise<boolean> {
+        const client: GlideClient | undefined = this.client;
+        if (!client) {
+            throw new DataSourceInitializationError();
+        }
+        // one entity after the other rather than together: each reads every row it stores, and a
+        // boot reading all of them at once holds all of them at once
+        let changed: boolean = false;
+        for (const entity of this.entities) {
+            changed = await new ValKeyRepositoryDriver(entity, client, this.keyPrefix, this).reconcileStoredKeys() || changed;
+        }
+        return changed;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -340,39 +424,162 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
     }
 
     /**
-     * Pushes the lock's expiry out while the work is still running.
+     * Pushes the expiry of locks out while the work is still running.
      *
-     * Losing it is reported rather than acted on. Cancelling the work half way would leave whatever
+     * Losing one is reported rather than acted on. Cancelling the work half way would leave whatever
      * it had already written behind, which is not obviously better than finishing - and the release
      * checks the token anyway, so a lapsed holder cannot take somebody else's lock away on its way
      * out. What must not happen is losing it silently.
-     * @param client - The client holding the lock.
-     * @param lockKey - The namespaced key the lock lives under.
-     * @param token - The token this caller took the lock with.
-     * @param holdInMs - How much longer the lock should live.
-     * @param key - The unprefixed key, for the log message.
+     * @param client - The client holding the locks.
+     * @param lockKeys - The namespaced keys the locks live under.
+     * @param token - The token this caller took the locks with.
+     * @param holdInMs - How much longer the locks should live.
+     * @param name - What holds them, for the log message.
      */
-    private async renewLock(
+    private async renewLocks(
         client: GlideClient,
-        lockKey: string,
+        lockKeys: string[],
         token: string,
         holdInMs: number,
-        key: string
+        name: string
     ): Promise<void> {
         try {
-            const renewed: unknown = await client.invokeScript(
-                renewLockScript(),
-                { keys: [lockKey], args: [token, `${holdInMs}`] }
+            const renewed: number[] = await PromiseUtilities.allChunked(
+                PromiseUtilities.resolveChunks(lockKeys, LOCKS_PER_SCRIPT),
+                async keys => Number(await client.invokeScript(renewLockScript(), { keys, args: [token, `${holdInMs}`] }))
             );
-            if (renewed !== 1) {
+            const lost: number = lockKeys.length - renewed.reduce((sum, n) => sum + n, 0);
+            if (lost > 0) {
+                const what: string = lockKeys.length === 1 ? 'the lock' : `${lost} of the locks of`;
                 this.logger.warn(
-                    `Lost the lock "${key}" while still working - another instance may already be running the same code`
+                    `Lost ${what} "${name}" while still working - another instance may already be running the same code`
                 );
             }
         }
         catch (error) {
-            this.logger.warn(`Could not renew the lock "${key}": ${error instanceof Error ? error.message : error}`);
+            this.logger.warn(`Could not renew the lock "${name}": ${error instanceof Error ? error.message : error}`);
         }
+    }
+
+    /**
+     * Frees the locks among the given keys that are still this caller's.
+     * @param client - The client holding the locks.
+     * @param lockKeys - The namespaced keys the locks live under.
+     * @param token - The token this caller took the locks with.
+     */
+    private async releaseLocks(client: GlideClient, lockKeys: string[], token: string): Promise<void> {
+        // conditional on the token, so a holder whose key had already lapsed cannot free the lock
+        // that replaced it - see evaluation/10-leases-and-claims.md 10.1
+        await PromiseUtilities.allChunked(
+            PromiseUtilities.resolveChunks(lockKeys, LOCKS_PER_SCRIPT),
+            async keys => await client.invokeScript(releaseLockScript(), { keys, args: [token] })
+        );
+    }
+
+    /**
+     * Takes locks under the given token, queueing on each one until it is free or until waiting stops
+     * being reasonable.
+     *
+     * Taken in sorted order, whatever order they were given in, so two callers wanting keys in common
+     * take those in the same order and never each hold what the other waits on.
+     * @param client - The client to take them through.
+     * @param keys - The unprefixed keys to lock.
+     * @param token - The token that says whose they are.
+     * @param holdInMs - How long a lock lives before it lapses.
+     * @param timeoutInMs - How long to queue on one lock before giving up.
+     * @param held - Where each lock goes as soon as it is taken, so that locks taken before a wait
+     * are already being kept alive while it lasts, and are handed back when it runs out.
+     * @throws When a wait ran out, which is also how a deadlock ends.
+     */
+    private async acquireLocks(
+        client: GlideClient,
+        keys: string[],
+        token: string,
+        holdInMs: number,
+        timeoutInMs: number,
+        held: Set<string>
+    ): Promise<void> {
+        const lockKeys: string[] = [...new Set(keys)].sort().map(key => `${LOCK_KEY_PREFIX}${key}`);
+        // one group after the other rather than together: taking them in order is the point, and a
+        // later group taken while an earlier one waits would be holding keys out of it
+        for (const group of PromiseUtilities.resolveChunks(lockKeys, LOCKS_PER_SCRIPT)) {
+            let waiting: string[] = group;
+            let deadline: number = Date.now() + timeoutInMs;
+            while (waiting.length) {
+                // each lock carries a time to live, so an instance that dies holding it does not lock
+                // the others out for good - it only delays them by that much
+                const taken: number = Number(
+                    await client.invokeScript(acquireLockScript(), { keys: waiting, args: [token, `${holdInMs}`] })
+                );
+                for (const lockKey of waiting.slice(0, taken)) {
+                    held.add(lockKey);
+                }
+                waiting = waiting.slice(taken);
+                if (!waiting.length) {
+                    break;
+                }
+                // the timeout is how long one lock may keep this waiting, as it was when they were
+                // taken one call each, so any progress starts it again
+                if (taken > 0) {
+                    deadline = Date.now() + timeoutInMs;
+                }
+                if (Date.now() > deadline) {
+                    throw new InternalError(
+                        `Could not acquire the lock "${waiting[0]?.slice(LOCK_KEY_PREFIX.length)}" within ${timeoutInMs}ms`
+                        + ' - another instance is still holding it'
+                    );
+                }
+                await new Promise<void>(resolve => {
+                    setTimeout(resolve, LOCK_RETRY_IN_MS);
+                });
+            }
+        }
+    }
+
+    /**
+     * Opens the grants of one transaction: a lock per key it writes, all under one token and kept
+     * alive as one lease.
+     *
+     * One lease rather than one per key, because a transaction holds as many keys as it wrote rows.
+     * Kept one by one, each would renew on a timer of its own and be released in a call of its own, so
+     * a transaction writing a large batch would put that many requests on the client at once.
+     * @param client - The client to take the locks through.
+     * @param holdInMs - How long a lock lives before it lapses. Renewed while it is held.
+     * @param timeoutInMs - How long a claim queues before giving up.
+     * @returns The grants.
+     */
+    private openTransactionGrants(client: GlideClient, holdInMs: number, timeoutInMs: number): ValKeyTransactionGrants {
+        // unique to this transaction, and checked by both the renewal and the release
+        const token: string = UUIDUtilities.generate();
+        const held: Set<string> = new Set();
+        const lease: HeldLease = {
+            name: `transaction ${token}`,
+            renew: async () => await this.renewLocks(client, [...held], token, holdInMs, `transaction ${token}`),
+            release: async () => await this.releaseLocks(client, [...held], token)
+        };
+        let kept: KeptGrant | undefined;
+        let released: boolean = false;
+
+        return {
+            claim: async keys => {
+                // kept alive from before the first lock is taken rather than after the last: a claim
+                // may queue between two of its locks, and the ones it took first have to outlive that
+                if (!released) {
+                    kept ??= inject(ZIBRI_DI_TOKENS.LEASE_SERVICE).keepAlive(lease, holdInMs);
+                }
+                await this.acquireLocks(client, keys, token, holdInMs, timeoutInMs, held);
+                // the transaction can end while this is queueing, because its idle timeout ends it
+                // from a timer rather than from whoever is writing. What it held went back as it
+                // ended, and what this took arrived after that - so it goes back on its own
+                if (released) {
+                    await this.releaseLocks(client, keys.map(key => `${LOCK_KEY_PREFIX}${key}`), token);
+                }
+            },
+            release: async () => {
+                released = true;
+                await kept?.release();
+            }
+        };
     }
 
     /**
@@ -396,41 +603,18 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
             throw new DataSourceInitializationError();
         }
         const client: GlideClient = this.client;
-        const deadline: number = Date.now() + timeoutInMs;
         const lockKey: string = `${LOCK_KEY_PREFIX}${key}`;
 
         // unique to this acquisition, and checked by both the renewal and the release. Without it
         // neither can tell "my lock" from "a lock", and a holder whose key had already lapsed would
         // go on to free the one that replaced it.
         const token: string = UUIDUtilities.generate();
-
-        // the key carries a time to live, so an instance that dies holding it does not lock the
-        // others out for good - it only delays them by that much
-        while (
-            await client.set(
-                lockKey,
-                token,
-                { conditionalSet: 'onlyIfDoesNotExist', expiry: { type: valKeyGlide().TimeUnit.Milliseconds, count: holdInMs } }
-            ) == undefined
-        ) {
-            if (Date.now() > deadline) {
-                throw new InternalError(
-                    `Could not acquire the lock "${key}" within ${timeoutInMs}ms - another instance is still holding it`
-                );
-            }
-            await new Promise<void>(resolve => {
-                setTimeout(resolve, LOCK_RETRY_IN_MS);
-            });
-        }
+        await this.acquireLocks(client, [key], token, holdInMs, timeoutInMs, new Set());
 
         return {
             name: key,
-            renew: async () => await this.renewLock(client, lockKey, token, holdInMs, key),
-            // conditional on the token, so a holder whose key had already lapsed cannot free the
-            // lock that replaced it - see evaluation/10-leases-and-claims.md 10.1
-            release: async () => {
-                await client.invokeScript(releaseLockScript(), { keys: [lockKey], args: [token] });
-            }
+            renew: async () => await this.renewLocks(client, [lockKey], token, holdInMs, key),
+            release: async () => await this.releaseLocks(client, [lockKey], token)
         };
     }
 
@@ -535,10 +719,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
 
         return new ValKeyTransaction(
             this.client,
-            async key => inject(ZIBRI_DI_TOKENS.LEASE_SERVICE).keepAlive(
-                await this.acquireNativeGrant(key, holdInMs, timeoutInMs),
-                holdInMs
-            ),
+            this.openTransactionGrants(this.client, holdInMs, timeoutInMs),
             options?.idleTimeoutInMs ?? DEFAULT_TRANSACTION_IDLE_TIMEOUT_IN_MS,
             this.logger
         );
@@ -559,68 +740,97 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
      *
      * Valkey has no schema, so this only writes the default value (or null) of the new property into
      * the hashes that exist already.
-     * @param entity - The entity class that the property was added to.
-     * @param key - The key of the new property.
-     * @param transaction - The transaction to run the operation in.
-     * @throws When the property does not exist on the entity class.
+     * @param input - The entity, the property and the transaction.
      */
-    async addPropertyToEntity<T extends BaseEntity>(entity: Newable<T>, key: keyof T, transaction: Transaction): Promise<void> {
-        const metadata: PropertyMetadata | undefined = MetadataUtilities.getModelProperties(entity)[String(key)];
-        if (metadata == undefined) {
-            throw new InternalError(`The property "${entity.name}.${String(key)}" does not exist.`);
-        }
+    async addPropertyToEntity<T extends BaseEntity>(input: AddPropertyToEntityInput<T>): Promise<void> {
+        const name: string = String(input.property.name);
+        const metadata: PropertyMetadata = MigratedEntityUtilities.resolvePropertyMetadata(input.property);
         const value: unknown = 'default' in metadata && metadata.default !== undefined
 
             ? typeof metadata.default === 'function' ? (metadata.default as () => unknown)() : metadata.default
             // eslint-disable-next-line unicorn/no-null
             : null;
 
-        await this.updateStoredRows(entity, transaction, row => {
-            if (String(key) in row) {
+        await this.updateStoredRows(input.entity, input.transaction, row => {
+            if (name in row) {
                 return undefined;
             }
-            return { values: { [String(key)]: JSON.stringify(value) } };
+            return { values: { [name]: JsonUtilities.stringify(value) } };
         });
     }
 
     /**
-     * Renames a property of every entity that is already stored.
+     * Changes a property of every entity that is already stored.
      *
-     * Valkey has no schema, so a changed type does not need to be applied to the storage itself. Only
-     * a changed name has to be, by moving the value of the old field over to the new one.
-     * @param entity - The entity class that the property belongs to.
-     * @param oldProperty - The current key of the property.
-     * @param newProperty - The new definition of the property.
-     * @param transaction - The transaction to run the operation in.
+     * Valkey has no schema, so what changes is the value each hash holds: moved to the new field when
+     * the property is renamed, and converted into its new type.
+     * @param input - What to change and how.
+     * @throws When a stored value is neither listed nor converted, naming every such value.
      */
-    async changePropertyOfEntity<T extends BaseEntity>(
-        entity: Newable<T>,
-        oldProperty: keyof T | string & {},
-        newProperty: PropertyMetadataInput & {
-            /**
-             * The name of the new column.
-             */
-            name?: keyof T | string & {},
-            /**
-             * The type of the new column.
-             */
-            type: ExcludeStrict<PropertyMetadata, RelationMetadata<BaseEntity> | FilePropertyMetadata>['type']
-        },
-        transaction: Transaction
+    async changePropertyOfEntity<T extends BaseEntity, C extends MigrationPropertyMetadata, M extends MigrationPropertyMetadata>(
+        input: ChangePropertyOfEntityInput<T, C, M>
     ): Promise<void> {
-        const oldKey: string = String(oldProperty);
-        const newKey: string = String(newProperty.name ?? oldProperty);
-        if (oldKey === newKey) {
-            return;
-        }
+        const conversion: ResolvedPropertyConversion = ValueConversionUtilities.resolveConversion(input);
+        const renames: boolean = conversion.currentName !== conversion.changedName;
 
-        await this.updateStoredRows(entity, transaction, row => {
-            const value: string | undefined = row[oldKey];
-            if (value == undefined) {
+        const refused: RefusedValue[] = [];
+        await this.updateStoredRows(input.entity, input.transaction, row => {
+            const stored: string | undefined = row[conversion.currentName];
+            // a field that is not there is a value that is null, which a change lists and converts alike
+            const converted: ConvertedValue | RefusedValue = ValueConversionUtilities.resolveConvertedValue(
+                // eslint-disable-next-line unicorn/no-null
+                stored == undefined ? null : JsonUtilities.parse(stored),
+                conversion
+            );
+            if ('refusal' in converted) {
+                refused.push(converted);
                 return undefined;
             }
-            return { values: { [newKey]: value }, remove: [oldKey] };
+            if (stored == undefined && converted.value === null) {
+                return undefined;
+            }
+            return {
+                values: { [conversion.changedName]: JsonUtilities.stringify(converted.value) },
+                remove: renames ? [conversion.currentName] : undefined
+            };
         });
+        // after every row rather than at the first, so that the migration names all of them at once.
+        // Nothing is written: what the rows above were given stays in the transaction, which failing
+        // the migration rolls back
+        ValueConversionUtilities.validateNothingRefused(conversion, refused);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async removePropertyFromEntity<T extends BaseEntity>(input: RemovePropertyFromEntityInput<T>): Promise<void> {
+        await this.updateStoredRows(
+            input.entity,
+            input.transaction,
+            row => String(input.propertyKey) in row ? { remove: [String(input.propertyKey)] } : undefined
+        );
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async renameEntity<T extends BaseEntity>(input: RenameEntityInput<T>): Promise<void> {
+        if (!this.client) {
+            throw new DataSourceInitializationError();
+        }
+        await new ValKeyRepositoryDriver(input.entity, this.client, this.keyPrefix, this)
+            .moveStoredKeysFrom(input.currentTableName, input.transaction);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async mergeEntity<T extends BaseEntity>(input: MergeEntityInput<T>): Promise<void> {
+        if (!this.client) {
+            throw new DataSourceInitializationError();
+        }
+        await new ValKeyRepositoryDriver(input.entity, this.client, this.keyPrefix, this)
+            .mergeStoredKeysFrom(input.currentTableName, input.transaction);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async createEntity(): Promise<void> {
+        // valkey has no schema: an entity's keys come into being with its first row, and the keys of
+        // its indexes and uniques with the reconciliation that follows the migrations
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -643,7 +853,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         const pattern: string = `${this.keyPrefix}:*`;
 
         return Readable.from((async function* generateBackupData(): AsyncGenerator<string> {
-            for (const key of await scanKeys(client, pattern)) {
+            for (const key of await scanValKeyKeys(client, pattern)) {
                 const payload: Awaited<ReturnType<GlideClient['dump']>> = await client.dump(key);
                 if (payload == undefined) {
                     continue;
@@ -655,7 +865,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
                     ttlMs: ttlMs > 0 ? ttlMs : 0,
                     payload: Buffer.from(payload).toString('base64')
                 };
-                yield `${JSON.stringify(entry)}\n`;
+                yield `${JsonUtilities.stringify(entry)}\n`;
             }
         })());
     }
@@ -683,7 +893,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
 
         const staged: string[] = await this.stageBackup(client, backupData);
         // staged keys live under this prefix too, so they have to be kept out of what is swept away
-        const existingKeys: string[] = (await scanKeys(client, `${this.keyPrefix}:*`))
+        const existingKeys: string[] = (await scanValKeyKeys(client, `${this.keyPrefix}:*`))
             .filter(k => !k.startsWith(this.stagingPrefix()));
 
         if (!existingKeys.length && !staged.length) {
@@ -716,14 +926,18 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         const staged: string[] = [];
         try {
             let rest: string = '';
+            // a decoder rather than a string per chunk: the data arrives as bytes, and a character
+            // spanning two chunks decoded one chunk at a time comes out as two replacement characters
+            const decoder: StringDecoder = new StringDecoder('utf8');
             for await (const chunk of backupData) {
-                rest += String(chunk);
+                rest += Buffer.isBuffer(chunk) ? decoder.write(chunk) : String(chunk);
                 const lines: string[] = rest.split('\n');
                 rest = lines.pop() ?? '';
                 for (const line of lines) {
                     staged.push(...await this.restoreEntry(client, line));
                 }
             }
+            rest += decoder.end();
             staged.push(...await this.restoreEntry(client, rest));
             return staged;
         }
@@ -779,7 +993,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         if (!line.trim()) {
             return [];
         }
-        const entry: ValKeyBackupEntry = JSON.parse(line) as ValKeyBackupEntry;
+        const entry: ValKeyBackupEntry = JsonUtilities.parse(line);
         const stagedKey: string = `${this.stagingPrefix()}${entry.key}`;
         await client.restore(stagedKey, entry.ttlMs, Buffer.from(entry.payload, 'base64'), { replace: true });
         return [stagedKey];
@@ -809,9 +1023,13 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         }
 
         const idsKey: string = `${this.keyPrefix}:${entityMetadata.tableName}:ids`;
+        const changes: StoredRowChange[] = [];
         // eslint-disable-next-line cspell/spellchecker
-        for (const id of await this.client.smembers(idsKey)) {
-            const key: string = `${this.keyPrefix}:${entityMetadata.tableName}:${toStringValue(id)}`;
+        const storedIds: string[] = [...await this.client.smembers(idsKey)].map(id => toStringValue(id));
+        // with the ids the transaction holds besides, which are the rows the migration created or
+        // moved here by renaming the entity, before this step
+        for (const id of transaction.resolveSetMembers(idsKey, storedIds)) {
+            const key: string = `${this.keyPrefix}:${entityMetadata.tableName}:${id}`;
             const stored: Record<string, string> = Object.fromEntries(
                 // eslint-disable-next-line cspell/spellchecker
                 (await this.client.hgetall(key)).map(e => [toStringValue(e.field), toStringValue(e.value)])
@@ -825,32 +1043,24 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
             if (res == undefined) {
                 continue;
             }
-            await transaction.add({ type: 'hashSet', key, values: res.values });
+            if (res.values != undefined) {
+                await transaction.add({ type: 'hashSet', key, values: res.values });
+            }
             if (res.remove?.length) {
                 await transaction.add({ type: 'hashDelete', key, fields: res.remove });
             }
+            const after: Record<string, string> = { ...row, ...res.values };
+            for (const field of res.remove ?? []) {
+                // eslint-disable-next-line typescript/no-dynamic-delete
+                delete after[field];
+            }
+            changes.push({ id, before: row, after });
         }
+        // the indexes are the driver's, and were built from the values as they were: a value converted
+        // here and left in its old entry would be found under what it no longer holds - and, for a
+        // unique declaration, keep its old value taken from everybody else while the new one was free
+        await new ValKeyRepositoryDriver(entity, this.client, this.keyPrefix, this).saveIndexesOfRewrittenRows(changes, transaction);
     }
-}
-
-/**
- * Collects all keys that match the given pattern using a cursor based scan.
- * @param client - The client to scan with.
- * @param pattern - The glob style pattern that the keys need to match.
- * @returns All matching keys.
- */
-async function scanKeys(client: GlideClient, pattern: string): Promise<string[]> {
-    const res: string[] = [];
-    let cursor: string = '0';
-
-    do {
-        const [nextCursor, keys]: [GlideString, GlideString[]] = await client.scan(cursor, { match: pattern, count: 250 });
-        cursor = toStringValue(nextCursor);
-        res.push(...keys.map(k => toStringValue(k)));
-    }
-    while (cursor !== '0');
-
-    return res;
 }
 
 /**

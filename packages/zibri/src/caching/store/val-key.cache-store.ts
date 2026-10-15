@@ -1,5 +1,6 @@
 import type { GlideClient, GlideString, Script } from '@valkey/valkey-glide';
 
+import { cacheKeyOf } from '../cache-key.function';
 import { CacheModel } from './cache-model.model';
 import { CacheStoreConfig, CacheStoreInterface } from './cache-store.interface';
 import { CachedValue } from './cached-value.model';
@@ -477,7 +478,7 @@ export class ValKeyCacheStore<K, V> implements CacheStoreInterface<K, V> {
     }
 
     private toKey(key: K): string {
-        return `${this.prefix}:entry:${typeof key === 'string' ? key : JsonUtilities.stringify(key)}`;
+        return `${this.prefix}:entry:${cacheKeyOf(key)}`;
     }
 
     private indexKey(): string {

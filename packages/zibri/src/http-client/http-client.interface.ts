@@ -1,3 +1,4 @@
+import { FetchForLibraryOptions } from './fetch-for-library-options.model';
 import { HttpClientDispatcher } from './http-client-options.model';
 import { HttpClientResponseBodyInput, HttpClientResponseForBody } from './http-client-response.model';
 import { XmlString } from '../document/xml-string.type';
@@ -139,6 +140,16 @@ export interface HttpClientInterface {
             IsArray
         >
     >,
+    /**
+     * Sends a request the way the global `fetch` does, for handing to a library that takes a fetch
+     * function of its own. Use `get`, `post` and the others for your own requests.
+     *
+     * Goes out with the application's dispatcher, deadline and response size limit, like every other
+     * request of the client, unless the options allow a larger response. The body is read before the
+     * response is handed back, and a status that is not ok is a response like any other rather than
+     * an error.
+     */
+    fetchForLibrary: (url: string, init: RequestInit, options?: FetchForLibraryOptions) => Promise<Response>,
     /**
      * Sends a http post request.
      */

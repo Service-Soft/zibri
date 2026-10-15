@@ -8,6 +8,7 @@ Cron jobs in Zibri use the node-cron package and its cron syntax under the hood.
 | `InitialCronConfig` | interface | Config shape (`name`, `cron`, `active`, `syncToDataSource`, ...) required by `CronJob.initialConfig` |
 | `CronExpression` | class | Builder for cron expression strings (eg. `CronExpression.every(1, 'seconds').build()`) |
 | `ShouldRunExecution` | type | The election contract a cron service provides |
+| `CronJobEntity` | entity | The stored state of a cron job |
 | `ZIBRI_DI_TOKENS.CRON_EXECUTION_LEASE_IN_MS` | DI token | How long a claim is held. Defaults to five minutes |
 | `ZIBRI_DI_TOKENS.CRON_REGISTRATION_LEASE_IN_MS` | DI token | How long one instance may take to register its jobs at boot. Defaults to thirty seconds |
 
@@ -79,6 +80,8 @@ After that you can programmatically change its configuration, like putting it on
 
 **Who owns which value.** The schedule and whether the job is running are yours to change while the app runs, so the stored row wins for those — a change you make through the cron service survives every restart, and editing `cron` in the class afterwards has no effect. `runOnInit` and `stopOnError` describe what the job *does* rather than when, so the class stays the single source of truth for them: every start brings the row back in line with what it declares. Set `syncToDataSource: false` to keep the whole configuration in the class, at the cost of the row that records `lastRun` and the last error.
 
+A job runs outside every [tenant](./tenancy.md#work-outside-a-request), and every tenant shares it.
+
 ### What a job is doing
 
 A job is in one of three states, readable as `job.state`:
@@ -130,7 +133,7 @@ export class NightlyInvoicesCronJob extends CronJob {
 
 `runOnInit` is off by default. Turn it on and the job runs once when the app starts, in addition to its schedule.
 
-For a `distributed` job that startup run is elected the same way a scheduled one is, so a deployment of ten pods runs it once and not ten times. The claim is keyed on the slot the run is happening ahead of, which every replica of one rolling deploy computes identically — and separately from that slot's own claim, so running early does not cancel the scheduled run. A pod restarting a week later sees a different slot and runs again, which is the point of the option.
+For a `distributed` job that startup run is elected the same way a scheduled one is, so a deployment of ten pods runs it once and not ten times. The claim is keyed on the slot the run is happening ahead of, which every replica of one rolling deploy computes identically — and separately from that slot's own claim, so running early does not cancel the scheduled run. That claim is held until the slot arrives, so a pod that becomes ready an hour into a slow deploy still finds it taken. A pod restarting a week later sees a different slot and runs again, which is the point of the option.
 
 For a job with `distributed: false` it runs on every instance, because that is what per-instance work means.
 
@@ -175,8 +178,6 @@ Zibri handles this for you, and it is on by default. Before running a job, every
 
 The grant is **retained** rather than handed back when the job finishes — it is not only the exclusion but the record that this tick has been dealt with. Handing it back would let a replica arriving a moment later win the same key and run the job a second time.
 
-Leases live in the `Lease` entity, which [must be registered in exactly one data source](./leases.md). Startup fails with a `MissingEntitiesError` if it is missing.
-
 A claim is held for `ZIBRI_DI_TOKENS.CRON_EXECUTION_LEASE_IN_MS` (five minutes by default). This exists so that an instance which *dies* mid-run does not block that job forever — once the claim expires another instance takes the execution over.
 
 > **This is the one lease Zibri does not renew underneath you.** node-cron owns the job body and only asks the framework *who should run*, so there is no work here to renew across. Everywhere else the grant follows the work; here the work has to fit the grant. Raise it for jobs that legitimately run longer than the default, or a second instance may pick up an execution while the first is still working on it:
@@ -208,8 +209,6 @@ export class ClearLocalCacheCronJob extends CronJob {
 The test is **who owns the state the job touches**. A shared data source, a payment provider, an outbound mail queue → leave it `true`, or three replicas do it three times. This process's memory, this container's filesystem → `false`, or two of your three replicas are never cleaned up.
 
 Zibri's own jobs follow the same rule: `CollectMetricsCronJob` (each instance has its own registry and host), `FormDataBodyParserCleanupCronJob` (each container has its own temp folder) and `RateLimitingCleanupCronJob` (the default limiter store is in memory) are `distributed: false`. Everything that cleans up rows in a data source is not.
-
-> Note that `runOnInit` is a separate concern and still fires on **every** instance that starts, regardless of `distributed`: it is a startup action, not a scheduled one.
 
 #### What `distributed: true` does not promise
 

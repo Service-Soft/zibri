@@ -157,6 +157,16 @@ export function isXmlMimeType(value: string): boolean {
 }
 
 /**
+ * Checks if the given value is a media type of json: `application/json`, or a format written in json
+ * that carries the `+json` suffix (RFC 6839), such as `application/scim+json`.
+ * @param value - The media type to check, without parameters.
+ * @returns True when content of that type is json.
+ */
+export function isJsonMimeType(value: string): boolean {
+    return value === MimeType.JSON || /^application\/[\w!#$&.^-]+\+json$/.test(value);
+}
+
+/**
  * The types a response body is worth encoding for.
  *
  * Everything here is text or is stored as text. What is missing is missing on purpose: an image, a
@@ -169,6 +179,7 @@ export function isXmlMimeType(value: string): boolean {
 const compressibleMimeTypes: Set<MimeType> = new Set([
     MimeType.JSON,
     MimeType.JSON_LD,
+    MimeType.JSON_SCIM,
     MimeType.NDJSON,
     MimeType.XML,
     MimeType.TEXT_XML,

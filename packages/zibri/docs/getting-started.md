@@ -47,6 +47,12 @@ class ReceiptService {
 build that records no metadata names every token, and any parameter left untagged is refused while
 the application starts, with the class and the position in the message.
 
+A class that declares no constructor of its own is built with the one it inherits. Types are recorded
+only for the constructor of a decorated class, so the class declaring that constructor is either
+decorated or names its tokens with `@Inject`, and is otherwise refused the same way, naming both
+classes. In a build that records no metadata, a class declaring a constructor that takes nothing is
+refused too when its parent's constructor takes parameters.
+
 One thing follows the metadata: a number property's declared type is checked against the `format` it
 names as the class is declared, and that check reads what the build wrote down. The value itself is
 checked against the format as it is stored, either way.
@@ -58,16 +64,30 @@ missing while it starts:
 
 | Feature | Package |
 |---|---|
-| A postgres data source | `pg` |
+| A postgres data source | `pg`, `pg-query-stream` |
 | A valkey data source | `@valkey/valkey-glide` |
+| Tracing, which the default tracer records, see [tracing](./tracing.md) | `@opentelemetry/api`, `@opentelemetry/sdk-trace-node` |
+| Sending traces to a tracing backend with `otlpTraceExporter` | `@opentelemetry/exporter-trace-otlp-http`, `@opentelemetry/resources` |
+| The sftp backup transport, see [backup](./backup.md) | `ssh2` |
 | `BcryptHashStrategy` | `bcryptjs` |
+| A `regex` on a string property or parameter, see [models](./models.md) | `re2` |
 | The otp two factor method, which ships as the default | `otpauth` |
-| Websocket controllers | `socket.io` |
+| `JwtAuthStrategy`, which ships as the default auth strategy | `jose` |
+| Sign-in through a provider, see [sign-in through a provider](./sign-in-through-a-provider.md) | `openid-client` |
+| Sign-in through a SAML provider, see [SAML](./sign-in-through-a-provider.md#saml) | `@node-saml/node-saml` |
+| Sign-in through a directory, see [sign-in through a directory](./sign-in-through-a-directory.md) | `ldapts` |
+| Passkeys, see [passkeys](./passkeys.md) | `@simplewebauthn/server`, and `jose` when the devices are [restricted](./passkeys.md#restricting-the-devices) |
+| Websocket controllers | `socket.io`, and `socket.io-parser`, which `socket.io` brings with it |
 | A websocket adapter data source, for broadcasts across instances | `socket.io-adapter`, which `socket.io` brings with it |
-| The invoicing plugin | `pdfmake` |
+| `PdfUtilities` and the invoicing plugin | `pdfmake` |
 | The xml body parser, which ships as one of the default body parsers, translations, `XmlUtilities`, XRechnung and Peppol invoices | `saxes` |
+| The form data body parser, which ships as one of the default body parsers, see [file uploads](./creating-endpoints.md#handling-file-uploads) | `@fastify/busboy` |
+| Metrics, which the default metrics service collects, see [metrics](./metrics.md) | `prom-client`, `systeminformation` |
+| Sending emails over smtp with `SmtpEmailTransport`, see [email](./email.md) | `nodemailer` |
+| Generating entities from an OpenAPI document with `OpenApiFileProvider` or `OpenApiUrlProvider` | `swagger2openapi` |
 | Handlebars templates | `handlebars` |
 | TypeScript worker files, see [multithreading](./multithreading.md) | `ts-node` |
+| Extracting source translations, see [localization](./localization.md) | `typescript`, `saxes` |
 
 Install the ones you use, eg. `npm i socket.io`.
 
@@ -89,7 +109,12 @@ Now you should be able to run
 zi new
 ```
 
-and provide a name for your new project.
+and provide a name for your new project, and whether it gets a continuous integration workflow. Both
+can be given on the command line instead, as `zi new <name> <github|none>`.
+
+With `github`, the project gets `.github/workflows/ci.yml`, which installs, builds and tests it on
+every pull request and every push to `main`. A checkout has no `.env`, so the workflow copies
+`.env.example` and fills each blank secret with a value made for that run.
 
 ### Configuration
 
@@ -117,5 +142,6 @@ there and skipped when it is not.
 You can now go into your freshly generated project, run `npm start` and enjoy your new api!
 
 ## See also
+- [Architecture](./architecture.md) — how the pieces of an application fit together
 - [Creating endpoints](./creating-endpoints.md) — build your first API endpoint
 - [Dependency injection](./di.md) — how Zibri wires up services and providers

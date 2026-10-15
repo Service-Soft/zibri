@@ -39,7 +39,8 @@ describe('NewCommand (sandbox parity)', () => {
         // would for a real user (see new.command.heavy.test.ts for why this flag exists).
         process.env['ZIBRI_CLI_LOCAL_DEV'] = '1';
 
-        await quietly(async () => new NewCommand().start(['n', 'sandbox']));
+        // no ci workflow, for the reason the fast parity suite gives
+        await quietly(async () => new NewCommand().start(['n', 'sandbox', 'none']));
     }, TEST_TIMEOUT_MS);
 
     afterAll(async () => {

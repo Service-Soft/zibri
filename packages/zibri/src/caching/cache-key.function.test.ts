@@ -1,6 +1,8 @@
 import { describe, expect, it } from '@jest/globals';
 
 import { cacheKeyOf } from './cache-key.function';
+import { AlsUtilities } from '../context/als.utilities';
+import { UUIDUtilities } from '../utilities/uuid.utilities';
 
 /**
  * What counts as the same cache key.
@@ -33,6 +35,19 @@ describe('cacheKeyOf', () => {
         // an array's order carries meaning - these are two different sorts, and one answer must not
         // be served for the other
         expect(cacheKeyOf({ orderBy: ['name', 'createdAt'] })).not.toBe(cacheKeyOf({ orderBy: ['createdAt', 'name'] }));
+    });
+
+    it('keys each tenant apart, and apart from no tenant', () => {
+        const tenantA: string = UUIDUtilities.generate();
+        const tenantB: string = UUIDUtilities.generate();
+        const inA: string = AlsUtilities.runInTenant(tenantA, () => cacheKeyOf('user:1'));
+
+        expect(inA).toBe(AlsUtilities.runInTenant(tenantA, () => cacheKeyOf('user:1')));
+        expect(inA).not.toBe(AlsUtilities.runInTenant(tenantB, () => cacheKeyOf('user:1')));
+        expect(inA).not.toBe(cacheKeyOf('user:1'));
+        // and no key written outside every tenant can be mistaken for a tenant's
+        expect(inA).not.toBe(cacheKeyOf(`${tenantA}:user:1`));
+        expect(AlsUtilities.runInTenant(tenantA, () => cacheKeyOf({ id: 1 }))).not.toBe(cacheKeyOf({ id: 1 }));
     });
 
     it('tells different values apart', () => {

@@ -1,4 +1,5 @@
 import { SoftDeleteEntity } from './soft-delete-entity.model';
+import { SoftDeletedRows } from './soft-deleted-rows.type';
 import { UpdateAllOptions } from '../../data-source/models/options/update-all-options.model';
 
 /**
@@ -6,7 +7,7 @@ import { UpdateAllOptions } from '../../data-source/models/options/update-all-op
  */
 export type SoftDeleteUpdateAllOptions<T extends SoftDeleteEntity, R extends boolean = false> = UpdateAllOptions<T, R> & {
     /**
-     * Whether or not soft deleted entities should be included.
+     * Which soft deleted entities are updated. `exclude` when it is not given.
      */
-    withDeleted?: boolean
+    deleted?: SoftDeletedRows
 };

@@ -1,13 +1,18 @@
 import { PaymentServiceInterface } from './payment-service.interface';
 import { PaymentDataForMethod, ValidatedPaymentDataForMethod, PaymentForMethod, AllowedReservationMethods, PaymentReservationForMethod, AllowedCancellationMethods, AllowedRefundMethods } from './payment-service.types';
 import { Repository } from '../../../data-source/repository/repository';
-import { InjectRepository } from '../../../di/decorators/inject-repository.decorator';
+import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../../di/decorators/inject.decorator';
 import { Injectable } from '../../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
+import { inject } from '../../../di/inject.function';
 import { AnyObject } from '../../../entity/any-object.model';
+import { ConflictError } from '../../../error-handling/errors/conflict.error';
 import { InternalError } from '../../../error-handling/internal-error.model';
+import { type LeaseServiceInterface } from '../../../leases/lease-service.interface';
+import { $ts } from '../../../localization/translate.function';
 import { type LoggerInterface } from '../../../logging/logger.interface';
+import { Ms } from '../../../utilities/ms';
 import { PaymentMethod } from '../models/payment-method.model';
 import { type PaymentPluginOptions } from '../models/payment-plugin-options.model';
 import { PaymentStatus } from '../models/payment-status.enum';
@@ -28,10 +33,24 @@ export class PaymentService<
         @Inject(ZIBRI_PAYMENT_PLUGIN_DI_TOKENS.OPTIONS)
         protected readonly options: PaymentPluginOptions<Methods, P>,
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
-        protected readonly logger: LoggerInterface,
-        @InjectRepository(Payment)
-        protected readonly paymentRepository: Repository<Payment<string, AnyObject>>
+        protected readonly logger: LoggerInterface
     ) {}
+
+    // read when used rather than injected: this is built at every boot that uses the plugin, and
+    // ZibriPaymentPlugin.validate names the entity when it is missing - which it could not, if
+    // building this had failed on a repository token first
+
+    /**
+     * The repository of the payments.
+     * @returns The repository.
+     */
+    protected get paymentRepository(): Repository<Payment<string, AnyObject>> {
+        return inject(repositoryTokenFor(Payment));
+    }
+
+    private get leaseService(): LeaseServiceInterface {
+        return inject(ZIBRI_DI_TOKENS.LEASE_SERVICE);
+    }
 
     private findPaymentProviderForMethod<M extends Methods[number]>(method: M): P[number] {
         const name: string = this.options.providerNameForMethod[method];
@@ -40,6 +59,38 @@ export class PaymentService<
             throw new InternalError(`No provider found for payment method "${method}"`);
         }
         return provider;
+    }
+
+    /**
+     * Runs a transition of a payment on the payment as it is stored, one transition of it at a time.
+     *
+     * The payment handed in is the caller's copy, and two copies of one payment - a double click, a
+     * retried request, two replicas - both say it is waiting to be confirmed. So the transition waits
+     * for any other one of the same payment, reads the row, and is judged by that. Once it is done,
+     * the caller's copy is brought up to date with what was written.
+     * @param payment - The caller's copy of the payment.
+     * @param transition - Decides on the stored payment and calls the provider.
+     */
+    private async transition<T extends Payment<string, AnyObject>>(payment: T, transition: (stored: T) => Promise<void>): Promise<void> {
+        await this.leaseService.withLease(
+            // renewed while the provider is called, and waited for as long as one call may take
+            { key: `zibri.payment:${payment.id}`, mode: 'wait', leaseInMs: Ms.SECOND * 30, acquireTimeoutInMs: Ms.MINUTE },
+            async () => {
+                await transition(await this.findStored(payment));
+                Object.assign(payment, await this.findStored(payment));
+            }
+        );
+    }
+
+    /**
+     * Reads the stored row of a payment.
+     * @param payment - The payment.
+     * @returns The row, typed as the payment it is the row of.
+     */
+    private async findStored<T extends Payment<string, AnyObject>>(payment: T): Promise<T> {
+        // the repository is typed for the payments of every method, and the row of a payment of one
+        // is a payment of that method
+        return await this.paymentRepository.findById(payment.id) as T;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -56,7 +107,7 @@ export class PaymentService<
         // eslint-disable-next-line jsdoc/require-jsdoc
         const { transactionId } = data as unknown as { transactionId: string };
         if ((await this.paymentRepository.findAll({ where: { transactionId } })).length) {
-            throw new InternalError(`a payment for the transactionId "${transactionId}" already exists`);
+            throw new ConflictError($ts`A payment for the transactionId "${transactionId}" already exists.`);
         }
         return res;
     }
@@ -83,77 +134,82 @@ export class PaymentService<
     async confirmPaymentReservation<M extends AllowedReservationMethods<Methods, P>>(
         payment: PaymentReservationForMethod<Methods, M, P>
     ): Promise<void> {
-        if (payment.status === PaymentStatus.RESERVED) {
-            // already reserved, a warning is enough here as this is probably just a timing problem.
-            this.logger.warn(
-                `Tried to confirm a payment reservation (transactionId: ${payment.transactionId}) that has already been reserved`
-            );
-            return undefined;
-        }
-        if (payment.status !== PaymentStatus.CREATED) {
-            throw new InternalError(`Cannot confirm payment in status ${payment.status}`);
-        }
-        const provider: P[number] = this.findPaymentProviderForMethod(payment.paymentMethod);
-        await provider.confirmPaymentReservation(payment);
+        await this.transition(payment, async stored => {
+            if (stored.status === PaymentStatus.RESERVED) {
+                // already reserved, a warning is enough here as this is probably just a timing problem.
+                this.logger.warn(
+                    `Tried to confirm a payment reservation (transactionId: ${stored.transactionId}) that has already been reserved`
+                );
+                return;
+            }
+            if (stored.status !== PaymentStatus.CREATED) {
+                throw new ConflictError($ts`Cannot confirm payment in status ${stored.status}.`);
+            }
+            await this.findPaymentProviderForMethod(stored.paymentMethod).confirmPaymentReservation(stored);
+        });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async confirmPayment<M extends Methods[number]>(payment: PaymentForMethod<Methods, M, P>): Promise<void> {
-        if (payment.status === PaymentStatus.PAID) {
-            // already confirmed, a warning is enough here as this is probably just a timing problem.
-            this.logger.warn(`Tried to confirm a payment (transactionId: ${payment.transactionId}) that has already been confirmed`);
-            return undefined;
-        }
-        if (payment.status !== PaymentStatus.CREATED) {
-            throw new InternalError(`Cannot confirm payment in status ${payment.status}`);
-        }
-        const provider: P[number] = this.findPaymentProviderForMethod(payment.paymentMethod);
-        await provider.confirmPayment(payment);
+        await this.transition(payment, async stored => {
+            if (stored.status === PaymentStatus.PAID) {
+                // already confirmed, a warning is enough here as this is probably just a timing problem.
+                this.logger.warn(`Tried to confirm a payment (transactionId: ${stored.transactionId}) that has already been confirmed`);
+                return;
+            }
+            if (stored.status !== PaymentStatus.CREATED) {
+                throw new ConflictError($ts`Cannot confirm payment in status ${stored.status}.`);
+            }
+            await this.findPaymentProviderForMethod(stored.paymentMethod).confirmPayment(stored);
+        });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async collectPaymentFromReservation<M extends AllowedReservationMethods<Methods, P>>(
         payment: PaymentReservationForMethod<Methods, M, P>
     ): Promise<void> {
-        if (payment.status === PaymentStatus.PAID) {
-            // already confirmed, a warning is enough here as this is probably just a timing problem.
-            this.logger.warn(`Tried to collect a payment (transactionId: ${payment.transactionId}) that has already been collected`);
-            return undefined;
-        }
-        if (payment.status !== PaymentStatus.RESERVED) {
-            throw new InternalError('Can only collect payments from reserved payments');
-        }
-        const provider: P[number] = this.findPaymentProviderForMethod(payment.paymentMethod);
-        await provider.collectPaymentFromReservation(payment);
+        await this.transition(payment, async stored => {
+            if (stored.status === PaymentStatus.PAID) {
+                // already confirmed, a warning is enough here as this is probably just a timing problem.
+                this.logger.warn(`Tried to collect a payment (transactionId: ${stored.transactionId}) that has already been collected`);
+                return;
+            }
+            if (stored.status !== PaymentStatus.RESERVED) {
+                throw new ConflictError($ts`Can only collect payments from reserved payments.`);
+            }
+            await this.findPaymentProviderForMethod(stored.paymentMethod).collectPaymentFromReservation(stored);
+        });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async cancelPayment<M extends AllowedCancellationMethods<Methods, P>>(
         payment: PaymentForMethod<Methods, M, P> | PaymentReservationForMethod<Methods, M, P>
     ): Promise<void> {
-        if (payment.status === PaymentStatus.CANCELLED) {
-            // already cancelled, a warning is enough here as this is probably just a timing problem.
-            this.logger.warn(`Tried to collect a payment (transactionId: ${payment.transactionId}) that has already been collected`);
-            return undefined;
-        }
-        if (payment.status !== PaymentStatus.CREATED && payment.status !== PaymentStatus.RESERVED) {
-            throw new InternalError(`Cannot cancel payment in status ${payment.status}`);
-        }
-        const provider: P[number] = this.findPaymentProviderForMethod(payment.paymentMethod);
-        await provider.cancelPayment(payment);
+        await this.transition(payment, async stored => {
+            if (stored.status === PaymentStatus.CANCELLED) {
+                // already cancelled, a warning is enough here as this is probably just a timing problem.
+                this.logger.warn(`Tried to cancel a payment (transactionId: ${stored.transactionId}) that has already been cancelled`);
+                return;
+            }
+            if (stored.status !== PaymentStatus.CREATED && stored.status !== PaymentStatus.RESERVED) {
+                throw new ConflictError($ts`Cannot cancel payment in status ${stored.status}.`);
+            }
+            await this.findPaymentProviderForMethod(stored.paymentMethod).cancelPayment(stored);
+        });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async refundPayment<M extends AllowedRefundMethods<Methods, P>>(payment: PaymentForMethod<Methods, M, P>): Promise<void> {
-        if (payment.status === PaymentStatus.REFUNDED) {
-            // already refunded, a warning is enough here as this is probably just a timing problem.
-            this.logger.warn(`Tried to refund a payment (transactionId: ${payment.transactionId}) that has already been refunded`);
-            return undefined;
-        }
-        if (payment.status !== PaymentStatus.PAID) {
-            throw new InternalError(`Cannot refund payment in status ${payment.status}`);
-        }
-        const provider: P[number] = this.findPaymentProviderForMethod(payment.paymentMethod);
-        await provider.refundPayment(payment);
+        await this.transition(payment, async stored => {
+            if (stored.status === PaymentStatus.REFUNDED) {
+                // already refunded, a warning is enough here as this is probably just a timing problem.
+                this.logger.warn(`Tried to refund a payment (transactionId: ${stored.transactionId}) that has already been refunded`);
+                return;
+            }
+            if (stored.status !== PaymentStatus.PAID) {
+                throw new ConflictError($ts`Cannot refund payment in status ${stored.status}.`);
+            }
+            await this.findPaymentProviderForMethod(stored.paymentMethod).refundPayment(stored);
+        });
     }
 }

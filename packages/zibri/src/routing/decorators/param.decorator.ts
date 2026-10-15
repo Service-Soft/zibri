@@ -12,8 +12,7 @@ import { createHeaderParamMetadata, createPathParamMetadata, createQueryParamMet
 /**
  * Metadata of path parameters.
  */
-// eslint-disable-next-line typescript/no-explicit-any
-export type PathParamMetadata = StringParamMetadata<any, any, any, any, any>
+export type PathParamMetadata = StringParamMetadata
     | NumberParamMetadata
     | BooleanParamMetadata
     | DateParamMetadata
@@ -22,8 +21,7 @@ export type PathParamMetadata = StringParamMetadata<any, any, any, any, any>
 /**
  * Metadata Input of path parameters.
  */
-// eslint-disable-next-line typescript/no-explicit-any
-export type PathParamMetadataInput = StringParamMetadataInput<any, any, any, any, any>
+export type PathParamMetadataInput = StringParamMetadataInput
     | NumberParamMetadataInput
     | BooleanParamMetadataInput
     | DateParamMetadataInput
@@ -32,8 +30,7 @@ export type PathParamMetadataInput = StringParamMetadataInput<any, any, any, any
 /**
  * Metadata of query parameters.
  */
-// eslint-disable-next-line typescript/no-explicit-any
-export type QueryParamMetadata = StringParamMetadata<any, any, any, any, any>
+export type QueryParamMetadata = StringParamMetadata
     | NumberParamMetadata
     | BooleanParamMetadata
     | DateParamMetadata
@@ -44,8 +41,7 @@ export type QueryParamMetadata = StringParamMetadata<any, any, any, any, any>
 /**
  * Metadata Input of query parameters.
  */
-// eslint-disable-next-line typescript/no-explicit-any
-export type QueryParamMetadataInput = StringParamMetadataInput<any, any, any, any, any>
+export type QueryParamMetadataInput = StringParamMetadataInput
     | NumberParamMetadataInput
     | BooleanParamMetadataInput
     | DateParamMetadataInput
@@ -57,8 +53,7 @@ export type QueryParamMetadataInput = StringParamMetadataInput<any, any, any, an
  * Metadata of header parameters.
  */
 export type HeaderParamMetadata = (
-    // eslint-disable-next-line typescript/no-explicit-any
-    StringParamMetadata<any, any, any, any, any>
+    StringParamMetadata
     | NumberParamMetadata
     | BooleanParamMetadata
     | DateParamMetadata
@@ -75,8 +70,7 @@ export type HeaderParamMetadata = (
 /**
  * Metadata Input of path parameters.
  */
-// eslint-disable-next-line typescript/no-explicit-any
-export type HeaderParamMetadataInput = StringParamMetadataInput<any, any, any, any, any>
+export type HeaderParamMetadataInput = StringParamMetadataInput
     | NumberParamMetadataInput
     | BooleanParamMetadataInput
     | DateParamMetadataInput
@@ -99,9 +93,7 @@ export namespace Param {
         const fullMetadata: PathParamMetadata = createPathParamMetadata(name, options);
         return (target, propertyKey, parameterIndex) => {
             const ctor: Function = target.constructor;
-            // eslint-disable-next-line unicorn/error-message
-            const stack: string = new Error().stack ?? '';
-            MetadataUtilities.setFilePath(ctor, stack);
+            MetadataUtilities.setFilePath(ctor);
             const key: string = propertyKey?.toString() ?? '';
             const pathParams: Record<number, PathParamMetadata> = MetadataUtilities.getRoutePathParams(ctor, key);
             pathParams[parameterIndex] = fullMetadata;
@@ -118,9 +110,7 @@ export namespace Param {
         const fullMetadata: QueryParamMetadata = createQueryParamMetadata(name, options);
         return (target, propertyKey, parameterIndex) => {
             const ctor: Function = target.constructor;
-            // eslint-disable-next-line unicorn/error-message
-            const stack: string = new Error().stack ?? '';
-            MetadataUtilities.setFilePath(ctor, stack);
+            MetadataUtilities.setFilePath(ctor);
             const key: string = propertyKey?.toString() ?? '';
             const queryParams: Record<number, QueryParamMetadata> = MetadataUtilities.getRouteQueryParams(ctor, key);
             queryParams[parameterIndex] = fullMetadata;
@@ -137,9 +127,7 @@ export namespace Param {
         const fullMetadata: HeaderParamMetadata = createHeaderParamMetadata(name, options);
         return (target, propertyKey, parameterIndex) => {
             const ctor: Function = target.constructor;
-            // eslint-disable-next-line unicorn/error-message
-            const stack: string = new Error().stack ?? '';
-            MetadataUtilities.setFilePath(ctor, stack);
+            MetadataUtilities.setFilePath(ctor);
             const key: string = propertyKey?.toString() ?? '';
             const headerParams: Record<number, HeaderParamMetadata> = MetadataUtilities.getRouteHeaderParams(ctor, key);
             headerParams[parameterIndex] = fullMetadata;

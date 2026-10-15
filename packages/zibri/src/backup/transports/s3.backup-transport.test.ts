@@ -65,7 +65,7 @@ class TestS3BackupTransport extends BaseS3BackupTransport {
     }
 }
 
-@Entity()
+@Entity({ tenant: 'shared' })
 class Item {
     @Property.string({ primary: true })
     id!: string;
@@ -75,7 +75,7 @@ class Item {
 }
 
 @DataSource()
-@Backup({ transports: [TestS3BackupTransport] })
+@Backup({ transports: [TestS3BackupTransport], encrypt: false })
 class DbDataSource extends PostgresDataSource {
     override rootPw: string = 'password';
     override rootUsername: string = 'postgres';
@@ -83,7 +83,8 @@ class DbDataSource extends PostgresDataSource {
         host: 'localhost',
         username: 'postgres',
         password: 'password',
-        database: 'db'
+        database: 'db',
+        ssl: false
     };
     entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, Item, BackupResourceEntity, BackupEntity];
     schemaManagement: SchemaManagement = 'synchronize';

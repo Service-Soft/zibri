@@ -8,6 +8,7 @@ Zibri routes every thrown error through a single global error handler, which tur
 | `InternalError` | class | Base for errors that must never leave the server |
 | `GlobalError` | class | Wraps whatever was thrown, used internally by the error handler for logging |
 | `HttpError` | abstract class | Base for `ExternalError`s that carry an HTTP status code |
+| `CustomBodyHttpError` | abstract class | An `HttpError` answered with a body of its own, see [an error with a body of its own](#an-error-with-a-body-of-its-own) |
 | `NotFoundError` | error | 404, an existing route couldn't find the requested resource |
 | `UnmatchedRouteError` | error | 404, the route itself doesn't exist (extends `NotFoundError`) |
 | `BadRequestError` | error | 400, generic invalid client input |
@@ -15,6 +16,7 @@ Zibri routes every thrown error through a single global error handler, which tur
 | `UnauthorizedError` | error | 401, the caller didn't say who it is, or the credential it sent isn't good |
 | `ForbiddenError` | error | 403, the caller is known and still isn't allowed to do this |
 | `CredentialReusedError` | error | A 401 that reads as `UnauthorizedError` on the wire, but tells the [audit trail](./logging.md#the-audit-trail) a spent credential came back |
+| `AccountDeactivatedError` | error | 403, a [deactivated user](./auth.md#deactivating-a-user) tried to log in |
 | `MethodNotAllowedError` | error | 405, the path exists under other methods; thrown by Zibri itself and answered with an `Allow` header |
 | `NotAcceptableError` | error | 406, the caller accepts nothing the route produces; thrown by Zibri itself |
 | `ConflictError` | error | 409, conflicting state on the server |
@@ -138,12 +140,40 @@ export class PaymentRequiredError extends HttpError {
 }
 ```
 
+### An error with a body of its own
+A protocol that says what its errors look like gets them by extending `CustomBodyHttpError`. The response holds its `body`, written as json in the first of its `mimeTypes` the request accepts:
+
+```ts
+// src/errors/problem.error.ts
+import { $ts, CustomBodyHttpError, HttpStatus, JsonMimeType, MimeType } from 'zibri';
+
+export class ProblemError extends CustomBodyHttpError {
+    readonly body: unknown;
+    readonly mimeTypes: JsonMimeType[] = [MimeType.JSON];
+
+    constructor(detail: string) {
+        super($ts`${detail}`, HttpStatus.CONFLICT, $ts`Conflict`, undefined);
+        this.name = 'ProblemError';
+        this.body = { type: 'https://example.com/problems/taken', title: 'Taken', status: 409, detail };
+    }
+}
+```
+
+`headers` holds the headers the response carries besides the body, such as `WWW-Authenticate`.
+
+`ScimError` is one, answering the way [SCIM](./scim.md#errors) says, and `OAuth2Error` another, answering the way [OAuth2](./authorization-server.md#errors) says.
+
 ### How the global error handler processes an error
 Every error thrown anywhere in the request pipeline eventually reaches the `GlobalErrorHandler` registered under `ZIBRI_DI_TOKENS.GLOBAL_ERROR_HANDLER` (the default implementation lives in `src/error-handling/error-handler.ts` and is installed as the last express middleware in `Application.start`, right after a catch-all that turns unmatched routes into `UnmatchedRouteError`). It:
 1. Wraps the caught value in a `GlobalError` and logs it — via `logger.critical` if the value isn't even an `Error`, via `logger.error` if it's an internal error, and not at all if it's an external error (external errors are expected, user-facing outcomes, not bugs).
 2. Converts the error to an `HttpError` via `ErrorUtilities.toHttpError` — anything that already is one passes through, anything else becomes a generic `InternalServerError`.
 3. Attaches rate-limit headers (`X-RateLimit-*`, `Retry-After`) if the error is a `TooManyRequestsError` with a `rateLimitResult`.
-4. Negotiates the response format via `Accept`: JSON clients get `{ status, name, message, paragraphs, traceId }`; XML clients get the same as an `Error` document, with one `paragraph` element per paragraph; HTML clients get the rendered `ErrorPageTemplate`, falling back to the same JSON (with a warning logged) if no template is configured. A client naming none of them, or accepting anything, gets JSON. Between formats a client weighs equally, the one it names first is taken.
+4. Answers a `CustomBodyHttpError` with its own body, and every other error by negotiating the response format via `Accept`: JSON clients get `{ status, name, message, paragraphs, traceId }`; XML clients get the same as an `Error` document, with one `paragraph` element per paragraph; HTML clients get the rendered `ErrorPageTemplate`, falling back to the same JSON (with a warning logged) if no template is configured. A client naming none of them, or accepting anything, gets JSON. Between formats a client weighs equally, the one it names first is taken.
+
+### Errors outside the request pipeline
+The global error handler only sees errors that come back through a request. A promise nothing awaits, like `void this.auditService.record(order)`, rejects outside of it, even when a request started it. Such a rejection is logged as an `InternalError` and the application keeps serving. An exception nothing catches is logged and then ends the process with a non-zero exit code.
+
+Await a promise, or give it a `.catch`, when you want to handle its failure yourself.
 
 ### Custom error page
 By default `ZIBRI_DI_TOKENS.ERROR_PAGE_TEMPLATE` is `undefined`, so HTML-accepting clients get the JSON fallback described above. To render an actual error page, provide a tsx component (see [templating](./templating.md)) that accepts an `error: HttpError` prop:

@@ -11,7 +11,7 @@ import { HttpClientInterface } from '../../../../http-client/http-client.interfa
  *
  * Can either be 'CAPTURE' (pay now, eg. Online shop) or 'AUTHORIZE' (reserve funds, eg. For hotel booking).
  */
-type PayPalPaymentIntent = 'CAPTURE' | 'AUTHORIZE';
+export type PayPalPaymentIntent = 'CAPTURE' | 'AUTHORIZE';
 
 /**
  * The access token received from the pay-pal api.
@@ -83,7 +83,7 @@ class PayPalLink {
 /**
  * Response for creating a order.
  */
-class CreateOrderResp {
+export class CreateOrderResp {
     /**
      * The id of the order.
      */
@@ -198,7 +198,7 @@ export class CaptureOrderResp {
 /**
  * Authorization (Reservation) of a payment.
  */
-class PayPalAuthorization {
+export class PayPalAuthorization {
     /**
      * The id of the authorization.
      */
@@ -227,6 +227,12 @@ class PayPalPaymentsWithAuth {
      */
     @Property.array({ required: false, items: { type: 'object', cls: () => PayPalAuthorization, allowAdditionalProperties: true } })
     authorizations?: PayPalAuthorization[] | null;
+
+    /**
+     * The captures of the payments, of the order or of an authorization.
+     */
+    @Property.array({ required: false, items: { type: 'object', cls: () => PayPalCapture, allowAdditionalProperties: true } })
+    captures?: PayPalCapture[] | null;
 }
 
 /**
@@ -310,15 +316,22 @@ export class RefundCaptureResp {
 }
 
 /**
+ * The header PayPal reads an idempotency key from: a call repeating one is answered like the first
+ * was, rather than done again.
+ */
+const REQUEST_ID_HEADER: string = 'PayPal-Request-Id';
+
+/**
  * Client for handling anything related with the PayPal API.
  */
 export class PayPalClient {
-    private readonly baseUrl: string;
     private token?: PayPalAccessToken;
     private readonly http: HttpClientInterface;
 
-    constructor(private readonly options: PayPalPaymentProviderOptions) {
-        this.baseUrl = options.env === 'live' ? 'https://api-m.paypal.com' : 'https://api-m.sandbox.paypal.com';
+    constructor(
+        private readonly options: PayPalPaymentProviderOptions,
+        private readonly baseUrl: string
+    ) {
         this.http = inject(ZIBRI_DI_TOKENS.HTTP_CLIENT);
     }
 
@@ -372,9 +385,10 @@ export class PayPalClient {
     /**
      * Captures a completed order with the given id.
      * @param orderId - The id of the order to capture.
+     * @param requestId - The idempotency key: a repeated call with it is answered like the first.
      * @returns The captured order.
      */
-    async captureOrder(orderId: string): Promise<CaptureOrderResp> {
+    async captureOrder(orderId: string, requestId: string): Promise<CaptureOrderResp> {
         const token: string = await this.getAccessToken();
         const url: string = `${this.baseUrl}/v2/checkout/orders/${encodeURIComponent(orderId)}/capture`;
 
@@ -384,7 +398,8 @@ export class PayPalClient {
             {
                 responseBody: { modelClass: CaptureOrderResp, type: MimeType.JSON, allowAdditionalProperties: true },
                 headers: {
-                    Authorization: `Bearer ${token}`
+                    Authorization: `Bearer ${token}`,
+                    [REQUEST_ID_HEADER]: requestId
                 }
             }
         )).body;
@@ -412,16 +427,18 @@ export class PayPalClient {
      * Captures authorization with the given id.
      * @param authorizationId - The id of the (already confirmed) authorization.
      * @param amount - The amount to capture.
+     * @param requestId - The idempotency key: a repeated call with it is answered like the first.
      * @returns The captured authorization.
      */
-    async captureAuthorization(authorizationId: string, amount: PaymentAmount): Promise<AuthorizationCaptureResp> {
+    async captureAuthorization(authorizationId: string, amount: PaymentAmount, requestId: string): Promise<AuthorizationCaptureResp> {
         const token: string = await this.getAccessToken();
         const url: string = `${this.baseUrl}/v2/payments/authorizations/${encodeURIComponent(authorizationId)}/capture`;
 
         return (await this.http.post(url, { amount }, {
             responseBody: { modelClass: AuthorizationCaptureResp, type: MimeType.JSON, allowAdditionalProperties: true },
             headers: {
-                Authorization: `Bearer ${token}`
+                Authorization: `Bearer ${token}`,
+                [REQUEST_ID_HEADER]: requestId
             }
         })).body;
     }
@@ -430,16 +447,18 @@ export class PayPalClient {
      * Authorizes an AUTHORIZE-intent order that the buyer has already approved.
      * Must be called before confirmPaymentReservation can read the authorization id.
      * @param orderId - The id of the approved order to authorize.
+     * @param requestId - The idempotency key: a repeated call with it is answered like the first.
      * @returns The authorized order, including purchase_units[].payments.authorizations.
      */
-    async authorizeOrder(orderId: string): Promise<GetOrderResp> {
+    async authorizeOrder(orderId: string, requestId: string): Promise<GetOrderResp> {
         const token: string = await this.getAccessToken();
         const url: string = `${this.baseUrl}/v2/checkout/orders/${encodeURIComponent(orderId)}/authorize`;
 
         return (await this.http.post(url, {}, {
             responseBody: { modelClass: GetOrderResp, type: MimeType.JSON, allowAdditionalProperties: true },
             headers: {
-                Authorization: `Bearer ${token}`
+                Authorization: `Bearer ${token}`,
+                [REQUEST_ID_HEADER]: requestId
             }
         })).body;
     }
@@ -447,14 +466,16 @@ export class PayPalClient {
     /**
      * Cancels the existing authorization with the given id.
      * @param authorizationId - The id of the authorization to cancel.
+     * @param requestId - The idempotency key: a repeated call with it is answered like the first.
      */
-    async voidAuthorization(authorizationId: string): Promise<void> {
+    async voidAuthorization(authorizationId: string, requestId: string): Promise<void> {
         const token: string = await this.getAccessToken();
         const url: string = `${this.baseUrl}/v2/payments/authorizations/${encodeURIComponent(authorizationId)}/void`;
 
         await this.http.post(url, {}, {
             headers: {
-                Authorization: `Bearer ${token}`
+                Authorization: `Bearer ${token}`,
+                [REQUEST_ID_HEADER]: requestId
             }
         });
     }
@@ -463,16 +484,18 @@ export class PayPalClient {
      * Refunds the payment of the capture with the given id.
      * @param captureId - The id of the capture to refund.
      * @param amount - The amount to refund.
+     * @param requestId - The idempotency key: a repeated call with it is answered like the first.
      * @returns The refund result.
      */
-    async refundCapture(captureId: string, amount: PaymentAmount): Promise<RefundCaptureResp> {
+    async refundCapture(captureId: string, amount: PaymentAmount, requestId: string): Promise<RefundCaptureResp> {
         const token: string = await this.getAccessToken();
         const url: string = `${this.baseUrl}/v2/payments/captures/${encodeURIComponent(captureId)}/refund`;
 
         return (await this.http.post(url, { amount }, {
             responseBody: { modelClass: RefundCaptureResp, type: MimeType.JSON, allowAdditionalProperties: true },
             headers: {
-                Authorization: `Bearer ${token}`
+                Authorization: `Bearer ${token}`,
+                [REQUEST_ID_HEADER]: requestId
             }
         })).body;
     }

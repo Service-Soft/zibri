@@ -11,10 +11,12 @@ import { JsonUtilities } from '../../utilities/json.utilities';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
 import { toSnakeCase } from '../../utilities/to-snake-case.function';
+import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { type BaseEntity } from '../base-entity.model';
 import { type EntityOrder, type OrderDirection } from '../models/entity-order.model';
 import { type EntityRelations } from '../models/entity-relations.model';
 import { type EntityScope } from '../models/entity-scope.model';
+import { type EntityTenant } from '../models/entity-tenant.model';
 import { declaresUnique, UniqueGroup, UniqueGroupInput } from '../models/unique-declaration.model';
 
 /**
@@ -79,7 +81,15 @@ export type EntityMetadata<T extends BaseEntity = BaseEntity> = {
      * guard. A caller that cannot satisfy it is refused; code running outside a request has to say
      * `unscoped` to read the entity at all.
      */
-    scope?: EntityScope
+    scope?: EntityScope,
+    /**
+     * Which tenant the rows of this entity belong to.
+     *
+     * `'shared'` when its rows belong to no tenant, or the property holding the tenant of each row,
+     * `tenantId` unless the entity names another. A tenant's rows are reachable only while that tenant is active, which
+     * `unscoped` does not change - reaching across tenants is `acrossTenants` on the call.
+     */
+    tenant: EntityTenant
 };
 
 /**
@@ -107,8 +117,14 @@ type EntityMetadataInput<
     TOrderKey extends string = never,
     TRelationKey extends string = never,
     TUniqueKey extends string = never,
-    TIndexKey extends string = never
-> = OmitStrict<Partial<EntityMetadata>, 'defaultOrder' | 'defaultRelations' | 'uniques' | 'indexes'> & {
+    TIndexKey extends string = never,
+    TTenant extends EntityTenant = DefaultTenant
+> = OmitStrict<Partial<EntityMetadata>, 'defaultOrder' | 'defaultRelations' | 'uniques' | 'indexes' | 'tenant'> & {
+    /**
+     * Which tenant the rows of this entity belong to: `'shared'`, or the string property holding the
+     * tenant of each row. Defaults to the property `tenantId`.
+     */
+    tenant?: TTenant,
     /**
      * Default ordering to apply to results when nothing has been specified.
      */
@@ -130,37 +146,66 @@ type EntityMetadataInput<
     indexes?: TIndexKey[][]
 };
 
-// eslint-disable-next-line jsdoc/require-jsdoc, typescript/no-explicit-any
-type ConstrainKeys<TKey extends string> = [TKey] extends [never] ? object : Record<TKey, any>;
+// checked against the keys of the instance rather than by requiring a `Record` of them, because
+// `keyof` includes an optional property and `Record` would demand it be declared required. Not
+// `Partial<Record>` either: a type of optional properties only refuses a class sharing none of them,
+// so a misspelled name next to a correct one would pass. Each name the class lacks becomes a required
+// property here, so the compiler's message names it. Used as the constraint of the instance type
+// rather than intersected with the argument, because an intersection stops a generic class from
+// being inferred at all
+// eslint-disable-next-line jsdoc/require-jsdoc
+type ConstrainKeys<T, TKey extends string> = [Exclude<TKey, keyof T>] extends [never]
+    ? unknown
+    : { [K in Exclude<TKey, keyof T>]: 'is not a property of the entity' };
+
+// eslint-disable-next-line jsdoc/require-jsdoc
+type DefaultTenant = { property: 'tenantId' };
+
+// eslint-disable-next-line jsdoc/require-jsdoc
+type TenantKeyOf<TTenant extends EntityTenant> = TTenant extends { property: infer TKey extends string } ? TKey : never;
+
+const defaultTenant: DefaultTenant = { property: 'tenantId' };
 
 // eslint-disable-next-line jsdoc/require-returns
 /**
  * Marks an entity.
  * @param options - Configuration options for the entity.
  */
+// the key lists default to never, so a list that is left out names no key to check rather than
+// every string. The tenant is inferred as a whole rather than by its key: 'shared' names no key, and
+// a key alone could not tell it apart from a tenant left out, which names `tenantId`. `const`, so the
+// property named keeps its literal type instead of widening to string
 export function Entity<
-    TOrderKey extends string,
-    TRelationKey extends string,
-    TUniqueKey extends string,
-    TIndexKey extends string
+    TOrderKey extends string = never,
+    TRelationKey extends string = never,
+    TUniqueKey extends string = never,
+    TIndexKey extends string = never,
+    const TTenant extends EntityTenant = DefaultTenant
 >(
-    options: EntityMetadataInput<TOrderKey, TRelationKey, TUniqueKey, TIndexKey> = {}
+    options: EntityMetadataInput<TOrderKey, TRelationKey, TUniqueKey, TIndexKey, TTenant> = {}
 ) {
     const {
-        tableName, defaultOrder, defaultRelations, uniques, indexes, scope, allowOrphan = false, allowDuplicate = false
+        tableName,
+        defaultOrder,
+        defaultRelations,
+        uniques,
+        indexes,
+        scope,
+        tenant = defaultTenant,
+        allowOrphan = false,
+        allowDuplicate = false
     } = options;
     // normalized here, so that the two ways of writing a group are one shape everywhere below and in
     // every store that reads them back
     const uniqueGroups: UniqueGroup[] | undefined = uniques
         ?.map(group => Array.isArray(group) ? { properties: group } : { properties: group.properties, where: group.where });
-    return <T extends ConstrainKeys<TOrderKey>
-        & ConstrainKeys<TRelationKey>
-        & ConstrainKeys<TUniqueKey>
-        & ConstrainKeys<TIndexKey>>(
+    return <T extends ConstrainKeys<T, TOrderKey | TRelationKey | TUniqueKey | TIndexKey | TenantKeyOf<TTenant>>>(
         target: Newable<T>
     ): void => {
+        validateTenantProperty(target, tenant);
         validateGroupsAddSomething(target, uniqueGroups ?? [], indexes ?? []);
         validateSoftDeleteKeysSayWhichRows(target, uniqueGroups ?? []);
+        validateUniqueValuesCompare(target, uniqueGroups ?? []);
         const metadata: EntityMetadata = {
             tableName: tableName ?? toSnakeCase(target.name),
             allowOrphan,
@@ -173,11 +218,76 @@ export function Entity<
             defaultRelations: defaultRelations as EntityMetadata['defaultRelations'],
             uniques: uniqueGroups,
             indexes,
-            scope
+            scope,
+            tenant
         };
         MetadataUtilities.setEntityMetadata(target as unknown as Newable<BaseEntity>, metadata);
         GlobalRegistry.entityClasses.push(target as unknown as Newable<BaseEntity>);
     };
+}
+
+/**
+ * Refuses a tenant property that cannot hold the id of a tenant the same way on every row.
+ *
+ * The property is what every read and write of the entity is narrowed by, so it has to be compared
+ * as stored: a uuid, stored as it is, and either required on every row or on none of them.
+ * @param target - The class being decorated.
+ * @param tenant - What the class declares as its tenant, `tenantId` when it declares nothing.
+ * @throws When the named property is missing, or is not a plain uuid that is required or not.
+ */
+function validateTenantProperty(target: Newable<unknown>, tenant: EntityTenant): void {
+    if (tenant === 'shared') {
+        return;
+    }
+    const metadata: PropertyMetadata | undefined = MetadataUtilities.getModelProperties(target)[tenant.property];
+    if (metadata == undefined) {
+        // the default is where this is met most, by an entity that never thought about tenants at
+        // all - so the message names every way out, 'shared' included
+        throw new InternalError([
+            `${target.name}: The tenant property "${tenant.property}" is not a declared property.`,
+            'It holds the id of the tenant a row belongs to, and every read and write is narrowed by it.',
+            `Declare "@Property.string({ format: 'uuid' }) ${tenant.property}", name another property with "tenant: { property }",`,
+            'or say "tenant: \'shared\'" when the rows belong to no tenant.'
+        ]);
+    }
+    const problem: string | undefined = resolveTenantPropertyProblem(metadata);
+    if (problem != undefined) {
+        throw new InternalError([
+            `${target.name}: The tenant property "${tenant.property}" ${problem}.`,
+            'It holds the id of the tenant a row belongs to, and every read and write is narrowed by it,',
+            'so it has to be a plain "@Property.string({ format: \'uuid\' })", either required or "required: false".'
+        ]);
+    }
+}
+
+/**
+ * Says what keeps a property from holding the tenant of a row.
+ * @param metadata - The metadata of the property named as the tenant.
+ * @returns What is wrong with it, or undefined when it can hold the tenant.
+ */
+function resolveTenantPropertyProblem(metadata: PropertyMetadata): string | undefined {
+    if (metadata.type !== 'string') {
+        return `is a ${metadata.type} property`;
+    }
+    // one kind of id for every tenant, so a value a request names can be refused before any query
+    if (!UUIDUtilities.declaresUuidFormat(metadata)) {
+        return 'is not a uuid';
+    }
+    if (metadata.primary) {
+        return 'is the primary key';
+    }
+    // a stored value that differs from the one being compared would narrow every read to nothing
+    if (metadata.encryption != undefined && metadata.encryption !== false) {
+        return 'is encrypted';
+    }
+    if (metadata.hash != undefined && metadata.hash !== false) {
+        return 'is hashed';
+    }
+    // decided per row, a tenant that a row needs or not would depend on the row it is deciding for
+    if (typeof metadata.required !== 'boolean') {
+        return 'decides per row whether it is required';
+    }
+    return undefined;
 }
 
 /**
@@ -240,6 +350,55 @@ function validateSoftDeleteKeysSayWhichRows(target: Newable<unknown>, uniques: U
             `${target.name}: The unique group (${group.properties.join(', ')}) is declared on a soft delete entity`,
             'without saying whether soft deleted rows still hold the value.',
             ...remedy
+        ]);
+    }
+}
+
+/**
+ * Refuses a unique declaration naming a property whose stored value can differ for the same value.
+ *
+ * A unique declaration compares what is stored, so it only means something for a value stored the
+ * same way every time. An encrypted value never is across key rotation, whatever the strategy: the
+ * same value under the old key and under the new one are two stored values, so encryption is refused
+ * outright. A hash is, when its strategy is deterministic - which the hash service checks against the
+ * built strategy when the application starts. A hash decided per row has no strategy to check until a
+ * row is written, so that one is refused here.
+ * @param target - The class being decorated.
+ * @param uniques - The groups of columns it declares unique together.
+ * @throws When a unique declaration names an encrypted property, or one whose hashing is decided per row.
+ */
+function validateUniqueValuesCompare(target: Newable<unknown>, uniques: UniqueGroup[]): void {
+    const properties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(target);
+    const keys: Set<string> = new Set(uniques.flatMap(group => group.properties));
+    for (const [key, metadata] of ObjectUtilities.entries(properties)) {
+        if ('unique' in metadata && declaresUnique(metadata.unique)) {
+            keys.add(key);
+        }
+    }
+
+    const metadataOfKeys: [string, PropertyMetadata][] = [...keys].flatMap(key => {
+        const metadata: PropertyMetadata | undefined = properties[key];
+        return metadata == undefined ? [] : [[key, metadata]];
+    });
+    const encrypted: string[] = metadataOfKeys
+        .filter(([, metadata]) => 'encryption' in metadata && metadata.encryption != undefined && metadata.encryption !== false)
+        .map(([key]) => target.name + '.' + key);
+    if (encrypted.length) {
+        throw new InternalError([
+            `${encrypted.join(', ')}: declared unique, and encrypted.`,
+            'An encrypted value is stored differently under each key it is encrypted with, so the declaration cannot reject a value',
+            'stored again after a key rotation. Keep the value unencrypted, or drop the unique.'
+        ]);
+    }
+
+    const perRow: string[] = metadataOfKeys
+        .filter(([, metadata]) => 'hash' in metadata && typeof metadata.hash === 'function')
+        .map(([key]) => target.name + '.' + key);
+    if (perRow.length) {
+        throw new InternalError([
+            `${perRow.join(', ')}: declared unique, and how it is hashed is decided per row.`,
+            'A unique declaration only holds for a value hashed the same way every time, which cannot be known for a hash chosen per row.',
+            'Name the strategy, eg. "hash: { strategy: Sha256HashStrategy }".'
         ]);
     }
 }

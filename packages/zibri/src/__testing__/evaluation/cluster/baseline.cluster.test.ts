@@ -3,6 +3,7 @@ import { ClusterInstance, ClusterMarkRow, StartedTestCluster, startTestCluster }
 
 import { baselineUserEmail, baselineUserPassword } from './baseline.instance-options';
 import { FsUtilities } from '../../../utilities/fs.utilities';
+import { JsonUtilities } from '../../../utilities/json.utilities';
 
 /**
  * The control for the cluster harness.
@@ -85,7 +86,7 @@ describe('cluster harness', () => {
         const loggedIn: Response = await fetch(`${first.baseUrl}/auth/login`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ email: baselineUserEmail('shared'), password: baselineUserPassword })
+            body: JsonUtilities.stringify({ email: baselineUserEmail('shared'), password: baselineUserPassword })
         });
         expect(loggedIn.status).toBe(200);
         const { accessToken }: { accessToken: { value: string } } = await loggedIn.json() as { accessToken: { value: string } };

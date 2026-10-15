@@ -91,6 +91,29 @@ export class InMemoryStore implements InMemoryScope {
     private readonly sequences: Map<string, number> = new Map();
 
     /**
+     * The indexes and uniques each table was last booted with, written out, by table.
+     */
+    private readonly keyLists: Map<string, string> = new Map();
+
+    /**
+     * Gets the indexes and uniques a table was last booted with.
+     * @param tableName - The table.
+     * @returns What was declared, written out, or undefined before the first boot.
+     */
+    getKeyLists(tableName: string): string | undefined {
+        return this.keyLists.get(tableName);
+    }
+
+    /**
+     * Notes the indexes and uniques a table is booted with.
+     * @param tableName - The table.
+     * @param lists - What is declared, written out.
+     */
+    setKeyLists(tableName: string, lists: string): void {
+        this.keyLists.set(tableName, lists);
+    }
+
+    /**
      * The rows of one table, created on first use.
      * @param tableName - The table to read.
      * @returns The rows by id. The live map, so a caller may iterate it but must not keep it.
@@ -176,6 +199,21 @@ export class InMemoryStore implements InMemoryScope {
         const next: number = (this.sequences.get(tableName) ?? 0) + 1;
         this.sequences.set(tableName, next);
         return next;
+    }
+
+    /**
+     * Makes a table's numbers go on from at least where another table's are, for a table being renamed.
+     *
+     * Carried over rather than moved, so that a rename rolled back leaves both tables handing out
+     * numbers neither handed out before.
+     * @param currentTableName - The table the numbers were handed out for.
+     * @param tableName - The table they go on for.
+     */
+    carrySequence(currentTableName: string, tableName: string): void {
+        const carried: number | undefined = this.sequences.get(currentTableName);
+        if (carried != undefined && carried > (this.sequences.get(tableName) ?? 0)) {
+            this.sequences.set(tableName, carried);
+        }
     }
 
     /**

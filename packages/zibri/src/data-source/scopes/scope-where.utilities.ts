@@ -102,6 +102,9 @@ export abstract class ScopeWhereUtilities {
         // and is not a third one, so both are asked for
         like: (left, right, into, context) => this.allOf(left, right, context),
         iLike: (left, right, into, context) => this.allOf(left, right, context),
+        // unlike either pattern is unlike both of them, so both are asked for the same way
+        notLike: (left, right, into, context) => this.allOf(left, right, context),
+        notILike: (left, right, into, context) => this.allOf(left, right, context),
         fuzzyLike: (left, right, into, context) => this.allOf(left, right, context),
         length: (left, right, into, context) => this.sameOrImpossible(left, right, context),
         after: (left, right, into, context) => this.tighter(left, right, true, 'after', context),

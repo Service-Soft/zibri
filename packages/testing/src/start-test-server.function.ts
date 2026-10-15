@@ -1,8 +1,9 @@
 import { AddressInfo } from 'node:net';
 
-import { AssetServiceInterface, DataSourceInterface, FsPath, initDiContainer, inject, LoggerInterface, Newable, ZIBRI_DI_TOKENS, ZibriApplication, ZibriApplicationOptions } from 'zibri';
+import { DataSourceInterface, DiProvider, FsPath, initDiContainer, inject, LoggerInterface, Newable, ZIBRI_DI_TOKENS, ZibriApplication, ZibriApplicationOptions } from 'zibri';
 
 import { createInMemoryDataSource } from './in-memory-data-source/create-in-memory-data-source.function';
+import { registerAheadOfInit } from './register-ahead-of-init.function';
 import { ApplicationOptionsFallback, resolveApplicationOptions } from './resolve-application-options.function';
 import { createScratchDirectory, removeScratchDirectory, scratchProviders } from './scratch-directory.function';
 import { applyContainerPort, needsContainer, StartedDataSourceContainer, startDataSourceContainers } from './start-data-source-containers.function';
@@ -32,7 +33,6 @@ export class StartedTestServer {
     constructor(
         private app: ZibriApplication,
         private readonly containers: StartedDataSourceContainer[],
-        private readonly assetsPath: string | undefined,
         /**
          * Where this server's application writes what it records at runtime.
          *
@@ -98,12 +98,23 @@ export class StartedTestServer {
 
         await this.app.shutdown();
 
+        const resolved: ZibriApplicationOptions = resolveApplicationOptions(
+            { ...options, application: options.application ?? previous },
+            testServerFallback
+        );
+        // the same directory, re-registered rather than inherited: a reInit that names its own
+        // providers replaces the list these were in, and losing them would point the restart at
+        // the application's real folders. Pointing it at a *fresh* directory would be worse
+        // still - a restart that finds nothing is not a restart.
+        const providers: DiProvider<unknown>[] = [...scratchProviders(this.scratchPath), ...resolved.providers ?? []];
+
         // Nothing may be injected above this line. Shutting an application down discards its
         // container, so the previous call left the process with none - and a `reInit` whose init
         // threw discarded a second one on its way out. Filling the replacement is therefore the
         // first thing to happen, and the logger below comes out of it rather than out of the
         // container that is already gone.
         initDiContainer();
+        registerAheadOfInit(providers);
 
         const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
         logger.info('re initializes test server...');
@@ -111,21 +122,8 @@ export class StartedTestServer {
         logger.info = noOp;
 
         this.reApplyContainerPorts();
-        this.applyAssetsPath();
 
-        const resolved: ZibriApplicationOptions = resolveApplicationOptions(
-            { ...options, application: options.application ?? previous },
-            testServerFallback
-        );
-
-        this.app = new ZibriApplication({
-            ...resolved,
-            // the same directory, re-registered rather than inherited: a reInit that names its own
-            // providers replaces the list these were in, and losing them would point the restart at
-            // the application's real folders. Pointing it at a *fresh* directory would be worse
-            // still - a restart that finds nothing is not a restart.
-            providers: [...scratchProviders(this.scratchPath), ...resolved.providers ?? []]
-        });
+        this.app = new ZibriApplication({ ...resolved, providers });
 
         try {
             await this.app.init();
@@ -139,14 +137,6 @@ export class StartedTestServer {
 
         logger.info = info;
         logger.info('test server re initialized');
-    }
-
-    private applyAssetsPath(): void {
-        if (this.assetsPath == undefined) {
-            return;
-        }
-        const assetService: AssetServiceInterface = inject(ZIBRI_DI_TOKENS.ASSET_SERVICE);
-        (assetService.assetsPath as string) = this.assetsPath;
     }
 }
 
@@ -167,7 +157,6 @@ export async function startTestServer(options: StartTestServerOptions = {}): Pro
     // after initDiContainer already read that list, and injecting it then fails with "no provider,
     // did you forget @Injectable" on a class that is decorated.
     const resolved: ZibriApplicationOptions = resolveApplicationOptions(options, testServerFallback);
-    const assetsPath: string | undefined = options.assetsPath;
 
     // one per server, and taken with it on shutdown. First in the providers rather than last, so a
     // suite that names one of these paths itself still wins.
@@ -180,6 +169,7 @@ export async function startTestServer(options: StartTestServerOptions = {}): Pro
     // so that the injects below this line have a container to answer from. The previous application's
     // shutdown already discarded its own, so this fills a fresh one rather than adding to a used one.
     initDiContainer();
+    registerAheadOfInit(applicationOptions.providers ?? []);
 
     const containers: StartedDataSourceContainer[] = await startDataSourceContainers(applicationOptions.dataSources ?? []);
 
@@ -190,11 +180,6 @@ export async function startTestServer(options: StartTestServerOptions = {}): Pro
     // Restored at the end, so anything logged after the server is up still reaches the run.
     const info: typeof logger.info = logger.info;
     logger.info = noOp;
-
-    if (assetsPath != undefined) {
-        const assetService: AssetServiceInterface = inject(ZIBRI_DI_TOKENS.ASSET_SERVICE);
-        (assetService.assetsPath as string) = assetsPath;
-    }
 
     const app: ZibriApplication = new ZibriApplication(applicationOptions);
 
@@ -216,5 +201,5 @@ export async function startTestServer(options: StartTestServerOptions = {}): Pro
     logger.info = info;
     logger.info('test server initialized');
 
-    return new StartedTestServer(app, containers, assetsPath, scratchPath);
+    return new StartedTestServer(app, containers, scratchPath);
 }

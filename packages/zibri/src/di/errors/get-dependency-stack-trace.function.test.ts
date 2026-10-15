@@ -1,11 +1,14 @@
 import { describe, expect, it } from '@jest/globals';
 
 import { getDependencyStackTrace } from './get-dependency-stack-trace.function';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { Injectable } from '../decorators/injectable.decorator';
 
 class First {}
 
 class Second {}
+
+@Injectable({ register: 'onUse' })
+class Decorated {}
 
 describe('getDependencyStackTrace', () => {
     it('prepends the error name and message and lists the stack in reverse order', () => {
@@ -23,11 +26,8 @@ describe('getDependencyStackTrace', () => {
     });
 
     it('includes the recorded file path when the target was decorated', () => {
-        // eslint-disable-next-line unicorn/error-message
-        MetadataUtilities.setFilePath(Second, new Error().stack ?? '');
-        const result: string = getDependencyStackTrace('SomeError', 'msg', [Second]);
-        expect(result).toContain('at Second (');
-        expect(result).not.toContain('at Second (unknown)');
+        const result: string = getDependencyStackTrace('SomeError', 'msg', [Decorated]);
+        expect(result).toContain(`at Decorated (${__filename})`);
     });
 
     it('labels anonymous functions', () => {

@@ -1,12 +1,14 @@
+import assert from 'node:assert';
+
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 import { TOTP } from 'otpauth';
 
 import { OtpCredentials, OtpCredentialsCreateData } from '../../auth/2fa/methods/otp/otp-credentials.model';
 import { OtpTwoFactorMethod } from '../../auth/2fa/methods/otp/otp.two-factor-method';
+import { CreateTwoFactorFailureStreakData, TwoFactorFailureStreak } from '../../auth/2fa/two-factor-failure-streak.model';
+import { PasswordCredentials, PasswordCredentialsCreateData } from '../../auth/authenticators/password/password-credentials.model';
 import { Auth } from '../../auth/decorators/auth.decorator';
 import { AuthStrategyInterface } from '../../auth/strategies/auth-strategy.interface';
-import { JwtAuthController } from '../../auth/strategies/jwt/jwt-auth.controller';
-import { JwtCredentials, JwtCredentialsCreateData } from '../../auth/strategies/jwt/jwt-credentials.model';
 import { JwtRefreshToken } from '../../auth/strategies/jwt/jwt-refresh-token.model';
 import { JwtAuthStrategy } from '../../auth/strategies/jwt/jwt.auth-strategy';
 import { HttpRequestContext } from '../../context/request/http-request.context';
@@ -15,12 +17,16 @@ import { Repository } from '../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
+import { defineProvider } from '../../di/models/di-provider.model';
 import { KnownHeader } from '../../http/known-header.enum';
 import { OpenApiSecuritySchemeObject } from '../../open-api/open-api.model';
 import { Controller } from '../../routing/decorators/controller.decorator';
 import { Get } from '../../routing/decorators/get.decorator';
+import { JsonUtilities } from '../../utilities/json.utilities';
+import { JwtTestAuthController } from '../mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../mocks/entities/jwt-user.entity';
 import { Roles } from '../mocks/entities/roles.enum';
+import { defaultTestServerProviders } from '../test-server/providers';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
 /**
@@ -45,10 +51,25 @@ import { StartedTestServer, startTestServer } from '../test-server/start-test-se
 // eslint-disable-next-line cspell/spellchecker
 const OTP_SECRET: string = 'JBSWY3DPEHPK3PXPJBSWY3DP';
 
+/**
+ * How recent a login has to be on the route that names its own window.
+ *
+ * Two seconds rather than less, because a jwt says when its user logged in to the second: right after
+ * a login the time it gives can already be up to a second old.
+ */
+const REAUTH_WINDOW_IN_MS: number = 2000;
+
+/**
+ * Waits until a login made now is older than `REAUTH_WINDOW_IN_MS`.
+ */
+async function waitPastTheWindow(): Promise<void> {
+    await new Promise(resolve => setTimeout(resolve, REAUTH_WINDOW_IN_MS + 1000));
+}
+
 @Controller('/evaluation-2fa')
 class Evaluation2faController {
     @Get('/resource')
-    @Auth.require2fa([OtpTwoFactorMethod])
+    @Auth.require2fa({ allowedMethods: [OtpTwoFactorMethod] })
     resource(): { ok: boolean } {
         return { ok: true };
     }
@@ -56,6 +77,24 @@ class Evaluation2faController {
     @Get('/default-methods')
     @Auth.require2fa()
     defaultMethods(): { ok: boolean } {
+        return { ok: true };
+    }
+
+    @Get('/reauth')
+    @Auth.require2fa({ reauth: true })
+    reauth(): { ok: boolean } {
+        return { ok: true };
+    }
+
+    @Get('/reauth-within-window')
+    @Auth.require2fa({ reauth: { allow: true, windowInMs: REAUTH_WINDOW_IN_MS } })
+    reauthWithinWindow(): { ok: boolean } {
+        return { ok: true };
+    }
+
+    @Get('/reauth-as-fallback')
+    @Auth.require2fa({ reauth: 'onlyAsFallback' })
+    reauthAsFallback(): { ok: boolean } {
         return { ok: true };
     }
 }
@@ -73,7 +112,7 @@ class EvaluationRevocationController {
     }
 
     @Get('/admin')
-    @Auth.hasRole([Roles.ADMIN])
+    @Auth.hasPlatformRole([Roles.ADMIN])
     admin(): { ok: boolean } {
         return { ok: true };
     }
@@ -88,15 +127,13 @@ const API_KEY_HEADER: string = 'x-evaluation-api-key';
  * A second strategy, implementing only what a strategy is actually for.
  *
  * It names a caller and says when it is being addressed, and inherits every authorization check from
- * that - which is the property A3 turns on. Everything else throws: a strategy that only reads
- * credentials it did not issue has no login flow, and stubbing one would suggest otherwise.
+ * that - which is the property A3 turns on. A strategy that only reads credentials it did not issue
+ * has no login flow, so it implements none.
  *
  * The api key is the user's id, which is not a scheme anybody should copy. It keeps the fixture to
  * the one thing being observed: two credentials in one request.
  */
-class ApiKeyAuthStrategy implements AuthStrategyInterface<
-    Roles, JwtUser, never, never, never, never, never, never
-> {
+class ApiKeyAuthStrategy implements AuthStrategyInterface<Roles, JwtUser> {
 
     readonly name: string = 'api-key';
 
@@ -115,26 +152,15 @@ class ApiKeyAuthStrategy implements AuthStrategyInterface<
     }
 
     // eslint-disable-next-line typescript/require-await
-    async login(): Promise<never> {
-        throw new Error('the api key strategy issues nothing');
+    async resolveAuthenticatedAt(): Promise<undefined> {
+        // a key is never logged in with, so there is no time to give
+        return undefined;
     }
 
     // eslint-disable-next-line typescript/require-await
-    async logout(): Promise<void> {
-        throw new Error('the api key strategy issues nothing');
-    }
-
-    // eslint-disable-next-line typescript/require-await
-    async refreshLogin(): Promise<never> {
-        throw new Error('the api key strategy issues nothing');
-    }
-
-    requestPasswordReset(): void {
-        throw new Error('the api key strategy issues nothing');
-    }
-
-    confirmPasswordReset(): void {
-        throw new Error('the api key strategy issues nothing');
+    async resolveExpiresAt(): Promise<undefined> {
+        // a user's id does not expire
+        return undefined;
     }
 }
 
@@ -147,9 +173,10 @@ type TokenResponseBody = {
 let server: StartedTestServer | undefined;
 let baseUrl: string;
 let userRepository: Repository<JwtUser>;
-let credentialsRepository: Repository<JwtCredentials, JwtCredentialsCreateData>;
+let credentialsRepository: Repository<PasswordCredentials, PasswordCredentialsCreateData>;
 let refreshTokenRepository: Repository<JwtRefreshToken>;
 let otpRepository: Repository<OtpCredentials, OtpCredentialsCreateData>;
+let streakRepository: Repository<TwoFactorFailureStreak, CreateTwoFactorFailureStreakData>;
 let otpHeader: string;
 let user: JwtUser;
 
@@ -164,7 +191,7 @@ async function login(): Promise<TokenResponseBody> {
     const res: Response = await fetch(`${baseUrl}/auth/login`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JsonUtilities.stringify({ email, password })
     });
     expect(res.status).toBe(200);
     // eslint-disable-next-line typescript/no-unsafe-return
@@ -180,7 +207,7 @@ async function refreshLogin(refreshToken: string): Promise<Response> {
     return await fetch(`${baseUrl}/auth/refresh-login`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ refreshToken })
+        body: JsonUtilities.stringify({ refreshToken })
     });
 }
 
@@ -220,18 +247,31 @@ async function callProtected(accessToken: string, code: string, path: string = '
     });
 }
 
+/**
+ * Calls a 2fa protected route without sending a second factor.
+ * @param accessToken - The bearer token of the logged in user.
+ * @param path - The route to call.
+ * @returns The raw response.
+ */
+async function callWithoutCode(accessToken: string, path: string): Promise<Response> {
+    return await fetch(`${baseUrl}/evaluation-2fa${path}`, {
+        headers: { authorization: `Bearer ${accessToken}` }
+    });
+}
+
 beforeAll(async () => {
     server = await startTestServer({
-        controllers: [JwtAuthController, Evaluation2faController, EvaluationRevocationController],
+        controllers: [JwtTestAuthController, Evaluation2faController, EvaluationRevocationController],
         // two strategies, which is what docs/auth.md recommends and what A4 is about
         authStrategies: [JwtAuthStrategy, ApiKeyAuthStrategy],
         twoFactorMethods: [OtpTwoFactorMethod]
     });
     baseUrl = await server.start();
     userRepository = inject(repositoryTokenFor(JwtUser));
-    credentialsRepository = inject(repositoryTokenFor(JwtCredentials));
+    credentialsRepository = inject(repositoryTokenFor(PasswordCredentials));
     refreshTokenRepository = inject(repositoryTokenFor(JwtRefreshToken));
     otpRepository = inject(repositoryTokenFor(OtpCredentials));
+    streakRepository = inject(repositoryTokenFor(TwoFactorFailureStreak));
     otpHeader = inject(ZIBRI_DI_TOKENS.OTP_HEADER);
 }, 60000);
 
@@ -243,11 +283,12 @@ afterAll(async () => {
 beforeEach(async () => {
     await refreshTokenRepository.deleteAll({});
     await otpRepository.deleteAll({});
+    await streakRepository.deleteAll({});
     await credentialsRepository.deleteAll({});
     await userRepository.deleteAll({});
 
     user = await userRepository.create({ email, roles: [Roles.USER] });
-    await credentialsRepository.create({ email, password, userId: user.id });
+    await credentialsRepository.create({ password, userId: user.id });
 });
 
 describe('evaluation/03-auth-and-security B2 - refresh token rotation must be atomic', () => {
@@ -337,6 +378,10 @@ describe('evaluation/03-auth-and-security G2 - a refusal must not describe the a
     });
 });
 
+// C3's residue - an optional hard limit on wrong codes, with a way back for a locked or lost factor -
+// is CLOSED (2026-10-13) and tested over http in memory in
+// ../../auth/2fa/two-factor.service.failure-limit.test.ts: twoFactorFailureLimit locks the second
+// factor or the account, recovery codes and resetSecondFactors lift it.
 describe('evaluation/03-auth-and-security C2 / C3 - a second factor must be single use', () => {
 
     it('accepts a confirmed enrollment', async () => {
@@ -384,6 +429,43 @@ describe('evaluation/03-auth-and-security C2 / C3 - a second factor must be sing
         const replayed: Response = await callProtected(accessToken.value, code);
 
         expect(replayed.status).toBe(401);
+        // told apart from a wrong code, so the user waits for the next one instead of hunting for a
+        // typo. has2fa answered a bare false, and the route replaced every reason with one message
+        expect(await messageOf(replayed)).toBe('This two factor code has already been used. Wait for your authenticator to show the next one.');
+    });
+
+    it('makes the user wait after a wrong code, and refuses even the right one until then', async () => {
+        const credentials: OtpCredentials = await otpRepository.create({ secret: OTP_SECRET, userId: user.id });
+        await otpRepository.updateById(credentials.id, { confirmed: true });
+        const { accessToken }: TokenResponseBody = await login();
+        const code: string = new TOTP({ secret: OTP_SECRET }).generate();
+
+        const wrong: Response = await callProtected(accessToken.value, code === '000000' ? '111111' : '000000');
+        expect(wrong.status).toBe(401);
+
+        // nothing counted a wrong code, so a caller holding a session could try the whole code
+        // space against the acceptance window. Refused unchecked: checking it would still tell a
+        // guesser whether this was the one
+        const right: Response = await callProtected(accessToken.value, code);
+        expect(right.status).toBe(429);
+        expect(right.headers.get('retry-after')).toBe('1');
+    });
+
+    it('checks one code per user at a time, so parallel guesses are not each a guess', async () => {
+        const credentials: OtpCredentials = await otpRepository.create({ secret: OTP_SECRET, userId: user.id });
+        await otpRepository.updateById(credentials.id, { confirmed: true });
+        const { accessToken }: TokenResponseBody = await login();
+        const code: string = new TOTP({ secret: OTP_SECRET }).generate();
+        const wrongCodes: string[] = Array.from({ length: 10 }, (_, i) => `00000${i}`).filter(c => c !== code);
+
+        const responses: Response[] = await Promise.all(wrongCodes.map(async c => await callProtected(accessToken.value, c)));
+
+        // all sent before any answer: a counter read and written around the check lets every one of
+        // them read the same streak, which is how parallel sessions undid AuthQuake's limit
+        expect(responses.filter(r => r.status === 401)).toHaveLength(1);
+        expect(responses.filter(r => r.status === 429)).toHaveLength(wrongCodes.length - 1);
+        const [streak]: TwoFactorFailureStreak[] = await streakRepository.findAll({ where: { userId: user.id } });
+        expect(streak?.count).toBe(1);
     });
 
     it('treats an unqualified require2fa as every configured method', async () => {
@@ -404,6 +486,99 @@ describe('evaluation/03-auth-and-security C2 / C3 - a second factor must be sing
         // to the configured methods when it is passed undefined - so Promise.any runs over an empty
         // list, rejects, and the route denies everyone including a user with a valid second factor
         expect(res.status).toBe(200);
+    });
+});
+
+describe('evaluation/03-auth-and-security H9 - a sensitive operation asks for a fresh factor', () => {
+
+    it('refuses a logged in session that sends no second factor, and lets the same session through with one', async () => {
+        const credentials: OtpCredentials = await otpRepository.create({ secret: OTP_SECRET, userId: user.id });
+        await otpRepository.updateById(credentials.id, { confirmed: true });
+        const { accessToken }: TokenResponseBody = await login();
+
+        // the control: the session itself is good, so the refusal below is about the missing factor
+        expect((await callAsUser('/me', accessToken.value)).status).toBe(200);
+
+        // H9 was recorded as "a session that logged in once can do everything", which a require2fa
+        // route contradicts: the factor is asked for by the operation rather than remembered by the
+        // session, so the login alone does not open it
+        const withoutFactor: Response = await callWithoutCode(accessToken.value, '/resource');
+        expect(withoutFactor.status).toBe(401);
+
+        const withFactor: Response = await callProtected(accessToken.value, new TOTP({ secret: OTP_SECRET }).generate());
+        expect(withFactor.status).toBe(200);
+    });
+});
+
+describe('evaluation/03-auth-and-security H13 - a fresh login in place of a second factor', () => {
+
+    it('refuses a login in place of a second factor unless the route allows it', async () => {
+        // the fixture user has no second factor, which is the user this is for
+        const { accessToken }: TokenResponseBody = await login();
+
+        // a second factor only, by default: a login is the factor the session already rests on
+        expect((await callWithoutCode(accessToken.value, '/default-methods')).status).toBe(401);
+        expect((await callWithoutCode(accessToken.value, '/reauth')).status).toBe(200);
+    });
+
+    it('accepts a login inside the window, and refuses one older than it', async () => {
+        const { accessToken }: TokenResponseBody = await login();
+        expect((await callWithoutCode(accessToken.value, '/reauth-within-window')).status).toBe(200);
+
+        await waitPastTheWindow();
+
+        const late: Response = await callWithoutCode(accessToken.value, '/reauth-within-window');
+        expect(late.status).toBe(401);
+        // told to log in again, not asked for a code this user does not have
+        expect(await messageOf(late)).toBe('Log in again to access this route.');
+    }, 15000);
+
+    it('accepts the login as a fallback only from a user without a confirmed second factor the route allows', async () => {
+        const { accessToken }: TokenResponseBody = await login();
+        expect((await callWithoutCode(accessToken.value, '/reauth-as-fallback')).status).toBe(200);
+
+        // an enrollment nobody finished is no second factor, so the login still stands in for one
+        const credentials: OtpCredentials = await otpRepository.create({ secret: OTP_SECRET, userId: user.id });
+        expect((await callWithoutCode(accessToken.value, '/reauth-as-fallback')).status).toBe(200);
+
+        // once there is one, it is asked for, however recently the user logged in
+        await otpRepository.updateById(credentials.id, { confirmed: true });
+        expect((await callWithoutCode(accessToken.value, '/reauth-as-fallback')).status).toBe(401);
+        const withFactor: Response = await callProtected(
+            accessToken.value,
+            new TOTP({ secret: OTP_SECRET }).generate(),
+            '/reauth-as-fallback'
+        );
+        expect(withFactor.status).toBe(200);
+    });
+
+    it('keeps the time of the login across a refresh', async () => {
+        const { refreshToken }: TokenResponseBody = await login();
+        await waitPastTheWindow();
+
+        const refreshed: Response = await refreshLogin(refreshToken.value);
+        expect(refreshed.status).toBe(200);
+        // eslint-disable-next-line typescript/no-unsafe-assignment
+        const { accessToken }: TokenResponseBody = await refreshed.json();
+
+        // a new access token, but not a new login: holding a refresh token must not be enough to
+        // present yourself as having just logged in
+        expect((await callWithoutCode(accessToken.value, '/reauth-within-window')).status).toBe(401);
+    }, 15000);
+
+    it('refuses a caller whose strategy cannot say when it logged in', async () => {
+        // a key is never logged in with, so there is no login for a route to accept
+        const res: Response = await fetch(`${baseUrl}/evaluation-2fa/reauth`, {
+            headers: { [API_KEY_HEADER]: user.id }
+        });
+
+        expect(res.status).toBe(401);
+    });
+
+    it('has no long form for refusing a login', () => {
+        // the long form exists to carry a window, which means nothing for a route that takes no login
+        // @ts-expect-error false is only the shorthand
+        expect(Auth.require2fa({ reauth: { allow: false } })).toBeDefined();
     });
 });
 
@@ -470,4 +645,24 @@ describe('evaluation/03-auth-and-security A3 - a token must stop being worth wha
         expect((await callAsUser('/me', accessToken.value)).status).toBe(200);
         expect((await callAsUser('/me', accessToken.value)).status).toBe(200);
     });
+});
+
+// last in the file on purpose: it replaces the running application with one configured differently,
+// and nothing after it would be looking at the server the tests above started
+describe('evaluation/03-auth-and-security H13 - the application\'s default for a fresh login', () => {
+
+    it('accepts a login on a route that says nothing, once the application allows it', async () => {
+        assert(server);
+        await server.reInit({
+            providers: [
+                ...defaultTestServerProviders,
+                defineProvider({ token: ZIBRI_DI_TOKENS.REQUIRE_2FA_REAUTH, useValue: true })
+            ]
+        });
+        baseUrl = await server.start();
+
+        const { accessToken }: TokenResponseBody = await login();
+
+        expect((await callWithoutCode(accessToken.value, '/default-methods')).status).toBe(200);
+    }, 30000);
 });

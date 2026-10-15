@@ -12,11 +12,14 @@ import { defaultTestServerProviders } from '../../../../__testing__/test-server/
 import { StartedTestServer, startTestServer } from '../../../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../../../di/decorators/inject-repository.decorator';
+import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../../di/inject.function';
 import { defineProvider } from '../../../../di/models/di-provider.model';
 import { isHttpClientError } from '../../../../http-client/http-client.error';
 import { CurrencyCode } from '../../../../localization/models/currency-code.model';
+import { type TenantServiceInterface } from '../../../../tenancy/tenant-service.interface';
 import { FsPath, FsUtilities } from '../../../../utilities/fs.utilities';
+import { JsonUtilities } from '../../../../utilities/json.utilities';
 import { UUIDUtilities } from '../../../../utilities/uuid.utilities';
 import { KnownPaymentMethod, PaymentMethod } from '../../models/payment-method.model';
 import { PaymentPluginOptionsInput } from '../../models/payment-plugin-options-input.model';
@@ -102,6 +105,16 @@ const hasSandboxCredentials: boolean = Boolean(clientId && clientSecret && buyer
     const AMOUNT: number = 9.99;
     const CURRENCY: CurrencyCode = 'EUR';
     const URLS: Required<Pick<PayPalPaymentData, 'cancelUrl' | 'returnUrl'>> = { returnUrl: 'https://example.com/return', cancelUrl: 'https://example.com/cancel' };
+    const TENANT: string = UUIDUtilities.generate();
+
+    /**
+     * Runs the given work in the tenant the payments of the tests are made in.
+     * @param fn - The work.
+     * @returns What the work answered.
+     */
+    async function inTenant<T>(fn: () => Promise<T>): Promise<T> {
+        return await inject<TenantServiceInterface>(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(TENANT, fn);
+    }
 
     beforeAll(async () => {
         assert(clientId && clientSecret && buyerEmail && buyerPassword);
@@ -145,28 +158,28 @@ const hasSandboxCredentials: boolean = Boolean(clientId && clientSecret && buyer
 
     describe('validatePaymentData', () => {
         it('accepts valid data', async () => {
-            await expect(
-                paymentService.validatePaymentData(METHOD, { amount: AMOUNT, currencyCode: CURRENCY, transactionId: UUIDUtilities.generate() })
-            ).resolves.toBeDefined();
+            await expect(inTenant(
+                async () => await paymentService.validatePaymentData(METHOD, { amount: AMOUNT, currencyCode: CURRENCY, transactionId: UUIDUtilities.generate() })
+            )).resolves.toBeDefined();
         });
 
         it('rejects amount <= 0', async () => {
-            await expect(
-                paymentService.validatePaymentData(METHOD, { amount: 0, currencyCode: CURRENCY, transactionId: UUIDUtilities.generate() })
-            ).rejects.toThrow('amount must be > 0');
+            await expect(inTenant(
+                async () => await paymentService.validatePaymentData(METHOD, { amount: 0, currencyCode: CURRENCY, transactionId: UUIDUtilities.generate() })
+            )).rejects.toThrow('amount must be > 0');
         });
 
         it('rejects missing currencyCode', async () => {
-            await expect(
-                paymentService.validatePaymentData(METHOD, { amount: AMOUNT, currencyCode: '' as 'EUR', transactionId: UUIDUtilities.generate() })
-            ).rejects.toThrow('currencyCode required');
+            await expect(inTenant(
+                async () => await paymentService.validatePaymentData(METHOD, { amount: AMOUNT, currencyCode: '' as 'EUR', transactionId: UUIDUtilities.generate() })
+            )).rejects.toThrow('currencyCode required');
         });
     });
 
     // ── Direct payment: startPayment → confirmPayment ───────────────────────
 
     describe('startPayment + confirmPayment', () => {
-        it('creates a CAPTURE-intent order and captures it after buyer approval', async () => {
+        it('creates a CAPTURE-intent order and captures it after buyer approval', async () => await inTenant(async () => {
             const data: PayPalValidatedPaymentData = await paymentService.validatePaymentData(METHOD, {
                 amount: AMOUNT, currencyCode: CURRENCY, transactionId: UUIDUtilities.generate(), ...URLS
             });
@@ -189,7 +202,7 @@ const hasSandboxCredentials: boolean = Boolean(clientId && clientSecret && buyer
                     'confirmedPayment.error:\n',
                     confirmedPayment.error.message,
                     '\nresponseData.body:\n',
-                    JSON.stringify(confirmedPayment.error.responseData?.body, undefined, 2)
+                    JsonUtilities.stringify(confirmedPayment.error.responseData?.body, undefined, 2)
                 );
             }
             else if (confirmedPayment.error) {
@@ -201,13 +214,13 @@ const hasSandboxCredentials: boolean = Boolean(clientId && clientSecret && buyer
             expect(confirmedPayment.data?.captureId).toBeTruthy();
             // Re-fetched from the database, so a cleared error column comes back as null, not undefined.
             expect(confirmedPayment.error).toBeFalsy();
-        }, 60000);
+        }), 60000);
     });
 
     // ── Cancel before buyer approves ────────────────────────────────────────
 
     describe('cancelPayment (status: CREATED)', () => {
-        it('cancels locally without calling PayPal when the order was never approved', async () => {
+        it('cancels locally without calling PayPal when the order was never approved', async () => await inTenant(async () => {
             const data: PayPalValidatedPaymentData = await paymentService.validatePaymentData(METHOD, {
                 amount: AMOUNT, currencyCode: CURRENCY, transactionId: UUIDUtilities.generate()
             });
@@ -220,14 +233,14 @@ const hasSandboxCredentials: boolean = Boolean(clientId && clientSecret && buyer
             expect(payment.status).toBe(PaymentStatus.CANCELLED);
             expect(payment.error).toBeFalsy();
             // no PayPal call needed — just a local state change
-        });
+        }));
     });
 
     // ── Reservation: startPaymentReservation → confirmPaymentReservation
     //                → collectPaymentFromReservation ─────────────────────────
 
     describe('startPaymentReservation + confirmPaymentReservation + collectPaymentFromReservation', () => {
-        it('creates an AUTHORIZE-intent order, reserves funds, then collects payment', async () => {
+        it('creates an AUTHORIZE-intent order, reserves funds, then collects payment', async () => await inTenant(async () => {
             const data: PayPalValidatedPaymentData = await paymentService.validatePaymentData(METHOD, {
                 amount: AMOUNT, currencyCode: CURRENCY, transactionId: UUIDUtilities.generate(), ...URLS
             });
@@ -255,13 +268,13 @@ const hasSandboxCredentials: boolean = Boolean(clientId && clientSecret && buyer
             expect(payment.status).toBe(PaymentStatus.PAID);
             expect(payment.data.captureId).toBeTruthy();
             expect(payment.error).toBeFalsy();
-        }, 60000);
+        }), 60000);
     });
 
     // ── Cancel a reserved authorization (void) ──────────────────────────────
 
     describe('cancelPayment (status: RESERVED)', () => {
-        it('voids the PayPal authorization and marks payment as CANCELLED', async () => {
+        it('voids the PayPal authorization and marks payment as CANCELLED', async () => await inTenant(async () => {
             const data: PayPalValidatedPaymentData = await paymentService.validatePaymentData(METHOD, {
                 amount: AMOUNT, currencyCode: CURRENCY, transactionId: UUIDUtilities.generate(), ...URLS
             });
@@ -278,13 +291,13 @@ const hasSandboxCredentials: boolean = Boolean(clientId && clientSecret && buyer
 
             expect(payment.status).toBe(PaymentStatus.CANCELLED);
             expect(payment.error).toBeFalsy();
-        }, 60000);
+        }), 60000);
     });
 
     // ── Refund ──────────────────────────────────────────────────────────────
 
     describe('refundPayment', () => {
-        it('refunds a captured payment and marks it REFUNDED', async () => {
+        it('refunds a captured payment and marks it REFUNDED', async () => await inTenant(async () => {
             const data: PayPalValidatedPaymentData = await paymentService.validatePaymentData(METHOD, {
                 amount: AMOUNT, currencyCode: CURRENCY, transactionId: UUIDUtilities.generate(), ...URLS
             });
@@ -301,6 +314,6 @@ const hasSandboxCredentials: boolean = Boolean(clientId && clientSecret && buyer
 
             expect(payment.status).toBe(PaymentStatus.REFUNDED);
             expect(payment.error).toBeFalsy();
-        }, 60000);
+        }), 60000);
     });
 });

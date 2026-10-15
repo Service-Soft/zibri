@@ -68,6 +68,8 @@ const whereFilterKeysRecord: Record<WhereFilterKeys, WhereFilterKeys> = {
     lesserThan: 'lesserThan',
     lesserThanEquals: 'lesserThanEquals',
     iLike: 'iLike',
+    notLike: 'notLike',
+    notILike: 'notILike',
     fuzzyLike: 'fuzzyLike',
     is: 'is',
     where: 'where',
@@ -90,7 +92,7 @@ export function isWhereFilterKey(key: unknown): key is WhereFilterKeys {
     return whereFilterKeySet.has(key as WhereFilterKeys);
 }
 
-const allOfWhereFilterKeys: Set<WhereFilterKeys> = new Set<WhereFilterKeys>(['like', 'iLike', 'fuzzyLike']);
+const allOfWhereFilterKeys: Set<WhereFilterKeys> = new Set<WhereFilterKeys>(['like', 'iLike', 'notLike', 'notILike', 'fuzzyLike']);
 
 /**
  * Checks if the given key takes several values, all of which have to hold.

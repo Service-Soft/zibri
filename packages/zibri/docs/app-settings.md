@@ -17,8 +17,14 @@ Everything here has a working default. This includes CORS, which allows every or
 | `CorsOptions` | type | Which browser origins may call the api, and what they may send |
 | `CorsOrigin` | type | A single origin, as `https://host` or `http://host` |
 | `corsMiddleware` | function | The middleware itself. Registered for you — exported for tests and custom setups |
+| `crossOriginCookieMiddleware` | function | Refuses a request that changes something when a page on an origin `cors` does not allow credentials for sent it with cookies. Registered for you |
+| `AcceptCrossSitePosts` | decorator | Lets pages on the given origins send one route requests with cookies |
+| `AcceptCrossSitePostsOptions`, `AcceptedOrigins` | type | The origins a route accepts, as a list or worked out from its path |
 | `defaultCorsOptions` | const | What applies when you configure nothing: every origin, no credentials |
 | `HstsOptions` | type | Configuration for the strict transport security header |
+| `CspOptions` | type | Every directive of a content security policy |
+| `CspOptionsInput` | type | The directives you set, each replacing the default's |
+| `CspSource` | type | One source a directive allows, such as `'self'` or `https://host` |
 
 ## CORS
 
@@ -60,6 +66,30 @@ An origin is **scheme, host and port**. `https://app.example.com` does not cover
 Nothing visible on the server: the request runs and the response is produced. What changes is that the response carries no `access-control-allow-origin` header, so the **browser** refuses to hand it to the page.
 
 That is the entire mechanism, and it is why CORS is not a security boundary on its own. A non-browser caller — curl, another service, an attacker's script running outside a browser — never sends an origin and is never affected. Protect the endpoints themselves with auth.
+
+The one exception is a request that changes something and carries cookies. Any method other than `GET`, `HEAD` and `OPTIONS`, sent by a browser from a page on another origin with cookies attached, is answered `403` unless that origin is listed in `origins` and `credentials` is `true`, or the route accepts it. This applies to every route, and a page on a sibling subdomain counts as another origin. The refusal is recorded in the audit trail as `authz.check` with the reason `cross-origin`. Requests without cookies, and requests that name no origin, are not affected.
+
+### A route other sites post to
+
+Some routes are posted to by another site's page on purpose, like a payment provider sending the user back, or a [sign-in provider answering with a form post](./sign-in-through-a-provider.md#providers-that-answer-with-a-form-post). Name the origins of those pages with `@AcceptCrossSitePosts`, and that route takes their requests with cookies:
+
+```ts
+// src/controllers/payment-return.controller.ts
+import { AcceptCrossSitePosts, Controller, Post } from 'zibri';
+
+@Controller('/payments')
+export class PaymentReturnController {
+    @AcceptCrossSitePosts({ acceptedOrigins: ['https://checkout.example.com'] })
+    @Post('/return')
+    async returned(): Promise<void> {
+        // your logic
+    }
+}
+```
+
+The origin is the one the browser sends in the `Origin` header. `acceptedOrigins` can also be a function of the route's path parameters, for a route whose origins depend on them. Every request it lets through is recorded in the audit trail as `authz.check` with the reason `cross-origin` and the outcome `success`.
+
+The decorator goes on a route that changes something, and every version of the route declares the same.
 
 ### Headers your browser clients may send
 
@@ -108,6 +138,53 @@ const withHsts: ZibriApplicationSecurityOptionsInput = {
 ```
 
 Pass `false` to disable it, or `true` for the defaults. `preload` is a one-way door — browsers ship the preload list in their binaries, and getting off it takes months — so turn it on only once you are certain every subdomain will be https indefinitely.
+
+### Content security policy
+
+Every html response carries a content security policy, and so does an svg file, which a browser renders like a page. By default it allows scripts, frames and forms from your own origin only:
+
+```
+default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; frame-ancestors 'self';
+script-src 'self' 'nonce-…'; script-src-attr 'none'
+```
+
+`script-src` always carries a nonce that is new for every response, cached pages included. A script tag carrying that nonce runs, which is how the script `TsxUtilities.renderPage` adds to a page is allowed. A template of your own reads the nonce from the request context:
+
+```ts
+import { HttpRequestContext, inject, WebsocketRequestContext, ZIBRI_DI_TOKENS, ZIBRI_REQUEST_CONTEXT_TOKENS } from 'zibri';
+
+const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
+const nonce: string | undefined = context?.get(ZIBRI_REQUEST_CONTEXT_TOKENS.NONCE);
+const inlineScript: string = `<script nonce="${nonce}">/* … */</script>`;
+```
+
+When `frame-ancestors` is exactly `'self'` or `'none'`, the matching `x-frame-options` header is sent as well, for browsers that predate the directive.
+
+Set the policy for every response through DI. Each directive you name replaces the default's:
+
+```ts
+import { CspOptionsInput, defineProvider, ZIBRI_DI_TOKENS } from 'zibri';
+
+const csp: CspOptionsInput = {
+    imgSrc: ['\'self\'', 'https://images.example.com'],
+    frameAncestors: ['\'none\'']
+};
+
+const cspProvider = defineProvider({ token: ZIBRI_DI_TOKENS.DEFAULT_CSP_OPTIONS_INPUT, useValue: csp });
+```
+
+A single response can set its own directives in the same way, or send no policy at all:
+
+```ts
+import { HtmlResponse } from 'zibri';
+
+const withCdnScripts: HtmlResponse = HtmlResponse.fromString('<html>…</html>', {
+    csp: { scriptSrc: ['\'self\'', 'https://cdn.example.com'] }
+});
+const withoutPolicy: HtmlResponse = HtmlResponse.fromString('<html>…</html>', { csp: false });
+```
+
+The request's nonce is added to `script-src` in both cases, unless it lists `'unsafe-inline'`, which already lets every inline script run. A `FileResponse` takes the same `csp` option. Files other than svg carry no policy unless you set one.
 
 ## Running behind a proxy
 

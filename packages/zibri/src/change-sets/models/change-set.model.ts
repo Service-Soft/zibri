@@ -10,8 +10,18 @@ import { OmitStrict } from '../../types/omit-strict.type';
  * A single change set.
  * Gets automatically created for configured entities whenever they are changed.
  */
-@Entity({ defaultOrder: { createdAt: 'ASC' }, defaultRelations: { changes: true } })
+@Entity({
+    allowOrphan: true,
+    allowDuplicate: true,
+    defaultOrder: { createdAt: 'ASC' },
+    defaultRelations: { changes: true }
+})
 export class ChangeSet extends BaseEntity {
+    /**
+     * The tenant of the row this change set describes, or null for a row of no tenant.
+     */
+    @Property.string({ format: 'uuid', required: false })
+    tenantId?: string | null;
     /**
      * Whether this change set was initialized on creating, updating or deleting the entity.
      */

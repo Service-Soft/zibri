@@ -1,5 +1,6 @@
 import { SoftDeleteEntity } from './soft-delete-entity.model';
 import { SoftDeleteWhere } from './soft-delete-where.model';
+import { SoftDeletedRows } from './soft-deleted-rows.type';
 import { FindAllPaginatedOptions } from '../../data-source/models/options/find-all-paginated-options.model';
 import { OmitStrict } from '../../types/omit-strict.type';
 
@@ -12,7 +13,7 @@ export type SoftDeleteFindAllPaginatedOptions<T extends SoftDeleteEntity> = Omit
      */
     where?: SoftDeleteWhere<T>,
     /**
-     * Whether or not soft deleted entities should be included.
+     * Which soft deleted entities are paged through. `exclude` when it is not given.
      */
-    withDeleted?: boolean
+    deleted?: SoftDeletedRows
 };

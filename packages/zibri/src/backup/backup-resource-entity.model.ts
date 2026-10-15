@@ -1,4 +1,5 @@
 import { BackupEntity } from './backup-entity.model';
+import { type EncryptionString } from '../auth/encryption/encryption.utilities';
 import { BaseEntity } from '../entity/base-entity.model';
 import { Entity } from '../entity/decorators/entity.decorator';
 import { Property } from '../entity/decorators/property.decorator';
@@ -7,7 +8,7 @@ import { OmitStrict } from '../types/omit-strict.type';
 /**
  * A single resource entity.
  */
-@Entity({ allowOrphan: true })
+@Entity({ tenant: 'shared', allowOrphan: true })
 export class BackupResourceEntity extends BaseEntity {
     /**
      * The name of the resource.
@@ -28,6 +29,15 @@ export class BackupResourceEntity extends BaseEntity {
      */
     @Property.string({ required: false })
     checksum: string | undefined | null;
+    /**
+     * The key the data is encrypted with, itself encrypted with the master key, or null when the data
+     * is stored unencrypted.
+     *
+     * A restore needs the master key it names, so a master key has to stay among the old master keys
+     * for as long as backups taken under it are kept.
+     */
+    @Property.string({ required: false })
+    encryptedKey: EncryptionString | undefined | null;
     /**
      * Whether every transport took the whole resource.
      */
@@ -55,5 +65,5 @@ export class BackupResourceEntity extends BaseEntity {
  */
 export type BackupResourceEntityCreateData = OmitStrict<
     BackupResourceEntity,
-    'id' | 'completed' | 'backup' | 'backupId' | 'size' | 'checksum'
+    'id' | 'completed' | 'backup' | 'backupId' | 'size' | 'checksum' | 'encryptedKey'
 >;

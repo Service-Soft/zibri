@@ -1,9 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
+import { PasswordCredentials, PasswordCredentialsCreateData } from '../../auth/authenticators/password/password-credentials.model';
 import { Auth } from '../../auth/decorators/auth.decorator';
 import { HasRoleMetadata } from '../../auth/models/has-role-metadata.model';
-import { JwtAuthController } from '../../auth/strategies/jwt/jwt-auth.controller';
-import { JwtCredentials, JwtCredentialsCreateData } from '../../auth/strategies/jwt/jwt-credentials.model';
 import { JwtAuthStrategy } from '../../auth/strategies/jwt/jwt.auth-strategy';
 import { PostgresDataSource } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
 import { Repository } from '../../data-source/repository/repository';
@@ -13,7 +12,9 @@ import { InvalidDecoratorCombinationError } from '../../error-handling/errors/in
 import { Controller } from '../../routing/decorators/controller.decorator';
 import { Get } from '../../routing/decorators/get.decorator';
 import { Newable } from '../../types/newable.type';
+import { JsonUtilities } from '../../utilities/json.utilities';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { JwtTestAuthController } from '../mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../mocks/entities/jwt-user.entity';
 import { Roles } from '../mocks/entities/roles.enum';
 import { createTestDataSource, defaultTestServerEntities } from '../test-server/create-test-data-source.function';
@@ -80,7 +81,7 @@ let accessToken: string;
 beforeAll(async () => {
     server = await startTestServer({
         dataSources: [dataSourceClass],
-        controllers: [RouteMetadataController, JwtAuthController],
+        controllers: [RouteMetadataController, JwtTestAuthController],
         authStrategies: [JwtAuthStrategy]
     });
     baseUrl = await server.start();
@@ -89,13 +90,13 @@ beforeAll(async () => {
     // a caller who is logged in and holds no role the route accepts, which is the only vantage point
     // from which widening `allowedRoles` is visible
     const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email, roles: [Roles.USER] });
-    const credentials: Repository<JwtCredentials, JwtCredentialsCreateData> = inject(repositoryTokenFor(JwtCredentials));
-    await credentials.create({ email, password, userId: user.id });
+    const credentials: Repository<PasswordCredentials, PasswordCredentialsCreateData> = inject(repositoryTokenFor(PasswordCredentials));
+    await credentials.create({ password, userId: user.id });
 
     const res: globalThis.Response = await fetch(`${baseUrl}/auth/login`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JsonUtilities.stringify({ email, password })
     });
     const data: { accessToken: { value: string } } = await res.json() as { accessToken: { value: string } };
     accessToken = data.accessToken.value;

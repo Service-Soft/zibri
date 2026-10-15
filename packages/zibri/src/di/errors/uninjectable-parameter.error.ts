@@ -7,21 +7,43 @@ import { MetadataUtilities } from '../../utilities/metadata.utilities';
  * @param target - The class or factory whose parameter cannot be injected.
  * @param index - The position of the parameter in the parameter list.
  * @param declaredAs - What TypeScript recorded as the parameter's type, if it recorded anything.
+ * @param declaredOn - The class declaring the constructor: the target, or the ancestor it inherits it from.
  * @returns The message as a string.
  */
-function getUninjectableParameterMessage(target: Function, index: number, declaredAs: Function | undefined): string {
-    const where: string = `Parameter ${index} of "${target.name || '<anonymous>'}"`;
+function getUninjectableParameterMessage(
+    target: Function,
+    index: number,
+    declaredAs: Function | undefined,
+    declaredOn: Function
+): string {
+    const inherited: boolean = declaredOn !== target;
+    const targetName: string = target.name || '<anonymous>';
+    const declaredOnName: string = declaredOn.name || '<anonymous>';
+    const where: string = `Parameter ${index} of "${targetName}"`
+        + (inherited ? `, taken from the constructor of "${declaredOnName}"` : '');
     const declaredIn: string | undefined = MetadataUtilities.getFilePath(target);
-    const lines: string[] = declaredAs == undefined
-        ? [
+    let lines: string[];
+    if (declaredAs == undefined && inherited) {
+        // what fixes a parameter taken from a parent is in one of two places, and both work under
+        // every build - which is all the reader needs, rather than why the parent's types went unrecorded
+        lines = [
+            `${where} cannot be injected, because nothing was recorded about its type.`,
+            `Either mark the parameters of the constructor of "${declaredOnName}" with @Inject(token),`,
+            `or override the constructor in "${targetName}".`
+        ];
+    }
+    else if (declaredAs == undefined) {
+        lines = [
             `${where} cannot be injected, because nothing was recorded about its type.`,
             'Decorate the parameter with @Inject(token) to say what to resolve. That needs nothing',
             'written down about the type, and it is the only way open to a build made with esbuild,',
             'Vite or Bun, none of which emit decorator metadata at all.',
             'The other way is to let the declared type name it, which needs "emitDecoratorMetadata": true',
             'in tsconfig.json - tsc and swc both support that - and a type that still names a class at runtime.'
-        ]
-        : [
+        ];
+    }
+    else {
+        lines = [
             `${where} cannot be injected, because its type was recorded as "${declaredAs.name}".`,
             'TypeScript writes down a built-in like that for anything that is not a class - an interface,',
             'a union, a generic parameter, a primitive - and also for a class that is not defined yet',
@@ -29,6 +51,7 @@ function getUninjectableParameterMessage(target: Function, index: number, declar
             'Decorate the parameter with @Inject(token) to say what to resolve,',
             'or break the import cycle if it is a class you expected to be injected.'
         ];
+    }
     if (declaredIn != undefined) {
         lines.push(`It was declared in ${declaredIn}.`);
     }
@@ -51,10 +74,11 @@ export class UninjectableParameterError extends InternalError {
         target: Function,
         index: number,
         declaredAs: Function | undefined,
+        declaredOn: Function,
         resolvingStack: Function[],
         options?: ErrorOptions
     ) {
-        super(getUninjectableParameterMessage(target, index, declaredAs), options);
+        super(getUninjectableParameterMessage(target, index, declaredAs, declaredOn), options);
         this.name = 'UninjectableParameterError';
         if (resolvingStack.length) {
             this.stack = getDependencyStackTrace(this.name, this.message, resolvingStack);

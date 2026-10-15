@@ -1,10 +1,10 @@
-import { getDefaultBeforeReturnHook, getDefaultBeforeSaveHook, Inject, inject, InjectRepository, JwtCredentials, LoggerInterface, Repository, repositoryTokenFor, UserRepo, UserRepositoryInterface, ZIBRI_DI_TOKENS } from 'zibri';
+import { getDefaultBeforeReturnHook, getDefaultBeforeSaveHook, Inject, InjectRepository, LoggerInterface, Repository, Transaction, UserRepo, UserRepositoryInterface, ZIBRI_DI_TOKENS } from 'zibri';
 
 import { Roles, User, UserCreateData } from '../models';
 
 @UserRepo()
 export class UserRepository extends Repository<User, UserCreateData>
-    implements UserRepositoryInterface<Roles, User, JwtCredentials> {
+    implements UserRepositoryInterface<Roles, User> {
 
     constructor(
         @InjectRepository(User)
@@ -19,8 +19,7 @@ export class UserRepository extends Repository<User, UserCreateData>
         return await this.findOne({ where: { email } });
     }
 
-    async resolveCredentialsFor(user: User): Promise<JwtCredentials> {
-        const repo: Repository<JwtCredentials> = inject(repositoryTokenFor(JwtCredentials));
-        return repo.findOne({ where: { userId: user.id } });
+    async updateDeactivatedAt(id: string, deactivatedAt: Date | null, transaction: Transaction | undefined): Promise<void> {
+        await this.updateById(id, { deactivatedAt }, { transaction });
     }
 }

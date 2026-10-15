@@ -15,9 +15,11 @@ import { getZonedDate, ZonedDate } from '../../../../../localization/format-date
 import { type Timezone } from '../../../../../localization/models/timezone.model';
 import { optionalPeer } from '../../../../../utilities/optional-peer.function';
 import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../../../invoicing.tokens';
+import { CompanyInfo } from '../../../models/company-info.model';
 import { Invoice } from '../../../models/invoice.model';
 import { type InvoicingOptions } from '../../../models/invoicing-options.model';
 import { Vat } from '../../../models/vat.model';
+import { type CompanyInfoServiceInterface } from '../../company-info-service.interface';
 import { type InvoiceCalcServiceInterface } from '../../invoice-calc-service.interface';
 import { InvoiceConformance, InvoiceConformanceServiceInterface } from '../invoice-conformance-service.interface';
 
@@ -40,7 +42,9 @@ export abstract class EN16931ConformanceService implements InvoiceConformanceSer
         @Inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.OPTIONS)
         protected readonly options: InvoicingOptions,
         @Inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.INVOICE_CALC_SERVICE)
-        private readonly invoiceCalcService: InvoiceCalcServiceInterface<Invoice>
+        private readonly invoiceCalcService: InvoiceCalcServiceInterface<Invoice>,
+        @Inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.COMPANY_INFO_SERVICE)
+        private readonly companyInfoService: CompanyInfoServiceInterface
     ) {
         // at startup rather than at the first invoice, like pdfmake in the invoice pdf service. The
         // document is checked with saxes, like every document generateFrom writes
@@ -75,10 +79,13 @@ export abstract class EN16931ConformanceService implements InvoiceConformanceSer
      * @returns The document, indented.
      */
     async generateXml(invoice: Invoice, timezone: Timezone): Promise<XmlString> {
+        // the company of the invoice's own tenant, whichever tenant asks for it
+        const company: CompanyInfo = await this.companyInfoService.resolveCompanyInfo(invoice.tenantId);
         const document: CiiCrossIndustryInvoice = await this.resolveCrossIndustryInvoice(
             invoice,
             timezone,
-            undefined,
+            company,
+            company.ceo,
             this.documentContextId
         );
         return await XmlUtilities.generateFrom(CiiCrossIndustryInvoice, document, { indent: true });
@@ -87,7 +94,8 @@ export abstract class EN16931ConformanceService implements InvoiceConformanceSer
     private async resolveCrossIndustryInvoice(
         invoice: Invoice,
         timezone: Timezone,
-        tradeContact: string | undefined = this.options.companyInfo.ceo,
+        company: CompanyInfo,
+        tradeContact: string | undefined,
         documentContextId: EN16931DocumentContextId
         // urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0
     ): Promise<CiiCrossIndustryInvoice> {
@@ -108,24 +116,24 @@ export abstract class EN16931ConformanceService implements InvoiceConformanceSer
                 lineItems: await this.resolveTradeLineItems(invoice),
                 agreement: {
                     buyerReference: '999',
-                    seller: this.resolveSellerParty(tradeContact),
+                    seller: this.resolveSellerParty(company, tradeContact),
                     buyer: this.resolveBuyerParty(invoice)
                 },
                 delivery: { event: { occurrence: this.resolveDateTime(invoice.performanceDate, timezone) } },
-                settlement: await this.resolveTradeSettlement(invoice, timezone)
+                settlement: await this.resolveTradeSettlement(invoice, company, timezone)
             }
         };
     }
 
-    private async resolveTradeSettlement(invoice: Invoice, timezone: Timezone): Promise<CiiHeaderTradeSettlement> {
+    private async resolveTradeSettlement(invoice: Invoice, company: CompanyInfo, timezone: Timezone): Promise<CiiHeaderTradeSettlement> {
         // payment options
-        if (!this.options.companyInfo.iban || !this.options.companyInfo.bic) {
+        if (!company.iban || !company.bic) {
             throw new InternalError('At least the iban and bic need to be provided for payment information.');
         }
         const paymentMeans: CiiHeaderTradeSettlement['paymentMeans'] = {
             typeCode: '58',
-            account: { iban: this.options.companyInfo.iban },
-            institution: { bic: this.options.companyInfo.bic }
+            account: { iban: company.iban },
+            institution: { bic: company.bic }
         };
 
         // taxes
@@ -183,31 +191,31 @@ export abstract class EN16931ConformanceService implements InvoiceConformanceSer
         };
     }
 
-    private resolveSellerParty(tradeContact: string): CiiTradeParty {
-        if (!this.options.companyInfo.taxNumber) {
+    private resolveSellerParty(company: CompanyInfo, tradeContact: string): CiiTradeParty {
+        if (!company.taxNumber) {
             throw new InternalError('No tax number has been provided.');
         }
         const taxRegistrations: CiiTaxRegistration[] = [];
-        if (this.options.companyInfo.vatNumber) {
-            taxRegistrations.push({ id: { schemeId: 'VA', value: this.options.companyInfo.vatNumber } });
+        if (company.vatNumber) {
+            taxRegistrations.push({ id: { schemeId: 'VA', value: company.vatNumber } });
         }
-        taxRegistrations.push({ id: { schemeId: 'FC', value: this.options.companyInfo.taxNumber } });
+        taxRegistrations.push({ id: { schemeId: 'FC', value: company.taxNumber } });
 
         return {
-            name: this.options.companyInfo.fullName,
-            legalOrganization: { id: this.options.companyInfo.taxNumber },
+            name: company.fullName,
+            legalOrganization: { id: company.taxNumber },
             contact: {
                 personName: tradeContact,
-                telephone: { completeNumber: this.options.companyInfo.phone },
-                email: { uriId: { value: this.options.companyInfo.email } }
+                telephone: { completeNumber: company.phone },
+                email: { uriId: { value: company.email } }
             },
             address: {
-                postcode: this.options.companyInfo.address.postcode,
-                lineOne: `${this.options.companyInfo.address.street} ${this.options.companyInfo.address.number}`,
-                city: this.options.companyInfo.address.city,
-                countryId: this.options.companyInfo.address.countryId
+                postcode: company.address.postcode,
+                lineOne: `${company.address.street} ${company.address.number}`,
+                city: company.address.city,
+                countryId: company.address.countryId
             },
-            communication: { uriId: { schemeId: 'EM', value: this.options.companyInfo.email } },
+            communication: { uriId: { schemeId: 'EM', value: company.email } },
             taxRegistrations
         };
     }

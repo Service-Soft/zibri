@@ -7,9 +7,7 @@ import { BaseHttpDecoratorInput } from './http-decorator-option-input.model';
 export function createHttpDecorator(method: HttpMethod, path: Route, options: BaseHttpDecoratorInput): MethodDecorator {
     return (target, propertyKey) => {
         const ctor: Function = target.constructor;
-        // eslint-disable-next-line unicorn/error-message
-        const stack: string = new Error().stack ?? '';
-        MetadataUtilities.setFilePath(ctor, stack);
+        MetadataUtilities.setFilePath(ctor);
         const routes: ControllerRouteConfiguration[] = MetadataUtilities.getControllerRoutes(ctor);
         routes.push({
             httpMethod: method,

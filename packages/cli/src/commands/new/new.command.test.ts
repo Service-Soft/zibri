@@ -1,14 +1,41 @@
 import path from 'node:path';
+import { runInNewContext } from 'node:vm';
 
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 import { NewCommand } from './new.command';
 import { version } from '../../../package.json';
 import { emptyWorkDirectory } from '../../__testing__/empty-work-directory.function';
+import { findWorkflowCommands } from '../../__testing__/find-workflow-commands.function';
 import { mockExitGracefully, ProcessExitError } from '../../__testing__/mock-exit-gracefully.function';
 import { quietly } from '../../__testing__/quietly.function';
-import { CPUtilities, FsUtilities } from '../../encapsulation';
+import { CPUtilities, FsUtilities, InquirerUtilities } from '../../encapsulation';
 import { Path } from '../../utilities';
+
+/**
+ * A process the generated watch mode started, as a fake `spawn` records it.
+ */
+type StartedProcess = {
+    /**
+     * The command and its arguments.
+     */
+    args: string[],
+    /**
+     * Whether it was stopped since.
+     */
+    killed: boolean
+};
+
+/**
+ * The variables of a generated dotenv file, without its comments.
+ * @param content - The file's contents.
+ * @returns Each value, by its key.
+ */
+function parseDotenv(content: string): Record<string, string> {
+    return Object.fromEntries(content.split('\n')
+        .filter(line => /^[A-Z_]+=/.test(line))
+        .map(line => [line.slice(0, line.indexOf('=')), line.slice(line.indexOf('=') + 1)]));
+}
 
 describe('NewCommand', () => {
     let workDir: Path;
@@ -27,7 +54,7 @@ describe('NewCommand', () => {
     });
 
     it('scaffolds a new zibri application on disk', async () => {
-        await quietly(async () => new NewCommand().start(['n', 'api']));
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none']));
 
         const appDir: Path = path.join(workDir, 'api') as Path;
         expect(await FsUtilities.exists(path.join(appDir, 'package.json') as Path)).toBe(true);
@@ -43,7 +70,7 @@ describe('NewCommand', () => {
     });
 
     it('writes a package.json with the app name, without going through "npm init"', async () => {
-        await quietly(async () => new NewCommand().start(['n', 'api']));
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none']));
 
         const appDir: Path = path.join(workDir, 'api') as Path;
         const packageJson: unknown = JSON.parse(await FsUtilities.readFile(path.join(appDir, 'package.json') as Path));
@@ -67,7 +94,7 @@ describe('NewCommand', () => {
     });
 
     it('installs devDependencies and the real published zibri package, scoped to the new app directory', async () => {
-        await quietly(async () => new NewCommand().start(['n', 'api']));
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none']));
 
         const appDir: Path = path.join(workDir, 'api') as Path;
         expect(execSpy).toHaveBeenNthCalledWith(1, expect.stringContaining(`cd ${appDir} && npm i -D `));
@@ -87,15 +114,106 @@ describe('NewCommand', () => {
         expect(execSpy).toHaveBeenNthCalledWith(
             2,
             `cd ${appDir} && npm i zibri@${version} chart.js ts-node@^10.9.2 pg-query-stream@^4.10.3`
-            + ' saxes@^6.0.0 otpauth@^9.5.1 @opentelemetry/api@^1.9.1'
-            + ' @opentelemetry/sdk-trace-node@^2.11.0'
+            + ' saxes@^6.0.0 otpauth@^9.5.1 jose@^6.2.12 @opentelemetry/api@^1.9.1'
+            + ' @opentelemetry/sdk-trace-node@^2.11.0 re2@^1.27.0 nodemailer@^10.1.0'
+            + ' prom-client@^15.1.3 @fastify/busboy@^3.2.3 systeminformation@^5.33.15'
         );
+    });
+
+    it('restarts the server in watch mode as a new process, never in the old one', async () => {
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none']));
+
+        const config: string = await FsUtilities.readFile(path.join(workDir, 'api', 'webpack.config.js') as Path);
+        const pluginSource: string | undefined = /^class OnBuildSuccessPlugin {[\S\s]*?^}$/m.exec(config)?.[0];
+        expect(pluginSource).toBeDefined();
+        // the plugin as the project runs it, with the process it starts and the compiler it hooks
+        // into replaced by ones that record what happens. The compiler finishes two builds in a row
+        const started: StartedProcess[] = [];
+        runInNewContext(`${pluginSource}\nnew OnBuildSuccessPlugin().apply(compiler);`, {
+            spawn: (command: string, args: string[]) => {
+                const child: StartedProcess = { args: [command, ...args], killed: false };
+                started.push(child);
+                return { kill: () => child.killed = true };
+            },
+            compiler: {
+                watchMode: true,
+                hooks: {
+                    done: {
+                        tap: (_: string, onDone: (stats: { hasErrors: () => boolean }) => void) => {
+                            onDone({ hasErrors: () => false });
+                            onDone({ hasErrors: () => false });
+                        }
+                    }
+                }
+            }
+        });
+
+        // what makes a restart start from empty registries: the rebuilt bundle is imported by a process
+        // of its own, and the one holding the previous generation is stopped, so nothing is ever
+        // imported a second time into the arrays a first import filled
+        expect(started.map(s => s.args)).toEqual([
+            ['node', '--enable-source-maps', 'dist/bundle.js'],
+            ['node', '--enable-source-maps', 'dist/bundle.js']
+        ]);
+        expect(started.map(s => s.killed)).toEqual([true, false]);
+    });
+
+    it('writes a GitHub workflow that runs the project\'s own scripts on a checkout without ".env"', async () => {
+        await quietly(async () => new NewCommand().start(['n', 'api', 'github']));
+
+        const appDir: Path = path.join(workDir, 'api') as Path;
+        const workflow: string = await FsUtilities.readFile(path.join(appDir, '.github', 'workflows', 'ci.yml') as Path);
+        const commands: string[] = findWorkflowCommands(workflow);
+        const packageJson: unknown = JSON.parse(await FsUtilities.readFile(path.join(appDir, 'package.json') as Path));
+
+        // the order a checkout needs: dependencies, the environment the tests read, then the scripts
+        expect(commands[0]).toBe('npm ci');
+        expect(commands.slice(2)).toStrictEqual(['npm run build', 'npm test']);
+        expect(packageJson).toMatchObject({ scripts: { build: expect.any(String), test: expect.any(String) } });
+
+        // every secret ".env" was generated with, and nothing else: a blank the loop misses stops the
+        // tests at `requireEnv`, and a key it fills that is blank on purpose stops being optional
+        const example: Record<string, string> = parseDotenv(await FsUtilities.readFile(path.join(appDir, '.env.example') as Path));
+        const actual: Record<string, string> = parseDotenv(await FsUtilities.readFile(path.join(appDir, '.env') as Path));
+        const generatedSecrets: string[] = Object.keys(example).filter(key => example[key] === '' && actual[key] !== '');
+        const filled: string[] = /for key in (.+); do/.exec(commands[1] ?? '')?.[1]?.split(' ') ?? [];
+        expect(commands[1]).toContain('cp .env.example .env');
+        expect(filled.sort()).toStrictEqual(generatedSecrets.sort());
+
+        // tested on the runtime the image ships
+        const dockerfile: string = await FsUtilities.readFile(path.join(appDir, 'Dockerfile') as Path);
+        expect(/node-version: '(\d+)'/.exec(workflow)?.[1]).toBe(/FROM node:(\d+)/.exec(dockerfile)?.[1]);
+    });
+
+    it('writes no workflow when the project is to have none', async () => {
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none']));
+
+        expect(await FsUtilities.exists(path.join(workDir, 'api', '.github') as Path)).toBe(false);
+    });
+
+    it('asks for the ci when the command line does not name one', async () => {
+        const promptSpy: jest.SpiedFunction<typeof InquirerUtilities.prompt> = jest.spyOn(InquirerUtilities, 'prompt')
+            .mockResolvedValue({ ci: 'github' });
+
+        await quietly(async () => new NewCommand().start(['n', 'api']));
+
+        // the name was given, so only the ci is asked for
+        expect(promptSpy).toHaveBeenCalledTimes(1);
+        expect(Object.keys(promptSpy.mock.calls[0]?.[0] ?? {})).toStrictEqual(['ci']);
+        expect(await FsUtilities.exists(path.join(workDir, 'api', '.github', 'workflows', 'ci.yml') as Path)).toBe(true);
+    });
+
+    it('refuses a ci it does not know, before writing anything', async () => {
+        mockExitGracefully();
+
+        await expect(quietly(async () => new NewCommand().start(['n', 'api', 'elsewhere']))).rejects.toThrow(ProcessExitError);
+        expect(await FsUtilities.exists(path.join(workDir, 'api') as Path)).toBe(false);
     });
 
     it('refuses to overwrite an existing directory', async () => {
         await FsUtilities.mkdir(path.join(workDir, 'api') as Path);
         mockExitGracefully();
 
-        await expect(quietly(async () => new NewCommand().start(['n', 'api']))).rejects.toThrow(ProcessExitError);
+        await expect(quietly(async () => new NewCommand().start(['n', 'api', 'none']))).rejects.toThrow(ProcessExitError);
     });
 });

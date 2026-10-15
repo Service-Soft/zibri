@@ -1,4 +1,5 @@
 import { type LooseWebsocketEvent } from './websocket-event.enum';
+import { WEBSOCKET_MESSAGE_SEQUENCE_NAME, WebsocketMessageSequence, WebsocketMessageSequenceCreateData } from './websocket-message-sequence.model';
 import { Repository } from '../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { inject } from '../../di/inject.function';
@@ -21,8 +22,13 @@ export enum WebsocketRecipientType {
 /**
  * Definition of a message sent via websocket connection.
  */
-@Entity({ defaultOrder: { seq: 'ASC' } })
+@Entity({ allowOrphan: true, defaultOrder: { seq: 'ASC' } })
 export class WebsocketMessage extends BaseEntity {
+    /**
+     * The tenant the message was sent in, or null for one sent outside every tenant.
+     */
+    @Property.string({ format: 'uuid', required: false })
+    tenantId?: string | null;
     /**
      * The date at which the message was created.
      */
@@ -31,7 +37,7 @@ export class WebsocketMessage extends BaseEntity {
     /**
      * An incremental number that can be used with a client offset to sync server state back to the client.
      */
-    @Property.number({ default: getNewSeqNumber })
+    @Property.number({ default: resolveNewSeqNumber })
     seq!: number;
     /**
      * Whether or not the message is ok.
@@ -91,8 +97,17 @@ export class WebsocketMessage extends BaseEntity {
 export class CreateWebsocketMessageData extends OmitClass(WebsocketMessage, ['id', 'seq', 'createdAt']) {}
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-async function getNewSeqNumber(): Promise<number> {
-    const repo: Repository<WebsocketMessage, CreateWebsocketMessageData> = inject(repositoryTokenFor(WebsocketMessage));
-    const [message] = await repo.findAll({ order: { seq: 'DESC' }, take: 1 });
-    return Number(message?.seq ?? 0) + 1;
+async function resolveNewSeqNumber(): Promise<number> {
+    const repo: Repository<WebsocketMessageSequence, WebsocketMessageSequenceCreateData> = inject(
+        repositoryTokenFor(WebsocketMessageSequence)
+    );
+    // one increment rather than the newest message's seq plus one, which two senders read at once and
+    // both used. The websocket service creates the row while the application starts, continuing from
+    // the messages that are kept, so the create here only happens to a row deleted since
+    const sequence: WebsocketMessageSequence = await repo.upsert(
+        { name: WEBSOCKET_MESSAGE_SEQUENCE_NAME },
+        { name: WEBSOCKET_MESSAGE_SEQUENCE_NAME, seq: 1 },
+        { seq: { increment: 1 } }
+    );
+    return sequence.seq;
 }

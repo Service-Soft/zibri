@@ -6,6 +6,7 @@ import { MimeType } from '../../http/mime-type.enum';
 import { HttpClientResponse } from '../../http-client/http-client-response.model';
 import { $ts } from '../../localization/translate.function';
 import { XmlBodyMetadata } from '../../routing/decorators/body-metadata.model';
+import { resolveMaxBodySize } from '../../routing/decorators/body.decorator';
 import { optionalPeer } from '../../utilities/optional-peer.function';
 import { WebsocketRequest } from '../../websocket/models/websocket-request.model';
 import { BodyParserInterface } from '../body-parser.interface';
@@ -50,7 +51,7 @@ export class XmlBodyParser implements BodyParserInterface<MimeType.XML> {
         if (req.body !== undefined) {
             return req.body;
         }
-        const raw: Buffer = await BodyParserUtilities.readRequestBodyIntoMemory(req, metadata.maxSize);
+        const raw: Buffer = await BodyParserUtilities.readRequestBodyIntoMemory(req, resolveMaxBodySize(metadata));
         return this.parseXml(raw.length ? raw.toString('utf8') : undefined, metadata);
     }
 

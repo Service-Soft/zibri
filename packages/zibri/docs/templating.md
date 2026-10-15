@@ -90,6 +90,12 @@ around them - classes, enums, generators, getters, every kind of loop. The compi
 client script target ES2022, which Node and current browsers run; newer syntax such as decorators and
 `using` is lowered on the way.
 
+Every value a template writes is escaped, text and attribute values alike, whatever shape it has; only
+`$raw` writes html as it is. An attribute whose name starts with `on`, or holds anything but letters,
+digits and `_ : . -`, is left out, and so is a `javascript:` url in an attribute that takes a url, such
+as `href` or `src`. Behavior in the browser goes through `onClick={...}` and the hooks in
+[additional functionality](#additional-functionality) instead.
+
 This system is great for a server side framework to render some basic pages. If you have more advanced
 use cases however you will probably be better off creating a separate client application that consumes
 the Zibri API.

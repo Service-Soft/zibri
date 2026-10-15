@@ -16,8 +16,8 @@ const stagingFolder: FsPath = FsUtilities.getPath(testFileFolder, 'staging-funct
  * @param delayInMs - How long to wait between them.
  * @returns The stream.
  */
-function slowly(chunks: string[], delayInMs: number): Readable {
-    return Readable.from((async function* produce(): AsyncGenerator<string> {
+function slowly(chunks: (string | Buffer)[], delayInMs: number): Readable {
+    return Readable.from((async function* produce(): AsyncGenerator<string | Buffer> {
         for (const chunk of chunks) {
             await sleep(delayInMs);
             yield chunk;
@@ -90,6 +90,36 @@ describe('stage / followFile', () => {
 
         expect(first).toBe(chunks.join(''));
         expect(second).toBe(first);
+    });
+
+    it('hands a reader the bytes that were written, when they are not text', async () => {
+        // what an encrypted archive is. Read as text, every byte that is not valid utf8 comes back as
+        // the three bytes of a replacement character
+        const bytes: Buffer = Buffer.from([0xff, 0xfe, 0x00, 0x80, 0xc3]);
+        const written: Promise<BackupDigest> = stage(Readable.from([bytes]), p);
+
+        const read: Buffer[] = [];
+        for await (const chunk of followFile(p, written)) {
+            read.push(chunk);
+        }
+
+        expect(Buffer.concat(read).equals(bytes)).toBe(true);
+    });
+
+    it('hands a reader a character whose bytes it reads in two passes', async () => {
+        // the two halves of "ü" landing further apart than a reader polls, so it reads them as two
+        // ranges. Decoded as text per range, each half is a character nobody wrote
+        const umlaut: Buffer = Buffer.from('ü');
+        const written: Promise<BackupDigest> = stage(slowly([umlaut.subarray(0, 1), umlaut.subarray(1)], 150), p);
+
+        const read: Buffer[] = [];
+        for await (const chunk of followFile(p, written)) {
+            read.push(chunk);
+        }
+        await written;
+
+        expect(read.length).toBeGreaterThan(1);
+        expect(Buffer.concat(read).toString()).toBe('ü');
     });
 
     it('reads a file that was already finished before anyone followed it', async () => {

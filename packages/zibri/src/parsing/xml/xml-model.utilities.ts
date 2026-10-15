@@ -4,6 +4,7 @@ import { ObjectPropertyMetadata } from '../../entity/models/object-property-meta
 import { OneOfShapeMetadata } from '../../entity/models/one-of-property-metadata.model';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { Newable } from '../../types/newable.type';
+import { JsonUtilities } from '../../utilities/json.utilities';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
 
@@ -84,7 +85,7 @@ export abstract class XmlModelUtilities {
         const elementKeys: string[] = ObjectUtilities.keys(properties)
             .filter(key => XmlModelUtilities.getXmlProperty(cls, key).kind === 'element');
         if (elementKeys.length) {
-            const others: string = elementKeys.map(key => JSON.stringify(key)).join(', ');
+            const others: string = elementKeys.map(key => JsonUtilities.stringify(key)).join(', ');
             throw new InternalError(
                 `${cls.name}.${mixedKey} is marked with @XmlMixed, so it is everything inside the element, `
                 + `but ${others} would be a child element of it as well.`

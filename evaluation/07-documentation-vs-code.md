@@ -48,12 +48,12 @@ moved.
 | ~~"advanced features like automatic reuse detection"~~ **the claim is now true** | `README.md:42` | Rotation was a non-atomic read-modify-write under `READ_COMMITTED` with no row lock, and the cookie-side handler minted a *fresh session* after detecting reuse. A conditional write now decides which caller rotated; the other finds the row already moved and destroys the family, which is what reuse detection is for. → [03](./03-auth-and-security.md) §B2–B3 |
 | ~~"you will get warnings whenever there is something off. Like an endpoint that is marked to skip auth, although there isn't anything auth related to skip"~~ **the dangerous case is closed, by a required option rather than a warning** | `README.md:98` | The warning was the backwards one: nothing said anything about an endpoint with no auth metadata at all, which ran unauthenticated. `defaultAuth` is a required application option now, so what an unannotated route does is stated by the application rather than defaulted to open. A warning would have told you afterwards; a required option asks before there is anything to warn about. → [03](./03-auth-and-security.md) §A1 |
 | ~~"giving you the specifics on *why* a dependency injection failed"~~ **the claim is now true** | `README.md:106` | A circular dependency produced `RangeError: Maximum call stack size exceeded` with no indication of which classes formed the cycle. It is a `CircularDependencyError` now, carrying the chain of token names that says how construction got there. → [05](./05-di-metadata-and-packaging.md) §D1, §D5 |
-| "All the public facing classes, interfaces and functions are as strictly typed as possible" | `README.md:88` The core `PropertyMetadata` union carries five `any`s and `app.use(...args: any[])` accepts anything. → [05](./05-di-metadata-and-packaging.md) §M3. **The compiler half of this row is closed**: `noUncheckedIndexedAccess` and five smaller options are on, and the framework compiles under them. `exactOptionalPropertyTypes` is a decision about what an optional property means rather than a check on the code, and is deliberately not among them — §M2. |
+| ~~"All the public facing classes, interfaces and functions are as strictly typed as possible"~~ **closed down to the variance limit, with 05 §M3** | `README.md:88` The core `PropertyMetadata` union carries five `any`s and `app.use(...args: any[])` accepts anything. → [05](./05-di-metadata-and-packaging.md) §M3. **The compiler half of this row is closed**: `noUncheckedIndexedAccess` and five smaller options are on, and the framework compiles under them. `exactOptionalPropertyTypes` is a decision about what an optional property means rather than a check on the code, and is deliberately not among them — §M2. **Re-checked 2026-10-01:** `app.use` takes a `RequestHandler` through two typed overloads now (02 §M12), and the five `any`s left in `PropertyMetadata` are §M3's variance limit - `TKey` is invariant on `EncryptionStrategyInterface`, so `any` is the only type every strategy's instantiation is assignable to. That is "as strictly as possible" under the current encryption model; removing them is that model's change, named in §M3. |
 | ~~`controllerClass` / `controllerMethod` are "the matched route, or `undefined` if routing hasn't resolved yet"~~ **the claim is now true** | `docs/request-context.md:32` | The only non-test `new HttpRequestContext(...)` call site (`src/routing/router.ts:465`) passed `undefined` for both, always. Consequently `HAS_2FA` returned `false` unconditionally and route-configured auth strategies were silently discarded by `CURRENT_USER` and `IS_LOGGED_IN`. The constructor no longer takes them; the route handler records the route it matched. → [02](./02-http-runtime-core.md) §M5 |
 | ~~`CURRENT_USER` "runs the route's configured auth strategies"~~ **the claim is now true** | `docs/request-context.md:53` | Ran *all* strategies, whatever `@CurrentUser` named — and ignored its `required` too. |
 | ~~`HAS_2FA` is "`false` if there's no matched route or no current user"~~ **the doc was corrected instead** | `docs/request-context.md:55` | `false` in every case. The token no longer consults a route at all: whether a second factor was presented is a fact about the request and the user, so the sentence describing it now says that. |
 | ~~rate limiting is "per key (eg. per user or IP)"~~ **the claim is now true** | `docs/rate-limiting.md:2` | There was no supported way to key by IP — `keyFn` received controller-method arguments, not the request — and the default key was the literal string `'global'`, which is one bucket for every caller. `RateLimitKeys` names the choices now, and `perConnection` (the client address over http, the connection over a websocket) is the default. → [03](./03-auth-and-security.md) §E2 |
-| `ValKeyRateLimiterLock` presented as the multi-instance correctness answer | `docs/rate-limiting.md` | Still does not mention the 5 s TTL, the absence of fencing, the resulting lost updates, or that lock contention surfaces as a 500. → [03](./03-auth-and-security.md) §E4. **The surrounding criticism no longer applies:** the doc now has a "Sharing limits across instances" section that states the in-memory constraint plainly, gives the shared alternative, tabulates which lock to use when, and explains why `WATCH`/`MULTI`/`EXEC` is not a substitute. Re-checked against the current file — the earlier reading was of an older version. |
+| ~~`ValKeyRateLimiterLock` presented as the multi-instance correctness answer~~ **closed with 03 §E4, and this row was the stale one** | `docs/rate-limiting.md` | **Re-checked 2026-10-01:** the lock is no longer the correctness answer and the page says so - a lock outside the process expires on its own, can expire while its section still runs, and the `version` every state carries is what makes that harmless (the second writer is refused and starts over). An unreachable store answers 503 or lets the call through, as `onStoreFailure` says, and is never a 500. What follows is the row as it was written. Still does not mention the 5 s TTL, the absence of fencing, the resulting lost updates, or that lock contention surfaces as a 500. → [03](./03-auth-and-security.md) §E4. **The surrounding criticism no longer applies:** the doc now has a "Sharing limits across instances" section that states the in-memory constraint plainly, gives the shared alternative, tabulates which lock to use when, and explains why `WATCH`/`MULTI`/`EXEC` is not a substitute. Re-checked against the current file — the earlier reading was of an older version. |
 | ~~the `@RateLimited` example~~ **the example was corrected** | `docs/rate-limiting.md:75-88` | Demonstrated the no-`keyFn` single-bucket configuration that turns a limiter into a DoS amplifier. The page now has a "What a limit is counted per" section that shows the default, per user, one bucket for everyone, and a key built from the arguments, side by side. |
 | ~~"By default scrypt and aes-256-gcm are used. If you want a different algorithm, override…"~~ **`ENCRYPTION_MASTER_OPTIONS` is documented** | `docs/encryption-and-hashing.md:58-59` | The mandatory `ENCRYPTION_MASTER_OPTIONS` was never mentioned anywhere, though `EncryptionService` throws `NoProviderError` without it. It is in the page's "Key exports" table and has a section of its own. |
 | ~~the primary data-source example~~ **the example was corrected, and the option made required** | `docs/data-source.md` | Demonstrated `synchronize: true` — TypeORM auto-DDL — as the standard configuration, with no warning anywhere that this drops columns in production. `schemaManagement` is required on every sql data source now, and the page tabulates what each of `'synchronize'`, `'migrations'` and `'external'` does and when it is right. → [01](./01-data-layer.md) §C1 |
@@ -64,9 +64,10 @@ moved.
 | "Requires Node.js >= 22" | `README.md:16` | **Fixed this round.** Every package declares `engines: { node: ">=24" }`, so the quick start's own first command answers `EBADENGINE` on the version it asks for. |
 | "~1600 tests running in our pipeline" | `README.md:90` | **Fixed this round**, to "more than 2500". A static count of `it(`/`test(` blocks across the four packages is 2720, of which 20 are skipped and 37 are `.each` (so they expand to more at run time). The exact pipeline number needs a full run, which needs containers. |
 
-Two rows remain open, both pointing at findings tracked elsewhere: `ValKeyRateLimiterLock`'s
-unstated TTL and fencing ([03](./03-auth-and-security.md) §E4), and the `any`s still in the
-`PropertyMetadata` union ([05](./05-di-metadata-and-packaging.md) §M3).
+No row remains open. The last two pointed at findings tracked elsewhere and both had closed there
+without the rows following: `ValKeyRateLimiterLock`'s TTL and fencing with
+[03](./03-auth-and-security.md) §E4, and the `any`s in the `PropertyMetadata` union down to the
+variance limit with [05](./05-di-metadata-and-packaging.md) §M3.
 
 ---
 
@@ -173,9 +174,38 @@ events still cannot call `emit` — which is correct, and is the whole point of 
 
 ### Security
 
-- **Security hardening guide.** `cors` is a real application option now
+- ~~**Security hardening guide.** `cors` is a real application option now
   (`ZibriApplicationSecurityOptions`) rather than a middleware hardcoded to `*`, but no page
-  documents it. Still nothing on TLS, `trust proxy`, or security headers beyond HSTS.
+  documents it. Still nothing on TLS, `trust proxy`, or security headers beyond HSTS.~~ **Closed
+  (2026-09-28), and most of it was stale.** `docs/app-settings.md` already covered CORS, the headers
+  set on every response, HSTS and `trustProxy`. TLS now has a section in `docs/deployment.md`:
+  it is terminated in front of the application, and `trustProxy` is what makes a forwarded https
+  request count as one.
+  **What was actually missing was the content security policy, and documenting it found three
+  defects.** CSP had no page and no test, even though every html response and every svg file
+  carries one.
+  - **A cached page handed every visitor the same nonce.** The nonce was chosen when the page was
+    rendered and written into both the script tag and the header. The caching example in
+    `docs/caching.md` keeps the whole `HtmlResponse`, so one nonce was served for as long as the
+    entry lived, although a nonce is only worth anything while it is new. The router now adds the
+    request's own nonce to `script-src` as each response is written. A response keeps the nonce it
+    was rendered with, and a string body has that one swapped for the new one.
+  - **One directive silently blocked the framework's own script.** A response naming `scriptSrc`
+    replaced the default's value, the request's nonce included, so the script
+    `TsxUtilities.renderPage` injects stopped running with nothing reported. A named directive
+    still replaces the default's (the user's choice), but the nonce is always added.
+  - **The svg warning was inverted.** It warned "not of type svg" for exactly the svg files and
+    never for the other files it describes.
+
+  App-wide CSP was configured by replacing a `transient` DI factory that had to re-read the nonce
+  itself. It is `DEFAULT_CSP_OPTIONS_INPUT` → `DEFAULT_CSP_OPTIONS` now, the same Input/Options
+  pair the http client and localization use. The user chose that over moving CSP into
+  `security.headers`. `routing/router.csp.test.ts` covers the whole path container-free in 8
+  cases, and the cache case was red with only the body rewrite disabled.
+  **A fourth came out of the nonce rule itself and is fixed too**: a browser that finds a nonce in
+  `script-src` ignores `'unsafe-inline'` there, so adding one forbade the inline scripts a response
+  allowed. A `script-src` listing `'unsafe-inline'` gets no nonce now, since the framework's script
+  already runs under it.
 - ~~**Threat model / secure defaults.** No statement that routes are open by default.~~ **Closed by
   removing the default**: `defaultAuth` is a required application option, so an application states
   what an unannotated route does rather than inheriting "open" from a document that never said so.
@@ -198,16 +228,44 @@ events still cannot call `emit` — which is correct, and is the whole point of 
 
 ### Lifecycle and change management
 
-- **Upgrade guides.** No migration path between major versions.
-- **Breaking-change policy.** No stated stability guarantees, no public-vs-internal API boundary.
-- **Changelog.** None. See [06](./06-tooling-ci-and-testing.md) §CD5.
+- ~~**Upgrade guides.** No migration path between major versions.~~ **Closed (2026-10-01).**
+  `docs/upgrading-to-3.md`, one page per major. On the user's call it leaves out everything the
+  compiler reports and covers only what compiles and still breaks, found by diffing the 2.5.0 and
+  3.0.0 barrels and framework entities and by compiling the 2.5.0 sandbox against 3.0.0: number
+  columns that `synchronize` drops and re-adds, new required columns, unique constraints renamed and
+  added, refresh and reset tokens now hashed, OTP secrets now encrypted, bcrypt no longer a default
+  strategy, optional peers no longer auto-installed (`pg` was a dependency), cron read in UTC, request
+  limits, the `findAll` cap, the trace header, route labels. The schema and data part is not prose but
+  **a migration to copy**, which needed helpers that did not exist and found four defects on the way:
+  - `changePropertyOfEntity` dropped and re-added a column on a type change (typeorm's answer), and
+    could not rename at all - it looked the old name up on the class, which only has the new one.
+  - Migrations could not encrypt or hash: the services loaded their strategies in `onAppInit`, after
+    migrations run. They load on first use now; an encryption strategy says `usableInMigrations`.
+  - `BackupEntity.formatVersion` was a constant default, so adding the column labelled every 2.x
+    backup as the format 3.0.0 reads.
+  - `docs/getting-started.md` listed 7 of the optional peers too few.
+  The helpers (`addPropertyToEntity`, `changePropertyOfEntity` with typed value conversion,
+  `removePropertyFromEntity`, `createEntity`, `add/removeUniquesOfEntity`) never read the entity
+  class, since a migration keeps running after the class changed; each part is written out or
+  `'resolveFromEntity'`.
+- ~~**Breaking-change policy.** No stated stability guarantees, no public-vs-internal API boundary.~~
+  **Closed (2026-09-29)**: `docs/releases.md` - semver over each package's entry points, a
+  deprecation for at least one minor before a removal, fixes for the newest major only. The release
+  can switch to maintaining an older one without a change to it: a `release-<major>` branch
+  publishes under `latest-<major>` and leaves the docs site and GitHub's "latest" alone.
+- ~~**Changelog.** None.~~ **Closed** with [06](./06-tooling-ci-and-testing.md) §CD5: a root
+  `CHANGELOG.md`, a section per version, and a release that refuses to publish without one.
 
 ### Performance
 
-- No benchmarks, no performance tuning guide, no documented complexity for `updateAll` /
+- ~~No benchmarks, no performance tuning guide, no documented complexity for `updateAll` /
   `deleteAll` (which materialize the full result set — [01](./01-data-layer.md) §M3), and no
   warning that ValKey `findAll` is an in-process full scan (this one *is* documented, at
-  `docs/data-source.md:103-105` — a good counter-example).
+  `docs/data-source.md:103-105` — a good counter-example).~~ **Closed (2026-10-01)**: `docs/costs.md`
+  states what holds on every data source - a fixed number of round trips per call, `stream` paging,
+  relations read once per result, the bounds, `deleteAll` holding what it deletes, bound encryption
+  writing per row - and one table per shipped data source, the single place the docs name one,
+  which is checked against measured counts. Benchmarks are [06](./06-tooling-ci-and-testing.md) §CI3.
 
 ### Developer experience
 
@@ -221,8 +279,19 @@ events still cannot call `emit` — which is correct, and is the whole point of 
   the constraint is stated as a *requirement*, in `docs/getting-started.md` where a reader picks a
   toolchain, with the two injection styles and which compilers support each; see
   [05 §M1](./05-di-metadata-and-packaging.md).
-- **Architecture overview.** There is no document explaining how the pieces fit together —
-  lifecycle hooks, DI, routing, request context — which is the first thing an architect asks for.
+- ~~**Architecture overview.** There is no document explaining how the pieces fit together —
+  lifecycle hooks, DI, routing, request context — which is the first thing an architect asks for.~~
+  **Closed (2026-10-01)**: `docs/architecture.md`, second in the published order after getting
+  started. It holds no detail of its own - each section is the shape of one piece and a link to the
+  page that has it: the options an application is made of, the container every framework service is
+  replaceable in, what the framework does in each lifecycle step, a request's path from the pipeline
+  phases through the router's steps to the error handler, the one `@Property` declaration that
+  validation, OpenAPI, storage and the http client all read, the repository between a caller and a
+  data source, and the work that runs outside a request under a lease. Written from the code rather
+  than from the other pages: the router's order (version, access check, `Accept`, parameters,
+  deadline, declared responses) and the boot order (data sources in `beforeAppInit`, routes
+  registered in `onAppInit` and mounted in `onAppStart`) are read off `router.ts` and
+  `application.ts`.
 
 ---
 

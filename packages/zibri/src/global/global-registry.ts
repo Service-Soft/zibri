@@ -1,5 +1,6 @@
 import { AppState } from './app-state.enum';
 import { registerFrameworkCopy } from './framework-copies';
+import { LifecyclePhase } from './lifecycle-phase.enum';
 import { ZibriApplicationOptions } from '../application/application-options.model';
 import { DiProvider } from '../di/models/di-provider.model';
 import { BaseEntity } from '../entity/base-entity.model';
@@ -68,6 +69,10 @@ export abstract class GlobalRegistry {
      * All entities registered with \@Entity.
      */
     static readonly entityClasses: Newable<BaseEntity>[] = [];
+    /**
+     * The phases the running application has finished.
+     */
+    private static readonly finishedLifecyclePhases: Set<LifecyclePhase> = new Set();
 
     private static readonly validateAppStateChange: Record<AppState, () => void> = {
         [AppState.OFFLINE]: () => {
@@ -222,6 +227,25 @@ export abstract class GlobalRegistry {
         this.appData.name = undefined;
         this.appData.version = undefined;
         this.appData.baseUrl = undefined;
+        this.finishedLifecyclePhases.clear();
+    }
+
+    /**
+     * Marks a phase of the running application as finished, once its hook has run on everything
+     * taking part in it.
+     * @param phase - The phase that finished.
+     */
+    static markLifecyclePhaseAsFinished(phase: LifecyclePhase): void {
+        this.finishedLifecyclePhases.add(phase);
+    }
+
+    /**
+     * Checks if the running application has finished a phase.
+     * @param phase - The phase to check.
+     * @returns True when its hook has run and will not run again, false otherwise.
+     */
+    static isLifecyclePhaseFinished(phase: LifecyclePhase): boolean {
+        return this.finishedLifecyclePhases.has(phase);
     }
 
     /**

@@ -11,4 +11,13 @@ export class SoftDeleteEntity extends ChangeSetEntity {
      */
     @Property.boolean({ default: false })
     deleted!: boolean;
+
+    /**
+     * The id of the row whose soft delete took this one along, which restoring that row restores it
+     * with. Null when the row is not deleted, or was deleted on its own.
+     */
+    // a key of its own rather than optional, so that an entity implementing this rather than extending
+    // it is told to declare it - the soft delete writes it on every row it marks
+    @Property.string({ required: false })
+    deletedWith: string | null | undefined;
 }

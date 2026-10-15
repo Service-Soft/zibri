@@ -1,4 +1,5 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
+import { createInMemoryDataSource } from 'zibri-testing';
 
 import { Body } from './decorators/body.decorator';
 import { Controller } from './decorators/controller.decorator';
@@ -6,16 +7,24 @@ import { Delete } from './decorators/delete.decorator';
 import { Get } from './decorators/get.decorator';
 import { Param } from './decorators/param.decorator';
 import { Post } from './decorators/post.decorator';
+import { Put } from './decorators/put.decorator';
+import { UndeclaredResultError } from './undeclared-result.error';
+import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { inject } from '../di/inject.function';
 import { Property } from '../entity/decorators/property.decorator';
 import { ConflictError } from '../error-handling/errors/conflict.error';
 import { HttpStatus } from '../http/http-status.enum';
 import { KnownHeader } from '../http/known-header.enum';
+import { RedirectResponse } from '../http/redirect-response.model';
 import { $ts } from '../localization/translate.function';
+import { type LoggerInterface } from '../logging/logger.interface';
 import { Response } from '../open-api/decorators/response.decorator';
 import { FileResponse } from '../parsing/form-data/file-response.model';
 import { HtmlResponse } from '../parsing/html/html-response.model';
 import { FsPath, FsUtilities } from '../utilities/fs.utilities';
+import { JsonUtilities } from '../utilities/json.utilities';
 
 class Greeting {
     @Property.string()
@@ -72,6 +81,18 @@ class GreetController {
         return HtmlResponse.fromString('<h1>hi</h1>');
     }
 
+    @Response.redirect()
+    @Get('/redirect')
+    redirect(): RedirectResponse {
+        return RedirectResponse.to('https://example.com/landing?from=greet');
+    }
+
+    @Response.redirect()
+    @Get('/mismatch/redirect')
+    mismatchedRedirect(): Greeting {
+        return { message: 'not a redirect' };
+    }
+
     // has two path segments, so it never shadows / is shadowed by the single-segment routes below
     @Get('/params/:count/:when')
     params(
@@ -100,6 +121,16 @@ class GreetController {
         requestId: string
     ): { id: string, loud: boolean | undefined, requestId: string } {
         return { id, loud, requestId };
+    }
+
+    @Put('/:id')
+    replace(
+        @Param.path('id', { type: 'string' })
+        id: string,
+        @Body(GreetBody)
+        body: GreetBody
+    ): Greeting {
+        return { message: `${id} is now ${body.name}` };
     }
 
     @Delete('/:id')
@@ -169,6 +200,12 @@ class StatusController {
         return HtmlResponse.fromString('<h1>made</h1>');
     }
 
+    @Response.redirect({ status: HttpStatus.TEMPORARY_REDIRECT })
+    @Get('/redirect-temporary')
+    redirectTemporary(): RedirectResponse {
+        return RedirectResponse.to('https://example.com/elsewhere');
+    }
+
     @Response.empty()
     @Response.error(HttpStatus.CONFLICT)
     @Get('/void-with-error')
@@ -202,7 +239,11 @@ let server: StartedTestServer;
 let baseUrl: string;
 
 beforeAll(async () => {
-    server = await startTestServer({ controllers: [GreetController, StatusController] });
+    // routing reads and writes no rows, so the data source is the in memory one
+    server = await startTestServer({
+        dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities })],
+        controllers: [GreetController, StatusController]
+    });
     baseUrl = await server.start();
 }, 15000);
 
@@ -228,9 +269,9 @@ describe('Router — HTTP dispatch', () => {
         const tags: string[] = ['a', 'b'];
         const matrix: number[][] = [[1, 2], [3, 4]];
         const query: URLSearchParams = new URLSearchParams({
-            location: JSON.stringify(location),
-            tags: JSON.stringify(tags),
-            matrix: JSON.stringify(matrix)
+            location: JsonUtilities.stringify(location),
+            tags: JsonUtilities.stringify(tags),
+            matrix: JsonUtilities.stringify(matrix)
         });
 
         const res: Response = await fetch(`${baseUrl}/greet/params/42/${encodeURIComponent(when)}?${query.toString()}`);
@@ -250,7 +291,7 @@ describe('Router — HTTP dispatch', () => {
         const res: Response = await fetch(`${baseUrl}/greet`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: 'Ada' })
+            body: JsonUtilities.stringify({ name: 'Ada' })
         });
         expect(res.status).toBe(200);
         // eslint-disable-next-line typescript/no-unsafe-assignment
@@ -262,7 +303,7 @@ describe('Router — HTTP dispatch', () => {
         const res: Response = await fetch(`${baseUrl}/greet`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({})
+            body: JsonUtilities.stringify({})
         });
         expect(res.status).toBe(400);
     });
@@ -278,8 +319,17 @@ describe('Router — HTTP dispatch', () => {
     });
 
     it('returns 500 when the handler result violates the declared json-only response type', async () => {
+        const logged: jest.Spied<LoggerInterface['error']> = jest.spyOn(inject(ZIBRI_DI_TOKENS.LOGGER), 'error');
+
         const res: Response = await fetch(`${baseUrl}/greet/mismatch/response`);
+
         expect(res.status).toBe(500);
+        // what whoever debugs the 500 reads: the route and what it returned. This used to be an
+        // "Error initializing router", which sends them looking at startup for a request that failed
+        const error: unknown = logged.mock.calls.at(-1)?.[0];
+        expect(error).toBeInstanceOf(UndeclaredResultError);
+        expect(String(error)).toContain('GreetController.mismatchedResponse returned a FileResponse, but declares only json responses');
+        logged.mockRestore();
     });
 
     it('sends a FileResponse with the correct content-type and disposition headers', async () => {
@@ -294,6 +344,36 @@ describe('Router — HTTP dispatch', () => {
         expect(res.headers.get(KnownHeader.CONTENT_TYPE)).toContain('text/html');
         const text: string = await res.text();
         expect(text).toContain('<h1>hi</h1>');
+    });
+
+    it('sends a RedirectResponse to its url, with 303 See Other by default', async () => {
+        const res: Response = await fetch(`${baseUrl}/greet/redirect`, { redirect: 'manual' });
+        expect(res.status).toBe(303);
+        expect(res.headers.get(KnownHeader.LOCATION)).toBe('https://example.com/landing?from=greet');
+        expect(await res.text()).toBe('');
+    });
+
+    it('returns 500 when a route declaring only redirects does not return one', async () => {
+        const logged: jest.Spied<LoggerInterface['error']> = jest.spyOn(inject(ZIBRI_DI_TOKENS.LOGGER), 'error');
+
+        const res: Response = await fetch(`${baseUrl}/greet/mismatch/redirect`, { redirect: 'manual' });
+
+        expect(res.status).toBe(500);
+        expect(String(logged.mock.calls.at(-1)?.[0]))
+            .toContain('GreetController.mismatchedRedirect declares only redirect responses, but did not return a RedirectResponse');
+        logged.mockRestore();
+    });
+
+    it('dispatches PUT requests with their path params and body', async () => {
+        const res: Response = await fetch(`${baseUrl}/greet/abc`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JsonUtilities.stringify({ name: 'Ada' })
+        });
+        expect(res.status).toBe(200);
+        // eslint-disable-next-line typescript/no-unsafe-assignment
+        const body: Greeting = await res.json();
+        expect(body.message).toBe('abc is now Ada');
     });
 
     it('dispatches DELETE requests and returns an empty body', async () => {
@@ -347,6 +427,12 @@ describe('Router — response status', () => {
 
     it('answers the status an html response names', async () => {
         expect(await statusOf('/html-created')).toBe(201);
+    });
+
+    it('answers the status a redirect response names', async () => {
+        const res: Response = await fetch(`${baseUrl}/status/redirect-temporary`, { redirect: 'manual' });
+        expect(res.status).toBe(307);
+        expect(res.headers.get(KnownHeader.LOCATION)).toBe('https://example.com/elsewhere');
     });
 
     it('does not take a declared error status for a successful result', async () => {

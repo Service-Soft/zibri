@@ -1,9 +1,10 @@
 import { InvoiceNumberServiceInterface } from './invoice-number-service.interface';
 import { Repository } from '../../../data-source/repository/repository';
 import { Transaction } from '../../../data-source/transaction/transaction.model';
-import { InjectRepository } from '../../../di/decorators/inject-repository.decorator';
+import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../../di/decorators/inject.decorator';
 import { Injectable } from '../../../di/decorators/injectable.decorator';
+import { inject } from '../../../di/inject.function';
 import { ConflictError } from '../../../error-handling/errors/conflict.error';
 import { $ts } from '../../../localization/translate.function';
 import { OmitStrict } from '../../../types/omit-strict.type';
@@ -18,14 +19,19 @@ import { NumberInvoices } from '../models/number-invoices.model';
  */
 @Injectable({ register: 'onUse' })
 export class InvoiceNumberService implements InvoiceNumberServiceInterface<InvoiceAddress> {
+    // the two below are read when used rather than injected: this is built at every boot that uses
+    // the plugin, and ZibriInvoicingPlugin.validate names the entities that are missing - which it
+    // could not, if building this had failed on a repository token first
+    private get invoiceRepository(): Repository<Invoice, OmitStrict<Invoice, 'id'>> {
+        return inject(repositoryTokenFor(Invoice));
+    }
+
+    // without the tenant, which the repository gives every counter it creates
+    private get numberInvoicesRepository(): Repository<NumberInvoices, OmitStrict<NumberInvoices, 'id' | 'tenantId'>> {
+        return inject(repositoryTokenFor(NumberInvoices));
+    }
+
     constructor(
-        @InjectRepository(Invoice)
-        private readonly invoiceRepository: Repository<Invoice, OmitStrict<Invoice, 'id'>>,
-        @InjectRepository(NumberInvoices)
-        private readonly numberInvoicesRepository: Repository<
-            NumberInvoices,
-            OmitStrict<NumberInvoices, 'id'>
-        >,
         @Inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.OPTIONS)
         protected readonly options: InvoicingOptions
     ) {}

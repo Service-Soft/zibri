@@ -5,7 +5,7 @@ import { HttpStatus } from '../http/http-status.enum';
 import { KnownHeader } from '../http/known-header.enum';
 import { MimeType } from '../http/mime-type.enum';
 import { FormData } from '../parsing/form-data/form-data.model';
-import { FormDataBodyMetadataInput, JsonBodyMetadataInput, JsonBodyShapeMetadataInput, StreamBodyMetadataInput, XmlBodyMetadataInput } from '../routing/decorators/body-metadata.model';
+import { FormDataBodyMetadataInput, FormDataBodyShapeMetadataInput, FormUrlEncodedBodyMetadataInput, JsonBodyMetadataInput, JsonBodyShapeMetadataInput, StreamBodyMetadataInput, XmlBodyMetadataInput } from '../routing/decorators/body-metadata.model';
 import { Newable } from '../types/newable.type';
 import { OmitStrict } from '../types/omit-strict.type';
 
@@ -87,6 +87,27 @@ type FormDataResponseBodyInput<T extends object> = OmitStrict<FormDataBodyMetada
 };
 
 // eslint-disable-next-line jsdoc/require-jsdoc
+type FormUrlEncodedResponseBodyInput<T extends object> = OmitStrict<FormUrlEncodedBodyMetadataInput, 'type'> & {
+    /**
+     * The type of the response.
+     */
+    type: MimeType.FORM_URL_ENCODED,
+    /**
+     * The class that defines the structure of the body.
+     */
+    modelClass: Newable<T>
+} | OmitStrict<FormUrlEncodedBodyMetadataInput, 'type' | 'allowAdditionalProperties'> & {
+    /**
+     * The type of the response.
+     */
+    type: MimeType.FORM_URL_ENCODED,
+    /**
+     * The shapes the body can be. It becomes the first, in this order, that it fits.
+     */
+    shapes: FormDataBodyShapeMetadataInput[]
+};
+
+// eslint-disable-next-line jsdoc/require-jsdoc
 type StreamResponseBodyInput = StreamBodyMetadataInput & Pick<StreamBodyMetadataInput, 'type'>;
 
 // the types whose body is a model or several shapes, and is read the same way either way
@@ -98,6 +119,7 @@ export type HttpClientResponseBodyInput<T extends object, IsArray extends boolea
     | JsonResponseBodyInput<T, IsArray>
     | XmlResponseBodyInput<T, IsArray>
     | FormDataResponseBodyInput<T>
+    | FormUrlEncodedResponseBodyInput<T>
     | StreamResponseBodyInput;
 
 /**
@@ -152,14 +174,20 @@ export type HttpClientResponseForBody<
             : ResponseBody extends { type: MimeType.FORM_DATA, shapes: infer Shapes extends JsonBodyShapeMetadataInput[] }
                 ? HttpClientResponse<FormData<Extract<ShapeType<Shapes[number]>, object>>, HeaderParamsObject>
                 // eslint-disable-next-line jsdoc/require-jsdoc
-                : ResponseBody extends { type?: StructuredMimeType, modelClass: Newable<infer Model> }
-                    ? HttpClientResponse<IsArray extends true ? Model[] : Model, HeaderParamsObject>
+                : ResponseBody extends { type: MimeType.FORM_URL_ENCODED, modelClass: Newable<infer Model> }
+                    ? HttpClientResponse<Model, HeaderParamsObject>
                     // eslint-disable-next-line jsdoc/require-jsdoc
-                    : ResponseBody extends { type?: StructuredMimeType, shapes: infer Shapes extends JsonBodyShapeMetadataInput[] }
+                    : ResponseBody extends { type: MimeType.FORM_URL_ENCODED, shapes: infer Shapes extends JsonBodyShapeMetadataInput[] }
                         ? HttpClientResponse<ShapeType<Shapes[number]>, HeaderParamsObject>
-                        : ResponseBody extends Newable<infer Model>
-                            ? HttpClientResponse<Model, HeaderParamsObject>
-                            : never;
+                        // eslint-disable-next-line jsdoc/require-jsdoc
+                        : ResponseBody extends { type?: StructuredMimeType, modelClass: Newable<infer Model> }
+                            ? HttpClientResponse<IsArray extends true ? Model[] : Model, HeaderParamsObject>
+                            // eslint-disable-next-line jsdoc/require-jsdoc
+                            : ResponseBody extends { type?: StructuredMimeType, shapes: infer Shapes extends JsonBodyShapeMetadataInput[] }
+                                ? HttpClientResponse<ShapeType<Shapes[number]>, HeaderParamsObject>
+                                : ResponseBody extends Newable<infer Model>
+                                    ? HttpClientResponse<Model, HeaderParamsObject>
+                                    : never;
 
 /**
  * Checks if the given value is a HttpClientResponse.

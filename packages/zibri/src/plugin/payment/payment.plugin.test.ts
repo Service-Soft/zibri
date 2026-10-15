@@ -8,6 +8,7 @@ import { DefaultPaymentProviderArray, ZIBRI_PAYMENT_PLUGIN_DI_TOKENS } from './p
 import { AnyPaymentProviderInterface } from './providers/payment-provider.interface';
 import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
+import { startAndStopTestServerWithout } from '../../__testing__/test-server/start-and-stop-test-server-without.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { defineProvider } from '../../di/models/di-provider.model';
 import { AppState } from '../../global/app-state.enum';
@@ -63,6 +64,33 @@ async function startWith(
         ]
     });
 }
+
+// first, for the reason on startAndStopTestServerWithout
+describe('ZibriPaymentPlugin — starting', () => {
+    it('refuses to start without Payment, and names it', async () => {
+        const provider: ReturnType<typeof createFakeProvider> = createFakeProvider('Provider');
+        const providerNameForMethod: Record<string, string> = { [KnownPaymentMethod.PAY_PAL]: 'Provider' };
+        const start: Promise<void> = startAndStopTestServerWithout([], {
+            plugins: [new ZibriPaymentPlugin()],
+            providers: [
+                ...defaultTestServerProviders,
+                defineProvider({
+                    token: ZIBRI_PAYMENT_PLUGIN_DI_TOKENS.OPTIONS_INPUT,
+                    useFactory: () => {
+                        const res: PaymentPluginOptionsInput<PaymentMethod[], AnyPaymentProviderInterface[]> = {
+                            paymentMethods: [KnownPaymentMethod.PAY_PAL],
+                            paymentProviders: [provider],
+                            providerNameForMethod
+                        };
+                        return res as PaymentPluginOptionsInput<PaymentMethod[], DefaultPaymentProviderArray>;
+                    }
+                })
+            ]
+        });
+
+        await expect(start).rejects.toThrow(/Error initializing ZibriPaymentPlugin[\S\s]*- Payment/);
+    }, 30000);
+});
 
 describe('ZibriPaymentPlugin.validate', () => {
     let server: StartedTestServer | undefined;

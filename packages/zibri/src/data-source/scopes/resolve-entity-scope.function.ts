@@ -8,6 +8,8 @@ import { inject } from '../../di/inject.function';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { EntityMetadata } from '../../entity/decorators/entity.decorator';
 import { type DenyAll, type EntityScopeContext, isUnscoped, type RestrictedToScope, type Unscoped } from '../../entity/models/entity-scope.model';
+import { BaseMembership } from '../../tenancy/membership/base-membership.model';
+import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface';
 import { Newable } from '../../types/newable.type';
 import { Where } from '../models/where/where-filter.model';
 
@@ -40,8 +42,18 @@ export async function resolveEntityScope<T extends BaseEntity>(
     const currentUser: BaseUser<string> | undefined = context
         ? await authService.getCurrentUser(context, authService.strategies, false)
         : undefined;
+    const currentMembership: BaseMembership<string> | undefined = context
+        ? await authService.getCurrentMembership(context, authService.strategies, false)
+        : undefined;
+    const tenantService: TenantServiceInterface = inject(ZIBRI_DI_TOKENS.TENANT_SERVICE);
 
-    const scopeContext: EntityScopeContext = { currentUser, requestContext: context, entityClass };
+    const scopeContext: EntityScopeContext = {
+        currentUser,
+        tenantId: tenantService.getActiveTenantId(),
+        currentMembership,
+        requestContext: context,
+        entityClass
+    };
     const result: Where<T> | DenyAll | undefined = await restrictedTo(scopeContext) as Where<T> | DenyAll | undefined;
 
     return result;

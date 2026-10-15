@@ -17,8 +17,22 @@ class UploadDto {
     file!: File;
 }
 
+class AmountsDto {
+    @Property.array({ items: { type: 'number' } })
+    amounts!: number[];
+}
+
 @Controller('/upload')
 class UploadController {
+    @Post('/amounts')
+    async amounts(
+        @Body(AmountsDto, { type: MimeType.FORM_DATA })
+        form: ZibriFormData<AmountsDto>
+    ): Promise<{ amounts: number[] }> {
+        await form.cleanup();
+        return { amounts: form.value.amounts };
+    }
+
     @Post('/')
     async upload(
         @Body(UploadDto, { type: MimeType.FORM_DATA })
@@ -117,6 +131,30 @@ describe('FormDataBodyParser', () => {
 
         const res: Response = await fetch(`${baseUrl}/upload`, { method: 'POST', body: form });
 
+        expect(res.status).toBe(400);
+    });
+
+    it('reads a field sent once per item as a list of that item type', async () => {
+        const form: FormData = new FormData();
+        form.append('amounts', '1');
+        form.append('amounts', '2.5');
+
+        const res: Response = await fetch(`${baseUrl}/upload/amounts`, { method: 'POST', body: form });
+
+        // a repeated field was handed on as the texts it arrived as, so a list of numbers was a 400
+        expect(res.status).toBe(200);
+        expect(await res.json()).toStrictEqual({ amounts: [1, 2.5] });
+    });
+
+    it('answers 400 for a field sent as text and as a file, rather than failing to handle it', async () => {
+        const form: FormData = new FormData();
+        form.append('label', 'hello');
+        form.append('file', 'not a file');
+        form.append('file', new Blob(['small content'], { type: 'text/plain' }), 'note.txt');
+
+        const res: Response = await fetch(`${baseUrl}/upload`, { method: 'POST', body: form });
+
+        // was an InternalError, so any caller could make the application answer 500
         expect(res.status).toBe(400);
     });
 

@@ -7,7 +7,14 @@ export type JwtRefreshTokenPayload<Role extends string, T extends BaseUser<Role>
     /**
      * The id of the user that this refresh token belongs to.
      */
-    userId: T['id']
+    userId: T['id'],
+    // named and typed like the access token's claim it is copied into - see there for why it is not
+    // a camel cased Date
+    /**
+     * When the user logged in, in seconds since the epoch. Every refresh token of one login carries
+     * the same value.
+     */
+    auth_time: number
 };
 
 /**
@@ -21,5 +28,6 @@ export function isJwtRefreshTokenPayload<Role extends string>(
     if (typeof payload !== 'object' || payload == undefined) {
         return false;
     }
-    return 'userId' in payload && typeof payload.userId === 'string';
+    return 'userId' in payload && typeof payload.userId === 'string'
+        && 'auth_time' in payload && typeof payload.auth_time === 'number';
 }

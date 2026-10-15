@@ -1,6 +1,5 @@
-import { JwtHeader } from 'jsonwebtoken';
-
 import { JwtAccessTokenPayload } from './jwt-access-token-payload.model';
+import { JwtHeader } from './jwt-header.model';
 import { BaseUser } from '../../models/base-user.model';
 
 /**
@@ -19,11 +18,7 @@ export type EncodedJwt<Payload = unknown> = {
     /**
      * The payload of the jwt, everything that was put inside the token when generating it can be found here.
      */
-    payload: Payload,
-    /**
-     * The signature of the jwt.
-     */
-    signature: string
+    payload: Payload
 };
 
 /**

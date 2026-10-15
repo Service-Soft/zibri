@@ -235,7 +235,14 @@ export abstract class XmlReaderUtilities {
     private static groupByName(elements: XmlElementNode[]): Map<string, XmlElementNode[]> {
         const res: Map<string, XmlElementNode[]> = new Map();
         for (const element of elements) {
-            res.set(element.name, [...res.get(element.name) ?? [], element]);
+            // pushed onto the group rather than a copy of it with the element added, which made a
+            // document of many same-named elements quadratic to read - seconds for one 100kb body
+            const group: XmlElementNode[] | undefined = res.get(element.name);
+            if (group == undefined) {
+                res.set(element.name, [element]);
+                continue;
+            }
+            group.push(element);
         }
         return res;
     }

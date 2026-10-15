@@ -14,7 +14,14 @@ export type BackupResourceMetadata = {
     /**
      * The transports that should be used when backing up this resource.
      */
-    transports: 'all' | Newable<BackupTransportInterface>[]
+    transports: 'all' | Newable<BackupTransportInterface>[],
+    /**
+     * Whether the data is encrypted before it leaves the process.
+     *
+     * Each backup of this resource is encrypted with a key of its own, which is stored encrypted by the
+     * encryption service's `masterEncrypt`.
+     */
+    encrypt: boolean
     // /**
     //  *
     //  */
@@ -25,5 +32,5 @@ export type BackupResourceMetadata = {
  * Input for creating BackupResourceMetadata.
  */
 export type BackupResourceMetadataInput<T> = OmitStrict<InjectableOptions<T>, 'variant'>
-    & Pick<BackupResourceMetadata, 'transports'>
+    & Pick<BackupResourceMetadata, 'transports' | 'encrypt'>
     & Partial<BackupResourceMetadata>;

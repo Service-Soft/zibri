@@ -45,6 +45,18 @@ A `.env` file is read when there is one beside the application, which is how a d
 supplies these. A deployment usually sets them directly, and `.dockerignore` keeps the local file out
 of the image: an image carrying one hands its secrets to everyone the image reaches.
 
+## HTTPS
+
+The application serves plain http. HTTPS is terminated in front of it, by the load balancer, ingress
+or reverse proxy that receives the traffic, which is also where certificates are renewed.
+
+Tell the application how many proxies stand in front of it with `security.trustProxy` — see
+[running behind a proxy](./app-settings.md#running-behind-a-proxy). With it set, a request that
+reached the proxy over https counts as https, so session cookies are marked `Secure` and HSTS is sent.
+
+Services that call your api with a client certificate show it to the proxy, which forwards it — see
+[client certificates](./client-certificates.md).
+
 ## Health endpoints
 
 `zi new` generates a `HealthController` with two routes, because a process has two different states
@@ -109,6 +121,20 @@ Two paths are written while the application runs, and both live at the applicati
 
 The user the application runs as owns these two. Everything else can stay read only to it, which is
 what the generated image does: the bundle it is running is owned by another user entirely.
+
+## What the application is made of
+
+Generate the software bill of materials for your application rather than for Zibri. It lists Zibri
+and every package it brings, at the versions your application installed:
+
+```sh
+npm sbom --sbom-format cyclonedx --omit dev > sbom.cdx.json
+```
+
+Every package Zibri installs, the [optional ones](./getting-started.md#optional-packages) included,
+is under one of these licenses: MIT, MIT-0, ISC, Apache-2.0, BSD-2-Clause, BSD-3-Clause, 0BSD,
+BlueOak-1.0.0, CC0-1.0, Unlicense or Zlib. A release ships with no known high or critical advisory
+among them.
 
 ## Running more than one instance
 

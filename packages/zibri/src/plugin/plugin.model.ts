@@ -1,4 +1,5 @@
 import { ZibriApplication } from '../application/application';
+import { Authenticators } from '../auth/authenticators/authenticators.model';
 import { AuthStrategies } from '../auth/strategies/auth-strategies.model';
 import { CronJob } from '../cron/cron-job.model';
 import { DiProvider } from '../di/models/di-provider.model';
@@ -6,7 +7,7 @@ import { AnyBodyParser } from '../parsing/body-parser.interface';
 import { Newable } from '../types/newable.type';
 
 /**
- * A bundle of providers, controllers, cronJobs, bodyParsers and authStrategies.
+ * A bundle of providers, controllers, cronJobs, bodyParsers, authStrategies and authenticators.
  */
 export abstract class ZibriPlugin {
     /**
@@ -33,6 +34,12 @@ export abstract class ZibriPlugin {
      * If nothing is provided, the Zibri default jwt auth strategy will be used.
      */
     authStrategies: AuthStrategies = [];
+    /**
+     * The authenticators to register.
+     *
+     * If nothing is provided, the Zibri default password authenticator will be used.
+     */
+    authenticators: Authenticators = [];
     /**
      * Validates that the plugin can work correctly. This should check that all entities exist,
      * all required providers exist etc.

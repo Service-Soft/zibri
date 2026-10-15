@@ -19,7 +19,7 @@ const renewedAt: Date = new Date('2026-05-04T08:30:00.000Z');
  * One column of every kind a write has to hand back, so that what arrives can be compared against
  * what a read of the same row gives.
  */
-@Entity({ allowOrphan: true, allowDuplicate: true })
+@Entity({ tenant: 'shared', allowOrphan: true, allowDuplicate: true })
 export class Subscription extends BaseEntity {
     /**
      * The rows one test wrote, so that what a filter finds is not mixed up with another test's rows.
@@ -82,7 +82,7 @@ export class Subscription extends BaseEntity {
  * Carries a relation it always reads, which is the one thing a write cannot hand back: the rows it
  * stands for are beside this one rather than in a column of it.
  */
-@Entity({ allowOrphan: true, allowDuplicate: true, defaultRelations: { seats: true } })
+@Entity({ tenant: 'shared', allowOrphan: true, allowDuplicate: true, defaultRelations: { seats: true } })
 export class Team extends BaseEntity {
     /**
      * What it is called, which is what the case changes.
@@ -100,7 +100,7 @@ export class Team extends BaseEntity {
 /**
  * The far side of the relation a team always reads.
  */
-@Entity({ allowOrphan: true, allowDuplicate: true })
+@Entity({ tenant: 'shared', allowOrphan: true, allowDuplicate: true })
 export class Seat extends BaseEntity {
     /**
      * Who is sitting in it.

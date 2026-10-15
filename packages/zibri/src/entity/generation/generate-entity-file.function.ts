@@ -6,6 +6,7 @@ import { addImportStatement } from '../../utilities/add-import-statement.functio
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
 import { toPascalCase } from '../../utilities/to-pascal-case.function';
+import { EntityTenant } from '../models/entity-tenant.model';
 
 /**
  * The result for generating a single entity.
@@ -57,18 +58,32 @@ export function generateEntityFile(
 
     const lines: string[] = [];
 
-    lines.push(`import { ${provider.markAsEntities ? 'Entity, ' : ''}Property } from \'zibri\';`);
+    const tenant: false | EntityTenant = provider.markAsEntities;
+    lines.push(`import { ${tenant === false ? '' : 'Entity, '}Property } from \'zibri\';`);
     lines.push('');
-    if (provider.markAsEntities) {
-        lines.push('@Entity()');
+    if (tenant !== false) {
+        lines.push(`@Entity(${resolveTenantOption(tenant)})`);
     }
     lines.push(`export class ${getEntityName(provider.prefix, name)} {`);
+    const tenantProperty: string | undefined = tenant === false || tenant === 'shared' ? undefined : tenant.property;
+    // a schema of another api knows nothing about the tenants of this one, so the property holding
+    // the tenant is added when the schema does not bring it
+    if (tenantProperty != undefined && !(tenantProperty in properties)) {
+        lines.push('', '    @Property.string({ format: \'uuid\' })', `    '${tenantProperty}'!: string;`);
+    }
 
     const foundSchemas: OpenApiSchemas = {};
 
     for (const [propName, propSchema] of ObjectUtilities.entries(properties)) {
         const isRequired: boolean = required.has(propName);
         const optional: string = isRequired ? '!' : '?';
+        // every tenant id is a uuid, so one the schema brings is declared as one whatever format it names.
+        // a tenant property of another type is left as the schema says, and @Entity refuses it when the app starts
+        if (propName === tenantProperty && !('$ref' in propSchema) && propSchema.type === 'string') {
+            const uuidOptions: string = isRequired ? '{ format: \'uuid\' }' : '{ required: false, format: \'uuid\' }';
+            lines.push('', `    @Property.string(${uuidOptions})`, `    '${propName}'${optional}: string;`);
+            continue;
+        }
         const { type, isRef, schema } = mapSchemaToTsType(propSchema, propName);
         if (isRef && schema && !('$ref' in schema)) {
             // type could be "X" or "X[]"; normalize to base name
@@ -226,6 +241,18 @@ function mapSchemaToDecoratorLines(
             return ['    @Property.unknown({ required: false })'];
         }
     }
+}
+
+/**
+ * Writes the options of the generated entity decorator for the tenant it is given.
+ * @param tenant - The tenant the generated entities belong to.
+ * @returns The options, or nothing when the tenant is the one held in `tenantId` by default.
+ */
+function resolveTenantOption(tenant: EntityTenant): string {
+    if (tenant === 'shared') {
+        return '{ tenant: \'shared\' }';
+    }
+    return tenant.property === 'tenantId' ? '' : `{ tenant: { property: '${tenant.property}' } }`;
 }
 
 // eslint-disable-next-line jsdoc/require-jsdoc

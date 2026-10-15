@@ -9,7 +9,7 @@ import { AppState } from '../global/app-state.enum';
 import { GlobalRegistry } from '../global/global-registry';
 import { ZibriPlugin } from '../plugin/plugin.model';
 
-@Entity({ allowOrphan: true })
+@Entity({ tenant: 'shared', allowOrphan: true })
 class UnregisteredScratchEntity extends BaseEntity {}
 
 class ScratchValidatePlugin extends ZibriPlugin {

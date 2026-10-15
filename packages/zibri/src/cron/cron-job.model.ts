@@ -1,4 +1,3 @@
-
 import cron, { ScheduledTask } from 'node-cron';
 
 import { type CronExpressionString } from './cron-expression.utilities';
@@ -124,8 +123,7 @@ export abstract class CronJob {
             // the deployment's answer unless this job has one of its own, which is what lets a single
             // deployment run the same work on the schedule each of its tenants expects
             timezone: inject(ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS).defaultTimezone,
-            ...this.initialConfig,
-            name: this.overrideName ?? this.initialConfig.name
+            ...this.initialConfig
         };
     }
 
@@ -193,8 +191,6 @@ export abstract class CronJob {
         }
         return this.entity.catchUpWithinMs ?? undefined;
     }
-
-    constructor(protected readonly overrideName?: string) {}
 
     /**
      * Initializes the cron job, without putting it on the schedule yet.
@@ -341,9 +337,15 @@ export abstract class CronJob {
             return true;
         }
 
+        // held until the slot it names, because that is how long the key means anything: an
+        // instance booting after the slot computes the next one and has a key of its own. Held for
+        // the execution lease alone, the claim ran out in minutes, and every instance a slow rolling
+        // deploy started after that won the same key again and repeated the run. Never less than the
+        // execution lease, so a slot a moment away does not make a claim that lapses on arrival.
+        const untilSlotInMs: number = nextRun.getTime() - Date.now();
         return await this.shouldRunExecution(
             `${this.entity.name}:startup:${nextRun.toISOString()}`,
-            inject(ZIBRI_DI_TOKENS.CRON_EXECUTION_LEASE_IN_MS)
+            Math.max(untilSlotInMs, inject(ZIBRI_DI_TOKENS.CRON_EXECUTION_LEASE_IN_MS))
         );
     }
 

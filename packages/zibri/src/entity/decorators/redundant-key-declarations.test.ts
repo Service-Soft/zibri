@@ -56,6 +56,30 @@ function primaryAndIndex(): Newable<object> {
 }
 
 /**
+ * Declares a string primary key without the uuid format.
+ * @returns The declared class.
+ */
+function primaryWithoutFormat(): Newable<object> {
+    class Invoice {
+        @Property.string({ primary: true, format: undefined })
+        id!: string;
+    }
+    return Invoice;
+}
+
+/**
+ * Declares a string primary key holding email addresses.
+ * @returns The declared class.
+ */
+function primaryAsEmail(): Newable<object> {
+    class Invoice {
+        @Property.string({ primary: true, format: 'email' })
+        id!: string;
+    }
+    return Invoice;
+}
+
+/**
  * Declares a unique column that also asks to be indexed.
  * @returns The declared class.
  */
@@ -87,7 +111,7 @@ function oneKeyPerColumn(): Newable<BaseEntity> {
  * @returns The declared class.
  */
 function uniqueGroupAroundUniqueColumn(): Newable<BaseEntity> {
-    @Entity({ allowOrphan: true, uniques: [['reference', 'tenantId']] })
+    @Entity({ tenant: 'shared', allowOrphan: true, uniques: [['reference', 'tenantId']] })
     class Invoice extends BaseEntity {
         @Property.string({ unique: true })
         reference!: string;
@@ -103,7 +127,7 @@ function uniqueGroupAroundUniqueColumn(): Newable<BaseEntity> {
  * @returns The declared class.
  */
 function uniqueGroupAroundPrimaryKey(): Newable<BaseEntity> {
-    @Entity({ allowOrphan: true, uniques: [['id', 'tenantId']] })
+    @Entity({ tenant: 'shared', allowOrphan: true, uniques: [['id', 'tenantId']] })
     class Invoice extends BaseEntity {
         @Property.string()
         tenantId!: string;
@@ -116,7 +140,7 @@ function uniqueGroupAroundPrimaryKey(): Newable<BaseEntity> {
  * @returns The declared class.
  */
 function indexGroupBehindUniqueColumn(): Newable<BaseEntity> {
-    @Entity({ allowOrphan: true, indexes: [['reference', 'status']] })
+    @Entity({ tenant: 'shared', allowOrphan: true, indexes: [['reference', 'status']] })
     class Invoice extends BaseEntity {
         @Property.string({ unique: true })
         reference!: string;
@@ -132,7 +156,7 @@ function indexGroupBehindUniqueColumn(): Newable<BaseEntity> {
  * @returns The declared class.
  */
 function indexGroupPastUniqueColumn(): Newable<BaseEntity> {
-    @Entity({ allowOrphan: true, indexes: [['status', 'reference']] })
+    @Entity({ tenant: 'shared', allowOrphan: true, indexes: [['status', 'reference']] })
     class Invoice extends BaseEntity {
         @Property.string()
         status!: string;
@@ -148,7 +172,7 @@ function indexGroupPastUniqueColumn(): Newable<BaseEntity> {
  * @returns The declared class.
  */
 function indexGroupOfOneIndexedColumn(): Newable<BaseEntity> {
-    @Entity({ allowOrphan: true, indexes: [['tenantId']] })
+    @Entity({ tenant: 'shared', allowOrphan: true, indexes: [['tenantId']] })
     class Invoice extends BaseEntity {
         @Property.string({ index: true })
         tenantId!: string;
@@ -161,7 +185,7 @@ function indexGroupOfOneIndexedColumn(): Newable<BaseEntity> {
  * @returns The declared class.
  */
 function uniqueGroupDeclaredTwice(): Newable<BaseEntity> {
-    @Entity({ allowOrphan: true, uniques: [['year', 'recipientId'], ['recipientId', 'year']] })
+    @Entity({ tenant: 'shared', allowOrphan: true, uniques: [['year', 'recipientId'], ['recipientId', 'year']] })
     class Invoice extends BaseEntity {
         @Property.number()
         year!: number;
@@ -177,7 +201,7 @@ function uniqueGroupDeclaredTwice(): Newable<BaseEntity> {
  * @returns The declared class.
  */
 function indexGroupDeclaredTwice(): Newable<BaseEntity> {
-    @Entity({ allowOrphan: true, indexes: [['tenantId', 'status'], ['status', 'tenantId'], ['tenantId', 'status']] })
+    @Entity({ tenant: 'shared', allowOrphan: true, indexes: [['tenantId', 'status'], ['status', 'tenantId'], ['tenantId', 'status']] })
     class Invoice extends BaseEntity {
         @Property.string()
         tenantId!: string;
@@ -193,7 +217,7 @@ function indexGroupDeclaredTwice(): Newable<BaseEntity> {
  * @returns The declared class.
  */
 function indexGroupsInBothOrders(): Newable<BaseEntity> {
-    @Entity({ allowOrphan: true, indexes: [['tenantId', 'status'], ['status', 'tenantId']] })
+    @Entity({ tenant: 'shared', allowOrphan: true, indexes: [['tenantId', 'status'], ['status', 'tenantId']] })
     class Invoice extends BaseEntity {
         @Property.string()
         tenantId!: string;
@@ -209,7 +233,7 @@ function indexGroupsInBothOrders(): Newable<BaseEntity> {
  * @returns The declared class.
  */
 function indexBesideGroupItLeads(): Newable<BaseEntity> {
-    @Entity({ allowOrphan: true, indexes: [['tenantId', 'status']] })
+    @Entity({ tenant: 'shared', allowOrphan: true, indexes: [['tenantId', 'status']] })
     class Invoice extends BaseEntity {
         @Property.string({ index: true })
         tenantId!: string;
@@ -225,7 +249,7 @@ function indexBesideGroupItLeads(): Newable<BaseEntity> {
  * @returns The declared class.
  */
 function groupsThatCoverSomething(): Newable<BaseEntity> {
-    @Entity({ allowOrphan: true, uniques: [['year', 'recipientId']], indexes: [['tenantId', 'status']] })
+    @Entity({ tenant: 'shared', allowOrphan: true, uniques: [['year', 'recipientId']], indexes: [['tenantId', 'status']] })
     class Invoice extends BaseEntity {
         @Property.number()
         year!: number;
@@ -265,6 +289,14 @@ describe('a property that declares a key it already has', () => {
             'indexed by the constraint that enforces it',
             'Remove "index"'
         );
+    });
+
+    it('refuses a string primary key without the uuid format', () => {
+        expectRefusal(primaryWithoutFormat, 'Invoice.id', 'holds uuids', 'declare no format', 'Remove "format"');
+    });
+
+    it('refuses a string primary key of another format', () => {
+        expectRefusal(primaryAsEmail, 'Invoice.id', 'holds uuids', 'the format "email"', 'Remove "format"');
     });
 
     it('refuses "index" beside "unique"', () => {

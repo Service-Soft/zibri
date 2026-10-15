@@ -310,6 +310,28 @@ async function emptyValKeyStore(): Promise<ValKeyCacheStore<string, string>> {
     return store;
 }
 
+describe('evaluation/04-infrastructure-subsystems 3.10 - an object key on a shared store', () => {
+
+    it('keys an entry on valkey the way the in memory store keys it', async () => {
+        const store: ValKeyCacheStore<EvalObjectKey | number | string, string> = new ValKeyCacheStore(valKey, {
+            model: 'plain',
+            maxBytes: roomToSpare,
+            maxEntries: 1000
+        });
+        await store.clear();
+
+        // the valkey store wrote an object key as it came, so two call sites building the same key
+        // in another order read each other's entries as misses
+        await store.set({ userId: 'u3', tenantId: 't1' }, { value: 'found', tags: [], createdAt: new Date() });
+        expect((await store.get({ tenantId: 't1', userId: 'u3' }))?.value).toBe('found');
+
+        // and the number and the string of the same digits were one key
+        await store.set(42, { value: 'number', tags: [], createdAt: new Date() });
+        await store.set('42', { value: 'string', tags: [], createdAt: new Date() });
+        expect((await store.get(42))?.value).toBe('number');
+    }, 30000);
+});
+
 describe('evaluation/04-infrastructure-subsystems 3.6 - the byte counter of a shared store', () => {
 
     /**

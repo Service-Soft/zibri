@@ -1,5 +1,6 @@
 import { SoftDeleteEntity } from './soft-delete-entity.model';
 import { SoftDeleteWhere } from './soft-delete-where.model';
+import { SoftDeletedRows } from './soft-deleted-rows.type';
 import { FindAllOptions } from '../../data-source/models/options/find-all-options.model';
 import { OmitStrict } from '../../types/omit-strict.type';
 
@@ -12,7 +13,7 @@ export type SoftDeleteFindAllOptions<T extends SoftDeleteEntity> = OmitStrict<Fi
      */
     where?: SoftDeleteWhere<T>,
     /**
-     * Whether or not soft deleted entities should be included.
+     * Which soft deleted entities are found. `exclude` when it is not given.
      */
-    withDeleted?: boolean
+    deleted?: SoftDeletedRows
 };

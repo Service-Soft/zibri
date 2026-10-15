@@ -1,5 +1,6 @@
 import { EncryptionDescriptor } from './encryption-descriptor';
 import { ModelRegistry } from './model.registry';
+import { StringValueUtilities } from './string-value.utilities';
 import { EncryptionServiceInterface, EncryptOptions } from '../../auth/encryption/encryption-service.interface';
 import { BaseDecryptOptions, BaseEncryptOptions, EncryptionBinding } from '../../auth/encryption/strategies/encryption-strategy.interface';
 import { AlsUtilities } from '../../context/als.utilities';
@@ -58,35 +59,33 @@ async function encryptEncryptionPropertiesRecursive<Data, EntityClass>(
     }
     visited.add(data);
 
-    for (const [key, encryptionOptions] of descriptor.keys) {
-        if (typeof (data as AnyObject)[key] !== 'string') {
-            continue;
-        }
+    for (const [key, strings] of descriptor.keys) {
+        const value: unknown = (data as AnyObject)[key];
+        const encrypted: unknown = await StringValueUtilities.replaceStrings(value, strings, async (text, encryptionOptions) => {
+            const resolved: ResolvedEncryptOptions<unknown, BaseEncryptOptions<unknown>>
+                = await resolveEncryptOptions(context, data, encryptionOptions);
+            if (!resolved.encrypt) {
+                return text;
+            }
 
-        // eslint-disable-next-line typescript/no-explicit-any
-        const resolved: ResolvedEncryptOptions<any, any> = await resolveEncryptOptions(context, data, encryptionOptions);
-        if (!resolved.encrypt) {
-            continue;
-        }
+            if (resolved.bindToRow && rowId == undefined) {
+                // every write that reaches here goes through a repository, and those assign the id before
+                // the hook runs. Getting here means something called the hook directly, and writing an
+                // unbound value silently would be a hole in the guarantee exactly where nobody looks
+                throw new InternalError(
+                    `"${key}" is encrypted and bound to its row, but the data being written has no id.`
+                );
+            }
+            const binding: EncryptionBinding = { rowId: resolved.bindToRow ? rowId : undefined };
 
-        if (resolved.bindToRow && rowId == undefined) {
-            // every write that reaches here goes through a repository, and those assign the id before
-            // the hook runs. Getting here means something called the hook directly, and writing an
-            // unbound value silently would be a hole in the guarantee exactly where nobody looks
-            throw new InternalError(
-                `"${String(key)}" is encrypted and bound to its row, but the data being written has no id.`
-            );
-        }
-        const binding: EncryptionBinding = { rowId: resolved.bindToRow ? rowId : undefined };
-
-        const encrypted: string = await encryptionService.encrypt(
-            (data as AnyObject)[key] as string,
-            {
+            return await encryptionService.encrypt(text, {
                 strategy: resolved.options?.strategy,
                 strategyOptions: { ...resolved.options?.strategyOptions, binding }
-            }
-        );
-        (data as AnyObject)[key] = encrypted;
+            });
+        });
+        if (encrypted !== value) {
+            (data as AnyObject)[key] = encrypted;
+        }
     }
 
     for (const nested of descriptor.nestedValues(data)) {
@@ -133,14 +132,16 @@ async function boundEncryptionPropertiesRecursive<Data, EntityClass>(
 
     const res: string[] = [];
 
-    for (const [key, encryptionOptions] of descriptor.keys) {
-        if (typeof (data as AnyObject)[key] !== 'string') {
-            continue;
-        }
-        // eslint-disable-next-line typescript/no-explicit-any
-        const resolved: ResolvedEncryptOptions<any, any> = await resolveEncryptOptions(context, data, encryptionOptions);
-        if (resolved.encrypt && resolved.bindToRow) {
-            res.push(`${prefix}${String(key)}`);
+    for (const [key, strings] of descriptor.keys) {
+        for (const described of StringValueUtilities.findStrings((data as AnyObject)[key], strings)) {
+            const resolved: ResolvedEncryptOptions<unknown, BaseEncryptOptions<unknown>>
+                = await resolveEncryptOptions(context, data, described.settings);
+            if (resolved.encrypt && resolved.bindToRow) {
+                // the property rather than each item: what the caller has to know is that writing this
+                // property to many rows cannot be one statement, which one bound string already decides
+                res.push(`${prefix}${key}`);
+                break;
+            }
         }
     }
 
@@ -188,9 +189,9 @@ export async function resolveEncryptOptions<
 >(
     context: HttpRequestContext | WebsocketRequestContext | undefined,
     data: Data,
-    encryptionOptions: ExcludeStrict<EncryptionPropertyValue<Data, TKey, TEncryptOptions, BaseDecryptOptions<TKey>>, false>
+    encryptionOptions: ExcludeStrict<EncryptionPropertyValue<unknown, TKey, TEncryptOptions, BaseDecryptOptions<TKey>>, false>
 ): Promise<ResolvedEncryptOptions<TKey, TEncryptOptions>> {
-    const options: true | EncryptAndDecryptOptions<Data, TKey, TEncryptOptions, BaseDecryptOptions<TKey>>
+    const options: true | EncryptAndDecryptOptions<unknown, TKey, TEncryptOptions, BaseDecryptOptions<TKey>>
         = typeof encryptionOptions === 'function'
             ? await encryptionOptions(data, context)
             : encryptionOptions;

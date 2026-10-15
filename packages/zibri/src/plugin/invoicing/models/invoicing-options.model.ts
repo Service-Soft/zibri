@@ -1,4 +1,3 @@
-import { CompanyInfo } from './company-info.model';
 import { PdfImageDefinition } from '../../../document/pdf.utilities';
 
 /**
@@ -15,17 +14,6 @@ export type InvoicingOptions = {
      * @default undefined
      */
     readonly images: Record<string, PdfImageDefinition> | undefined,
-    /**
-     * Available options:
-     *
-     * - A reference by name to an image defined in PdfMakeDocumentDefinition.images
-     * - A data URL
-     * - A remote URL via http:// or https://.
-     *
-     * Supported image formats: JPEG, PNG.
-     * @default undefined
-     */
-    readonly logo: string | undefined,
     /**
      * The label for the phone number on the invoice.
      * @default 'Phone'
@@ -137,11 +125,6 @@ export type InvoicingOptions = {
      */
     readonly itemTotalPriceLabel: string,
     /**
-     * The tax office to display in the footer.
-     * Can be omitted.
-     */
-    readonly taxOffice: string | undefined,
-    /**
      * The label for the bank details in the footer.
      * @default 'Bank details:'
      */
@@ -156,15 +139,6 @@ export type InvoicingOptions = {
      * @default 'BIC/SWIFT:'
      */
     readonly bicLabel: string,
-    /**
-     * The bank name to display in the footer.
-     * Can be omitted.
-     */
-    readonly bankName: string | undefined,
-    /**
-     * The information about the company sending out the invoice.
-     */
-    readonly companyInfo: CompanyInfo,
     /**
      * The number of digits used to generate the consecutive number.
      * @default 4

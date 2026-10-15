@@ -1,10 +1,11 @@
 import { isUserService } from './user-service.interface';
+import { Transaction } from '../../data-source/transaction/transaction.model';
 import { BaseUser } from '../models/base-user.model';
 
 /**
  * Interface for a User Repository.
  */
-export interface UserRepositoryInterface<RoleType extends string, UserType extends BaseUser<RoleType>, CredentialsType> {
+export interface UserRepositoryInterface<RoleType extends string, UserType extends BaseUser<RoleType>> {
     /**
      * Finds a by the provided id.
      */
@@ -14,9 +15,9 @@ export interface UserRepositoryInterface<RoleType extends string, UserType exten
      */
     findByEmail: (mail: UserType['email']) => Promise<UserType>,
     /**
-     * Resolves the credentials for the given user.
+     * Stores when a user was deactivated, or null to reactivate them.
      */
-    resolveCredentialsFor: (user: UserType) => Promise<CredentialsType>
+    updateDeactivatedAt: (id: UserType['id'], deactivatedAt: Date | null, transaction: Transaction | undefined) => Promise<void>
 }
 
 /**
@@ -24,13 +25,11 @@ export interface UserRepositoryInterface<RoleType extends string, UserType exten
  * @param value - The value to check.
  * @returns True if the value has all the keys of UserRepositoryInterface, false otherwise.
  */
-// eslint-disable-next-line typescript/no-explicit-any
-export function isUserRepository(value: unknown): value is UserRepositoryInterface<string, BaseUser<string>, any> {
-    // eslint-disable-next-line typescript/no-explicit-any
-    const keys: (keyof UserRepositoryInterface<string, BaseUser<string>, any>)[] = [
+export function isUserRepository(value: unknown): value is UserRepositoryInterface<string, BaseUser<string>> {
+    const keys: (keyof UserRepositoryInterface<string, BaseUser<string>>)[] = [
         'findByEmail',
         'findById',
-        'resolveCredentialsFor'
+        'updateDeactivatedAt'
     ];
 
     if (value == undefined || typeof value !== 'object') {

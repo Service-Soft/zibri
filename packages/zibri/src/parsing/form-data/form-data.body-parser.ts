@@ -2,13 +2,14 @@ import { WriteStream } from 'node:fs';
 import { Readable } from 'stream';
 import { pipeline } from 'stream/promises';
 
-import { Busboy, BusboyFileStream } from '@fastify/busboy';
+import type { BusboyFileStream, BusboyInstance } from '@fastify/busboy';
 
 import { FormDataBodyParserCleanupCronJob } from './form-data-body-parser-cleanup.cron-job';
 import { FormDataLimits } from './form-data-limits.model';
 import { FormData, FormDataValue } from './form-data.model';
 import { ZibriApplication } from '../../application/application';
 import { inject } from '../../di/inject.function';
+import { BadRequestError } from '../../error-handling/errors/bad-request.error';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { OnAppInit } from '../../global/on-app-init.interface';
 import { HttpRequest } from '../../http/http-request.model';
@@ -20,25 +21,20 @@ import { BodyParserInterface } from '../body-parser.interface';
 import { File } from './file.model';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
-import { Relation } from '../../entity/models/relation.enum';
 import { ContentTooLargeError } from '../../error-handling/errors/content-too-large.error';
 import { KnownHeader } from '../../http/known-header.enum';
 import { FileExtension, resolveFileExtension } from '../../http/mime-type.helpers';
 import { $ts } from '../../localization/translate.function';
 import { BodyShapeMetadata, FormDataBodyMetadata } from '../../routing/decorators/body-metadata.model';
+import { resolveMaxBodySize } from '../../routing/decorators/body.decorator';
 import { FsUtilities, FsPath } from '../../utilities/fs.utilities';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { BigNumber, NumberUtilities } from '../../utilities/number.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
+import { optionalPeer } from '../../utilities/optional-peer.function';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { BodyParser } from '../decorators/body-parser.decorator';
-import { parseArray } from '../functions/parse-array.function';
-import { parseBoolean } from '../functions/parse-boolean.function';
-import { parseDate } from '../functions/parse-date.function';
-import { parseNumber } from '../functions/parse-number.function';
-import { parseObject } from '../functions/parse-object.function';
-import { parseOneOf } from '../functions/parse-one-of.function';
-import { parseString } from '../functions/parse-string.function';
+import { parseFormField } from '../functions/parse-form-field.function';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 type ParsedForm = {
@@ -49,6 +45,15 @@ type ParsedForm = {
 };
 
 /**
+ * Whether a value of a form is the texts of a field sent more than once, rather than files.
+ * @param value - The value.
+ * @returns True for a list of texts.
+ */
+function isTextList(value: FormDataValue): value is string[] {
+    return Array.isArray(value) && value.every(item => typeof item === 'string');
+}
+
+/**
  * Body parser for form data. Only works with http requests.
  */
 @BodyParser()
@@ -56,11 +61,18 @@ export class FormDataBodyParser implements BodyParserInterface<MimeType.FORM_DAT
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly contentType: MimeType.FORM_DATA = MimeType.FORM_DATA;
 
+    // eslint-disable-next-line sonar/no-duplicate-string
+    private get busboy(): typeof import('@fastify/busboy') {
+        return optionalPeer<typeof import('@fastify/busboy')>('@fastify/busboy', 'Default FormData body parser of Zibri');
+    }
+
     // eslint-disable-next-line jsdoc/require-jsdoc
     onAppInit(app: ZibriApplication): void {
         if (!app.options.cronJobs.includes(FormDataBodyParserCleanupCronJob)) {
             app.options.cronJobs.push(FormDataBodyParserCleanupCronJob);
         }
+
+        optionalPeer('@fastify/busboy', 'Default FormData body parser of Zibri');
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -91,7 +103,7 @@ export class FormDataBodyParser implements BodyParserInterface<MimeType.FORM_DAT
             return body;
         }
         const contentLength: string | undefined = headers[KnownHeader.CONTENT_LENGTH];
-        if (contentLength && NumberUtilities.new(Number(contentLength)).isGreaterThan(metadata.maxSize)) {
+        if (contentLength && NumberUtilities.new(Number(contentLength)).isGreaterThan(resolveMaxBodySize(metadata))) {
             throw new ContentTooLargeError();
         }
 
@@ -187,59 +199,13 @@ export class FormDataBodyParser implements BodyParserInterface<MimeType.FORM_DAT
 
         const res: Partial<Record<keyof T, unknown>> = {};
         for (const [key, value] of multiPartMap) {
-            if (typeof value !== 'string') {
-                res[key] = value;
+            if (typeof value === 'string' || isTextList(value)) {
+                // own properties only: a field named `constructor` would otherwise read a member of
+                // every object as its property
+                res[key] = parseFormField(value, Object.hasOwn(properties, key) ? properties[key as string] : undefined);
                 continue;
             }
-
-            const propertyMetadata: PropertyMetadata | undefined = properties[key as string];
-            if (propertyMetadata == undefined) {
-                // a field the model does not declare. Every field the request carried is on the map,
-                // so this is anything a caller cared to add - kept as it arrived, which lets
-                // validation report it as an unknown key instead of reading a type off nothing
-                res[key] = value;
-                continue;
-            }
-            switch (propertyMetadata.type) {
-                case 'string': {
-                    res[key] = parseString(value);
-                    break;
-                }
-                case 'number': {
-                    res[key] = parseNumber(value, propertyMetadata.format);
-                    break;
-                }
-                case 'boolean': {
-                    res[key] = parseBoolean(value);
-                    break;
-                }
-                case 'object': {
-                    res[key] = parseObject(value, propertyMetadata.cls());
-                    break;
-                }
-                case 'array': {
-                    res[key] = parseArray(value, propertyMetadata.items);
-                    break;
-                }
-                case 'date': {
-                    res[key] = parseDate(value);
-                    break;
-                }
-                case 'oneOf': {
-                    res[key] = parseOneOf(value, propertyMetadata);
-                    break;
-                }
-                case Relation.HAS_ONE:
-                case Relation.BELONGS_TO_ONE:
-                case Relation.ONE_TO_MANY:
-                case Relation.MANY_TO_ONE:
-                case Relation.MANY_TO_MANY:
-                case 'file':
-                case 'unknown': {
-                    res[key] = value;
-                    break;
-                }
-            }
+            res[key] = value;
         }
         return res as T;
     }
@@ -279,8 +245,9 @@ export class FormDataBodyParser implements BodyParserInterface<MimeType.FORM_DAT
         propertyMetadata: PropertyMetadata
     ): void {
         const existingValue: FormDataValue | undefined = values.get(rawFile.fieldname as keyof T);
-        if (typeof existingValue === 'string') {
-            throw new InternalError('Your form-data contains files and strings for the same key.');
+        if (typeof existingValue === 'string' || isTextList(existingValue)) {
+            // a form anybody can send, so a 400 rather than a fault of the application
+            throw new BadRequestError($ts`The form has both text and files under "${rawFile.fieldname}".`);
         }
         const file: File = new File(rawFile);
         if (existingValue == undefined) {
@@ -303,7 +270,7 @@ export class FormDataBodyParser implements BodyParserInterface<MimeType.FORM_DAT
             return;
         }
         for (const key in request.fields) {
-            values.set(key as keyof T, (request.fields as Record<string, string>)[key]);
+            values.set(key as keyof T, request.fields[key]);
         }
     }
 
@@ -317,6 +284,7 @@ export class FormDataBodyParser implements BodyParserInterface<MimeType.FORM_DAT
             ?? headers[KnownHeader.CONTENT_TYPE.toLowerCase()];
 
         await FsUtilities.mkdir(tempFolder);
+        const maxSize: BigNumber = resolveMaxBodySize(metadata);
 
         // the application's limits, with whatever this body said for itself over the top. Resolved
         // here rather than in the decorator because a decorator runs at module load, long before
@@ -327,7 +295,7 @@ export class FormDataBodyParser implements BodyParserInterface<MimeType.FORM_DAT
         };
 
         return await new Promise<ParsedForm>((resolve, reject) => {
-            const bb: Busboy = Busboy({
+            const bb: BusboyInstance = new this.busboy.Busboy({
                 headers: { 'content-type': contentType ?? 'string' },
                 // a byte budget bounds the wrong thing on its own: every file part opens a write
                 // stream while it is being received, so a hundred thousand one byte files stay under
@@ -340,7 +308,7 @@ export class FormDataBodyParser implements BodyParserInterface<MimeType.FORM_DAT
                     // one megabyte by default and answers an oversized one by *truncating* it - the
                     // handler is then given a value that is not what was sent, with nothing raised.
                     // Set to the whole body it can never bite before the counter below refuses.
-                    fieldSize: metadata.maxSize.toNumber()
+                    fieldSize: maxSize.toNumber()
                 }
             });
 
@@ -393,7 +361,7 @@ export class FormDataBodyParser implements BodyParserInterface<MimeType.FORM_DAT
 
                 const bytes: number = Buffer.byteLength(val, 'utf8');
                 received = NumberUtilities.add(received, bytes);
-                if (received.isGreaterThan(metadata.maxSize)) {
+                if (received.isGreaterThan(maxSize)) {
                     abort(new ContentTooLargeError());
                     return;
                 }
@@ -426,7 +394,7 @@ export class FormDataBodyParser implements BodyParserInterface<MimeType.FORM_DAT
                     }
 
                     received = NumberUtilities.add(received, chunk.length);
-                    if (received.isGreaterThan(metadata.maxSize)) {
+                    if (received.isGreaterThan(maxSize)) {
                         writeStream.destroy();
                         abort(new ContentTooLargeError());
                         return;

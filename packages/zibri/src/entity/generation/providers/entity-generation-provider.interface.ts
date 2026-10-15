@@ -1,4 +1,5 @@
 import { OpenApiDefinition } from '../../../open-api/open-api.model';
+import { EntityTenant } from '../../models/entity-tenant.model';
 
 /**
  * A provider for automatic entity generation.
@@ -9,13 +10,21 @@ export interface EntityGenerationProvider {
      */
     readonly prefix: string,
     /**
-     * Whether or not the generated entities should be marked with @Entity.
+     * Whether the generated classes are marked with @Entity, and which tenant their rows belong to.
+     *
+     * `false` generates plain classes. `'shared'` marks them as entities every tenant shares, and
+     * `{ property: 'tenantId' }` as entities of one tenant each. That property is a uuid string: it is
+     * generated when the schema does not have it, and declared as a uuid when the schema has it as a string.
      */
-    readonly markAsEntities: boolean,
+    readonly markAsEntities: false | EntityTenant,
     /**
      * Whether or not to generate schemas from openapi paths.
      */
     readonly generateSchemasFromPaths: boolean,
+    /**
+     * Whether to throw or warn when the provider could not resolve the open api definition.
+     */
+    readonly onError: 'throw' | 'warn',
     /**
      * The method that actually resolves the open api spec that is then later on used to generate the entities.
      */

@@ -9,10 +9,18 @@ import { initDiContainer } from '../../di/init-di-container.function';
 import { OpenApiDefinition } from '../../open-api/open-api.model';
 import { toKebabCase } from '../../utilities/to-kebab-case.function';
 import { toPascalCase } from '../../utilities/to-pascal-case.function';
+import { EntityTenant } from '../models/entity-tenant.model';
 
 // small InlineProvider so tests are offline and deterministic
 class InlineProvider implements EntityGenerationProvider {
-    constructor(readonly prefix: string, private readonly spec: OpenApiDefinition, readonly generateSchemasFromPaths: boolean = true, readonly markAsEntities: boolean = true) {}
+
+    constructor(
+        readonly prefix: string,
+        private readonly spec: OpenApiDefinition,
+        readonly generateSchemasFromPaths: boolean = true,
+        readonly markAsEntities: false | EntityTenant = 'shared',
+        readonly onError: 'throw' | 'warn' = 'throw'
+    ) {}
     // eslint-disable-next-line typescript/require-await
     async resolveSpec(): Promise<OpenApiDefinition> {
         return this.spec;
@@ -44,7 +52,7 @@ describe('generateEntityFiles', () => {
     });
 
     it('PetStore', async () => {
-        const provider: OpenApiUrlProvider = new OpenApiUrlProvider('PetStore', 'https://petstore.swagger.io/v2/swagger.json');
+        const provider: OpenApiUrlProvider = new OpenApiUrlProvider({ prefix: 'PetStore', baseUrl: 'https://petstore.swagger.io/v2/swagger.json' });
         const { filesToGenerate } = await generateEntityFilesForProvider(provider, 'test');
         const indexLines: string[] = filesToGenerate.find(f => f.path.endsWith('index.ts'))?.lines ?? [];
 
@@ -479,6 +487,50 @@ describe('generateEntityFiles', () => {
         // index export present (kebab-case)
         const kebabPrefix: string = toKebabCase(provider.prefix);
         expect(indexLines.some(l => l.includes(`${kebabPrefix}.pet-response.model`))).toBe(true);
+    });
+
+    it('declares a tenant property the schema brings itself as a uuid, keeping whether it is required', async () => {
+        const spec: OpenApiDefinition = {
+            openapi: '3.1.0',
+            info: { title: 'own-tenant', version: '1.0' },
+            components: {
+                schemas: {
+                    Project: {
+                        type: 'object',
+                        properties: {
+                            workspaceId: { type: 'string' },
+                            name: { type: 'string' }
+                        },
+                        required: ['workspaceId', 'name']
+                    },
+                    Event: {
+                        type: 'object',
+                        properties: {
+                            workspaceId: { type: 'string' }
+                        }
+                    }
+                }
+            },
+            paths: {}
+        };
+
+        const provider: InlineProvider = new InlineProvider('OwnSvc', spec, true, { property: 'workspaceId' });
+        const { filesToGenerate } = await generateEntityFilesForProvider(provider, 'test');
+
+        const projectFile: FileToGenerate | undefined = findFile(filesToGenerate, 'OwnSvcProject');
+        assert(projectFile);
+        const projectContent: string = projectFile.lines.join('\n');
+        expectDecoratorAboveProperty(projectContent, /@Property\.string\({ format: 'uuid' }\)/, /'workspaceId'!: string;/);
+        expect(projectContent.match(/'workspaceId'/g)).toHaveLength(2);
+        expectDecoratorAboveProperty(projectContent, /@Property\.string\(\)/, /'name'!:/);
+
+        const eventFile: FileToGenerate | undefined = findFile(filesToGenerate, 'OwnSvcEvent');
+        assert(eventFile);
+        expectDecoratorAboveProperty(
+            eventFile.lines.join('\n'),
+            /@Property\.string\({ required: false, format: 'uuid' }\)/,
+            /'workspaceId'\?: string;/
+        );
     });
 
     function expectNoDecoratorAboveProperty(fileContent: string, propNameRegex: RegExp): void {

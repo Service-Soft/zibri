@@ -1,5 +1,6 @@
 import { EncryptionDescriptor } from './encryption-descriptor';
 import { ModelRegistry } from './model.registry';
+import { StringValueUtilities } from './string-value.utilities';
 import { EncryptionServiceInterface } from '../../auth/encryption/encryption-service.interface';
 import { EncryptionString } from '../../auth/encryption/encryption.utilities';
 import { BaseDecryptOptions, BaseEncryptOptions } from '../../auth/encryption/strategies/encryption-strategy.interface';
@@ -61,24 +62,24 @@ async function decryptEncryptionPropertiesRecursive<Data, EntityClass>(
     }
     visited.add(data);
 
-    for (const [key, encryptionOptions] of descriptor.keys) {
-        if (typeof (data as AnyObject)[key] !== 'string') {
-            continue;
+    for (const [key, strings] of descriptor.keys) {
+        const value: unknown = (data as AnyObject)[key];
+        const decrypted: unknown = await StringValueUtilities.replaceStrings(value, strings, async (text, encryptionOptions) => {
+            const options: boolean | AnyObject = await resolveDecryptOptions(context, data, encryptionOptions);
+            if (options === false) {
+                return text;
+            }
+            // the binding goes in whether or not the property asked to be bound: what a value was bound
+            // to is written into the value, so this is what it gets checked against rather than what
+            // decides it. A value that was moved has nothing here that matches
+            return await encryptionService.decrypt(
+                text as EncryptionString,
+                { ...options === true ? {} : options, binding: { rowId } }
+            );
+        });
+        if (decrypted !== value) {
+            (data as AnyObject)[key] = decrypted;
         }
-
-        const options: boolean | AnyObject = await resolveDecryptOptions(context, data, encryptionOptions);
-        if (options === false) {
-            continue;
-        }
-
-        // the binding goes in whether or not the property asked to be bound: what a value was bound
-        // to is written into the value, so this is what it gets checked against rather than what
-        // decides it. A value that was moved has nothing here that matches
-        const decrypted: string = await encryptionService.decrypt(
-            (data as AnyObject)[key] as EncryptionString,
-            { ...options === true ? {} : options, binding: { rowId } }
-        );
-        (data as AnyObject)[key] = decrypted;
     }
 
     for (const nested of descriptor.nestedValues(data)) {
@@ -95,11 +96,12 @@ async function resolveDecryptOptions<
 >(
     context: HttpRequestContext | WebsocketRequestContext | undefined,
     data: Data,
-    encryptionOptions: ExcludeStrict<EncryptionPropertyValue<Data, TKey, TEncryptOptions, TDecryptOptions>, false>
+    encryptionOptions: ExcludeStrict<EncryptionPropertyValue<unknown, TKey, TEncryptOptions, TDecryptOptions>, false>
 ): Promise<OmitStrict<TDecryptOptions, 'keyId' | 'key'> | boolean> {
-    const options: true | EncryptAndDecryptOptions<Data, TKey, TEncryptOptions, TDecryptOptions> = typeof encryptionOptions === 'function'
-        ? await encryptionOptions(data, context)
-        : encryptionOptions;
+    const options: true | EncryptAndDecryptOptions<unknown, TKey, TEncryptOptions, TDecryptOptions>
+        = typeof encryptionOptions === 'function'
+            ? await encryptionOptions(data, context)
+            : encryptionOptions;
 
     if (options === true) {
         return true;

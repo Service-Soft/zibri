@@ -9,6 +9,9 @@ The backup system in Zibri consists of multiple parts.
 | `BaseFsBackupTransport` | class | Backup transport that writes/reads backup data to/from the local file system |
 | `BaseS3BackupTransport` | class | Backup transport that stores backups in a bucket of an S3 compatible object storage |
 | `S3BackupTransportOptions` | interface | Where and how `BaseS3BackupTransport` stores backups |
+| `BaseSftpBackupTransport` | class | Backup transport that stores backups in a folder on a server reached over SFTP |
+| `SftpBackupTransportOptions` | interface | Where and how `BaseSftpBackupTransport` stores backups |
+| `SftpAuthentication` | type | How `BaseSftpBackupTransport` logs in: a password, or a private key |
 | `BackupServiceInterface` | interface | Service for creating and restoring backups |
 | `BackupEntity` | class | Entity representing a created backup |
 | `BackupResourceEntity` | class | Entity representing a resource's data within a backup |
@@ -46,13 +49,14 @@ class TestBackupTransport extends BaseFsBackupTransport {
 }
 
 @DataSource()
-@Backup({ transports: [TestBackupTransport] }) // Alternative for all registered transports: { transports: 'all' }
+@Backup({ transports: [TestBackupTransport], encrypt: true }) // Alternative for all registered transports: { transports: 'all' }
 class DbDataSource extends PostgresDataSource {
     options: OmitStrict<PostgresOptions, 'type' | 'entities'> = {
         host: 'localhost',
         username: 'postgres',
         password: 'password',
-        database: 'db'
+        database: 'db',
+        ssl: true
     };
     schemaManagement: SchemaManagement = 'synchronize';
     entities: Newable<BaseEntity>[] = [
@@ -70,6 +74,15 @@ If you want a resource to be backed up to all registered transports, you can sim
 A backup covers what its resource owns and a restore replaces exactly that, so the credentials the resource already runs with are usually enough to take one. If you need to back up more than that, you can set `rootUsername` and `rootPw` to run backups as a role that reaches further.
 
 The `FsBackupTransport` simply writes the backup data for this resource to the local file system, so it should only be used for illustration/testing purposes.
+
+### Encrypting backups
+`encrypt` says whether a resource's data is encrypted before it leaves the application. With `true`, every backup is encrypted with a key of its own, and that key is stored with the backup, encrypted with the encryption service's `masterEncrypt` (see [the master key](./encryption-and-hashing.md#the-master-key)). Neither this instance's disk nor any transport holds the data unencrypted.
+
+A restore needs the master key the backup was taken under. When you replace the master key, keep the old one in `oldMasterKeys` for as long as you keep backups taken under it. A backup whose master key is not listed is refused before anything is fetched, and the error names the key.
+
+Every backup records the keys a restore of it needs: `masterKeys` and `dataKeyIds`. A backup that holds the data source the data keys are stored in brings them back itself, and needs the master keys they were encrypted under, encrypted or not. One that does not needs its data keys to still exist. [`resolveRetiredKeyUsage()`](./encryption-and-hashing.md#telling-when-a-rotation-is-done) counts each backup towards the keys it needs.
+
+An encrypted backup that was changed where it is stored is refused before any of it is applied, even when the record beside it was changed to match.
 
 ### Storing backups in an S3 compatible bucket
 `BaseS3BackupTransport` stores backups in a bucket of any service that speaks the S3 protocol — AWS S3, MinIO, Cloudflare R2, Backblaze B2, Hetzner, IONOS, Wasabi and others:
@@ -102,6 +115,44 @@ The bucket has to exist. Each resource is stored as the object `<prefix>/<backup
 A backup is uploaded in parts of `partSize`, `16mb` by default. A backup is at most 10,000 parts, so the default allows backups of up to 156gb. For larger ones, raise `partSize`, up to `5gb`. Each part is held in memory while it is uploaded.
 
 A backup that fails while it is uploaded is aborted, which removes the parts uploaded so far. When the abort itself fails, the transport logs a warning naming the upload, and its parts stay stored until you abort it or a lifecycle rule of the bucket removes it.
+
+### Storing backups on an SFTP server
+`BaseSftpBackupTransport` stores backups in a folder on any server you can reach over SFTP — a storage box, a NAS, or a machine of your own. It needs the `ssh2` package:
+
+```bash
+npm i ssh2
+```
+
+```ts
+// src/backup/sftp.backup-transport.ts
+import { BaseSftpBackupTransport, SftpBackupTransportOptions } from 'zibri';
+
+import { secrets } from './secrets';
+
+@BackupTransport()
+export class SftpBackupTransport extends BaseSftpBackupTransport {
+    override readonly name: string = 'sftp-backup-transport';
+    protected override readonly options: SftpBackupTransportOptions = {
+        host: 'backups.example.com',
+        username: 'my-app',
+        authentication: { privateKey: secrets.sftpPrivateKey },
+        hostKeyFingerprint: 'SHA256:uNiVztksCsDhcc0u9e8BujQXVUpKZIDTMczCvj3tD2s',
+        path: '/backups/production'
+    };
+}
+```
+
+Each resource is stored as the file `<path>/<backup name>/<resource name>`, and the record of the backup as `<path>/<backup name>/metadata.json` beside it. The folder is created when it does not exist.
+
+`authentication` is either `{ password }` or `{ privateKey, passphrase? }`, with the key in OpenSSH format as it is written in its file.
+
+`hostKeyFingerprint` is the fingerprint of the key the server identifies itself with, and a server presenting any other key is refused. Your provider usually publishes it; otherwise, read it from a machine you trust:
+
+```bash
+ssh-keyscan -t ed25519 backups.example.com | ssh-keygen -lf -
+```
+
+When the server presents a different key, the error names the key it presented, so you can compare the two.
 
 ### Creating and restoring backups
 Now we can use the backup service to create a new backup:
@@ -137,6 +188,11 @@ export async function deleteBackup(): Promise<void> {
 
 A backup whose resources name a transport the application does not register is refused, and stays as it is.
 
+### Backups the database does not know about yet
+When the application starts, it records every backup its transports hold that the database does not know about yet — after a restore of the database, for example. A transport that cannot be reached then is skipped with a warning naming it, so a backup server that is down does not keep your application from starting. What only that transport holds is recorded by the next sync that reaches it.
+
+To sync at any other time, call `syncBackupEntities()`. It fails when a transport cannot be reached.
+
 ### What a restore checks first
 
 Creating a backup records how many bytes each resource turned out to be and what they sum to, and
@@ -149,10 +205,21 @@ That record is written beside the data as well as into the database, because the
 thing being restored. A resource that records nothing is refused too: anything that finished recorded
 what it wrote, so a resource without that record describes a backup that started and stopped.
 
+### A restore of several resources
+
+A restore fetches and checks the data of every resource before it applies any of them. It then takes a
+snapshot of what each resource holds right now, and applies the resources one after another.
+
+When one of them fails to apply, the restore puts every resource it already touched back from its
+snapshot, the failing one included, and fails with that resource's error. When a resource cannot be put
+back either, the error names it and the file its snapshot is kept in, in `BACKUP_TEMP_FOLDER`. The daily
+job removes that file like any other leftover, 12 hours after it was written.
+
 ### Where a backup passes through
 
 A backup is written to this instance's own disk on its way out and fetched to it on the way back, so
-plan for room for the largest archive being written or restored at a time. `ZIBRI_DI_TOKENS.BACKUP_TEMP_FOLDER`
+plan for room for the largest backup being written at a time, and for twice the largest being restored:
+a restore holds the archives of all its resources and a snapshot of each at once. `ZIBRI_DI_TOKENS.BACKUP_TEMP_FOLDER`
 says where, and defaults to `.zibri/backups` beside the application. Each file is removed as soon as
 the backup or restore it belongs to is done, and a daily job clears anything a killed process left
 behind.
@@ -182,8 +249,8 @@ one can be read to the framework's own version would make every archive unreadab
 framework breaks something that has nothing to do with backups. `BACKUP_FORMAT_VERSION` changes when
 the shape of a backup changes and at no other time, which is usually never.
 
-What the shape covers is what the framework writes: the record stored beside the data, and which fields
-a restore reads out of it. It says nothing about what a resource's own `createBackupData` produces — a
+What the shape covers is what the framework writes: the record stored beside the data, which fields
+a restore reads out of it, and how encrypted data is sealed. It says nothing about what a resource's own `createBackupData` produces — a
 Postgres dump is read by Postgres, and which versions of it can is Postgres's contract rather than this
 one. It also says nothing about the layout a transport stores under, which belongs to the transport:
 one that changes where it puts things keeps reading what it already wrote, and the framework never

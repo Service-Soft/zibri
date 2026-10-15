@@ -28,7 +28,7 @@ import { SchemaManagement } from '../models/schema-management.model';
 import { Repository } from '../repository/repository';
 import { Transaction } from '../transaction/transaction.model';
 
-@Entity({ tableName: 'item' })
+@Entity({ tenant: 'shared', tableName: 'item' })
 class LegacyItem {
     @Property.string({ primary: true })
     id!: string;
@@ -40,14 +40,15 @@ class LegacyDbDataSource extends PostgresDataSource {
         host: 'localhost',
         username: 'postgres',
         password: 'password',
-        database: 'db'
+        database: 'db',
+        ssl: false
     };
     entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, LegacyItem];
     // stands in for the database as it was before the migration, so it is created from the classes
     schemaManagement: SchemaManagement = 'synchronize';
 }
 
-@Entity({ tableName: 'item' })
+@Entity({ tenant: 'shared', tableName: 'item' })
 class Item {
     @Property.string({ primary: true })
     id!: string;
@@ -62,7 +63,8 @@ class DbDataSource extends PostgresDataSource {
         host: 'localhost',
         username: 'postgres',
         password: 'password',
-        database: 'db'
+        database: 'db',
+        ssl: false
     };
     entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, Item];
     override migrations: Newable<Migration>[] = [AddTestValueMigration];
@@ -82,7 +84,7 @@ class AddTestValueMigration extends Migration {
     }
 
     override async up(transaction: Transaction): Promise<void> {
-        await this.dataSource.addPropertyToEntity(Item, 'value', transaction);
+        await this.dataSource.addPropertyToEntity({ entity: Item, property: { name: 'value', type: 'string' }, transaction });
         const existingItems: Item[] = await this.itemRepository.findAll({ transaction });
         await Promise.all(existingItems.map(t => this.itemRepository.updateById(t.id, { value: '42' }, { transaction })));
     }

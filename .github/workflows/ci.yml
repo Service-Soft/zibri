@@ -1,7 +1,7 @@
 name: CI
 on:
     push:
-        branches-ignore: [release]
+        branches-ignore: [release, 'release-*']
 
 permissions:
     contents: read
@@ -33,6 +33,9 @@ jobs:
             - run: npm run build:prod -w zibri
             - run: npm run build -w zibri-cli
             - run: npm run lint
+            # the tests included: the builds leave them out, and jest only transpiles them, so a type
+            # error in a test - or a type test's @ts-expect-error that no longer fires - is caught here or nowhere
+            - run: npm run typecheck
     test:
         needs: node-versions
         strategy:
@@ -92,10 +95,11 @@ jobs:
             # the fast suite only, because the cli's heavy ones build and run container images - which
             # is the same reason the container-backed suites above cannot join this job
             - run: npm run test:normal -w zibri-cli
-    # what the framework installs on a consumer's behalf, which is most of what it installs.
-    # Production only: a high advisory in a build tool is worth knowing and is not worth failing
-    # every branch over, while one in the tree a consumer receives is the framework's own.
-    audit:
+    # what the framework costs in time, set against the baseline in the repository and kept as an
+    # artifact. Reported rather than gated: a hosted runner shares its machine, so a threshold that
+    # fails a build is either loose enough to catch nothing or tight enough to fail at random. What a
+    # call costs in round trips is counted by the test job and does fail it.
+    benchmark:
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
@@ -103,4 +107,27 @@ jobs:
               with:
                 node-version: '24'
             - run: npm ci
-            - run: npm audit --omit=dev --audit-level=high
+            - run: npm run build -w zibri-tsx
+            - run: npm run build:prod -w zibri
+            - run: npm run test:benchmark -w zibri
+            - uses: actions/upload-artifact@v4
+              with:
+                name: benchmark-report
+                path: packages/zibri/src/__testing__/file-output/benchmark-report.json
+    # what the framework installs on a consumer's behalf, which is most of what it installs: its
+    # licenses against .github/license-policy.json, and its high and critical advisories. Only that
+    # tree: a high advisory in a build tool is worth knowing and is not worth failing every branch
+    # over, while one in the tree a consumer receives is the framework's own. Walked off the lockfile
+    # rather than `npm audit --omit=dev`, which went by the repository's own dev flag and so skipped
+    # every optional peer only the framework's tests install - re2 and ssh2 among them.
+    audit:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                node-version: '24'
+            # installed for the manifests rather than to run anything: the lockfile records a license
+            # only when it is a string, and the deprecated `licenses` list is read from package.json
+            - run: npm ci --ignore-scripts
+            - run: node .github/scripts/check-consumer-tree.mjs

@@ -1,14 +1,18 @@
 /* eslint-disable unicorn/no-null */
-import { describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { createInMemoryDataSource } from 'zibri-testing';
 
 import { dropImpossibleConditions } from './drop-impossible-conditions.function';
+import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property, PropertyMetadata } from '../../entity/decorators/property.decorator';
+import { BadRequestError } from '../../error-handling/errors/bad-request.error';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { WhereFilter } from '../models/where/where-filter.model';
 
-@Entity({ allowOrphan: true })
+@Entity({ tenant: 'shared', allowOrphan: true })
 class Document extends BaseEntity {
     @Property.string({ format: 'uuid', required: false })
     ownerId: string | undefined | null;
@@ -20,7 +24,7 @@ class Document extends BaseEntity {
     revisions!: Revision[];
 }
 
-@Entity({ allowOrphan: true })
+@Entity({ tenant: 'shared', allowOrphan: true })
 class Revision extends BaseEntity {
     @Property.manyToOne({ target: () => Document, joinColumn: 'documentId', inverseSide: 'revisions' })
     document!: Document;
@@ -39,6 +43,17 @@ function drop(...branches: WhereFilter<Document>[]): WhereFilter<Document>[] {
 }
 
 describe('dropImpossibleConditions', () => {
+    let server: StartedTestServer | undefined;
+
+    // a running application, in process: a refusal is a translated message, and translating needs
+    // one to translate for
+    beforeAll(async () => {
+        server = await startTestServer({ dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities })] });
+    }, 15000);
+
+    afterAll(async () => {
+        await server?.shutdown();
+    });
 
     describe('a value the property cannot hold', () => {
         it('drops the branch asking for it', () => {
@@ -93,14 +108,19 @@ describe('dropImpossibleConditions', () => {
     });
 
     describe('negations', () => {
-        it('leaves `not` alone, because every row satisfies it', () => {
-            // narrowing this to "matches everything" would widen the filter, and a filter that got
-            // wider is how a caller sees rows they asked not to see
-            expect(drop({ ownerId: { not: 'garbage' } })).toEqual([{ ownerId: { not: 'garbage' } }]);
+        it('refuses `not` naming a value no row holds', () => {
+            // every row differs from it, so narrowing would widen the filter to every row - how a
+            // caller sees rows they asked not to see - and leaving it hands the store a value it
+            // refuses, which a typed column answers with a failed query
+            expect(() => drop({ ownerId: { not: 'garbage' } })).toThrow(BadRequestError);
         });
 
-        it('leaves `notOneOf` alone for the same reason', () => {
-            expect(drop({ ownerId: { notOneOf: ['garbage'] } })).toEqual([{ ownerId: { notOneOf: ['garbage'] } }]);
+        it('refuses `notOneOf` for the same reason, even beside a value that is possible', () => {
+            expect(() => drop({ ownerId: { notOneOf: [a, 'garbage'] } })).toThrow(BadRequestError);
+        });
+
+        it('leaves a negation of a possible value alone', () => {
+            expect(drop({ ownerId: { not: a, notOneOf: [b, null] } })).toEqual([{ ownerId: { not: a, notOneOf: [b, null] } }]);
         });
     });
 
@@ -158,6 +178,33 @@ describe('dropImpossibleConditions', () => {
             const where: WhereFilter<Document> = { revisions: { length: 2 } };
 
             expect(drop(where)).toEqual([where]);
+        });
+    });
+
+    describe('a filter reaching through a relation to one entity', () => {
+        const revisionProperties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(Revision);
+        const ghost: Document = Object.assign(new Document(), { id: 'garbage', title: 'ghost' });
+        const real: Document = Object.assign(new Document(), { id: a, title: 'real' });
+
+        function dropRevisions(...branches: WhereFilter<Revision>[]): WhereFilter<Revision>[] {
+            return dropImpossibleConditions(branches, revisionProperties);
+        }
+
+        it('narrows a filter on the related entity by that entity\'s properties', () => {
+            // the join reaches the target's uuid column, which a typed store refuses the value for
+            expect(dropRevisions({ document: { where: { id: 'garbage' } } })).toEqual([]);
+            expect(dropRevisions({ document: { where: [{ id: 'garbage' }, { ownerId: b }] } }))
+                .toEqual([{ document: { where: [{ ownerId: b }] } }]);
+        });
+
+        it('judges the entities it compares against by their id', () => {
+            expect(dropRevisions({ document: { is: ghost } })).toEqual([]);
+            expect(dropRevisions({ document: { oneOf: [ghost, real] } })).toEqual([{ document: { oneOf: [real] } }]);
+        });
+
+        it('refuses a negation of an entity no row can be', () => {
+            expect(() => dropRevisions({ document: { not: ghost } })).toThrow(BadRequestError);
+            expect(() => dropRevisions({ document: { where: { ownerId: { not: 'garbage' } } } })).toThrow(/document\.ownerId/);
         });
     });
 

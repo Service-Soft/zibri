@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 import { AuthServiceInterface } from './auth-service.interface';
+import { LinkedIdentity } from './authenticators/linked-identity.model';
 import { Auth } from './decorators/auth.decorator';
 import { HasRoleMetadata } from './models/has-role-metadata.model';
 import { IsLoggedInMetadata } from './models/is-logged-in-metadata.model';
@@ -11,6 +12,7 @@ import { AuthStrategies } from './strategies/auth-strategies.model';
 import { JwtUser } from '../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../__testing__/mocks/entities/roles.enum';
 import { createTestDataSource, defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { DefaultTestServerMembershipRepository } from '../__testing__/test-server/membership-repository';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { DefaultTestServerUserRepository } from '../__testing__/test-server/user-repository';
 import { HttpRequestContext } from '../context/request/http-request.context';
@@ -24,9 +26,24 @@ import { InvalidDecoratorCombinationError } from '../error-handling/errors/inval
 import { LoggerInterface } from '../logging/logger.interface';
 import { Controller } from '../routing/decorators/controller.decorator';
 import { Get } from '../routing/decorators/get.decorator';
+import { type TenantServiceInterface } from '../tenancy/tenant-service.interface';
+import { UUIDUtilities } from '../utilities/uuid.utilities';
+import { FederatedIdentity } from './authenticators/federated/federated-identity.model';
+import { FederatedRegistration } from './authenticators/federated/federated-registration.model';
+import { OAuthClientAuthentication } from './authenticators/oauth/oauth-client-authentication.model';
+import { BaseGoogleAuthenticator } from './authenticators/oidc/providers/base-google.authenticator';
+import { PasswordCredentials, PasswordCredentialsCreateData } from './authenticators/password/password-credentials.model';
+import { PasswordAuthenticator } from './authenticators/password/password.authenticator';
+import { CookieAuthStrategy } from './strategies/cookie/cookie-auth.auth-strategy';
 import { JwtAuthData } from './strategies/jwt/jwt-auth-data.model';
-import { JwtCredentials, JwtCredentialsCreateData } from './strategies/jwt/jwt-credentials.model';
 import { JwtAuthStrategy } from './strategies/jwt/jwt.auth-strategy';
+
+// a provider, for the types of linking an identity only: nothing here signs in through it
+class TypedAuthenticator extends BaseGoogleAuthenticator<Roles, JwtUser> {
+    readonly clientId: string = 'client';
+
+    readonly clientAuthentication: OAuthClientAuthentication = { method: 'client_secret_basic', clientSecret: 'secret' };
+}
 
 // ----- dummy controller with auth decorators -----
 @Controller('/dummy')
@@ -43,7 +60,7 @@ class DummyController {
     adminOnly(): void {}
 
     @Get('/2fa-required')
-    @Auth.require2fa([])
+    @Auth.require2fa({ allowedMethods: [] })
     require2fa(): void {}
 
     @Get('/logged-out-only')
@@ -95,12 +112,12 @@ class RouteConflictController {
     hasRoleAndHasRoleSkip(): void {}
 
     @Get('/require-2fa-and-skip')
-    @Auth.require2fa([])
+    @Auth.require2fa({ allowedMethods: [] })
     @Auth.skip()
     require2faAndSkip(): void {}
 
     @Get('/require-2fa-and-require-2fa-skip')
-    @Auth.require2fa([])
+    @Auth.require2fa({ allowedMethods: [] })
     @Auth.require2fa.skip()
     require2faAndRequire2faSkip(): void {}
 }
@@ -114,7 +131,7 @@ class RouteConflictController {
 @Auth.isNotLoggedIn.skip()
 @Auth.hasRole([Roles.ADMIN], [JwtAuthStrategy])
 @Auth.hasRole.skip()
-@Auth.require2fa([])
+@Auth.require2fa({ allowedMethods: [] })
 @Auth.require2fa.skip()
 @Controller('/controller-conflict', { allowOrphan: true })
 class ControllerLevelConflictController {
@@ -129,7 +146,7 @@ class ControllerLevelConflictController {
 @Auth.isLoggedIn([JwtAuthStrategy])
 @Auth.isNotLoggedIn([JwtAuthStrategy])
 @Auth.hasRole([Roles.ADMIN], [JwtAuthStrategy])
-@Auth.require2fa([])
+@Auth.require2fa({ allowedMethods: [] })
 @Auth.skip()
 @Controller('/controller-skip-conflict', { allowOrphan: true })
 class ControllerSkipConflictController {
@@ -157,10 +174,30 @@ function buildContext(accessToken?: string, params?: Record<string, string>): Ht
     } as unknown as HttpRequestContext;
 }
 
+/**
+ * The tenant service of the running application.
+ * @returns The service.
+ */
+function tenantService(): TenantServiceInterface {
+    return inject(ZIBRI_DI_TOKENS.TENANT_SERVICE);
+}
+
+/**
+ * Makes a user a member of a new tenant.
+ * @param userId - The user.
+ * @param roles - The roles they hold in it.
+ * @returns The id of the tenant.
+ */
+async function createMembership(userId: string, roles: Roles[]): Promise<string> {
+    const tenantId: string = UUIDUtilities.generate();
+    await tenantService().runAs(tenantId, async () => await inject(DefaultTestServerMembershipRepository).create({ tenantId, userId, roles }));
+    return tenantId;
+}
+
 let server: StartedTestServer;
 let authService: AuthServiceInterface;
 let userRepo: DefaultTestServerUserRepository;
-let credentialsRepository: Repository<JwtCredentials, JwtCredentialsCreateData>;
+let credentialsRepository: Repository<PasswordCredentials, PasswordCredentialsCreateData>;
 const strategies: AuthStrategies = [JwtAuthStrategy];
 
 const adminEmail: string = 'auth-test@example.com';
@@ -185,7 +222,7 @@ describe('AuthService contract', () => {
         });
         authService = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
         userRepo = inject(DefaultTestServerUserRepository);
-        credentialsRepository = inject(repositoryTokenFor(JwtCredentials));
+        credentialsRepository = inject(repositoryTokenFor(PasswordCredentials));
     }, 15000);
 
     afterAll(async () => {
@@ -200,20 +237,24 @@ describe('AuthService contract', () => {
             email: adminEmail,
             roles: [Roles.USER, Roles.ADMIN]
         });
-        await credentialsRepository.create({ email: adminEmail, password: adminPassword, userId: testAdmin.id });
+        await credentialsRepository.create({ password: adminPassword, userId: testAdmin.id });
         testUser = await userRepo.create({
             email: userEmail,
             roles: [Roles.USER]
         });
-        await credentialsRepository.create({ email: userEmail, password: userPassword, userId: testUser.id });
+        await credentialsRepository.create({ password: userPassword, userId: testUser.id });
 
         adminAuthData = await authService.login(
+            PasswordAuthenticator<Roles>,
             JwtAuthStrategy<Roles>,
-            { email: adminEmail, password: adminPassword }
+            { email: adminEmail, password: adminPassword },
+            undefined
         );
         userAuthData = await authService.login(
+            PasswordAuthenticator<Roles>,
             JwtAuthStrategy<Roles>,
-            { email: userEmail, password: userPassword }
+            { email: userEmail, password: userPassword },
+            undefined
         );
     });
 
@@ -288,18 +329,47 @@ describe('AuthService contract', () => {
         });
 
         it('hasRole returns true if role present', async () => {
+            const tenantId: string = await createMembership(testAdmin.id, [Roles.ADMIN]);
             const ctx: HttpRequestContext = buildContext(adminAuthData.accessToken.value);
-            expect(await authService.hasRole(ctx, strategies, [Roles.ADMIN])).toBe(true);
+            expect(await tenantService().runAs(tenantId, async () => await authService.hasRole(ctx, strategies, [Roles.ADMIN]))).toBe(true);
         });
 
         it('hasRole returns false if role missing', async () => {
+            const tenantId: string = await createMembership(testAdmin.id, [Roles.ADMIN]);
             const ctx: HttpRequestContext = buildContext(adminAuthData.accessToken.value);
-            expect(await authService.hasRole(ctx, strategies, ['nonexistent'])).toBe(false);
+            expect(await tenantService().runAs(tenantId, async () => await authService.hasRole(ctx, strategies, ['nonexistent']))).toBe(false);
         });
 
         it('hasRole returns false without token', async () => {
+            const tenantId: string = await createMembership(testAdmin.id, [Roles.USER]);
             const ctx: HttpRequestContext = buildContext();
-            expect(await authService.hasRole(ctx, strategies, [Roles.USER])).toBe(false);
+            expect(await tenantService().runAs(tenantId, async () => await authService.hasRole(ctx, strategies, [Roles.USER]))).toBe(false);
+        });
+
+        it('hasRole reads the roles of the membership in the active tenant, never the user\'s own', async () => {
+            // the admin holds ADMIN of their own, and only USER in this tenant
+            const tenantId: string = await createMembership(testAdmin.id, [Roles.USER]);
+            const ctx: HttpRequestContext = buildContext(adminAuthData.accessToken.value);
+            expect(await tenantService().runAs(tenantId, async () => await authService.hasRole(ctx, strategies, [Roles.ADMIN]))).toBe(false);
+            // and in no tenant at all there is no membership to hold a role
+            expect(await authService.hasRole(buildContext(adminAuthData.accessToken.value), strategies, [Roles.USER])).toBe(false);
+        });
+
+        it('hasRole refuses in a tenant the user is no member of', async () => {
+            await createMembership(testAdmin.id, [Roles.ADMIN]);
+            const ctx: HttpRequestContext = buildContext(adminAuthData.accessToken.value);
+            const otherTenantId: string = UUIDUtilities.generate();
+            expect(await tenantService().runAs(otherTenantId, async () => await authService.hasRole(ctx, strategies, [Roles.ADMIN]))).toBe(false);
+        });
+
+        it('hasPlatformRole reads the user\'s own roles, whichever tenant is active', async () => {
+            const tenantId: string = await createMembership(testUser.id, [Roles.ADMIN]);
+            expect(await authService.hasPlatformRole(buildContext(adminAuthData.accessToken.value), strategies, [Roles.ADMIN])).toBe(true);
+            // a membership role is no role of the user's own
+            const userCtx: HttpRequestContext = buildContext(userAuthData.accessToken.value);
+            expect(await tenantService().runAs(tenantId, async () => await authService.hasPlatformRole(userCtx, strategies, [Roles.ADMIN])))
+                .toBe(false);
+            expect(await authService.hasPlatformRole(buildContext(), strategies, [Roles.USER])).toBe(false);
         });
     });
 
@@ -453,16 +523,20 @@ describe('AuthService contract', () => {
         });
 
         it('throws when missing role for adminOnly', async () => {
+            const tenantId: string = await createMembership(testUser.id, [Roles.USER]);
             const ctx: HttpRequestContext = buildContext(userAuthData.accessToken.value);
             await expect(
-                authService.checkAccess(DummyController, 'adminOnly', ctx)
+                tenantService().runAs(tenantId, async () => await authService.checkAccess(DummyController, 'adminOnly', ctx))
             ).rejects.toThrow();
         });
 
         it('succeeds when role present for adminOnly', async () => {
+            // a role checked by @Auth.hasRole is one the membership holds, so the admin acts inside a
+            // tenant they are an admin of
+            const tenantId: string = await createMembership(testAdmin.id, [Roles.ADMIN]);
             const ctx: HttpRequestContext = buildContext(adminAuthData.accessToken.value);
             await expect(
-                authService.checkAccess(DummyController, 'adminOnly', ctx)
+                tenantService().runAs(tenantId, async () => await authService.checkAccess(DummyController, 'adminOnly', ctx))
             ).resolves.toBeUndefined();
         });
 
@@ -584,10 +658,7 @@ describe('AuthService contract', () => {
 
         it('requestPasswordReset creates a reset token', async () => {
             const transaction: Transaction = await userRepo.dataSource.startTransaction();
-            await authService.requestPasswordReset(
-                JwtAuthStrategy,
-                { user: testAdmin, transaction }
-            );
+            await authService.requestPasswordReset({ user: testAdmin, transaction });
             await transaction.commit();
 
             const tokens: PasswordResetToken[] = await resetTokenRepo.findAll({ where: { userId: testAdmin.id } });
@@ -599,19 +670,13 @@ describe('AuthService contract', () => {
         it('confirmPasswordReset with valid token updates password', async () => {
             // 1. Request reset → token created
             const transaction: Transaction = await userRepo.dataSource.startTransaction();
-            await authService.requestPasswordReset(
-                JwtAuthStrategy,
-                { user: testAdmin, transaction }
-            );
+            await authService.requestPasswordReset({ user: testAdmin, transaction });
             await transaction.commit();
             const resetValue: string = await resetTokenFromEmail();
 
             // 2. Confirm reset with new password
             const transaction2: Transaction = await userRepo.dataSource.startTransaction();
-            await authService.confirmPasswordReset(
-                JwtAuthStrategy,
-                { resetToken: resetValue, newPassword: 'newPass456', transaction: transaction2 }
-            );
+            await authService.confirmPasswordReset({ resetToken: resetValue, newPassword: 'newPass456', transaction: transaction2 });
             await transaction2.commit();
 
             // 3. Verify the token is consumed (deleted / no longer valid)
@@ -620,10 +685,111 @@ describe('AuthService contract', () => {
 
             // 4. Verify login with new password works
             const authData: JwtAuthData<Roles> = await authService.login(
+                PasswordAuthenticator<Roles>,
                 JwtAuthStrategy<Roles>,
-                { email: adminEmail, password: 'newPass456' }
+                { email: adminEmail, password: 'newPass456' },
+                undefined
             );
             expect(authData.accessToken).toBeTruthy();
+        });
+    });
+
+    describe('the types of a login', () => {
+        it('takes the credentials from the authenticator and answers with the auth data of the strategy', async () => {
+            const login: () => Promise<JwtAuthData<Roles>> = async () => await authService.login(
+                PasswordAuthenticator<Roles>,
+                JwtAuthStrategy<Roles>,
+                { email: userEmail, password: userPassword },
+                undefined
+            );
+            expect((await login()).userId).toBe(testUser.id);
+
+            const misuses: (() => Promise<unknown>)[] = [
+                // credentials the authenticator does not take
+                async () => await authService.login(
+                    PasswordAuthenticator<Roles>,
+                    JwtAuthStrategy<Roles>,
+                    // @ts-expect-error a password authenticator takes an email and a password
+                    { refreshToken: 'not-credentials' },
+                    undefined
+                ),
+                async () => {
+                    // @ts-expect-error the cookie strategy answers with cookie auth data, not tokens
+                    const data: JwtAuthData<Roles> = await authService.login(
+                        PasswordAuthenticator<Roles>,
+                        CookieAuthStrategy<Roles>,
+                        { email: userEmail, password: userPassword },
+                        undefined
+                    );
+                    return data;
+                },
+                async () => await authService.login(
+                    // @ts-expect-error a strategy is not an authenticator
+                    JwtAuthStrategy<Roles>,
+                    JwtAuthStrategy<Roles>,
+                    { email: userEmail, password: userPassword },
+                    undefined
+                )
+            ];
+            // the misuses are there for the compiler, never called
+            expect(misuses).toHaveLength(3);
+        });
+    });
+
+    describe('the types of linking an identity', () => {
+        it('takes the ticket from the authenticator, and answers with its registration and its identities', () => {
+            const uses: (() => Promise<unknown>)[] = [
+                async () => {
+                    const registration: FederatedRegistration = await authService.resolveRegistration(TypedAuthenticator, { ticket: 'ticket' }, undefined);
+                    return registration;
+                },
+                async () => {
+                    const linked: LinkedIdentity<FederatedIdentity>[] = await authService.findIdentities(testUser.id, undefined, [TypedAuthenticator]);
+                    return linked;
+                },
+                async () => {
+                    const linked: LinkedIdentity[] = await authService.findIdentities(testUser.id, undefined);
+                    // @ts-expect-error without the authenticators asked, an identity is only known to have an id
+                    const subject: unknown = linked[0]?.identity.subject;
+                    return subject;
+                },
+                async () => await authService.findIdentities(
+                    testUser.id,
+                    undefined,
+                    // @ts-expect-error a password is no identity somewhere else that could be linked
+                    [PasswordAuthenticator<Roles>]
+                ),
+                async () => await authService.resolveRegistration(
+                    TypedAuthenticator,
+                    // @ts-expect-error a registration continues with the ticket, not with the code of a login
+                    { code: 'code' },
+                    undefined
+                ),
+                async () => await authService.linkIdentity(
+                    TypedAuthenticator,
+                    // @ts-expect-error the ticket is the proof of who signed in, a user id alone is not
+                    testUser.id,
+                    testUser.id,
+                    undefined
+                ),
+                async () => await authService.startConnection(
+                    // @ts-expect-error a password is no identity somewhere else that could be linked
+                    PasswordAuthenticator<Roles>,
+                    { redirectTo: 'https://app.example.com/account', signIn: true }
+                ),
+                async () => await authService.startConnection(
+                    TypedAuthenticator,
+                    // @ts-expect-error whether the identity signs in has two right answers, so it is always said
+                    { redirectTo: 'https://app.example.com/account', scopes: ['calendar.read'] }
+                ),
+                async () => {
+                    // @ts-expect-error the identities of a provider are what is linked there, not users
+                    const users: JwtUser[] = await authService.findIdentities(testUser.id, undefined, [TypedAuthenticator]);
+                    return users;
+                }
+            ];
+            // there for the compiler, never called
+            expect(uses).toHaveLength(9);
         });
     });
 });

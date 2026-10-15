@@ -1,20 +1,12 @@
-import { $ts, inject, MailingList, MailingListServiceInterface, MailingListSubscriber, MjColumn, MjSection, MjText, TsxComponent, ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from 'zibri';
+import { $ts, MailingListTemplateData, MjColumn, MjSection, MjText, TsxComponent } from 'zibri';
 
 import { EmailLink } from './email-link';
 
-type Props = {
-    list: MailingList,
-    subscriber: MailingListSubscriber
-};
-
-export const BaseMailingListFooter: TsxComponent<Props> = ({
+export const BaseMailingListFooter: TsxComponent<MailingListTemplateData> = ({
     list,
-    subscriber
+    unsubscribeLink,
+    managePreferencesLink
 }) => {
-    const mailingListService: MailingListServiceInterface = inject(ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS.MAILING_LIST_SERVICE);
-    const unsubscribeLink: string = mailingListService.getUnsubscribeLink(list.id, subscriber.id);
-    const managePreferencesLink: string = mailingListService.getManagePreferencesLink(subscriber.id);
-
     return <>
         <MjSection paddingTop='40px' paddingBottom='10px'>
             <MjColumn>

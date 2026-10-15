@@ -81,9 +81,10 @@ type FactoryDiProvider<T> = BaseDiProvider<T> & {
      * A factory function that resolves the value to register for the token.
      *
      * Whatever it returns is the value, a promise included - use `useAsyncFactory` for a value that
-     * has to be awaited before it exists.
+     * has to be awaited before it exists. It is called with no arguments: reach for what it needs
+     * with `inject()`.
      */
-    useFactory: (...deps: unknown[]) => NoInfer<T>,
+    useFactory: () => NoInfer<T>,
     /**
      * How long the result lives, and therefore when the factory runs again.
      *

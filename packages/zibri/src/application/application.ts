@@ -6,6 +6,7 @@ import express, { ErrorRequestHandler, RequestHandler } from 'express';
 import { HstsOptions, ZibriApplicationOptions, ZibriApplicationSecurityOptions } from './application-options.model';
 import { OtpTwoFactorMethod } from '../auth/2fa/methods/otp/otp.two-factor-method';
 import { isTwoFactorMethod } from '../auth/2fa/methods/two-factor-method.interface';
+import { PasswordAuthenticator } from '../auth/authenticators/password/password.authenticator';
 import { isAuthStrategy } from '../auth/strategies/auth-strategy.interface';
 import { JwtAuthStrategy } from '../auth/strategies/jwt/jwt.auth-strategy';
 import { CronJob } from '../cron/cron-job.model';
@@ -31,6 +32,7 @@ import { implementsBeforeAppInit } from '../global/before-app-init.interface';
 import { BeforeAppShutdown, BeforeAppShutdownError, implementsBeforeAppShutdown } from '../global/before-app-shutdown.interface';
 import { declaresLifecycleHook } from '../global/declares-lifecycle-hook.function';
 import { GlobalRegistry } from '../global/global-registry';
+import { LifecyclePhase } from '../global/lifecycle-phase.enum';
 import { implementsOnAppInit } from '../global/on-app-init.interface';
 import { implementsOnAppShutdown, OnAppShutdown, OnAppShutdownError } from '../global/on-app-shutdown.interface';
 import { implementsOnAppStart } from '../global/on-app-start.interface';
@@ -38,12 +40,14 @@ import { HandlebarUtilities } from '../handlebars/handlebar.utilities';
 import { compressionMiddleware } from '../http/compression.middleware';
 import { cookieMiddleware } from '../http/cookie.middleware';
 import { corsMiddleware, defaultCorsOptions } from '../http/cors.middleware';
+import { crossOriginCookieMiddleware } from '../http/cross-origin-cookie.middleware';
 import { HttpServerTimeouts } from '../http/http-server-timeouts.model';
 import { KnownHeader } from '../http/known-header.enum';
 import { MiddlewarePhase } from '../http/middleware-phase.enum';
 import { traceContextMiddleware } from '../http/trace-context.middleware';
 import { LoggerInterface } from '../logging/logger.interface';
 import { FormDataBodyParser } from '../parsing/form-data/form-data.body-parser';
+import { FormUrlEncodedBodyParser } from '../parsing/form-url-encoded/form-url-encoded.body-parser';
 import { JsonBodyParser } from '../parsing/json/json.body-parser';
 import { StreamBodyParser } from '../parsing/stream/stream.body-parser';
 import { XmlBodyParser } from '../parsing/xml/xml.body-parser';
@@ -195,6 +199,12 @@ export class ZibriApplication {
 
             next();
         }, MiddlewarePhase.SECURITY);
+
+        // for every route rather than inside the cookie strategy, where the csrf token is checked:
+        // that check only runs on a route resolving the session, and a cookie acts with the user's
+        // authority on any route that reads it. Last in the phase, so its refusal carries the
+        // headers above and belongs to the request's trace
+        this.use(crossOriginCookieMiddleware(this.options.security.cors), MiddlewarePhase.SECURITY);
 
         for (const signal of SHUTDOWN_SIGNALS) {
             const handler: () => void = () => void this.shutdown(signal);
@@ -371,9 +381,7 @@ export class ZibriApplication {
         // reason to be built, and a value nothing has asked for yet has nothing to say about the
         // application starting
         const injectables: unknown[] = getAllInstantiatedValues();
-        for (const element of injectables.filter(i => implementsOnAppStart(i))) {
-            await element.onAppStart(this);
-        }
+        await this.runLifecyclePhase(LifecyclePhase.ON_APP_START, injectables, implementsOnAppStart, async i => await i.onAppStart(this));
 
         this.use((req, _, next) => next(new UnmatchedRouteError(req.originalUrl)), MiddlewarePhase.AFTER_ROUTING);
         this.mountMiddleware();
@@ -655,33 +663,85 @@ export class ZibriApplication {
             return 0;
         });
 
+        const reached: Set<unknown> = new Set();
         for (const token of sortedTokens) {
             // the first pass that touches every token, and the only one that can wait: a
             // `useAsyncFactory` is awaited here, so every later sweep - and every request - finds
             // its value already built and has nothing left to wait for
             const injectable: unknown = await DiContainer.getInstance().injectAsync(token);
+            reached.add(injectable);
             if (implementsBeforeAppInit(injectable)) {
                 await injectable.beforeAppInit(this);
             }
         }
+        await this.runLifecyclePhase(
+            LifecyclePhase.BEFORE_APP_INIT,
+            [],
+            implementsBeforeAppInit,
+            async i => await i.beforeAppInit(this),
+            reached
+        );
     }
 
     private async onAppInit(injectables: unknown[]): Promise<void> {
-        for (const element of injectables.filter(i => implementsOnAppInit(i))) {
-            await element.onAppInit(this);
-        }
+        await this.runLifecyclePhase(LifecyclePhase.ON_APP_INIT, injectables, implementsOnAppInit, async i => await i.onAppInit(this));
     }
 
     private async afterAppInit(injectables: unknown[]): Promise<void> {
-        for (const element of injectables.filter(i => implementsAfterAppInit(i))) {
-            await element.afterAppInit(this);
-        }
+        await this.runLifecyclePhase(
+            LifecyclePhase.AFTER_APP_INIT,
+            injectables,
+            implementsAfterAppInit,
+            async i => await i.afterAppInit(this)
+        );
     }
 
     private async afterAppStart(injectables: unknown[]): Promise<void> {
-        for (const element of injectables.filter(i => implementsAfterAppStart(i))) {
-            await element.afterAppStart(this);
+        await this.runLifecyclePhase(
+            LifecyclePhase.AFTER_APP_START,
+            injectables,
+            implementsAfterAppStart,
+            async i => await i.afterAppStart(this)
+        );
+    }
+
+    /**
+     * Runs one phase's hook on the given values, then on every value first built while it ran, and
+     * marks the phase as finished.
+     *
+     * The list is what the phase can name before it starts, which is not everything that takes part
+     * in it: a class registered on first use joins the container only when something reaches for it,
+     * and a constructor or a hook of this very phase may be what does. Such a class has not missed
+     * the phase yet, so it is run here rather than refused - what the container refuses is a class
+     * reached once a phase it declares has finished, which is what marking it finished says.
+     * @param phase - The phase being run.
+     * @param values - The values it names up front, in the order they run.
+     * @param declares - Whether a value declares the phase's hook.
+     * @param run - Runs the hook on one value.
+     * @param reached - The values the phase has already been run on.
+     */
+    private async runLifecyclePhase<H>(
+        phase: LifecyclePhase,
+        values: unknown[],
+        declares: (value: unknown) => value is H,
+        run: (value: H) => Promise<void>,
+        reached: Set<unknown> = new Set()
+    ): Promise<void> {
+        let pending: unknown[] = values;
+        while (pending.length) {
+            for (const value of pending) {
+                if (reached.has(value)) {
+                    continue;
+                }
+                reached.add(value);
+                if (declares(value)) {
+                    await run(value);
+                }
+            }
+            // again after every round, because a hook run in it may be what built the next one
+            pending = getAllInstantiatedValues().filter(v => !reached.has(v) && declares(v));
         }
+        GlobalRegistry.markLifecyclePhaseAsFinished(phase);
     }
 
     private async afterAppShutdown(injectables: unknown[], signal: ShutdownSignal | undefined): Promise<void> {
@@ -890,6 +950,7 @@ export class ZibriApplication {
         const res: FullZibriApplicationOptions = {
             dataSources: [],
             authStrategies: [],
+            authenticators: [],
             twoFactorMethods: [],
             bodyParsers: [],
             providers: [],
@@ -899,6 +960,7 @@ export class ZibriApplication {
             // after the spread rather than among the defaults above, because an option that is
             // present and undefined takes the default away again
             additionalLifecycleServices: this.providedOptions.additionalLifecycleServices ?? [],
+            twoFactorFailureLimit: this.providedOptions.twoFactorFailureLimit ?? false,
             security: {
                 headers: {
                     [KnownHeader.STRICT_TRANSPORT_SECURITY]: typeof hsts === 'boolean'
@@ -914,6 +976,7 @@ export class ZibriApplication {
         };
         for (const plugin of this.providedOptions.plugins ?? []) {
             res.authStrategies = [...plugin.authStrategies, ...res.authStrategies];
+            res.authenticators = [...plugin.authenticators, ...res.authenticators];
             res.bodyParsers = [...plugin.bodyParsers, ...res.bodyParsers];
             res.controllers = [...plugin.controllers, ...res.controllers];
             res.cronJobs = [...plugin.cronJobs, ...res.cronJobs];
@@ -923,11 +986,14 @@ export class ZibriApplication {
         if (!res.authStrategies.length) {
             res.authStrategies.push(JwtAuthStrategy);
         }
+        if (!res.authenticators.length) {
+            res.authenticators.push(PasswordAuthenticator);
+        }
         if (!res.twoFactorMethods.length) {
             res.twoFactorMethods.push(OtpTwoFactorMethod);
         }
         if (!res.bodyParsers.length) {
-            res.bodyParsers.push(JsonBodyParser, XmlBodyParser, FormDataBodyParser, StreamBodyParser);
+            res.bodyParsers.push(JsonBodyParser, XmlBodyParser, FormDataBodyParser, FormUrlEncodedBodyParser, StreamBodyParser);
         }
 
         return res;
@@ -938,6 +1004,12 @@ export class ZibriApplication {
             this.logger.info('No auth strategies provided, defaults to:');
             for (const strategy of this.options.authStrategies) {
                 this.logger.info(`  - ${strategy.name}`);
+            }
+        }
+        if (!this.providedOptions.authenticators) {
+            this.logger.info('No authenticators provided, defaults to:');
+            for (const authenticator of this.options.authenticators) {
+                this.logger.info(`  - ${authenticator.name}`);
             }
         }
         if (!this.providedOptions.twoFactorMethods) {
@@ -954,13 +1026,18 @@ export class ZibriApplication {
         }
     }
 
+    // logged and survived, for as long as the application runs - decided, not overlooked (06 §C4).
+    // The framework's own fire-and-forget work catches its own failures, so what reaches here is a
+    // promise application code started and never awaited, and one of those is not worth every
+    // request in flight. A failed boot is not decided here: the generated entry point catches
+    // start() and exits 1.
     private readonly rejectionHandler: (reason: unknown) => void = (reason: unknown) => {
         this.logger.error(new InternalError('Unhandled promise rejection', { cause: reason }));
     };
 
-    // logged and survived, unlike the two below it. What reaches here is one connection the server
-    // could not accept, and the ones already open are unaffected - ending the process over it would
-    // turn a moment of pressure into an outage.
+    // logged and survived, unlike an uncaught exception. What reaches here is one connection the
+    // server could not accept, and the ones already open are unaffected - ending the process over it
+    // would turn a moment of pressure into an outage.
     private readonly serverErrorHandler: (error: Error) => void = (error: Error) => {
         this.logger.error(new InternalError('The http server emitted an error', { cause: error }));
     };

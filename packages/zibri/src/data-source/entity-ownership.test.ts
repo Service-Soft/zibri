@@ -17,7 +17,7 @@ import { Newable } from '../types/newable.type';
 /**
  * Lives in both data sources on purpose, eg. Postgres owns it and valkey caches it.
  */
-@Entity({ allowOrphan: true, allowDuplicate: true })
+@Entity({ tenant: 'shared', allowOrphan: true, allowDuplicate: true })
 class SharedSession extends BaseEntity {
     @Property.string()
     token!: string;
@@ -26,7 +26,7 @@ class SharedSession extends BaseEntity {
 /**
  * Only ever part of the postgres data source.
  */
-@Entity({ allowOrphan: true })
+@Entity({ tenant: 'shared', allowOrphan: true })
 class PostgresOnlyItem extends BaseEntity {
     @Property.string()
     value!: string;
@@ -35,7 +35,7 @@ class PostgresOnlyItem extends BaseEntity {
 /**
  * Ends up in two data sources without allowing it, which an app must not start with.
  */
-@Entity({ allowOrphan: true })
+@Entity({ tenant: 'shared', allowOrphan: true })
 class AccidentallySharedItem extends BaseEntity {
     @Property.string()
     value!: string;
@@ -56,7 +56,7 @@ describe('entity ownership', () => {
         server = await startTestServer({
             dataSources: [postgresDataSourceClass, valKeyDataSourceClass]
         });
-    }, 15000);
+    }, 30000);
 
     afterAll(async () => {
         await server.shutdown();

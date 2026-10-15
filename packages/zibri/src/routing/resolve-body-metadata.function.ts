@@ -1,30 +1,25 @@
 import { createAnyOfShapesMetadata } from '../entity/decorators/property.decorator';
-import { fileSizeToBytes } from '../entity/models/file-property-metadata.model';
+import { FileSize, fileSizeToBytes } from '../entity/models/file-property-metadata.model';
 import { ObjectPropertyMetadata } from '../entity/models/object-property-metadata.model';
 import { InternalError } from '../error-handling/internal-error.model';
 import { MimeType } from '../http/mime-type.enum';
 import { ExcludeStrict } from '../types/exclude-strict.type';
-import { Newable } from '../types/newable.type';
-import { OmitStrict } from '../types/omit-strict.type';
+import { isNewable, Newable } from '../types/newable.type';
 import { Ms } from '../utilities/ms';
-import { BodyMetadata, BodyShapeMetadata, FormDataBodyMetadataInput, JsonBodyMetadata, JsonBodyMetadataInput, JsonBodyShapeMetadataInput, StreamBodyMetadataInput, XmlBodyMetadata, XmlBodyMetadataInput } from './decorators/body-metadata.model';
-import { resolveMaxBodySize } from './decorators/body.decorator';
+import { BodyMetadata, BodyShapeMetadata, FormDataBodyMetadataInput, FormUrlEncodedBodyMetadataInput, JsonBodyMetadata, JsonBodyMetadataInput, JsonBodyShapeMetadataInput, StreamBodyMetadataInput, XmlBodyMetadata, XmlBodyMetadataInput } from './decorators/body-metadata.model';
 
 /**
- *
+ * What a body may weigh, besides its files, when the declaration does not say.
  */
+const DEFAULT_BASE_MAX_SIZE: FileSize = '100kb';
+
 // eslint-disable-next-line jsdoc/require-jsdoc
-type BaseBodyDeclaration = { modelClass: Newable<unknown> } | { shapes: JsonBodyShapeMetadataInput[] };
+type BaseBodyDeclaration = { modelClass: Newable<unknown> | (() => Newable<unknown>) } | { shapes: JsonBodyShapeMetadataInput[] };
 
 /**
- *
+ * A json body, declared by a model or several shapes.
  */
-type JsonBodyDeclaration = BaseBodyDeclaration & OmitStrict<JsonBodyMetadataInput, 'type'> & {
-    /**
-     *
-     */
-    type?: MimeType.JSON
-};
+type JsonBodyDeclaration = BaseBodyDeclaration & JsonBodyMetadataInput;
 
 /**
  * An xml body, declared by a model or several shapes.
@@ -32,12 +27,17 @@ type JsonBodyDeclaration = BaseBodyDeclaration & OmitStrict<JsonBodyMetadataInpu
 type XmlBodyDeclaration = BaseBodyDeclaration & XmlBodyMetadataInput;
 
 /**
- *
+ * A form data body, declared by a model or several shapes.
  */
 type FormDataBodyDeclaration = BaseBodyDeclaration & FormDataBodyMetadataInput;
 
 /**
- *
+ * A url encoded form body, declared by a model or several shapes.
+ */
+type FormUrlEncodedBodyDeclaration = BaseBodyDeclaration & FormUrlEncodedBodyMetadataInput;
+
+/**
+ * A stream body, declared by a model or several shapes.
  */
 type StreamBodyDeclaration = StreamBodyMetadataInput;
 
@@ -47,7 +47,11 @@ type StreamBodyDeclaration = StreamBodyMetadataInput;
  * Looser than each of those inputs on purpose: the http client names the kind of body as a type
  * parameter, which none of the stricter inputs can be told apart by.
  */
-export type BodyDeclaration = JsonBodyDeclaration | XmlBodyDeclaration | FormDataBodyDeclaration | StreamBodyDeclaration;
+export type BodyDeclaration = JsonBodyDeclaration
+    | XmlBodyDeclaration
+    | FormDataBodyDeclaration
+    | FormUrlEncodedBodyDeclaration
+    | StreamBodyDeclaration;
 
 /**
  * A body declared as text that describes a structure: json or xml.
@@ -76,6 +80,8 @@ export function resolveBodyMetadata(input: BodyDeclaration, index: number): Body
 
     switch (input.type) {
         case MimeType.JSON:
+        case MimeType.JSON_LD:
+        case MimeType.JSON_SCIM:
         case MimeType.XML: {
             return resolveStructuredBodyMetadata(input, index);
         }
@@ -86,10 +92,21 @@ export function resolveBodyMetadata(input: BodyDeclaration, index: number): Body
                 shape,
                 required: input.required ?? true,
                 description: input.description,
-                maxSize: resolveMaxBodySize(shape, input.baseMaxSize),
+                baseMaxSize: fileSizeToBytes(input.baseMaxSize ?? DEFAULT_BASE_MAX_SIZE),
                 type: MimeType.FORM_DATA,
                 cleanupAfterMs: input.cleanupAfterMs ?? Ms.DAY,
                 limits: input.limits
+            };
+        }
+        case MimeType.FORM_URL_ENCODED: {
+            const shape: BodyShapeMetadata = resolveBodyShape(input);
+            return {
+                type: MimeType.FORM_URL_ENCODED,
+                index,
+                shape,
+                required: input.required ?? true,
+                description: input.description,
+                baseMaxSize: fileSizeToBytes(input.maxSize ?? DEFAULT_BASE_MAX_SIZE)
             };
         }
         case MimeType.OCTET_STREAM: {
@@ -123,7 +140,7 @@ export function resolveStructuredBodyMetadata(
         shape,
         required: input.required ?? true,
         description: input.description,
-        maxSize: resolveMaxBodySize(shape, input.maxSize)
+        baseMaxSize: fileSizeToBytes(input.maxSize ?? DEFAULT_BASE_MAX_SIZE)
     };
 }
 
@@ -131,7 +148,7 @@ export function resolveStructuredBodyMetadata(
  * The one shape a body declaration describes.
  * @param input - What the caller stated about the body.
  * @returns The shape.
- * @throws When a form data body is declared as something other than a class, or several classes.
+ * @throws When a form body is declared as something other than a class, or several classes.
  */
 function resolveBodyShape(input: ExcludeStrict<BodyDeclaration, StreamBodyDeclaration>): BodyShapeMetadata {
     // json by default
@@ -139,6 +156,8 @@ function resolveBodyShape(input: ExcludeStrict<BodyDeclaration, StreamBodyDeclar
 
     switch (input.type) {
         case MimeType.JSON:
+        case MimeType.JSON_LD:
+        case MimeType.JSON_SCIM:
         case MimeType.XML: {
             if ('shapes' in input) {
                 return createAnyOfShapesMetadata(input.shapes, 'body');
@@ -146,7 +165,7 @@ function resolveBodyShape(input: ExcludeStrict<BodyDeclaration, StreamBodyDeclar
 
             const model: ObjectPropertyMetadata = {
                 type: 'object',
-                cls: () => input.modelClass,
+                cls: toClassResolver(input.modelClass),
                 allowAdditionalProperties: input.allowAdditionalProperties ?? false,
                 required: true,
                 description: undefined,
@@ -166,12 +185,14 @@ function resolveBodyShape(input: ExcludeStrict<BodyDeclaration, StreamBodyDeclar
                 excludeFromChangeSets: false
             };
         }
-        case MimeType.FORM_DATA: {
+        case MimeType.FORM_DATA:
+        case MimeType.FORM_URL_ENCODED: {
             if ('shapes' in input) {
-                if (input.type === MimeType.FORM_DATA && input.shapes.some(shape => shape.type !== 'object')) {
+                if (input.shapes.some(shape => shape.type !== 'object')) {
+                    const kind: string = input.type === MimeType.FORM_DATA ? 'form data' : 'url encoded form';
                     throw new InternalError([
-                        'body: Each shape of a form data body has to be a class.',
-                        'A form is made of named fields and files, which only a class describes.'
+                        `body: Each shape of a ${kind} body has to be a class.`,
+                        'A form is made of named fields, which only a class describes.'
                     ]);
                 }
                 return createAnyOfShapesMetadata(input.shapes, 'body');
@@ -179,7 +200,7 @@ function resolveBodyShape(input: ExcludeStrict<BodyDeclaration, StreamBodyDeclar
 
             const model: ObjectPropertyMetadata = {
                 type: 'object',
-                cls: () => input.modelClass,
+                cls: toClassResolver(input.modelClass),
                 allowAdditionalProperties: input.allowAdditionalProperties ?? false,
                 required: true,
                 description: undefined,
@@ -189,4 +210,13 @@ function resolveBodyShape(input: ExcludeStrict<BodyDeclaration, StreamBodyDeclar
             return model;
         }
     }
+}
+
+/**
+ * The model of a body as property metadata reads it: a function answering the class.
+ * @param modelClass - The class, or a function answering it.
+ * @returns The function.
+ */
+function toClassResolver(modelClass: Newable<unknown> | (() => Newable<unknown>)): () => Newable<unknown> {
+    return isNewable(modelClass) ? () => modelClass : modelClass;
 }

@@ -8,8 +8,14 @@ import { Property } from '../../entity/decorators/property.decorator';
 /**
  * Definition of a Email.
  */
-@Entity({ defaultOrder: { createdAt: 'ASC' } })
+@Entity({ allowOrphan: true, defaultOrder: { createdAt: 'ASC' } })
 export class Email extends BaseEntity {
+    /**
+     * The tenant the mail was queued in, or null for one queued outside every tenant.
+     */
+    @Property.string({ format: 'uuid', required: false })
+    tenantId?: string | null;
+
     /**
      * The createdAt date. Is set to now by default.
      */

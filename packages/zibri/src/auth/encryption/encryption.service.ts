@@ -3,17 +3,24 @@ import { type EncryptionMasterOptions, EncryptionMasterKey } from './encryption-
 import { EncryptionRotationCronJob } from './encryption-rotation.cron-job';
 import { type DeleteEncryptionKeyOptions, EncryptionServiceInterface, EncryptOptions } from './encryption-service.interface';
 import { EncryptionContent, type EncryptionString, EncryptionUtilities } from './encryption.utilities';
+import { KeysInUse } from './keys-in-use.model';
+import { MasterKeyReference } from './master-key-reference.model';
+import { resolveEncryptedEntities } from './resolve-encrypted-entities.function';
+import { RetiredKeyUsage, RetiredMasterUsage } from './retired-key-usage.model';
 import { EncryptionStrategyEntity, type EncryptionStrategyEntityCreateData, EncryptionStrategyStatus } from './strategies/encryption-strategy-entity.model';
 import { BaseDecryptOptions, BaseEncryptOptions, EncryptionStrategyInterface } from './strategies/encryption-strategy.interface';
 import { ZibriApplication } from '../../application/application';
+import { BackupEntity } from '../../backup/backup-entity.model';
 import { CacheDelete } from '../../caching/decorators/cache-delete.decorator';
 import { CacheWrite } from '../../caching/decorators/cache-write.decorator';
 import { Cached } from '../../caching/decorators/cached.decorator';
+import { AlsUtilities } from '../../context/als.utilities';
+import { DataSourceInterface } from '../../data-source/data-sources/data-source.interface';
 import { type BaseRepositoryOptions } from '../../data-source/models/options/base-repository-options.model';
 import { Where } from '../../data-source/models/where/where-filter.model';
 import { Repository } from '../../data-source/repository/repository';
 import { Transaction } from '../../data-source/transaction/transaction.model';
-import { InjectRepository } from '../../di/decorators/inject-repository.decorator';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../di/decorators/inject.decorator';
 import { Injectable } from '../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
@@ -21,14 +28,22 @@ import { NoProviderError } from '../../di/errors/no-provider.error';
 import { inject } from '../../di/inject.function';
 import { register } from '../../di/register.function';
 import { AnyObject } from '../../entity/any-object.model';
+import { BaseEntity } from '../../entity/base-entity.model';
 import { NotFoundError } from '../../error-handling/errors/not-found.error';
 import { InternalError } from '../../error-handling/internal-error.model';
+import { findEncryptedValues, StoredEncryptedValue } from '../../global/model-registry/find-encrypted-values.function';
 import { OnAppInit } from '../../global/on-app-init.interface';
 import { $ts } from '../../localization/translate.function';
 import { type DeepPartial } from '../../types/deep-partial.type';
 import { type Newable } from '../../types/newable.type';
 import { type OmitStrict } from '../../types/omit-strict.type';
 import { PromiseUtilities } from '../../utilities/promise.utilities';
+import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function';
+
+/**
+ * How many rows are read at a time while counting what is still encrypted under a retired key.
+ */
+const REPORT_PAGE_SIZE: number = 200;
 
 /**
  * An error to throw during encryption service initialization.
@@ -97,13 +112,21 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
 
     private readonly strategies: EncryptionStrategyInterface<unknown>[] = [];
     private readonly strategyEntities: EncryptionStrategyEntity[] = [];
+    private readonly dataSourceClasses: Newable<DataSourceInterface>[] = [];
+    private loading: Promise<void> | undefined;
     private readonly options: EncryptionMasterOptions<unknown>;
 
+    // read when used rather than injected, so that an application without the entities is told which
+    // ones to declare by onAppInit, instead of failing on a repository token while this is built
+    private get strategyRepository(): Repository<EncryptionStrategyEntity, EncryptionStrategyEntityCreateData> {
+        return inject(repositoryTokenFor(EncryptionStrategyEntity));
+    }
+
+    private get keyRepository(): Repository<EncryptionKey, EncryptionKeyCreateData> {
+        return inject(repositoryTokenFor(EncryptionKey));
+    }
+
     constructor(
-        @InjectRepository(EncryptionStrategyEntity)
-        private readonly strategyRepository: Repository<EncryptionStrategyEntity, EncryptionStrategyEntityCreateData>,
-        @InjectRepository(EncryptionKey)
-        private readonly keyRepository: Repository<EncryptionKey, EncryptionKeyCreateData>,
         @Inject(ZIBRI_DI_TOKENS.ENCRYPTION_STRATEGIES)
         private readonly strategyClasses: Newable<EncryptionStrategyInterface<unknown>>[],
         @Inject(ZIBRI_DI_TOKENS.ENCRYPTION_MASTER_OPTIONS)
@@ -117,6 +140,9 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async onAppInit(app: ZibriApplication): Promise<void> {
+        // at every boot that uses this implementation, since its lifecycle hooks make every boot build
+        // it. A declared entity whose table is missing refuses the boot as well, on the reads below
+        validateEntitiesRegistered(EncryptionService.name, app, EncryptionStrategyEntity, EncryptionKey);
         if (!this.strategyClasses.length) {
             throw new InitEncryptionServiceError('Needs to provide at least one encryption strategy.');
         }
@@ -125,16 +151,8 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         if (!app.options.cronJobs.includes(EncryptionRotationCronJob)) {
             app.options.cronJobs.push(EncryptionRotationCronJob);
         }
-        for (const strategy of this.strategyClasses) {
-            register({ token: strategy, useClass: strategy });
-            this.strategies.push(inject(strategy));
-        }
-        // with their keys, because everything that reads `strategyEntities` afterwards treats `keys`
-        // as an array it can search and push to. A strategy row that already existed comes back with
-        // the relation unloaded otherwise, and the first boot hides it: the table is empty then, so
-        // every strategy is one this process just created and still holds the keys it was given
-        const strategies: EncryptionStrategyEntity[] = await this.strategyRepository.findAll({ relations: ['keys'] });
-        this.strategyEntities.push(...strategies);
+        this.dataSourceClasses.push(...app.options.dataSources);
+        await this.loadStrategies();
         this.validateNoDuplicateEncryptionStrategy();
         this.validateNoMissingEncryptionStrategy();
         this.validateStrategyNamesAndVersions();
@@ -148,11 +166,67 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         await this.reEncryptKeys(keys);
     }
 
+    /**
+     * Loads the strategies and their rows, once, by whichever comes first: the first value encrypted
+     * or decrypted, or initializing the application.
+     *
+     * Not left to onAppInit alone, because migrations run before it and may write encrypted values.
+     * A load that fails is tried again by the next call, so a migration running before the strategy
+     * tables exist does not keep the application from starting once they do.
+     */
+    private async loadStrategies(): Promise<void> {
+        this.loading ??= this.readStrategies();
+        try {
+            await this.loading;
+        }
+        catch (error) {
+            this.loading = undefined;
+            throw error;
+        }
+    }
+
+    /**
+     * Instantiates the configured strategies and reads the rows recorded for them.
+     */
+    private async readStrategies(): Promise<void> {
+        // with their keys, because everything that reads `strategyEntities` afterwards treats `keys`
+        // as an array it can search and push to. A strategy row that already existed comes back with
+        // the relation unloaded otherwise, and the first boot hides it: the table is empty then, so
+        // every strategy is one this process just created and still holds the keys it was given
+        const entities: EncryptionStrategyEntity[] = await this.strategyRepository.findAll({ relations: ['keys'] });
+        for (const strategy of this.strategyClasses) {
+            register({ token: strategy, useClass: strategy });
+            this.strategies.push(inject(strategy));
+        }
+        this.strategyEntities.push(...entities);
+    }
+
+    /**
+     * Refuses a strategy that says it cannot be used while a migration runs, when one is running.
+     * @param strategy - The strategy about to be used.
+     * @throws When a migration is running and the strategy is not usable in one.
+     */
+    private validateUsableNow(
+        strategy: Pick<EncryptionStrategyInterface<unknown>, 'name' | 'version' | 'usableInMigrations'>
+    ): void {
+        const migration: string | undefined = AlsUtilities.getCurrentMigration();
+        if (migration == undefined || strategy.usableInMigrations) {
+            return;
+        }
+        throw new InternalError([
+            `The migration "${migration}" uses the encryption strategy "${strategy.name}" (${strategy.version}),`,
+            'which is not usable in migrations: they run before the application is initialized.',
+            'Either use a strategy that has "usableInMigrations" set to true',
+            'or write the encrypted values after the application starts instead.'
+        ]);
+    }
+
     // eslint-disable-next-line jsdoc/require-jsdoc
     async encrypt<TKey, TEncryptOptions extends BaseEncryptOptions<TKey>>(
         value: string,
         options?: EncryptOptions<TKey, TEncryptOptions>
     ): Promise<EncryptionString> {
+        await this.loadStrategies();
         // the strategy options are carried through every branch below rather than only the ones that
         // name a strategy. The binding lives in them, and a property that says nothing beyond
         // "encrypt this" is exactly the one that has to end up bound
@@ -176,6 +250,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
                 `The given strategy ${strategyClass.name} was not provided as part of ZIBRI_DI_TOKENS.ENCRYPTION_STRATEGIES`
             );
         }
+        this.validateUsableNow(strategy);
 
         if (options.strategyOptions?.keyId) {
             const decryptedKey: TKey = await this.findKey(options.strategyOptions.keyId, undefined);
@@ -297,8 +372,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
      * @param value - The generated key, already encrypted with the master key.
      * @returns The key.
      */
-    // eslint-disable-next-line unusedImports/no-unused-vars
-    @CacheWrite(ZIBRI_DI_TOKENS.ENCRYPTION_KEY_CACHE, (key, ..._) => key.id)
+    @CacheWrite(ZIBRI_DI_TOKENS.ENCRYPTION_KEY_CACHE, key => key.id)
     private async createDefaultKeyEntity(
         entity: EncryptionStrategyEntity,
         value: EncryptionString
@@ -330,6 +404,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         value: EncryptionString,
         options?: TDecryptOptions
     ): Promise<string> {
+        await this.loadStrategies();
         const content: EncryptionContent = EncryptionUtilities.encryptionStringToContent(value);
         const strategy: EncryptionStrategyInterface<unknown> = this.findStrategy(content.strategyName, content.version);
         const key: unknown = await this.findKey(content.keyId, undefined);
@@ -342,6 +417,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         data: OmitStrict<EncryptionKeyCreateData, 'strategy' | 'value'>,
         options?: BaseRepositoryOptions
     ): Promise<EncryptionKey> {
+        await this.loadStrategies();
         const strategy: EncryptionStrategyInterface<TKey> = inject(strategyClass);
         const encryptedKey: EncryptionString = await this.generateEncryptedKey(strategy);
         const entity: EncryptionStrategyEntity | undefined = this.strategyEntities.find(
@@ -402,6 +478,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         strategyClass: Newable<EncryptionStrategyInterface<TKey>>,
         options: BaseRepositoryOptions = {}
     ): Promise<void> {
+        await this.loadStrategies();
         const transaction: Transaction = options.transaction ?? await this.keyRepository.dataSource.startTransaction();
         const ownTransaction: boolean = !options.transaction; // track if we created it
         options.transaction = transaction;
@@ -465,6 +542,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async needsReEncryption(encrypted: EncryptionString, shouldBeBoundToRow: boolean = false): Promise<boolean> {
+        await this.loadStrategies();
         const content: EncryptionContent = EncryptionUtilities.encryptionStringToContent(encrypted);
         const strategy: EncryptionStrategyInterface<Record<string, unknown>> = this.findStrategy(content.strategyName, content.version);
         const strategyEntity: EncryptionStrategyEntity | undefined = this.strategyEntities.find(
@@ -481,6 +559,109 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         }
         const key: EncryptionKey = await this.findKeyEntityById(content.keyId, undefined);
         return strategyEntity.status === EncryptionStrategyStatus.DEPRECATED || key.status === EncryptionKeyStatus.DEPRECATED;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async resolveRetiredKeyUsage(): Promise<RetiredKeyUsage> {
+        await this.loadStrategies();
+        const keys: EncryptionKey[] = await this.keyRepository.findAll({ relations: ['strategy'], take: 'all' });
+        const retiredKeys: EncryptionKey[] = keys.filter(
+            k => k.status === EncryptionKeyStatus.DEPRECATED || k.strategy.status === EncryptionStrategyStatus.DEPRECATED
+        );
+        const values: Map<string, number> = new Map(retiredKeys.map(k => [k.id, 0]));
+        // the stored values are only worth reading when there is a retired key to find among them
+        if (values.size) {
+            for (const { entityClass, repository } of resolveEncryptedEntities(this.dataSourceClasses)) {
+                await this.countValuesByKey(entityClass, repository, values);
+            }
+        }
+
+        // a data key is written under the current master at every start, so one still under an old
+        // master was written by an instance that has not been given the new one yet
+        const dataKeys: MasterKeyReference[] = keys.map(k => this.toMasterKeyReference(k.value));
+        // what each backup recorded when it was taken, rather than what its archive key says: the key
+        // rows in its data are encrypted under the master of that time whether or not the archive is
+        const backups: BackupEntity[] = await inject(ZIBRI_DI_TOKENS.BACKUP_SERVICE).resolveRecordedBackups();
+        const countUnder: (isUnder: (reference: MasterKeyReference) => boolean) => RetiredMasterUsage = isUnder => ({
+            dataKeys: dataKeys.filter(isUnder).length,
+            backups: backups.filter(b => b.masterKeys.some(isUnder)).length
+        });
+
+        return {
+            dataKeys: retiredKeys.map(k => ({
+                keyId: k.id,
+                strategyName: k.strategy.name,
+                strategyVersion: k.strategy.version,
+                values: values.get(k.id) ?? 0,
+                backups: backups.filter(b => b.dataKeyIds.includes(k.id)).length
+            })),
+            masterKeys: (this.options.oldMasterKeys ?? []).map(k => ({ keyId: k.id, ...countUnder(r => r.keyId === k.id) })),
+            masterStrategies: (this.options.oldMasterStrategies ?? []).map(s => ({
+                name: s.name,
+                version: s.version,
+                ...countUnder(r => r.strategyName === s.name && r.strategyVersion === s.version)
+            }))
+        };
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async resolveKeysInUse(): Promise<KeysInUse> {
+        const current: MasterKeyReference = {
+            keyId: this.options.currentMasterKey.id,
+            strategyName: this.options.currentMasterStrategy.name,
+            strategyVersion: this.options.currentMasterStrategy.version
+        };
+        const keys: EncryptionKey[] = await this.keyRepository.findAll({ take: 'all' });
+        const references: MasterKeyReference[] = [current, ...keys.map(k => this.toMasterKeyReference(k.value))];
+        return {
+            currentMasterKey: current,
+            masterKeys: references.filter((r, i) => references.findIndex(
+                o => o.keyId === r.keyId && o.strategyName === r.strategyName && o.strategyVersion === r.strategyVersion
+            ) === i),
+            dataKeyIds: keys.map(k => k.id),
+            dataSource: this.keyRepository.dataSource
+        };
+    }
+
+    /**
+     * Reads which master key and strategy encrypted a value encrypted with `masterEncrypt`.
+     * @param encrypted - The value.
+     * @returns The master key and strategy it names.
+     */
+    private toMasterKeyReference(encrypted: EncryptionString): MasterKeyReference {
+        const content: EncryptionContent = EncryptionUtilities.encryptionStringToContent(encrypted);
+        return { keyId: content.keyId, strategyName: content.strategyName, strategyVersion: content.version };
+    }
+
+    /**
+     * Counts the stored values of one entity per key that encrypted them, for the keys being counted.
+     * @param entityClass - The entity to read.
+     * @param repository - The repository that reads it.
+     * @param counts - The count so far of each key being counted, which this adds to.
+     */
+    private async countValuesByKey(
+        entityClass: Newable<BaseEntity>,
+        repository: Repository<BaseEntity>,
+        counts: Map<string, number>
+    ): Promise<void> {
+        for (let skip: number = 0; ; skip += REPORT_PAGE_SIZE) {
+            // as stored, because a decrypted value no longer says which key wrote it
+            const page: BaseEntity[] = await repository.findAll({ skip, take: REPORT_PAGE_SIZE, autoDecrypt: false });
+            const found: StoredEncryptedValue[][] = await PromiseUtilities.allChunked(
+                page,
+                async row => await findEncryptedValues(row, entityClass)
+            );
+            for (const { value } of found.flat()) {
+                const keyId: string = EncryptionUtilities.encryptionStringToContent(value).keyId;
+                const count: number | undefined = counts.get(keyId);
+                if (count != undefined) {
+                    counts.set(keyId, count + 1);
+                }
+            }
+            if (page.length < REPORT_PAGE_SIZE) {
+                return;
+            }
+        }
     }
 
     private needsMasterReEncryption(encrypted: EncryptionString): boolean {
@@ -525,14 +706,12 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         return await this.decryptKey(strategy, entity.value);
     }
 
-    // eslint-disable-next-line unusedImports/no-unused-vars
-    @Cached(ZIBRI_DI_TOKENS.ENCRYPTION_KEY_CACHE, (id, ..._) => id)
+    @Cached(ZIBRI_DI_TOKENS.ENCRYPTION_KEY_CACHE, (id) => id)
     private async findKeyEntityById(id: string, options: BaseRepositoryOptions | undefined): Promise<EncryptionKey> {
         return await this.keyRepository.findById(id, { relations: ['strategy'], ...options });
     }
 
-    // eslint-disable-next-line unusedImports/no-unused-vars
-    @CacheWrite(ZIBRI_DI_TOKENS.ENCRYPTION_KEY_CACHE, (key, ..._) => key.id)
+    @CacheWrite(ZIBRI_DI_TOKENS.ENCRYPTION_KEY_CACHE, key => key.id)
     private async createKeyEntity(
         encryptedValue: EncryptionString,
         strategy: EncryptionStrategyEntity,
@@ -549,8 +728,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         return key;
     }
 
-    // eslint-disable-next-line unusedImports/no-unused-vars
-    @CacheWrite(ZIBRI_DI_TOKENS.ENCRYPTION_KEY_CACHE, (key, ..._) => key.id)
+    @CacheWrite(ZIBRI_DI_TOKENS.ENCRYPTION_KEY_CACHE, key => key.id)
     private async updateKeyEntityById(
         id: string,
         data: DeepPartial<EncryptionKey>,
@@ -597,6 +775,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         if (!res) {
             throw new EncryptionStrategyNotFoundError(name, version);
         }
+        this.validateUsableNow(res);
         return res;
     }
 
@@ -614,7 +793,9 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         return res;
     }
 
-    private async masterEncrypt(keyBase64: string): Promise<EncryptionString> {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async masterEncrypt(keyBase64: string): Promise<EncryptionString> {
+        this.validateUsableNow(this.options.currentMasterStrategy);
         const encrypted: EncryptionString = await this.options.currentMasterStrategy.encrypt(
             keyBase64,
             {
@@ -630,7 +811,8 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         return encrypted;
     }
 
-    private async masterDecrypt(encrypted: EncryptionString): Promise<string> {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async masterDecrypt(encrypted: EncryptionString): Promise<string> {
         const content: EncryptionContent = EncryptionUtilities.encryptionStringToContent(encrypted);
         const masterKey: EncryptionMasterKey<unknown> | undefined = [
             this.options.currentMasterKey,
@@ -646,6 +828,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         if (!masterStrategy) {
             throw new MasterEncryptionStrategyNotFoundError(content.strategyName, content.version);
         }
+        this.validateUsableNow(masterStrategy);
         return await masterStrategy.decrypt(encrypted, { key: masterKey.value, keyId: masterKey.id });
     }
 
@@ -661,9 +844,12 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
      */
     private findDefaultStrategy<TKey>(): EncryptionStrategyInterface<TKey> {
         const entity: EncryptionStrategyEntity | undefined = this.strategyEntities.find(s => s.status === EncryptionStrategyStatus.DEFAULT);
-        return entity
-            ? this.findStrategy(entity.name, entity.version)
-            : this.strategies[0] as EncryptionStrategyInterface<TKey>;
+        if (entity) {
+            return this.findStrategy(entity.name, entity.version);
+        }
+        const first: EncryptionStrategyInterface<TKey> = this.strategies[0] as EncryptionStrategyInterface<TKey>;
+        this.validateUsableNow(first);
+        return first;
     }
 
     private validateNoDuplicateEncryptionStrategy(): void {

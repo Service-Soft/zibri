@@ -14,11 +14,11 @@ import { TypeOrmUtilities } from '../../utilities/typeorm.utilities';
 import { IsolationLevel } from '../data-sources/data-source.interface';
 import { cancelsStatements, StatementCancellingDataSource } from '../data-sources/statement-cancelling-data-source.model';
 import { type TypeOrmBaseDataSource } from '../data-sources/typeorm-base-data-source.model';
-import { JsonValueTypeMismatchError, MistypedJsonValue } from '../json-value-type-mismatch.error';
-import { AtomicUpdate } from '../models/atomic-update.model';
 import { DataSourceOptions } from '../models/data-source-options.model';
+import { UpsertRow } from '../models/upsert-row.model';
 import { Where } from '../models/where/where-filter.model';
 import { QueryFailedError } from '../query-failed.error';
+import { MistypedStoredValue, StoredValueTypeMismatchError } from '../stored-value-type-mismatch.error';
 import { Transaction } from '../transaction/transaction.model';
 import { UniqueConstraintViolationError } from '../unique-constraint-violation.error';
 
@@ -47,17 +47,25 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
     constructor(
         private readonly entityClass: Newable<T>,
         private readonly typeOrmRepository: TORepository<T>,
-        private readonly dataSource: TypeOrmBaseDataSource<DataSourceOptions>
+        private readonly dataSource: TypeOrmBaseDataSource<DataSourceOptions>,
+        private readonly maxBoundValuesPerStatement: number
     ) {
         this.declaredColumns = TypeOrmUtilities.declaredColumnsOf(typeOrmRepository.metadata);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async save(data: DeepPartial<T>[], transaction: Transaction | undefined, reload: boolean): Promise<T[]> {
+        // the orm inserts a batch as one statement binding a value per column per row, and reads the
+        // rows it is about to write by id first. Past what one statement binds, both are cut into
+        // chunks - which the orm still runs inside the one transaction it runs a save in
+        const chunk: number = Math.max(
+            1,
+            Math.floor(this.maxBoundValuesPerStatement / this.typeOrmRepository.metadata.columns.length)
+        );
         return await this.run(async () => await this.onConnection(transaction, async manager => await manager.save(
             this.entityClass,
             data as ToDeepPartial<T>[],
-            { reload }
+            { reload, chunk }
         )));
     }
 
@@ -225,7 +233,7 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
             .createQueryBuilder()
             .delete()
             .from(this.entityClass)
-            .whereInIds(entities.map(e => e.id))
+            .where(this.resolveIdsWhere(entities.map(e => e.id)))
             .execute()));
 
         // the entities as they were, ids included. `remove` hands back the objects it was given with
@@ -342,7 +350,7 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
                 .createQueryBuilder()
                 .update(this.entityClass)
                 .set(data as QueryDeepPartialEntity<T>)
-                .whereInIds(ids)
+                .where(this.resolveIdsWhere(ids))
                 .execute())));
 
         if (returnUpdated !== true) {
@@ -358,20 +366,14 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async upsert(
-        identity: DeepPartial<T>,
-        create: DeepPartial<T>,
-        onConflict: AtomicUpdate<T>,
-        transaction: Transaction | undefined
-    ): Promise<T> {
+        identity: string[],
+        rows: UpsertRow<T>[],
+        transaction: Transaction | undefined,
+        reachable: Where<T> | undefined
+    ): Promise<T[]> {
         // the data source rather than the driver, because the statement is dialect specific and the
         // driver is shared by every typeorm backed data source
-        return await this.run(async () => await this.dataSource.upsert(
-            this.entityClass,
-            identity,
-            create,
-            onConflict,
-            transaction
-        ));
+        return await this.run(async () => await this.dataSource.upsert(this.entityClass, identity, rows, transaction, reachable));
     }
 
     /**
@@ -538,6 +540,19 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
         return this.dataSource.whereFilterToFindOptionsWhere(options.where, this.entityClass);
     }
 
+    /**
+     * The filter naming exactly the given rows, in the store's own find options.
+     *
+     * Through the converter rather than the orm's `whereInIds`, which binds one value per id and so
+     * fails past as many rows as a statement binds values - a `deleteAll` of a large table being the
+     * obvious case. How a list of ids is bound is the dialect's to say, and the converter says it.
+     * @param ids - The ids of the rows.
+     * @returns The filter.
+     */
+    private resolveIdsWhere(ids: T['id'][]): FindOptionsWhere<T> | FindOptionsWhere<T>[] {
+        return this.dataSource.whereFilterToFindOptionsWhere({ id: { oneOf: ids } } as Where<T>, this.entityClass);
+    }
+
     private async run<R>(operation: () => Promise<R>): Promise<R> {
         try {
             return await operation();
@@ -560,9 +575,12 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
                 // it is, and the server answers that with the value alone - which reads like the
                 // query is broken rather than like one row is. Named here so the property is in the
                 // message, with the statement kept as the cause the same way the violation above is
-                const mistyped: MistypedJsonValue | undefined = this.dataSource.mistypedJsonValue(error as TOQueryFailedError);
+                const mistyped: MistypedStoredValue | undefined = this.dataSource.mistypedJsonValue(
+                    error as TOQueryFailedError,
+                    this.entityClass.name
+                );
                 if (mistyped) {
-                    throw new JsonValueTypeMismatchError(this.entityClass.name, mistyped, { cause: failed });
+                    throw new StoredValueTypeMismatchError(mistyped, { cause: failed });
                 }
                 throw failed;
             }

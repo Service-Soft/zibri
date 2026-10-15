@@ -4,6 +4,7 @@ import { MimeType } from '../../http/mime-type.enum';
 import { HttpClientResponse } from '../../http-client/http-client-response.model';
 import { $ts } from '../../localization/translate.function';
 import { JsonBodyMetadata } from '../../routing/decorators/body-metadata.model';
+import { resolveMaxBodySize } from '../../routing/decorators/body.decorator';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { WebsocketRequest } from '../../websocket/models/websocket-request.model';
 import { BodyParserInterface } from '../body-parser.interface';
@@ -37,7 +38,7 @@ export class JsonBodyParser implements BodyParserInterface<MimeType.JSON> {
         if (req.body !== undefined) {
             return req.body;
         }
-        const raw: Buffer = await BodyParserUtilities.readRequestBodyIntoMemory(req, metadata.maxSize);
+        const raw: Buffer = await BodyParserUtilities.readRequestBodyIntoMemory(req, resolveMaxBodySize(metadata));
 
         try {
             if (!raw.length) {

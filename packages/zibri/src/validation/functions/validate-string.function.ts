@@ -3,15 +3,21 @@ import { WebsocketRequestContext } from '../../context/request/websocket-request
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
-import { StringPropertyMetadata, StringFormat } from '../../entity/models/string-property-metadata.model';
+import { StoredStringPropertyMetadata, StringFormat } from '../../entity/models/string-property-metadata.model';
 import { $ts } from '../../localization/translate.function';
 import { QueryParamMetadata, HeaderParamMetadata, PathParamMetadata } from '../../routing/decorators/param.decorator';
 import { StringParamMetadata } from '../../routing/models/string-param-metadata.model';
 import { ObjectUtilities } from '../../utilities/object.utilities';
+import { RegexUtilities } from '../../utilities/regex.utilities';
 import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from '../validation-problem.model';
 
-const UUID_REGEX: RegExp = /^[\dA-Fa-f]{8}-[\dA-Fa-f]{4}-[1-5][\dA-Fa-f]{3}-[89ABab][\dA-Fa-f]{3}-[\dA-Fa-f]{12}$/;
+/**
+ * Regex that matches a uuid.
+ */
+export const UUID_REGEX: RegExp = /^[\dA-Fa-f]{8}-[\dA-Fa-f]{4}-[1-5][\dA-Fa-f]{3}-[89ABab][\dA-Fa-f]{3}-[\dA-Fa-f]{12}$/;
 const EMAIL_REGEX: RegExp = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// E.164: a plus, a country code that does not start with 0, and at most 15 digits in all
+const PHONE_REGEX: RegExp = /^\+[1-9]\d{6,14}$/;
 
 /**
  * Validates the given string property.
@@ -29,18 +35,15 @@ export async function validateString(
     parentKey: string | undefined,
     entity: unknown | undefined
 ): Promise<ValidationProblem[]> {
-    // eslint-disable-next-line typescript/no-explicit-any
-    const meta: StringPropertyMetadata<any, any, any, any, any> | StringParamMetadata<any, any, any, any, any>
-        // eslint-disable-next-line typescript/no-explicit-any
-        = metadata as StringPropertyMetadata<any, any, any, any, any> | StringParamMetadata<any, any, any, any, any>;
+    const meta: StoredStringPropertyMetadata | StringParamMetadata
+        = metadata as StoredStringPropertyMetadata | StringParamMetadata;
     const fullKey: string = parentKey ? `${parentKey}.${key}` : key;
     if (property == undefined) {
         const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
         const isRequired: boolean = typeof metadata.required === 'boolean'
             ? metadata.required
             : await metadata.required(entity, context);
-        // eslint-disable-next-line typescript/no-explicit-any
-        const hasDefault: boolean = (meta as StringPropertyMetadata<any, any, any, any, any>).default != undefined;
+        const hasDefault: boolean = (meta as StoredStringPropertyMetadata).default != undefined;
         return isRequired && !hasDefault ? [new IsRequiredValidationProblem(fullKey)] : [];
     }
     return stringValueProblems(fullKey, property, meta);
@@ -60,8 +63,7 @@ export async function validateString(
 export function stringValueProblems(
     fullKey: string,
     property: unknown,
-    // eslint-disable-next-line typescript/no-explicit-any
-    meta: StringPropertyMetadata<any, any, any, any, any> | StringParamMetadata<any, any, any, any, any>
+    meta: StoredStringPropertyMetadata | StringParamMetadata
 ): ValidationProblem[] {
     if (typeof property !== 'string') {
         return [new TypeMismatchValidationProblem(fullKey, 'string')];
@@ -69,7 +71,7 @@ export function stringValueProblems(
     if (meta.format && !isFormatValid(meta.format, property)) {
         return [{ key: fullKey, message: $ts`needs to be in format "${meta.format}"` }];
     }
-    if (meta.regex != undefined && !new RegExp(meta.regex).test(property)) {
+    if (meta.regex != undefined && !RegexUtilities.resolveLinear(meta.regex).test(property)) {
         return [{ key: fullKey, message: $ts`needs to match regex "${meta.regex}"` }];
     }
     if (meta.enum && !ObjectUtilities.values(meta.enum).includes(property)) {
@@ -92,6 +94,9 @@ function isFormatValid(format: StringFormat, value: string): boolean {
         }
         case 'email': {
             return EMAIL_REGEX.test(value);
+        }
+        case 'phone': {
+            return PHONE_REGEX.test(value);
         }
     }
 }

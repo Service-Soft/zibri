@@ -7,7 +7,9 @@ import { MultithreadingServiceInterface } from './multithreading-service.interfa
 import { MultithreadingService, PersistedFunctionJobError } from './multithreading.service';
 import { ThreadJobWorker } from './thread-job-worker';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
+import { startAndStopTestServerWithout } from '../../__testing__/test-server/start-and-stop-test-server-without.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
+import { waitUntil } from '../../__testing__/wait-until.function';
 import { Repository } from '../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
@@ -74,21 +76,20 @@ type ThreadJobRepository = Repository<AnyThreadJobEntity>;
  */
 const blockingAmount: number = 38;
 
-/**
- * Polls until the predicate holds, or gives up.
- * @param predicate - What has to become true.
- * @param timeoutMs - How long to keep asking.
- */
-async function waitUntil(predicate: () => Promise<boolean> | boolean, timeoutMs: number = 5000): Promise<void> {
-    const start: number = Date.now();
-    while (Date.now() - start < timeoutMs) {
-        if (await predicate()) {
-            return;
-        }
-        await new Promise(resolve => setTimeout(resolve, 50));
-    }
-    throw new Error('waitUntil: condition was not met in time');
-}
+// first, for the reason on startAndStopTestServerWithout
+describe('MultithreadingService — starting', () => {
+    it('refuses to start without ThreadJobEntity, and names it', async () => {
+        const start: Promise<void> = startAndStopTestServerWithout([ThreadJobEntity], {
+            // the harness stubs the pool
+            providers: [
+                ...defaultTestServerProviders,
+                defineProvider({ token: ZIBRI_DI_TOKENS.MULTITHREADING_SERVICE, useClass: MultithreadingService })
+            ]
+        });
+
+        await expect(start).rejects.toThrow(/Error initializing MultithreadingService[\S\s]*ThreadJobEntity/);
+    }, 30000);
+});
 
 describe('MultithreadingService', () => {
     beforeAll(async () => {

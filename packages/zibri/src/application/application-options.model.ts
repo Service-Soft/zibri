@@ -1,4 +1,6 @@
+import { TwoFactorFailureLimit } from '../auth/2fa/two-factor-failure-limit.model';
 import { TwoFactorMethods } from '../auth/2fa/two-factor-methods.model';
+import { Authenticators } from '../auth/authenticators/authenticators.model';
 import { AuthStrategies } from '../auth/strategies/auth-strategies.model';
 import { BackupTransportInterface } from '../backup/transports/backup-transport.interface';
 import { CronJob } from '../cron/cron-job.model';
@@ -137,7 +139,7 @@ export type ZibriApplicationOptions = {
     /**
      * What a route that carries no `@Auth` decorator of its own requires.
      *
-     * Has no default, and is the only option here without one: an api that is open by design and an
+     * Has no default: an api that is open by design and an
      * api that guards everything are both ordinary, and a framework picking either one silently
      * makes "you forgot to say" indistinguishable from "you said this". Required instead, so the
      * question is answered once, in the one place where it is answerable, by the compiler rather
@@ -171,17 +173,30 @@ export type ZibriApplicationOptions = {
      */
     authStrategies?: AuthStrategies,
     /**
+     * The authenticators to register.
+     *
+     * If nothing is provided, the Zibri default password authenticator will be used.
+     */
+    authenticators?: Authenticators,
+    /**
      * The two factor methods to register.
      *
      * If nothing is provided, the Zibri default otp two factor method will be used.
      */
     twoFactorMethods?: TwoFactorMethods,
     /**
+     * Whether a user's second factor is locked after too many wrong codes in a row, and what the lock
+     * refuses.
+     *
+     * Defaults to `false`, which locks nothing.
+     */
+    twoFactorFailureLimit?: TwoFactorFailureLimit,
+    /**
      * The cron jobs to register in the app.
      */
     cronJobs?: Newable<CronJob>[],
     /**
-     *
+     * The configured backup transports of the app.
      */
     backupTransports?: Newable<BackupTransportInterface>[],
     /**

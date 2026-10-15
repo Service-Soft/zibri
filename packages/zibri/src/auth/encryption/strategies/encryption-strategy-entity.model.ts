@@ -16,7 +16,7 @@ export enum EncryptionStrategyStatus {
 /**
  * The encryption strategy entity that is stored in the db.
  */
-@Entity({ allowOrphan: true, uniques: [{ properties: ['name', 'version'] }] })
+@Entity({ tenant: 'shared', allowOrphan: true, uniques: [{ properties: ['name', 'version'] }] })
 export class EncryptionStrategyEntity extends BaseEntity {
     /**
      * The name of the strategy.

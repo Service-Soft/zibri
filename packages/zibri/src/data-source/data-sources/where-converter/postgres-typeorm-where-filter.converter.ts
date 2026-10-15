@@ -14,8 +14,10 @@ import { InternalError } from '../../../error-handling/internal-error.model';
 import { type LoggerInterface } from '../../../logging/logger.interface';
 import { Newable } from '../../../types/newable.type';
 import { OmitStrict } from '../../../types/omit-strict.type';
+import { JsonUtilities } from '../../../utilities/json.utilities';
 import { MetadataUtilities } from '../../../utilities/metadata.utilities';
 import { ObjectUtilities } from '../../../utilities/object.utilities';
+import { TypeOrmUtilities } from '../../../utilities/typeorm.utilities';
 import { parseFuzzyLikeFilter } from '../../models/where/fuzzy-like.model';
 import { OneOfWhereFilterUtilities } from '../../models/where/one-of-where-filter.utilities';
 import { WhereFilterKeys } from '../../models/where/where-filter-keys.model';
@@ -128,25 +130,39 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
                 // being there and leaves a row holding json null matching both questions at once
                 return hasJsonValue(jsonPath);
             }
+            // a value that is not there is not the value named either, as it is on a column
             if (typeof value === 'object' && !Array.isArray(value)) {
-                return `NOT (${jsonPath} @> ${this.toJsonbParameter(value, parameters)})`;
+                return `(NOT ${hasJsonValue(jsonPath)} OR NOT (${jsonPath} @> ${this.toJsonbParameter(value, parameters)}))`;
             }
-            return `${castPath} != ${parameters.add(value)}`;
+            return `(NOT ${hasJsonValue(jsonPath)} OR ${castPath} != ${parameters.add(value)})`;
         },
-        oneOf: ({ castPath, value, fieldKey, parameters }) => {
+        oneOf: ({ jsonPath, castPath, value, fieldKey, parameters }) => {
             if (!Array.isArray(value)) {
                 throw new InternalError(`"oneOf" must be an array for JSONB field "${fieldKey}"`);
             }
-            return `${castPath} IN (${(value as unknown[]).map(v => parameters.add(v)).join(', ')})`;
+            const listed: unknown[] = value.filter(v => v !== null);
+            const equalsListed: string = `${castPath} = ANY(${parameters.addList(listed)})`;
+            // for the reasons the column handlers give: a null listed is asked for on its own, and
+            // the list is bound as one value however long it is
+            return listed.length === value.length ? equalsListed : `(${equalsListed} OR NOT ${hasJsonValue(jsonPath)})`;
         },
-        notOneOf: ({ castPath, value, fieldKey, parameters }) => {
+        notOneOf: ({ jsonPath, castPath, value, fieldKey, parameters }) => {
             if (!Array.isArray(value)) {
                 throw new InternalError(`"notOneOf" must be an array for JSONB field "${fieldKey}"`);
             }
-            return `${castPath} NOT IN (${(value as unknown[]).map(v => parameters.add(v)).join(', ')})`;
+            const listed: unknown[] = value.filter(v => v !== null);
+            const notListed: string = `NOT (${castPath} = ANY(${parameters.addList(listed)}))`;
+            return listed.length === value.length
+                ? `(NOT ${hasJsonValue(jsonPath)} OR ${notListed})`
+                : `(${hasJsonValue(jsonPath)} AND ${notListed})`;
         },
         like: ({ textPath, value, parameters }) => `${textPath} LIKE ${parameters.add(value)}`,
         iLike: ({ textPath, value, parameters }) => `${textPath} ILIKE ${parameters.add(value)}`,
+        // a value that is not there is unlike every pattern, as it is on a column
+        notLike: ({ jsonPath, textPath, value, parameters }) => `(NOT ${hasJsonValue(jsonPath)}`
+            + ` OR ${textPath} NOT LIKE ${parameters.add(value)})`,
+        notILike: ({ jsonPath, textPath, value, parameters }) => `(NOT ${hasJsonValue(jsonPath)}`
+            + ` OR ${textPath} NOT ILIKE ${parameters.add(value)})`,
         fuzzyLike: ({ textPath, value, path, parameters }) => {
             const { value: searchString, minSimilarityRatio } = parseFuzzyLikeFilter(value);
             // no operator here whatever the ratio is: a trigram index covers a column, and a value
@@ -235,6 +251,41 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
         // a trigram index answers the operator and can answer nothing about `similarity`
         return Raw(alias => `${alias} % ${search} AND ${ratioCondition(alias)}`, parameters.values);
     };
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    protected equalsOneOf(values: unknown[], entityClass: Newable<unknown>, property: string): FindOperator<unknown> {
+        const column: ToColumnMetadata | undefined = this.typeOrmDataSource.hasMetadata(entityClass)
+            ? this.typeOrmDataSource.getMetadata(entityClass).findColumnWithPropertyName(property)
+            : undefined;
+        // one array rather than a placeholder per value: a statement binds at most 65535 values, and
+        // `= ANY` compares against every element the way `IN` compares against every placeholder. The
+        // column's transformer runs here, per value, because typeorm hands it the operator as a whole
+        // and passes a raw operator's own values on untouched
+        const elements: unknown[] = values.map(v => this.toListElement(
+            column == undefined ? v : TypeOrmUtilities.toColumnValue(column, v)
+        ));
+        const parameters: TypeOrmParameters = this.createParameters();
+        const list: string = parameters.addList(elements);
+        return Raw(alias => `${alias} = ANY(${list})`, parameters.values);
+    }
+
+    /**
+     * The form a value takes as an element of a list bound as one value.
+     *
+     * Such a list reaches the server as array text, so a large whole number and a json document are
+     * handed over as the text they are written as, which the column then reads back into its type.
+     * @param value - The value as the column stores it.
+     * @returns The value to put into the list.
+     */
+    private toListElement(value: unknown): unknown {
+        if (typeof value === 'bigint') {
+            return value.toString();
+        }
+        if (typeof value === 'object' && value !== null && !(value instanceof Date)) {
+            return JsonUtilities.stringify(value);
+        }
+        return value;
+    }
 
     /**
      * Whether a trigram index can answer a search for the given similarity.
@@ -377,7 +428,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
             return '(' + filter.map(f => this.buildJsonbOneOfCondition(jsonPath, f, metadata, parameters, path)).join(' OR ') + ')';
         }
         if (typeof filter !== 'object' || filter === null) {
-            throw new InternalError(`Unexpected filter of a value of several shapes at "${path}": ${JSON.stringify(filter)}`);
+            throw new InternalError(`Unexpected filter of a value of several shapes at "${path}": ${JsonUtilities.stringify(filter)}`);
         }
 
         const shapeFilters: Map<string, unknown> = OneOfWhereFilterUtilities.shapeFilters(filter as Record<string, unknown>, metadata);
@@ -479,7 +530,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
             const ids: string = this.idParameters(entities, parameters);
             const rawSql: string = `(SELECT COUNT(*) FROM "${targetMeta.tableName}" `
                 + `WHERE "${targetMeta.tableName}"."${fkColumn}" = $alias$ `
-                + `AND "${targetMeta.tableName}"."id" IN (${ids})) = ${entities.length}`;
+                + `AND "${targetMeta.tableName}"."id" = ANY(${ids})) = ${entities.length}`;
             return this.rawOnRelation(rawSql, parameters);
         }
 
@@ -503,7 +554,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
         const ids: string = this.idParameters(entities, parameters);
         const rawSql: string = `(SELECT COUNT(*) FROM "${junctionTable}" `
             + `WHERE "${junctionTable}"."${ownFkColumn}" = $alias$ `
-            + `AND "${junctionTable}"."${targetFkColumn}" IN (${ids})) = ${entities.length}`;
+            + `AND "${junctionTable}"."${targetFkColumn}" = ANY(${ids})) = ${entities.length}`;
         return this.rawOnRelation(rawSql, parameters);
     }
 
@@ -535,7 +586,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
             const ids: string = this.idParameters(entities, parameters);
             const rawSql: string = `NOT EXISTS (SELECT 1 FROM "${targetMeta.tableName}" `
                 + `WHERE "${targetMeta.tableName}"."${fkColumn}" = $alias$ `
-                + `AND "${targetMeta.tableName}"."id" NOT IN (${ids}))`;
+                + `AND "${targetMeta.tableName}"."id" <> ALL(${ids}))`;
             return this.rawOnRelation(rawSql, parameters);
         }
 
@@ -559,7 +610,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
         const ids: string = this.idParameters(entities, parameters);
         const rawSql: string = `NOT EXISTS (SELECT 1 FROM "${junctionTable}" `
             + `WHERE "${junctionTable}"."${ownFkColumn}" = $alias$ `
-            + `AND "${junctionTable}"."${targetFkColumn}" NOT IN (${ids}))`;
+            + `AND "${junctionTable}"."${targetFkColumn}" <> ALL(${ids}))`;
         return this.rawOnRelation(rawSql, parameters);
     }
 
@@ -577,7 +628,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
     }
 
     private idParameters(entities: BaseEntity[], parameters: TypeOrmParameters): string {
-        return entities.map(e => parameters.add(e.id)).join(', ');
+        return parameters.addList(entities.map(e => e.id));
     }
 
     // ── JSONB SQL generation (moved from PostgresDataSource) ────
@@ -687,7 +738,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
         }
 
         if (typeof filterValue !== 'object') {
-            throw new InternalError(`Unexpected JSONB filter value for field "${fieldKey}": ${JSON.stringify(filterValue)}`);
+            throw new InternalError(`Unexpected JSONB filter value for field "${fieldKey}": ${JsonUtilities.stringify(filterValue)}`);
         }
 
         return this.buildJsonbOperatorCondition(filterValue, { jsonPath, textPath, castPath, fieldKey, path, propMeta, parameters });
@@ -715,7 +766,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
     }
 
     private toJsonbParameter(val: object, parameters: TypeOrmParameters): string {
-        return `${parameters.add(JSON.stringify(val))}::jsonb`;
+        return `${parameters.add(JsonUtilities.stringify(val))}::jsonb`;
     }
 
     private getJsonbCast(propMeta: PropertyMetadata | undefined, path: string): string {

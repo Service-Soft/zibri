@@ -2,50 +2,98 @@ import { AuthServiceInterface } from './auth-service.interface';
 import { ZibriApplication } from '../application/application';
 import { DefaultAuth } from '../application/application-options.model';
 import { register } from '../di/register.function';
+import { ReauthenticationRequiredError } from './2fa/reauthentication-required.error';
 import { type TwoFactorServiceInterface } from './2fa/two-factor-service.interface';
+import { AuthControllerUtilities } from './auth-controller/auth-controller.utilities';
+import { AuthenticatorInterface } from './authenticators/authenticator.interface';
+import { Authenticators } from './authenticators/authenticators.model';
+import { ConnectionCompletingAuthenticatorInterface } from './authenticators/connection-completing-authenticator.interface';
+import { FederatedAuthenticatorInterface } from './authenticators/federated/federated-authenticator.interface';
+import { FederatedRouteUtilities } from './authenticators/federated/federated-route.utilities';
+import { FederatedSessionMatch } from './authenticators/federated/federated-session-match.model';
+import { FederatedSession } from './authenticators/federated/federated-session.model';
+import { IdentityLinkingAuthenticatorInterface, isIdentityLinkingAuthenticator } from './authenticators/identity-linking-authenticator.interface';
+import { IdentityLinkingAuthenticators } from './authenticators/identity-linking-authenticators.model';
+import { LinkedIdentity } from './authenticators/linked-identity.model';
+import { ConfirmPasswordResetData } from './authenticators/password/confirm-password-reset-data.model';
+import { PasswordAuthenticator } from './authenticators/password/password.authenticator';
+import { RequestPasswordResetData } from './authenticators/password/request-password-reset-data.model';
+import { isProviderAccessAuthenticator, ProviderAccessAuthenticatorInterface } from './authenticators/provider-access-authenticator.interface';
+import { ProviderAccessFailure } from './authenticators/provider-access-failure.enum';
+import { ProviderAccessError } from './authenticators/provider-access.error';
+import { Authentication } from './models/authentication.model';
 import { BaseUser } from './models/base-user.model';
+import { DeclaredRoleChecks } from './models/declared-role-checks.model';
 import { HasRoleMetadata, SkipHasRoleMetadata } from './models/has-role-metadata.model';
 import { IsLoggedInMetadata, SkipIsLoggedInMetadata } from './models/is-logged-in-metadata.model';
 import { IsNotLoggedInMetadata, SkipIsNotLoggedInMetadata } from './models/is-not-logged-in-metadata.model';
+import { LogoutResult } from './models/logout-result.model';
 import { Require2faMetadata, SkipRequire2faMetadata } from './models/require-2fa-metadata.model';
+import type { Require2faReauth, Require2faReauthOptions } from './models/require-2fa-reauth.model';
 import { ResolvedAuthMetadata, ResolvedRouteAuth } from './models/resolved-auth-metadata.model';
 import { RouteAuthConfiguration } from './models/route-auth-configuration.model';
 import { SkipAuthMetadata } from './models/skip-auth-metadata.model';
+import { ApiKeyClientAuthentication } from './strategies/api-key/api-key-client-authentication.model';
+import { ApiKeyCreateData } from './strategies/api-key/api-key-create-data.model';
+import { type ApiKeyServiceInterface } from './strategies/api-key/api-key-service.interface';
+import { ApiKey } from './strategies/api-key/api-key.model';
+import { CreatedApiKey } from './strategies/api-key/created-api-key.model';
 import { AuthStrategies } from './strategies/auth-strategies.model';
 import { AuthStrategyInterface } from './strategies/auth-strategy.interface';
+import { CredentialLimits } from './strategies/credential-limits.model';
+import { isLoginAuthStrategy, LoginAuthStrategyInterface } from './strategies/login-auth-strategy.interface';
+import { type UserServiceInterface } from './user/user-service.interface';
 import { HttpRequestContext } from '../context/request/http-request.context';
 import { WebsocketRequestContext } from '../context/request/websocket-request.context';
+import { Transaction } from '../data-source/transaction/transaction.model';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
+import { BaseEntity } from '../entity/base-entity.model';
+import { ErrorUtilities } from '../error-handling/error.utilities';
+import { AccountDeactivatedError } from '../error-handling/errors/account-deactivated.error';
+import { AccountLockedError } from '../error-handling/errors/account-locked.error';
 import { ForbiddenError } from '../error-handling/errors/forbidden.error';
 import { InvalidDecoratorCombinationError } from '../error-handling/errors/invalid-decorator-combination.error';
+import { NotFoundError } from '../error-handling/errors/not-found.error';
 import { UnauthorizedError } from '../error-handling/errors/unauthorized.error';
 import { BeforeAppInit } from '../global/before-app-init.interface';
 import { OnAppInit } from '../global/on-app-init.interface';
+import { OnAppStart } from '../global/on-app-start.interface';
 import { RouteRegistry } from '../global/route-registry/route.registry';
 import { $ts } from '../localization/translate.function';
 import { AuditAction, AuditOutcome, AuditReason } from '../logging/audit-event.model';
 import { auditReasonFor } from '../logging/audit-reason-for.function';
 import { type LoggerInterface } from '../logging/logger.interface';
+import { BaseMembership } from '../tenancy/membership/base-membership.model';
+import { type MembershipServiceInterface } from '../tenancy/membership/membership-service.interface';
+import { type TenantServiceInterface } from '../tenancy/tenant-service.interface';
 import { Newable } from '../types/newable.type';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
+import { type BaseWebsocketConnection } from '../websocket/models/connection/base-websocket-connection.model';
+import { type WebsocketServiceInterface } from '../websocket/services/websocket-service.interface';
 
 /**
  * The account a set of credentials names, as far as the framework can tell.
  *
- * Credentials are whatever the strategy defined them to be, so this is a best effort: `email` is the
- * shape both builtin strategies use, and a strategy that identifies its users some other way records
- * no subject rather than a wrong one.
- * @param credentials - Whatever was handed to the strategy.
+ * Credentials are whatever the authenticator defined them to be, so this is a best effort: `email` is
+ * the shape of a password, `username` the one of a directory, and credentials that identify their
+ * users some other way record no subject rather than a wrong one.
+ * @param credentials - Whatever was handed to the authenticator.
  * @returns The named account, or undefined if the credentials do not name one.
  */
 function auditSubject(credentials: unknown): string | undefined {
-    if (typeof credentials !== 'object' || credentials == undefined || !('email' in credentials)) {
+    if (typeof credentials !== 'object' || credentials == undefined) {
         return undefined;
     }
-    return typeof credentials.email === 'string' ? credentials.email : undefined;
+    if ('email' in credentials && typeof credentials.email === 'string') {
+        return credentials.email;
+    }
+    if ('username' in credentials && typeof credentials.username === 'string') {
+        return credentials.username;
+    }
+    return undefined;
 }
 
 /**
@@ -64,15 +112,19 @@ const AUTH_SKIP_LABEL: string = '@Auth.skip';
 const AUTH_IS_LOGGED_IN_LABEL: string = '@Auth.isLoggedIn';
 const AUTH_IS_NOT_LOGGED_IN_LABEL: string = '@Auth.isNotLoggedIn';
 const AUTH_HAS_ROLE_LABEL: string = '@Auth.hasRole';
+const AUTH_HAS_PLATFORM_ROLE_LABEL: string = '@Auth.hasPlatformRole';
 const AUTH_REQUIRE_2FA_LABEL: string = '@Auth.require2fa';
 
 /**
  * Default auth service implementation of Zibri.
  */
 @Injectable({ register: 'onUse' })
-export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppInit {
+export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppInit, OnAppStart {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly strategies: AuthStrategies = [];
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly authenticators: Authenticators = [];
 
     /**
      * What a route with no `@Auth` decorator of its own requires, as the application declared it.
@@ -92,13 +144,48 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         Map<string, Promise<BaseUser<string> | undefined>>
     > = new WeakMap();
 
+    // read when used rather than injected: only deactivating and reactivating a user need it
+    private get userService(): UserServiceInterface {
+        return inject(ZIBRI_DI_TOKENS.USER_SERVICE);
+    }
+
+    private get apiKeyService(): ApiKeyServiceInterface {
+        return inject(ZIBRI_DI_TOKENS.API_KEY_SERVICE);
+    }
+
+    private get tenantService(): TenantServiceInterface {
+        return inject(ZIBRI_DI_TOKENS.TENANT_SERVICE);
+    }
+
+    private get membershipService(): MembershipServiceInterface {
+        return inject(ZIBRI_DI_TOKENS.MEMBERSHIP_SERVICE);
+    }
+
+    // read when used rather than injected, since the websocket service is built with this one
+    private get websocketService(): WebsocketServiceInterface<BaseWebsocketConnection> {
+        return inject(ZIBRI_DI_TOKENS.WEBSOCKET_SERVICE);
+    }
+
+    /**
+     * The membership each request acts through, for as long as it is being handled, keyed like
+     * principals and for the same reasons.
+     */
+    private readonly memberships: WeakMap<
+        HttpRequestContext | WebsocketRequestContext,
+        Map<string, Promise<BaseMembership<string> | undefined>>
+    > = new WeakMap();
+
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
         private readonly logger: LoggerInterface,
         @Inject(ZIBRI_DI_TOKENS.TWO_FACTOR_SERVICE)
         private readonly twoFactorService: TwoFactorServiceInterface,
         @Inject(ZIBRI_DI_TOKENS.REVALIDATE_USER_ON_AUTH_CHECK)
-        private readonly revalidateUsers: boolean
+        private readonly revalidateUsers: boolean,
+        @Inject(ZIBRI_DI_TOKENS.REQUIRE_2FA_REAUTH)
+        private readonly defaultReauth: Require2faReauth,
+        @Inject(ZIBRI_DI_TOKENS.REQUIRE_2FA_REAUTH_WINDOW_IN_MS)
+        private readonly defaultReauthWindowInMs: number
     ) {}
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -112,7 +199,20 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async onAppInit(app: ZibriApplication): Promise<void> {
-        const { authStrategies } = app.options;
+        const { authenticators, authStrategies } = app.options;
+        for (const authenticator of authenticators) {
+            register({ token: authenticator, useClass: authenticator });
+            this.authenticators.push(authenticator);
+        }
+        if (authenticators.length) {
+            this.logger.info(
+                `initializes ${authenticators.length} ${authenticators.length > 1 ? 'authenticators' : 'authenticator'}`
+            );
+            for (const authenticator of authenticators) {
+                this.logger.info(`  - ${authenticator.name}`);
+                await inject(authenticator).init?.(app);
+            }
+        }
         for (const strategy of authStrategies) {
             register({ token: strategy, useClass: strategy });
             this.strategies.push(strategy);
@@ -129,40 +229,56 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
+    onAppStart(app: ZibriApplication): void {
+        // on start rather than on init, once every strategy, authenticator and two factor method has
+        // been initialized
+        AuthControllerUtilities.validateControllers(app);
+        // on start rather than on init: a route registered directly on the router after the
+        // application initialized is one a provider may be sent back to as well
+        for (const authenticator of FederatedRouteUtilities.findAuthenticators(this.authenticators)) {
+            FederatedRouteUtilities.validateRouteUrls(authenticator);
+        }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async login<
         Role extends string,
         UserType extends BaseUser<Role>,
-        AuthDataType,
         CredentialsType,
-        RequestPasswordResetDataType,
-        ConfirmPasswordResetDataType,
+        AuthDataType,
         RefreshLoginDataType,
         LogoutDataType
     >(
-        strategy: Newable<
-            AuthStrategyInterface<
-                Role,
-                UserType,
-                AuthDataType,
-                CredentialsType,
-                RequestPasswordResetDataType,
-                ConfirmPasswordResetDataType,
-                RefreshLoginDataType,
-                LogoutDataType
-            >
-        >,
-        credentials: CredentialsType
+        authenticator: Newable<AuthenticatorInterface<Role, UserType, CredentialsType>>,
+        strategy: Newable<LoginAuthStrategyInterface<Role, UserType, AuthDataType, RefreshLoginDataType, LogoutDataType>>,
+        credentials: CredentialsType,
+        transaction: Transaction | undefined
     ): Promise<AuthDataType> {
-        // recorded here rather than in the strategies, so that a custom strategy is audited without
-        // having to remember to be
+        // recorded here rather than in the authenticators and strategies, so that custom ones are
+        // audited without having to remember to be.
+        //
+        // The only way into a login: there is deliberately nothing that starts one for a user without
+        // credentials an authenticator checked. Signing in at a provider, a one-time code, a
+        // registration that has just created the user - each is a credential with an authenticator
         const subject: string | undefined = auditSubject(credentials);
         try {
-            const authData: AuthDataType = await inject(strategy).login(credentials);
+            // the same transaction for both halves: a registration that has just linked an identity
+            // inside it logs in with that identity, which nothing outside the transaction sees yet
+            const authentication: Authentication<UserType> = await inject(authenticator).authenticate(credentials, transaction);
+            // after the authenticator rather than inside each one, so that a password, a provider, a
+            // directory and a passkey are all refused alike
+            if (authentication.user.deactivatedAt != undefined) {
+                throw new AccountDeactivatedError();
+            }
+            if (await this.twoFactorService.resolveLock(authentication.user) === 'account') {
+                throw new AccountLockedError();
+            }
+            const authData: AuthDataType = await inject(strategy).startLogin(authentication, transaction);
             this.logger.audit({
                 action: AuditAction.LOGIN,
                 outcome: AuditOutcome.SUCCESS,
                 subject,
-                userId: auditUserId(authData)
+                userId: authentication.user.id
             });
             return authData;
         }
@@ -181,25 +297,11 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
     async refreshLogin<
         Role extends string,
         UserType extends BaseUser<Role>,
-        RefreshLoginDataType,
         AuthDataType,
-        CredentialsType,
-        RequestPasswordResetDataType,
-        ConfirmPasswordResetDataType,
+        RefreshLoginDataType,
         LogoutDataType
     >(
-        strategy: Newable<
-            AuthStrategyInterface<
-                Role,
-                UserType,
-                AuthDataType,
-                CredentialsType,
-                RequestPasswordResetDataType,
-                ConfirmPasswordResetDataType,
-                RefreshLoginDataType,
-                LogoutDataType
-            >
-        >,
+        strategy: Newable<LoginAuthStrategyInterface<Role, UserType, AuthDataType, RefreshLoginDataType, LogoutDataType>>,
         data: RefreshLoginDataType
     ): Promise<AuthDataType> {
         try {
@@ -222,6 +324,302 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
             });
             throw error;
         }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async resolveRegistration<
+        Role extends string,
+        UserType extends BaseUser<Role>,
+        CredentialsType,
+        TicketType,
+        RegistrationType,
+        IdentityType extends Pick<BaseEntity, 'id'>,
+        ConnectionRequestType,
+        ConnectionStartType
+    >(
+        authenticator: Newable<IdentityLinkingAuthenticatorInterface<
+            Role, UserType, CredentialsType, TicketType, RegistrationType, IdentityType, ConnectionRequestType, ConnectionStartType
+        >>,
+        ticket: TicketType,
+        transaction: Transaction | undefined
+    ): Promise<RegistrationType> {
+        return await inject(authenticator).resolveRegistration(ticket, transaction);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async linkIdentity<
+        Role extends string,
+        UserType extends BaseUser<Role>,
+        CredentialsType,
+        TicketType,
+        RegistrationType,
+        IdentityType extends Pick<BaseEntity, 'id'>,
+        ConnectionRequestType,
+        ConnectionStartType
+    >(
+        authenticator: Newable<IdentityLinkingAuthenticatorInterface<
+            Role, UserType, CredentialsType, TicketType, RegistrationType, IdentityType, ConnectionRequestType, ConnectionStartType
+        >>,
+        ticket: TicketType,
+        userId: string,
+        transaction: Transaction | undefined
+    ): Promise<void> {
+        try {
+            await inject(authenticator).linkIdentity(ticket, userId, transaction);
+            this.logger.audit({ action: AuditAction.IDENTITY_LINKED, outcome: AuditOutcome.SUCCESS, userId });
+        }
+        catch (error) {
+            this.logger.audit({
+                action: AuditAction.IDENTITY_LINKED,
+                outcome: AuditOutcome.FAILURE,
+                reason: auditReasonFor(error),
+                userId
+            });
+            throw error;
+        }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async startConnection<
+        Role extends string,
+        UserType extends BaseUser<Role>,
+        CredentialsType,
+        TicketType,
+        RegistrationType,
+        IdentityType extends Pick<BaseEntity, 'id'>,
+        ConnectionRequestType,
+        ConnectionStartType
+    >(
+        authenticator: Newable<IdentityLinkingAuthenticatorInterface<
+            Role, UserType, CredentialsType, TicketType, RegistrationType, IdentityType, ConnectionRequestType, ConnectionStartType
+        >>,
+        request: ConnectionRequestType
+    ): Promise<ConnectionStartType> {
+        // read from the request rather than taken as a parameter, so an identity is only ever connected
+        // to the user who asked for it. Nothing is recorded yet: the identity is linked, or refused,
+        // once the user has signed in with it
+        const context: HttpRequestContext | WebsocketRequestContext | undefined
+            = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
+        if (context == undefined) {
+            throw new UnauthorizedError($ts`Could not resolve the currently logged in user.`);
+        }
+        const user: UserType = await this.getCurrentUser<Role, UserType, true>(context, this.strategies, true);
+        return await inject(authenticator).startConnection(user.id, request);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async completeConnection<Role extends string, UserType extends BaseUser<Role>, CredentialsType, ConnectionAnswerType>(
+        authenticator: Newable<ConnectionCompletingAuthenticatorInterface<Role, UserType, CredentialsType, ConnectionAnswerType>>,
+        answer: ConnectionAnswerType
+    ): Promise<void> {
+        // the user of the request, for the reason startConnection reads it from there
+        const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
+        if (context == undefined) {
+            throw new UnauthorizedError($ts`Could not resolve the currently logged in user.`);
+        }
+        const user: UserType = await this.getCurrentUser<Role, UserType, true>(context, this.strategies, true);
+        try {
+            await inject(authenticator).completeConnection(user.id, answer);
+            this.logger.audit({ action: AuditAction.IDENTITY_LINKED, outcome: AuditOutcome.SUCCESS, userId: user.id });
+        }
+        catch (error) {
+            this.logger.audit({
+                action: AuditAction.IDENTITY_LINKED,
+                outcome: AuditOutcome.FAILURE,
+                reason: auditReasonFor(error),
+                userId: user.id
+            });
+            throw error;
+        }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async findIdentities(userId: string, transaction: Transaction | undefined): Promise<LinkedIdentity[]>;
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async findIdentities<IdentityType extends Pick<BaseEntity, 'id'>>(
+        userId: string,
+        transaction: Transaction | undefined,
+        authenticators: IdentityLinkingAuthenticators<IdentityType>
+    ): Promise<LinkedIdentity<IdentityType>[]>;
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async findIdentities(
+        userId: string,
+        transaction: Transaction | undefined,
+        authenticators: IdentityLinkingAuthenticators = this.findIdentityLinkingAuthenticators()
+    ): Promise<LinkedIdentity[]> {
+        const found: LinkedIdentity[][] = await Promise.all(authenticators.map(async authenticator => {
+            const instance: InstanceType<IdentityLinkingAuthenticators[number]> = inject(authenticator);
+            return (await instance.findIdentities(userId, transaction)).map(identity => ({ authenticator: instance.name, identity }));
+        }));
+        return found.flat();
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async unlinkIdentity(userId: string, identityId: string, transaction: Transaction | undefined): Promise<void> {
+        try {
+            const holder: InstanceType<IdentityLinkingAuthenticators[number]>
+                = await this.resolveIdentityHolder(userId, identityId, transaction);
+            await holder.unlinkIdentity(userId, identityId, transaction);
+            this.logger.audit({ action: AuditAction.IDENTITY_UNLINKED, outcome: AuditOutcome.SUCCESS, userId });
+        }
+        catch (error) {
+            this.logger.audit({
+                action: AuditAction.IDENTITY_UNLINKED,
+                outcome: AuditOutcome.FAILURE,
+                reason: auditReasonFor(error),
+                userId
+            });
+            throw error;
+        }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async resolveProviderAccessToken(userId: string, identityId: string, scopes: string[]): Promise<string> {
+        // no transaction on purpose: a refresh writes the provider's new tokens, and a provider that
+        // rotates its refresh token has refused the old one by then. Rolled back with the caller's
+        // work, the access would be lost for good
+        const holder: ProviderAccessAuthenticatorInterface = await this.resolveProviderAccessHolder(userId, identityId, undefined);
+        return await holder.resolveAccessToken(userId, identityId, scopes);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async revokeProviderAccess(userId: string, identityId: string, transaction: Transaction | undefined): Promise<void> {
+        try {
+            const holder: ProviderAccessAuthenticatorInterface = await this.resolveProviderAccessHolder(userId, identityId, transaction);
+            // the success is recorded by the authenticator, which records every end of an access the
+            // same way, also one the provider refused
+            await holder.revokeAccess(userId, identityId, transaction);
+        }
+        catch (error) {
+            this.logger.audit({
+                action: AuditAction.PROVIDER_ACCESS_REVOKED,
+                outcome: AuditOutcome.FAILURE,
+                reason: auditReasonFor(error),
+                userId
+            });
+            throw error;
+        }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async createApiKey<Role extends string>(
+        userId: string,
+        data: ApiKeyCreateData<Role, undefined>,
+        transaction: Transaction | undefined
+    ): Promise<CreatedApiKey>;
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async createApiKey<Role extends string>(
+        userId: string,
+        data: ApiKeyCreateData<Role, ApiKeyClientAuthentication>,
+        transaction: Transaction | undefined
+    ): Promise<ApiKey>;
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async createApiKey<Role extends string>(
+        userId: string,
+        data: ApiKeyCreateData<Role>,
+        transaction: Transaction | undefined
+    ): Promise<CreatedApiKey | ApiKey> {
+        try {
+            const clientAuthentication: ApiKeyClientAuthentication | undefined = data.clientAuthentication;
+            const created: CreatedApiKey | ApiKey = clientAuthentication == undefined
+                ? await this.apiKeyService.create(userId, { ...data, clientAuthentication }, transaction)
+                : await this.apiKeyService.createClient(userId, { ...data, clientAuthentication }, transaction);
+            // a key is a way into the account for as long as it lives, including for whoever made it
+            // after getting in some other way, which is why its creation is worth a line of its own
+            this.logger.audit({ action: AuditAction.API_KEY_CREATED, outcome: AuditOutcome.SUCCESS, userId });
+            return created;
+        }
+        catch (error) {
+            this.logger.audit({
+                action: AuditAction.API_KEY_CREATED,
+                outcome: AuditOutcome.FAILURE,
+                reason: auditReasonFor(error),
+                userId
+            });
+            throw error;
+        }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async findApiKeys(userId: string, transaction: Transaction | undefined): Promise<ApiKey[]> {
+        return await this.apiKeyService.findForUser(userId, transaction);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async revokeApiKey(userId: string, apiKeyId: string, transaction: Transaction | undefined): Promise<void> {
+        await this.auditApiKeyRevocation(userId, async () => await this.apiKeyService.revoke(userId, apiKeyId, transaction));
+        await this.websocketService.disconnectEndedLogins([userId], transaction);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async revokeApiKeys(userId: string, transaction: Transaction | undefined): Promise<void> {
+        await this.auditApiKeyRevocation(userId, async () => await this.apiKeyService.revokeForUser(userId, transaction));
+        await this.websocketService.disconnectEndedLogins([userId], transaction);
+    }
+
+    /**
+     * Revokes api keys of a user, and records it.
+     * @param userId - The id of the user.
+     * @param revoke - Revokes them.
+     */
+    private async auditApiKeyRevocation(userId: string, revoke: () => Promise<void>): Promise<void> {
+        try {
+            await revoke();
+            this.logger.audit({ action: AuditAction.API_KEY_REVOKED, outcome: AuditOutcome.SUCCESS, userId });
+        }
+        catch (error) {
+            this.logger.audit({
+                action: AuditAction.API_KEY_REVOKED,
+                outcome: AuditOutcome.FAILURE,
+                reason: auditReasonFor(error),
+                userId
+            });
+            throw error;
+        }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async deactivateUser(userId: string, transaction: Transaction | undefined): Promise<void> {
+        await this.auditUserChange(AuditAction.USER_DEACTIVATED, userId, async () => {
+            await this.userService.updateDeactivatedAt(userId, new Date(), transaction);
+            await this.endLogins(userId, transaction);
+            // gone for good rather than paused: a key handed to a script outlives the reason the user
+            // was deactivated, and reactivating them should not quietly bring it back
+            await this.apiKeyService.revokeForUser(userId, transaction);
+        });
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async reactivateUser(userId: string, transaction: Transaction | undefined): Promise<void> {
+        await this.auditUserChange(AuditAction.USER_REACTIVATED, userId, async () => {
+            // null rather than undefined: it clears the column
+            // eslint-disable-next-line unicorn/no-null
+            await this.userService.updateDeactivatedAt(userId, null, transaction);
+        });
+    }
+
+    /**
+     * Changes a user, and records it.
+     * @param action - What is recorded.
+     * @param userId - The id of the user.
+     * @param change - Changes them.
+     */
+    private async auditUserChange(action: AuditAction, userId: string, change: () => Promise<void>): Promise<void> {
+        try {
+            await change();
+            this.logger.audit({ action, outcome: AuditOutcome.SUCCESS, userId });
+        }
+        catch (error) {
+            this.logger.audit({ action, outcome: AuditOutcome.FAILURE, reason: auditReasonFor(error), userId });
+            throw error;
+        }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    resolveStrategies<Capable extends AuthStrategyInterface<string, BaseUser<string>>>(
+        hasCapability: (strategy: AuthStrategyInterface<string, BaseUser<string>>) => strategy is Capable
+    ): Capable[] {
+        return this.strategies.map(s => inject(s)).filter(s => hasCapability(s));
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -256,65 +654,29 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async requestPasswordReset<
-        Role extends string,
-        UserType extends BaseUser<Role>,
-        AuthDataType,
-        CredentialsType,
-        RequestPasswordResetDataType,
-        ConfirmPasswordResetDataType,
-        RefreshLoginDataType,
-        LogoutDataType
-    >(
-        strategy: Newable<
-            AuthStrategyInterface<
-                Role,
-                UserType,
-                AuthDataType,
-                CredentialsType,
-                RequestPasswordResetDataType,
-                ConfirmPasswordResetDataType,
-                RefreshLoginDataType,
-                LogoutDataType
-            >
-        >,
-        data: RequestPasswordResetDataType
+    async requestPasswordReset<Role extends string, UserType extends BaseUser<Role>>(
+        data: RequestPasswordResetData<Role, UserType>
     ): Promise<void> {
         // deliberately not audited here. A reset is only requested *through* this method when the
         // address turned out to belong to somebody, so an event recorded here would be missing
         // exactly the requests worth watching - the ones probing addresses that do not exist. The
         // controllers record the request instead, where every request is still visible.
-        await inject(strategy).requestPasswordReset(data);
+        await inject(PasswordAuthenticator).requestPasswordReset(data);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async confirmPasswordReset<
-        Role extends string,
-        UserType extends BaseUser<Role>,
-        AuthDataType,
-        CredentialsType,
-        RequestPasswordResetDataType,
-        ConfirmPasswordResetDataType,
-        RefreshLoginDataType,
-        LogoutDataType
-    >(
-        strategy: Newable<
-            AuthStrategyInterface<
-                Role,
-                UserType,
-                AuthDataType,
-                CredentialsType,
-                RequestPasswordResetDataType,
-                ConfirmPasswordResetDataType,
-                RefreshLoginDataType,
-                LogoutDataType
-            >
-        >,
-        data: ConfirmPasswordResetDataType
-    ): Promise<void> {
+    async isPasswordResetTokenValid(resetToken: string): Promise<boolean> {
+        return await inject(PasswordAuthenticator).isPasswordResetTokenValid(resetToken);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async confirmPasswordReset(data: ConfirmPasswordResetData): Promise<void> {
         try {
-            await inject(strategy).confirmPasswordReset(data);
-            this.logger.audit({ action: AuditAction.PASSWORD_RESET_CONFIRMED, outcome: AuditOutcome.SUCCESS });
+            const userId: string = await inject(PasswordAuthenticator).confirmPasswordReset(data);
+            // in every strategy rather than the one whose controller took the request: whoever the
+            // reset is meant to lock out may hold a login of any of them
+            await this.endLogins(userId, data.transaction);
+            this.logger.audit({ action: AuditAction.PASSWORD_RESET_CONFIRMED, outcome: AuditOutcome.SUCCESS, userId });
         }
         catch (error) {
             // no subject: the request carries a reset token and a new password, and nothing that
@@ -346,6 +708,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
             isLoggedIn: this.resolveIsLoggedInMetadata(controllerClass, controllerMethod),
             isNotLoggedIn: this.resolveIsNotLoggedInMetadata(controllerClass, controllerMethod),
             hasRole: this.resolveHasRoleMetadata(controllerClass, controllerMethod),
+            hasPlatformRole: this.resolveHasPlatformRoleMetadata(controllerClass, controllerMethod),
             require2fa: this.resolveRequire2faMetadata(controllerClass, controllerMethod)
         };
         const routeSkip: SkipAuthMetadata | undefined = MetadataUtilities.getRouteSkipAuth(controllerClass, controllerMethod);
@@ -375,16 +738,72 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         return this.requiresLoginGiven(this.toResolvedAuthMetadata(auth), this.defaultAuthAppliesTo(auth));
     }
 
+    private findIdentityLinkingAuthenticators(): IdentityLinkingAuthenticators {
+        return this.authenticators.filter(
+            (authenticator): authenticator is IdentityLinkingAuthenticators[number] => isIdentityLinkingAuthenticator(inject(authenticator))
+        );
+    }
+
+    /**
+     * Finds the authenticator an identity of a user is linked through, so a caller needs nothing but
+     * the id findIdentities answered with.
+     * @param userId - The user.
+     * @param identityId - The id of the identity.
+     * @param transaction - The transaction to read in, if any.
+     * @returns The authenticator.
+     * @throws NotFoundError when the user has no identity of that id.
+     */
+    private async resolveIdentityHolder(
+        userId: string,
+        identityId: string,
+        transaction: Transaction | undefined
+    ): Promise<InstanceType<IdentityLinkingAuthenticators[number]>> {
+        const holders: InstanceType<IdentityLinkingAuthenticators[number]>[] = this.findIdentityLinkingAuthenticators()
+            .map(authenticator => inject(authenticator));
+        const held: boolean[] = await Promise.all(holders.map(async holder => {
+            const identities: Pick<BaseEntity, 'id'>[] = await holder.findIdentities(userId, transaction);
+            return identities.some(identity => identity.id === identityId);
+        }));
+        const holder: InstanceType<IdentityLinkingAuthenticators[number]> | undefined = holders.find((_, index) => held[index] === true);
+        if (holder == undefined) {
+            throw new NotFoundError($ts`The user has no such identity.`);
+        }
+        return holder;
+    }
+
+    /**
+     * Finds the authenticator that keeps the tokens of an identity of a user.
+     * @param userId - The user.
+     * @param identityId - The id of the identity.
+     * @param transaction - The transaction to read in, if any.
+     * @returns The authenticator.
+     * @throws NotFoundError when the user has no identity of that id.
+     * @throws ProviderAccessError when the authenticator of the identity keeps no tokens.
+     */
+    private async resolveProviderAccessHolder(
+        userId: string,
+        identityId: string,
+        transaction: Transaction | undefined
+    ): Promise<ProviderAccessAuthenticatorInterface> {
+        const holder: InstanceType<IdentityLinkingAuthenticators[number]>
+            = await this.resolveIdentityHolder(userId, identityId, transaction);
+        if (!isProviderAccessAuthenticator(holder)) {
+            throw new ProviderAccessError(ProviderAccessFailure.NOT_CONNECTED);
+        }
+        return holder;
+    }
+
     /**
      * Reads a route's declaration into the shape the checks are written against.
      * @param auth - What the route declared, if anything.
-     * @returns The four checks, each present only where the route asked for it.
+     * @returns The five checks, each present only where the route asked for it.
      */
     private toResolvedAuthMetadata(auth: RouteAuthConfiguration | undefined): ResolvedAuthMetadata {
         return {
             isLoggedIn: auth?.isLoggedIn,
             isNotLoggedIn: auth?.isNotLoggedIn,
             hasRole: auth?.hasRole,
+            hasPlatformRole: auth?.hasPlatformRole,
             require2fa: auth?.require2fa
         };
     }
@@ -417,6 +836,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         const isLoggedInMetadata: IsLoggedInMetadata | undefined = metadata.isLoggedIn;
         const isNotLoggedInMetadata: IsNotLoggedInMetadata | undefined = metadata.isNotLoggedIn;
         const hasRoleMetadata: HasRoleMetadata | undefined = metadata.hasRole;
+        const hasPlatformRoleMetadata: HasRoleMetadata | undefined = metadata.hasPlatformRole;
         const require2faMetadata: Require2faMetadata | undefined = metadata.require2fa;
 
         // isLoggedIn
@@ -436,6 +856,14 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
             throw new ForbiddenError($ts`You cannot be logged in when accessing this route.`);
         }
 
+        // membership - on every route rather than only on those naming a role: a logged in caller
+        // acts in the tenant the request is for, and a public route reading that tenant's rows is no
+        // reason to let somebody who does not belong to it read them
+        if (!await this.isMemberOfActiveTenant(context)) {
+            await this.auditDenied(context, this.strategies, AuditReason.NOT_A_MEMBER);
+            throw new ForbiddenError($ts`You do not have permission to access this route.`);
+        }
+
         // hasRole
         if (
             hasRoleMetadata
@@ -449,17 +877,38 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
             throw new ForbiddenError($ts`You do not have permission to access this route.`);
         }
 
+        // hasPlatformRole
+        if (
+            hasPlatformRoleMetadata
+            && !await this.hasPlatformRole(
+                context,
+                hasPlatformRoleMetadata.allowedStrategies ?? this.strategies,
+                hasPlatformRoleMetadata.allowedRoles
+            )
+        ) {
+            await this.auditDenied(context, hasPlatformRoleMetadata.allowedStrategies ?? this.strategies, AuditReason.MISSING_ROLE);
+            // worded like the refusal above, for the reason given there
+            throw new ForbiddenError($ts`You do not have permission to access this route.`);
+        }
+
         // require2fa
         if (require2faMetadata) {
             const user: BaseUser<string> = await this.getCurrentUser(context, this.strategies, true);
-            if (!await this.twoFactorService.has2fa(user, context, require2faMetadata.allowedMethods)) {
-                this.logger.audit({
-                    action: AuditAction.AUTHORIZATION,
-                    outcome: AuditOutcome.FAILURE,
-                    reason: AuditReason.SECOND_FACTOR_MISSING,
-                    userId: user.id
-                });
-                throw new UnauthorizedError($ts`You need to provide a second factor to access this route.`);
+            try {
+                await this.validate2faOrReauth(user, context, require2faMetadata);
+            }
+            catch (error) {
+                // the refusal is passed on as it is rather than replaced by one message, so the caller
+                // learns whether to type a code, wait for the next one or wait before trying again
+                if (ErrorUtilities.isRefusal(error)) {
+                    this.logger.audit({
+                        action: AuditAction.AUTHORIZATION,
+                        outcome: AuditOutcome.FAILURE,
+                        reason: AuditReason.SECOND_FACTOR_MISSING,
+                        userId: user.id
+                    });
+                }
+                throw error;
             }
         }
 
@@ -468,6 +917,69 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         // actually runs - a check here could only cover the routes that name a single row in their
         // path, which left every list endpoint to filter itself and one forgotten filter to be a
         // cross-account leak.
+    }
+
+    /**
+     * Lets a request through \@Auth.require2fa: on a second factor, or on a recent login where the
+     * route accepts one in place of it.
+     * @param user - The user the request was resolved to.
+     * @param context - The request being checked.
+     * @param metadata - What the route declared.
+     * @throws When neither is there, with what the caller should be told.
+     */
+    private async validate2faOrReauth(
+        user: BaseUser<string>,
+        context: HttpRequestContext | WebsocketRequestContext,
+        metadata: Require2faMetadata
+    ): Promise<void> {
+        const reauth: Require2faReauthOptions | undefined = this.toReauthOptions(metadata.reauth ?? this.defaultReauth);
+        // a recent login does not stand in for a second factor that is locked: whoever was guessing at
+        // it holds exactly such a login, and the lock would otherwise be a way around itself
+        if (reauth == undefined || await this.twoFactorService.resolveLock(user) != undefined) {
+            await this.twoFactorService.validate2fa(user, context, metadata.allowedMethods);
+            return;
+        }
+        // a fallback only stands in for a factor the user does not have. Asked before the login time,
+        // because a user who has one is asked for it however recently they logged in
+        if (reauth.allow === 'onlyAsFallback' && await this.twoFactorService.isRegistered(user, metadata.allowedMethods)) {
+            await this.twoFactorService.validate2fa(user, context, metadata.allowedMethods);
+            return;
+        }
+        if (await this.hasLoggedInWithin(context, reauth.windowInMs ?? this.defaultReauthWindowInMs)) {
+            return;
+        }
+        // too long ago. A user who holds a factor can still present it, and its refusal says what was
+        // wrong with the one they sent; a user who holds none can only log in again, and being asked
+        // for a code would send them looking for something they do not have
+        if (reauth.allow === true && await this.twoFactorService.isRegistered(user, metadata.allowedMethods)) {
+            await this.twoFactorService.validate2fa(user, context, metadata.allowedMethods);
+            return;
+        }
+        throw new ReauthenticationRequiredError();
+    }
+
+    /**
+     * Reads a route's reauth setting into its long form.
+     * @param reauth - What the route declared, or the application's default.
+     * @returns The long form, or undefined when a recent login is not accepted.
+     */
+    private toReauthOptions(reauth: Require2faReauth): Require2faReauthOptions | undefined {
+        if (reauth === false) {
+            return undefined;
+        }
+        return typeof reauth === 'object' ? reauth : { allow: reauth };
+    }
+
+    /**
+     * Whether the caller logged in no longer ago than the given window.
+     * @param context - The request being checked.
+     * @param windowInMs - How long ago the login may have been.
+     * @returns False as well when the strategy cannot say when its caller logged in.
+     */
+    private async hasLoggedInWithin(context: HttpRequestContext | WebsocketRequestContext, windowInMs: number): Promise<boolean> {
+        // the strategy the request addresses, which is the one the user was just resolved by
+        const authenticatedAt: Date | undefined = await this.strategyFor(context, this.strategies)?.resolveAuthenticatedAt(context);
+        return authenticatedAt != undefined && Date.now() - authenticatedAt.getTime() <= windowInMs;
     }
 
     /**
@@ -512,11 +1024,116 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         allowedStrategies: AuthStrategies,
         allowedRoles: string[]
     ): Promise<boolean> {
+        const membership: BaseMembership<string> | undefined = await this.resolveMembership(context, allowedStrategies);
+        return membership?.roles.some(r => allowedRoles.includes(r)) ?? false;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async hasPlatformRole(
+        context: HttpRequestContext | WebsocketRequestContext,
+        allowedStrategies: AuthStrategies,
+        allowedRoles: string[]
+    ): Promise<boolean> {
         const principal: BaseUser<string> | undefined = await this.resolvePrincipal(context, allowedStrategies);
         if (!principal) {
             return false;
         }
         return principal.roles.some(r => allowedRoles.includes(r));
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async getCurrentMembership<
+        Role extends string,
+        MembershipType extends BaseMembership<Role>,
+        B extends boolean = true
+    >(
+        context: HttpRequestContext | WebsocketRequestContext,
+        allowedStrategies: AuthStrategies,
+        required: B
+    ): Promise<B extends false ? MembershipType | undefined : MembershipType> {
+        const membership: BaseMembership<string> | undefined = await this.resolveMembership(context, allowedStrategies);
+        if (membership == undefined && required) {
+            throw new ForbiddenError($ts`You do not have permission to access this route.`);
+        }
+        return membership as B extends false ? MembershipType | undefined : MembershipType;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async resolveCredentialTenant(context: HttpRequestContext | WebsocketRequestContext): Promise<string | undefined> {
+        // every strategy, for the reason isMemberOfActiveTenant gives
+        const limits: CredentialLimits | undefined = await this.strategyFor(context, this.strategies)?.resolveCredentialLimits?.(context);
+        return limits?.tenantId;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async resolveCredentialExpiry(context: HttpRequestContext | WebsocketRequestContext): Promise<Date | undefined> {
+        return await this.strategyFor(context, this.strategies)?.resolveExpiresAt(context);
+    }
+
+    /**
+     * Whether the caller of a request may act in the tenant it is for.
+     * @param context - The request being checked.
+     * @returns True when no tenant is active, when nobody is logged in, or when the logged in user is
+     * a member of the tenant through the credential they sent.
+     */
+    private async isMemberOfActiveTenant(context: HttpRequestContext | WebsocketRequestContext): Promise<boolean> {
+        if (this.tenantService.getActiveTenantId() == undefined) {
+            return true;
+        }
+        // every strategy rather than the ones the route names: whoever the request carries a
+        // credential of acts in the tenant, whichever of them the route goes on to accept
+        if (await this.resolvePrincipal(context, this.strategies) == undefined) {
+            return true;
+        }
+        return await this.resolveMembership(context, this.strategies) != undefined;
+    }
+
+    /**
+     * Resolves the membership a request acts through in the active tenant, once per request.
+     * @param context - The request to resolve for.
+     * @param allowedStrategies - The strategies that may answer who the request is from.
+     * @returns The membership, its roles narrowed to what the credential may use, or undefined when no
+     * tenant is active, nobody is logged in, the user is no member of the tenant or the credential is
+     * bound to another one.
+     */
+    private async resolveMembership(
+        context: HttpRequestContext | WebsocketRequestContext,
+        allowedStrategies: AuthStrategies
+    ): Promise<BaseMembership<string> | undefined> {
+        const perRequest: Map<string, Promise<BaseMembership<string> | undefined>> = this.memberships.get(context)
+            ?? new Map<string, Promise<BaseMembership<string> | undefined>>();
+        this.memberships.set(context, perRequest);
+
+        const key: string = allowedStrategies.map(s => s.name).join(',');
+        const pending: Promise<BaseMembership<string> | undefined> | undefined = perRequest.get(key);
+        if (pending) {
+            return await pending;
+        }
+        const resolving: Promise<BaseMembership<string> | undefined> = this.readMembership(context, allowedStrategies);
+        perRequest.set(key, resolving);
+        return await resolving;
+    }
+
+    private async readMembership(
+        context: HttpRequestContext | WebsocketRequestContext,
+        allowedStrategies: AuthStrategies
+    ): Promise<BaseMembership<string> | undefined> {
+        const tenantId: string | undefined = this.tenantService.getActiveTenantId();
+        const principal: BaseUser<string> | undefined = await this.resolvePrincipal(context, allowedStrategies);
+        if (tenantId == undefined || principal == undefined) {
+            return undefined;
+        }
+        const limits: CredentialLimits | undefined = await this.strategyFor(context, allowedStrategies)?.resolveCredentialLimits?.(context);
+        if (limits?.tenantId != undefined && limits.tenantId !== tenantId) {
+            return undefined;
+        }
+        const membership: BaseMembership<string> | undefined = await this.membershipService.findMembership(principal.id, tenantId);
+        if (membership == undefined || limits == undefined) {
+            return membership;
+        }
+        // narrowed on the membership itself, for the reason the api key strategy narrows the user: a
+        // handler reading the roles of the current membership sees what the credential may do too
+        return { ...membership, roles: membership.roles.filter(role => limits.roles.includes(role)) };
     }
 
     /**
@@ -565,6 +1182,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
             || MetadataUtilities.getControllerIsLoggedIn(controllerClass)
             || MetadataUtilities.getControllerIsNotLoggedIn(controllerClass)
             || MetadataUtilities.getControllerHasRole(controllerClass)
+            || MetadataUtilities.getControllerHasPlatformRole(controllerClass)
             || MetadataUtilities.getControllerRequire2fa(controllerClass)
         ) {
             return;
@@ -646,7 +1264,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
      * @returns Whether a caller has to be logged in.
      */
     private requiresLoginGiven(metadata: ResolvedAuthMetadata, defaultApplies: boolean): boolean {
-        if (metadata.isLoggedIn || metadata.hasRole || metadata.require2fa) {
+        if (metadata.isLoggedIn || metadata.hasRole || metadata.hasPlatformRole || metadata.require2fa) {
             return true;
         }
         if (metadata.isNotLoggedIn) {
@@ -710,8 +1328,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         context: HttpRequestContext | WebsocketRequestContext,
         allowedStrategies: AuthStrategies
     ): Promise<BaseUser<string> | undefined> {
-        // eslint-disable-next-line stylistic/max-len
-        const strategy: AuthStrategyInterface<string, BaseUser<string>, unknown, unknown, unknown, unknown, unknown, unknown> | undefined = this.strategyFor(context, allowedStrategies);
+        const strategy: AuthStrategyInterface<string, BaseUser<string>> | undefined = this.strategyFor(context, allowedStrategies);
         if (!strategy) {
             return undefined;
         }
@@ -719,8 +1336,11 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         // that cannot name a caller without reading does not offer the second one, and stays
         // authoritative whatever the setting says.
         if (this.revalidateUsers || strategy.resolveClaimedUser == undefined) {
-            return await strategy.resolveUser(context);
+            return this.withoutDeactivated(await strategy.resolveUser(context));
         }
+        // a claim carries no deactivation, so a deactivated user's access token works until it
+        // expires when the deployment trusts the credential; their logins have ended, so it is not
+        // refreshed
         return await strategy.resolveClaimedUser(context);
     }
 
@@ -728,7 +1348,16 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         context: HttpRequestContext | WebsocketRequestContext,
         allowedStrategies: AuthStrategies
     ): Promise<BaseUser<string> | undefined> {
-        return await this.strategyFor(context, allowedStrategies)?.resolveUser(context);
+        return this.withoutDeactivated(await this.strategyFor(context, allowedStrategies)?.resolveUser(context));
+    }
+
+    /**
+     * Drops a user that is deactivated, so that no request acts as them.
+     * @param user - The user a strategy resolved, if any.
+     * @returns The user, or undefined when there was none or they are deactivated.
+     */
+    private withoutDeactivated(user: BaseUser<string> | undefined): BaseUser<string> | undefined {
+        return user?.deactivatedAt == undefined ? user : undefined;
     }
 
     /**
@@ -744,9 +1373,11 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
     private strategyFor(
         context: HttpRequestContext | WebsocketRequestContext,
         allowedStrategies: AuthStrategies
-    ): AuthStrategyInterface<string, BaseUser<string>, unknown, unknown, unknown, unknown, unknown, unknown> | undefined {
-        // eslint-disable-next-line stylistic/max-len
-        const strategies: AuthStrategyInterface<string, BaseUser<string>, unknown, unknown, unknown, unknown, unknown, unknown>[] = allowedStrategies
+    ): AuthStrategyInterface<string, BaseUser<string>> | undefined {
+        // the registered strategies a route's list names, a class extending one of them included: a
+        // route naming ApiKeyAuthStrategy is meant for api keys, whichever subclass reads them
+        const strategies: AuthStrategyInterface<string, BaseUser<string>>[] = this.strategies
+            .filter(registered => allowedStrategies.some(allowed => registered === allowed || registered.prototype instanceof allowed))
             .map(s => inject(s))
             .filter(s => s.hasCredential(context));
 
@@ -879,16 +1510,44 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     resolveHasRoleMetadata(controllerClass: Newable<unknown>, controllerMethod: string): HasRoleMetadata | undefined {
-        const controllerHasRole: HasRoleMetadata | undefined = MetadataUtilities.getControllerHasRole(controllerClass);
-        const routeHasRole: HasRoleMetadata | undefined = MetadataUtilities.getRouteHasRole(
-            controllerClass,
-            controllerMethod
-        );
-        const controllerSkipHasRole: SkipHasRoleMetadata | undefined = MetadataUtilities.getControllerSkipHasRole(controllerClass);
-        const routeSkipHasRole: SkipHasRoleMetadata | undefined = MetadataUtilities.getRouteSkipHasRole(
-            controllerClass,
-            controllerMethod
-        );
+        return this.resolveRoleMetadata(controllerClass, controllerMethod, AUTH_HAS_ROLE_LABEL, {
+            controller: MetadataUtilities.getControllerHasRole(controllerClass),
+            route: MetadataUtilities.getRouteHasRole(controllerClass, controllerMethod),
+            controllerSkip: MetadataUtilities.getControllerSkipHasRole(controllerClass),
+            routeSkip: MetadataUtilities.getRouteSkipHasRole(controllerClass, controllerMethod)
+        });
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    resolveHasPlatformRoleMetadata(controllerClass: Newable<unknown>, controllerMethod: string): HasRoleMetadata | undefined {
+        return this.resolveRoleMetadata(controllerClass, controllerMethod, AUTH_HAS_PLATFORM_ROLE_LABEL, {
+            controller: MetadataUtilities.getControllerHasPlatformRole(controllerClass),
+            route: MetadataUtilities.getRouteHasPlatformRole(controllerClass, controllerMethod),
+            controllerSkip: MetadataUtilities.getControllerSkipHasPlatformRole(controllerClass),
+            routeSkip: MetadataUtilities.getRouteSkipHasPlatformRole(controllerClass, controllerMethod)
+        });
+    }
+
+    /**
+     * Resolves what a role check declared on a route and its controller means, with the skips
+     * applied - the same for a role in the tenant and a role of the user's own.
+     * @param controllerClass - The controller the route is on.
+     * @param controllerMethod - The route to resolve.
+     * @param label - How the decorator is named in errors and warnings.
+     * @param declared - What the route and its controller declare.
+     * @returns The check that applies, or undefined when none does.
+     * @throws When a check and a skip of it are declared together.
+     */
+    private resolveRoleMetadata(
+        controllerClass: Newable<unknown>,
+        controllerMethod: string,
+        label: string,
+        declared: DeclaredRoleChecks
+    ): HasRoleMetadata | undefined {
+        const controllerHasRole: HasRoleMetadata | undefined = declared.controller;
+        const routeHasRole: HasRoleMetadata | undefined = declared.route;
+        const controllerSkipHasRole: SkipHasRoleMetadata | undefined = declared.controllerSkip;
+        const routeSkipHasRole: SkipHasRoleMetadata | undefined = declared.routeSkip;
         const routeSkip: SkipAuthMetadata | undefined = MetadataUtilities.getRouteSkipAuth(
             controllerClass,
             controllerMethod
@@ -897,26 +1556,26 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         if (routeHasRole && routeSkip) {
             throw new InvalidDecoratorCombinationError(
                 `${controllerClass.name}.${controllerMethod}`,
-                [AUTH_HAS_ROLE_LABEL, AUTH_SKIP_LABEL]
+                [label, AUTH_SKIP_LABEL]
             );
         }
 
         if (routeHasRole && routeSkipHasRole) {
             throw new InvalidDecoratorCombinationError(
                 `${controllerClass.name}.${controllerMethod}`,
-                [AUTH_HAS_ROLE_LABEL, '@Auth.hasRole.skip']
+                [label, `${label}.skip`]
             );
         }
         if (controllerHasRole && controllerSkipHasRole) {
-            throw new InvalidDecoratorCombinationError(controllerClass.name, [AUTH_HAS_ROLE_LABEL, '@Auth.hasRole.skip']);
+            throw new InvalidDecoratorCombinationError(controllerClass.name, [label, `${label}.skip`]);
         }
-        this.validateControllerSkipDoesNotConflict(controllerClass, controllerHasRole, AUTH_HAS_ROLE_LABEL);
+        this.validateControllerSkipDoesNotConflict(controllerClass, controllerHasRole, label);
 
         if (!routeHasRole && !controllerHasRole && routeSkipHasRole) {
-            this.logger.warn(`Useless @Auth.hasRole.skip on route ${controllerClass.name}.${controllerMethod}`);
+            this.logger.warn(`Useless ${label}.skip on route ${controllerClass.name}.${controllerMethod}`);
         }
         if (!controllerHasRole && controllerSkipHasRole) {
-            this.logger.warn(`Useless @Auth.hasRole.skip on controller ${controllerClass.name}`);
+            this.logger.warn(`Useless ${label}.skip on controller ${controllerClass.name}`);
         }
 
         if (routeSkipHasRole || routeSkip) {
@@ -989,32 +1648,40 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
+    async endLogins(userId: string, transaction: Transaction | undefined): Promise<void> {
+        await Promise.all(this.findLoginStrategies().map(async strategy => await strategy.endLogins(userId, transaction)));
+        // after the strategies, so that what a socket is checked against is what they left
+        await this.websocketService.disconnectEndedLogins([userId], transaction);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async endFederatedLogins(session: FederatedSessionMatch, transaction: Transaction | undefined): Promise<void> {
+        await Promise.all(this.findLoginStrategies().map(async strategy => await strategy.endFederatedLogins(session, transaction)));
+    }
+
+    /**
+     * The registered strategies that carry logins. A strategy that only reads a credential issued some
+     * other way, such as an api key, has no login to end.
+     * @returns Their instances.
+     */
+    private findLoginStrategies(): LoginAuthStrategyInterface<string, BaseUser<string>, unknown, unknown, unknown>[] {
+        return this.strategies.map(s => inject(s)).filter(isLoginAuthStrategy);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async logout<
         Role extends string,
         UserType extends BaseUser<Role>,
-        RefreshLoginDataType,
         AuthDataType,
-        CredentialsType,
-        RequestPasswordResetDataType,
-        ConfirmPasswordResetDataType,
+        RefreshLoginDataType,
         LogoutDataType
     >(
-        strategy: Newable<
-            AuthStrategyInterface<
-                Role,
-                UserType,
-                AuthDataType,
-                CredentialsType,
-                RequestPasswordResetDataType,
-                ConfirmPasswordResetDataType,
-                RefreshLoginDataType,
-                LogoutDataType
-            >
-        >,
+        strategy: Newable<LoginAuthStrategyInterface<Role, UserType, AuthDataType, RefreshLoginDataType, LogoutDataType>>,
         data: LogoutDataType
-    ): Promise<void> {
+    ): Promise<LogoutResult> {
+        let session: FederatedSession | undefined;
         try {
-            await inject(strategy).logout(data);
+            session = await inject(strategy).logout(data);
             this.logger.audit({ action: AuditAction.LOGOUT, outcome: AuditOutcome.SUCCESS });
         }
         catch (error) {
@@ -1027,6 +1694,31 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
                 outcome: AuditOutcome.FAILURE,
                 reason: auditReasonFor(error)
             });
+        }
+        return { providerLogoutUrl: session == undefined ? undefined : await this.resolveProviderLogoutUrl(session) };
+    }
+
+    /**
+     * The url that ends the session at the provider a login was started from, once the login ended here.
+     *
+     * A provider that cannot be reached to build it costs the user the logout there, not the one here,
+     * which has happened already.
+     * @param session - The session the login kept.
+     * @returns The url, or undefined when the provider cannot be told.
+     */
+    private async resolveProviderLogoutUrl(session: FederatedSession): Promise<string | undefined> {
+        const authenticator: Newable<FederatedAuthenticatorInterface<string, BaseUser<string>>> | undefined = FederatedRouteUtilities
+            .findAuthenticators(this.authenticators)
+            .find(a => inject(a).name === session.provider);
+        if (authenticator == undefined) {
+            return undefined;
+        }
+        try {
+            return await inject(authenticator).createLogoutUrl(session);
+        }
+        catch (error) {
+            this.logger.warn(`${authenticator.name} could not build the url that ends the session at the provider.`, { error });
+            return undefined;
         }
     }
 }

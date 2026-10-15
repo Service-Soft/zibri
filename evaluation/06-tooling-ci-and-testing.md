@@ -11,7 +11,7 @@
 
 ## T. Testability of a consumer's own application
 
-### T1. The framework's own harness has to reach into private statics — ~~MAJOR~~ **PARTIALLY FIXED**
+### T1. The framework's own harness has to reach into private statics — ~~MAJOR~~ **FIXED**
 
 > **A third instance of this, found by its side effect rather than by reading the code.** A run left
 > a `versions/1.0.0.json` behind inside `packages/zibri/src` — in the source tree, where git could
@@ -76,6 +76,41 @@
 > into two 404s, and the failure named the assets rather than the cast three tests earlier. **A
 > `readonly` cast is a mutation with no owner**: nothing in the type system says it has to be undone,
 > so nothing does.
+>
+> **The asset folder cast is gone** (2026-09-26), and it had been doing less than it claimed. It set
+> `assetsPath` after the service was built, but `publicAssetsPath` and `componentTemplatePath` were
+> field initializers derived from it at construction, so `/assets` went on serving the default folder
+> while `docs/testing.md` said the option decided it. Handlebars components followed the cast only
+> because they re-derive the folder when read. Found by [04 §3.12](./04-infrastructure-subsystems.md)'s
+> test.
+>
+> Closed by `ASSETS_PATH`, a token of the same shape as `TRANSLATIONS_PATH` with the same default,
+> and **not for the harness's sake**. The case that decides it is an application that does not bundle:
+> `__dirname` then resolves inside the installed framework, and translations could be pointed back
+> with their token while assets had nothing. The service injects the folder and derives its other
+> two paths once, in its constructor. Making those paths getters was considered first and declined,
+> because it would have reshaped the service for the sole benefit of a test. The harness's
+> `assetsPath` option is removed rather than rewired: a test names the folder with a provider, like
+> every other path. `asset-service.test.ts` lost its own `publicAssetsPath` cast the same way, and its
+> tree fixture now sits in an assets folder layout (`mocks/assets/public`).
+>
+>
+> **The data source port stays a write past `readonly`, and that is what closes the finding rather
+> than what keeps it open** (2026-09-26). The finding was that a consumer has to repeat hacks against
+> framework internals to test their application. They no longer do: `zibri-testing` is the harness
+> they use, and the override is one function, `applyContainerPort`, with a single owner and called
+> before every connect — on start, on `reInit`, and in each cluster instance. Unlike the asset cast it
+> also does what it claims, because connection options are read on connect.
+>
+> `readonly options` is the right model for an application, which states its connection when the
+> class is built, in the scaffold from its environment. What a container adds is a port that only
+> exists after that. Two ways to remove the write were weighed and declined. An options hook in the
+> framework, resolved on connect, would be framework structure that no application has asked for.
+> Having only the harness's creator functions supply the port would refuse every data source class a
+> suite declares itself, about twenty here and any consumer's own. The reasoning sits beside the write.
+> A second cast in the same file went with this round: a started valkey container was forced through
+> `as unknown as AbstractStartedContainer`, where the interface both kinds implement,
+> `StartedTestContainer`, was all anything used.
 
 `packages/zibri/src/__testing__/test-server/start-test-server.function.ts:117-119` (and again at
 `:165-166`)
@@ -332,7 +367,42 @@ No Windows or macOS job, despite the framework doing substantial filesystem work
 `packages/zibri/src/parsing/form-data/form-data-body-parser-cleanup.cron-job.ts:38` contains a
 path-join bug ([02](./02-http-runtime-core.md) §C6) of exactly the class an OS matrix catches.
 
-### CI2. No security scanning — ~~MAJOR~~ **MOSTLY FIXED**
+### CI2. No security scanning — ~~MAJOR~~ **FIXED**
+
+> **The rest closed 2026-10-02, with the user's choices: permissive licenses only, checked on what a
+> consumer installs, and no SBOM shipped.** Both reasons for leaving it had gone. Releases are pull
+> requests into `release` now, so a workflow on `pull_request` runs. And `docs/deployment.md` is the
+> operations page the policy was waiting for.
+>
+> - **`.github/scripts/check-consumer-tree.mjs`** walks the lockfile from the published packages'
+>   dependencies, peers and optional dependencies, which is exactly what a consumer can install. It
+>   checks every license against `.github/license-policy.json` (MIT, MIT-0, ISC, Apache-2.0, BSD-2/3,
+>   0BSD, BlueOak-1.0.0, CC0-1.0, Unlicense, Zlib, read as SPDX expressions) and asks npm's bulk
+>   advisory endpoint about the same set, failing on high or critical. It runs as CI's audit job and
+>   again in `cd.yml` before anything publishes, because an advisory is published against code that
+>   did not change.
+> - **`dependency-review.yml`** holds every pull request to the same policy. It reads the allowed
+>   licenses and the hand-checked exceptions out of the same file, so the two cannot drift.
+> - **No SBOM is published.** npm resolves a library's ranges in the consumer's own tree, and a
+>   library's lockfile is not published, so the authoritative bill of materials is the application's.
+>   `deployment.md` says how to generate it and names the licenses Zibri's tree is held to.
+>
+> **Found on the way: the audit gate never saw the optional peers.** `npm audit --omit=dev` went by the
+> repository's own dev flag, and an optional peer is a devDependency here. So re2 and ssh2, and every
+> package behind them, were never audited, and pg and socket.io only because the private sandbox
+> depends on them. The walk replaces it. The whole consumer tree (485 packages) has no advisory at any
+> severity today.
+>
+> **Found on the way, by the user: the deprecated `licenses` list.** The lockfile records `license`
+> only as a string, so ssh2 and its two helpers, which declare MIT in the old array, read as
+> unlicensed. The installed manifest is read for those now, with several entries read as all of them
+> applying. That needs `npm ci --ignore-scripts` in the audit job. One exception is left, keyed by
+> version so an upgrade is checked again: png-js, which declares nothing and ships the MIT text.
+>
+> Held by `ci-workflows.test.ts`: the walk on a lockfile with an optional peer, a nested copy and a
+> private workspace; SPDX expressions; the deprecated shapes; exceptions per version; the severity
+> filter; the real tree against the policy; the check running before every publish; and the docs
+> naming every allowed license. Secret scanning and Dependabot are still repository settings.
 
 > **Two gates, covering the two halves of the surface.** `npm audit --omit=dev --audit-level=high`
 > is a job in `ci.yml`, and CodeQL is a workflow of its own (`javascript-typescript`,
@@ -363,7 +433,34 @@ no secret scanning step. For a framework whose value proposition is "batteries i
 maximal transitive dependency surface owned on the consumer's behalf — the absence of any
 automated supply-chain gate is the finding a security team raises first.
 
-### CI3. No performance or regression testing — MINOR
+### CI3. No performance or regression testing — MINOR **FIXED (2026-10-01)**
+
+> **Two halves, split by what can be trusted to fail a build.** Round trips can: what a repository
+> call costs in statements or requests is the same on every machine. `repository-costs.cases.ts`
+> measures every repository call on postgres and valkey, each on a data source holding nothing else,
+> and compares the result with the table in `docs/costs.md` - so the page and the code cannot drift -
+> and checks that a call costs the same for twenty rows as for one. It runs in the normal suite, so it
+> fails CI. Timings cannot: `test:benchmark` times a request and a repository call on the in-memory
+> data source, sets them against `src/__testing__/benchmark/baseline.json` and reports, and the CI job
+> keeps the report as an artifact without failing. The counted suite's own precedent is the reason for
+> the split - its comment records that a 500ms threshold over 300 rows "passed comfortably on a local
+> container and detected nothing".
+>
+> **The first thing it caught was read off the code before it ever ran**: `updateAll` wrapped its one
+> driver call in a transaction, so postgres paid a `BEGIN` and a `COMMIT` around a single statement -
+> the exact cost 01's cost table said had been removed. Both drivers take a transaction of their own
+> where they need one, so the wrapper is gone.
+>
+> **Its first run found valkey growing with the rows in four calls, and one of them was reading the
+> whole table.** A find resolved every requested relation on every row it loaded, before the filter
+> ran, so `findAll({ where, relations })` on an unindexed filter read the relation of each row in the
+> table - one request apiece. Relations are now resolved once per relation for all rows, and only those
+> a filter or an order needs before filtering. `deleteAll` sent three requests per row outside a
+> transaction and now sends one pipeline, building the unique-index removals from the stored row - the
+> entity it was handed had been decrypted, and an encrypted value never encrypts to the same text
+> twice, so an encrypted unique value's index entry was never removed at all. Postgres was fixed-cost
+> throughout. Writing it also took a key operation per value out of every delete: the delete hook
+> re-encrypted the row it had just decrypted, only so the pass handing it back could decrypt it again.
 
 There is a `test:heavy` script that runs `multithreading.service.performance.test.ts`
 (`packages/zibri/package.json:32`), but nothing records or compares timings across runs. A change
@@ -491,8 +588,24 @@ user-visible.
 `npm publish` commands passes `--provenance`. The permission is granted and the attestation is
 never produced, so consumers get no supply-chain provenance despite the setup implying otherwise.
 
-### CD5. No version bump, changelog, or tag automation — MINOR, **open by decision**
+### CD5. No version bump, changelog, or tag automation — ~~MINOR~~ **FIXED**
 
+> **Closed (2026-09-29), the way the paragraph below left open.** A root `CHANGELOG.md` with one
+> hand-written section per version, and the release refuses a version whose section is missing or
+> empty (`release-notes.mjs`), before anything is published. Once all four packages are, `gh release
+> create` tags the commit `v<version>` and makes that section the release's notes; a tag that already
+> exists is refused up front too, since finding it after the publishes would leave four packages and
+> no release beside them. `npm run release:bump -- <version>` writes the version into the manifests,
+> the lockfile and a new empty changelog section.
+>
+> **The bump found a gap the version check could not see.** The packages name each other by range —
+> `zibri` peer depends on `zibri-tsx ^3.0.0`, `zibri-testing` on `zibri ^3.0.0` — and a major bump
+> that leaves one behind publishes packages whose versions all agree and that refuse each other.
+> `release-version.mjs` refuses a range between them other than `^<version>` now. The lockfile is
+> rewritten with the manifests because it carries the same ranges, and `npm ci` refuses one that
+> disagrees. All of it is held by `ci-workflows.test.ts`, including that bumping to the version already
+> declared rewrites nothing, byte for byte.
+>
 > **Generated release notes were declined**, which removes the cheap answer and leaves the question
 > genuinely open rather than merely undone. What was on the table and is not ruled out: a
 > hand-written `CHANGELOG.md` section that the release refuses to publish without — the same shape
@@ -832,6 +945,77 @@ is genuinely clever, and it carries the same structural exposure as X1: a second
 parser for a third-party template grammar, which must track that grammar's evolution, and whose
 failure mode is an incorrect inferred type rather than an error.
 
+### X4. Any object with a string `__raw` field is written into a page unescaped — ~~MAJOR~~ **FIXED**
+
+*Filed on the re-check of 2026-10-15.*
+
+> **Closed 2026-10-15.** The three markers - trusted html, a handler forwarded through props, a
+> client-prop reference - carry a property keyed by a symbol (`Symbol.for('zibri-tsx.raw')` and its
+> two siblings), the way React keys `$$typeof`. Json cannot write a symbol key, so nothing that came in
+> as data passes for one, and a forged client-prop reference is written as the data it is.
+> `Symbol.for` rather than a module symbol, because the runtime is built for both module systems and
+> a template compiled against one copy can be rendered by the other.
+>
+> `attr`, which spreads and dynamic tags go through, writes no attribute whose name starts with `on`
+> in any case, no name outside letters, digits and `_ : . -`, and no `javascript:` or `vbscript:`
+> value on an attribute that takes a url, read after dropping what a browser drops from a url. Left
+> out rather than replaced, like every other value `attr` does not write. Held by
+> `packages/tsx/src/runtime/server-runtime.test.ts` (five cases, red first). docs/templating.md says
+> what is escaped and what is left out.
+
+`renderChild` (`packages/tsx/src/runtime/server-runtime.ts:176-194`) escapes a string and passes a
+`Raw` through as it is, and `isRaw` (`:77-79`) takes **any** object whose `__raw` is a string for one.
+The marker is a plain property rather than a symbol or a class only the compiler can create, so a
+value that came in as json - a `@Property.unknown()` column, an `anyOf` body, a provider's answer -
+holding `{ "__raw": "<img src=x onerror=…>" }` and rendered as a child is written out verbatim. React
+puts a `Symbol` in `$$typeof` for exactly this reason. `isMarker` and `isClientPropMarker`
+(`:862-873`) read forged objects the same way, and a forged client-prop reference among the props a
+client setup reads is worse than html: `serializeInstanceProps`
+(`packages/tsx/src/runtime/render-page.ts:174-185`) writes its `owner` into the script source as
+`__ssrInstance${owner}`, unquoted, so a string there is javascript in the page.
+
+Attributes have the matching gap. `attr` (`:138-155`) escapes the value and never the name, and
+`isEventHandler` (`:212-214`) only recognizes `onClick`-style names, so a spread
+(`spreadAttributes`, `:162-168`) of an object holding `onclick` or `onload` renders a working inline
+handler, and a key with a space or `=` in it writes attributes of its own. No url-taking attribute
+refuses a `javascript:` value.
+
+### X5. The client script is closed early by `</SCRIPT>` or `</script >` in a prop — ~~MAJOR~~ **FIXED**
+
+*Filed on the re-check of 2026-10-15.*
+
+> **Closed 2026-10-15.** Every piece of json written into the script - the props of each instance,
+> the handler and client-prop registries, the translations, the locale and the format options - goes
+> through `toScriptJson` (`packages/tsx/src/runtime/script-json.ts`), which writes `<` as `<`:
+> the same character to javascript and none to the html parser, so no spelling of `</script` and no
+> `<!--` can be in the data at all. U+2028/U+2029 are escaped with it. The code itself cannot be
+> escaped that way (`a < b` is code), so `wrapDocument` now neutralizes `</script` in any case
+> instead of the one lower-case spelling. Held by three cases in `render-page.test.ts`, red first,
+> one of which runs the script and checks the prop arrives as it was sent.
+
+The props a client setup reads are written into the page's inline `<script>` with `JSON.stringify`
+(`packages/tsx/src/runtime/render-page.ts:149-182`), and `wrapDocument` (`:306-320`) guards it with
+`script.replaceAll('</script>', '<\\/script>')`. An HTML parser ends a script on `</script` followed
+by whitespace, `/` or `>`, in any case, so `</SCRIPT>`, `</Script>` and `</script >` all pass the
+replacement and close the element. A string prop holding
+`</SCRIPT><img src=x onerror=alert(1)>` - a user's name, a comment - is markup from there on.
+`JSON.stringify` leaves `<` as it is, so escaping it as `<`, which closes this for every
+spelling, is not done either.
+
+### X6. The `mask` helper writes up to three characters of its input unescaped — MINOR, **FIXED**
+
+*Filed on the re-check of 2026-10-15.*
+
+> **Closed 2026-10-15.** The helper returns a plain string, which `{{ }}` escapes; nothing it writes
+> is the template's own markup. Held by *escapes what it keeps of the value* in
+> `src/handlebars/test/helpers.test.ts`, red first.
+
+`HandlebarUtilities`' `mask` helper (`packages/zibri/src/handlebars/handlebar.utilities.ts:75-80`)
+returns `new SafeString(MaskUtilities.mask(value))`, so handlebars does not escape its result.
+`MaskUtilities.mask` (`packages/zibri/src/utilities/mask.utilities.ts:10-16`) keeps the first character and the
+last two, and a value of three characters or fewer whole. A masked value of `<b>` or ending in `<i`
+opens a tag in the rendered mail or page.
+
 ---
 
 ## C. CLI (`packages/cli`)
@@ -890,7 +1074,7 @@ globally (`npm i -g zibri-cli`) as their first contact with the project.
 > **The last sentence below turned out to be a description of a live defect rather than a risk.**
 > A regression in generated output was absorbed by adding it to the accepted list: `src/providers.ts`
 > did not parse, and the missing comma was written down as an intended difference from the sandbox.
-> See [§C4](#c4-not-assessed-whether-generated-projects-are-production-shaped--mostly-closed), where
+> See [§C4](#c4-not-assessed-whether-generated-projects-are-production-shaped--closed), where
 > it is fixed and where the check that would have caught it now lives. What the finding asks for -
 > coverage, and a gate on the scaffold - is still open.
 
@@ -953,7 +1137,7 @@ including the `portability` job from [§CI1](#ci1-single-node-version-single-os-
 > author off the machine the way npm does, so that what is compared differs in what the two projects
 > are rather than in how each file came to exist.
 
-### C4. Not assessed: whether generated projects are production-shaped — ~~MAJOR~~ **ASSESSED, mostly closed**
+### C4. Not assessed: whether generated projects are production-shaped — ~~MAJOR~~ **ASSESSED, closed**
 
 > **The assessment found one live defect before it found any gaps, and it had been shipping the
 > whole time.** `src/providers.ts` did not parse. The generator emitted `})` where an array element
@@ -1142,6 +1326,19 @@ including the `portability` job from [§CI1](#ci1-single-node-version-single-os-
 > decision as the one made here — [02 §C3](./02-http-runtime-core.md) settled exit codes for the
 > shutdown path and never covered this one.
 >
+> **Decided since (2026-09-29): logged and survived, on purpose.** The framework's own fire-and-forget
+> work was checked first, because ending the process would have been right only if nothing but
+> application code could reach the handler. Nearly all of it catches its own failures. Three paths
+> in the thread job pool did not, and each of them lost more than a log line: a job's timeout wrote its
+> reason before stopping the worker, so a failed write left the job running past its timeout; and a
+> worker's exit, error or final message wrote the job's end before handing the worker back, so a
+> failed write kept the worker forever. With one worker that is the whole pool, and the job's claim
+> went on being renewed, so no other instance could take the job either. The worker is handed back in
+> a `finally` now, and a job whose end could not be written is taken over and run again, like the job
+> of an instance that stopped (`multithreading.service.failed-write.test.ts`, red first). What reaches
+> the handler after that is a promise application code never awaited, which is not worth every request
+> in flight. `docs/error-handling.md` says what happens to it.
+>
 > `new.command.docker.heavy.test.ts` builds the generated Dockerfile and runs the image against a
 > database container, then asks the application the questions that only a running one can answer:
 > whether it serves its own home page, whether both health routes respond, whether the version
@@ -1151,8 +1348,19 @@ including the `portability` job from [§CI1](#ci1-single-node-version-single-os-
 >
 > The CI workflow stays open. It is opinionated in a way none of the rest is — a provider, a
 > registry, a release trigger — and it belongs with
-> [§CD5](#cd5-no-version-bump-changelog-or-tag-automation--minor-open-by-decision), which is the same
+> [§CD5](#cd5-no-version-bump-changelog-or-tag-automation--minor-fixed), which is the same
 > decision asked once.
+>
+> **Closed (2026-09-29): `zi new` asks.** The provider is the opinionated part, so it is a question
+> rather than a default — `github` or `none`, also given as `zi new <name> <github|none>`. With
+> `github` the project gets a workflow that installs, builds and tests it. **Writing it found that no
+> generated project could run its own tests from a clone**: the test options import the application's,
+> which read `BASE_URL` and the secrets through `requireEnv`, and `.env` is git ignored. The workflow
+> does what `.env.example` asks of a new machine — copy it and fill each blank secret, here with values
+> made for the run — and the keys it fills come from the same list both dotenv files are written from.
+> `new.command.test.ts` holds that list against the generated files, and the heavy suite deletes `.env`
+> and runs every step of the generated workflow in order, the first time anything has run a generated
+> project's own tests.
 
 I did not review the templates in depth. The questions an evaluator would ask — does `zi new`
 produce a Dockerfile, a health endpoint, environment-based configuration, a CI workflow, a test
@@ -1176,7 +1384,17 @@ setup, and a `synchronize: false` data source — remain open. Given
 > made it. No install, no build, no network — which matters, because "nothing compiles the scaffold"
 > is what let this exist, and a check that needs a compile would have been skipped the same way.
 
-### C6. `exitGracefully` waits for something that never happens — MINOR, **open**
+### C6. `exitGracefully` waits for something that never happens — ~~MINOR~~ **FIXED**
+
+> **Fixed (2026-09-28).** It flushes what is queued now: an empty write's callback runs once
+> everything written before it has gone out, so the process exits with its code as soon as stdout
+> and stderr have caught up, whatever else holds the event loop open.
+> `exit-gracefully.function.test.ts` runs the real source in a child that keeps a timer running and
+> writes a megabyte first. The old version was killed by the test's timeout, and the new one exits 3
+> with every byte written. The behaviour change the entry warned about is real: a refusal inside a
+> test runner now ends the worker instead of hanging it. No suite reaches one, because
+> `emptyWorkDirectory` removed the trigger and every other path is mocked through
+> `mockExitGracefully`.
 
 The cli's every error path ends in `exitGracefully`, which sets `process.exitCode`, awaits
 `finished(process.stdout, { writable: true })` and `finished(process.stderr, …)`, and then calls
@@ -1204,3 +1422,29 @@ Making it true means flushing what is *queued* rather than waiting for an end th
 then the `process.exit` starts running — which is a behaviour change on every error path, including
 inside a test runner, where it would take the worker down instead of hanging it. Worth doing
 deliberately rather than as a side effect of this.
+
+### C7. A project's build compiles its tests — MINOR, **FIXED**
+
+*Reported by the user on 2026-10-01 against the sandbox; moved here from 11 the same day.*
+
+The sandbox compiled its tests when the api started. ts-loader works like `tsc` by default and
+compiles everything the tsconfig includes, so every test went into the bundle's program and a type
+error in one of them failed the build — which also kept `start` from restarting the server. A
+`zi new` project had the same webpack config.
+
+> **Fixed.** Both set `onlyCompileBundledFiles`, so the build compiles what the bundle imports, and
+> jest still type-checks the tests when they run. `new.command.heavy.test.ts` builds a generated
+> project with a broken test in it.
+
+### C8. `zi new` answers `defaultAuth` for the developer, and answers `'public'` — MINOR, **open**
+
+*Filed on the re-check of 2026-10-15.*
+
+[03 §A1](./03-auth-and-security.md) closed by making `defaultAuth` required, so that whoever builds
+an application has to say whether an undecorated route is open, because "you forgot to say" and "you
+said this" must not look alike. A project made by `zi new` never asks: the generated
+`application-options.base.ts` already says `defaultAuth: 'public'`
+(`packages/cli/src/commands/new/new.command.ts:624-627`), with a comment explaining how to switch.
+Every new project therefore starts out with the posture A1 was filed about, and the developer who
+writes its first route forgets the decorator into an open endpoint. The sandbox says the same
+(`packages/sandbox/src/application-options.base.ts:43`).

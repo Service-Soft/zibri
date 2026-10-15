@@ -20,6 +20,7 @@ import { $ts } from '../localization/translate.function';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { OmitStrict } from '../types/omit-strict.type';
 import { Ms } from '../utilities/ms';
+import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function';
 
 /**
  * Data that can be used to update a cron job.
@@ -60,6 +61,9 @@ export class CronService implements CronServiceInterface, AfterAppInit, AfterApp
         if (this.cronJobs.length) {
             throw new InternalError('has already been initialized');
         }
+        // asked for even without jobs to register here, because schedule can add one to a running
+        // application - and that would otherwise be the first time anything needed the table
+        validateEntitiesRegistered(CronService.name, app, CronJobEntity);
         if (!cronJobs.length) {
             return;
         }

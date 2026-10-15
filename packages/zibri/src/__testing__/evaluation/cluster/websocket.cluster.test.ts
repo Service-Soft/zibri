@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { io, Socket } from 'socket.io-client';
 import { ClusterInstance, StartedTestCluster, startTestCluster } from 'zibri-testing';
 
-import { clusterBroadcastEvent } from './websocket.instance-options';
+import { clusterBroadcastEvent, ClusterLogin } from './websocket.instance-options';
 import { FsUtilities } from '../../../utilities/fs.utilities';
 
 /**
@@ -98,5 +98,61 @@ describe('evaluation/04-infrastructure-subsystems 1.10 - websocket broadcasts ac
         // and so does the one connected elsewhere. Today the socket belongs to the other instance,
         // which never hears about the broadcast at all.
         await expect(receivedOnSecond).resolves.toBeDefined();
+    }, 30000);
+
+    it('delivers the same json to clients connected to a different instance', async () => {
+        if (!cluster) {
+            throw new Error('the cluster did not start');
+        }
+        const onFirst: Socket = await connectClient(cluster.instanceAt(0).baseUrl);
+        const onSecond: Socket = await connectClient(cluster.instanceAt(1).baseUrl);
+        const receivedOnFirst: Promise<unknown> = waitForBroadcast(onFirst);
+        const receivedOnSecond: Promise<unknown> = waitForBroadcast(onSecond);
+
+        const res: Response = await fetch(`${cluster.instanceAt(0).baseUrl}/cluster-websocket/broadcast-values`, { method: 'POST' });
+        expect(res.status).toBe(204);
+
+        // the message is handed to socket.io as it was sent and written as json on the way out. The
+        // copy that goes to the other instance is written by the adapter instead, and a bigint is
+        // exactly what plain json refuses to write
+        const data: { count: string, at: string } = { count: '18446744073709551616', at: '2026-01-02T03:04:05.000Z' };
+        await expect(receivedOnFirst).resolves.toMatchObject({ data });
+        await expect(receivedOnSecond).resolves.toMatchObject({ data });
+    }, 30000);
+});
+
+describe('evaluation/02-http-runtime-core M17 - a socket whose login ended, on another instance', () => {
+
+    it('closes the socket of a deactivated user on the instance that holds it', async () => {
+        if (!cluster) {
+            throw new Error('the cluster did not start');
+        }
+        const first: ClusterInstance = cluster.instanceAt(0);
+        const second: ClusterInstance = cluster.instanceAt(1);
+        const loggedIn: Response = await fetch(`${first.baseUrl}/cluster-websocket/login`, { method: 'POST' });
+        // checked here, because the socket below connects without a login as well and the failure
+        // would only surface later, as a deactivation of nobody
+        expect(loggedIn.ok).toBe(true);
+        const login: ClusterLogin = await loggedIn.json() as ClusterLogin;
+
+        // connected to the instance the deactivation does not run on, which is the one that has to be told
+        const socket: Socket = io(second.baseUrl, { auth: { offset: 0 }, extraHeaders: { authorization: `Bearer ${login.accessToken}` }, reconnection: false });
+        openSockets.push(socket);
+        await new Promise<void>((resolve, reject) => {
+            socket.once('connect', () => resolve());
+            socket.once('connect_error', reject);
+        });
+        const closed: Promise<boolean> = new Promise<boolean>(resolve => {
+            const timeout: NodeJS.Timeout = setTimeout(() => resolve(false), 10000);
+            socket.once('disconnect', () => {
+                clearTimeout(timeout);
+                resolve(true);
+            });
+        });
+
+        const res: Response = await fetch(`${first.baseUrl}/cluster-websocket/deactivate/${login.userId}`, { method: 'POST' });
+        expect(res.status).toBe(204);
+
+        expect(await closed).toBe(true);
     }, 30000);
 });

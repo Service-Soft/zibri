@@ -24,6 +24,13 @@ const requireModule: NodeJS.Require = createRequire(__filename);
  */
 const instanceEntry: FsPath = FsUtilities.getPath(__dirname, `cluster-instance.entry${__filename.endsWith('.ts') ? '.ts' : '.js'}`);
 
+/**
+ * The module that points the shared packages at the parent's files, preloaded into each instance.
+ *
+ * Named by this file's own extension, for the same reason as {@link instanceEntry}.
+ */
+const modulePathsPreload: FsPath = FsUtilities.getPath(__dirname, `cluster-module-paths${__filename.endsWith('.ts') ? '.ts' : '.js'}`);
+
 const bootTimeoutInMs: number = 15000;
 
 const killTimeoutInMs: number = 5000;
@@ -203,6 +210,14 @@ function createSqlRunner(started: StartedDataSourceContainer): SqlRunner | undef
 export class StartedTestCluster {
     private readonly startedInstances: ClusterInstance[] = [];
 
+    /**
+     * The instances this cluster has ended, kept for their output.
+     *
+     * What a replica wrote on its way down is usually what explains a takeover that never happened,
+     * and by the time a test notices, the replica is no longer among the running ones.
+     */
+    private readonly endedInstances: ClusterInstance[] = [];
+
     private nextInstanceIndex: number = 0;
 
     // eslint-disable-next-line jsdoc/require-returns
@@ -270,6 +285,7 @@ export class StartedTestCluster {
         const instance: ClusterInstance = this.instance(id);
         await instance.kill(signal);
         this.startedInstances.splice(this.startedInstances.indexOf(instance), 1);
+        this.endedInstances.push(instance);
     }
 
     /**
@@ -280,7 +296,10 @@ export class StartedTestCluster {
     async scaleTo(count: number, bootMode: ClusterBootMode = 'sequential'): Promise<void> {
         while (this.startedInstances.length > count) {
             const removed: ClusterInstance | undefined = this.startedInstances.pop();
-            await removed?.kill();
+            if (removed) {
+                await removed.kill();
+                this.endedInstances.push(removed);
+            }
         }
 
         const toStart: number = count - this.startedInstances.length;
@@ -370,7 +389,7 @@ export class StartedTestCluster {
      * @param isDone - Decides whether what was read is what the test is waiting for.
      * @param options - How long to wait, and how often to look.
      * @returns The first read that satisfied isDone.
-     * @throws When it never did.
+     * @throws When it never did, with the output of every instance this cluster has run.
      */
     async waitFor<T>(
         read: () => Promise<T>,
@@ -382,8 +401,13 @@ export class StartedTestCluster {
         let value: T = await read();
         while (!isDone(value)) {
             if (Date.now() > deadline) {
+                // the replicas' own output, because the state a test waits for is the end of
+                // something one of them did or failed to do, and only its log says which
+                const outputs: string = [...this.startedInstances, ...this.endedInstances]
+                    .map(i => `${i.id}:\n${i.output}`)
+                    .join('\n');
                 throw new Error(
-                    `the cluster did not reach the awaited state within ${timeoutInMs}ms, last read ${JSON.stringify(value)}`
+                    `the cluster did not reach the awaited state within ${timeoutInMs}ms, last read ${JSON.stringify(value)}\n${outputs}`
                 );
             }
             await new Promise<void>(resolve => {
@@ -419,7 +443,11 @@ export class StartedTestCluster {
             // typescript hook of its own. ts-node rather than swc: it is already a peer dependency,
             // and it is the same compiler the framework is built with, so emitDecoratorMetadata
             // behaves identically instead of merely similarly.
-            execArgv: ['-r', 'ts-node/register'],
+            // The module paths are preloaded rather than imported by the entry, because a worker
+            // thread starts with the execArgv of the thread that created it and never runs the entry:
+            // imported there, they reached the instance's main thread only, and every thread job
+            // loaded the built packages instead of the copy the instance runs.
+            execArgv: ['-r', 'ts-node/register', '-r', modulePathsPreload],
             stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
             env: {
                 ...process.env,

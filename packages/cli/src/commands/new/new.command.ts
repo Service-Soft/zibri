@@ -8,13 +8,24 @@ import { exitWithError, getPath, Path } from '../../utilities';
 import { BaseCommand } from '../base-command.model';
 
 /**
+ * Where a new app's pull requests are built and tested, or `none` for nowhere yet.
+ */
+type ContinuousIntegration = 'github' | 'none';
+
+const CONTINUOUS_INTEGRATIONS: ContinuousIntegration[] = ['github', 'none'];
+
+/**
  * Configuration for creating a new zibri app.
  */
 type NewConfiguration = {
     /**
      * The name of the app to create.
      */
-    name: string
+    name: string,
+    /**
+     * The continuous integration workflow to generate.
+     */
+    ci: ContinuousIntegration
 };
 
 /**
@@ -62,6 +73,15 @@ const newConfigurationQuestions: QuestionsFor<NewConfiguration> = {
         type: 'input',
         message: 'name',
         validate: (value: string) => !!value
+    },
+    ci: {
+        name: 'ci',
+        type: 'select',
+        message: 'ci workflow',
+        choices: [
+            { name: 'GitHub Actions', value: 'github' },
+            { name: 'none', value: 'none' }
+        ]
     }
 };
 
@@ -89,6 +109,8 @@ const ENVIRONMENT_VARIABLES: EnvironmentVariable[] = [
     { key: 'DB_USERNAME', value: 'postgres' },
     { key: 'DB_PASSWORD', value: 'postgres' },
     { key: 'DB_DATABASE', value: 'db' },
+    { comment: 'Whether the connection to the database is encrypted. "true" anywhere the database is reached over a network.' },
+    { key: 'DB_SSL', value: 'false' },
     {
         comment: 'Signs and verifies access and refresh tokens. Anyone holding these can mint a token'
             + '\n# for any user of this application, so they belong in a secret store rather than in a repository.'
@@ -131,10 +153,20 @@ function resolveAuthor(): string {
 }
 
 /**
+ * Reads the continuous integration named on the command line.
+ * @param value - What was passed.
+ * @returns The continuous integration it names. Exits naming the valid ones when it names none.
+ */
+async function resolveContinuousIntegration(value: string): Promise<ContinuousIntegration> {
+    return CONTINUOUS_INTEGRATIONS.find(ci => ci === value)
+        ?? await exitWithError(`Unknown ci "${value}", expected one of: ${CONTINUOUS_INTEGRATIONS.join(', ')}`);
+}
+
+/**
  * Creates a new Zibri application.
  */
 export class NewCommand extends BaseCommand<NewConfiguration> {
-    protected override maxLength: number | undefined = 2;
+    protected override maxLength: number | undefined = 3;
 
     protected override async run(configuration: NewConfiguration): Promise<void> {
         console.log('creates a new zibri application', configuration.name);
@@ -205,13 +237,18 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
         // default body parsers, the translations the generated webpack config extracts on every build
         // are read at startup, and both read through it. otpauth is an optional peer needed at boot: an
         // application that names no two factor methods is given `OtpTwoFactorMethod`, which asks for
-        // otpauth as it is constructed.
+        // otpauth as it is constructed. jose is the same for the default auth strategy: an application
+        // that names none is given `JwtAuthStrategy`, which asks for jose as it is constructed.
         //
         // The two OpenTelemetry packages are the same story once more. The tracer registered by
         // default records through them and validates them at startup, so an application taking the
         // defaults needs both; one that registers a tracer of its own drops them with the default it
         // replaced. Its exporter package is *not* installed: spans are kept in memory until an
         // application says where to send them, and saying so is what makes the exporter needed.
+        //
+        // re2 is installed although nothing generated declares a `regex` yet. Declaring one is
+        // ordinary validation on a string property or parameter, and a project should not be stopped
+        // by a missing package the first time it does.
         //
         // The pattern under the optional six: a peer is optional to the *framework* and not to an application
         // that takes the defaults, so the generator installs what its own generated configuration
@@ -221,8 +258,9 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             : `zibri@${version}`;
         await CPUtilities.exec(
             `cd ${appPath} && npm i ${zibriDependency} chart.js ts-node@^10.9.2 pg-query-stream@^4.10.3`
-            + ' saxes@^6.0.0 otpauth@^9.5.1 @opentelemetry/api@^1.9.1'
-            + ' @opentelemetry/sdk-trace-node@^2.11.0'
+            + ' saxes@^6.0.0 otpauth@^9.5.1 jose@^6.2.12 @opentelemetry/api@^1.9.1'
+            + ' @opentelemetry/sdk-trace-node@^2.11.0 re2@^1.27.0 nodemailer@^10.1.0'
+            + ' prom-client@^15.1.3 @fastify/busboy@^3.2.3 systeminformation@^5.33.15'
         );
         // the test harness, which peer depends on zibri and is therefore installed after it. A
         // devDependency: it starts the application a test drives, and nothing a deployment runs
@@ -242,6 +280,9 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
 
         await this.createGitignore(appPath);
         await this.createDockerfile(appPath);
+        if (configuration.ci === 'github') {
+            await this.createGithubWorkflow(appPath);
+        }
         await this.createEnvironmentFiles(appPath);
         await this.createTsConfig(appPath);
         await this.createPostCssConfig(appPath);
@@ -270,6 +311,7 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
         );
 
         await FsUtilities.createFile(getPath(appPath, 'src', 'controllers', 'index.ts'), [
+            'export * from \'./auth.controller\';',
             'export * from \'./health.controller\';',
             'export * from \'./page.controller\';'
         ]);
@@ -278,6 +320,23 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
     }
 
     private async createControllers(appPath: Path): Promise<void> {
+        await FsUtilities.createFile(
+            getPath(appPath, 'src', 'controllers', 'auth.controller.ts'),
+            [
+                'import { AuthController, Controller, JwtAuthStrategy, OtpTwoFactorMethod, PasswordAuthenticator } from \'zibri\';',
+                '',
+                '/**',
+                ' * The auth routes: logging in with a password, refreshing a login and logging out, resetting a',
+                ' * password, and enrolling a second factor. The options name what the application registers.',
+                ' */',
+                '@Controller(\'/auth\', { versions: \'all\' })',
+                'export class AppAuthController extends AuthController({',
+                '    strategies: [JwtAuthStrategy],',
+                '    authenticators: [PasswordAuthenticator],',
+                '    twoFactorMethods: [OtpTwoFactorMethod]',
+                '}) {}'
+            ]
+        );
         await FsUtilities.createFile(
             getPath(appPath, 'src', 'controllers', 'page.controller.ts'),
             [
@@ -289,7 +348,9 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
                 '',
                 '@Cache()',
                 'export class StaticPagesCache extends WriteThroughReadThroughCache<string, HtmlResponse, \'StaticPagesCache\'> {',
+                // eslint-disable-next-line sonar/no-duplicate-string
                 '    constructor(',
+                // eslint-disable-next-line sonar/no-duplicate-string
                 '        @Inject(ZIBRI_DI_TOKENS.LOGGER)',
                 '        protected readonly logger: LoggerInterface,',
                 '        @Inject(ZIBRI_DI_TOKENS.CACHE_SERVICE)',
@@ -398,7 +459,7 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
                 '    defineProvider({',
                 '        token: ZIBRI_DI_TOKENS.JWT_AUTH_OPTIONS_INPUT,',
                 '        useFactory: (): JwtAuthOptionsInput => ({',
-                '            accessTokenSecret: requireEnv(\'JWT_ACCESS_SECRET\'),',
+                '            accessTokenKey: requireEnv(\'JWT_ACCESS_SECRET\'),',
                 '            refreshTokenSecret: requireEnv(\'JWT_REFRESH_SECRET\')',
                 '        })',
                 '    }),',
@@ -454,7 +515,7 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
     private async createCreateDefaultDataFunction(appPath: Path): Promise<void> {
         await FsUtilities.createFile(getPath(appPath, 'src', 'create-default-data.function.ts'), [
             // eslint-disable-next-line stylistic/max-len
-            'import { DataSourceInterface, inject, JwtCredentials, JwtCredentialsCreateData, Newable, Repository, repositoryTokenFor, Transaction } from \'zibri\';',
+            'import { DataSourceInterface, inject, Newable, PasswordCredentials, PasswordCredentialsCreateData, Repository, repositoryTokenFor, Transaction } from \'zibri\';',
             '',
             'import { logger } from \'.\';',
             IMPORT_REQUIRE_ENV,
@@ -471,8 +532,8 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             '',
             'async function createDefaultAdmin(dataSource: DataSourceInterface): Promise<void> {',
             '    const userRepository: UserRepository = inject(UserRepository);',
-            // eslint-disable-next-line stylistic/max-len
-            '    const credentialsRepository: Repository<JwtCredentials, JwtCredentialsCreateData> = inject(repositoryTokenFor(JwtCredentials));',
+            '    const credentialsRepository: Repository<PasswordCredentials, PasswordCredentialsCreateData>',
+            '        = inject(repositoryTokenFor(PasswordCredentials));',
             '',
             '    const email: string = requireEnv(\'DEFAULT_ADMIN_EMAIL\');',
             '',
@@ -486,7 +547,7 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             '    try {',
             '        const user: User = await userRepository.create({ name: \'root\', email, roles: [Roles.ADMIN] }, { transaction });',
             '        await credentialsRepository.create(',
-            '            { email: user.email, password: requireEnv(\'DEFAULT_ADMIN_PASSWORD\'), userId: user.id },',
+            '            { password: requireEnv(\'DEFAULT_ADMIN_PASSWORD\'), userId: user.id },',
             '            { transaction }',
             '        );',
             '        await transaction.commit();',
@@ -533,9 +594,9 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
     private async createApplicationOptions(appPath: Path, configuration: NewConfiguration): Promise<void> {
         await FsUtilities.createFile(getPath(appPath, 'src', 'application-options.base.ts'), [
             // eslint-disable-next-line stylistic/max-len
-            'import { JwtAuthController, MailingListController, OmitStrict, SemVerUtilities, ZibriApplicationOptions, ZibriMailingListPlugin } from \'zibri\';',
+            'import { MailingListController, OmitStrict, SemVerUtilities, ZibriApplicationOptions, ZibriMailingListPlugin } from \'zibri\';',
             '',
-            'import { HealthController, PageController } from \'./controllers\';',
+            'import { AppAuthController, HealthController, PageController } from \'./controllers\';',
             IMPORT_REQUIRE_ENV,
             'import { version } from \'../package.json\';',
             'import { providers } from \'./providers\';',
@@ -556,7 +617,7 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             `    name: '${configuration.name}',`,
             '    baseUrl: requireEnv(\'BASE_URL\'),',
             '    plugins: [new ZibriMailingListPlugin()],',
-            '    controllers: [HealthController, PageController, MailingListController, JwtAuthController],',
+            '    controllers: [HealthController, PageController, MailingListController, AppAuthController],',
             '    websocketControllers: [],',
             '    cronJobs: [],',
             '    version,',
@@ -734,6 +795,41 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
         ]);
     }
 
+    private async createGithubWorkflow(appPath: Path): Promise<void> {
+        const secrets: string[] = ENVIRONMENT_VARIABLES.flatMap(entry => entry.secret === true ? [entry.key] : []);
+        await FsUtilities.createFile(getPath(appPath, '.github', 'workflows', 'ci.yml'), [
+            '# Installs, builds and tests this project on every pull request and every push to main.',
+            'name: CI',
+            'on:',
+            '    push:',
+            '        branches: [main]',
+            '    pull_request:',
+            '',
+            'jobs:',
+            '    test:',
+            '        runs-on: ubuntu-latest',
+            '        steps:',
+            '            - uses: actions/checkout@v4',
+            '            - uses: actions/setup-node@v4',
+            '              with:',
+            // the runtime the Dockerfile ships, so what is tested here is what is deployed
+            '                node-version: \'24\'',
+            '                cache: npm',
+            '            - run: npm ci',
+            '            # ".env" is git ignored, so a checkout has none. This does what ".env.example" asks of',
+            '            # anyone on a new machine: copy it and fill each blank secret, here with values made for',
+            '            # this run alone',
+            '            - name: write the environment the tests run on',
+            '              run: |',
+            '                cp .env.example .env',
+            `                for key in ${secrets.join(' ')}; do`,
+            '                  sed -i "s/^$key=$/$key=$(openssl rand -hex 32)/" .env',
+            '                done',
+            '            - run: npm run build',
+            '            - run: npm test'
+        ]);
+    }
+
     private async createEnvironmentFiles(appPath: Path): Promise<void> {
         const example: string[] = [
             '# Every variable this application reads. Copy it to ".env" to run the app somewhere new.',
@@ -804,6 +900,21 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             '}',
             '',
             '/**',
+            ' * Reads a yes-or-no variable the application cannot run without.',
+            ' * @param key - The name of the variable, which holds "true" or "false".',
+            ' * @returns Whether it is "true".',
+            ' * @throws When it is anything but "true" or "false", naming the variable. A typo stops here,',
+            ' * rather than reading as "false" and turning off what it was meant to turn on.',
+            ' */',
+            'export function requireBooleanEnv(key: string): boolean {',
+            '    const value: string = requireEnv(key);',
+            '    if (value !== \'true\' && value !== \'false\') {',
+            '        throw new Error(`The environment variable "${key}" has to be "true" or "false", got "${value}".`);',
+            '    }',
+            '    return value === \'true\';',
+            '}',
+            '',
+            '/**',
             ' * Reads a variable the application runs without.',
             ' * @param key - The name of the variable.',
             ' * @returns Its value, or an empty string when it is unset.',
@@ -825,8 +936,12 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             '        \'^.+[\\\\/]src[\\\\/]templates[\\\\/].+\\\\.tsx$\': \'zibri-tsx/jest\',',
             '        // commonjs, which is what jest runs a test in. ts-jest compiles to it either way, and says so',
             '        // for every file when the tsconfig names nodenext instead',
-            '        \'^.+.tsx?$\': [\'ts-jest\', { tsconfig: { module: \'commonjs\' } }]',
+            '        \'^.+.tsx?$\': [\'ts-jest\', { tsconfig: { module: \'commonjs\' } }],',
+            '        // jose ships as es modules only, which jest cannot require. The default auth strategy loads it',
+            '        // as the application starts, so it is compiled to commonjs like the sources',
+            '        \'/node_modules/jose/.+\\\\.js$\': [\'ts-jest\', { tsconfig: { allowJs: true, module: \'commonjs\' } }]',
             '    },',
+            '    transformIgnorePatterns: [\'/node_modules/(?!jose/)\'],',
             '    // a package a template imports with ?client is the package itself on the server, which is how',
             '    // the NormalModuleReplacementPlugin in webpack.config.js resolves it for the build',
             '    moduleNameMapper: {',
@@ -841,7 +956,17 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
     private async createModels(appPath: Path): Promise<void> {
         await FsUtilities.createFile(getPath(appPath, 'src', 'models', 'index.ts'), [
             'export * from \'./user.model\';',
+            'export * from \'./membership.model\';',
             'export * from \'./roles.enum\';'
+        ]);
+        await FsUtilities.createFile(getPath(appPath, 'src', 'models', 'membership.model.ts'), [
+            'import { BaseMembershipEntity, Entity } from \'zibri\';',
+            '',
+            'import { Roles } from \'./roles.enum\';',
+            '',
+            '// one membership per user in each tenant',
+            '@Entity({ uniques: [[\'userId\']] })',
+            'export class Membership extends BaseMembershipEntity(Roles) {}'
         ]);
         await FsUtilities.createFile(getPath(appPath, 'src', 'models', 'generated', 'providers.ts'), [
             'import { EntityGenerationProvider } from \'zibri\';',
@@ -855,11 +980,12 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             '}'
         ]);
         await FsUtilities.createFile(getPath(appPath, 'src', 'models', 'user.model.ts'), [
-            'import { BaseUserEntity, Entity, IntersectionClass, JwtCredentials, OmitClass, Property } from \'zibri\';',
+            'import { BaseUserEntity, Entity, IntersectionClass, OmitClass, PasswordCredentials, Property } from \'zibri\';',
             '',
             'import { Roles } from \'./roles.enum\';',
             '',
-            '@Entity()',
+            '// \'shared\' because one user can be member in multiple tenants',
+            '@Entity({ tenant: \'shared\' })',
             'export class User extends BaseUserEntity(Roles) {',
             '    @Property.string()',
             '    name!: string;',
@@ -867,7 +993,7 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             '',
             'export class UserCreateDto extends IntersectionClass(',
             '    OmitClass(User, [\'id\', \'roles\']),',
-            '    OmitClass(JwtCredentials, [\'id\', \'userId\', \'email\'])',
+            '    OmitClass(PasswordCredentials, [\'id\', \'userId\'])',
             ') {}',
             '',
             'export type UserCreateData = Omit<User, \'id\'>;'
@@ -875,16 +1001,65 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
     }
 
     private async createRepositories(appPath: Path): Promise<void> {
-        await FsUtilities.createFile(getPath(appPath, 'src', 'repositories', 'index.ts'), 'export * from \'./user.repository\';');
+        await FsUtilities.createFile(getPath(appPath, 'src', 'repositories', 'index.ts'), [
+            'export * from \'./user.repository\';',
+            'export * from \'./membership.repository\';'
+        ]);
+        await FsUtilities.createFile(getPath(appPath, 'src', 'repositories', 'membership.repository.ts'), [
+            // eslint-disable-next-line stylistic/max-len
+            'import { getDefaultBeforeReturnHook, getDefaultBeforeSaveHook, Inject, InjectRepository, LoggerInterface, MembershipRepo, MembershipRepositoryInterface, Repository, Transaction, ZIBRI_DI_TOKENS } from \'zibri\';',
+            '',
+            'import { Membership, Roles } from \'../models\';',
+            '',
+            '@MembershipRepo()',
+            'export class MembershipRepository extends Repository<Membership>',
+            '    implements MembershipRepositoryInterface<Roles, Membership> {',
+            '',
+            '    constructor(',
+            '        @InjectRepository(Membership)',
+            '        repo: Repository<Membership>,',
+            '        @Inject(ZIBRI_DI_TOKENS.LOGGER)',
+            '        logger: LoggerInterface',
+            '    ) {',
+            '        super(Membership, repo, logger, repo.dataSource, getDefaultBeforeSaveHook(), getDefaultBeforeReturnHook());',
+            '    }',
+            '',
+            '    async findMembership(userId: string): Promise<Membership | undefined> {',
+            '        return await this.findOne({ where: { userId }, required: false });',
+            '    }',
+            '',
+            '    async findMemberships(userId: string): Promise<Membership[]> {',
+            '        return await this.findAll({ where: { userId }, acrossTenants: true });',
+            '    }',
+            '',
+            '    async resolveMembership(userId: string, transaction: Transaction | undefined): Promise<Membership> {',
+            '        return await this.findOne({ where: { userId }, transaction, required: false })',
+            '            ?? await this.create({ userId, roles: [] }, { transaction });',
+            '    }',
+            '',
+            // eslint-disable-next-line stylistic/max-len
+            '    async updateDeactivatedAt(userId: string, deactivatedAt: Date | null, transaction: Transaction | undefined): Promise<void> {',
+            '        await this.updateAll({ userId }, { deactivatedAt }, { transaction });',
+            '    }',
+            '',
+            '    async deleteMembership(userId: string, transaction: Transaction | undefined): Promise<void> {',
+            '        await this.deleteAll({ userId }, { transaction });',
+            '    }',
+            '',
+            '    async deleteMemberships(userIds: string[], transaction: Transaction): Promise<void> {',
+            '        await this.deleteAll({ userId: { oneOf: userIds } }, { transaction, acrossTenants: true });',
+            '    }',
+            '}'
+        ]);
         await FsUtilities.createFile(getPath(appPath, 'src', 'repositories', 'user.repository.ts'), [
             // eslint-disable-next-line stylistic/max-len
-            'import { getDefaultBeforeReturnHook, getDefaultBeforeSaveHook, Inject, inject, InjectRepository, JwtCredentials, LoggerInterface, Repository, repositoryTokenFor, UserRepo, UserRepositoryInterface, ZIBRI_DI_TOKENS } from \'zibri\';',
+            'import { getDefaultBeforeReturnHook, getDefaultBeforeSaveHook, Inject, InjectRepository, LoggerInterface, Repository, Transaction, UserRepo, UserRepositoryInterface, ZIBRI_DI_TOKENS } from \'zibri\';',
             '',
             'import { Roles, User, UserCreateData } from \'../models\';',
             '',
             '@UserRepo()',
             'export class UserRepository extends Repository<User, UserCreateData>',
-            '    implements UserRepositoryInterface<Roles, User, JwtCredentials> {',
+            '    implements UserRepositoryInterface<Roles, User> {',
             '',
             '    constructor(',
             '        @InjectRepository(User)',
@@ -899,9 +1074,8 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             '        return await this.findOne({ where: { email } });',
             '    }',
             '',
-            '    async resolveCredentialsFor(user: User): Promise<JwtCredentials> {',
-            '        const repo: Repository<JwtCredentials> = inject(repositoryTokenFor(JwtCredentials));',
-            '        return repo.findOne({ where: { userId: user.id } });',
+            '    async updateDeactivatedAt(id: string, deactivatedAt: Date | null, transaction: Transaction | undefined): Promise<void> {',
+            '        await this.updateById(id, { deactivatedAt }, { transaction });',
             '    }',
             '}'
         ]);
@@ -912,7 +1086,7 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             'import { BaseEntity, DataSource, Newable, OmitStrict, PostgresDataSource, PostgresOptions, SchemaManagement } from \'zibri\';',
             '',
             'import { entities } from \'./entities\';',
-            'import { requireEnv } from \'../../env\';',
+            'import { requireBooleanEnv, requireEnv } from \'../../env\';',
             '',
             '@DataSource()',
             'export class DbDataSource extends PostgresDataSource {',
@@ -927,16 +1101,17 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             '        port: Number(requireEnv(\'DB_PORT\')),',
             '        username: requireEnv(\'DB_USERNAME\'),',
             '        password: requireEnv(\'DB_PASSWORD\'),',
-            '        database: requireEnv(\'DB_DATABASE\')',
+            '        database: requireEnv(\'DB_DATABASE\'),',
+            '        ssl: requireBooleanEnv(\'DB_SSL\')',
             '    };',
             '    entities: Newable<BaseEntity>[] = entities;',
             '}'
         ]);
         await FsUtilities.createFile(getPath(appPath, 'src', DATA_SOURCES_DIR, 'db', 'entities.ts'), [
             // eslint-disable-next-line stylistic/max-len
-            'import { BaseEntity, BackupEntity, BackupResourceEntity, CacheInvalidation, Change, ChangeSet, CronJobEntity, Email, EncryptionKey, EncryptionStrategyEntity, Event, EventSubscriberRegistration, EventSubscriberRun, HashStrategyEntity, JwtCredentials, JwtRefreshToken, Lease, Log, MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken, MigrationEntity, Newable, OtpCredentials, PasswordResetToken, ThreadJobEntity, WebsocketChannel, WebsocketMessage } from \'zibri\';',
+            'import { BaseEntity, BackupEntity, BackupResourceEntity, CacheInvalidation, Change, ChangeSet, CronJobEntity, Email, EncryptionKey, EncryptionStrategyEntity, Event, EventSubscriberRegistration, EventSubscriberRun, HashStrategyEntity, JwtRefreshToken, Lease, Log, MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken, MigrationEntity, Newable, OtpCredentials, PasswordCredentials, PasswordResetToken, ThreadJobEntity, TwoFactorFailureStreak, WebsocketChannel, WebsocketMessage, WebsocketMessageSequence } from \'zibri\';',
             '',
-            'import { User } from \'../../models\';',
+            'import { Membership, User } from \'../../models\';',
             '',
             '/**',
             ' * Everything this application stores.',
@@ -948,8 +1123,9 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             'export const entities: Newable<BaseEntity>[] = [',
             '    MigrationEntity,',
             '    User,',
+            '    Membership,',
             '    JwtRefreshToken,',
-            '    JwtCredentials,',
+            '    PasswordCredentials,',
             '    PasswordResetToken,',
             '    MailingList,',
             '    MailingListSubscriber,',
@@ -958,6 +1134,7 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             '    Change,',
             '    ChangeSet,',
             '    OtpCredentials,',
+            '    TwoFactorFailureStreak,',
             '    BackupEntity,',
             '    BackupResourceEntity,',
             '    Email,',
@@ -965,6 +1142,7 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             '    ThreadJobEntity,',
             '    WebsocketChannel,',
             '    WebsocketMessage,',
+            '    WebsocketMessageSequence,',
             '    Event,',
             '    EventSubscriberRun,',
             '    EventSubscriberRegistration,',
@@ -1147,7 +1325,10 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             '            {',
             '                test: /\\.tsx?$/,',
             '                exclude: tsxTemplateDirs,',
-            '                use: \'ts-loader\'',
+            '                loader: \'ts-loader\',',
+            // without it ts-loader compiles everything the tsconfig includes, tests too, and a type
+            // error in a test then fails the build and keeps "start" from restarting the server
+            '                options: { onlyCompileBundledFiles: true }',
             '            },',
             '            {',
             '                test: /\\.js$/,',
@@ -1295,12 +1476,15 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
         ]);
     }
 
+    // `zi new [name] [ci]`: what the command line leaves out is asked for, in that order
     protected override async resolveInput(args: string[]): Promise<NewConfiguration> {
-        if (args.length === 2) {
-            return {
-                name: args[1]
-            };
-        }
-        return await InquirerUtilities.prompt(newConfigurationQuestions);
+        const [, name, ci]: (string | undefined)[] = args;
+        return {
+            name: name
+                ?? (await InquirerUtilities.prompt<Pick<NewConfiguration, 'name'>>({ name: newConfigurationQuestions.name })).name,
+            ci: ci == undefined
+                ? (await InquirerUtilities.prompt<Pick<NewConfiguration, 'ci'>>({ ci: newConfigurationQuestions.ci })).ci
+                : await resolveContinuousIntegration(ci)
+        };
     }
 }
