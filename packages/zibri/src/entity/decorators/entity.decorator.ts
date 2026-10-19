@@ -3,6 +3,7 @@ import { type PropertyMetadata } from './property.decorator';
 // asking whether an entity can be soft deleted does not pull the change set entities in - they are
 // decorated with @Entity themselves, which would evaluate this module from inside its own loading
 import { isSoftDeleteEntityNewable } from '../../change-sets/models/is-soft-delete-entity.function';
+import { keyWhereToSql } from '../../data-source/where/key-where-to-sql.function';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { GlobalRegistry } from '../../global/global-registry';
 import { Newable } from '../../types/newable.type';
@@ -17,7 +18,7 @@ import { type EntityOrder, type OrderDirection } from '../models/entity-order.mo
 import { type EntityRelations } from '../models/entity-relations.model';
 import { type EntityScope } from '../models/entity-scope.model';
 import { type EntityTenant } from '../models/entity-tenant.model';
-import { declaresUnique, UniqueGroup, UniqueGroupInput } from '../models/unique-declaration.model';
+import { coversEveryRow, declaresUnique, KeyWhere, UniqueGroup, UniqueGroupInput } from '../models/unique-declaration.model';
 
 /**
  * Metadata for an Entity.
@@ -70,9 +71,23 @@ export type EntityMetadata<T extends BaseEntity = BaseEntity> = {
      *
      * A group that reaches a column which is unique on its own is refused: from that column on it
      * matches at most one row, so the rest of the group is never read. So is a group of one column
-     * that already declares `index`, which is one index written twice.
+     * that already declares `index`, which is one index written twice, and an index that is the
+     * leading part of another index or of a unique group over every row, which answers its lookups
+     * already.
      */
     indexes?: string[][],
+    /**
+     * Rules every row has to follow, each a filter the row has to match.
+     *
+     * Written with `whereFor`, eg. A done task has a completion date:
+     * `whereFor<Task>([{ status: { not: 'done' } }, { completedAt: { not: null } }])`. A write leaving
+     * a row that does not match one is refused with a `CheckConstraintViolationError`.
+     *
+     * A check compares a property against a string, number, boolean or null - as it is, or with
+     * `not`, `oneOf`, `notOneOf`, or a comparison of numbers. A row holding null for a property it
+     * compares matches `not` and `notOneOf` unless they name null, and never matches a comparison.
+     */
+    checks?: KeyWhere[],
     /**
      * The scopes every row of this entity is restricted by.
      *
@@ -190,6 +205,7 @@ export function Entity<
         defaultRelations,
         uniques,
         indexes,
+        checks,
         scope,
         tenant = defaultTenant,
         allowOrphan = false,
@@ -203,9 +219,14 @@ export function Entity<
         target: Newable<T>
     ): void => {
         validateTenantProperty(target, tenant);
-        validateGroupsAddSomething(target, uniqueGroups ?? [], indexes ?? []);
+        validateGroupsAddSomething(target, uniqueGroups ?? [], indexes ?? [], tenant);
         validateSoftDeleteKeysSayWhichRows(target, uniqueGroups ?? []);
         validateUniqueValuesCompare(target, uniqueGroups ?? []);
+        // turned into what the schema would hold, which refuses a filter no store could check alike -
+        // here rather than while a schema is built, which a store judging the filter itself never does
+        for (const check of checks ?? []) {
+            keyWhereToSql({ name: target.name, properties: Object.keys(MetadataUtilities.getModelProperties(target)) }, check);
+        }
         const metadata: EntityMetadata = {
             tableName: tableName ?? toSnakeCase(target.name),
             allowOrphan,
@@ -218,6 +239,7 @@ export function Entity<
             defaultRelations: defaultRelations as EntityMetadata['defaultRelations'],
             uniques: uniqueGroups,
             indexes,
+            checks,
             scope,
             tenant
         };
@@ -301,13 +323,109 @@ function resolveTenantPropertyProblem(metadata: PropertyMetadata): string | unde
  * @param target - The class being decorated.
  * @param uniques - The groups of columns it declares unique together.
  * @param indexes - The groups of columns it declares indexed together.
+ * @param tenant - Which tenant its rows belong to.
  * @throws When a group repeats another group, or what one of its columns already declares.
  */
-function validateGroupsAddSomething(target: Newable<unknown>, uniques: UniqueGroup[], indexes: string[][]): void {
+function validateGroupsAddSomething(target: Newable<unknown>, uniques: UniqueGroup[], indexes: string[][], tenant: EntityTenant): void {
     const properties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(target);
     validateUniqueGroupsAddSomething(target, uniques, properties);
     validateIndexGroupsAddSomething(target, indexes, properties);
+    validateIndexesLeadNothing(target, uniques, indexes, properties, tenant === 'shared' ? undefined : tenant.property);
 }
+
+/**
+ * Refuses an index that is the leading part of a longer one.
+ *
+ * An index answers every lookup that begins with its first columns, so the longer one answers each
+ * lookup the shorter one does. A unique group over every row counts as the longer one too, being kept
+ * by an index over its columns in the order they are written; one over some rows does not, since a
+ * lookup that does not name its rows cannot use it.
+ *
+ * Compared as they are kept, each led by the tenant of an entity whose rows belong to one: `index` on
+ * `status` is then the index group (tenantId, status) declared a second time.
+ * @param target - The class being decorated.
+ * @param uniques - The groups of columns it declares unique together.
+ * @param indexes - The groups of columns it declares indexed together.
+ * @param properties - What its properties declare.
+ * @param tenantProperty - The property holding the tenant of a row, undefined when the rows belong to none.
+ * @throws When an index is the leading part of another index or of a unique group, or is kept over the
+ * same columns in the same order as another.
+ */
+function validateIndexesLeadNothing(
+    target: Newable<unknown>,
+    uniques: UniqueGroup[],
+    indexes: string[][],
+    properties: Record<string, PropertyMetadata>,
+    tenantProperty: string | undefined
+): void {
+    // the way the key descriptor leads them, a group naming the tenant already being kept as written
+    const lead: (columns: string[]) => string[] = columns => tenantProperty == undefined || columns.includes(tenantProperty)
+        ? columns
+        : [tenantProperty, ...columns];
+    const declared: DeclaredIndex[] = [
+        ...ObjectUtilities.entries(properties)
+            .filter(([, metadata]) => isIndexed(metadata))
+            .map(([key]): DeclaredIndex => ({
+                columns: lead([key]),
+                described: `"index" on "${key}"`,
+                remedy: `Remove "index" from "${key}".`
+            })),
+        ...indexes.map((group): DeclaredIndex => ({
+            columns: lead(group),
+            described: `the index group (${group.join(', ')})`,
+            remedy: `Drop the group (${group.join(', ')}).`
+        }))
+    ];
+    const longer: DeclaredIndex[] = [
+        ...declared,
+        ...uniques.filter(group => coversEveryRow(group.where)).map((group): DeclaredIndex => ({
+            columns: lead(group.properties),
+            described: `the unique group (${group.properties.join(', ')})`,
+            remedy: undefined
+        }))
+    ];
+
+    for (const index of declared) {
+        // the same columns written the same way are refused as declared twice already, so another
+        // index kept over the same columns here is one the tenant made the same
+        const leading: DeclaredIndex | undefined = longer.find(other => other !== index
+            && other.columns.length >= index.columns.length
+            && index.columns.every((column, position) => other.columns[position] === column));
+        if (leading == undefined) {
+            continue;
+        }
+        const relation: string = leading.columns.length === index.columns.length
+            ? `is kept over the same columns in the same order as ${leading.described}`
+            : `is the leading part of ${leading.described}`;
+        const led: string[] = tenantProperty == undefined
+            ? []
+            : [`Every index of ${target.name} starts with "${tenantProperty}", since its rows belong to a tenant.`];
+        throw new InternalError([
+            `${target.name}: ${index.described} ${relation}.`,
+            ...led,
+            'An index answers every lookup that begins with its first columns, so the other one already answers',
+            `every lookup this one does. ${index.remedy ?? ''}`
+        ]);
+    }
+}
+
+/**
+ * An index an entity declares, for telling whether another one already answers its lookups.
+ */
+type DeclaredIndex = {
+    /**
+     * Its columns, in the order of the index.
+     */
+    columns: string[],
+    /**
+     * How it was declared, for the message.
+     */
+    described: string,
+    /**
+     * How to take it off, or undefined for a unique group, which is never the one refused.
+     */
+    remedy: string | undefined
+};
 
 /**
  * Refuses a unique declaration on a soft delete entity that does not say whether deleted rows count.

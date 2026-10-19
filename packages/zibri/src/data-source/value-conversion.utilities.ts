@@ -205,7 +205,7 @@ export abstract class ValueConversionUtilities {
                 const res: number = decimal.toNumber();
                 // the same decimal back, which a double too large, too small or too precise is not
                 const isSame: boolean = new BigNumber(String(res)).isEqualTo(decimal);
-                return isSame && (into.format === 'number' || Number.isInteger(res)) ? { value: res } : undefined;
+                return isSame && (into.format === 'number' || Number.isSafeInteger(res)) ? { value: res } : undefined;
             }
             case 'bigint': {
                 return decimal.isInteger() ? { value: decimal.toFixed() } : undefined;
@@ -307,7 +307,7 @@ export abstract class ValueConversionUtilities {
                 return typeof value === 'number' || (typeof value === 'string' && this.DECIMAL_REGEX.test(value));
             }
             case 'integer': {
-                return Number.isInteger(value);
+                return Number.isSafeInteger(value);
             }
             case 'number': {
                 return typeof value === 'number';

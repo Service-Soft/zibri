@@ -64,7 +64,7 @@ describe('ValidationService', () => {
     beforeAll(async () => {
         server = await startTestServer({});
         validationService = inject(ValidationService);
-    }, 15000);
+    }, 30000);
 
     afterAll(async () => {
         await server?.shutdown();

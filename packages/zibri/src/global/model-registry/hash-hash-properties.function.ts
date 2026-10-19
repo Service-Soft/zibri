@@ -55,6 +55,10 @@ async function hashHashPropertiesRecursive<Data, EntityClass>(
     }
 
     for (const nested of descriptor.nestedValues(data)) {
+        // a row this one references is not written along with it, and holds a hash once it was read
+        if (nested.related) {
+            continue;
+        }
         await hashHashPropertiesRecursive(context, nested.data, nested.descriptor, hashService, visited);
     }
 }

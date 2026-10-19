@@ -65,6 +65,17 @@ export abstract class NumberUtilities {
     }
 
     /**
+     * Rounds the given value to the given number of decimals, half away from zero, the way a
+     * commercial amount is rounded: 0.125 becomes 0.13, and -0.125 becomes -0.13.
+     * @param value - The value to round.
+     * @param decimals - How many decimals it keeps.
+     * @returns The rounded value as BigNumber.
+     */
+    static round(value: AnyNumber, decimals: number): BigNumber {
+        return new BigNumber(value).decimalPlaces(decimals, BigNumber.ROUND_HALF_UP);
+    }
+
+    /**
      * Precisely compares the given values, whichever of the shapes a number takes they are.
      *
      * The operators cannot do this. A BigNumber is an object, so `<` compares what it stringifies

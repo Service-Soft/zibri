@@ -12,6 +12,7 @@ export interface InvoiceNumberServiceInterface<AddressData extends InvoiceAddres
      * @param transaction - An optional transaction from outside to make sure any changes only apply when the transaction is committed.
      * @param nameAbbreviation - An optional name abbreviation if you don't want to generate one.
      * @returns A promise of the new invoice number.
+     * @throws A ConflictError when the abbreviation belongs to another recipient.
      */
     generateInvoiceNumber: (
         recipientId: string,
@@ -31,5 +32,12 @@ export interface InvoiceNumberServiceInterface<AddressData extends InvoiceAddres
         recipientId: string,
         invoiceAddress: InvoiceAddress,
         nameAbbreviation?: string
-    ) => string | Promise<string>
+    ) => string | Promise<string>,
+    /**
+     * Suggests a name abbreviation for a recipient: the first letters and digits of a company name,
+     * or the first letters of first and last name. Two recipients can get the same suggestion.
+     * @param invoiceAddress - The address data of the recipient.
+     * @returns The abbreviation.
+     */
+    getSuggestedNameAbbreviation: (invoiceAddress: AddressData) => string
 }

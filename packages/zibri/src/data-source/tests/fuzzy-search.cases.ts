@@ -1,9 +1,14 @@
+/* eslint-disable cspell/spellchecker */
+/* eslint-disable sonar/no-duplicate-string */
 import { describe, expect, it } from '@jest/globals';
 
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
+import { BadRequestError } from '../../error-handling/errors/bad-request.error';
+import { KeysetPage, PaginationResult } from '../../open-api/pagination-result.model';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { FindAllPaginatedOptions } from '../models/options/find-all-paginated-options.model';
 import { Repository } from '../repository/repository';
 
 /**
@@ -137,6 +142,131 @@ export function describeFuzzySearch(dataSourceName: string, repositoryOf: () => 
             await expect(repositoryOf().findAll({
                 where: { notes: { fuzzyLike: { value: 'Miller' } } }
             })).rejects.toThrow('fuzzySearchable: false');
+        });
+
+        it('counts a letter outside of ascii as a letter', async () => {
+            const batch: string = UUIDUtilities.generate();
+            await repositoryOf().createAll(['Müller', 'Möller'].map(name => ({ batch, name, kind: ContactKind.PERSON })));
+
+            // "müller" and "möller" share four of their ten trigrams. Read as ascii alone, both are
+            // the words "m" and "ller", which makes them identical
+            const found: Contact[] = await repositoryOf().findAll({
+                where: { batch, name: { fuzzyLike: { value: 'Müller', minSimilarity: 90 } } }
+            });
+
+            expect(found.map(c => c.name)).toEqual(['Müller']);
+        });
+
+        it('orders a search by how similar each value is, the most similar first', async () => {
+            const batch: string = await storeContacts();
+
+            // "Miller Holdings" shares 14 of the 17 trigrams the two hold between them (0.82),
+            // "Millar Holding" 12 of 18 (0.67)
+            const found: Contact[] = await repositoryOf().findAll({
+                where: { batch, name: { fuzzyLike: { value: 'Miller Holding' } } },
+                order: { name: { similarTo: 'Miller Holding' } }
+            });
+
+            expect(found.map(c => c.name)).toEqual([CLOSE_MATCH, NEAR_MATCH]);
+        });
+
+        it('orders every row by similarity, the ones similar to nothing last', async () => {
+            const batch: string = await storeContacts();
+
+            const found: Contact[] = await repositoryOf().findAll({
+                where: { batch },
+                order: { name: { similarTo: NEAR_MATCH } }
+            });
+
+            expect(found.map(c => c.name)).toEqual([NEAR_MATCH, CLOSE_MATCH, 'Schmidt GmbH']);
+        });
+
+        it('orders a property that keeps no index by similarity', async () => {
+            const batch: string = await storeContacts();
+
+            // an order sorts what the filter already found, so it asks for no index of its own
+            const found: Contact[] = await repositoryOf().findAll({
+                where: { batch },
+                order: { notes: { similarTo: NEAR_MATCH } }
+            });
+
+            expect(found.map(c => c.notes)).toEqual([NEAR_MATCH, CLOSE_MATCH, 'Schmidt GmbH']);
+        });
+
+        it('pages an order by similarity', async () => {
+            const batch: string = await storeContacts();
+
+            const page: PaginationResult<Contact> = await repositoryOf().findAllPaginated(2, 2, {
+                where: { batch },
+                order: { name: { similarTo: NEAR_MATCH } }
+            });
+
+            expect(page.items.map(c => c.name)).toEqual(['Schmidt GmbH']);
+            expect(page.totalAmount).toBe(3);
+        });
+
+        it('walks an order by similarity by cursor, handing back every row once', async () => {
+            const batch: string = await storeContacts();
+            // a second row exactly as similar as the first: the cursor has to tell the two apart by
+            // their ids, which is the one place "exactly as similar" is compared
+            await repositoryOf().create({ batch, name: NEAR_MATCH, kind: ContactKind.PERSON });
+
+            const seen: string[] = [];
+            const walked: string[] = [];
+            let cursor: string | undefined = undefined;
+            do {
+                const page: KeysetPage<Contact> = await repositoryOf().findAllAfter(cursor, 1, {
+                    where: { batch },
+                    order: { name: { similarTo: NEAR_MATCH } }
+                });
+                expect(page.totalAmount).toBe(4);
+                seen.push(...page.items.map(c => c.id));
+                walked.push(...page.items.map(c => c.name));
+                cursor = page.nextCursor;
+            }
+            while (cursor != undefined && seen.length < 10);
+
+            expect(new Set(seen).size).toBe(4);
+            expect(walked).toEqual([NEAR_MATCH, NEAR_MATCH, CLOSE_MATCH, 'Schmidt GmbH']);
+        });
+
+        it('keeps the search a walk ordered by similarity was started with', async () => {
+            const batch: string = await storeContacts();
+
+            // the position past the cursor is a second condition on `name` next to the caller's
+            // search, so the row similar to nothing stays out however far the walk goes
+            const options: FindAllPaginatedOptions<Contact> = {
+                where: { batch, name: { fuzzyLike: { value: 'Miller Holding' } } },
+                order: { name: { similarTo: 'Miller Holding' } }
+            };
+            const first: KeysetPage<Contact> = await repositoryOf().findAllAfter(undefined, 1, options);
+            const second: KeysetPage<Contact> = await repositoryOf().findAllAfter(first.nextCursor, 1, options);
+            const third: KeysetPage<Contact> = await repositoryOf().findAllAfter(second.nextCursor, 1, options);
+
+            expect([...first.items, ...second.items].map(c => c.name)).toEqual([CLOSE_MATCH, NEAR_MATCH]);
+            expect(third.items).toEqual([]);
+            expect(third.totalAmount).toBe(2);
+        });
+
+        it('refuses a cursor carried to a walk ordered by similarity to another search', async () => {
+            const batch: string = await storeContacts();
+
+            const first: KeysetPage<Contact> = await repositoryOf().findAllAfter(undefined, 1, {
+                where: { batch },
+                order: { name: { similarTo: NEAR_MATCH } }
+            });
+
+            // a position among the rows most similar to one search is none among those similar to another
+            await expect(repositoryOf().findAllAfter(first.nextCursor, 1, {
+                where: { batch },
+                order: { name: { similarTo: CLOSE_MATCH } }
+            })).rejects.toThrow(BadRequestError);
+        });
+
+        it('refuses an order by similarity of a property that holds one of a fixed set of values', async () => {
+            await expect(repositoryOf().findAll({
+                order: { kind: { similarTo: 'companies' } }
+            })).rejects.toThrow(KIND_IS_REFUSED);
         });
 
         it('refuses a search that is one option of several', async () => {

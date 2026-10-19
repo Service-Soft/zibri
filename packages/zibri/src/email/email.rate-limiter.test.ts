@@ -11,7 +11,8 @@ import { Ms } from '../utilities/ms';
 function makeConfig(maxEmailsPerHour: number): EmailConfigInput {
     return {
         maxEmailsPerHour,
-        defaultSender: 'test@example.com'
+        defaultSender: 'test@example.com',
+        failedRetentionInMs: 'forever'
     };
 }
 

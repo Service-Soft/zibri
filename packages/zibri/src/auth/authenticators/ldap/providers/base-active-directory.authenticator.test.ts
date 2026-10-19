@@ -19,8 +19,10 @@ import { Controller } from '../../../../routing/decorators/controller.decorator'
 import { Post } from '../../../../routing/decorators/post.decorator';
 import { Newable } from '../../../../types/newable.type';
 import { JsonUtilities } from '../../../../utilities/json.utilities';
+import { AuthControllerUtilities } from '../../../auth-controller/auth-controller.utilities';
 import { Auth } from '../../../decorators/auth.decorator';
 import { JwtAuthData } from '../../../strategies/jwt/jwt-auth-data.model';
+import { JwtRefreshLoginDto } from '../../../strategies/jwt/jwt-refresh-login-data.model';
 import { JwtAuthStrategy } from '../../../strategies/jwt/jwt.auth-strategy';
 import { LdapCredentials } from '../ldap-credentials.model';
 import { LdapEntry } from '../ldap-entry.model';
@@ -108,6 +110,17 @@ class ActiveDirectoryLoginController {
     ): Promise<JwtAuthData<string>> {
         return await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).login(CompanyActiveDirectory, JwtAuthStrategy, credentials, undefined);
     }
+
+    @Post('/refresh')
+    async refresh(
+        @Body(JwtRefreshLoginDto)
+        data: JwtRefreshLoginDto
+    ): Promise<JwtAuthData<string>> {
+        return await AuthControllerUtilities.runInTransaction(
+            JwtAuthStrategy,
+            async transaction => await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).refreshLogin(JwtAuthStrategy, { ...data, transaction })
+        );
+    }
 }
 
 let server: StartedTestServer;
@@ -132,11 +145,32 @@ async function postLogin(credentials: LdapCredentials): Promise<Response> {
  * @returns The id of the user.
  */
 async function signIn(credentials: LdapCredentials): Promise<string> {
-    const res: Response = await postLogin(credentials);
+    return (await authDataOf(await postLogin(credentials))).userId;
+}
+
+/**
+ * Posts to the refresh route.
+ * @param refreshToken - The refresh token of the login.
+ * @returns The answer.
+ */
+async function refresh(refreshToken: string): Promise<Response> {
+    return await fetch(`${baseUrl}/login-ad/refresh`, {
+        method: 'POST',
+        headers: { [KnownHeader.CONTENT_TYPE]: MimeType.JSON },
+        body: JsonUtilities.stringify({ refreshToken })
+    });
+}
+
+/**
+ * What a successful sign-in or refresh answered.
+ * @param res - The answer.
+ * @returns The auth data.
+ */
+async function authDataOf(res: Response): Promise<JwtAuthData<string>> {
     expect(res.status).toBe(200);
     // eslint-disable-next-line typescript/no-unsafe-assignment
     const authData: JwtAuthData<string> = await res.json();
-    return authData.userId;
+    return authData;
 }
 
 /**
@@ -221,5 +255,20 @@ describe('BaseActiveDirectoryAuthenticator', () => {
             expect.stringContaining('(samaccountname=carla)'),
             `(&(objectclass=group)(member:1.2.840.113556.1.4.1941:=CN=carla,${USERS}))`
         ]);
+    });
+
+    // evaluation/03-auth-and-security H22
+    it('finds an account by its objectGUID on a refresh, and refuses it once its userAccountControl marks it disabled', async () => {
+        // bytes that are not text, so only the objectGUID as Active Directory holds it finds the account
+        const dora: FakeLdapEntry = account('dora', Buffer.from('d0e1f2a3b4c5d6e7f8091a2b3c4d5e6f', 'hex'));
+        dora.attributes['userAccountControl'] = ['512'];
+        directory.entries.push(dora);
+        const signedIn: JwtAuthData<string> = await authDataOf(await postLogin({ username: 'dora', password: 'dora-secret' }));
+
+        const refreshed: JwtAuthData<string> = await authDataOf(await refresh(signedIn.refreshToken.value));
+        // a normal account that is disabled
+        dora.attributes['userAccountControl'] = ['514'];
+
+        expect((await refresh(refreshed.refreshToken.value)).status).toBe(403);
     });
 });

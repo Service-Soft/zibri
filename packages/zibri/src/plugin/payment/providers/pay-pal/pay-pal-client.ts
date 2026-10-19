@@ -39,7 +39,7 @@ class AuthResp {
     /**
      * In how much seconds the access token becomes invalid.
      */
-    @Property.number()
+    @Property.number({ format: 'integer' })
     expires_in!: number;
 }
 

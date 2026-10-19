@@ -2,6 +2,7 @@ import { describe, expect, it } from '@jest/globals';
 
 import { Entity } from './entity.decorator';
 import { Property } from './property.decorator';
+import { whereFor } from '../../data-source/models/where/where-for.function';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { KeyGroups, keyGroupsOf } from '../../global/model-registry/key-descriptor';
 import { Newable } from '../../types/newable.type';
@@ -245,6 +246,102 @@ function indexBesideGroupItLeads(): Newable<BaseEntity> {
 }
 
 /**
+ * Declares an index group beside a longer one that starts with the same columns.
+ * @returns The declared class.
+ */
+function indexGroupLeadingLongerGroup(): Newable<BaseEntity> {
+    @Entity({ tenant: 'shared', allowOrphan: true, indexes: [['tenantId', 'status'], ['tenantId', 'status', 'placedAt']] })
+    class Invoice extends BaseEntity {
+        @Property.string()
+        tenantId!: string;
+
+        @Property.string()
+        status!: string;
+
+        @Property.date()
+        placedAt!: Date;
+    }
+    return Invoice;
+}
+
+/**
+ * Declares, on an entity whose rows belong to a tenant, an index that the tenant leads into a group
+ * declared beside it.
+ * @returns The declared class.
+ */
+function indexLedIntoGroupByTenant(): Newable<BaseEntity> {
+    @Entity({ allowOrphan: true, indexes: [['tenantId', 'status']] })
+    class Invoice extends BaseEntity {
+        @Property.string({ format: 'uuid' })
+        tenantId!: string;
+
+        @Property.string({ index: true })
+        status!: string;
+    }
+    return Invoice;
+}
+
+/**
+ * Declares an index on the first column of a unique group.
+ * @returns The declared class.
+ */
+function indexLeadingUniqueGroup(): Newable<BaseEntity> {
+    @Entity({ tenant: 'shared', allowOrphan: true, uniques: [['year', 'recipientId']] })
+    class Invoice extends BaseEntity {
+        @Property.number({ index: true })
+        year!: number;
+
+        @Property.string()
+        recipientId!: string;
+    }
+    return Invoice;
+}
+
+/**
+ * Declares an index group over the columns of a unique group, in the same order.
+ * @returns The declared class.
+ */
+function indexGroupOfUniqueGroup(): Newable<BaseEntity> {
+    @Entity({ tenant: 'shared', allowOrphan: true, uniques: [['year', 'recipientId']], indexes: [['year', 'recipientId']] })
+    class Invoice extends BaseEntity {
+        @Property.number()
+        year!: number;
+
+        @Property.string()
+        recipientId!: string;
+    }
+    return Invoice;
+}
+
+/**
+ * Declares an index leading a unique group among only some rows, and one over the columns of a unique
+ * group in another order.
+ * @returns The declared class.
+ */
+function indexesBesideUniqueGroupsTheyDoNotLead(): Newable<BaseEntity> {
+    @Entity({
+        tenant: 'shared',
+        allowOrphan: true,
+        uniques: [{ properties: ['year', 'recipientId'], where: whereFor<Invoice>({ cancelled: false }) }, ['number', 'recipientId']],
+        indexes: [['recipientId', 'number']]
+    })
+    class Invoice extends BaseEntity {
+        @Property.number({ index: true })
+        year!: number;
+
+        @Property.string()
+        recipientId!: string;
+
+        @Property.number()
+        number!: number;
+
+        @Property.boolean()
+        cancelled!: boolean;
+    }
+    return Invoice;
+}
+
+/**
  * Declares the groups that no single column covers, beside the singles that no group covers.
  * @returns The declared class.
  */
@@ -401,10 +498,57 @@ describe('an entity group that one of its columns already covers', () => {
         expect(keyGroupsOf(indexGroupsInBothOrders()).indexes).toEqual([['tenantId', 'status'], ['status', 'tenantId']]);
     });
 
-    it('takes an indexed column beside a group that starts with it', () => {
-        // two lookups, two declarations: the group answers the compound one, and the property flag
-        // answers the single one on an index of its own
-        expect(keyGroupsOf(indexBesideGroupItLeads()).indexes).toEqual([['tenantId'], ['tenantId', 'status']]);
+    it('refuses an indexed column beside a group that starts with it', () => {
+        // the group answers a lookup by tenantId alone as well, so the flag keeps a second index for
+        // lookups the first one already answers
+        expectRefusal(
+            indexBesideGroupItLeads,
+            'Invoice',
+            '"index" on "tenantId" is the leading part of the index group (tenantId, status)',
+            'Remove "index" from "tenantId".'
+        );
+    });
+
+    it('refuses an index group that leads a longer one', () => {
+        expectRefusal(
+            indexGroupLeadingLongerGroup,
+            'Invoice',
+            'the index group (tenantId, status) is the leading part of the index group (tenantId, status, placedAt)',
+            'Drop the group (tenantId, status).'
+        );
+    });
+
+    it('refuses an index that leads a unique group, or names its columns in their order', () => {
+        expectRefusal(
+            indexLeadingUniqueGroup,
+            'Invoice',
+            '"index" on "year" is the leading part of the unique group (year, recipientId)',
+            'Remove "index" from "year".'
+        );
+        expectRefusal(
+            indexGroupOfUniqueGroup,
+            'Invoice',
+            'the index group (year, recipientId) is kept over the same columns in the same order as the unique group (year, recipientId)',
+            'Drop the group (year, recipientId).'
+        );
+    });
+
+    it('refuses an index the tenant makes the same as another', () => {
+        // every index of a tenant's entity is led by the tenant, so the flag on status is kept as
+        // (tenantId, status) - which the group already is
+        expectRefusal(
+            indexLedIntoGroupByTenant,
+            'Invoice',
+            '"index" on "status" is kept over the same columns in the same order as the index group (tenantId, status)',
+            'Every index of Invoice starts with "tenantId", since its rows belong to a tenant.',
+            'Remove "index" from "status".'
+        );
+    });
+
+    it('takes an index leading a unique group among only some rows, or one in another order', () => {
+        // a lookup that does not name the rows of a partial unique cannot use its index, and an index
+        // in another order answers lookups by another first column
+        expect(keyGroupsOf(indexesBesideUniqueGroupsTheyDoNotLead()).indexes).toEqual([['year'], ['recipientId', 'number']]);
     });
 
     it('takes the groups that no single column covers', () => {

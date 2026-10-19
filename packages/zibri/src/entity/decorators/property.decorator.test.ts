@@ -116,6 +116,9 @@ describe('encryption and hashing on a string', () => {
             })
             secret!: OneOf<{ Remote: string, Local: string }>;
 
+            // bcrypt is deprecated for new hashes, and is still the shipped strategy whose options differ
+            // from scrypt's, which is what these declarations need
+            /* eslint-disable typescript/no-deprecated */
             @Property.oneOf({
                 shapes: {
                     Slow: { type: 'string', hash: { strategy: BcryptHashStrategy, strategyOptions: { rounds: 12 } } },
@@ -142,6 +145,7 @@ describe('encryption and hashing on a string', () => {
             // @ts-expect-error - "rounds" is an option of the other shape's strategy, not of this one's
             @Property.oneOf({ shapes: { Slow: { type: 'string', hash: { strategy: BcryptHashStrategy } }, Fast: { type: 'string', hash: { strategy: ScryptHashStrategy, strategyOptions: { rounds: 12 } } } } })
             swappedHash!: OneOf<{ Slow: string, Fast: string }>;
+            /* eslint-enable typescript/no-deprecated */
 
             // @ts-expect-error - "region" is an option of the other item shape's strategy, not of this one's
             @Property.array({ items: { type: 'oneOf', shapes: { Remote: { type: 'string', encryption: { strategy: RemoteStrategy } }, Local: { type: 'string', encryption: { strategy: AesGcmEncryptionStrategy, encrypt: { region: 'eu' } } } } } })

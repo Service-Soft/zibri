@@ -4,8 +4,8 @@ import { Property } from '../../../entity/decorators/property.decorator';
 import { OmitClass } from '../../../entity/omit-class.model';
 
 /**
- * A passkey of a user: the public half of a key their device holds, which signs them in and is a
- * second factor.
+ * A passkey of a user: the public half of a key their device holds, which is a second factor, and
+ * signs them in when the device stores it.
  */
 @Entity({ tenant: 'shared', allowOrphan: true })
 export class Passkey extends BaseEntity {
@@ -31,7 +31,7 @@ export class Passkey extends BaseEntity {
      * How many signatures the device reported having made with it, last time. Always 0 for a device
      * that counts none.
      */
-    @Property.number()
+    @Property.number({ format: 'integer' })
     counter!: number;
 
     /**
@@ -58,6 +58,13 @@ export class Passkey extends BaseEntity {
      */
     @Property.boolean()
     synced!: boolean;
+
+    /**
+     * Whether the device stores the passkey, so it can offer it at a sign-in. One it does not store,
+     * such as on an older security key, is only a second factor. Unknown when the browser did not say.
+     */
+    @Property.boolean({ required: false })
+    discoverable?: boolean;
 
     /**
      * When the passkey was created.

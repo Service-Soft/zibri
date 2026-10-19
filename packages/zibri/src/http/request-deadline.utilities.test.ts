@@ -7,7 +7,7 @@ import express, { Express } from 'express';
 import { createInMemoryDataSource } from 'zibri-testing';
 
 import { HttpMethod } from './http-method.enum';
-import { HttpServerTimeouts } from './http-server-timeouts.model';
+import { HttpServerLimits } from './http-server-limits.model';
 import { HttpStatus } from './http-status.enum';
 import { JwtUser } from '../__testing__/mocks/entities/jwt-user.entity';
 import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
@@ -252,16 +252,18 @@ const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMem
     entities: defaultTestServerEntities
 });
 
-const timeouts: HttpServerTimeouts = {
+const limits: HttpServerLimits = {
     requestInMs: 60000,
     headersInMs: 15000,
     keepAliveInMs: 5000,
-    handlerInMs: 80
+    handlerInMs: 80,
+    maxHeaderCount: 100,
+    maxHeaderSizeInBytes: 16 * 1024
 };
 
 const providers: DiProvider<unknown>[] = [
     ...defaultTestServerProviders,
-    defineProvider({ token: ZIBRI_DI_TOKENS.HTTP_SERVER_TIMEOUTS, useValue: timeouts })
+    defineProvider({ token: ZIBRI_DI_TOKENS.HTTP_SERVER_LIMITS, useValue: limits })
 ];
 
 let server: StartedTestServer | undefined;

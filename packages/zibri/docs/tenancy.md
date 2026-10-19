@@ -284,8 +284,9 @@ leaves the tenant in place. A tenant is narrowed by first, and a scope narrows w
 
 ## Uniques and indexes
 On a tenant's entity, every unique holds within each tenant: two tenants can each have a project
-named `Website`, and one tenant cannot have two. Every index starts with the tenant property, and
-the tenant property gets an index of its own.
+named `Website`, and one tenant cannot have two. Every index starts with the tenant property, which
+is what answers a lookup by the tenant alone; an entity declaring no index and no unique gets an index
+on the tenant property.
 
 On an entity whose tenant is optional, the rows of no tenant are unique among themselves, the same
 way each tenant's rows are.

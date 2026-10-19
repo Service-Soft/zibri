@@ -6,9 +6,12 @@ import { loadWorkerFile } from './load-worker-file.function';
 import { CacheStoreInterface } from '../../../caching/store/cache-store.interface';
 import { InMemoryCacheStore } from '../../../caching/store/in-memory.cache-store';
 import { InternalError } from '../../../error-handling/internal-error.model';
+import type { TraceSpanContext } from '../../../tracing/trace-span-context.model';
 import type { BaseThreadJobWorkerData, BaseFunctionThreadJobWorkerData } from '../../models/base-thread-job-worker-data.model';
 import type { ThreadJobFunction } from '../../models/thread-job-function.model';
 import type { ThreadJobMessage } from '../../models/thread-job-message.model';
+import type { ThreadJobStartMessage } from '../../models/thread-job-start-message.model';
+import { THREAD_JOB_TRACE_CONTEXT_KEY } from '../../models/thread-job-trace-context-key.model';
 
 if (!parentPort) {
     throw new InternalError('Internal Error with the thread-job-worker: parentPort not available.');
@@ -47,8 +50,8 @@ const message: ThreadJobMessage = { type: 'initialization' };
 
 parentPort.postMessage(message);
 
-parentPort.on('message', (wData: BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>) => {
-    updateWorkerData(wData);
+parentPort.on('message', ({ workerData: wData, traceContext }: ThreadJobStartMessage) => {
+    updateWorkerData(wData, traceContext);
 
     if (isFunctionWorkerData(wData)) {
         void callFunction(wData);
@@ -99,15 +102,20 @@ async function callFunction(wData: BaseFunctionThreadJobWorkerData<unknown>): Pr
  * builds once by copying the values out - a snapshot, so a later replacement is invisible to it and
  * every job after the first would read the first one's data. What the snapshot copies is a
  * reference, so what is inside the object is not a snapshot at all.
+ *
+ * The trace context goes under a symbol beside the data rather than into it, where
+ * `getThreadJobTraceContext` reads it: a property the job never queued would show up in its keys.
  * @param wData - The data of the job that is about to run.
+ * @param traceContext - The span the run of the job is recorded as.
  */
-function updateWorkerData(wData: BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>): void {
+function updateWorkerData(wData: BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>, traceContext: TraceSpanContext): void {
     const current: Record<string, unknown> = workerData as Record<string, unknown>;
     for (const key of Object.keys(current)) {
         // eslint-disable-next-line typescript/no-dynamic-delete
         delete current[key];
     }
     Object.assign(current, wData);
+    Object.defineProperty(current, THREAD_JOB_TRACE_CONTEXT_KEY, { value: traceContext, configurable: true, enumerable: false });
 }
 
 async function importWorkerFile(workerData: BaseThreadJobWorkerData): Promise<void> {

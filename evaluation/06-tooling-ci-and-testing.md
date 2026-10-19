@@ -169,7 +169,7 @@ Two more of the same shape in the same file:
 > [05 §M4](./05-di-metadata-and-packaging.md).
 >
 > **[§T3](#t3-no-documented-testing-story-at-all) is still open**, and this makes it sharper rather
-> than smaller: there is now a package to document.
+> than smaller: there is now a package to document. *(Closed since.)*
 
 > **Sharpened, not fixed.** [05 §P4](./05-di-metadata-and-packaging.md) stopped publishing
 > `src/__testing__`, so the helpers are now absent from a consumer's `node_modules` rather than
@@ -884,7 +884,7 @@ the JSX runtime, which is exactly where interop bugs are least tolerable.
 > exports reach the consumer through interop rather than directly.
 >
 > **What this does not say is that an ESM consumer is served well.** An application that is itself
-> `"type": "module"` still reaches both packages through Node's interop. Nobody has filed that, no
+> `"type": "module"` still reaches both packages through Node's interop. Filed as §X7: no
 > test covers it, and it is a different question from the one this entry asks.
 
 ### X3. The same hand-rolled-parser risk exists for Handlebars — ~~MAJOR~~ **the premise does not hold; a different defect does** — **FIXED**
@@ -1016,6 +1016,16 @@ returns `new SafeString(MaskUtilities.mask(value))`, so handlebars does not esca
 last two, and a value of three characters or fewer whole. A masked value of `<b>` or ending in `<i`
 opens a tag in the rendered mail or page.
 
+### X7. An application that is itself an ES module is not tested — MINOR, **open**
+
+*Filed on 2026-10-15, from what §X2 says nobody has filed.*
+
+`zibri` and `zibri-tsx` publish CommonJS, and an application with `"type": "module"` reaches both through
+node's interop. `published-package.test.ts` shows that `import` and `require` of `zibri` reach the same
+module object. Nothing builds and runs an ES module application: its own templates compiled by
+`zibri-tsx`, the jsx runtime's named exports, worker files, and `resolveAppRoot` falling back to
+`process.argv[1]`.
+
 ---
 
 ## C. CLI (`packages/cli`)
@@ -1076,7 +1086,7 @@ globally (`npm i -g zibri-cli`) as their first contact with the project.
 > did not parse, and the missing comma was written down as an intended difference from the sandbox.
 > See [§C4](#c4-not-assessed-whether-generated-projects-are-production-shaped--closed), where
 > it is fixed and where the check that would have caught it now lives. What the finding asks for -
-> coverage, and a gate on the scaffold - is still open.
+> coverage, and a gate on the scaffold - was still open then; both closed in the note above.
 
 The CLI has `test:normal` / `test:heavy` but no `test:coverage`, and CI runs `npm run test -w
 zibri-cli` (`ci.yml:41`) without coverage. The "accepted sandbox differences" approach
@@ -1436,9 +1446,31 @@ error in one of them failed the build — which also kept `start` from restartin
 > jest still type-checks the tests when they run. `new.command.heavy.test.ts` builds a generated
 > project with a broken test in it.
 
-### C8. `zi new` answers `defaultAuth` for the developer, and answers `'public'` — MINOR, **open**
+### C8. `zi new` answers `defaultAuth` for the developer, and answers `'public'` — ~~MINOR~~ **FIXED**
 
 *Filed on the re-check of 2026-10-15.*
+
+> **Closed 2026-10-16: `zi new` asks.** The user took two decisions.
+>
+> - **The question.** `zi new` asks what an endpoint without `@Auth` requires, like the name and the CI, and
+>   takes it as an optional third argument: `zi new [name] [github|none] [requireLogin|public]`.
+>   - The choices say what a forgotten decorator does under each, a login first, and no answer is preselected
+>     beyond the order.
+>   - The comment the scaffold writes above `defaultAuth` follows the answer.
+>   - The user chose this over always writing `'requireLogin'`, which would still have been the CLI answering.
+>   - The generated `PageController` is `@Auth.skip({ allowRedundant: true })`, so the pages stay public under
+>     either answer. Every other generated route declared its auth already.
+> - **The sandbox keeps `'public'`** (chosen over `'requireLogin'` with explicit skips): it is a playground.
+>   Its `PageController` got the same skip, so it matches the scaffold. Its other demo controllers (cron, files,
+>   metrics, templates) stay open under its `'public'`.
+>
+> **Found on the way.** The `.tpl` that `zi new` writes for the unsubscribe page still had the page before 04
+> §6.3, while the sandbox's had the form. The parity test caught it; it runs in the CLI package, which the
+> 04 §6.3 run had not included. The template now matches the sandbox's page.
+>
+> Tests: `new.command.test.ts` has the question and its order, the argument, an unknown answer refused before
+> anything is written, and the skipped pages. It was red first. Every other call of the command names an
+> answer: `'requireLogin'` where a project is built or booted, `'public'` where it is compared with the sandbox.
 
 [03 §A1](./03-auth-and-security.md) closed by making `defaultAuth` required, so that whoever builds
 an application has to say whether an undecorated route is open, because "you forgot to say" and "you

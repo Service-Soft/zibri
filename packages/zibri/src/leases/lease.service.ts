@@ -10,6 +10,7 @@ import { ZibriApplication } from '../application/application';
 import { AlsUtilities } from '../context/als.utilities';
 import { Repository } from '../data-source/repository/repository';
 import { runInLeaseScope } from '../data-source/run-in-lease-scope.function';
+import { Transaction } from '../data-source/transaction/transaction.model';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
@@ -112,7 +113,68 @@ export class LeaseService implements LeaseServiceInterface, OnAppInit, OnAppShut
         if (!taken) {
             return undefined;
         }
+        if (options.heldUntil != undefined && !options.heldUntil.isFinished) {
+            return await this.runHoldingUntil(taken, options, options.heldUntil, fn);
+        }
         return await this.runHolding([taken], options, options.key, async () => await fn());
+    }
+
+    /**
+     * Runs the work under a grant that has already been taken, and hands it back once the work has
+     * returned and the transaction it writes in has ended.
+     * @param taken - The grant that was acquired.
+     * @param options - How long it lives and what happens to it afterwards.
+     * @param transaction - The transaction the work writes in, still open.
+     * @param fn - The work to run.
+     * @returns Whatever the work returned.
+     */
+    private async runHoldingUntil<T>(taken: Lease, options: LeaseOptions, transaction: Transaction, fn: () => Promise<T>): Promise<T> {
+        let workOutcome: LeaseWorkOutcome = 'unfinished';
+        let committed: boolean | undefined = undefined;
+        // the work is only done once the transaction has landed it, so a rollback counts as having
+        // thrown, and the shutdown drain giving up before both have ended finds it unfinished
+        const grant: KeptGrant = this.keepAlive(
+            this.heldLeaseFor([taken], options, options.key, () => {
+                if (workOutcome === 'unfinished' || committed == undefined) {
+                    return 'unfinished';
+                }
+                return committed ? workOutcome : 'threw';
+            }),
+            options.leaseInMs
+        );
+        // by whichever of the two ends last: the caller usually ends the transaction after the work has
+        // returned, but the work may end it itself
+        const releaseOnceBothEnded: () => Promise<void> = async () => {
+            if (workOutcome !== 'unfinished' && committed != undefined) {
+                await grant.release();
+            }
+        };
+        transaction.afterFinish(async hasCommitted => {
+            committed = hasCommitted;
+            try {
+                await releaseOnceBothEnded();
+            }
+            catch (error) {
+                // the transaction has ended either way, and its caller is not the one to tell
+                this.logger.warn(
+                    `Could not release "${options.key}" once its transaction ended: ${error instanceof Error ? error.message : error}`
+                );
+            }
+        });
+
+        try {
+            // the transaction the grant is held until is the one write that does land inside it
+            const result: T = await runInLeaseScope(options.key, fn, transaction);
+            workOutcome = 'completed';
+            return result;
+        }
+        catch (error) {
+            workOutcome = 'threw';
+            throw error;
+        }
+        finally {
+            await releaseOnceBothEnded();
+        }
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

@@ -3,6 +3,7 @@ import { ChangedMembership } from '../../tenancy/membership/changed-membership.m
 import { Newable } from '../../types/newable.type';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { BaseWebsocketConnection } from '../models/connection/base-websocket-connection.model';
+import { WebsocketAnswer } from '../models/websocket-answer.model';
 import { LooseWebsocketEvent } from '../models/websocket-event.enum';
 import { CreateWebsocketMessageData } from '../models/websocket-message.model';
 import { WebsocketRequestWithConnection } from '../models/websocket-request.model';
@@ -98,13 +99,10 @@ export type WebsocketSendResult<
     | Promise<B extends false ? void : WebsocketRequestWithConnection<Connection>>;
 
 /**
- * The result of sending to multiple connections.
+ * The result of sending to multiple connections: what each of them answered, on every instance.
  */
-export type WebsocketSendToMultipleResult<
-    B extends boolean,
-    Connection extends BaseWebsocketConnection
-> = (B extends false ? void : WebsocketRequestWithConnection<Connection>[])
-    | Promise<B extends false ? void : WebsocketRequestWithConnection<Connection>[]>;
+export type WebsocketSendToMultipleResult<B extends boolean> = (B extends false ? void : WebsocketAnswer[])
+    | Promise<B extends false ? void : WebsocketAnswer[]>;
 
 /**
  * A service for handling websockets.
@@ -121,11 +119,11 @@ export interface WebsocketServiceInterface<Connection extends BaseWebsocketConne
     /**
      * Sends a message to a single channel.
      */
-    sendToChannel: <B extends boolean>(data: WebsocketSendToChannelData<B>) => WebsocketSendToMultipleResult<B, Connection>,
+    sendToChannel: <B extends boolean>(data: WebsocketSendToChannelData<B>) => WebsocketSendToMultipleResult<B>,
     /**
      * Sends a message to all connections, or inside a tenant to the connections of its members.
      */
-    sendToAll: <B extends boolean>(data: WebsocketSendToAllData<B>) => WebsocketSendToMultipleResult<B, Connection>,
+    sendToAll: <B extends boolean>(data: WebsocketSendToAllData<B>) => WebsocketSendToMultipleResult<B>,
     /**
      * Brings which tenants' messages the connections of users receive in line with their memberships
      * as they are stored, on every instance.
@@ -155,9 +153,10 @@ export interface WebsocketServiceInterface<Connection extends BaseWebsocketConne
      */
     findConnectionById: (id: string) => Connection | Promise<Connection>,
     /**
-     * Finds the websocket connection with the given user id.
+     * Finds every websocket connection of the user with the given id held by this instance, which is
+     * an empty list when there is none.
      */
-    findConnectionByUserId: (userId: string) => Connection | Promise<Connection>,
+    findConnectionsByUserId: (userId: string) => Connection[] | Promise<Connection[]>,
     /**
      * Gets all currently active connections.
      */

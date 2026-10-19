@@ -1,8 +1,10 @@
 import { randomBytes, X509Certificate } from 'node:crypto';
 
 import { ApiKeyAuthenticationMethod } from './api-key-authentication-method.enum';
+import { ApiKeyCleanupCronJob } from './api-key-cleanup.cron-job';
 import { ApiKeyClientAuthentication } from './api-key-client-authentication.model';
 import { ApiKeyCreateData } from './api-key-create-data.model';
+import { ApiKeyOptions } from './api-key-options.model';
 import { ApiKeyServiceInterface } from './api-key-service.interface';
 import { ApiKey, ApiKeyCreateDto } from './api-key.model';
 import { CreatedApiKey } from './created-api-key.model';
@@ -19,6 +21,7 @@ import { $ts } from '../../../localization/translate.function';
 import { BaseMembership } from '../../../tenancy/membership/base-membership.model';
 import { type MembershipServiceInterface } from '../../../tenancy/membership/membership-service.interface';
 import { validateRequestTenant } from '../../../tenancy/validate-request-tenant.function';
+import { Ms } from '../../../utilities/ms';
 import { UrlUtilities } from '../../../utilities/url.utilities';
 import { UUIDUtilities } from '../../../utilities/uuid.utilities';
 import { validateEntitiesRegistered } from '../../../utilities/validate-entities-registered.function';
@@ -86,6 +89,14 @@ export class ApiKeyService implements ApiKeyServiceInterface {
     registerReader(app: ZibriApplication, reader: string): void {
         validateEntitiesRegistered(reader, app, ApiKey);
         this.read = true;
+        for (const [name, value] of Object.entries(inject(ZIBRI_DI_TOKENS.API_KEY_OPTIONS))) {
+            if (value != undefined && (!Number.isInteger(value) || value < 0)) {
+                throw new InternalError(`API_KEY_OPTIONS.${name} must be a whole number of milliseconds, got ${value}.`);
+            }
+        }
+        if (!app.options.cronJobs.includes(ApiKeyCleanupCronJob)) {
+            app.options.cronJobs.push(ApiKeyCleanupCronJob);
+        }
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -173,6 +184,39 @@ export class ApiKeyService implements ApiKeyServiceInterface {
             return;
         }
         await this.apiKeyRepository.deleteAll({ userId }, { transaction });
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async recordUse(apiKey: ApiKey): Promise<void> {
+        const now: Date = new Date();
+        // written down once in a while rather than on every request: the time only has to tell a key
+        // nobody uses from one an integration depends on, and a write per request is what it would cost
+        if (
+            apiKey.lastUsedAt != undefined
+            && now.getTime() - new Date(apiKey.lastUsedAt).getTime() < this.resolveOptions().recordUseAfterMs
+        ) {
+            return;
+        }
+        // by a filter rather than by id, so that a key revoked since it was read is no error
+        await this.apiKeyRepository.updateAll({ id: apiKey.id }, { lastUsedAt: now });
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async deleteExpired(): Promise<void> {
+        const expiredBefore: Date = new Date(Date.now() - this.resolveOptions().deleteExpiredAfterMs);
+        await this.apiKeyRepository.deleteAll({ expiresAt: { before: expiredBefore } });
+    }
+
+    /**
+     * The api key options, with the defaults for what the application leaves out.
+     * @returns The options.
+     */
+    private resolveOptions(): Required<ApiKeyOptions> {
+        const options: ApiKeyOptions = inject(ZIBRI_DI_TOKENS.API_KEY_OPTIONS);
+        return {
+            recordUseAfterMs: options.recordUseAfterMs ?? Ms.HOUR,
+            deleteExpiredAfterMs: options.deleteExpiredAfterMs ?? Ms.DAY * 30
+        };
     }
 
     /**

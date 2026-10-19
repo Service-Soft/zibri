@@ -38,13 +38,13 @@ export class IntrospectionResponse {
     /**
      * When the token expires, in seconds since the epoch.
      */
-    @Property.number({ required: false })
+    @Property.number({ format: 'integer', required: false })
     exp?: number;
 
     /**
      * When the token was issued, in seconds since the epoch.
      */
-    @Property.number({ required: false })
+    @Property.number({ format: 'integer', required: false })
     iat?: number;
 
     /**

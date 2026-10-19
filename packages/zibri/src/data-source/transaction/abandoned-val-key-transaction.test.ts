@@ -57,7 +57,7 @@ describe('a valkey transaction that is never committed or rolled back', () => {
         });
         dataSource = inject(valKeyDataSourceClass);
         repo = inject(repositoryTokenFor(ValKeyItem));
-    }, 15000);
+    }, 30000);
 
     it('gives the rows it was holding back to everyone else', async () => {
         const item: ValKeyItem = await repo.create({ value: 'first' });

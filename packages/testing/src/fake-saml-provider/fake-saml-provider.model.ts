@@ -9,9 +9,12 @@ import { KnownHeader, MimeType } from 'zibri';
 
 import { FakeSamlAnswerChanges } from './fake-saml-answer-changes.model';
 import { FakeSamlAnswer } from './fake-saml-answer.model';
+import { FakeSamlBackChannelAnswer } from './fake-saml-back-channel-answer.model';
 import { FakeSamlIdentity } from './fake-saml-identity.model';
+import { FakeSamlLogoutForm } from './fake-saml-logout-form.model';
 import { FakeSamlLogoutOptions } from './fake-saml-logout-options.model';
 import { FakeSamlLogoutRequest } from './fake-saml-logout-request.model';
+import { FakeSamlLogoutResponse } from './fake-saml-logout-response.model';
 import { FakeSamlProviderOptions } from './fake-saml-provider-options.model';
 import { FakeSamlRequest } from './fake-saml-request.model';
 import { createFakeKeyPair } from '../create-fake-key-pair.function';
@@ -39,6 +42,19 @@ const PROTOCOL_NAMESPACE: string = 'urn:oasis:names:tc:SAML:2.0:protocol';
  * The namespace of SAML assertions.
  */
 const ASSERTION_NAMESPACE: string = 'urn:oasis:names:tc:SAML:2.0:assertion';
+
+/**
+ * The namespace of SOAP 1.1 envelopes, which the SOAP binding carries messages in.
+ */
+const SOAP_NAMESPACE: string = 'http://schemas.xmlsoap.org/soap/envelope/';
+
+/**
+ * The bindings a metadata document names, by what the provider is configured with.
+ */
+const BINDINGS: Record<'redirect' | 'post', string> = {
+    redirect: 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect',
+    post: 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST'
+};
 
 /**
  * How the user signed in, as every answer says: with a password over a protected connection.
@@ -92,6 +108,16 @@ export class FakeSamlProvider {
      * Every logout request the provider was sent, in order.
      */
     readonly logoutRequests: FakeSamlLogoutRequest[] = [];
+
+    /**
+     * Every logout response the service provider posted to the provider, in order.
+     */
+    readonly logoutResponses: FakeSamlLogoutResponse[] = [];
+
+    /**
+     * Every answer to a logout request the provider's page posted, in order, when it answers with a form.
+     */
+    readonly logoutAnswers: FakeSamlLogoutForm[] = [];
 
     /**
      * How often the metadata was read.
@@ -206,20 +232,58 @@ export class FakeSamlProvider {
      */
     createLogoutRequestUrl(options: FakeSamlLogoutOptions): string {
         const destination: string = this.resolveServiceProviderLogoutUrl();
-        const nameIdFormat: string = this.identity.nameIdFormat ?? UNSPECIFIED_NAME_ID_FORMAT;
-        const request: string = [
-            `<samlp:LogoutRequest xmlns:samlp="${PROTOCOL_NAMESPACE}" xmlns:saml="${ASSERTION_NAMESPACE}"`,
-            ` ID="_${randomBytes(16).toString('hex')}" Version="2.0" IssueInstant="${new Date().toISOString()}"`,
-            ` Destination="${this.escape(destination)}">`,
-            `<saml:Issuer>${this.escape(this.entityId)}</saml:Issuer>`,
-            `<saml:NameID Format="${this.escape(nameIdFormat)}">${this.escape(options.nameId)}</saml:NameID>`,
-            options.sessionIndex == undefined ? '' : `<samlp:SessionIndex>${this.escape(options.sessionIndex)}</samlp:SessionIndex>`,
-            '</samlp:LogoutRequest>'
+        const request: string = this.createLogoutRequest(options, destination, true);
+        return this.toRedirectUrl(destination, 'SAMLRequest', request, undefined, this.resolveLogoutKey(options));
+    }
+
+    /**
+     * The form a user logging out at the provider has their browser post: the logout route of the
+     * service provider, with a logout request signed inside, as the HTTP-POST binding sends it.
+     * @param options - Who to log out, and what to get wrong.
+     * @returns The form.
+     * @throws When the provider was started without the logout url of the service provider.
+     */
+    createLogoutRequestForm(options: FakeSamlLogoutOptions): FakeSamlLogoutForm {
+        const destination: string = this.resolveServiceProviderLogoutUrl();
+        const request: string = this.createLogoutRequest(options, destination, true);
+        const key: FakeKeyPair | undefined = this.resolveLogoutKey(options);
+        const signed: string = key == undefined ? request : this.sign(request, '/*[local-name(.)=\'LogoutRequest\']', key);
+        return { url: destination, fields: new URLSearchParams({ SAMLRequest: Buffer.from(signed).toString('base64') }) };
+    }
+
+    /**
+     * Sends the service provider a logout request server to server, the way the SOAP binding does: a
+     * signed logout request in a SOAP envelope, which declares the namespaces the request uses.
+     * @param url - Where the service provider takes logout requests of the SOAP binding.
+     * @param options - Who to log out, and what to get wrong.
+     * @returns What the service provider answered.
+     */
+    async sendBackChannelLogout(url: string, options: FakeSamlLogoutOptions): Promise<FakeSamlBackChannelAnswer> {
+        const id: string = `_${randomBytes(16).toString('hex')}`;
+        const envelope: string = [
+            `<soap:Envelope xmlns:soap="${SOAP_NAMESPACE}" xmlns:samlp="${PROTOCOL_NAMESPACE}" xmlns:saml="${ASSERTION_NAMESPACE}">`,
+            '<soap:Body>',
+            this.createLogoutRequest(options, undefined, false, id),
+            '</soap:Body>',
+            '</soap:Envelope>'
         ].join('');
-        const key: FakeKeyPair | undefined = options.unsigned === true
-            ? undefined
-            : options.signedByAnotherKey === true ? this.otherKey : this.key;
-        return this.toRedirectUrl(destination, 'SAMLRequest', request, undefined, key);
+        const key: FakeKeyPair | undefined = this.resolveLogoutKey(options);
+        const path: string = '/*[local-name(.)=\'Envelope\']/*[local-name(.)=\'Body\']/*[local-name(.)=\'LogoutRequest\']';
+        const res: Response = await fetch(url, {
+            method: 'POST',
+            // eslint-disable-next-line cspell/spellchecker
+            headers: { [KnownHeader.CONTENT_TYPE]: MimeType.TEXT_XML, soapaction: 'http://www.oasis-open.org/committees/security' },
+            body: key == undefined ? envelope : this.sign(envelope, path, key)
+        });
+        const body: string = await res.text();
+        const certificate: string | undefined = this.options.requiresRequestsSignedBy;
+        return {
+            requestId: id,
+            status: res.status,
+            contentType: res.headers.get(KnownHeader.CONTENT_TYPE) ?? undefined,
+            body,
+            signed: certificate != undefined && this.isXmlSignedBy(body, certificate)
+        };
     }
 
     /**
@@ -243,6 +307,10 @@ export class FakeSamlProvider {
                 return;
             }
             case '/slo': {
+                if (req.method === 'POST') {
+                    this.receiveLogoutResponse(new URLSearchParams(await this.readBody(req)), res);
+                    return;
+                }
                 this.logOut(req.url ?? '', url.searchParams, res);
                 return;
             }
@@ -345,9 +413,107 @@ export class FakeSamlProvider {
             `<samlp:Status><samlp:StatusCode Value="${SUCCESS_STATUS}"/></samlp:Status>`,
             '</samlp:LogoutResponse>'
         ].join('');
+        if (this.options.answersLogoutWith === 'post') {
+            const signed: string = this.sign(response, '/*[local-name(.)=\'LogoutResponse\']', this.key);
+            const fields: URLSearchParams = new URLSearchParams({ SAMLResponse: Buffer.from(signed).toString('base64') });
+            if (request.relayState != undefined) {
+                fields.set('RelayState', request.relayState);
+            }
+            this.logoutAnswers.push({ url: destination, fields });
+            const inputs: string = [...fields.entries()]
+                .map(([name, value]) => `<input type="hidden" name="${name}" value="${this.escape(value)}">`)
+                .join('');
+            res.writeHead(200, { [KnownHeader.CONTENT_TYPE]: MimeType.HTML });
+            res.end(`<form method="post" action="${this.escape(destination)}">${inputs}</form><script>document.forms[0].submit()</script>`);
+            return;
+        }
         const location: string = this.toRedirectUrl(destination, 'SAMLResponse', response, request.relayState, this.key);
         res.writeHead(302, { [KnownHeader.LOCATION]: location });
         res.end();
+    }
+
+    // what the service provider's page posts after the user logged out at the provider
+    private receiveLogoutResponse(fields: URLSearchParams, res: ServerResponse): void {
+        const encoded: string | null = fields.get('SAMLResponse');
+        if (encoded == undefined) {
+            this.sendError(res, 'The form has no SAMLResponse.');
+            return;
+        }
+        const xml: string = Buffer.from(encoded, 'base64').toString('utf8');
+        const certificate: string | undefined = this.options.requiresRequestsSignedBy;
+        this.logoutResponses.push({
+            inResponseTo: this.readAttribute(xml, 'LogoutResponse', 'InResponseTo'),
+            status: this.readAttribute(xml, 'StatusCode', 'Value'),
+            relayState: fields.get('RelayState') ?? undefined,
+            signed: certificate != undefined && this.isXmlSignedBy(xml, certificate)
+        });
+        res.writeHead(200, { [KnownHeader.CONTENT_TYPE]: MimeType.HTML });
+        res.end('<p>Logged out.</p>');
+    }
+
+    /**
+     * Writes a logout request of the user logging out at the provider.
+     * @param options - Who to log out.
+     * @param destination - Where it is sent, for a binding that names it.
+     * @param declaresNamespaces - Whether the request declares the namespaces it uses itself, rather
+     * than an envelope around it.
+     * @param id - Its id. A new one, when undefined.
+     * @returns The request, unsigned.
+     */
+    private createLogoutRequest(
+        options: FakeSamlLogoutOptions,
+        destination: string | undefined,
+        declaresNamespaces: boolean,
+        id: string = `_${randomBytes(16).toString('hex')}`
+    ): string {
+        const nameIdFormat: string = this.identity.nameIdFormat ?? UNSPECIFIED_NAME_ID_FORMAT;
+        return [
+            '<samlp:LogoutRequest',
+            declaresNamespaces ? ` xmlns:samlp="${PROTOCOL_NAMESPACE}" xmlns:saml="${ASSERTION_NAMESPACE}"` : '',
+            ` ID="${id}" Version="2.0" IssueInstant="${new Date().toISOString()}"`,
+            destination == undefined ? '' : ` Destination="${this.escape(destination)}"`,
+            '>',
+            `<saml:Issuer>${this.escape(this.entityId)}</saml:Issuer>`,
+            `<saml:NameID Format="${this.escape(nameIdFormat)}">${this.escape(options.nameId)}</saml:NameID>`,
+            options.sessionIndex == undefined ? '' : `<samlp:SessionIndex>${this.escape(options.sessionIndex)}</samlp:SessionIndex>`,
+            '</samlp:LogoutRequest>'
+        ].join('');
+    }
+
+    private resolveLogoutKey(options: FakeSamlLogoutOptions): FakeKeyPair | undefined {
+        if (options.unsigned === true) {
+            return undefined;
+        }
+        return options.signedByAnotherKey === true ? this.otherKey : this.key;
+    }
+
+    /**
+     * Whether an xml document carries a signature made with the key of the given certificate.
+     * @param xml - The document.
+     * @param certificate - The certificate, PEM encoded.
+     * @returns True when it does.
+     */
+    private isXmlSignedBy(xml: string, certificate: string): boolean {
+        const signature: string | undefined = /<(\w+:)?Signature\b[\S\s]*?<\/\1Signature>/.exec(xml)?.[0];
+        if (signature == undefined) {
+            return false;
+        }
+        try {
+            const verifier: SignedXml = new SignedXml({ publicCert: certificate });
+            verifier.loadSignature(signature);
+            return verifier.checkSignature(xml);
+        }
+        catch {
+            return false;
+        }
+    }
+
+    private async readBody(req: IncomingMessage): Promise<string> {
+        const chunks: Buffer[] = [];
+        for await (const chunk of req) {
+            chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)));
+        }
+        return Buffer.concat(chunks).toString('utf8');
     }
 
     /**
@@ -403,7 +569,7 @@ export class FakeSamlProvider {
         const key: FakeKeyPair = changes.signedByAnotherKey === true ? this.otherKey : this.key;
         let assertion: string = this.createAssertion(request, changes, sessionIndex);
         if (changes.unsigned !== true && signs !== 'response') {
-            assertion = this.sign(assertion, 'Assertion', key);
+            assertion = this.sign(assertion, '/*[local-name(.)=\'Assertion\']', key);
         }
         if (this.options.encryptsTo != undefined) {
             const encrypted: string = await this.encrypt(assertion, this.options.encryptsTo);
@@ -415,7 +581,7 @@ export class FakeSamlProvider {
             `<samlp:Status><samlp:StatusCode Value="${SUCCESS_STATUS}"/></samlp:Status>`,
             assertion
         );
-        return changes.unsigned !== true && signs !== 'assertion' ? this.sign(response, 'Response', key) : response;
+        return changes.unsigned !== true && signs !== 'assertion' ? this.sign(response, '/*[local-name(.)=\'Response\']', key) : response;
     }
 
     private createResponse(request: FakeSamlRequest, changes: FakeSamlAnswerChanges, status: string, assertion: string): string {
@@ -476,7 +642,14 @@ export class FakeSamlProvider {
         ].join('');
     }
 
-    private sign(xml: string, element: 'Assertion' | 'Response', key: FakeKeyPair): string {
+    /**
+     * Signs an element of a document, with the signature inside it.
+     * @param xml - The document.
+     * @param element - The path of the element, which may lie inside an envelope.
+     * @param key - The key to sign with.
+     * @returns The document, signed.
+     */
+    private sign(xml: string, element: string, key: FakeKeyPair): string {
         const signature: SignedXml = new SignedXml({
             privateKey: key.privateKey,
             publicCert: key.certificate,
@@ -484,14 +657,14 @@ export class FakeSamlProvider {
             canonicalizationAlgorithm: CANONICALIZATION_ALGORITHM
         });
         signature.addReference({
-            xpath: `/*[local-name(.)='${element}']`,
+            xpath: element,
             transforms: [ENVELOPED_SIGNATURE, CANONICALIZATION_ALGORITHM],
             digestAlgorithm: DIGEST_ALGORITHM
         });
         // right after the issuer, which is where SAML has the signature go
         signature.computeSignature(xml, {
             prefix: 'ds',
-            location: { reference: `/*[local-name(.)='${element}']/*[local-name(.)='Issuer']`, action: 'after' }
+            location: { reference: `${element}/*[local-name(.)='Issuer']`, action: 'after' }
         });
         return signature.getSignedXml();
     }
@@ -539,7 +712,8 @@ export class FakeSamlProvider {
             '<md:KeyDescriptor use="signing"><ds:KeyInfo><ds:X509Data>',
             `<ds:X509Certificate>${certificate}</ds:X509Certificate>`,
             '</ds:X509Data></ds:KeyInfo></md:KeyDescriptor>',
-            `<md:SingleLogoutService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="${this.logoutUrl}"/>`,
+            ...(this.options.logoutBindings ?? ['redirect'])
+                .map(binding => `<md:SingleLogoutService Binding="${BINDINGS[binding]}" Location="${this.logoutUrl}"/>`),
             '<md:NameIDFormat>urn:oasis:names:tc:SAML:2.0:nameid-format:persistent</md:NameIDFormat>',
             `<md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="${this.signInUrl}"/>`,
             `<md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="${this.signInUrl}"/>`,

@@ -1345,6 +1345,46 @@ describe('BaseOidcAuthenticator — keeping a provider\'s tokens', () => {
         await authService().revokeProviderAccess(loggedIn.user.id, identityId, undefined);
 
         expect(await findApiIdentity(loggedIn.user.id)).toBeUndefined();
+        expect(await auditEvents()).toContainEqual(expect.objectContaining({
+            action: AuditAction.IDENTITY_UNLINKED,
+            outcome: AuditOutcome.SUCCESS,
+            userId: loggedIn.user.id
+        }));
+    });
+
+    it('stops an identity signing in when its sign-in is revoked, and keeps its tokens', async () => {
+        const loggedIn: LoggedIn = await logIn(baseUrl);
+        await connectApi(loggedIn, newSubject(), { signIn: true, scopes: [READ_SCOPE] });
+        const identityId: string = (await findApiIdentity(loggedIn.user.id))?.id ?? '';
+
+        await authService().revokeProviderSignIn(loggedIn.user.id, identityId, undefined);
+
+        expect(await findApiIdentity(loggedIn.user.id)).toMatchObject({ signIn: false, grantedScopes: expect.arrayContaining([READ_SCOPE]) });
+        expect(await authService().resolveProviderAccessToken(loggedIn.user.id, identityId, [READ_SCOPE])).toBeTruthy();
+        expect((await signIn(
+            newBrowser(baseUrl),
+            `${baseUrl}/auth/federated/authorize?${new URLSearchParams({ authenticator: 'fake-api', redirectTo: REDIRECT_TO }).toString()}`
+        )).landing).toBe(`${ERROR_URL}?error=not_for_sign_in`);
+        expect(await auditEvents()).toContainEqual(expect.objectContaining({
+            action: AuditAction.IDENTITY_SIGN_IN_REVOKED,
+            outcome: AuditOutcome.SUCCESS,
+            userId: loggedIn.user.id
+        }));
+    });
+
+    it('unlinks an identity linked to sign in only when its sign-in is revoked', async () => {
+        const loggedIn: LoggedIn = await logIn(baseUrl);
+        await connectApi(loggedIn, newSubject(), { signIn: true, scopes: [] });
+        const identityId: string = (await findApiIdentity(loggedIn.user.id))?.id ?? '';
+
+        await authService().revokeProviderSignIn(loggedIn.user.id, identityId, undefined);
+
+        expect(await findApiIdentity(loggedIn.user.id)).toBeUndefined();
+        expect(await auditEvents()).toContainEqual(expect.objectContaining({
+            action: AuditAction.IDENTITY_UNLINKED,
+            outcome: AuditOutcome.SUCCESS,
+            userId: loggedIn.user.id
+        }));
     });
 
     it('hands the tokens back when the identity is unlinked', async () => {

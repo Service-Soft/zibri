@@ -64,8 +64,8 @@ moved.
 | "Requires Node.js >= 22" | `README.md:16` | **Fixed this round.** Every package declares `engines: { node: ">=24" }`, so the quick start's own first command answers `EBADENGINE` on the version it asks for. |
 | "~1600 tests running in our pipeline" | `README.md:90` | **Fixed this round**, to "more than 2500". A static count of `it(`/`test(` blocks across the four packages is 2720, of which 20 are skipped and 37 are `.each` (so they expand to more at run time). The exact pipeline number needs a full run, which needs containers. |
 
-No row remains open. The last two pointed at findings tracked elsewhere and both had closed there
-without the rows following: `ValKeyRateLimiterLock`'s TTL and fencing with
+No row of Part 1 remains open. The last two pointed at findings tracked elsewhere and both had closed
+there without the rows following: `ValKeyRateLimiterLock`'s TTL and fencing with
 [03](./03-auth-and-security.md) §E4, and the `any`s in the `PropertyMetadata` union down to the
 variance limit with [05](./05-di-metadata-and-packaging.md) §M3.
 
@@ -161,7 +161,7 @@ events still cannot call `emit` — which is correct, and is the whole point of 
   convention for where a secret comes from — it was the secret, hardcoded in the scaffold and
   published with the cli. A generated project reads its configuration from the environment now,
   `.env.example` is the convention, and `docs/getting-started.md` has the section. What is still
-  missing is the *schema* half: nothing validates a variable beyond it being present.
+  missing is the *schema* half, an open bullet below.
 - ~~**Connection pooling and database sizing.** `poolSize` defaults to 100
   ([01](./01-data-layer.md) §M7) and is never mentioned.~~ **Closed**: `docs/replication.md` states
   it, and states the thing that makes it a trap — the pool is per process, so what the database sees
@@ -170,7 +170,15 @@ events still cannot call `emit` — which is correct, and is the whole point of 
   `stopOnError` ([04](./04-infrastructure-subsystems.md) §2.1), which is a manual-recovery
   situation the framework creates by default.~~ **Closed for this case**: `docs/cron.md` says what
   `STOPPED_ON_ERROR` means, that it is a halt rather than a backoff, and that the job comes back at
-  the next start. There is still no runbook section as such.
+  the next start. A runbook section as such is an open bullet below.
+- **Configuration schema.** *Open, filed on 2026-10-15 from the configuration bullet above.* A
+  generated project reads its configuration from the environment, and nothing validates a variable
+  beyond it being present: a port that is not a number or a url that is not one fails wherever it is
+  first used. Neither the docs nor the scaffold say how to describe and check one.
+- **Runbooks.** *Open, filed on 2026-10-15 from the bullet above.* What to do when a cron job stopped
+  on error, a backup was refused as interrupted, a restore could not be undone, an event failed, or a
+  lease is held by an instance that is gone: each page states its own case, and no page gathers them
+  for whoever is on call.
 
 ### Security
 
@@ -223,8 +231,8 @@ events still cannot call `emit` — which is correct, and is the whole point of 
 - Correlation ids are **closed**, by being replaced: a trace id is carried on every entry written
   while handling a request, continued from the caller's `traceparent` when one arrived, returned as
   `traceresponse` and repeated in a failed request's body — and `docs/logging.md` says so. Tracing
-  has `docs/tracing.md` of its own. Still nothing on log aggregation or metric label cardinality
-  ([02](./02-http-runtime-core.md) §C2).
+  has `docs/tracing.md` of its own. **Open**: still nothing on log aggregation or metric label
+  cardinality ([02](./02-http-runtime-core.md) §C2).
 
 ### Lifecycle and change management
 

@@ -6,6 +6,7 @@ import { Entity } from '../../../entity/decorators/entity.decorator';
 import { Property } from '../../../entity/decorators/property.decorator';
 import { type CurrencyCode } from '../../../localization/models/currency-code.model';
 import { LoggedError } from '../../../logging/logged-error.model';
+import { BigNumber } from '../../../utilities/number.utilities';
 
 /**
  * Entity for an payment that has been made.
@@ -34,10 +35,10 @@ export class Payment<M extends PaymentMethod, Data extends AnyObject> extends Ba
     @Property.string({ enum: PaymentStatus })
     status!: PaymentStatus;
     /**
-     * The amount of the payment.
+     * The amount of the payment, exactly.
      */
-    @Property.number()
-    amount!: number;
+    @Property.number({ format: 'bignumber' })
+    amount!: BigNumber;
     /**
      * The currency that the payment is in.
      */

@@ -118,6 +118,27 @@ class ValKeyShelvedItem extends BaseEntity {
     name!: string;
 }
 
+/**
+ * A row looked up by the leading part of an index group, and of a unique group.
+ */
+@Entity({ tenant: 'shared', allowOrphan: true, indexes: [['warehouse', 'shelf']], uniques: [['code', 'batch']] })
+class ValKeyRoutedItem extends BaseEntity {
+    @Property.string()
+    warehouse!: string;
+
+    @Property.string()
+    shelf!: string;
+
+    @Property.string()
+    code!: string;
+
+    @Property.string()
+    batch!: string;
+
+    @Property.string()
+    name!: string;
+}
+
 let server: StartedTestServer;
 let dataSource: ValKeyDataSource;
 let stockRepo: Repository<ValKeyStock>;
@@ -129,7 +150,7 @@ const postgresDataSourceClass: Newable<DataSourceInterface> = createTestDataSour
 
 const valKeyDataSourceClass: Newable<ValKeyDataSource> = createTestValKeyDataSource({
     // MigrationEntity is duplicated across data sources on purpose, every one tracks its own migrations
-    entities: [MigrationEntity, RateLimitStateEntity, ValKeyProduct, ValKeyCategory, ValKeyTag, ValKeyStock, ValKeyShelvedItem]
+    entities: [MigrationEntity, RateLimitStateEntity, ValKeyProduct, ValKeyCategory, ValKeyTag, ValKeyStock, ValKeyShelvedItem, ValKeyRoutedItem]
 });
 
 beforeAll(async () => {
@@ -143,7 +164,7 @@ beforeAll(async () => {
     stockRepo = inject(repositoryTokenFor(ValKeyStock));
     categoryRepo = inject(repositoryTokenFor(ValKeyCategory));
     tagRepo = inject(repositoryTokenFor(ValKeyTag));
-}, 20000);
+}, 30000);
 
 afterAll(async () => {
     await server.shutdown();
@@ -459,6 +480,44 @@ describe('ValKeyDataSource', () => {
                 await items.deleteAll({});
             }
         });
+
+        it('answers a filter on the leading part of an index group or a unique group from the index', async () => {
+            // an index answers a lookup by any leading part of itself, which is what lets an entity
+            // declare (warehouse, shelf) and nothing on warehouse alone
+            const items: Repository<ValKeyRoutedItem> = inject(repositoryTokenFor(ValKeyRoutedItem));
+            await items.createAll([
+                { warehouse: 'north', shelf: 'a', code: 'x', batch: '1', name: 'first' },
+                { warehouse: 'north', shelf: 'b', code: 'x', batch: '2', name: 'second' },
+                { warehouse: 'south', shelf: 'a', code: 'y', batch: '1', name: 'third' }
+            ]);
+            // a row whose name no read can parse, as above: a read that succeeds never looked at it
+            const tableName: string = MetadataUtilities.getEntityMetadata(ValKeyRoutedItem)?.tableName ?? '';
+            const brokenId: string = UUIDUtilities.generate();
+            const brokenKey: string = `${dataSource.keyPrefix}:${tableName}:${brokenId}`;
+            await inTransaction(async transaction => {
+                await transaction.add({
+                    type: 'hashSet',
+                    key: brokenKey,
+                    values: { id: `"${brokenId}"`, warehouse: '"east"', shelf: '"c"', code: '"z"', batch: '"9"', name: '{not json' }
+                });
+                await transaction.add({ type: 'setAdd', key: `${dataSource.keyPrefix}:${tableName}:ids`, members: [brokenId] });
+            });
+
+            try {
+                await expect(items.findAll({ where: { name: 'first' } })).rejects.toThrow();
+
+                expect((await items.findAll({ where: { warehouse: 'north' } })).map(i => i.name).sort()).toEqual(['first', 'second']);
+                expect((await items.findAll({ where: { code: 'x' } })).map(i => i.name).sort()).toEqual(['first', 'second']);
+                expect((await items.findAll({ where: { warehouse: 'north', shelf: 'b' } })).map(i => i.name)).toEqual(['second']);
+            }
+            finally {
+                await inTransaction(async transaction => {
+                    await transaction.add({ type: 'delete', key: brokenKey });
+                    await transaction.add({ type: 'setRemove', key: `${dataSource.keyPrefix}:${tableName}:ids`, members: [brokenId] });
+                });
+                await items.deleteAll({});
+            }
+        });
     });
 
     describe('a transaction committing after the indexes and uniques it read changed', () => {
@@ -475,6 +534,23 @@ describe('ValKeyDataSource', () => {
 
             await expect(transaction.commit()).rejects.toThrow(KeyDeclarationsChangedError);
             expect(await items.count({ where: { name: 'guarded' } })).toBe(0);
+        });
+
+        it('tells the work waiting for its end that it was not committed', async () => {
+            const items: Repository<ValKeyShelvedItem> = inject(repositoryTokenFor(ValKeyShelvedItem));
+            const tagTable: string = MetadataUtilities.getEntityMetadata(ValKeyTag)?.tableName ?? '';
+            const transaction: Transaction = await dataSource.startTransaction();
+            assert(transaction instanceof ValKeyTransaction, 'a valkey data source hands out valkey transactions');
+            const ended: boolean[] = [];
+            transaction.afterFinish(async committed => await Promise.resolve(void ended.push(committed)));
+
+            await items.create({ shelf: 'g', name: 'guarded' }, { transaction });
+            transaction.guardKey(`${dataSource.keyPrefix}:${tagTable}:keys`, '');
+            await expect(transaction.commit()).rejects.toThrow(KeyDeclarationsChangedError);
+            // what a caller does on a commit that threw
+            await transaction.rollback();
+
+            expect(ended).toEqual([false]);
         });
     });
 
@@ -660,6 +736,23 @@ describe('ValKeyDataSource', () => {
                 .toThrow(/does not belong to a valkey data source/);
 
             await postgresTransaction.rollback();
+        });
+
+        it('tells the work waiting for its end whether it was committed, once', async () => {
+            const ended: string[] = [];
+
+            const committed: Transaction = await dataSource.startTransaction();
+            await productRepo.create({ name: 'a' }, { transaction: committed });
+            committed.afterFinish(async hasCommitted => await Promise.resolve(void ended.push(`committed: ${hasCommitted}`)));
+            await committed.commit();
+
+            const rolledBack: Transaction = await dataSource.startTransaction();
+            await productRepo.create({ name: 'b' }, { transaction: rolledBack });
+            rolledBack.afterFinish(async hasCommitted => await Promise.resolve(void ended.push(`rolled back: ${hasCommitted}`)));
+            await rolledBack.rollback();
+            await rolledBack.rollback();
+
+            expect(ended).toEqual(['committed: true', 'rolled back: false']);
         });
     });
 

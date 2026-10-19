@@ -20,6 +20,7 @@ import { CurrencyCode } from '../../../../localization/models/currency-code.mode
 import { type TenantServiceInterface } from '../../../../tenancy/tenant-service.interface';
 import { FsPath, FsUtilities } from '../../../../utilities/fs.utilities';
 import { JsonUtilities } from '../../../../utilities/json.utilities';
+import { BigNumber, NumberUtilities } from '../../../../utilities/number.utilities';
 import { UUIDUtilities } from '../../../../utilities/uuid.utilities';
 import { KnownPaymentMethod, PaymentMethod } from '../../models/payment-method.model';
 import { PaymentPluginOptionsInput } from '../../models/payment-plugin-options-input.model';
@@ -102,7 +103,7 @@ const hasSandboxCredentials: boolean = Boolean(clientId && clientSecret && buyer
     let testServer: StartedTestServer;
 
     const METHOD: KnownPaymentMethod = KnownPaymentMethod.PAY_PAL;
-    const AMOUNT: number = 9.99;
+    const AMOUNT: BigNumber = new BigNumber('9.99');
     const CURRENCY: CurrencyCode = 'EUR';
     const URLS: Required<Pick<PayPalPaymentData, 'cancelUrl' | 'returnUrl'>> = { returnUrl: 'https://example.com/return', cancelUrl: 'https://example.com/cancel' };
     const TENANT: string = UUIDUtilities.generate();
@@ -165,14 +166,14 @@ const hasSandboxCredentials: boolean = Boolean(clientId && clientSecret && buyer
 
         it('rejects amount <= 0', async () => {
             await expect(inTenant(
-                async () => await paymentService.validatePaymentData(METHOD, { amount: 0, currencyCode: CURRENCY, transactionId: UUIDUtilities.generate() })
-            )).rejects.toThrow('amount must be > 0');
+                async () => await paymentService.validatePaymentData(METHOD, { amount: NumberUtilities.new(0), currencyCode: CURRENCY, transactionId: UUIDUtilities.generate() })
+            )).rejects.toThrow('The amount has to be greater than 0.');
         });
 
         it('rejects missing currencyCode', async () => {
             await expect(inTenant(
                 async () => await paymentService.validatePaymentData(METHOD, { amount: AMOUNT, currencyCode: '' as 'EUR', transactionId: UUIDUtilities.generate() })
-            )).rejects.toThrow('currencyCode required');
+            )).rejects.toThrow('A currency code is required.');
         });
     });
 

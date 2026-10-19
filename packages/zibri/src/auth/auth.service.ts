@@ -21,6 +21,7 @@ import { RequestPasswordResetData } from './authenticators/password/request-pass
 import { isProviderAccessAuthenticator, ProviderAccessAuthenticatorInterface } from './authenticators/provider-access-authenticator.interface';
 import { ProviderAccessFailure } from './authenticators/provider-access-failure.enum';
 import { ProviderAccessError } from './authenticators/provider-access.error';
+import { isRefreshResolvingAuthenticator } from './authenticators/refresh-resolving-authenticator.interface';
 import { Authentication } from './models/authentication.model';
 import { BaseUser } from './models/base-user.model';
 import { DeclaredRoleChecks } from './models/declared-role-checks.model';
@@ -502,6 +503,25 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
+    async revokeProviderSignIn(userId: string, identityId: string, transaction: Transaction | undefined): Promise<void> {
+        try {
+            const holder: ProviderAccessAuthenticatorInterface = await this.resolveProviderAccessHolder(userId, identityId, transaction);
+            // the success is recorded by the authenticator, which knows whether the identity stopped
+            // signing in or was unlinked
+            await holder.revokeSignIn(userId, identityId, transaction);
+        }
+        catch (error) {
+            this.logger.audit({
+                action: AuditAction.IDENTITY_SIGN_IN_REVOKED,
+                outcome: AuditOutcome.FAILURE,
+                reason: auditReasonFor(error),
+                userId
+            });
+            throw error;
+        }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async createApiKey<Role extends string>(
         userId: string,
         data: ApiKeyCreateData<Role, undefined>,
@@ -587,6 +607,44 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
             // was deactivated, and reactivating them should not quietly bring it back
             await this.apiKeyService.revokeForUser(userId, transaction);
         });
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async endAccess(userId: string, transaction: Transaction | undefined): Promise<void> {
+        await this.auditUserChange(AuditAction.ACCESS_ENDED, userId, async () => {
+            await this.endLogins(userId, transaction);
+            await this.apiKeyService.revokeForUser(userId, transaction);
+        });
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async resolveRefreshUser<Role extends string, UserType extends BaseUser<Role>>(
+        user: UserType,
+        transaction: Transaction | undefined
+    ): Promise<UserType> {
+        let res: BaseUser<string> = user;
+        // one after the other, since each is handed what the one before answered
+        for (const authenticator of this.authenticators.map(a => inject(a)).filter(isRefreshResolvingAuthenticator)) {
+            try {
+                res = await authenticator.resolveRefreshUser(res, transaction);
+            }
+            catch (error) {
+                if (error instanceof AccountDeactivatedError) {
+                    // once the transaction is finished: the refusal rolls it back, and would take the
+                    // ending with it
+                    const end: () => Promise<void> = async () => await this.endAccess(user.id, undefined);
+                    if (transaction == undefined) {
+                        await end();
+                    }
+                    else {
+                        transaction.afterFinish(end);
+                    }
+                }
+                throw error;
+            }
+        }
+        // the caller names the type of its users, as with getCurrentUser
+        return res as UserType;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

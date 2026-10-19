@@ -1,7 +1,11 @@
+import { randomUUID } from 'node:crypto';
+import { setTimeout as sleep } from 'node:timers/promises';
+
 import { afterAll, afterEach, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, FakeLdapDirectory, FakeLdapEntry, InMemoryDataSource, startFakeLdapDirectory } from 'zibri-testing';
 
 import { BaseLdapAuthenticator } from './base-ldap.authenticator';
+import { DisabledLdapEntriesCronJob } from './disabled-ldap-entries.cron-job';
 import { LdapCredentials } from './ldap-credentials.model';
 import { LdapEntry } from './ldap-entry.model';
 import { LdapIdentity, LdapIdentityCreateData } from './ldap-identity.model';
@@ -12,6 +16,7 @@ import { defaultTestServerEntities } from '../../../__testing__/test-server/crea
 import { defaultTestServerProviders } from '../../../__testing__/test-server/providers';
 import { startAndStopTestServerWithout } from '../../../__testing__/test-server/start-and-stop-test-server-without.function';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
+import { CronJobEntity } from '../../../cron/cron-job-entity.model';
 import { Repository } from '../../../data-source/repository/repository';
 import { Transaction } from '../../../data-source/transaction/transaction.model';
 import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
@@ -30,8 +35,13 @@ import { Param } from '../../../routing/decorators/param.decorator';
 import { Post } from '../../../routing/decorators/post.decorator';
 import { Newable } from '../../../types/newable.type';
 import { JsonUtilities } from '../../../utilities/json.utilities';
+import { AuthControllerUtilities } from '../../auth-controller/auth-controller.utilities';
 import { Auth } from '../../decorators/auth.decorator';
+import { ApiKeyAuthStrategy } from '../../strategies/api-key/api-key.auth-strategy';
+import { ApiKey } from '../../strategies/api-key/api-key.model';
+import { CreatedApiKey } from '../../strategies/api-key/created-api-key.model';
 import { JwtAuthData } from '../../strategies/jwt/jwt-auth-data.model';
+import { JwtRefreshLoginDto } from '../../strategies/jwt/jwt-refresh-login-data.model';
 import { JwtAuthStrategy } from '../../strategies/jwt/jwt.auth-strategy';
 
 const SEARCH_BASE: string = 'ou=people,dc=zibri,dc=test';
@@ -199,6 +209,19 @@ class UnreachableDirectory extends TestDirectory {
     }
 }
 
+/**
+ * Whether the server of the switchable directory can be reached.
+ */
+let switchableReachable: boolean = true;
+
+class SwitchableDirectory extends TestDirectory {
+    readonly name: string = 'switchable';
+
+    get urls(): string[] {
+        return [switchableReachable ? directory.ldapsUrl : unreachable.ldapsUrl];
+    }
+}
+
 const DIRECTORIES: Record<string, Newable<TestDirectory>> = {
     company: CompanyDirectory,
     'start-tls': StartTlsDirectory,
@@ -207,8 +230,23 @@ const DIRECTORIES: Record<string, Newable<TestDirectory>> = {
     groups: GroupsDirectory,
     replicated: ReplicatedDirectory,
     'partly-unreachable': PartlyUnreachableDirectory,
-    unreachable: UnreachableDirectory
+    unreachable: UnreachableDirectory,
+    switchable: SwitchableDirectory
 };
+
+/**
+ * How long a login in a transaction waits before it commits, longer than a waiting sign-in takes to
+ * ask for the lease again.
+ */
+const SLOW_COMMIT_IN_MS: number = 300;
+
+function getDirectory(name: string): Newable<TestDirectory> {
+    const authenticator: Newable<TestDirectory> | undefined = DIRECTORIES[name];
+    if (authenticator == undefined) {
+        throw new Error(`No directory is called ${name}.`);
+    }
+    return authenticator;
+}
 
 @Auth.skip({ allowRedundant: true })
 @Controller('/login-ldap', { allowOrphan: true })
@@ -221,11 +259,36 @@ class LdapLoginController {
         @Body(LdapCredentials)
         credentials: LdapCredentials
     ): Promise<JwtAuthData<string>> {
-        const authenticator: Newable<TestDirectory> | undefined = DIRECTORIES[name];
-        if (authenticator == undefined) {
-            throw new Error(`No directory is called ${name}.`);
-        }
-        return await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).login(authenticator, JwtAuthStrategy, credentials, undefined);
+        return await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).login(getDirectory(name), JwtAuthStrategy, credentials, undefined);
+    }
+
+    // what the login routes of AuthController do: the login in a transaction, committed once the
+    // session is started - here a while after, as a slow commit would
+    @Post('/:directory/in-transaction')
+    async loginInTransaction(
+        @Param.path('directory')
+        name: string,
+        @Body(LdapCredentials)
+        credentials: LdapCredentials
+    ): Promise<JwtAuthData<string>> {
+        return await AuthControllerUtilities.runInTransaction(JwtAuthStrategy, async transaction => {
+            const authData: JwtAuthData<string> = await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE)
+                .login(getDirectory(name), JwtAuthStrategy, credentials, transaction);
+            await sleep(SLOW_COMMIT_IN_MS);
+            return authData;
+        });
+    }
+
+    // what the refresh route of AuthController does. Two parts, so that it is not taken for a directory
+    @Post('/tokens/refresh')
+    async refresh(
+        @Body(JwtRefreshLoginDto)
+        data: JwtRefreshLoginDto
+    ): Promise<JwtAuthData<string>> {
+        return await AuthControllerUtilities.runInTransaction(
+            JwtAuthStrategy,
+            async transaction => await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).refreshLogin(JwtAuthStrategy, { ...data, transaction })
+        );
     }
 }
 
@@ -244,6 +307,64 @@ async function signIn(credentials: LdapCredentials, name: string = 'company'): P
         headers: { [KnownHeader.CONTENT_TYPE]: MimeType.JSON },
         body: JsonUtilities.stringify(credentials)
     });
+}
+
+/**
+ * Signs in through the login route of a directory that logs in inside a transaction, and commits it
+ * late.
+ * @param credentials - What the user typed.
+ * @param name - The directory.
+ * @returns The answer.
+ */
+async function signInInTransaction(credentials: LdapCredentials, name: string = 'company'): Promise<Response> {
+    return await fetch(`${baseUrl}/login-ldap/${name}/in-transaction`, {
+        method: 'POST',
+        headers: { [KnownHeader.CONTENT_TYPE]: MimeType.JSON },
+        body: JsonUtilities.stringify(credentials)
+    });
+}
+
+/**
+ * Refreshes a login through the refresh route.
+ * @param refreshToken - The refresh token of the login.
+ * @returns The answer.
+ */
+async function refresh(refreshToken: string): Promise<Response> {
+    return await fetch(`${baseUrl}/login-ldap/tokens/refresh`, {
+        method: 'POST',
+        headers: { [KnownHeader.CONTENT_TYPE]: MimeType.JSON },
+        body: JsonUtilities.stringify({ refreshToken })
+    });
+}
+
+/**
+ * Adds a person to the directory while the tests run.
+ * @param uid - Their account name.
+ * @returns The entry, which the test may change.
+ */
+function addPerson(uid: string): FakeLdapEntry {
+    const entry: FakeLdapEntry = person(uid, { entryUUID: [randomUUID()] });
+    directory.entries.push(entry);
+    return entry;
+}
+
+/**
+ * Runs the job that looks for disabled entries once, built by hand since the test server runs no cron
+ * jobs.
+ */
+async function runDisabledEntriesJob(): Promise<void> {
+    const job: DisabledLdapEntriesCronJob = new DisabledLdapEntriesCronJob();
+    await job.init(inject(ZIBRI_DI_TOKENS.LOGGER), inject(repositoryTokenFor(CronJobEntity)), async () => await Promise.resolve(true));
+    await job.onTick();
+}
+
+/**
+ * The link of a user to an entry of the company directory.
+ * @param userId - The user.
+ * @returns The link.
+ */
+async function findCompanyLink(userId: string): Promise<LdapIdentity> {
+    return await identities().findOne({ where: { directory: 'company', userId } });
 }
 
 /**
@@ -302,12 +423,12 @@ function identities(): Repository<LdapIdentity, LdapIdentityCreateData> {
  */
 async function startApp(authenticators: Newable<BaseLdapAuthenticator<Roles, JwtUser>>[]): Promise<StartedTestServer> {
     const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({
-        entities: [...defaultTestServerEntities, LdapIdentity],
+        entities: [...defaultTestServerEntities, LdapIdentity, ApiKey],
         allowOrphan: true
     });
     return await startTestServer({
         dataSources: [dataSourceClass],
-        authStrategies: [JwtAuthStrategy],
+        authStrategies: [JwtAuthStrategy, ApiKeyAuthStrategy],
         authenticators,
         controllers: [LdapLoginController],
         providers: defaultTestServerProviders
@@ -335,6 +456,7 @@ beforeAll(async () => {
         person('jack'),
         person('kate', { entryUUID: [KATE_ID] }),
         person('mike'),
+        person('olga'),
         group('staff', [ivy]),
         // a member of admins through staff
         group('admins', [groupDn('staff')]),
@@ -471,6 +593,22 @@ describe('BaseLdapAuthenticator', () => {
         expect(await userIdOf(second)).toBe(userId);
         expect(firstSignIns).toHaveLength(1);
         expect(await identities().findAll({ where: { userId } })).toHaveLength(1);
+    });
+
+    it('links two first sign-ins as the same entry at once to one user while their logins commit late', async () => {
+        const [first, second] = await Promise.all([
+            signInInTransaction({ username: 'olga', password: 'olga-secret' }),
+            signInInTransaction({ username: 'olga', password: 'olga-secret' })
+        ]);
+
+        const userId: string = await userIdOf(first);
+        expect(await userIdOf(second)).toBe(userId);
+        expect(firstSignIns).toHaveLength(1);
+        expect(await identities().findAll({ where: { userId } })).toHaveLength(1);
+        // the lease lasts until the login commits, so nothing was written outside of it
+        await inject<LoggerInterface>(ZIBRI_DI_TOKENS.LOGGER).flush();
+        const logs: Log[] = await inject(repositoryTokenFor(Log)).findAll({});
+        expect(logs.filter(l => l.message.includes('ldap-first-sign-in'))).toStrictEqual([]);
     });
 
     it('upgrades a connection to ldap:// with StartTLS before anything is sent', async () => {
@@ -691,5 +829,115 @@ describe('BaseLdapAuthenticator', () => {
             reason: AuditReason.ERROR,
             subject: 'jack'
         }));
+    });
+
+    // evaluation/03-auth-and-security H22: a login started before its entry was disabled in the
+    // directory lived as long as its refresh credential, with the roles it had
+    describe('an entry that changes after its user signed in', () => {
+        it('refuses the refresh of a user whose entry was disabled, ends their logins and api keys, and keeps the user active', async () => {
+            const entry: FakeLdapEntry = addPerson('paul');
+            const first: JwtAuthData<string> = await authDataOf(await signIn({ username: 'paul', password: 'paul-secret' }));
+            const second: JwtAuthData<string> = await authDataOf(await signIn({ username: 'paul', password: 'paul-secret' }));
+            const { key }: CreatedApiKey = await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).createApiKey(
+                first.userId,
+                { name: 'ci', roles: [Roles.USER], expiresAt: undefined, tenantId: undefined, clientAuthentication: undefined, requireDpop: false },
+                undefined
+            );
+            expect(key).toBeDefined();
+            // 389 Directory Server's mark of an inactivated account
+            entry.attributes['nsAccountLock'] = ['TRUE'];
+
+            const refused: Response = await refresh(first.refreshToken.value);
+
+            expect(refused.status).toBe(403);
+            expect(await refused.json()).toMatchObject({ name: 'AccountDeactivatedError' });
+            expect((await refresh(second.refreshToken.value)).status).toBe(401);
+            expect(await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).findApiKeys(first.userId, undefined)).toEqual([]);
+            expect(await auditEvents()).toEqual(expect.arrayContaining([
+                { action: AuditAction.REFRESH_LOGIN, outcome: AuditOutcome.FAILURE, reason: AuditReason.DEACTIVATED },
+                { action: AuditAction.ACCESS_ENDED, outcome: AuditOutcome.SUCCESS, userId: first.userId }
+            ]));
+
+            // enabled again in the directory, they simply sign in
+            entry.attributes['nsAccountLock'] = ['FALSE'];
+            expect(await userIdOf(await signIn({ username: 'paul', password: 'paul-secret' }))).toBe(first.userId);
+        });
+
+        it('refuses the refresh of a user whose entry was deleted', async () => {
+            const entry: FakeLdapEntry = addPerson('rosa');
+            const tokens: JwtAuthData<string> = await authDataOf(await signIn({ username: 'rosa', password: 'rosa-secret' }));
+            directory.entries.splice(directory.entries.indexOf(entry), 1);
+
+            expect((await refresh(tokens.refreshToken.value)).status).toBe(403);
+        });
+
+        it('counts an entry an administrator locked as disabled, and one locked by wrong passwords as not', async () => {
+            const entry: FakeLdapEntry = addPerson('sara');
+            const tokens: JwtAuthData<string> = await authDataOf(await signIn({ username: 'sara', password: 'sara-secret' }));
+
+            // OpenLDAP's password policy, after too many wrong passwords: whoever typed them must not be
+            // able to end the logins of the person they were guessing for
+            entry.attributes['pwdAccountLockedTime'] = ['20261018120000Z'];
+            const refreshed: JwtAuthData<string> = await authDataOf(await refresh(tokens.refreshToken.value));
+
+            // and locked by an administrator, until unlocked
+            entry.attributes['pwdAccountLockedTime'] = ['000001010000Z'];
+            expect((await refresh(refreshed.refreshToken.value)).status).toBe(403);
+        });
+
+        it('brings the roles in step with the groups of the entry on a refresh', async () => {
+            const rita: FakeLdapEntry = addPerson('rita');
+            const tokens: JwtAuthData<string> = await authDataOf(await signIn({ username: 'rita', password: 'rita-secret' }, 'groups'));
+            expect(tokens.roles).toStrictEqual([Roles.USER]);
+
+            const admins: FakeLdapEntry | undefined = directory.entries.find(entry => entry.dn === groupDn('admins'));
+            admins?.attributes['member']?.push(rita.dn);
+            try {
+                const refreshed: JwtAuthData<string> = await authDataOf(await refresh(tokens.refreshToken.value));
+                expect(refreshed.roles).toStrictEqual([Roles.ADMIN]);
+            }
+            finally {
+                admins?.attributes['member']?.pop();
+            }
+        });
+
+        it('answers a refresh with a 500 while the directory cannot be reached, and ends nothing', async () => {
+            addPerson('sven');
+            const tokens: JwtAuthData<string> = await authDataOf(await signIn({ username: 'sven', password: 'sven-secret' }, 'switchable'));
+
+            switchableReachable = false;
+            try {
+                expect((await refresh(tokens.refreshToken.value)).status).toBe(500);
+            }
+            finally {
+                switchableReachable = true;
+            }
+
+            expect((await refresh(tokens.refreshToken.value)).status).toBe(200);
+        });
+
+        it('ends the logins of a user whose entry was disabled from a job, once, and a later sign-in clears the mark', async () => {
+            const entry: FakeLdapEntry = addPerson('tina');
+            const tokens: JwtAuthData<string> = await authDataOf(await signIn({ username: 'tina', password: 'tina-secret' }));
+            entry.attributes['nsAccountLock'] = ['TRUE'];
+
+            await runDisabledEntriesJob();
+
+            expect((await refresh(tokens.refreshToken.value)).status).toBe(401);
+            expect((await findCompanyLink(tokens.userId)).disabledAt).toBeInstanceOf(Date);
+
+            // a run that finds the entry disabled again does nothing again
+            await runDisabledEntriesJob();
+            const ended: unknown[] = (await auditEvents()).filter(event => JsonUtilities.stringify(event) === JsonUtilities.stringify({
+                action: AuditAction.ACCESS_ENDED,
+                outcome: AuditOutcome.SUCCESS,
+                userId: tokens.userId
+            }));
+            expect(ended).toHaveLength(1);
+
+            entry.attributes['nsAccountLock'] = ['FALSE'];
+            await authDataOf(await signIn({ username: 'tina', password: 'tina-secret' }));
+            expect((await findCompanyLink(tokens.userId)).disabledAt ?? undefined).toBeUndefined();
+        });
     });
 });

@@ -19,7 +19,7 @@ Zibri also comes with a localize service that handles things like [formatting](#
 | `defineProvider` | function | Registers a DI provider, eg. for `ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS_INPUT` |
 | `ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS_INPUT` | DI token | Configures supported locales, default locale and locale resolution |
 | `ZIBRI_DI_TOKENS.LOCALIZE_SERVICE` | DI token | Injects `LocalizeServiceInterface` |
-| `LocalizeServiceInterface` | interface | Contract for `formatPrice`, `formatPercent` and `formatDate` |
+| `LocalizeServiceInterface` | interface | Contract for `formatPrice`, `getCurrencyMinorUnits`, `formatPercent` and `formatDate` |
 | `LocaleCode` | type | Type of a supported locale code (eg. `'en-US'`, `'de'`) |
 | `Timezone` | type | Type of an IANA time zone name (eg. `'UTC'`, `'Europe/Berlin'`) |
 
@@ -173,6 +173,10 @@ class ExampleService {
         this.localizeService.formatPrice(19.99, { locale });
         // en-US → '$19.99'
         // de    → '19,99 €'
+
+        // How many decimals an amount in a currency has, which a price is formatted with
+        this.localizeService.getCurrencyMinorUnits('JPY');
+        // → 0
 
         // Format a percentage
         this.localizeService.formatPercent(0.856, { locale });

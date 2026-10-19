@@ -111,8 +111,11 @@ Exported spans are reported under the application's own `name` and `version`, wh
 | A cron tick | `INTERNAL` | the job's name | Per run, as its own trace |
 | A pass over the email queue | `PRODUCER` | `sendQueuedEmails` | Per pass that found something, as its own trace |
 | A backup or a restore | `INTERNAL` | `createBackup` | Per run, as its own trace |
+| A thread job | `CONSUMER` | `runThreadJob` | Per run, under the trace it was queued in |
 
 Background work gets a trace of its own rather than hanging under whatever happened to be running. A cron tick that fired while a request was in flight is not part of that request, and a trace that said otherwise would make one request look responsible for everything the schedule did.
+
+A [thread job](./multithreading.md#tracing) is the exception: it is work something asked for, so its run is recorded under the trace it was queued in, whenever and on whichever instance it runs. One queued outside any trace gets a trace of its own.
 
 Spans are named by what is written in the source — a route template, an operation, a job name — never by what arrived at runtime. A name taken from a url groups nothing, and a backend keeps every distinct one it has seen.
 
@@ -202,8 +205,8 @@ A tracer must not throw. Tracing watches work, and a watcher that can fail the w
 
 ## Caveats
 
-### The work a thread job does is not traced
-Queueing a [thread job](./multithreading.md) happens inside whatever trace is running, but the job runs in a worker thread, which shares no context with the thread that queued it. What the worker does is not part of the queueing trace.
+### A worker records no spans
+A [thread job](./multithreading.md#tracing) runs in a worker thread, which has no tracer of its own. Its run is one span, and what the worker does inside it is recorded by whatever it passes the trace on to.
 
 ### The buffer is a window, not a history
 What it holds is bounded by a number of spans rather than by an age. At the handful of spans a request produces, a thousand of them is a few hundred requests — seconds of a busy service, minutes of a quiet one. It answers what is happening now; anything that has to survive being asked about tomorrow leaves through an exporter.

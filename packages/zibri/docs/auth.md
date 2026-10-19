@@ -12,6 +12,7 @@ The following guide will explain to you how the auth system in Zibri works and h
 | `FederatedAuthenticatorInterface` | interface | Contract for an authenticator that signs users in at a provider. See [routes of your own](./sign-in-through-a-provider.md#routes-of-your-own) |
 | `LinkedIdentity` | class | An identity linked to a user, with the name of the authenticator it is linked through |
 | `ProviderAccessAuthenticatorInterface` | interface | Contract for an authenticator that keeps a provider's tokens, so its apis can be called for a user. See [calling a provider's apis](./sign-in-through-a-provider.md#calling-a-providers-apis) |
+| `RefreshResolvingAuthenticatorInterface`, `isRefreshResolvingAuthenticator` | interface, function | Contract for an authenticator that has a say in every refresh of a login, such as a [directory](./sign-in-through-a-directory.md#a-disabled-entry), and tells one apart |
 | `AuthController` | function | Defines the routes a client logs in, refreshes, logs out, resets a password and enrols a second factor with. See [the auth routes](./auth-routes.md) |
 | `PasswordAuthenticator` | class | Builtin authenticator checking an email and password, used by default. Also resets a forgotten password |
 | `PasskeyAuthenticator` | class | Builtin authenticator signing users in with a passkey. See [passkeys](./passkeys.md) |
@@ -117,7 +118,10 @@ time its credential stops being accepted, when a [websocket connection](./websoc
 with it is checked again. Answer `undefined` for a credential that does not expire. A strategy that
 starts logins implements `LoginAuthStrategyInterface`, which adds starting, refreshing and ending them.
 Where it ends a login itself, such as on a logout, it calls `disconnectEndedLogins` on the websocket
-service with the user and the transaction, so the connections of that login are closed.
+service with the user and the transaction, so the connections of that login are closed. Before a
+refresh rotates anything, it hands the user to `AuthService.resolveRefreshUser` with the transaction,
+and continues the login as the user it answers: an authenticator such as a
+[directory](./sign-in-through-a-directory.md#a-disabled-entry) may update the user or refuse the refresh.
 
 The user is resolved **once per request**, however many checks a route carries — a route requiring a
 login, a role and ownership costs one lookup, not three, and `@CurrentUser` shares it. What is shared
@@ -596,6 +600,8 @@ export class RegisterData {
 
 With `ZIBRI_DI_TOKENS.REVALIDATE_USER_ON_AUTH_CHECK` set to `false`, an access token handed out before the deactivation works until it expires; it is not refreshed. [Provisioning through SCIM](./scim.md) deactivates the users a tenant's identity provider created and sets inactive.
 
+`AuthService.endAccess` ends a user's logins and revokes their api keys too, but leaves them able to log in again. A [directory](./sign-in-through-a-directory.md#a-disabled-entry) does this to a user whose entry was disabled.
+
 ### What gets recorded
 Auth failures answer with an `ExternalError`, and the error handler does not log those — a 401 is the
 api working, not breaking. So the auth subsystem records its own trail through
@@ -604,13 +610,14 @@ api working, not breaking. So the auth subsystem records its own trail through
 | `action` | `outcome` | Carries |
 |---|---|---|
 | `auth.login` | success / failure | `subject` (the email, or the username of a [directory](./sign-in-through-a-directory.md), as submitted), `userId` on success, `reason: credential-cloned` when a [passkey](./passkeys.md#what-gets-recorded) comes from a copied device, `reason: deactivated` for a [deactivated user](#deactivating-a-user) |
-| `auth.refresh-login` | success / failure | `userId` on success, `reason: token-reused` when a spent credential comes back |
+| `auth.refresh-login` | success / failure | `userId` on success, `reason: token-reused` when a spent credential comes back, `reason: deactivated` when the user's [entry in a directory](./sign-in-through-a-directory.md#a-disabled-entry) was disabled |
 | `auth.logout` | success / failure | — |
 | `auth.password-reset.requested` | success / failure | `subject`, `userId` when a reset actually went out |
 | `auth.password-reset.confirmed` | success / failure | — |
 | `auth.2fa` | failure | `userId` |
 | `auth.identity.linked` | success / failure | `userId` on success, see [connecting a provider](./sign-in-through-a-provider.md#connecting-a-provider-to-an-account) |
-| `auth.identity.unlinked` | success | `userId` |
+| `auth.identity.unlinked` | success / failure | `userId` |
+| `auth.identity.sign-in-revoked` | success / failure | `userId`, see [signing in and api access apart](./sign-in-through-a-provider.md#signing-in-and-api-access-apart) |
 | `auth.provider-access.granted` | success | `userId`, and the `scopes` of the provider's apis, see [calling a provider's apis](./sign-in-through-a-provider.md#calling-a-providers-apis) |
 | `auth.provider-access.revoked` | success / failure | `userId`, and the `scopes` on success |
 | `auth.api-key.created` | success / failure | `userId`, see [api keys](./api-keys.md) |
@@ -619,6 +626,7 @@ api working, not breaking. So the auth subsystem records its own trail through
 | `auth.token.revoked` | success | `userId` |
 | `auth.user.deactivated` | success / failure | `userId`, see [deactivating a user](#deactivating-a-user) |
 | `auth.user.reactivated` | success / failure | `userId` |
+| `auth.access.ended` | success / failure | `userId`, see [deactivating a user](#deactivating-a-user) |
 | `authz.check` | failure | `userId`, and which check said no |
 
 Three of these are worth a note.

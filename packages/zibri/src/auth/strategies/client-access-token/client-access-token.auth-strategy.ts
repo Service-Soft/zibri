@@ -240,12 +240,14 @@ export class ClientAccessTokenAuthStrategy<
 
     /**
      * Whether the client a token was issued to and the token itself have not ended: its api key still
-     * exists and has not expired, and the token was not revoked. Always true while access tokens are
-     * revoked on expiry.
+     * exists and has not expired, and the token was not revoked. Writes down the use of the key when
+     * they have not. Always true while access tokens are revoked on expiry.
      * @param payload - What the token says.
      * @returns True while the token may still be used.
      */
     private async isLive(payload: JwtClientAccessTokenPayload): Promise<boolean> {
+        // a token that is not checked against its key is no use of the key either: exchanging the key
+        // for it was, and that happens at least once a token's lifetime while the client works
         if (this.accessTokenRevocation === 'onExpiry') {
             return true;
         }
@@ -253,7 +255,12 @@ export class ClientAccessTokenAuthStrategy<
             this.apiKeyService.findActiveById(payload.client_id),
             this.revokedAccessTokenRepository.findOne({ where: { tokenId: payload.jti }, required: false })
         ]);
-        return apiKey != undefined && revoked == undefined;
+        if (apiKey == undefined || revoked != undefined) {
+            return false;
+        }
+        // a token in use is its key in use, since revoking the key would stop the token
+        await this.apiKeyService.recordUse(apiKey);
+        return true;
     }
 
     /**

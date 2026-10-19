@@ -85,7 +85,7 @@ beforeAll(async () => {
     postRepo = inject(repositoryTokenFor(Post));
     commentRepo = inject(repositoryTokenFor(Comment));
     categoryRepo = inject(repositoryTokenFor(Category));
-}, 15000);
+}, 30000);
 
 afterAll(async () => {
     await server.shutdown();

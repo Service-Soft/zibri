@@ -45,7 +45,7 @@ export class PasskeyRegistrationTicket extends BaseEntity {
     /**
      * How many signatures the device reported having made with it.
      */
-    @Property.number()
+    @Property.number({ format: 'integer' })
     counter!: number;
 
     /**

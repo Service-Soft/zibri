@@ -23,7 +23,7 @@ export enum CronJobState {
      */
     INACTIVE = 'INACTIVE',
     /**
-     * Off the schedule because a tick threw and the job is configured to stop for that.
+     * Off the schedule because its ticks threw as often in a row as the job's `onFailure` allows.
      */
     STOPPED_ON_ERROR = 'STOPPED_ON_ERROR'
 }
@@ -38,6 +38,15 @@ export class CronJobEntity extends BaseEntity {
      */
     @Property.string({ unique: true })
     name!: string;
+
+    /**
+     * Where the job is declared: 'code' for a job class of the application, which only `enable`,
+     * `disable` and `changeCron` change at runtime.
+     */
+    // a string rather than an enum: jobs created at runtime are planned to name the tenant that
+    // created them here
+    @Property.string()
+    source!: 'code' | string & {};
 
     /**
      * The cron expression.
@@ -78,10 +87,17 @@ export class CronJobEntity extends BaseEntity {
     runOnInit!: boolean;
 
     /**
-     * Whether or not the cron job should stop on an error.
+     * How many ticks in a row have failed, on every instance. A tick that succeeds sets it back to 0.
      */
-    @Property.boolean()
-    stopOnError!: boolean;
+    @Property.number({ format: 'integer' })
+    consecutiveFailures!: number;
+
+    /**
+     * The moment before which the job skips its slots, because it keeps failing and backs off, or
+     * undefined when it runs every slot.
+     */
+    @Property.date({ required: false })
+    backedOffUntil?: Date | null;
 
     /**
      * The timestamp at which this cron job has been last run.
@@ -91,7 +107,8 @@ export class CronJobEntity extends BaseEntity {
 
     /**
      * How far back a start looks for a scheduled time that passed while nothing was up to run it,
-     * or undefined to let a missed one stay missed.
+     * or undefined to let a missed one stay missed. Also how late a running process may reach a
+     * scheduled time and still run it; undefined allows a second.
      *
      * Whether owing the work still means anything once it is late is a property of the work, and only
      * the job knows: a nightly invoice run is worth doing at 06:00 when the outage cleared, and a

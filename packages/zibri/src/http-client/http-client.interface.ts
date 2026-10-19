@@ -1,4 +1,5 @@
 import { FetchForLibraryOptions } from './fetch-for-library-options.model';
+import { HttpClientIdempotencyKey } from './http-client-idempotency-key.model';
 import { HttpClientDispatcher } from './http-client-options.model';
 import { HttpClientResponseBodyInput, HttpClientResponseForBody } from './http-client-response.model';
 import { XmlString } from '../document/xml-string.type';
@@ -60,6 +61,13 @@ type HttpOptions<
      * Defaults to 1.
      */
     attempts: number,
+    /**
+     * The key that lets the server tell a repeated request from a new one.
+     *
+     * A POST or PATCH with one is attempted again after a failure that may have reached the server,
+     * like a PUT, rather than only after a 429 or 503.
+     */
+    idempotencyKey: HttpClientIdempotencyKey,
     /**
      * What this one request is sent over, replacing whatever the application configured.
      *

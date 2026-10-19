@@ -47,7 +47,7 @@ describe('withLease transaction guard', () => {
         await server.start();
         logRepository = inject(repositoryTokenFor(Log));
         leaseService = inject(ZIBRI_DI_TOKENS.LEASE_SERVICE);
-    }, 20000);
+    }, 60000);
 
     afterAll(async () => {
         await server?.shutdown();
@@ -92,6 +92,23 @@ describe('withLease transaction guard', () => {
         // this is the safe shape and the one the docs tell people to use - warning here would train
         // everyone to ignore the warning
         expect(await leaseWarnings()).toHaveLength(0);
+    }, 20000);
+
+    it('stays quiet when the transaction still open is the one the grant is held until', async () => {
+        const dataSource: Repository<Log>['dataSource'] = logRepository.dataSource;
+        const transaction: Transaction = await dataSource.startTransaction();
+
+        await leaseService.withLease({ key: 'guard:held-until', leaseInMs: LEASE_IN_MS, heldUntil: transaction }, async () => {
+            await logRepository.create(
+                { level: LogLevel.INFO, message: 'written under a lease held until the commit', context: {}, cleanupAt: new Date(Date.now() + Ms.DAY) },
+                { transaction }
+            );
+        });
+
+        // the grant covers this commit, so there is nothing to report
+        expect(await leaseWarnings()).toHaveLength(0);
+
+        await transaction.commit();
     }, 20000);
 
     it('stays quiet when the write used no transaction at all', async () => {

@@ -22,6 +22,7 @@ import { ScryptCost } from '../../auth/hash/strategies/scrypt.hash-strategy';
 import { Require2faReauth } from '../../auth/models/require-2fa-reauth.model';
 import { RouteAuthConfiguration } from '../../auth/models/route-auth-configuration.model';
 import { ScimServiceInterface } from '../../auth/scim/scim-service.interface';
+import { ApiKeyOptions } from '../../auth/strategies/api-key/api-key-options.model';
 import { ApiKeyServiceInterface } from '../../auth/strategies/api-key/api-key-service.interface';
 import { CookieAuthSessionOptionsInput } from '../../auth/strategies/cookie/cookie-auth.auth-strategy';
 import { AccessTokenRevocation } from '../../auth/strategies/jwt/access-token-revocation.type';
@@ -43,7 +44,7 @@ import { GlobalErrorHandler, ErrorPageTemplate } from '../../error-handling/erro
 import { EventServiceInterface } from '../../event/event-service.interface';
 import { HandlebarOptions } from '../../handlebars/handlebar.utilities';
 import { CompressionOptions } from '../../http/compression.middleware';
-import { HttpServerTimeouts } from '../../http/http-server-timeouts.model';
+import { HttpServerLimits } from '../../http/http-server-limits.model';
 import { HttpClientOptions, HttpClientOptionsInput } from '../../http-client/http-client-options.model';
 import { HttpClientInterface } from '../../http-client/http-client.interface';
 import { LeaseServiceInterface } from '../../leases/lease-service.interface';
@@ -69,6 +70,7 @@ import { OpenTelemetrySpanExporter } from '../../tracing/open-telemetry/open-tel
 import { TraceBufferInterface } from '../../tracing/trace-buffer.interface';
 import { TracerInterface } from '../../tracing/tracer.interface';
 import { Newable } from '../../types/newable.type';
+import { type RetentionInMs } from '../../types/retention-in-ms.type';
 import { FsPath } from '../../utilities/fs.utilities';
 import { ValidationServiceInterface } from '../../validation/validation-service.interface';
 import { VersioningServiceInterface } from '../../versioning/versioning-service.interface';
@@ -143,6 +145,7 @@ export const ZIBRI_DI_TOKENS = {
     RECOVERY_CODE_HEADER: ziToken<string>('zi.recovery_code_header'),
     API_KEY_HEADER: ziToken<string>('zi.api_key_header'),
     API_KEY_SERVICE: ziToken<ApiKeyServiceInterface>('zi.api_key_service'),
+    API_KEY_OPTIONS: ziToken<ApiKeyOptions>('zi.api_key_options'),
     SCIM_SERVICE: ziToken<ScimServiceInterface>('zi.scim_service'),
     TWO_FACTOR_CODE_OPTIONS: ziToken<TwoFactorCodeOptions>('zi.two_factor_code_options'),
     PARSER: ziToken<ParserInterface>('zi.parser_service'),
@@ -153,7 +156,7 @@ export const ZIBRI_DI_TOKENS = {
     VAL_KEY_TRANSACTION_LOCK_TIMEOUT_IN_MS: ziToken<number>('zi.val_key_transaction_lock_timeout_in_ms'),
     VAL_KEY_TRANSACTION_LOCK_HOLD_IN_MS: ziToken<number>('zi.val_key_transaction_lock_hold_in_ms'),
     HTTP_DRAIN_TIMEOUT_IN_MS: ziToken<number>('zi.http_drain_timeout_in_ms'),
-    HTTP_SERVER_TIMEOUTS: ziToken<HttpServerTimeouts>('zi.http_server_timeouts'),
+    HTTP_SERVER_LIMITS: ziToken<HttpServerLimits>('zi.http_server_limits'),
     COMPRESSION_OPTIONS: ziToken<CompressionOptions>('zi.compression_options'),
     LEASE_SERVICE: ziToken<LeaseServiceInterface>('zi.lease_service'),
     TENANT_SERVICE: ziToken<TenantServiceInterface>('zi.tenant_service'),
@@ -185,6 +188,7 @@ export const ZIBRI_DI_TOKENS = {
     CRON_REGISTRATION_LEASE_IN_MS: ziToken<number>('zi.cron_registration_lease_in_ms'),
     FILE_UPLOAD_TEMP_FOLDER: ziToken<FsPath>('zi.file_upload_temp_folder'),
     BACKUP_TEMP_FOLDER: ziToken<FsPath>('zi.backup_temp_folder'),
+    BACKUP_SHUTDOWN_WAIT_IN_MS: ziToken<number>('zi.backup_shutdown_wait_in_ms'),
     VERSIONS_PATH: ziToken<FsPath>('zi.versions_path'),
     TRANSLATIONS_PATH: ziToken<FsPath>('zi.translations_path'),
     ASSETS_PATH: ziToken<FsPath>('zi.assets_path'),
@@ -210,6 +214,8 @@ export const ZIBRI_DI_TOKENS = {
     EVENT_SUBSCRIBER_REGISTRATION_TTL_IN_MS: ziToken<number>('zi.event_subscriber_registration_ttl_in_ms'),
     EVENT_RETRY_DELAY_IN_MS: ziToken<number>('zi.event_retry_delay_in_ms'),
     EVENT_MAX_CONCURRENT_HOOKS: ziToken<number>('zi.event_max_concurrent_hooks'),
+    // undefined for an application that provides none, which the event service refuses to start
+    EVENT_FAILED_RETENTION_IN_MS: ziToken<RetentionInMs | undefined>('zi.event_failed_retention_in_ms'),
     /**
      * What turns the work the application does into spans somebody can look at.
      *

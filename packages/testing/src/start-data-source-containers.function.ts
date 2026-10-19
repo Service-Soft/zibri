@@ -118,6 +118,34 @@ async function provisionApplicationRole(container: StartedPostgreSqlContainer, d
 }
 
 /**
+ * Runs statements as the superuser of a postgres container, in the database of the given data source.
+ *
+ * For what a test has to arrange that the application's own role may not do: another role, or a
+ * grant across roles. Everything the application itself does stays with the role it connects as.
+ * @param container - The started container of the data source.
+ * @param dataSource - The data source whose database the statements run in.
+ * @param statements - The statements, each run on its own, so that one refusing to run inside a
+ * transaction block can be among them.
+ * @throws When a statement is refused, naming what postgres said.
+ */
+export async function runAsSuperuser(container: StartedTestContainer, dataSource: PostgresDataSource, statements: string[]): Promise<void> {
+    const result: ExecResult = await container.exec([
+        'psql',
+        '--username',
+        POSTGRES_PROVISIONING_USER,
+        // eslint-disable-next-line cspell/spellchecker
+        '--dbname',
+        dataSource.options.database ?? 'db',
+        '--set',
+        'ON_ERROR_STOP=1',
+        ...statements.flatMap(statement => ['--command', statement])
+    ]);
+    if (result.exitCode !== 0) {
+        throw new Error(`Could not run as the superuser of ${dataSource.constructor.name}:\n${result.output}`);
+    }
+}
+
+/**
  * Quotes a name for use as a sql identifier.
  * @param name - The name to quote.
  * @returns The quoted identifier.

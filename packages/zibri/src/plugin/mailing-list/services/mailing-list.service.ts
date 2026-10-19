@@ -1,7 +1,9 @@
-import { randomBytes } from 'crypto';
+import { randomBytes, timingSafeEqual } from 'crypto';
 
 import { MailingListSubscriberCreateData, MailingListQueueEmailData, MailingListServiceInterface } from './mailing-list-service.interface';
 import { type AssetServiceInterface } from '../../../assets/asset-service.interface';
+import { type HashServiceInterface } from '../../../auth/hash/hash-service.interface';
+import { Sha256HashStrategy } from '../../../auth/hash/strategies/sha256.hash-strategy';
 import { Repository } from '../../../data-source/repository/repository';
 import { NoActiveTenantError } from '../../../data-source/tenancy/no-active-tenant.error';
 import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
@@ -11,9 +13,12 @@ import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../di/inject.function';
 import { type EmailServiceInterface } from '../../../email/email-service.interface';
 import { EmailPriority } from '../../../email/models/email-priority.enum';
+import { NotFoundError } from '../../../error-handling/errors/not-found.error';
+import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.error';
 import { InternalError } from '../../../error-handling/internal-error.model';
 import { GlobalRegistry } from '../../../global/global-registry';
 import { OnAppInit } from '../../../global/on-app-init.interface';
+import { $ts } from '../../../localization/translate.function';
 import { Route } from '../../../routing/controller-route-configuration.model';
 import { type TenantServiceInterface } from '../../../tenancy/tenant-service.interface';
 import { TsxUtilities } from '../../../tsx/tsx.utilities';
@@ -46,7 +51,9 @@ export class MailingListService implements MailingListServiceInterface, OnAppIni
         @Inject(ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS.BASE_EMAIL_TEMPLATE)
         protected readonly MailingListBaseEmail: MailingListBaseEmailTemplate,
         @Inject(ZIBRI_DI_TOKENS.TENANT_SERVICE)
-        protected readonly tenantService: TenantServiceInterface
+        protected readonly tenantService: TenantServiceInterface,
+        @Inject(ZIBRI_DI_TOKENS.HASH_SERVICE)
+        protected readonly hashService: HashServiceInterface
     ) {}
 
     // the three below are read when used rather than injected: this is built at every boot that
@@ -102,13 +109,38 @@ export class MailingListService implements MailingListServiceInterface, OnAppIni
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async resolveUnsubscribeLink(listId: string, subscriberId: string): Promise<string> {
-        return await this.resolveLink(`${this.mailingListBaseRoute}/${listId}/unsubscribe?subscriberId=${subscriberId}`);
+    async resolveUnsubscribeLink(listId: string, subscriber: MailingListSubscriber): Promise<string> {
+        return await this.resolveLink(`${this.mailingListBaseRoute}/${listId}/unsubscribe?${this.getSubscriberQuery(subscriber)}`);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async resolveManagePreferencesLink(subscriberId: string): Promise<string> {
-        return await this.resolveLink(`${this.mailingListBaseRoute}/preferences?subscriberId=${subscriberId}`);
+    async resolveManagePreferencesLink(subscriber: MailingListSubscriber): Promise<string> {
+        return await this.resolveLink(`${this.mailingListBaseRoute}/preferences?${this.getSubscriberQuery(subscriber)}`);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async resolveSubscriberOfLink(subscriberId: string, secret: string): Promise<MailingListSubscriber> {
+        const found: MailingListSubscriber | undefined = await this.subscriberRepository.findOne(
+            { where: { id: subscriberId }, relations: ['mailingLists'], required: false }
+        );
+        // an unknown id answers like a wrong secret, so a link tells nobody which ids are subscribers.
+        // Compared as bytes, with the length checked first because timingSafeEqual throws on a
+        // mismatch - the length of a secret this generates is no secret
+        const stored: Buffer = Buffer.from(found?.secret ?? '');
+        const presented: Buffer = Buffer.from(secret);
+        if (found == undefined || stored.length !== presented.length || !timingSafeEqual(stored, presented)) {
+            throw new UnauthorizedError($ts`Link invalid`);
+        }
+        return found;
+    }
+
+    /**
+     * The query naming a subscriber in a link: their id, and the secret that proves the link was sent to them.
+     * @param subscriber - The subscriber.
+     * @returns The query, without the leading `?`.
+     */
+    protected getSubscriberQuery(subscriber: MailingListSubscriber): string {
+        return new URLSearchParams({ subscriberId: subscriber.id, secret: subscriber.secret }).toString();
     }
 
     /**
@@ -137,8 +169,8 @@ export class MailingListService implements MailingListServiceInterface, OnAppIni
                 const templateData: MailingListTemplateData = {
                     subscriber,
                     list,
-                    unsubscribeLink: await this.resolveUnsubscribeLink(list.id, subscriber.id),
-                    managePreferencesLink: await this.resolveManagePreferencesLink(subscriber.id)
+                    unsubscribeLink: await this.resolveUnsubscribeLink(list.id, subscriber),
+                    managePreferencesLink: await this.resolveManagePreferencesLink(subscriber)
                 };
                 const content: string = await data.compile(data.template, templateData);
 
@@ -156,6 +188,7 @@ export class MailingListService implements MailingListServiceInterface, OnAppIni
                     priority: EmailPriority.LOW,
                     recipients: [subscriber.email],
                     persist: false,
+                    listUnsubscribeUrl: templateData.unsubscribeLink,
                     ...data
                 });
             }
@@ -168,22 +201,26 @@ export class MailingListService implements MailingListServiceInterface, OnAppIni
         subscriber: MailingListSubscriberCreateData,
         emailData: OmitStrict<MailingListQueueEmailData<T>, 'template' | 'compile'>
     ): Promise<void> {
-
+        const list: MailingList = await this.mailingListRepository.findById(listId);
         const foundSubscriber: MailingListSubscriber | undefined = await this.subscriberRepository.findOne(
             { where: { email: subscriber.email }, relations: ['mailingLists'], required: false }
         );
-        const list: MailingList = await this.mailingListRepository.findById(listId);
-        if (foundSubscriber) {
-            await this.subscriberRepository.updateById(foundSubscriber.id, { mailingLists: [...foundSubscriber.mailingLists, list] });
+        // an address the application knows confirms like any other: knowing it is no consent to a
+        // list it never asked for. One already on this list has nothing to confirm, and the caller
+        // learns which it was from neither
+        if (foundSubscriber?.mailingLists.some(l => l.id === listId) === true) {
             return;
         }
 
-        const token: MailingListSubscriptionConfirmationToken = await this.confirmationTokenRepository.create({
+        // the token exists in the clear only here and in the mail: the stored row holds it hashed
+        const tokenValue: string = randomBytes(16).toString('hex');
+        await this.confirmationTokenRepository.create({
             email: subscriber.email,
-            value: randomBytes(16).toString('hex'),
+            value: tokenValue,
             expirationDate: new Date(Date.now() + this.mailingListSubscriptionConfirmationTokenExpiresInMs),
             name: subscriber.name,
-            listId
+            listId,
+            spent: false
         });
 
         const html: string = TsxUtilities.renderEmail(
@@ -191,33 +228,77 @@ export class MailingListService implements MailingListServiceInterface, OnAppIni
             {
                 subscriber,
                 mailingList: list,
-                confirmEmailLink: await this.resolveSubscribeConfirmationLink(listId, token.value)
+                confirmEmailLink: await this.resolveSubscribeConfirmationLink(listId, tokenValue)
             }
         );
 
-        await this.emailService.queue({ ...emailData, html, recipients: [subscriber.email] });
+        // persist after the spread, so an application cannot ask for this one to be kept: a copy of
+        // the mail is a copy of the token in the clear, outliving the send
+        await this.emailService.queue({ ...emailData, html, recipients: [subscriber.email], persist: false });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async confirmSubscribeToList(confirmationTokenValue: string): Promise<MailingListSubscriber> {
-        const foundToken: MailingListSubscriptionConfirmationToken = await this.confirmationTokenRepository.findOne(
-            { where: { value: confirmationTokenValue } }
-        );
-        const mailingList: MailingList = await this.mailingListRepository.findById(foundToken.listId);
+    async confirmSubscribeToList(listId: string, confirmationTokenValue: string): Promise<MailingListSubscriber> {
+        // the list is part of the lookup, so the list a link names is the one it subscribes to
+        const foundToken: MailingListSubscriptionConfirmationToken | undefined = await this.confirmationTokenRepository.findOne({
+            where: { value: await this.hashService.hash(confirmationTokenValue, { strategy: Sha256HashStrategy }), listId },
+            required: false
+        });
+        if (foundToken == undefined) {
+            throw new UnauthorizedError($ts`Link invalid`);
+        }
+        if (new Date(foundToken.expirationDate).getTime() <= Date.now()) {
+            throw new UnauthorizedError($ts`Link expired`);
+        }
+        const mailingList: MailingList = await this.mailingListRepository.findById(listId);
         const foundSubscriber: MailingListSubscriber | undefined = await this.subscriberRepository.findOne(
             { where: { email: foundToken.email }, relations: ['mailingLists'], required: false }
         );
-        if (!foundSubscriber) {
+        const subscribed: boolean = foundSubscriber?.mailingLists.some(l => l.id === listId) === true;
+
+        if (foundToken.spent) {
+            // followed again, often by a mail scanner before the person themselves: what it confirmed
+            // still holds, so it answers like it did, but it never writes again - an address that
+            // left the list since is not put back by an old mail
+            if (foundSubscriber == undefined || !subscribed) {
+                throw new UnauthorizedError($ts`Link invalid`);
+            }
+            return foundSubscriber;
+        }
+        await this.spendToken(foundToken);
+
+        if (foundSubscriber == undefined) {
             return await this.subscriberRepository.create({ email: foundToken.email, name: foundToken.name, mailingLists: [mailingList] });
         }
-        if (foundSubscriber.mailingLists.find(l => l.id === mailingList.id)) {
-            // already subscribed, do nothing
+        if (subscribed) {
             return foundSubscriber;
         }
         return await this.subscriberRepository.updateById(
             foundSubscriber.id,
             { mailingLists: [...foundSubscriber.mailingLists, mailingList] }
         );
+    }
+
+    /**
+     * Marks a confirmation token as spent, if nobody else did first.
+     * @param token - The token, as it was read while it was not spent.
+     * @throws An UnauthorizedError when it was spent meanwhile.
+     */
+    protected async spendToken(token: MailingListSubscriptionConfirmationToken): Promise<void> {
+        // the read before takes no lock, so two requests following the same link both get this far -
+        // the condition on the write decides between them. Spent before the subscription is written
+        // rather than with it: the token's data source need not be the subscribers', so there is no
+        // transaction holding both, and a write that fails after this leaves a link that has to be
+        // requested again instead of an address subscribed twice
+        try {
+            await this.confirmationTokenRepository.updateById(token.id, { spent: true }, { where: { spent: false } });
+        }
+        catch (error) {
+            if (!(error instanceof NotFoundError)) {
+                throw error;
+            }
+            throw new UnauthorizedError($ts`Link invalid`, { cause: error });
+        }
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

@@ -1,5 +1,5 @@
 import type { Namespace } from 'socket.io';
-import type { ClusterAdapter, ClusterMessage, ClusterResponse, Offset, ServerId } from 'socket.io-adapter';
+import type { ClusterAdapterWithHeartbeat, ClusterMessage, ClusterResponse, Offset, ServerId } from 'socket.io-adapter';
 
 import { DataSourceSubscription, PubSubDataSourceInterface } from '../data-source/data-sources/pub-sub-data-source.interface';
 import { InternalError } from '../error-handling/internal-error.model';
@@ -37,11 +37,11 @@ type PublishedEnvelope = {
  * only the clients that happen to be connected to the instance running the code - roughly one in N
  * of them - and nothing reports that the rest were missed.
  *
- * Built on socket.io's own ClusterAdapter, so the protocol (heartbeats, acknowledgements, fetching
+ * Built on socket.io's own cluster adapter, so the protocol (heartbeats, acknowledgements, fetching
  * sockets across instances, filtering out an instance's own messages by uid) is socket.io's rather
  * than reimplemented here. All this adds is the transport.
  */
-export type DataSourceWebsocketAdapter = ClusterAdapter;
+export type DataSourceWebsocketAdapter = ClusterAdapterWithHeartbeat;
 
 /**
  * How the adapter is built once its base class is available.
@@ -75,10 +75,13 @@ export function dataSourceWebsocketAdapterClass(): DataSourceWebsocketAdapterCon
         return builtAdapterClass;
     }
 
-    const base: typeof ClusterAdapter = optionalPeer<typeof import('socket.io-adapter')>(
+    // with heartbeats rather than the plain ClusterAdapter, whose count of instances is always one:
+    // fetching sockets and a server side emit waiting for answers then never looked past this
+    // instance (04 §1.13)
+    const base: typeof ClusterAdapterWithHeartbeat = optionalPeer<typeof import('socket.io-adapter')>(
         'socket.io-adapter',
         'Carrying websocket broadcasts between instances'
-    ).ClusterAdapter;
+    ).ClusterAdapterWithHeartbeat;
 
     builtAdapterClass = class DataSourceWebsocketAdapter extends base {
         private subscription: DataSourceSubscription | undefined;
@@ -88,14 +91,27 @@ export function dataSourceWebsocketAdapterClass(): DataSourceWebsocketAdapterCon
             private readonly dataSource: PubSubDataSourceInterface,
             private readonly logger: LoggerInterface
         ) {
-            super(nsp);
+            super(nsp, {});
             // the constructor cannot wait, so the subscription is started alongside it. Messages
             // published before it is up are missed, which is the same window any adapter has while
             // connecting.
             void this.listen();
         }
 
+        override init(): void {
+            // announced in listen instead, once the subscription is up: the other instances answer
+            // an announcement at once, and answers arriving before it would only be counted at
+            // their next heartbeat
+        }
+
+        // asynchronous although ClusterAdapterWithHeartbeat declares close as void: socket.io's own
+        // Adapter declares it as `Promise<void> | void` and the server awaits it while closing, which is
+        // what keeps the subscription from outliving the server
+        // eslint-disable-next-line typescript/no-misused-promises
         override async close(): Promise<void> {
+            // tells the others this instance is gone and stops the heartbeat, whose timers would
+            // otherwise keep the process alive
+            super.close();
             await this.subscription?.unsubscribe();
             this.subscription = undefined;
         }
@@ -138,6 +154,7 @@ export function dataSourceWebsocketAdapterClass(): DataSourceWebsocketAdapterCon
         private async listen(): Promise<void> {
             try {
                 this.subscription = await this.dataSource.subscribe(WEBSOCKET_CHANNEL, raw => this.receive(raw));
+                super.init();
             }
             catch (error) {
                 this.logger.error(new InternalError('could not subscribe to websocket messages of the other instances', {

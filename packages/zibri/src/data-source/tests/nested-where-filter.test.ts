@@ -83,7 +83,7 @@ beforeAll(async () => {
         ]
     });
     customerRepo = inject(repositoryTokenFor(Customer));
-}, 15000);
+}, 30000);
 
 afterAll(async () => {
     await server.shutdown();

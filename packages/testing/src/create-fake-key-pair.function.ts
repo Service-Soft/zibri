@@ -2,6 +2,7 @@ import { X509Certificate as PemCertificate } from 'node:crypto';
 import { isIP } from 'node:net';
 
 import { BasicConstraintsExtension,
+    ExtendedKeyUsageExtension,
     Extension,
     JsonGeneralName,
     KeyUsageFlags,
@@ -12,6 +13,7 @@ import { BasicConstraintsExtension,
 
 import { FakeKeyPairOptions } from './fake-key-pair-options.model';
 import { FakeKeyPair } from './fake-key-pair.model';
+import { FakeKeyUsage } from './fake-key-usage.type';
 
 /**
  * The key: RSA, signing with SHA-256, which SAML and every TLS server take.
@@ -45,9 +47,14 @@ export async function createFakeKeyPair(name: string, options: FakeKeyPairOption
         new BasicConstraintsExtension(true, undefined, true),
         new KeyUsagesExtension(KeyUsageFlags.keyCertSign | KeyUsageFlags.cRLSign, true)
     ];
+    const keyUsages: FakeKeyUsage[] | undefined = options.authority === true ? undefined : options.keyUsages;
     const extensions: Extension[] = [
         ...names.length ? [new SubjectAlternativeNameExtension(names)] : [],
-        ...options.authority === true ? authorityExtensions : []
+        ...options.authority === true ? authorityExtensions : [],
+        ...keyUsages == undefined
+            ? []
+            : [new KeyUsagesExtension(keyUsages.reduce((flags, usage) => flags | KeyUsageFlags[usage], 0), true)],
+        ...options.extendedKeyUsages == undefined ? [] : [new ExtendedKeyUsageExtension(options.extendedKeyUsages)]
     ];
     const notBefore: Date = options.notBefore ?? new Date(Date.now() - DAY_IN_MS);
     const notAfter: Date = options.notAfter ?? new Date(Date.now() + (DAY_IN_MS * 365));

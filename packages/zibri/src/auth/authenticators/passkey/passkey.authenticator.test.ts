@@ -479,9 +479,43 @@ describe('PasskeyAuthenticator — signing in to cookies', () => {
         expect((await read<CookieAuthData<string>>(res)).userId).toBe(user.id);
         const linked: LinkedIdentity<Passkey>[] = await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).findIdentities(user.id, undefined, [PasskeyAuthenticator]);
         expect(linked.map(l => l.authenticator)).toEqual(['passkey']);
+        expect(linked[0]?.identity.discoverable).toBe(true);
 
         await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).unlinkIdentity(user.id, linked[0]?.identity.id ?? '', undefined);
         expect((await signIn(device)).res.status).toBe(401);
+    });
+
+    it('adds a security key that cannot store a passkey to a user logged in with a password, as a second factor it cannot sign in with', async () => {
+        const email: string = 'older-key@example.com';
+        const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email, roles: [Roles.USER] });
+        await inject<Repository<PasswordCredentials, PasswordCredentialsCreateData>>(repositoryTokenFor(PasswordCredentials))
+            .create({ password: 'secure123', userId: user.id });
+        const browser: TestBrowser = new TestBrowser(baseUrl, undefined);
+        const { csrfToken }: CookieAuthData<string> = await read(await post(browser, '/auth/login?authenticator=password', { email, password: 'secure123' }));
+        const olderKey: FakePasskeyDevice = new FakePasskeyDevice({ storesPasskeys: false });
+
+        const options: PasskeyCreationOptions = await read(await post(browser, '/account/passkeys', { name: email }, { 'x-csrf-token': csrfToken }));
+        const connected: Response = await post(
+            browser,
+            '/auth/connect/complete',
+            { response: olderKey.create(options, ORIGIN) },
+            { 'x-csrf-token': csrfToken }
+        );
+        expect(connected.status).toBe(204);
+        const linked: LinkedIdentity<Passkey>[] = await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).findIdentities(user.id, undefined, [PasskeyAuthenticator]);
+        expect(linked[0]?.identity.discoverable).toBe(false);
+
+        const factor: Record<string, string> = await secondFactorHeaders({ browser, csrfToken, userId: user.id }, olderKey);
+        expect((await post(browser, '/account/payment-details', {}, factor)).status).toBe(200);
+        // a sign-in names no passkey, so the key has none to offer
+        await expect(signIn(olderKey)).rejects.toThrow(/holds no passkey/);
+    });
+
+    it('signs nobody up with a security key that cannot store a passkey, which the browser refuses', async () => {
+        const browser: TestBrowser = new TestBrowser(baseUrl, undefined);
+        const options: PasskeyCreationOptions = await read(await post(browser, '/auth/registration-options', { name: 'older-key-only@example.com' }));
+
+        expect(() => new FakePasskeyDevice({ storesPasskeys: false }).create(options, ORIGIN)).toThrow(/cannot store a passkey/);
     });
 
     it('finishes adding a passkey only for the user it was started for', async () => {

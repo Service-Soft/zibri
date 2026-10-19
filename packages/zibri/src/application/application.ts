@@ -41,7 +41,8 @@ import { compressionMiddleware } from '../http/compression.middleware';
 import { cookieMiddleware } from '../http/cookie.middleware';
 import { corsMiddleware, defaultCorsOptions } from '../http/cors.middleware';
 import { crossOriginCookieMiddleware } from '../http/cross-origin-cookie.middleware';
-import { HttpServerTimeouts } from '../http/http-server-timeouts.model';
+import { HttpServerLimits } from '../http/http-server-limits.model';
+import { HttpStatus } from '../http/http-status.enum';
 import { KnownHeader } from '../http/known-header.enum';
 import { MiddlewarePhase } from '../http/middleware-phase.enum';
 import { traceContextMiddleware } from '../http/trace-context.middleware';
@@ -137,10 +138,21 @@ export class ZibriApplication {
      */
     private shutdownFailed: boolean = false;
 
+    // created while initializing rather than here: the header size it accepts is only given to the
+    // constructor, and the limits are a di token, which there is nothing to read from before then
+    private httpServer: Server | undefined = undefined;
+
+    // eslint-disable-next-line jsdoc/require-returns
     /**
-     * The underlying http server.
+     * The underlying http server, there once the application is initialized.
+     * @throws When the application has not been initialized yet.
      */
-    readonly server: Server = createServer(this.express);
+    get server(): Server {
+        if (this.httpServer == undefined) {
+            throw new InternalError('The http server is created while the application initializes, and it has not been initialized yet.');
+        }
+        return this.httpServer;
+    }
 
     private get logger(): LoggerInterface {
         return inject(ZIBRI_DI_TOKENS.LOGGER);
@@ -324,6 +336,8 @@ export class ZibriApplication {
         for (const provider of this.options.providers) {
             register(provider);
         }
+        // before any lifecycle hook, which may attach to it - the websocket server does
+        this.httpServer = this.createHttpServer();
 
         await HandlebarUtilities.init();
 
@@ -385,7 +399,6 @@ export class ZibriApplication {
 
         this.use((req, _, next) => next(new UnmatchedRouteError(req.originalUrl)), MiddlewarePhase.AFTER_ROUTING);
         this.mountMiddleware();
-        this.applyServerTimeouts();
         this.server.listen(port);
         await this.awaitListening();
         if (port === 0) {
@@ -400,24 +413,50 @@ export class ZibriApplication {
     }
 
     /**
-     * Bounds how long a client that has stopped making progress may hold a socket.
+     * Creates the http server, bounding how long a client that has stopped making progress may hold
+     * a socket and how many headers it may send.
      *
      * Node's defaults are five minutes for a request and one for its headers, which is a long time to
      * keep a connection for a body that may never arrive - a few hundred of those and the process has
      * no descriptors left for the clients that are actually asking for something.
+     * @returns The server, not yet listening.
      * @throws When the headers are given longer than the whole request, which node would apply and
-     * then never reach.
+     * then never reach, or a header limit is not a whole number of at least one.
      */
-    private applyServerTimeouts(): void {
-        const timeouts: HttpServerTimeouts = inject(ZIBRI_DI_TOKENS.HTTP_SERVER_TIMEOUTS);
-        if (timeouts.headersInMs > timeouts.requestInMs) {
+    private createHttpServer(): Server {
+        const limits: HttpServerLimits = inject(ZIBRI_DI_TOKENS.HTTP_SERVER_LIMITS);
+        if (limits.headersInMs > limits.requestInMs) {
             throw new InternalError(
-                `The headers timeout (${timeouts.headersInMs}ms) has to be at most the request timeout (${timeouts.requestInMs}ms).`
+                `The headers timeout (${limits.headersInMs}ms) has to be at most the request timeout (${limits.requestInMs}ms).`
             );
         }
-        this.server.requestTimeout = timeouts.requestInMs;
-        this.server.headersTimeout = timeouts.headersInMs;
-        this.server.keepAliveTimeout = timeouts.keepAliveInMs;
+        const headerLimits: [string, number][] = [
+            ['maxHeaderCount', limits.maxHeaderCount],
+            ['maxHeaderSizeInBytes', limits.maxHeaderSizeInBytes]
+        ];
+        for (const [name, value] of headerLimits) {
+            if (!Number.isInteger(value) || value < 1) {
+                throw new InternalError(`The ${name} of the http server limits has to be a whole number of at least 1, not ${value}.`);
+            }
+        }
+
+        const server: Server = createServer({ maxHeaderSize: limits.maxHeaderSizeInBytes }, (req, res) => {
+            // node keeps the first `maxHeadersCount` headers and drops the rest without a word, so it
+            // is given one more than the limit and a request reaching that one is refused here,
+            // before express - where node refuses headers that are too large. A request missing
+            // headers it was sent is one no route can tell from the request it was meant to be
+            if (req.rawHeaders.length / 2 > limits.maxHeaderCount) {
+                res.writeHead(HttpStatus.REQUEST_HEADER_FIELDS_TOO_LARGE, { connection: 'close' });
+                res.end();
+                return;
+            }
+            this.express(req, res);
+        });
+        server.maxHeadersCount = limits.maxHeaderCount + 1;
+        server.requestTimeout = limits.requestInMs;
+        server.headersTimeout = limits.headersInMs;
+        server.keepAliveTimeout = limits.keepAliveInMs;
+        return server;
     }
 
     /**
@@ -825,16 +864,18 @@ export class ZibriApplication {
     private removeErrorHandlers(): void {
         process.off('unhandledRejection', this.rejectionHandler);
         process.off('uncaughtException', this.exceptionHandler);
-        this.server.off('error', this.serverErrorHandler);
+        this.httpServer?.off('error', this.serverErrorHandler);
     }
 
     private async shutdownHttpServer(): Promise<void> {
-        if (!this.server.listening) {
+        // read without the getter: an application that failed while initializing shuts down too
+        const server: Server | undefined = this.httpServer;
+        if (server?.listening !== true) {
             return;
         }
         const closed: Promise<void> = new Promise((resolve, reject) => {
             // eslint-disable-next-line promise/prefer-await-to-callbacks
-            this.server.close(err => {
+            server.close(err => {
                 if (err) {
                     reject(err);
                 }
@@ -856,7 +897,7 @@ export class ZibriApplication {
             this.logger.warn('requests were still running when the drain timed out, ending them');
             // stops the wait above from being unbounded rather than merely long: close on its own
             // never gives up on an open connection.
-            this.server.closeAllConnections();
+            server.closeAllConnections();
             await closed;
         }
     }

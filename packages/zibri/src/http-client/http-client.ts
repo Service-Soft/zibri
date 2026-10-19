@@ -2,7 +2,10 @@ import { Readable } from 'node:stream';
 import { ReadableStream as NodeReadableStream } from 'node:stream/web';
 import { setTimeout as wait } from 'node:timers/promises';
 
+import { CircuitBreaker } from './circuit-breaker.model';
+import { CircuitOpenError } from './circuit-open.error';
 import { FetchForLibraryOptions } from './fetch-for-library-options.model';
+import { HttpClientIdempotencyKey } from './http-client-idempotency-key.model';
 import { type HttpClientDispatcher, type HttpClientOptions } from './http-client-options.model';
 import { HttpClientResponse, HttpClientResponseBodyInput, HttpClientResponseForBody } from './http-client-response.model';
 import { HttpClientError, HttpClientErrorOptions } from './http-client.error';
@@ -36,6 +39,7 @@ import { JsonUtilities } from '../utilities/json.utilities';
 import { Ms } from '../utilities/ms';
 import { BigNumber, NumberUtilities } from '../utilities/number.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
+import { UUIDUtilities } from '../utilities/uuid.utilities';
 import { type ValidationServiceInterface } from '../validation/validation-service.interface';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
@@ -104,6 +108,19 @@ const retryableStatuses: number[] = [
 const notYetProcessedStatuses: number[] = [HttpStatus.TOO_MANY_REQUESTS, HttpStatus.SERVICE_UNAVAILABLE];
 
 /**
+ * Statuses that count toward opening the circuit of the origin that answered them.
+ *
+ * The ones that say the origin itself is not working. A 429 is left out: the origin is working, and
+ * says when to come back with `Retry-After`.
+ */
+const originFailureStatuses: number[] = [
+    HttpStatus.INTERNAL_SERVER_ERROR,
+    HttpStatus.BAD_GATEWAY,
+    HttpStatus.SERVICE_UNAVAILABLE,
+    HttpStatus.GATEWAY_TIMEOUT
+];
+
+/**
  * How long the first wait between attempts is, before doubling.
  */
 const baseRetryDelayMs: number = 250;
@@ -164,6 +181,11 @@ const requestBodySerializationForMimeType: Record<HttpClientRequestBodyMimeType,
  */
 @Injectable({ register: 'onUse' })
 export class HttpClient implements HttpClientInterface {
+    /**
+     * The circuits of the origins this client sends to, or undefined when the application turned
+     * the breaker off.
+     */
+    private readonly circuitBreaker: CircuitBreaker | undefined;
 
     constructor(
         @Inject(ZIBRI_DI_TOKENS.PARSER)
@@ -172,7 +194,9 @@ export class HttpClient implements HttpClientInterface {
         private readonly validationService: ValidationServiceInterface,
         @Inject(ZIBRI_DI_TOKENS.HTTP_CLIENT_OPTIONS)
         private readonly clientOptions: HttpClientOptions
-    ) {}
+    ) {
+        this.circuitBreaker = clientOptions.circuitBreaker === false ? undefined : new CircuitBreaker(clientOptions.circuitBreaker);
+    }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async post<
@@ -403,6 +427,7 @@ export class HttpClient implements HttpClientInterface {
                 // end the call, and the deadline of the request this runs inside still applies
                 const signals: AbortSignal[] = [init.signal, requestSignal].filter(s => s != undefined);
                 const sent: SentRequest = await this.sendRequest(
+                    method,
                     url,
                     { ...init, headers },
                     this.clientOptions.defaultTimeoutMs,
@@ -479,7 +504,13 @@ export class HttpClient implements HttpClientInterface {
             : undefined;
         const urlWithParams: string = queryString ? `${url}?${queryString}` : url;
 
-        const init: RequestInit = this.buildRequestInit(method, requestBody, options?.headers, options?.requestBodyType);
+        // resolved once for the call rather than per attempt: a key that changed between attempts
+        // would tell the server each one is a new request, which is the opposite of what it is for
+        const idempotencyHeader: [string, string] | undefined = this.resolveIdempotencyHeader(options?.idempotencyKey);
+        const headers: Record<string, HttpClientHeaderValue> | undefined = idempotencyHeader == undefined
+            ? options?.headers
+            : { ...options?.headers, [idempotencyHeader[0]]: idempotencyHeader[1] };
+        const init: RequestInit = this.buildRequestInit(method, requestBody, headers, options?.requestBodyType);
 
         // resolved before anything is sent, so that a declaration that cannot work is refused without a request
         const responseBodyMetadata: BodyMetadata | undefined = options?.responseBody
@@ -514,6 +545,7 @@ export class HttpClient implements HttpClientInterface {
             let release: (() => void) | undefined;
             try {
                 const sent: SentRequest = await this.sendRequest(
+                    method,
                     urlWithParams,
                     init,
                     options?.timeoutMs ?? this.clientOptions.defaultTimeoutMs,
@@ -544,7 +576,7 @@ export class HttpClient implements HttpClientInterface {
             if (attempt === attempts) {
                 break;
             }
-            const delayMs: number | undefined = this.retryDelayFor(method, error, attempt);
+            const delayMs: number | undefined = this.retryDelayFor(method, idempotencyHeader != undefined, error, attempt);
             if (delayMs == undefined) {
                 break;
             }
@@ -713,6 +745,38 @@ export class HttpClient implements HttpClientInterface {
         }
     }
 
+    /**
+     * The origin a call is going to, which its circuit is kept under.
+     * @param url - What is being asked for.
+     * @returns The origin, or undefined when the url does not parse, which fetch refuses anyway.
+     */
+    private findOrigin(url: string): string | undefined {
+        try {
+            return new URL(url).origin;
+        }
+        catch {
+            return undefined;
+        }
+    }
+
+    /**
+     * The header an idempotency key is sent as, and the key.
+     * @param key - What the call asked for, if anything.
+     * @returns The header name and the key, or undefined when the call asked for none.
+     */
+    private resolveIdempotencyHeader(key: HttpClientIdempotencyKey | undefined): [string, string] | undefined {
+        if (key == undefined) {
+            return undefined;
+        }
+        if (key === true) {
+            return [KnownHeader.IDEMPOTENCY_KEY, UUIDUtilities.generate()];
+        }
+        if (typeof key === 'string') {
+            return [KnownHeader.IDEMPOTENCY_KEY, key];
+        }
+        return [key.header ?? KnownHeader.IDEMPOTENCY_KEY, key.value ?? UUIDUtilities.generate()];
+    }
+
     private withTraceContext(headers: Record<string, HttpClientHeaderValue> | undefined): Record<string, string> | undefined {
         const context: TraceSpanContext | undefined = TracingUtilities.getCurrentTraceContext();
 
@@ -823,18 +887,26 @@ export class HttpClient implements HttpClientInterface {
      * have charged anything. A network error or a timeout is the opposite situation and is never
      * repeated for those methods - the request may well have arrived and been carried out, with only
      * the answer lost, and there is no way from here to tell that from a request that never landed.
+     * Unless it carries an idempotency key: then the server answers a repeat like the first, and the
+     * request is as safe to repeat as a PUT.
      * @param method - The method the request was sent with.
+     * @param hasIdempotencyKey - Whether the request carries an idempotency key.
      * @param error - What the attempt failed with.
      * @param attempt - Which attempt just failed, counting from one.
      * @returns The delay before the next attempt, or undefined to stop.
      */
-    private retryDelayFor(method: HttpMethod, error: unknown, attempt: number): number | undefined {
+    private retryDelayFor(method: HttpMethod, hasIdempotencyKey: boolean, error: unknown, attempt: number): number | undefined {
+        // not sent at all, and nothing changes before the circuit lets one through
+        if (error instanceof CircuitOpenError) {
+            return undefined;
+        }
         const status: number | undefined = error instanceof HttpClientError ? error.responseData?.status : undefined;
 
         if (status != undefined && !retryableStatuses.includes(status)) {
             return undefined;
         }
-        if (!idempotentMethods.includes(method) && (status == undefined || !notYetProcessedStatuses.includes(status))) {
+        const repeatable: boolean = hasIdempotencyKey || idempotentMethods.includes(method);
+        if (!repeatable && (status == undefined || !notYetProcessedStatuses.includes(status))) {
             return undefined;
         }
 
@@ -886,6 +958,59 @@ export class HttpClient implements HttpClientInterface {
      * body is still to come. Releasing at that point is what left a response that dribbles, or stops
      * halfway, with nothing to end it - the timeout had already been cleared. The caller releases once
      * it has what it came for.
+     *
+     * Sent only while the circuit of the url's origin lets it through, and its outcome recorded there.
+     * @param method - The method the request is sent with, for the error when it is not sent.
+     * @param url - The url to request.
+     * @param init - The request to send.
+     * @param timeoutMs - How long the whole answer may take.
+     * @param dispatcher - What to send it over, or undefined for node's own.
+     * @param requestSignal - The deadline of the request this is being sent for, if there is one.
+     * @returns The response, and the release for its deadline.
+     * @throws A CircuitOpenError without sending anything while the origin's circuit is open.
+     */
+    private async sendRequest(
+        method: HttpMethod,
+        url: string,
+        init: RequestInit,
+        timeoutMs: number,
+        dispatcher: HttpClientDispatcher | undefined,
+        requestSignal: AbortSignal | undefined
+    ): Promise<SentRequest> {
+        const origin: string | undefined = this.circuitBreaker == undefined ? undefined : this.findOrigin(url);
+        if (origin != undefined) {
+            const reopensAt: Date | undefined = this.circuitBreaker?.admit(origin);
+            if (reopensAt != undefined) {
+                throw new CircuitOpenError(origin, reopensAt, method, url);
+            }
+        }
+        const sent: SentRequest = await this.sendThroughDeadline(url, init, timeoutMs, dispatcher, requestSignal)
+            .catch((error: unknown) => {
+                if (origin != undefined) {
+                    // the request this was sent for being answered says nothing about the origin;
+                    // anything else that left it without an answer - refused, reset, timed out - does
+                    if (requestSignal?.aborted === true) {
+                        this.circuitBreaker?.recordNeither(origin);
+                    }
+                    else {
+                        this.circuitBreaker?.recordFailure(origin);
+                    }
+                }
+                throw error;
+            });
+        if (origin != undefined) {
+            if (originFailureStatuses.includes(sent.response.status)) {
+                this.circuitBreaker?.recordFailure(origin);
+            }
+            else {
+                this.circuitBreaker?.recordAnswer(origin);
+            }
+        }
+        return sent;
+    }
+
+    /**
+     * Sends the request under its deadline, handing back the means to end it.
      * @param url - The url to request.
      * @param init - The request to send.
      * @param timeoutMs - How long the whole answer may take.
@@ -893,7 +1018,7 @@ export class HttpClient implements HttpClientInterface {
      * @param requestSignal - The deadline of the request this is being sent for, if there is one.
      * @returns The response, and the release for its deadline.
      */
-    private async sendRequest(
+    private async sendThroughDeadline(
         url: string,
         init: RequestInit,
         timeoutMs: number,

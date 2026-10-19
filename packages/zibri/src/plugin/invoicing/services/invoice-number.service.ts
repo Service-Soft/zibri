@@ -1,6 +1,7 @@
 import { InvoiceNumberServiceInterface } from './invoice-number-service.interface';
 import { Repository } from '../../../data-source/repository/repository';
 import { Transaction } from '../../../data-source/transaction/transaction.model';
+import { UniqueConstraintViolationError } from '../../../data-source/unique-constraint-violation.error';
 import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../../di/decorators/inject.decorator';
 import { Injectable } from '../../../di/decorators/injectable.decorator';
@@ -10,6 +11,7 @@ import { $ts } from '../../../localization/translate.function';
 import { OmitStrict } from '../../../types/omit-strict.type';
 import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../invoicing.tokens';
 import { InvoiceAddress } from '../models/invoice-address.model';
+import { InvoiceRecipientAbbreviation } from '../models/invoice-recipient-abbreviation.model';
 import { Invoice } from '../models/invoice.model';
 import { type InvoicingOptions } from '../models/invoicing-options.model';
 import { NumberInvoices } from '../models/number-invoices.model';
@@ -19,7 +21,7 @@ import { NumberInvoices } from '../models/number-invoices.model';
  */
 @Injectable({ register: 'onUse' })
 export class InvoiceNumberService implements InvoiceNumberServiceInterface<InvoiceAddress> {
-    // the two below are read when used rather than injected: this is built at every boot that uses
+    // the three below are read when used rather than injected: this is built at every boot that uses
     // the plugin, and ZibriInvoicingPlugin.validate names the entities that are missing - which it
     // could not, if building this had failed on a repository token first
     private get invoiceRepository(): Repository<Invoice, OmitStrict<Invoice, 'id'>> {
@@ -29,6 +31,13 @@ export class InvoiceNumberService implements InvoiceNumberServiceInterface<Invoi
     // without the tenant, which the repository gives every counter it creates
     private get numberInvoicesRepository(): Repository<NumberInvoices, OmitStrict<NumberInvoices, 'id' | 'tenantId'>> {
         return inject(repositoryTokenFor(NumberInvoices));
+    }
+
+    private get recipientAbbreviationRepository(): Repository<
+        InvoiceRecipientAbbreviation,
+        OmitStrict<InvoiceRecipientAbbreviation, 'id' | 'tenantId'>
+    > {
+        return inject(repositoryTokenFor(InvoiceRecipientAbbreviation));
     }
 
     constructor(
@@ -44,7 +53,14 @@ export class InvoiceNumberService implements InvoiceNumberServiceInterface<Invoi
         nameAbbreviation?: string
     ): Promise<string> {
         const currentYear: string = `${new Date().getFullYear()}`;
-        const customerNameAbbreviation: string = nameAbbreviation ?? this.getCustomerNameAbbreviation(invoiceAddress);
+        // before the counter is touched, so a refused abbreviation draws no number - with a
+        // transaction or without one, where a drawn number would stay drawn
+        const customerNameAbbreviation: string = await this.resolveNameAbbreviation(
+            recipientId,
+            invoiceAddress,
+            nameAbbreviation,
+            transaction
+        );
         const consecutiveNumber: string = await this.getConsecutiveNumber(recipientId, transaction);
         // eslint-disable-next-line stylistic/max-len
         const result: string = `${currentYear}${this.options.separator}${customerNameAbbreviation}${this.options.separator}${consecutiveNumber}`;
@@ -55,7 +71,14 @@ export class InvoiceNumberService implements InvoiceNumberServiceInterface<Invoi
     // eslint-disable-next-line jsdoc/require-jsdoc
     async generateTemporaryInvoiceNumber(recipientId: string, invoiceAddress: InvoiceAddress, nameAbbreviation?: string): Promise<string> {
         const currentYear: string = `${new Date().getFullYear()}`;
-        const customerNameAbbreviation: string = nameAbbreviation ?? this.getCustomerNameAbbreviation(invoiceAddress);
+        // read rather than claimed: a temporary number draws nothing, and the number it is replaced
+        // with claims the abbreviation then
+        const held: InvoiceRecipientAbbreviation | undefined = await this.recipientAbbreviationRepository.findOne(
+            { where: { recipientId }, required: false }
+        );
+        const customerNameAbbreviation: string = nameAbbreviation
+            ?? held?.nameAbbreviation
+            ?? this.getSuggestedNameAbbreviation(invoiceAddress);
         const consecutiveNumber: string = await this.getTemporaryConsecutiveNumber(recipientId);
 
         // eslint-disable-next-line stylistic/max-len
@@ -125,12 +148,56 @@ export class InvoiceNumberService implements InvoiceNumberServiceInterface<Invoi
     }
 
     /**
-     * Gets the customer name abbreviation.
-     * @param invoiceAddress - The address data to get the name abbreviation from.
-     * @returns The first char of first and last name for private customers
-     * and the first two chars of the company name for company customers.
+     * Resolves the name abbreviation a recipient's invoice is numbered with, claiming it for the
+     * recipient when they hold none yet or are given another one.
+     *
+     * Two recipients sharing one would draw the same numbers from their own counters, so each one
+     * belongs to one recipient.
+     * @param recipientId - The id of the recipient of the invoice.
+     * @param invoiceAddress - The address data of the recipient, which the abbreviation is suggested from.
+     * @param nameAbbreviation - The abbreviation to number with from now on, if not the one the
+     * recipient holds or, holding none, the suggested one.
+     * @param transaction - The transaction the number is drawn in, which a claim rolls back with.
+     * @returns The abbreviation.
+     * @throws A ConflictError when another recipient holds the abbreviation.
      */
-    protected getCustomerNameAbbreviation(invoiceAddress: InvoiceAddress): string {
+    protected async resolveNameAbbreviation(
+        recipientId: string,
+        invoiceAddress: InvoiceAddress,
+        nameAbbreviation: string | undefined,
+        transaction: Transaction | undefined
+    ): Promise<string> {
+        const held: InvoiceRecipientAbbreviation | undefined = await this.recipientAbbreviationRepository.findOne(
+            { where: { recipientId }, transaction, required: false }
+        );
+        if (held != undefined && (nameAbbreviation == undefined || nameAbbreviation === held.nameAbbreviation)) {
+            return held.nameAbbreviation;
+        }
+        const claimed: string = nameAbbreviation ?? this.getSuggestedNameAbbreviation(invoiceAddress);
+        // claimed by the unique constraint rather than checked before, which two recipients claiming
+        // one at the same moment would both pass. One upsert rather than a create, because the first
+        // invoices of one recipient drawn at the same moment all claim it, and they claim the same.
+        // An abbreviation a recipient gives up is free again; a number of theirs that year it is
+        // claimed again for is refused as one that exists
+        try {
+            await this.recipientAbbreviationRepository.upsert(
+                { recipientId },
+                { recipientId, nameAbbreviation: claimed },
+                { nameAbbreviation: { set: claimed } },
+                { transaction }
+            );
+        }
+        catch (error) {
+            if (error instanceof UniqueConstraintViolationError && error.properties.includes('nameAbbreviation')) {
+                throw new ConflictError($ts`The name abbreviation ${claimed} is already used by another recipient.`, { cause: error });
+            }
+            throw error;
+        }
+        return claimed;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    getSuggestedNameAbbreviation(invoiceAddress: InvoiceAddress): string {
         if (invoiceAddress.company && invoiceAddress.companyName) {
             return this.getCompanyNameAbbreviation(invoiceAddress.companyName);
         }

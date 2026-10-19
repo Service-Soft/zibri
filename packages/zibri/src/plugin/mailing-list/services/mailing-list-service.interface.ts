@@ -10,7 +10,7 @@ import { MailingListSubscriber } from '../models/mailing-list-subscriber.model';
  */
 export type MailingListQueueEmailData<T> = OmitStrict<
     QueueEmailData,
-    'bcc' | 'cc' | 'recipients' | 'userId' | 'priority' | 'html'
+    'bcc' | 'cc' | 'recipients' | 'userId' | 'priority' | 'html' | 'listUnsubscribeUrl'
 > & {
     /**
      * The title used in the template. Defaults to the subject.
@@ -29,7 +29,7 @@ export type MailingListQueueEmailData<T> = OmitStrict<
 /**
  * The required data to create a new mailing list subscriber, in the active tenant.
  */
-export class MailingListSubscriberCreateData extends OmitClass(MailingListSubscriber, ['id', 'tenantId']) {}
+export class MailingListSubscriberCreateData extends OmitClass(MailingListSubscriber, ['id', 'tenantId', 'secret']) {}
 
 /**
  * Interface for a mailing list service.
@@ -46,6 +46,9 @@ export interface MailingListServiceInterface {
     /**
      * Requests for a new subscriber to the be added to the mailing list with the provided id.
      * This should initialize a two step process required by the GDPR.
+     *
+     * Every address confirms, whether it is subscribed to other lists or not. An address already on
+     * the list is sent nothing.
      */
     requestSubscribeToList: <T>(
         listId: string,
@@ -53,9 +56,15 @@ export interface MailingListServiceInterface {
         emailData: OmitStrict<MailingListQueueEmailData<T>, 'template' | 'compile'>
     ) => Promise<void>,
     /**
-     * Confirms that a new subscriber is added to the mailing list.
+     * Confirms that a new subscriber is added to the mailing list, with the token of the link the
+     * request mailed out.
+     *
+     * A token confirms once, until it expires. Followed again, it answers with the subscriber while
+     * they are still on the list, and writes nothing.
+     * @throws An UnauthorizedError when the token is unknown, belongs to another list or has expired,
+     * or was spent and its address is no longer on the list.
      */
-    confirmSubscribeToList: (confirmationTokenValue: string) => Promise<MailingListSubscriber>,
+    confirmSubscribeToList: (listId: string, confirmationTokenValue: string) => Promise<MailingListSubscriber>,
     /**
      * Removes a subscriber with the given id from the mailing list with the provided id.
      */
@@ -66,11 +75,19 @@ export interface MailingListServiceInterface {
      */
     resolveSubscribeConfirmationLink: (listId: string, confirmationToken: string) => Promise<string>,
     /**
-     * Resolves the unsubscribe link for the list with the given id and the subscriber with the given id.
+     * Resolves the unsubscribe link for the list with the given id and the given subscriber. It
+     * carries the subscriber's id and secret.
      */
-    resolveUnsubscribeLink: (listId: string, subscriberId: string) => Promise<string>,
+    resolveUnsubscribeLink: (listId: string, subscriber: MailingListSubscriber) => Promise<string>,
     /**
-     * Resolves the link to the manage preferences page for the subscriber with the given id.
+     * Resolves the link to the manage preferences page for the given subscriber. It carries the
+     * subscriber's id and secret.
      */
-    resolveManagePreferencesLink: (subscriberId: string) => Promise<string>
+    resolveManagePreferencesLink: (subscriber: MailingListSubscriber) => Promise<string>,
+    /**
+     * Finds the subscriber a link was resolved for, along with the lists they are on.
+     * @throws An UnauthorizedError when the secret is not the one of the subscriber with the given
+     * id, or no subscriber has that id.
+     */
+    resolveSubscriberOfLink: (subscriberId: string, secret: string) => Promise<MailingListSubscriber>
 }

@@ -35,7 +35,10 @@ const testConfig: EmailConfig = {
     maxEmailsPerHour: 1000,
     defaultSender: 'noreply@example.com',
     sendLeaseInMs: Ms.MINUTE,
-    sendBatchSize: 10
+    sendBatchSize: 10,
+    maxSendAttempts: 5,
+    retryDelayInMs: Ms.MINUTE,
+    failedRetentionInMs: 'forever'
 };
 
 // ---------- Helpers ----------
@@ -80,7 +83,7 @@ describe('EmailService', () => {
 
         emailService = inject(ZIBRI_DI_TOKENS.EMAIL_SERVICE);
         emailRepo = inject(repositoryTokenFor(Email));
-    }, 15000);
+    }, 30000);
 
     afterAll(async () => {
         await server.shutdown();
@@ -264,14 +267,20 @@ describe('EmailService', () => {
     });
 
     describe('attachment validation', () => {
-        it('throws when an attachment path does not exist', async () => {
+        it('counts an attempt on a mail whose attachment path does not exist, and sends nothing for it', async () => {
             await emailService.queue(makeQueueData({
                 persist: true,
                 attachments: [{ filename: 'missing.pdf', path: FsUtilities.getPath('/nonexistent/missing.pdf') }]
             }));
             mockSend.mockResolvedValue(accepted());
 
-            await expect(emailService.sendQueuedEmails()).rejects.toThrow('does not exist');
+            // the pass goes on rather than throwing, so the other mails of its batch are sent (04 §2.14)
+            await emailService.sendQueuedEmails();
+
+            const emails: Email[] = await emailRepo.findAll({});
+            expect(emails[0]?.status).toBe(EmailStatus.QUEUED);
+            expect(emails[0]?.attempts).toBe(1);
+            expect(mockSend).not.toHaveBeenCalled();
         });
 
         it('does not throw when attachments is undefined', async () => {

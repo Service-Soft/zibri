@@ -78,6 +78,53 @@ class PostalAddress extends BaseEntity {
     memberId!: string;
 }
 
+@Entity({ tenant: 'shared', allowOrphan: true })
+class Note extends BaseEntity {
+    @Property.string()
+    text!: string;
+}
+
+/**
+ * Declares an entity named like {@link Note}, the way a module of its own would.
+ * @returns The entity.
+ */
+function declareImportedNote(): Newable<BaseEntity> {
+    @Entity({ tenant: 'shared', allowOrphan: true, tableName: 'imported_note' })
+    class Note extends BaseEntity {
+        @Property.string()
+        body!: string;
+    }
+    return Note;
+}
+
+const ImportedNote: Newable<BaseEntity> = declareImportedNote();
+
+@Entity({ tenant: 'shared', allowOrphan: true, tableName: 'note' })
+class Memo extends BaseEntity {
+    @Property.string()
+    text!: string;
+}
+
+@DataSource({ allowOrphan: true })
+class NoteDataSource extends InMemoryDataSource {
+    override readonly entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, Note];
+}
+
+@DataSource({ allowOrphan: true })
+class ImportedNoteDataSource extends InMemoryDataSource {
+    override readonly entities: Newable<BaseEntity>[] = [MigrationEntity, ImportedNote];
+}
+
+@DataSource({ allowOrphan: true })
+class NoteAndMemoDataSource extends InMemoryDataSource {
+    override readonly entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, Note, Memo];
+}
+
+@DataSource({ allowOrphan: true })
+class MemoDataSource extends InMemoryDataSource {
+    override readonly entities: Newable<BaseEntity>[] = [MigrationEntity, Memo];
+}
+
 @DataSource({ allowOrphan: true })
 class MemberDataSource extends InMemoryDataSource {
     override readonly entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, Member, PostalAddress];
@@ -142,6 +189,25 @@ describe('DataSourceService — starting', () => {
         const start: Promise<StartedTestServer> = startTestServer({ dataSources: [MemberDataSource] });
 
         await expect(start).rejects.toThrow(/MemberDataSource[\S\s]*Member\.addresses points at PostalAddress/);
+    }, 30000);
+
+    it('refuses two entities of the same name, in whichever data sources they are, and names them', async () => {
+        // a repository is found by its entity's name, so the second would answer for both
+        const start: Promise<StartedTestServer> = startTestServer({ dataSources: [NoteDataSource, ImportedNoteDataSource] });
+
+        await expect(start).rejects.toThrow(/"Note"[\S\s]*NoteDataSource and ImportedNoteDataSource/);
+    }, 30000);
+
+    it('refuses two entities of one data source stored in the same table, and names them', async () => {
+        const start: Promise<StartedTestServer> = startTestServer({ dataSources: [NoteAndMemoDataSource] });
+
+        await expect(start).rejects.toThrow(/NoteAndMemoDataSource[\S\s]*"note": Note and Memo/);
+    }, 30000);
+
+    it('starts with two entities of one table name in different data sources', async () => {
+        // each data source is a store of its own, so the names never meet
+        const server: StartedTestServer = await startTestServer({ dataSources: [NoteDataSource, MemoDataSource] });
+        await server.shutdown();
     }, 30000);
 
     it('starts without Change and ChangeSet when nothing records change sets', async () => {

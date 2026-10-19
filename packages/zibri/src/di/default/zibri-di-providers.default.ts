@@ -34,7 +34,7 @@ import { EmailService } from '../../email/email.service';
 import { errorHandler } from '../../error-handling/error-handler';
 import { EventService } from '../../event/event.service';
 import { CompressionOptions } from '../../http/compression.middleware';
-import { HttpServerTimeouts } from '../../http/http-server-timeouts.model';
+import { HttpServerLimits } from '../../http/http-server-limits.model';
 import { KnownHeader } from '../../http/known-header.enum';
 import { HttpClient } from '../../http-client/http-client';
 import { HttpClientOptionsInput } from '../../http-client/http-client-options.model';
@@ -141,12 +141,17 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
     // moment it has arrived, and nothing after that stops the handler it reached. Thirty seconds
     // because it is long enough that no ordinary endpoint reaches it and short enough that a client
     // still has an answer before it gives up on its own.
-    HTTP_SERVER_TIMEOUTS: {
-        useFactory: (): HttpServerTimeouts => ({
+    // A hundred headers is what apache and haproxy accept by default, and far above what a browser
+    // or a client behind a few proxies sends; node's own 2000 only bounds what the size limit
+    // already does. The size is node's own default.
+    HTTP_SERVER_LIMITS: {
+        useFactory: (): HttpServerLimits => ({
             requestInMs: Ms.SECOND * 60,
             headersInMs: Ms.SECOND * 15,
             keepAliveInMs: Ms.SECOND * 5,
-            handlerInMs: Ms.SECOND * 30
+            handlerInMs: Ms.SECOND * 30,
+            maxHeaderCount: 100,
+            maxHeaderSizeInBytes: 16 * 1024
         })
     },
     LEASE_SERVICE: { useClass: LeaseService },
@@ -180,6 +185,7 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
     RECOVERY_CODE_HEADER: { useFactory: () => 'x-authorization-recovery-code' },
     API_KEY_HEADER: { useFactory: () => 'x-api-key' },
     API_KEY_SERVICE: { useClass: ApiKeyService },
+    API_KEY_OPTIONS: { useFactory: () => ({}) },
     SCIM_SERVICE: { useClass: ScimService },
     TWO_FACTOR_CODE_OPTIONS: { useFactory: () => ({}) },
     USER_SERVICE: { useClass: UserService },
@@ -222,6 +228,9 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
     // instance's own disk rather than on shared storage: what lives here is one instance's work in
     // progress, and it needs room for the largest archive being written or restored at a time
     BACKUP_TEMP_FOLDER: { useFactory: () => FsUtilities.getPath(resolveAppRoot(), '.zibri', 'backups') },
+    // none, so that stopping a running backup and putting back what a running restore applied fits
+    // the 30 seconds most orchestrators give a process before they kill it
+    BACKUP_SHUTDOWN_WAIT_IN_MS: { useValue: 0 },
     // the route history belongs to the deployment, so it is resolved from the application's root:
     // an installed copy of the framework is the one place it must not land, and that is where
     // resolving it from this file put it for an application that does not bundle.
@@ -287,6 +296,9 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
             return {
                 defaultTimeoutMs: Ms.SECOND * 5,
                 defaultMaxResponseSize: '10mb',
+                // on by default: an application that never thought about it is the one whose every
+                // request would otherwise wait out a timeout against a dependency that is down
+                circuitBreaker: { failuresToOpen: 5, openForMs: Ms.SECOND * 30 },
                 ...input
             };
         }
@@ -300,6 +312,10 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
     // the same number PromiseUtilities chunks by, because it answers the same question: how much of
     // a backlog one instance takes on at once
     EVENT_MAX_CONCURRENT_HOOKS: { useFactory: () => 50 },
+    // no default: keeping every failed event and deleting them after a while are both legitimate,
+    // so only the application can say which. Undefined rather than refused here, so that the event
+    // service's onAppInit names the token in the error rather than DI failing on it
+    EVENT_FAILED_RETENTION_IN_MS: { useFactory: () => undefined },
     TRACER: { useClass: OpenTelemetryTracer },
     TRACE_BUFFER: { useFactory: () => new InMemoryTraceBuffer() },
     // nothing, which is what keeps tracing free of anything outside this process until an

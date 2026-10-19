@@ -174,6 +174,23 @@ export class OrderWebsocketController {
 }
 ```
 
+A route that needs the document exactly as it arrived, such as one checking a signature over it, declares the body `raw` and gets the text:
+
+```ts
+// src/controllers/signed-order.controller.ts
+import { Body, Controller, MimeType, Post } from 'zibri';
+
+@Controller('/signed-orders')
+export class SignedOrderController {
+    @Post()
+    async create(@Body({ type: MimeType.XML, raw: true }) document: string): Promise<void> {
+        // your logic
+    }
+}
+```
+
+It accepts the same media types, is refused the same way when it is not well formed, and is held to the same `maxSize`.
+
 ### Answering with xml
 A response declared with `Response.object`, `Response.paginated` or `Response.keysetPage` names the formats it can be written in with `mimeTypes`. The request's `Accept` header picks one. Between formats the request weighs equally, the one it names first is taken, and when it names none or accepts anything, the first one the response lists is taken:
 

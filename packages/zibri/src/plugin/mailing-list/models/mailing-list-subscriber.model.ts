@@ -1,3 +1,5 @@
+import { randomBytes } from 'node:crypto';
+
 import { MailingList } from './mailing-list.model';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { Entity } from '../../../entity/decorators/entity.decorator';
@@ -25,6 +27,16 @@ export class MailingListSubscriber extends BaseEntity {
      */
     @Property.string({ format: 'email' })
     email!: string;
+
+    /**
+     * What the links in the subscriber's emails carry along with their id, to unsubscribe and to
+     * manage their preferences with. Generated when the subscriber is created, and stored encrypted.
+     *
+     * The id alone opens nothing: it is in every response that names the subscriber, and never
+     * changes. Writing a new secret ends every link sent before.
+     */
+    @Property.string({ encryption: true, default: () => randomBytes(32).toString('hex') })
+    secret!: string;
 
     /**
      * The mailing lists that the subscriber is subscribed to.

@@ -49,6 +49,7 @@ export enum KnownHeader {
     X_RATE_LIMIT_REMAINING = 'x-ratelimit-remaining',
     X_RATE_LIMIT_RESET = 'x-ratelimit-reset',
     RETRY_AFTER = 'retry-after',
+    IDEMPOTENCY_KEY = 'idempotency-key',
     IF_NONE_MATCH = 'if-none-match',
     IF_MATCH = 'if-match',
     ETAG = 'etag',

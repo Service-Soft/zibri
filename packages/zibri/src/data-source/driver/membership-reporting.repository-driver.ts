@@ -49,6 +49,28 @@ export class MembershipReportingRepositoryDriver<T extends BaseEntity> implement
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
+    async insert(data: DeepPartial<T>[], transaction: Transaction | undefined): Promise<T[]> {
+        const inserted: T[] = await this.inner.insert(data, transaction);
+        // new rows were nobody's before, so only who they belong to now is reported
+        if (this.membershipService.isMembershipEntity(this.entityClass)) {
+            await this.report(inserted, transaction);
+        }
+        return inserted;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async updateEach(rows: DeepPartial<T>[], where: Where<T>, transaction: Transaction | undefined): Promise<T[]> {
+        if (!this.membershipService.isMembershipEntity(this.entityClass)) {
+            return await this.inner.updateEach(rows, where, transaction);
+        }
+        // as a save: a stored row can move to another user, who is no member there any more
+        const before: T[] = await this.inner.find({ where, transaction });
+        const updated: T[] = await this.inner.updateEach(rows, where, transaction);
+        await this.report([...before, ...updated], transaction);
+        return updated;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async find(options: DriverFindOptions<T>): Promise<T[]> {
         return await this.inner.find(options);
     }
@@ -74,12 +96,21 @@ export class MembershipReportingRepositoryDriver<T extends BaseEntity> implement
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async remove(entities: T[], transaction: Transaction | undefined): Promise<T[]> {
-        const removed: T[] = await this.inner.remove(entities, transaction);
-        if (this.membershipService.isMembershipEntity(this.entityClass)) {
-            await this.report(removed, transaction);
+    async remove(ids: string[], transaction: Transaction | undefined): Promise<void> {
+        if (!this.membershipService.isMembershipEntity(this.entityClass)) {
+            await this.inner.remove(ids, transaction);
+            return;
         }
-        return removed;
+        // read first, as a save is: a remove is handed ids, and who stops being a member where is
+        // only on the rows
+        const before: T[] = ids.length ? await this.inner.find({ where: { id: { oneOf: ids } } as Where<T>, transaction }) : [];
+        await this.inner.remove(ids, transaction);
+        await this.report(before, transaction);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async findIds(options: DriverFindOptions<T>): Promise<string[]> {
+        return await this.inner.findIds(options);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

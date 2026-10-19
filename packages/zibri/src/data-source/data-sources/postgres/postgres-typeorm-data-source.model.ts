@@ -1,7 +1,8 @@
+/* eslint-disable cspell/spellchecker */
 import { ChildProcess, ChildProcessByStdio, spawn } from 'node:child_process';
 import { PassThrough, Readable, Writable } from 'node:stream';
 
-import { EntitySchemaColumnOptions, EntitySchemaIndexOptions, EntitySchemaRelationOptions, ColumnType, FindOperator, QueryBuilder, QueryRunner, TableColumn, ValueTransformer, DataSource as TODataSource, EntityMetadata as TOEntityMetadata, QueryFailedError as TOQueryFailedError } from 'typeorm';
+import { EntitySchemaColumnOptions, EntitySchemaIndexOptions, EntitySchemaRelationOptions, EntitySubscriberInterface, ColumnType, FindOperator, QueryBuilder, QueryRunner, TableColumn, TransactionStartEvent, ValueTransformer, DataSource as TODataSource, EntityMetadata as TOEntityMetadata, QueryFailedError as TOQueryFailedError } from 'typeorm';
 import { PostgresConnectionOptions } from 'typeorm/driver/postgres/PostgresConnectionOptions.js';
 import { OnDeleteType } from 'typeorm/metadata/types/OnDeleteType.js';
 import { OnUpdateType } from 'typeorm/metadata/types/OnUpdateType.js';
@@ -10,6 +11,8 @@ import { pgTypeParsers } from './pg-type-parsers.function';
 import { PostgresColumnSql } from './postgres-column-sql.model';
 import { PostgresValueConversionUtilities } from './postgres-value-conversion.utilities';
 import { type AuthServiceInterface } from '../../../auth/auth-service.interface';
+import { AlsUtilities } from '../../../context/als.utilities';
+import { OperationLimit } from '../../../context/operation-limit.model';
 import { Inject } from '../../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../di/inject.function';
@@ -19,7 +22,7 @@ import { ArrayPropertyItemMetadata, ArrayPropertyMetadata } from '../../../entit
 import { isRelationMetadata } from '../../../entity/models/is-relation-metadata.function';
 import { NumberFormat } from '../../../entity/models/number-property-metadata.model';
 import { Relation } from '../../../entity/models/relation.enum';
-import { coversEveryRow } from '../../../entity/models/unique-declaration.model';
+import { coversEveryRow, KeyWhere } from '../../../entity/models/unique-declaration.model';
 import { InternalError } from '../../../error-handling/internal-error.model';
 import { KeyGroups, keyGroupsOf } from '../../../global/model-registry/key-descriptor';
 import { type LoggerInterface } from '../../../logging/logger.interface';
@@ -30,6 +33,7 @@ import { toJsonValue } from '../../../parsing/functions/to-json-value.function';
 import { ExcludeStrict } from '../../../types/exclude-strict.type';
 import { Newable } from '../../../types/newable.type';
 import { OmitStrict } from '../../../types/omit-strict.type';
+import { JsonUtilities } from '../../../utilities/json.utilities';
 import { MetadataUtilities } from '../../../utilities/metadata.utilities';
 import { BigNumber } from '../../../utilities/number.utilities';
 import { ObjectUtilities } from '../../../utilities/object.utilities';
@@ -37,7 +41,10 @@ import { hasOptionalPeer } from '../../../utilities/optional-peer.function';
 import { PromiseUtilities } from '../../../utilities/promise.utilities';
 import { readNumber } from '../../../utilities/read-number.function';
 import { TypeOrmUtilities } from '../../../utilities/typeorm.utilities';
+import { checkConstraintName } from '../../check-constraint-name.function';
+import { CheckConstraintViolationError } from '../../check-constraint-violation.error';
 import { indexName, trigramIndexName, TRIGRAM_INDEX_PREFIX } from '../../index-name.function';
+import { literalToSql } from '../../literal-to-sql.function';
 import { DataSourceOptions, ResolvedDataSourceOptions } from '../../models/data-source-options.model';
 import { RefusedValue } from '../../models/refused-value.model';
 import { ResolvedPropertyConversion } from '../../models/resolved-property-conversion.model';
@@ -48,10 +55,12 @@ import { MistypedStoredValue } from '../../stored-value-type-mismatch.error';
 import { Transaction } from '../../transaction/transaction.model';
 import { uniqueConstraintName } from '../../unique-constraint-name.function';
 import { keyWhereToSql } from '../../where/key-where-to-sql.function';
+import { WriteDataUtilities } from '../../write-data.utilities';
 import { DataSourceInitializationError } from '../data-source-initialization.error';
 import { StartTransactionOptions } from '../data-source.interface';
 import { QueryOptions, SqlDataSourceInterface } from '../sql-data-source.interface';
-import { MergedRows, UpsertInput, UpsertSql, TypeOrmBaseDataSource, ToColumnMappableTypes } from '../typeorm-base-data-source.model';
+import { OPERATION_LIMIT_DATA_KEY } from '../statement-limiting-data-source.model';
+import { MergedRows, UpsertInput, UpsertReachable, UpsertSql, TypeOrmBaseDataSource, ToColumnMappableTypes } from '../typeorm-base-data-source.model';
 import { PostgresTypeOrmWhereFilterConverter, TrigramSupport } from '../where-converter/postgres-typeorm-where-filter.converter';
 
 /**
@@ -114,6 +123,10 @@ type ConnectedQueryRunner = {
 };
 
 const DUMP_COMMAND: string = 'pg_dump';
+/**
+ * Writes an archive of DUMP_COMMAND out as the statements that recreate what it holds.
+ */
+const ARCHIVE_COMMAND: string = 'pg_restore';
 const RESTORE_COMMAND: string = 'psql';
 const DEFAULT_PORT: number = 5432;
 
@@ -121,6 +134,11 @@ const DEFAULT_PORT: number = 5432;
  * The sql state postgres reports a unique violation under.
  */
 const UNIQUE_VIOLATION_SQL_STATE: string = '23505';
+
+/**
+ * The sql state postgres answers a write breaking a check constraint with.
+ */
+const CHECK_VIOLATION_SQL_STATE: string = '23514';
 
 /**
  * The sql states postgres reports a value it could not read as the requested type under.
@@ -164,72 +182,145 @@ function declaredTypeOf(message: string): string | undefined {
 }
 
 /**
- * Clears the tables a dump is about to recreate, as the first statement of the restore.
+ * Clears what a dump of the schema is about to recreate, as the first statement of the restore.
  *
  * This is what `pg_dump --clean` would otherwise do, and the reason it does not: `--clean` drops
  * every object it dumped, and asking it for a schema makes the schema one of them. `DROP SCHEMA`
  * fails whenever an extension lives there, which is always - and it would be wrong even if it
  * succeeded, since the dumped tables default their ids to `uuid_generate_v4()`, an extension object
  * the schema would take with it. Dropping the schema an application stores its tables in is the same
- * over-reach as dumping the cluster an application stores its database in.
+ * over-reach as dumping the cluster an application stores its database in. And `--clean` drops only
+ * what the dump holds, so a table created after the backup would outlive its restore, and the next
+ * migration creating it again would fail.
  *
- * Every ordinary table in the database and no other object kind, which is exactly what a dump of it
- * recreates. Tables belonging to an extension are left alone: they are recreated by the extension
- * rather than by the dump, and postgres refuses to drop them anyway.
+ * Every object of the schema a dump of it recreates, and nothing in any other schema: the tables,
+ * views, sequences, types, domains, routines, operators, collations, conversions and text search
+ * configurations and dictionaries. Not what goes with something else - an index, a table's row type,
+ * an array type, a sequence a column owns, a range's constructors - and not what belongs to an
+ * extension, which the extension recreates rather than the dump, and which postgres refuses to drop
+ * anyway. Collected before the first drop, because a drop cascading to another object leaves it
+ * nothing for `pg_identify_object` to name.
  *
  * Runs inside psql's `--single-transaction`, so a restore that then fails takes the drops back with
- * it rather than leaving an empty database behind.
+ * it rather than leaving an empty schema behind.
+ * @param schema - The schema the data source works in.
+ * @returns The statement.
  */
-const CLEAR_TABLES_SQL: string = `
+function clearSchemaSql(schema: string): string {
+    const owned: (catalog: string, alias: string) => string = (catalog, alias) => 'NOT EXISTS (SELECT 1 FROM pg_catalog.pg_depend d'
+        + ` WHERE d.classid = 'pg_catalog.${catalog}'::regclass AND d.objid = ${alias}.oid AND d.deptype IN ('e', 'a', 'i'))`;
+    return `
 DO $zibri$
 DECLARE
-    r record;
+    schema_oid oid := (SELECT oid FROM pg_catalog.pg_namespace WHERE nspname = ${literalToSql(schema)});
+    drops text[];
+    drop_statement text;
 BEGIN
-    FOR r IN
-        SELECT n.nspname AS schema_name, c.relname AS table_name
+    SELECT coalesce(array_agg(o.statement), '{}') INTO drops FROM (
+        SELECT format('DROP %s IF EXISTS %s CASCADE',
+            CASE c.relkind WHEN 'v' THEN 'VIEW' WHEN 'm' THEN 'MATERIALIZED VIEW' WHEN 'f' THEN 'FOREIGN TABLE'
+                WHEN 'S' THEN 'SEQUENCE' ELSE 'TABLE' END,
+            c.oid::regclass) AS statement
         FROM pg_catalog.pg_class c
-        JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
-        WHERE c.relkind IN ('r', 'p')
-            AND n.nspname NOT LIKE 'pg\\_%'
-            AND n.nspname <> 'information_schema'
-            AND NOT EXISTS (
-                SELECT 1 FROM pg_catalog.pg_depend d
-                WHERE d.objid = c.oid AND d.deptype = 'e'
-            )
-    LOOP
-        EXECUTE format('DROP TABLE IF EXISTS %I.%I CASCADE', r.schema_name, r.table_name);
+        WHERE c.relnamespace = schema_oid AND c.relkind IN ('r', 'p', 'v', 'm', 'f', 'S') AND ${owned('pg_class', 'c')}
+        UNION ALL
+        SELECT format('DROP %s IF EXISTS %s CASCADE', CASE t.typtype WHEN 'd' THEN 'DOMAIN' ELSE 'TYPE' END, t.oid::regtype)
+        FROM pg_catalog.pg_type t
+        WHERE t.typnamespace = schema_oid AND t.typtype IN ('c', 'd', 'e', 'r') AND ${owned('pg_type', 't')}
+            AND (t.typtype <> 'c' OR (SELECT r.relkind FROM pg_catalog.pg_class r WHERE r.oid = t.typrelid) = 'c')
+        UNION ALL
+        SELECT format('DROP %s IF EXISTS %s CASCADE', CASE p.prokind WHEN 'a' THEN 'AGGREGATE' ELSE 'ROUTINE' END, p.oid::regprocedure)
+        FROM pg_catalog.pg_proc p
+        WHERE p.pronamespace = schema_oid AND ${owned('pg_proc', 'p')}
+        UNION ALL
+        SELECT format('DROP OPERATOR IF EXISTS %s CASCADE', o.oid::regoperator)
+        FROM pg_catalog.pg_operator o
+        WHERE o.oprnamespace = schema_oid AND ${owned('pg_operator', 'o')}
+        UNION ALL
+        SELECT format('DROP COLLATION IF EXISTS %s CASCADE', l.oid::regcollation)
+        FROM pg_catalog.pg_collation l
+        WHERE l.collnamespace = schema_oid AND ${owned('pg_collation', 'l')}
+        UNION ALL
+        SELECT format('DROP CONVERSION IF EXISTS %I.%I CASCADE', ${literalToSql(schema)}, v.conname)
+        FROM pg_catalog.pg_conversion v
+        WHERE v.connamespace = schema_oid AND ${owned('pg_conversion', 'v')}
+        UNION ALL
+        SELECT format('DROP TEXT SEARCH CONFIGURATION IF EXISTS %s CASCADE', g.oid::regconfig)
+        FROM pg_catalog.pg_ts_config g
+        WHERE g.cfgnamespace = schema_oid AND ${owned('pg_ts_config', 'g')}
+        UNION ALL
+        SELECT format('DROP TEXT SEARCH DICTIONARY IF EXISTS %s CASCADE', y.oid::regdictionary)
+        FROM pg_catalog.pg_ts_dict y
+        WHERE y.dictnamespace = schema_oid AND ${owned('pg_ts_dict', 'y')}
+    ) o;
+    FOREACH drop_statement IN ARRAY drops LOOP
+        EXECUTE drop_statement;
     END LOOP;
 END
 $zibri$;
 `;
-
-/**
- * Puts the clearing statement in front of the dump, as one stream.
- *
- * Prepended rather than run separately so that both halves are inside psql's single transaction.
- * Running the drops on the application's own connection first would commit them, and a restore that
- * then failed would have emptied the database instead of leaving it as it was.
- * @param backupData - The dump to restore.
- * @yields The clearing statement, then the dump.
- */
-async function* withClearedTables(backupData: Readable): AsyncGenerator<string | Buffer> {
-    yield CLEAR_TABLES_SQL;
-    yield* backupData;
 }
 
 /**
- * Checks whether a postgres client tool can be started at all.
+ * Puts what the restore runs first in front of the dump's statements, as one stream.
+ *
+ * Prepended rather than run separately so that both halves are inside psql's single transaction.
+ * Running the drops on the application's own connection first would commit them, and a restore that
+ * then failed would have emptied the schema instead of leaving it as it was.
+ *
+ * Ends only once the archive was read whole. Psql commits whatever it was given when its input ends,
+ * so the statements of an archive that stopped part way must not reach an end at all: an error here
+ * leaves psql's input open, and psql is stopped before it commits.
+ * @param preamble - What runs before the dump's statements.
+ * @param statements - The dump's statements.
+ * @param read - Settles once the archive was read, and fails when it could not be.
+ * @yields The preamble, then the statements.
+ */
+async function* restoreScript(preamble: string, statements: Readable, read: Promise<void>): AsyncGenerator<string | Buffer> {
+    yield preamble;
+    yield* statements;
+    await read;
+}
+
+/**
+ * Settles once a child process has exited.
+ * @param child - The child process.
+ * @param command - The command it runs, for the error.
+ * @returns A promise that resolves on an exit code of 0 and fails on anything else.
+ */
+async function exitOf(child: ChildProcess, command: string): Promise<void> {
+    await new Promise<void>((resolve, reject) => {
+        child.on('error', reject);
+        child.on('close', code => code === 0 ? resolve() : reject(new InternalError(`${command} exited with code ${code}`)));
+    });
+}
+
+/**
+ * Finds the major version of a postgres client tool.
  *
  * `spawn` reports a missing binary as an `ENOENT` error event rather than by throwing, so asking it
- * to print its version is the whole check - it either starts or it does not.
+ * to print its version also tells whether it starts at all.
  * @param command - The command to look for.
- * @returns True if the command could be started.
+ * @param env - The environment the client tools run with, whose `PATH` the command is looked for on.
+ * @returns The major version, or undefined when the command could not be started.
  */
-async function commandExists(command: string): Promise<boolean> {
-    return await new Promise<boolean>(resolve => {
-        const child: ChildProcess = spawn(command, ['--version'], { stdio: 'ignore' });
-        child.on('error', () => resolve(false));
-        child.on('close', code => resolve(code === 0));
+async function findToolMajorVersion(command: string, env: NodeJS.ProcessEnv): Promise<number | undefined> {
+    return await new Promise<number | undefined>(resolve => {
+        const child: ChildProcessByStdio<null, Readable, null> = spawn(
+            command,
+            ['--version'],
+            { stdio: ['ignore', 'pipe', 'ignore'], env }
+        );
+        let output: string = '';
+        child.stdout.on('data', (chunk: Buffer) => {
+            output += chunk.toString();
+        });
+        child.on('error', () => resolve(undefined));
+        child.on('close', code => {
+            // eg. "pg_dump (PostgreSQL) 17.6", or "psql (PostgreSQL) 16.4 (Debian 16.4-1.pgdg120+1)"
+            const major: string | undefined = /\(PostgreSQL\) (\d+)/.exec(output)?.[1];
+            resolve(code === 0 && major != undefined ? Number(major) : undefined);
+        });
     });
 }
 
@@ -251,6 +342,54 @@ type SimilarityProbeRow = {
      * What the operator answered about two values whose similarity is the threshold exactly.
      */
     inclusive: boolean
+};
+
+/**
+ * Sets the statement timeout for the rest of the current transaction, to the milliseconds in `$1`.
+ */
+const SET_LOCAL_STATEMENT_TIMEOUT_SQL: string = 'SELECT set_config(\'statement_timeout\', $1, true)';
+
+/**
+ * Gives a transaction begun under a limit the limit's time for every statement in it.
+ *
+ * A subscriber rather than a step of `startTransaction`, because the transactions the orm begins
+ * itself - its schema sync, a save of several rows - are the ones nothing else here gets to see.
+ * Local, so the limit ends with the transaction and never reaches the next user of the connection.
+ */
+const STATEMENT_TIMEOUT_SUBSCRIBER: EntitySubscriberInterface = {
+    async afterTransactionStart(event: TransactionStartEvent): Promise<void> {
+        const limit: OperationLimit | undefined = AlsUtilities.findCurrentOperationLimit();
+        if (limit == undefined) {
+            return;
+        }
+        await event.queryRunner.query(SET_LOCAL_STATEMENT_TIMEOUT_SQL, [String(limit.timeoutInMs)]);
+        event.queryRunner.data[OPERATION_LIMIT_DATA_KEY] = limit;
+    }
+};
+
+/**
+ * The statement timeout a connection has right now.
+ */
+type StatementTimeoutRow = {
+    /**
+     * The value of `statement_timeout`, as postgres writes every setting: text, with its unit.
+     */
+    timeout: string
+};
+
+/**
+ * Whether the database counts a letter outside of ascii as part of a word, and its character type.
+ */
+type WordCharacterProbeRow = {
+    /**
+     * The similarity of a single letter outside of ascii to itself: 1 when it is a word, 0 when it
+     * is nothing a trigram is taken from.
+     */
+    similarity: number,
+    /**
+     * The character type the database was created with.
+     */
+    ctype: string
 };
 
 /**
@@ -361,6 +500,41 @@ type DeclaredKey = {
 };
 
 /**
+ * One check constraint of a table, as postgres lists it for keeping the declared ones.
+ */
+type StoredCheckRow = {
+    /**
+     * The name of the constraint, as postgres stores it.
+     */
+    name: string,
+    /**
+     * Whether the rows stored before it was added were validated.
+     */
+    valid: boolean
+};
+
+/**
+ * A row breaking a check.
+ */
+type BrokenCheckRow = {
+    /**
+     * The id of the row, as text.
+     */
+    id: string
+};
+
+/**
+ * Lists the check constraints of a table in the current schema.
+ */
+const STORED_CHECKS_SQL: string = `
+    SELECT c.conname AS "name", c.convalidated AS "valid"
+    FROM pg_constraint c
+    JOIN pg_class t ON t.oid = c.conrelid
+    JOIN pg_namespace n ON n.oid = t.relnamespace
+    WHERE c.contype = 'c' AND n.nspname = current_schema() AND t.relname = $1
+`;
+
+/**
  * Lists the indexes of a table in the current schema.
  */
 const STORED_KEYS_SQL: string = `
@@ -408,6 +582,15 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
     protected readonly searchesFromSimilarity: MinSimilarity = DEFAULT_MIN_SIMILARITY;
 
     /**
+     * How long one statement may take, in milliseconds, before the server stops it. 0 for no limit.
+     *
+     * Covers every statement this data source runs, inside a request or not - a cron job, an event
+     * subscriber and a thread job included. A call that needs longer, or should give up sooner, says so
+     * with its own `timeoutInMs`, and a migration runs under `migrationTimeoutInMs` instead.
+     */
+    protected readonly statementTimeoutInMs: number = 30000;
+
+    /**
      * What this server's trigram operator answers, as measured at boot.
      *
      * Kept, because it decides two things that have to agree: which searches are written so that an
@@ -450,6 +633,11 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
         // worth having and not merely a budget. A deployment that outgrows it wants a pooler in
         // front rather than a bigger number here, since the ceiling belongs to the server
         poolSize: 20,
+        // how long a call waits for a connection, out of the pool or a new one, before it fails. pg
+        // waits forever without it, so a call with no limit of its own - a cron job, a subscriber -
+        // would hang behind a pool held by something stuck. The same as the statement timeout: a
+        // connection that has not come free by then is held by something that is not coming back
+        connectTimeoutMS: 30000,
         // the wire protocol counts a statement's values in sixteen bits, so this is the server's
         // ceiling rather than a setting of it
         maxBoundValuesPerStatement: 65535
@@ -469,7 +657,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
      * {@link searchesFromSimilarity} rather than whatever this server was configured with. Asked for
      * on the connection rather than set on the server, so it covers what this application runs and
      * nothing else. Appended to whatever the consumer asked for, since the same string carries every
-     * startup setting.
+     * startup setting. The {@link statementTimeoutInMs} travels the same way, for the same reason.
      */
     protected override get fullOptions(): ResolvedDataSourceOptions<OmitStrict<PostgresOptions, 'type' | 'entities'>> {
         const options: ResolvedDataSourceOptions<OmitStrict<PostgresOptions, 'type' | 'entities'>> = super.fullOptions;
@@ -481,6 +669,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
                 ...extra,
                 types: pgTypeParsers(),
                 options: `${startupOptions}-c pg_trgm.similarity_threshold=${this.searchesFromSimilarity / 100}`
+                    + ` -c statement_timeout=${this.statementTimeoutInMs}`
             }
         };
     }
@@ -545,6 +734,26 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
         await this.ds.query('SELECT pg_cancel_backend($1)', [backendId]);
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async limitStatementsOn(runner: QueryRunner, timeoutInMs: number, inTransaction: boolean): Promise<() => Promise<void>> {
+        const value: string = String(timeoutInMs);
+        if (!inTransaction) {
+            await runner.query('SELECT set_config(\'statement_timeout\', $1, false)', [value]);
+            // back to what the connection started with, which is this data source's own timeout
+            return async () => {
+                await runner.query('RESET statement_timeout');
+            };
+        }
+        // read rather than reset, because the transaction may itself have been begun under a limit
+        const previous: StatementTimeoutRow[] = await runner.manager.query<StatementTimeoutRow[]>(
+            'SELECT current_setting(\'statement_timeout\') AS timeout'
+        );
+        await runner.query(SET_LOCAL_STATEMENT_TIMEOUT_SQL, [value]);
+        return async () => {
+            await runner.query(SET_LOCAL_STATEMENT_TIMEOUT_SQL, [previous[0]?.timeout ?? value]);
+        };
+    }
+
     override async startTransaction(options?: StartTransactionOptions): Promise<Transaction> {
         const transaction: Transaction = await super.startTransaction(options);
         const idleTimeoutInMs: number = options?.idleTimeoutInMs ?? DEFAULT_TRANSACTION_IDLE_TIMEOUT_IN_MS;
@@ -595,7 +804,6 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
      */
     private async validateTextCollation(dataSource: TODataSource): Promise<void> {
         const collation: string = this.textCollation;
-        // eslint-disable-next-line cspell/spellchecker
         const known: unknown[] = await dataSource.query('SELECT 1 FROM pg_collation WHERE collname = $1', [collation]);
         if (known.length) {
             return;
@@ -744,6 +952,37 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
     }
 
     /**
+     * Reports a database whose character type counts only ascii as a letter.
+     *
+     * The trigram extension takes a word to be the letters and digits the database's character type
+     * knows. Under `C` that is ascii alone, so "müller" is the words "m" and "ller" and the same text as
+     * "möller" - where every store that compares in process reads one word, and the same search finds
+     * other rows depending on where it ran. Reported rather than raised, the way a column of another
+     * collation is: everything else works, and the fix is a database created with another character
+     * type.
+     * @param dataSource - The initialized typeorm data source to query through.
+     */
+    private async warnAboutAsciiOnlyWords(dataSource: TODataSource): Promise<void> {
+        if (this.trigramSupport.threshold == undefined) {
+            return;
+        }
+        const probe: WordCharacterProbeRow[] = await dataSource.query<WordCharacterProbeRow[]>(
+            'SELECT similarity($1, $1) AS similarity, datctype AS ctype FROM pg_database WHERE datname = current_database()',
+            ['ü']
+        );
+        const row: WordCharacterProbeRow | undefined = probe[0];
+        if (row == undefined || Number(row.similarity) === 1) {
+            return;
+        }
+        this.logger.warn(
+            `This database's character type is "${row.ctype}", which counts only ascii as a letter. A "fuzzyLike"`
+            + ' and an order by similarity read "müller" as the words "m" and "ller" here and as one word on'
+            + ' every other data source, so the two can find different rows. Create the database with a utf-8'
+            + ' character type, such as "en_US.utf8", to have them agree.'
+        );
+    }
+
+    /**
      * The columns this data source keeps a trigram index over, as the entities declare them.
      * @param cls - The entity the schema is being built for.
      * @returns The property names whose values a `fuzzyLike` can be answered for.
@@ -822,11 +1061,44 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
         const abandoned: string[] = existing.filter(name => !declared.has(name));
 
         await PromiseUtilities.allChunked(missing, async ([name, { table, column }]) => {
-            await dataSource.query(`CREATE INDEX IF NOT EXISTS "${name}" ON "${table}" USING GIN ("${column}" gin_trgm_ops)`);
+            await this.querySchemaStatement(`CREATE INDEX IF NOT EXISTS "${name}" ON "${table}" USING GIN ("${column}" gin_trgm_ops)`);
         });
         await PromiseUtilities.allChunked(abandoned, async name => {
-            await dataSource.query(`DROP INDEX IF EXISTS "${name}"`);
+            await this.querySchemaStatement(`DROP INDEX IF EXISTS "${name}"`);
         });
+    }
+
+    /**
+     * Runs one statement of the schema setup, with the time the setup has rather than the time an
+     * ordinary statement gets.
+     *
+     * A connection of its own when there is a limit, because the limit is set on the session and
+     * has to be put back before anybody else is handed the connection.
+     * @param sql - The statement.
+     */
+    private async querySchemaStatement(sql: string): Promise<void> {
+        if (!this.ds) {
+            throw new DataSourceInitializationError();
+        }
+        const limit: OperationLimit | undefined = AlsUtilities.findCurrentOperationLimit();
+        if (limit == undefined) {
+            await this.ds.query(sql);
+            return;
+        }
+        const runner: QueryRunner = this.createQueryRunner();
+        await runner.connect();
+        try {
+            const restore: () => Promise<void> = await this.limitStatementsOn(runner, limit.timeoutInMs, false);
+            try {
+                await runner.query(sql);
+            }
+            finally {
+                await restore();
+            }
+        }
+        finally {
+            await runner.release();
+        }
     }
 
     /**
@@ -891,32 +1163,50 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     protected async schemaLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
-        if (!this.ds) {
-            throw new DataSourceInitializationError();
-        }
-
-        // one connection for the whole thing: an advisory lock belongs to the session that took it,
-        // so unlocking from a different pooled connection would silently do nothing
-        const runner: QueryRunner = this.createQueryRunner();
-        await runner.connect();
+        // a connection of its own, outside the pool, and closed once the setup is done. Holding a
+        // pooled one for the whole setup left a pool of one with nothing for the migrations and
+        // synchronize to run on, and they waited for it forever. And what the lock sets on its
+        // session below would have gone back to the pool with it, for the next statement to run under
+        const lockOptions: PostgresConnectionOptions = {
+            ...this.fullOptions,
+            type: this.type,
+            entities: [],
+            synchronize: false,
+            poolSize: 1
+        };
+        const lockSource: TODataSource = new TODataSource(lockOptions);
+        await lockSource.initialize();
 
         try {
-            // fail rather than hang. Without this an instance stuck holding a lock blocks every
-            // other one forever, with nothing in the logs to say what they are waiting for.
-            await runner.query(`SET lock_timeout = ${inject(ZIBRI_DI_TOKENS.SCHEMA_LOCK_TIMEOUT_IN_MS)}`);
-            // postgres identifies advisory locks by number, so the key is hashed into one rather
-            // than every caller having to invent numbers that do not collide
-            await runner.query('SELECT pg_advisory_lock(hashtext($1))', [key]);
-
+            // one session for the whole thing: an advisory lock belongs to the session that took it,
+            // so unlocking from a different one would silently do nothing
+            const runner: QueryRunner = lockSource.createQueryRunner();
+            await runner.connect();
             try {
-                return await fn();
+                // fail rather than hang. Without this an instance stuck holding a lock blocks every
+                // other one forever, with nothing in the logs to say what they are waiting for.
+                await runner.query(`SET lock_timeout = ${inject(ZIBRI_DI_TOKENS.SCHEMA_LOCK_TIMEOUT_IN_MS)}`);
+                // the wait is the lock timeout's to bound: another instance migrating a large table
+                // holds the lock for as long as that takes, which is no statement's fault
+                await runner.query('SET statement_timeout = 0');
+                // postgres identifies advisory locks by number, so the key is hashed into one rather
+                // than every caller having to invent numbers that do not collide
+                await runner.query('SELECT pg_advisory_lock(hashtext($1))', [key]);
+
+                try {
+                    return await fn();
+                }
+                finally {
+                    await runner.query('SELECT pg_advisory_unlock(hashtext($1))', [key]);
+                }
             }
             finally {
-                await runner.query('SELECT pg_advisory_unlock(hashtext($1))', [key]);
+                await runner.release();
             }
         }
         finally {
-            await runner.release();
+            // closing the session also lets go of the lock, should the unlock above not have run
+            await lockSource.destroy();
         }
     }
 
@@ -973,20 +1263,87 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
         // a conflicting row this excludes is locked and left as it is, and the statement returns
         // nothing for it - which is how the caller learns the identity is held by a row they may not
         // change. Qualified with the table name, which refers to the row that is already there
-        const reachable: string[] = input.reachable == undefined
+        const filters: string[] = input.reachable == undefined ? [] : [`${table}.${id} IN (${input.reachable.sql})`];
+        // a row's own condition is chosen by the id it was proposed with, the way its changes are, so
+        // the batch stays one statement and binds only what the rows that have a condition bring
+        const conditioned: string[] = input.rows.flatMap(row => row.condition == undefined
             ? []
-            : [`WHERE ${table}.${id} IN (${input.reachable.sql})`];
+            : [`WHEN ${param(row.id)} THEN ${table}.${id} IN (${this.appendParams(row.condition, params)})`]);
+        if (conditioned.length) {
+            filters.push(`CASE EXCLUDED.${id} ${conditioned.join(' ')} ELSE TRUE END`);
+        }
+        const where: string[] = filters.length ? [`WHERE ${filters.join(' AND ')}`] : [];
 
         return {
             sql: [
                 `INSERT INTO ${table} (${columns}) VALUES ${values}`,
                 `ON CONFLICT ${conflict}`,
                 `DO UPDATE SET ${updates}`,
-                ...reachable,
+                ...where,
                 'RETURNING *'
             ].join(' '),
             params
         };
+    }
+
+    /**
+     * Adds the parameters of a statement built on its own to the ones of the statement it becomes part
+     * of.
+     * @param statement - The statement, with its placeholders numbered from the first.
+     * @param params - The parameters of the statement it becomes part of, added to in place.
+     * @returns The statement, with its placeholders numbered after the parameters that were there.
+     */
+    private appendParams(statement: UpsertReachable, params: unknown[]): string {
+        const offset: number = params.length;
+        params.push(...statement.params);
+        return statement.sql.replaceAll(/\$(\d+)/g, (_, index: string) => `$${Number(index) + offset}`);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    buildObjectMergeSql(
+        target: string,
+        value: object,
+        cls: Newable<unknown>,
+        parameters: Record<string, unknown>,
+        name: string
+    ): string {
+        // `||` writes the keys of the right over the left, one level deep. So the values written as
+        // given go in as one object, and an object inside is merged the same way into what the stored
+        // one holds under its key, which is what makes the merge as deep as the objects go
+        const properties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(cls);
+        const given: Record<string, unknown> = {};
+        const nested: string[] = [];
+        for (const [key, v] of Object.entries(value)) {
+            const metadata: PropertyMetadata | undefined = properties[key];
+            const merged: Newable<unknown> | undefined = metadata == undefined
+                ? undefined
+                : WriteDataUtilities.findMergedClass(v, metadata);
+            if (merged == undefined) {
+                given[key] = v;
+                continue;
+            }
+            const keyName: string = `${name}_${nested.length}`;
+            parameters[`${keyName}_key`] = key;
+            const stored: string = `${target} -> CAST(:${keyName}_key AS text)`;
+            // eslint-disable-next-line typescript/no-unsafe-argument
+            nested.push(`CAST(:${keyName}_key AS text), ${this.buildObjectMergeSql(stored, v, merged, parameters, keyName)}`);
+        }
+        parameters[name] = JsonUtilities.stringify(toJsonValue(given));
+
+        // a row holding no object, or null, has nothing to merge into, and is given the object as it is
+        const merged: string = `(CASE WHEN jsonb_typeof(${target}) = 'object' THEN ${target} ELSE CAST('{}' AS jsonb) END)`
+            + ` || CAST(:${name} AS jsonb)`;
+        return nested.length ? `(${merged} || jsonb_build_object(${nested.join(', ')}))` : `(${merged})`;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    protected violatedCheckName(error: TOQueryFailedError): string | undefined {
+        if (!('code' in error.driverError) || error.driverError.code !== CHECK_VIOLATION_SQL_STATE) {
+            return undefined;
+        }
+        return 'constraint' in error.driverError && typeof error.driverError.constraint === 'string'
+            ? error.driverError.constraint
+            : undefined;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -1064,14 +1421,71 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
 
         // the binaries are the dependency nobody remembers to put in the image, and the moment it is
         // discovered by accident is the moment a restore is needed. Boot is a cheaper place to find out
-        for (const command of [DUMP_COMMAND, RESTORE_COMMAND]) {
-            if (!await commandExists(command)) {
+        const versions: Partial<Record<string, number>> = {};
+        // the environment every other run of the tools gets, so that what is checked here is what they find
+        const env: NodeJS.ProcessEnv = this.clientEnvironment(undefined);
+        for (const command of [DUMP_COMMAND, ARCHIVE_COMMAND, RESTORE_COMMAND]) {
+            const version: number | undefined = await findToolMajorVersion(command, env);
+            if (version == undefined) {
                 throw new InternalError(
                     `Invalid data source marked with @Backup: "${command}" was not found on PATH.`
                     + ' Backups shell out to the postgres client tools, so they have to be installed in the runtime image.'
                 );
             }
+            versions[command] = version;
         }
+        // pg_dump refuses a server newer than itself, and pg_restore an archive of a pg_dump newer
+        // than itself - both only once a backup or a restore is attempted
+        const serverVersion: number = await this.resolveServerMajorVersion();
+        const dumpVersion: number | undefined = versions[DUMP_COMMAND];
+        const archiveVersion: number | undefined = versions[ARCHIVE_COMMAND];
+        if (dumpVersion != undefined && dumpVersion < serverVersion) {
+            throw new InternalError(
+                // eslint-disable-next-line stylistic/max-len
+                `Invalid data source marked with @Backup: "${DUMP_COMMAND}" is version ${dumpVersion} and the server version ${serverVersion}.`
+                // eslint-disable-next-line stylistic/max-len
+                + ` A dump needs client tools of the server's version or later, so install those of version ${serverVersion} in the runtime image.`
+            );
+        }
+        if (dumpVersion != undefined && archiveVersion != undefined && archiveVersion < dumpVersion) {
+            throw new InternalError(
+                // eslint-disable-next-line stylistic/max-len
+                `Invalid data source marked with @Backup: "${ARCHIVE_COMMAND}" is version ${archiveVersion} and "${DUMP_COMMAND}" version ${dumpVersion}.`
+                + ' A restore reads what a dump wrote, so install the client tools of one version in the runtime image.'
+            );
+        }
+    }
+
+    /**
+     * Resolves the major version of the server this data source is connected to.
+     * @returns The major version, eg. 17.
+     */
+    private async resolveServerMajorVersion(): Promise<number> {
+        if (!this.ds) {
+            throw new DataSourceInitializationError();
+        }
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        const [row]: { server_version_num: string }[] = await this.ds.query('SHOW server_version_num');
+        // eg. 170006 for 17.6
+        return Math.floor(Number(row?.server_version_num) / 10000);
+    }
+
+    /**
+     * Resolves the schema this data source works in, which is what a backup of it covers.
+     * @returns The name of the schema.
+     */
+    private async resolveSchemaName(): Promise<string> {
+        if (!this.ds) {
+            throw new DataSourceInitializationError();
+        }
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        const [row]: { schema: string | null }[] = await this.ds.query('SELECT current_schema() AS schema');
+        if (row?.schema == undefined) {
+            throw new InternalError(
+                'Could not back up or restore: the connection works in no schema, since none on its search_path exists'
+            );
+        }
+        return row.schema;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -1091,6 +1505,8 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
         if (!this.ds) {
             throw new DataSourceInitializationError();
         }
+        // before anything opens a transaction, the orm's own schema sync included
+        this.ds.subscribers.push(STATEMENT_TIMEOUT_SUBSCRIBER);
         await this.validateTextCollation(this.ds);
         // before the schema is set up rather than after, because the trigram indexes that go on it
         // need the operator class this installs, and the converter needs to know what the operator
@@ -1098,6 +1514,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
         await this.installTrigramExtension(this.ds);
         this.trigramSupport = await this.measureTrigramSupport(this.ds);
         this.warnAboutAnotherSimilarityThreshold();
+        await this.warnAboutAsciiOnlyWords(this.ds);
         this.whereFilterConverter = new PostgresTypeOrmWhereFilterConverter(this.ds, this.logger, this.trigramSupport);
     }
 
@@ -1204,10 +1621,15 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
     }
 
     /**
-     * Dumps this data source's schema, and nothing else on the server.
+     * Dumps the schema this data source works in, and nothing else on the server.
      *
-     * `pg_dump` of the one database this data source addresses, rather than `pg_dumpall` of the
+     * `pg_dump` of the one schema this data source works in, rather than `pg_dumpall` of the
      * cluster it happens to live in. What that leaves out is the point.
+     *
+     * Other schemas of the same database: another application's tables, which a restore would
+     * otherwise roll back to the moment this one was backed up. Extensions are left out with them,
+     * since they belong to the database rather than to the schema, and the data source installs the
+     * ones it needs when it starts.
      *
      * Roles: a cluster dump opens with `CREATE ROLE` and `ALTER ROLE ... PASSWORD '<verifier>'` for
      * every login role on the server. A backup artifact is copied, shipped off-host and kept for
@@ -1225,17 +1647,24 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
      * statement in the dump harmless, since `CREATE EXTENSION IF NOT EXISTS` on one that is already
      * installed is a no-op that asks for no privilege.
      *
-     * `--no-owner`, `--no-acl` and `--no-comments` make the result restorable by whoever restores it,
-     * rather than only by a cluster that still has the original roles in it. The trade is real and
-     * worth stating: the backup carries schema and data, not the grants and comments around them.
+     * Who owns each of the schema's objects, and the grants and comments on them, are part of it, so a
+     * restore puts back who owns and who may read what - whichever role runs it.
+     *
+     * Written as an archive rather than as statements, so that a restore can leave out what the
+     * schema itself carries - its `CREATE SCHEMA`, its comment and its grants - which belong to
+     * whoever owns the schema rather than to this application.
      * @returns A stream of the dump, which fails rather than truncating if the dump does.
      */
     async createBackupData(): Promise<Readable> {
+        const schema: string = await this.resolveSchemaName();
         const args: string[] = [
             ...this.clientConnectionArgs(),
-            '--no-owner',
-            '--no-acl',
-            '--no-comments'
+            '--format',
+            'custom',
+            // a pattern, where double quotes take the name as it is written: neither folded to lower
+            // case nor read for wildcards
+            '--schema',
+            `"${schema.replaceAll('"', '""')}"`
         ];
 
         const child: ChildProcessByStdio<null, Readable, null> = spawn(DUMP_COMMAND, args, {
@@ -1269,67 +1698,85 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
      * serve traffic against a database it believes it just repaired. With them the restore either
      * lands whole or is rolled back and raised.
      *
-     * The dump carries no `DROP`, so the restore clears the tables it is about to recreate itself -
-     * see {@link CLEAR_TABLES_SQL} for why that is not left to `pg_dump --clean`.
+     * The dump carries no `DROP`, so the restore clears the schema it is about to recreate itself -
+     * see {@link clearSchemaSql} for why that is not left to `pg_dump --clean`.
      *
      * A restore replaces the objects it dumps, so the role running it has to own them. That is
      * ordinary ddl rights on this application's own tables, which is what created them - not
-     * superuser, and not ownership of the schema or of any extension in it.
+     * superuser, and not ownership of the schema or of any extension in it. Every object goes back to
+     * the role that owned it when the backup was taken, so a separate backup role has to be a member
+     * of each of those roles.
+     *
+     * An owner or a grant in the dump naming a role this server does not have fails the restore,
+     * which then changes nothing: such a role has to be created before the restore.
      * @param backupData - The dump to apply.
      */
     async restoreBackup(backupData: Readable): Promise<void> {
-        const args: string[] = [
-            ...this.clientConnectionArgs(),
-            '--quiet',
-            // psql's own name for "stop at the first error"; --single-transaction then rolls the
-            // partial work back rather than leaving half a schema behind
-            '--set',
-            'ON_ERROR_STOP=1',
-            '--single-transaction'
-        ];
+        const schema: string = await this.resolveSchemaName();
+        const env: NodeJS.ProcessEnv = this.clientEnvironment(await this.backupPassword());
 
-        const child: ChildProcessByStdio<Writable, null, null> = spawn(RESTORE_COMMAND, args, {
-            stdio: ['pipe', 'inherit', 'inherit'],
-            env: this.clientEnvironment(await this.backupPassword())
-        });
+        // the objects in the schema and nothing else of the archive: what is left out is the schema's
+        // own entries, whose owner is not this application. With their owners, because the role
+        // running the restore is not necessarily the one that owned them - restored as a separate
+        // backup role, every table would be that role's, and the application could no longer alter it
+        const reader: ChildProcessByStdio<Writable, Readable, null> = spawn(
+            ARCHIVE_COMMAND,
+            ['--schema', schema, '--file', '-'],
+            { stdio: ['pipe', 'pipe', 'inherit'], env }
+        );
+        const applier: ChildProcessByStdio<Writable, null, null> = spawn(
+            RESTORE_COMMAND,
+            [
+                ...this.clientConnectionArgs(),
+                '--quiet',
+                // psql's own name for "stop at the first error"; --single-transaction then rolls the
+                // partial work back rather than leaving half a schema behind
+                '--set',
+                'ON_ERROR_STOP=1',
+                '--single-transaction'
+            ],
+            { stdio: ['pipe', 'inherit', 'inherit'], env }
+        );
 
-        const input: Readable = Readable.from(withClearedTables(backupData));
+        const read: Promise<void> = exitOf(reader, ARCHIVE_COMMAND);
+        // awaited inside the script, which a psql that stopped early no longer reads to the end of
+        // eslint-disable-next-line promise/prefer-await-to-then
+        read.catch(() => undefined);
+        const script: Readable = Readable.from(restoreScript(clearSchemaSql(schema), reader.stdout, read));
 
         await new Promise<void>((resolve, reject) => {
             let settled: boolean = false;
-            const settle: (error?: Error) => void = error => {
+            const fail: (error: Error) => void = error => {
                 if (settled) {
                     return;
                 }
                 settled = true;
-                if (error) {
-                    reject(error);
-                    return;
-                }
-                resolve();
+                // psql commits what it was given once its input ends, so one that has not been given
+                // all of it is stopped rather than left to reach an end
+                reader.kill();
+                applier.kill();
+                reject(error);
             };
 
-            let stdinFailed: boolean = false;
-            child.stdin.on('error', () => {
-                // psql aborting on the first bad statement closes stdin while the dump is still being
-                // written, which is an EPIPE on a stream nobody listens to for 'error' - an unhandled
-                // stream error, so a dead process rather than a failed restore
-                stdinFailed = true;
-                input.destroy();
-                backupData.destroy();
-            });
-            input.on('error', error => {
-                // the premature close that our own destroy above provokes says nothing; psql's exit
-                // code says why it stopped, so that is the one to wait for
-                if (!stdinFailed) {
-                    settle(error);
-                }
-            });
-            input.pipe(child.stdin);
+            // either child stopping on the first bad statement or byte closes its stdin while it is
+            // still being written, which is an EPIPE on a stream nobody listens to for 'error' - an
+            // unhandled stream error, so a dead process rather than a failed restore. Each one's exit
+            // code says why it stopped, so that is the one to wait for
+            reader.stdin.on('error', () => backupData.destroy());
+            applier.stdin.on('error', () => script.destroy());
+            backupData.on('error', fail);
+            script.on('error', fail);
+            backupData.pipe(reader.stdin);
+            script.pipe(applier.stdin);
 
-            child.on('error', settle);
-            child.on('close', code => {
-                settle(code === 0 ? undefined : new InternalError(`${RESTORE_COMMAND} exited with code ${code}`));
+            applier.on('error', fail);
+            applier.on('close', code => {
+                if (code !== 0) {
+                    fail(new InternalError(`${RESTORE_COMMAND} exited with code ${code}`));
+                    return;
+                }
+                settled = true;
+                resolve();
             });
         });
     }
@@ -1442,9 +1889,9 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
 
     protected override numberColumnType(format: NumberFormat): ColumnType {
         switch (format) {
-            case 'integer': {
-                return 'integer';
-            }
+            // the format takes every whole number a double holds exactly, which is past what a
+            // postgres `integer` does: a time in milliseconds needs 41 bits
+            case 'integer':
             case 'bigint': {
                 return 'bigint';
             }
@@ -1572,7 +2019,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
         );
         if (sequence?.name != undefined) {
             await queryRunner.query(
-                // eslint-disable-next-line cspell/spellchecker
+
                 `SELECT setval($1, (SELECT max(${primary}) FROM ${table}))`,
                 [sequence.name]
             );
@@ -1601,6 +2048,11 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
         // instances still serving the previous version are writing the whole time
         const runner: QueryRunner = this.createQueryRunner();
         await runner.connect();
+        // building an index over a large table is the slow work the schema setup's limit is for
+        const limit: OperationLimit | undefined = AlsUtilities.findCurrentOperationLimit();
+        const restore: (() => Promise<void>) | undefined = limit == undefined
+            ? undefined
+            : await this.limitStatementsOn(runner, limit.timeoutInMs, false);
         try {
             let changed: boolean = false;
             for (const entity of this.entities) {
@@ -1609,6 +2061,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
             return changed;
         }
         finally {
+            await restore?.();
             await runner.release();
         }
     }
@@ -1648,6 +2101,67 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
             await (key.constraint
                 ? this.inShortLock(runner, `ALTER TABLE ${table} DROP CONSTRAINT ${escapeIdentifier(key.name)}`)
                 : runner.query(`DROP INDEX CONCURRENTLY IF EXISTS ${escapeIdentifier(key.name)}`));
+        }
+        const checksChanged: boolean = await this.reconcileChecksOf(runner, entity, metadata.tableName);
+        return missing.length > 0 || abandoned.length > 0 || checksChanged;
+    }
+
+    /**
+     * Makes the check constraints of one entity's table match the checks it declares.
+     *
+     * A check is added without looking at the stored rows, which takes the table only for a moment
+     * and holds every write from then on to it, and then validated over the rows stored before, which
+     * writes go on beside.
+     * @param runner - The connection to build them on.
+     * @param entity - The entity.
+     * @param tableName - Its table.
+     * @returns Whether a check was added or dropped.
+     * @throws When a stored row breaks a check, naming the row. The check is not kept.
+     */
+    private async reconcileChecksOf(runner: QueryRunner, entity: Newable<BaseEntity>, tableName: string): Promise<boolean> {
+        const table: string = escapeIdentifier(tableName);
+        const declared: Map<string, string> = new Map((MetadataUtilities.getEntityMetadata(entity)?.checks ?? []).map(check => {
+            const predicate: string = keyWhereToSql(entity, check);
+            return [toStoredIdentifier(checkConstraintName(tableName, predicate)), predicate];
+        }));
+        const stored: StoredCheckRow[] = await runner.connection.query<StoredCheckRow[]>(STORED_CHECKS_SQL, [tableName], runner);
+        const owned: StoredCheckRow[] = stored.filter(c => c.name.startsWith(toStoredIdentifier(`chk_${tableName}_`)));
+        const kept: Map<string, StoredCheckRow> = new Map(owned.map(c => [c.name, c]));
+
+        const missing: [string, string][] = [...declared].filter(([name]) => !kept.has(name));
+        for (const [name, predicate] of missing) {
+            await this.inShortLock(
+                runner,
+                `ALTER TABLE ${table} ADD CONSTRAINT ${escapeIdentifier(name)} CHECK ((${predicate}) IS TRUE) NOT VALID`
+            );
+        }
+        // with the ones a boot that stopped in between left added and not validated
+        for (const [name, predicate] of [...declared].filter(([n]) => kept.get(n)?.valid !== true)) {
+            try {
+                await runner.query(`ALTER TABLE ${table} VALIDATE CONSTRAINT ${escapeIdentifier(name)}`);
+            }
+            catch (error) {
+                await this.inShortLock(runner, `ALTER TABLE ${table} DROP CONSTRAINT ${escapeIdentifier(name)}`);
+                const broken: BrokenCheckRow[] = await runner.connection.query<BrokenCheckRow[]>(
+                    `SELECT "id"::text AS "id" FROM ${table} WHERE NOT ((${predicate}) IS TRUE) LIMIT 1`,
+                    [],
+                    runner
+                );
+                const check: KeyWhere | undefined = MetadataUtilities.getEntityMetadata(entity)?.checks
+                    ?.find(c => keyWhereToSql(entity, c) === predicate);
+                const constraint: string = check == undefined
+                    ? predicate
+                    : CheckConstraintViolationError.resolveProperties(check).join(', ');
+                throw new InternalError([
+                    `Cannot hold ${entity.name} to the check on ${constraint}:`,
+                    `the stored row ${broken[0]?.id ?? 'written meanwhile'} breaks it.`,
+                    'Change the rows breaking it in a migration.'
+                ], { cause: error });
+            }
+        }
+        const abandoned: StoredCheckRow[] = owned.filter(c => !declared.has(c.name));
+        for (const check of abandoned) {
+            await this.inShortLock(runner, `ALTER TABLE ${table} DROP CONSTRAINT ${escapeIdentifier(check.name)}`);
         }
         return missing.length > 0 || abandoned.length > 0;
     }

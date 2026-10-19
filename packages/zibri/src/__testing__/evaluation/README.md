@@ -363,6 +363,11 @@ never mistaken for an unaudited one:
   [01 §M21](../../../../evaluation/01-data-layer.md) fixed in the same pass. A green here therefore
   depends on two findings, not one.
 
+- `partial-nested-update.evaluation.test.ts` — [01 §M61](../../../../evaluation/01-data-layer.md),
+  an update replacing a stored object with the part of it it named. Green since the object is merged
+  in. In memory only; what each store does with the merge is `partial-nested-update.cases.ts` in
+  `src/data-source/tests`, run on postgres and valkey as well.
+
 ## Files
 
 | File | Evaluation doc | Needs containers |
@@ -393,6 +398,8 @@ never mistaken for an unaudited one:
 | `static-assets.evaluation.test.ts` | [04 §3.12](../../../../evaluation/04-infrastructure-subsystems.md) | no |
 | `mail-queue.evaluation.test.ts` | [04 §3.5](../../../../evaluation/04-infrastructure-subsystems.md) | no |
 | `invoicing.evaluation.test.ts` | [04 §1.11](../../../../evaluation/04-infrastructure-subsystems.md) | yes |
+| `partial-nested-update.evaluation.test.ts` | [01 §M61](../../../../evaluation/01-data-layer.md) | no |
+| `connection-wait.evaluation.test.ts` | [01 §M63](../../../../evaluation/01-data-layer.md) | yes |
 
 `bootstrap.evaluation.test.ts` exists because an application holds the process while it is running:
 a second one built before the first has shut down is refused

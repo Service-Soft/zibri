@@ -450,9 +450,14 @@ describe('AuthController / CookieAuthStrategy — real HTTP flow', () => {
             // the retired one would be refused by the very next unsafe request
             // eslint-disable-next-line typescript/no-unsafe-member-access
             expect(answer.csrfToken).not.toBe(body.csrfToken);
-            const [renewed] = await refreshSessionRepo.findAll({ where: { blacklisted: false } });
-            // eslint-disable-next-line typescript/no-unsafe-member-access
-            expect(answer.csrfToken).toBe(renewed?.csrfToken);
+            // and is the token of the renewed session, which an unsafe request with its cookies passes on
+            const refreshRes: Response = await fetch(`${baseUrl}/auth/refresh-login`, {
+                method: 'POST',
+                // eslint-disable-next-line typescript/no-unsafe-member-access
+                headers: { Cookie: extractCookieHeader(res), 'Content-Type': 'application/json', 'x-csrf-token': answer.csrfToken as string },
+                body: '{}'
+            });
+            expect(refreshRes.status).toBe(200);
         });
 
         it('refuses a request without a session', async () => {
@@ -461,20 +466,34 @@ describe('AuthController / CookieAuthStrategy — real HTTP flow', () => {
         });
     });
 
+    describe('what the tables hold', () => {
+        it('holds nothing a request could present as a session or a csrf token', async () => {
+            // eslint-disable-next-line typescript/no-unsafe-assignment
+            const { res, body } = await login();
+            // a signed cookie is `s:<value>.<signature>`, url encoded
+            const presented: string[] = res.headers.getSetCookie()
+                .map(line => decodeURIComponent(line.split(';')[0]?.split('=')[1] ?? ''))
+                .map(value => value.slice(2, value.lastIndexOf('.')));
+            expect(presented).toHaveLength(2);
+
+            const stored: string = JsonUtilities.stringify([...await sessionRepo.findAll({}), ...await refreshSessionRepo.findAll({})]);
+            // eslint-disable-next-line typescript/no-unsafe-member-access
+            for (const value of [...presented, body.csrfToken as string]) {
+                expect(stored).not.toContain(value);
+            }
+        });
+    });
+
     describe('logout', () => {
         it('deletes the session so a subsequent request with the same cookie is rejected', async () => {
             // eslint-disable-next-line typescript/no-unsafe-assignment
             const { cookieHeader, body } = await login();
-            const refreshSession: CookieAuthRefreshSession | undefined = await refreshSessionRepo.findOne(
-                // eslint-disable-next-line typescript/no-unsafe-member-access
-                { where: { userId: body.userId as string }, required: false }
-            );
-            assert(refreshSession);
 
+            // the cookies say which login ends, since a browser cannot read them to put them in a body
             const res: Response = await fetch(`${baseUrl}/auth/logout`, {
                 method: 'POST',
                 headers: { Cookie: cookieHeader, 'Content-Type': 'application/json' },
-                body: JsonUtilities.stringify({ clearCookies: true, refreshSessionId: refreshSession.id })
+                body: JsonUtilities.stringify({ clearCookies: true })
             });
             expect(res.status).toBe(200);
             // a password login was started at no provider to log out at as well
@@ -487,6 +506,23 @@ describe('AuthController / CookieAuthStrategy — real HTTP flow', () => {
             expect(await sessionRepo.findAll({ where: { userId: body.userId as string } })).toHaveLength(0);
             // eslint-disable-next-line typescript/no-unsafe-member-access
             expect(await refreshSessionRepo.findAll({ where: { userId: body.userId as string } })).toHaveLength(0);
+        });
+
+        it('ends only the login whose cookies it carries, whichever refresh session the body names', async () => {
+            const own: LoginResult = await login();
+            const ownIds: string[] = (await refreshSessionRepo.findAll({})).map(refreshSession => refreshSession.id);
+            const other: LoginResult = await login();
+            const [otherRefreshSession] = await refreshSessionRepo.findAll({ where: { id: { notOneOf: ownIds } } });
+            assert(otherRefreshSession);
+
+            await fetch(`${baseUrl}/auth/logout`, {
+                method: 'POST',
+                headers: { Cookie: own.cookieHeader, 'Content-Type': 'application/json' },
+                body: JsonUtilities.stringify({ clearCookies: true, refreshSessionId: otherRefreshSession.id })
+            });
+
+            const otherMe: Response = await fetch(`${baseUrl}/cookie-test/me`, { headers: { Cookie: other.cookieHeader } });
+            expect(otherMe.status).toBe(200);
         });
     });
 

@@ -4,7 +4,10 @@ import { MetadataUtilities } from './metadata.utilities';
 import { DataSource } from '../data-source/decorators/data-source.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { Property, PropertyMetadata } from '../entity/decorators/property.decorator';
+import { PartialClass } from '../entity/partial-class.model';
+import { MimeType } from '../http/mime-type.enum';
 import { BodyMetadata } from '../routing/decorators/body-metadata.model';
+import { Newable } from '../types/newable.type';
 
 /**
  * A project's own decorator, built on one of the framework's.
@@ -155,6 +158,40 @@ describe('MetadataUtilities — WeakMap based inheritance (getModelProperties/se
 
         expect(MetadataUtilities.getModelProperties(ParentModel)).toEqual(properties);
         expect(MetadataUtilities.getModelProperties(ParentModel)['extra']).toBeUndefined();
+    });
+
+    it('refuses a change to a declaration and to its nested parts, which the models derived from it share', () => {
+        class Upload {
+            @Property.file({ allowedMimeTypes: [MimeType.PNG] })
+            file!: unknown;
+
+            @Property.array({ items: { type: 'string' } })
+            tags!: string[];
+        }
+        const PartialUpload: Newable<Partial<Upload>> = PartialClass(Upload);
+        const { file, tags } = MetadataUtilities.getModelProperties(Upload);
+        if (file?.type !== 'file' || file.allowedMimeTypes === 'all' || tags?.type !== 'array') {
+            throw new Error('The properties are not declared as written above.');
+        }
+
+        expect(Reflect.set(file, 'required', false)).toBe(false);
+        expect(Reflect.set(file.allowedMimeTypes, 0, MimeType.HTML)).toBe(false);
+        expect(Reflect.set(tags.items, 'type', 'number')).toBe(false);
+        expect(MetadataUtilities.getModelProperties(PartialUpload)['file']).toMatchObject({ allowedMimeTypes: [MimeType.PNG] });
+    });
+
+    it('lets a derived model declare a property again in place of the one it inherited', () => {
+        class Upload {
+            @Property.array({ items: { type: 'string' } })
+            tags!: string[];
+        }
+        class OptionalUpload extends Upload {
+            @Property.array({ items: { type: 'string' }, required: false })
+            override tags: string[] = [];
+        }
+
+        expect(MetadataUtilities.getModelProperties(OptionalUpload)['tags']?.required).toBe(false);
+        expect(MetadataUtilities.getModelProperties(Upload)['tags']?.required).toBe(true);
     });
 
     it('returns an empty object when nothing has been set anywhere in the chain', () => {

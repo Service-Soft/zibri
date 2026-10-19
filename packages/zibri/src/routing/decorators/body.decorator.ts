@@ -1,4 +1,4 @@
-import { BodyMetadata, BodyMetadataInput, BodyShapeMetadata, OneOfBodyMetadataInput, ShapedBodyMetadata, StreamBodyMetadataInput } from './body-metadata.model';
+import { BodyMetadata, BodyMetadataInput, BodyShapeMetadata, OneOfBodyMetadataInput, RawXmlBodyMetadataInput, ShapedBodyMetadata, StreamBodyMetadataInput } from './body-metadata.model';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { fileSizeToBytes } from '../../entity/models/file-property-metadata.model';
 import { Relation } from '../../entity/models/relation.enum';
@@ -12,6 +12,12 @@ import { ObjectUtilities } from '../../utilities/object.utilities';
 import { resolveBodyMetadata } from '../resolve-body-metadata.function';
 
 /**
+ * Defines an xml http request body handed over as the document that arrived, a string, such as one
+ * whose signature has to be checked.
+ * @param options - `type: MimeType.XML` and `raw: true`, and additional options like the size.
+ */
+export function Body(options: RawXmlBodyMetadataInput): ParameterDecorator;
+/**
  * Defines a http request body property with the given data.
  * @param modelClass - The model class that defines the body properties structure, or a function answering
  * it for a class that is only known once the application has started.
@@ -19,10 +25,17 @@ import { resolveBodyMetadata } from '../resolve-body-metadata.function';
  */
 export function Body(
     modelClass: Newable<unknown> | (() => Newable<unknown>),
+    options?: ExcludeStrict<BodyMetadataInput, StreamBodyMetadataInput>
+): ParameterDecorator;
+export function Body(
+    modelClassOrOptions: Newable<unknown> | (() => Newable<unknown>) | RawXmlBodyMetadataInput,
     options: ExcludeStrict<BodyMetadataInput, StreamBodyMetadataInput> = {}
 ): ParameterDecorator {
     return (target, propertyKey, index) => {
-        setRouteBody(target, propertyKey, resolveBodyMetadata({ ...options, modelClass }, index));
+        const metadata: BodyMetadata = typeof modelClassOrOptions === 'function'
+            ? resolveBodyMetadata({ ...options, modelClass: modelClassOrOptions }, index)
+            : resolveBodyMetadata(modelClassOrOptions, index);
+        setRouteBody(target, propertyKey, metadata);
     };
 }
 

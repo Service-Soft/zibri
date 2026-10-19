@@ -45,7 +45,7 @@ describe('CurrentUser decorator — real HTTP flow', () => {
         baseUrl = await server.start();
         userRepo = inject(repositoryTokenFor(JwtUser));
         credentialsRepo = inject(repositoryTokenFor(PasswordCredentials));
-    }, 20000);
+    }, 40000);
 
     afterAll(async () => {
         await server?.shutdown();

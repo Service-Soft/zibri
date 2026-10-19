@@ -2,6 +2,7 @@ import { describe, expect, it } from '@jest/globals';
 
 import { Entity, EntityMetadata } from './entity.decorator';
 import { Property } from './property.decorator';
+import { whereFor } from '../../data-source/models/where/where-for.function';
 import { KeyGroups, keyGroupsOf } from '../../global/model-registry/key-descriptor';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { BaseEntity } from '../base-entity.model';
@@ -223,6 +224,67 @@ describe('declaring the tenant of an entity', () => {
             // already per tenant as it was written, so it is left as it is
             ['tenantId', 'code']
         ]);
-        expect(groups.indexes).toEqual([['tenantId', 'variant'], ['tenantId']]);
+        // no index on the tenant alone: every group is led by it, and an index answers a lookup by any
+        // leading part of itself
+        expect(groups.indexes).toEqual([['tenantId', 'variant']]);
+    });
+
+    it('indexes the tenant alone when nothing else is led by it', () => {
+        // eslint-disable-next-line unicorn/no-null
+        @Entity({ allowOrphan: true, allowDuplicate: true, uniques: [{ properties: ['code'], where: whereFor<Bare>({ code: { not: null } }) }] })
+        class Bare extends BaseEntity {
+            @Property.string({ format: 'uuid' })
+            tenantId!: string;
+
+            @Property.string({ required: false })
+            code?: string | null;
+        }
+
+        // the only unique covers some rows, so a lookup by tenant alone cannot use its index
+        expect(keyGroupsOf(Bare).indexes).toEqual([['tenantId']]);
+    });
+});
+
+describe('declaring the checks of an entity', () => {
+    it('keeps a check every store can judge alike', () => {
+        @Entity({
+            tenant: 'shared',
+            allowOrphan: true,
+            allowDuplicate: true,
+            // eslint-disable-next-line unicorn/no-null
+            checks: [whereFor<Ticket>([{ state: { oneOf: ['open', null] } }, { points: { lesserThan: 10 }, state: { not: 'closed' } }])]
+        })
+        class Ticket extends BaseEntity {
+            @Property.string({ required: false })
+            state?: string | null;
+
+            @Property.number()
+            points!: number;
+        }
+
+        expect(MetadataUtilities.getEntityMetadata(Ticket)?.checks).toHaveLength(1);
+    });
+
+    it('refuses a check that matches text by a pattern', () => {
+        expect(() => {
+            @Entity({ tenant: 'shared', allowOrphan: true, allowDuplicate: true, checks: [whereFor<Ticket>({ state: { like: 'op%' } })] })
+            class Ticket extends BaseEntity {
+                @Property.string()
+                state!: string;
+            }
+            return Ticket;
+        }).toThrow(/Ticket\.state: The filter of a unique or check declaration can only compare a property/);
+    });
+
+    it('refuses a check that compares a date', () => {
+        // a check compares against literals written into the schema, and a date is not one of them
+        expect(() => {
+            @Entity({ tenant: 'shared', allowOrphan: true, allowDuplicate: true, checks: [whereFor<Ticket>({ dueAt: { after: new Date(0) } })] })
+            class Ticket extends BaseEntity {
+                @Property.date()
+                dueAt!: Date;
+            }
+            return Ticket;
+        }).toThrow(/Ticket\.dueAt: The filter of a unique or check declaration can only compare a property/);
     });
 });

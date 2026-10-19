@@ -32,15 +32,7 @@ export async function decryptEncryptionProperties<Data, EntityClass>(
     const descriptor: EncryptionDescriptor<EntityClass> = ModelRegistry.get(entityClass).encryptionDescriptor;
     // taken from the row rather than from a nested value, so an embedded object's properties are
     // checked against the row that holds them - the same one they were bound to on the way in
-    const rowId: unknown = (data as AnyObject)['id'];
-    await decryptEncryptionPropertiesRecursive(
-        context,
-        data,
-        descriptor,
-        encryptionService,
-        typeof rowId === 'string' ? rowId : undefined,
-        new Set()
-    );
+    await decryptEncryptionPropertiesRecursive(context, data, descriptor, encryptionService, getRowId(data), new Set());
 }
 
 // eslint-disable-next-line jsdoc/require-jsdoc
@@ -83,8 +75,16 @@ async function decryptEncryptionPropertiesRecursive<Data, EntityClass>(
     }
 
     for (const nested of descriptor.nestedValues(data)) {
-        await decryptEncryptionPropertiesRecursive(context, nested.data, nested.descriptor, encryptionService, rowId, visited);
+        // a row read along with this one was bound to its own id when its own repository wrote it
+        const nestedRowId: string | undefined = nested.related ? getRowId(nested.data) : rowId;
+        await decryptEncryptionPropertiesRecursive(context, nested.data, nested.descriptor, encryptionService, nestedRowId, visited);
     }
+}
+
+// eslint-disable-next-line jsdoc/require-jsdoc
+function getRowId(data: unknown): string | undefined {
+    const id: unknown = (data as AnyObject)['id'];
+    return typeof id === 'string' ? id : undefined;
 }
 
 // eslint-disable-next-line jsdoc/require-jsdoc

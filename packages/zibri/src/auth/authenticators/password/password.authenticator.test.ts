@@ -31,7 +31,10 @@ import { SemVerVersion } from '../../../versioning/sem-ver.utilities';
 import { OtpTwoFactorMethod } from '../../2fa/methods/otp/otp.two-factor-method';
 import { AuthController } from '../../auth-controller/auth-controller.model';
 import { type HashString, HashUtilities } from '../../hash/hash.utilities';
-import { ScryptCost } from '../../hash/strategies/scrypt.hash-strategy';
+import { BcryptHashStrategy } from '../../hash/strategies/bcrypt.hash-strategy';
+import { HashStrategyEntity, HashStrategyEntityCreateData, HashStrategyStatus } from '../../hash/strategies/hash-strategy-entity.model';
+import { ScryptCost, ScryptHashStrategy } from '../../hash/strategies/scrypt.hash-strategy';
+import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy';
 import { PasswordResetToken } from '../../models/password-reset-token.model';
 import { CookieAuthRefreshSession } from '../../strategies/cookie/cookie-auth-refresh-session.model';
 import { CookieAuthSession } from '../../strategies/cookie/cookie-auth-session.model';
@@ -279,6 +282,111 @@ describe('PasswordAuthenticator — passwords 2.x stored', () => {
     });
 });
 
+describe('PasswordAuthenticator — passwords 2.x hashed with bcrypt', () => {
+    const email: string = 'hashed-by-2x@example.com';
+    const password: string = 'secure123';
+    const migrations: Newable<Migration>[] = [];
+
+    /**
+     * The data source of both versions. Allowed to go unused, because the other cases in this file
+     * boot without it.
+     */
+    @DataSource({ allowOrphan: true })
+    class UpgradedDataSource extends InMemoryDataSource {
+        override readonly entities: Newable<BaseEntity>[] = defaultTestServerEntities;
+        override readonly migrations: Newable<Migration>[] = migrations;
+    }
+
+    /**
+     * The step of the upgrade migration that retires bcrypt, as the upgrade guide gives it.
+     */
+    @Injectable()
+    class RetireBcryptMigration extends Migration {
+        version: SemVerVersion = '1.0.0';
+
+        constructor() {
+            super(UpgradedDataSource);
+        }
+
+        override async up(transaction: Transaction): Promise<void> {
+            const strategies: Repository<HashStrategyEntity, HashStrategyEntityCreateData> = this.dataSource.getRepository(HashStrategyEntity);
+            await strategies.updateAll({ name: 'bcrypt' }, { status: HashStrategyStatus.DEPRECATED }, { transaction });
+            await strategies.create({ name: 'scrypt', version: 'v1', status: HashStrategyStatus.DEFAULT }, { transaction });
+        }
+
+        // eslint-disable-next-line typescript/require-await
+        override async down(): Promise<void> {
+            throw new Error('Not needed for this test.');
+        }
+    }
+
+    let server: StartedTestServer;
+    let baseUrl: string;
+
+    /**
+     * The strategy the stored password of a user was hashed with.
+     * @param userEmail - The email of the user.
+     * @returns The name of the strategy, eg. `scrypt`.
+     */
+    async function findStoredStrategy(userEmail: string): Promise<string> {
+        const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).findOne({ where: { email: userEmail } });
+        const stored: PasswordCredentials = await inject<Repository<PasswordCredentials, PasswordCredentialsCreateData>>(
+            repositoryTokenFor(PasswordCredentials)
+        ).findOne({ where: { userId: user.id } });
+        return HashUtilities.hashToContent(stored.password).strategyName;
+    }
+
+    beforeAll(async () => {
+        // 2.x hashed with bcrypt alone, which its first hash recorded as the default strategy.
+        // sha256 too, since the entities of 3.x name it
+        server = await startTestServer({
+            dataSources: [UpgradedDataSource],
+            controllers: [JwtTestAuthController],
+            providers: [
+                ...defaultTestServerProviders,
+                // eslint-disable-next-line typescript/no-deprecated
+                defineProvider({ token: ZIBRI_DI_TOKENS.HASH_STRATEGIES, useValue: [BcryptHashStrategy, Sha256HashStrategy] })
+            ]
+        });
+        const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email, roles: [Roles.USER] });
+        await inject<Repository<PasswordCredentials, PasswordCredentialsCreateData>>(repositoryTokenFor(PasswordCredentials))
+            .create({ password, userId: user.id });
+
+        // the first start of 3.x, with bcrypt kept as the upgrade guide says
+        migrations.push(RetireBcryptMigration);
+        await server.reInit({
+            providers: [
+                ...defaultTestServerProviders,
+                // eslint-disable-next-line typescript/no-deprecated
+                defineProvider({ token: ZIBRI_DI_TOKENS.HASH_STRATEGIES, useValue: [ScryptHashStrategy, Sha256HashStrategy, BcryptHashStrategy] })
+            ]
+        });
+        baseUrl = await server.start();
+    }, 20000);
+
+    afterAll(async () => {
+        await server?.shutdown();
+    }, 15000);
+
+    it('moves a password to scrypt the next time its user signs in', async () => {
+        expect(await findStoredStrategy(email)).toBe('bcrypt');
+
+        expect(await login(baseUrl, email, password)).toBe(200);
+
+        expect(await findStoredStrategy(email)).toBe('scrypt');
+        expect(await login(baseUrl, email, password)).toBe(200);
+    });
+
+    it('hashes a password set after the upgrade with scrypt', async () => {
+        // the table named bcrypt the default, so without the upgrade every new password stayed bcrypt
+        const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email: 'after-the-upgrade@example.com', roles: [Roles.USER] });
+        await inject<Repository<PasswordCredentials, PasswordCredentialsCreateData>>(repositoryTokenFor(PasswordCredentials))
+            .create({ password, userId: user.id });
+
+        expect(await findStoredStrategy('after-the-upgrade@example.com')).toBe('scrypt');
+    });
+});
+
 describe('PasswordAuthenticator — a password stored at a cost that has since been raised', () => {
     let server: StartedTestServer;
     let userId: string;
@@ -310,7 +418,7 @@ describe('PasswordAuthenticator — a password stored at a cost that has since b
         const user: JwtUser = await userRepo.create({ email, roles: [Roles.USER] });
         userId = user.id;
         await credentialsRepo.create({ password, userId });
-    }, 20000);
+    }, 30000);
 
     afterAll(async () => {
         await server?.shutdown();

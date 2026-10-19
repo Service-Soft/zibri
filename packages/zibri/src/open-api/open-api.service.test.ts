@@ -309,6 +309,15 @@ class ItemController {
         return order;
     }
 
+    @Response.empty()
+    @Post('/signed-orders')
+    createSignedOrder(
+        @Body({ type: MimeType.XML, raw: true })
+        document: string
+    ): void {
+        void document;
+    }
+
     @Response.object(XmlEnvelope, { status: HttpStatus.OK, mimeTypes: [MimeType.JSON, MimeType.XML] })
     @Get('/envelope')
     getEnvelope(): XmlEnvelope {
@@ -522,7 +531,7 @@ describe('OpenApiService', () => {
         // eslint-disable-next-line typescript/no-unsafe-argument, typescript/no-unsafe-member-access
         const schema: OpenApiSchemaObject = schemaOf(operation.responses?.['200']?.content?.[MimeType.JSON]?.schema);
         expect(schema.type).toBe('object');
-        expect(schema.properties?.['totalAmount']).toMatchObject({ type: 'number' });
+        expect(schema.properties?.['totalAmount']).toMatchObject({ type: 'integer', format: 'int64' });
         const items: OpenApiSchemaObject = schemaOf(schema.properties?.['items']);
         expect(items.type).toBe('array');
         expect(schemaOf(items.items).type).toBe('object');
@@ -646,6 +655,13 @@ describe('OpenApiService', () => {
 
         expect(schema.xml).toEqual({ name: 'Order', namespace: 'urn:example:orders' });
         expect(schema.properties?.['orderId']).toMatchObject({ xml: { name: 'id', attribute: true } });
+    });
+
+    it('describes an xml request body declared raw as a document of text', () => {
+        const operation: OpenApiOperation = op('/items/signed-orders', 'post');
+        assert(operation.requestBody && !('$ref' in operation.requestBody));
+
+        expect(schemaOf(operation.requestBody.content[MimeType.XML]?.schema)).toMatchObject({ type: 'string' });
     });
 
     it('builds a binary schema for a file response', () => {

@@ -5,8 +5,11 @@ import { RateLimiterLockInterface } from './rate-limiter-lock.interface';
 import { BaseRateLimitState, RateLimiterStoreInterface, RateLimiterStoreUpdateResult } from './rate-limiter-store.interface';
 import { Repository } from '../../data-source/repository/repository';
 import { UniqueConstraintViolationError } from '../../data-source/unique-constraint-violation.error';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { DiContainer } from '../../di/di-container';
+import { inject } from '../../di/inject.function';
 import { InternalError } from '../../error-handling/internal-error.model';
+import { Ms } from '../../utilities/ms';
 
 /**
  * How often a write that lost its compare and set is retried before giving up.
@@ -26,6 +29,40 @@ const maxWriteAttempts: number = 8;
  * rather than breaking it up.
  */
 const backoffBaseInMs: number = 5;
+
+/**
+ * How many keys a repository store holds at most.
+ *
+ * Ten times what a store inside one process holds, because a row costs a data source far less than
+ * an entry costs the memory of a process - and still sized so that reaching it means something is
+ * keyed on something unbounded, rather than that the app is busy.
+ */
+const defaultMaxKeys: number = 1_000_000;
+
+/**
+ * How long the size a store counted is used before it counts again.
+ *
+ * Counting is a read of every row of the namespace on some data sources, so it is not done for every
+ * new key. In between, the store adds the keys it created itself; what other instances created meanwhile
+ * is what the bound can be off by.
+ */
+const recountIntervalInMs: number = 10 * Ms.SECOND;
+
+/**
+ * Options for the repository rate limiter store.
+ */
+export type RepositoryRateLimiterStoreOptions = {
+    /**
+     * How many keys this store holds at most, across every instance sharing it.
+     *
+     * Once it is full, a key it has never seen is refused rather than added, which the limiter turns
+     * into whatever its `onStoreFailure` says. Keys already in the store keep counting normally.
+     * Reaching it is reported once as an error, because it is a symptom: the limiter keys on
+     * something with no natural bound. The size is counted at most every ten seconds, so instances
+     * creating keys at the same time can take it past this by what they create in that time.
+     */
+    maxKeys?: number
+};
 
 /**
  * The namespaces taken by the stores of each application, by its container.
@@ -62,12 +99,31 @@ const namespacesByContainer: WeakMap<DiContainer, Set<string>> = new WeakMap();
  * it correct.
  */
 export class RepositoryRateLimiterStore<TState extends BaseRateLimitState> implements RateLimiterStoreInterface<TState> {
+    private readonly maxKeys: number;
+
+    /**
+     * How many unexpired keys the store held when it last counted, plus the keys it created since.
+     */
+    private knownSize: number = 0;
+
+    /**
+     * When the store last counted, or undefined before it ever has.
+     */
+    private countedAtMs: number | undefined;
+
+    /**
+     * Whether the size limit has already been reported, so that crossing it costs one log line rather
+     * than one per request for as long as it stays crossed.
+     */
+    private reportedMaxKeys: boolean = false;
 
     constructor(
         private readonly repository: Repository<RateLimitStateEntity>,
         private readonly lock: RateLimiterLockInterface,
-        private readonly namespace: string
+        private readonly namespace: string,
+        options: RepositoryRateLimiterStoreOptions = {}
     ) {
+        this.maxKeys = options.maxKeys ?? defaultMaxKeys;
         const container: DiContainer = DiContainer.getInstance();
         const taken: Set<string> = namespacesByContainer.get(container) ?? new Set();
         if (taken.has(namespace)) {
@@ -189,6 +245,8 @@ export class RepositoryRateLimiterStore<TState extends BaseRateLimitState> imple
             return updated ? { value: next, sizeChanged: current == undefined } : undefined;
         }
 
+        // an expired row is written over above, so only a key with no row at all needs room
+        await this.claimRoomForNewKey();
         try {
             await this.repository.create({
                 namespace: this.namespace,
@@ -212,7 +270,39 @@ export class RepositoryRateLimiterStore<TState extends BaseRateLimitState> imple
             }
             return undefined;
         }
+        this.knownSize++;
         return { value: next, sizeChanged: true };
+    }
+
+    /**
+     * Makes sure there is room for a key this store has never seen, and refuses when there is not.
+     *
+     * Refusing rather than evicting, for the reason the in memory store gives: evicting resets the
+     * counter of whoever was dropped, so whoever filled the store would lift everyone else's limit.
+     * @throws When the store is full, which the limiter turns into whatever its `onStoreFailure` says.
+     */
+    private async claimRoomForNewKey(): Promise<void> {
+        const now: number = Date.now();
+        if (this.countedAtMs == undefined || now - this.countedAtMs >= recountIntervalInMs) {
+            this.knownSize = await this.repository.count({ where: { namespace: this.namespace, expiresAtMs: { greaterThan: now } } });
+            this.countedAtMs = now;
+            // strictly below, because sitting exactly on the limit is what being full means
+            if (this.knownSize < this.maxKeys) {
+                this.reportedMaxKeys = false;
+            }
+        }
+        if (this.knownSize < this.maxKeys) {
+            return;
+        }
+
+        if (!this.reportedMaxKeys) {
+            this.reportedMaxKeys = true;
+            inject(ZIBRI_DI_TOKENS.LOGGER).error(new InternalError([
+                `The rate limiter store "${this.namespace}" is full at ${this.maxKeys} keys and is refusing new ones.`,
+                'The limiter is keyed on something with no natural bound, such as an address a caller can change.'
+            ]));
+        }
+        throw new InternalError(`The rate limiter store "${this.namespace}" is full at ${this.maxKeys} keys.`);
     }
 
     /**

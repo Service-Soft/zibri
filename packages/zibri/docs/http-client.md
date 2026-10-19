@@ -8,7 +8,10 @@ When building an API, you most likely will need to integrate some third party AP
 | `ZIBRI_DI_TOKENS.HTTP_CLIENT` | DI token | Injects `HttpClientInterface` |
 | `HttpClientResponse` | type | Shape of a response, including validated body and headers |
 | `HttpClientDispatcher` | type | What a request is sent over — a proxy, a CA bundle, a client certificate |
-| `ZIBRI_DI_TOKENS.HTTP_CLIENT_OPTIONS_INPUT` | DI token | Deployment-wide timeout, response size limit and dispatcher |
+| `ZIBRI_DI_TOKENS.HTTP_CLIENT_OPTIONS_INPUT` | DI token | Deployment-wide timeout, response size limit, dispatcher and circuit breaker |
+| `HttpClientIdempotencyKey` | type | The [idempotency key](#idempotency-keys) a request is sent with |
+| `HttpClientCircuitBreakerOptions` | type | When requests to an [origin that keeps failing](#when-an-upstream-keeps-failing) stop being sent |
+| `CircuitOpenError` | error | A request that was not sent because its origin's circuit is open |
 | `FetchForLibraryOptions` | type | A larger response size limit for one request [handed to a library](#handing-the-client-to-a-library) |
 | `MimeType` | enum | Known mime types, used to select a non-default response body format |
 | `KnownHeader` | enum | Known header names, used to define expected response headers |
@@ -90,9 +93,33 @@ It fails with the same `GatewayTimeoutError` the caller was answered with, rathe
 
 **Safe to repeat:** `GET`, `HEAD`, `OPTIONS`, `PUT` and `DELETE`. Sending one of those twice leaves the same result as sending it once.
 
-`POST` and `PATCH` are repeated in exactly one case: the server said it had not looked at the request yet, which is what a `429` or a `503` means. Neither can have charged a card. A connection error or a timeout is the opposite situation — the request may well have arrived and been carried out with only the reply lost, and nothing on this side can tell that from a request that never landed — so those are never repeated for those methods.
+`POST` and `PATCH` are repeated in exactly one case: the server said it had not looked at the request yet, which is what a `429` or a `503` means. Neither can have charged a card. A connection error or a timeout is the opposite situation — the request may well have arrived and been carried out with only the reply lost, and nothing on this side can tell that from a request that never landed — so those are never repeated for those methods, unless the request carries an [idempotency key](#idempotency-keys).
 
 **Between attempts** the client waits, doubling each time up to ten seconds, with half the wait randomised so that a group of callers that failed together do not all return together. If the response carried a `Retry-After`, that is used instead: the server is the only party that knows when it will be ready.
+
+### Idempotency keys
+A server that supports idempotency keys answers a repeated key like the first request that carried it, instead of doing the work again. Give a `POST` or `PATCH` one, and it is retried like a `PUT`: also after a connection error, a timeout or a `500`, `502` or `504`.
+
+```ts
+export async function createOrder(orderId: string): Promise<HttpClientResponse> {
+    const http: HttpClientInterface = inject(ZIBRI_DI_TOKENS.HTTP_CLIENT);
+    return await http.post('https://some-api.com/orders', { orderId }, { attempts: 3, idempotencyKey: orderId });
+}
+```
+
+`idempotencyKey: true` generates a key for the call. Either way, every attempt of the call sends the same key, as `Idempotency-Key`. For a provider that reads it from another header, name it: `idempotencyKey: { value: orderId, header: 'PayPal-Request-Id' }`, where a missing `value` is generated as well.
+
+### When an upstream keeps failing
+The client stops calling an origin (scheme, host and port) that failed 5 times in a row. A failure is a request that got no answer, or one answered with `500`, `502`, `503` or `504`; any other answer resets the count. For the next 30 seconds every request to that origin fails at once with a `CircuitOpenError`, a `HttpClientError` naming the `origin` and when it `reopensAt`, without being sent and without further attempts. After that one request is let through: an answer closes the circuit, and a failure keeps it shut for another 30 seconds.
+
+Each instance counts on its own. Change the thresholds, or turn it off with `false`:
+
+```ts
+defineProvider({
+    token: ZIBRI_DI_TOKENS.HTTP_CLIENT_OPTIONS_INPUT,
+    useValue: { circuitBreaker: { failuresToOpen: 10, openForMs: 60000 } }
+})
+```
 
 ### How large a response may be
 

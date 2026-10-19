@@ -1,3 +1,5 @@
+import { type ElectronicAddress } from './electronic-address.model';
+
 /**
  * Contains base information about the company that issues an invoice.
  */
@@ -38,6 +40,11 @@ export type CompanyInfo = {
      * The phone number of the company.
      */
     readonly phone: string,
+    /**
+     * The address the company receives electronic invoices at. A Peppol invoice requires it, an
+     * XRechnung names the company by its email without it.
+     */
+    readonly electronicAddress?: ElectronicAddress,
     /**
      * The tax number.
      */

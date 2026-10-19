@@ -1,3 +1,5 @@
+import { Transaction } from '../data-source/transaction/transaction.model';
+
 /**
  * What to do when somebody else already holds the grant.
  *
@@ -112,5 +114,14 @@ export type LeaseOptions = LeaseSetOptions & {
      * one lease - the two answer different questions. How long the work takes is not how long
      * another caller should be prepared to queue for it.
      */
-    acquireTimeoutInMs?: number
+    acquireTimeoutInMs?: number,
+    /**
+     * A transaction the work writes in. The grant is then held until the work has returned and the
+     * transaction has ended, rather than until the work has returned, so the next holder sees what
+     * was written once it is committed. Undefined, or a transaction that has ended already, holds it
+     * until the work has returned.
+     *
+     * A transaction that is rolled back counts as work that threw, for `onCompletion`.
+     */
+    heldUntil?: Transaction
 };

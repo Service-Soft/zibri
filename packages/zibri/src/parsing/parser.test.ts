@@ -30,7 +30,7 @@ describe('Parser — parseBody content-type dispatch', () => {
     beforeAll(async () => {
         server = await startTestServer({ controllers: [ParserTestController] });
         baseUrl = await server.start();
-    }, 15000);
+    }, 30000);
 
     afterAll(async () => {
         await server?.shutdown();

@@ -40,7 +40,7 @@ describe('NewCommand (sandbox parity)', () => {
         process.env['ZIBRI_CLI_LOCAL_DEV'] = '1';
 
         // no ci workflow, for the reason the fast parity suite gives
-        await quietly(async () => new NewCommand().start(['n', 'sandbox', 'none']));
+        await quietly(async () => new NewCommand().start(['n', 'sandbox', 'none', 'public']));
     }, TEST_TIMEOUT_MS);
 
     afterAll(async () => {

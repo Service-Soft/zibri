@@ -91,6 +91,17 @@ export class Email extends BaseEntity {
     attachments?: EmailAttachment[] | null;
 
     /**
+     * Where the recipients leave the mailing list the email is sent to, or undefined for an email
+     * sent to no list.
+     *
+     * Sent as the `List-Unsubscribe` header, along with `List-Unsubscribe-Post`: a mailbox provider
+     * shows its own unsubscribe button for it, which posts `List-Unsubscribe=One-Click` to this url
+     * (RFC 8058).
+     */
+    @Property.string({ required: false })
+    listUnsubscribeUrl?: string | null;
+
+    /**
      * The emails status, like QUEUED, SENT or FAILED etc.
      */
     @Property.string({ enum: EmailStatus })
@@ -101,4 +112,16 @@ export class Email extends BaseEntity {
      */
     @Property.string({ enum: EmailPriority })
     priority!: EmailPriority;
+
+    /**
+     * How many times sending the email threw, eg. Because its server could not be reached.
+     */
+    @Property.number({ format: 'integer', default: 0 })
+    attempts!: number;
+
+    /**
+     * When a queued email whose send threw is tried again, or undefined for one that is due now.
+     */
+    @Property.date({ required: false })
+    retryAt?: Date | null;
 }

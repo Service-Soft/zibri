@@ -51,10 +51,12 @@ export class FakePasskeyDevice {
 
     private readonly held: HeldPasskey[] = [];
     private readonly aaguid: string;
+    private readonly storesPasskeys: boolean;
 
     constructor(private readonly options: FakePasskeyDeviceOptions = {}) {
         this.aaguid = options.attestation?.aaguid ?? options.aaguid ?? '00000000-0000-0000-0000-000000000000';
         this.verifiesUser = options.verifiesUser ?? true;
+        this.storesPasskeys = options.storesPasskeys ?? true;
     }
 
     /**
@@ -70,13 +72,19 @@ export class FakePasskeyDevice {
      * @param options - What the site asked for.
      * @param origin - The origin of the page that asked.
      * @returns What the browser hands the page.
-     * @throws When the device holds one of the passkeys the site excludes, as a browser refuses then.
+     * @throws When the device holds one of the passkeys the site excludes, or the site demands a stored
+     * passkey of a device that stores none, as a browser refuses then.
      */
     create(options: PasskeyCreationOptions, origin: string): PasskeyRegistrationResponse {
         const rpId: string = options.rp.id ?? new URL(origin).hostname;
         const excluded: string[] = (options.excludeCredentials ?? []).map(c => c.id);
         if (this.held.some(p => p.rpId === rpId && excluded.includes(p.id))) {
             throw new Error('The fake device already holds a passkey for this account.');
+        }
+        const storageDemanded: boolean = options.authenticatorSelection?.residentKey === 'required'
+            || options.authenticatorSelection?.requireResidentKey === true;
+        if (storageDemanded && !this.storesPasskeys) {
+            throw new Error('The fake device cannot store a passkey, which the site demands.');
         }
         const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'P-256' });
         const id: Buffer = randomBytes(16);
@@ -121,7 +129,8 @@ export class FakePasskeyDevice {
                 attestationObject: attestationObject.toString('base64url'),
                 transports: ['usb']
             },
-            clientExtensionResults: {},
+            // a browser says whether the device stored the passkey when the site asks (WebAuthn §10.1.3)
+            clientExtensionResults: options.extensions?.credProps === true ? { credProps: { rk: this.storesPasskeys } } : {},
             type: PasskeyCredentialType.PUBLIC_KEY
         };
     }
@@ -138,8 +147,9 @@ export class FakePasskeyDevice {
     get(options: PasskeyRequestOptions, origin: string, passkeyId?: string): PasskeyAuthenticationResponse {
         const rpId: string = options.rpId ?? new URL(origin).hostname;
         const allowed: string[] | undefined = options.allowCredentials?.map(c => c.id);
+        // a device that stores no passkey keeps nothing to offer, and uses one only when the site names it
         const passkey: HeldPasskey | undefined = this.held.find(p => p.rpId === rpId
-            && (allowed == undefined || allowed.includes(p.id))
+            && (allowed == undefined ? this.storesPasskeys : allowed.includes(p.id))
             && (passkeyId == undefined || p.id === passkeyId));
         if (passkey == undefined) {
             throw new Error(`The fake device holds no passkey for ${rpId} that the site accepts.`);
@@ -159,7 +169,8 @@ export class FakePasskeyDevice {
                 clientDataJSON: clientDataJSON.toString('base64url'),
                 authenticatorData: authenticatorData.toString('base64url'),
                 signature: signature.toString('base64url'),
-                userHandle: passkey.userHandle
+                // only a stored passkey keeps the account it was created for
+                userHandle: this.storesPasskeys ? passkey.userHandle : undefined
             },
             clientExtensionResults: {},
             type: PasskeyCredentialType.PUBLIC_KEY

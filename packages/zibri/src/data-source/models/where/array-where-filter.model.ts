@@ -9,11 +9,13 @@ export type ArrayWhereFilter<ItemType> = null | ItemType[] | {
      */
     not?: null | ItemType[],
     /**
-     * The property needs to include the value.
+     * The property needs to include the values.
      */
     includes?: ItemType[],
     /**
-     * The properties items needs to be included in the value.
+     * The properties items needs to be included in the values.
+     *
+     * Empty arrays don't match.
      */
     isIncludedIn?: ItemType[],
     /**
@@ -47,11 +49,13 @@ export type ArrayWhereFilter<ItemType> = null | ItemType[] | {
      */
     not?: never,
     /**
-     * The property needs to include the value.
+     * The property needs to include the values.
      */
     includes?: never,
     /**
-     * The properties items needs to be included in the value.
+     * The properties items needs to be included in the values.
+     *
+     * Empty arrays don't match.
      */
     isIncludedIn?: never,
     /**
@@ -89,11 +93,13 @@ export type ObjectArrayWhereFilter<ItemType extends object> = null | ItemType[] 
      */
     not?: null | ItemType[],
     /**
-     * The property needs to include the value.
+     * The property needs to include the values.
      */
     includes?: ItemType[],
     /**
-     * The properties items needs to be included in the value.
+     * The properties items needs to be included in the values.
+     *
+     * Empty arrays don't match.
      */
     isIncludedIn?: ItemType[],
     /**
@@ -127,11 +133,13 @@ export type ObjectArrayWhereFilter<ItemType extends object> = null | ItemType[] 
      */
     not?: never,
     /**
-     * The property needs to include the value.
+     * The property needs to include the values.
      */
     includes?: never,
     /**
-     * The properties items needs to be included in the value.
+     * The properties items needs to be included in the values.
+     *
+     * Empty arrays don't match.
      */
     isIncludedIn?: never,
     /**

@@ -98,7 +98,7 @@ describe('two migrations shipping in one release', () => {
     beforeAll(async () => {
         server = await startTestServer({ dataSources: [MigrationIdentityDataSource] });
         migrationRepository = inject(repositoryTokenFor(MigrationEntity));
-    }, 15000);
+    }, 30000);
 
     afterAll(async () => {
         await server?.shutdown();

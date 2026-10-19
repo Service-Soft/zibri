@@ -12,7 +12,7 @@ export class ErrorResponseBody {
     /**
      * The http status of the response.
      */
-    @Property.number()
+    @Property.number({ format: 'integer' })
     status!: HttpStatus;
 
     /**

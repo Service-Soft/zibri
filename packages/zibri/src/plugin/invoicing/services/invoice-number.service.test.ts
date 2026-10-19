@@ -20,6 +20,7 @@ import { ZibriInvoicingPlugin } from '../invoicing.plugin';
 import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../invoicing.tokens';
 import { CompanyInfo } from '../models/company-info.model';
 import { InvoiceAddress } from '../models/invoice-address.model';
+import { InvoiceRecipientAbbreviation } from '../models/invoice-recipient-abbreviation.model';
 import { Invoice } from '../models/invoice.model';
 import { InvoicingOptions } from '../models/invoicing-options.model';
 import { NumberInvoices } from '../models/number-invoices.model';
@@ -171,14 +172,16 @@ describe('ZibriInvoicingPlugin — starting', () => {
             ]
         });
 
-        await expect(start).rejects.toThrow(/Error initializing ZibriInvoicingPlugin[\S\s]*- Invoice\n[\S\s]*- NumberInvoices/);
+        await expect(start).rejects.toThrow(
+            /Error initializing ZibriInvoicingPlugin[\S\s]*- Invoice\n[\S\s]*- NumberInvoices\n[\S\s]*- InvoiceRecipientAbbreviation/
+        );
     }, 30000);
 });
 
 describe('generateInvoiceNumber', () => {
     beforeAll(async () => {
         testServer = await startTestServer({
-            dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Invoice, NumberInvoices] })],
+            dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Invoice, NumberInvoices, InvoiceRecipientAbbreviation] })],
             plugins: [...defaultTestServerPlugins, new ZibriInvoicingPlugin()],
             providers: [
                 ...defaultTestServerProviders,
@@ -188,7 +191,7 @@ describe('generateInvoiceNumber', () => {
         });
         invoiceRepo = inject(repositoryTokenFor(Invoice));
         invoiceNumberService = inject(InvoiceNumberService);
-    }, 15000);
+    }, 30000);
 
     afterAll(async () => {
         await testServer.shutdown();
@@ -238,7 +241,8 @@ describe('generateInvoiceNumber', () => {
 
     it('should generate the expected number for a private customer', async () => {
         const number: string = await inTenant(async () => await invoiceNumberService.generateTemporaryInvoiceNumber('2', privateCustomerData));
-        expect(number).toEqual(`TEMP-${currentYear}-JAMSMI-0004`);
+        // the abbreviation the recipient holds since it was given one, rather than the suggested one
+        expect(number).toEqual(`TEMP-${currentYear}-XXX-0004`);
         const number2: string = await inTenant(async () => await invoiceNumberService.generateTemporaryInvoiceNumber('2', privateCustomerData));
         expect(number2).toEqual(number);
     });

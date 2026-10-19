@@ -49,7 +49,9 @@ export type DefaultPropertyValue<T extends string | number | boolean | Date> = T
  */
 export type WithDefaultMetadata<T extends string | number | boolean | Date> = {
     /**
-     * The default value to set an empty property to when defined.
+     * The value the property is given when a row is created without one: the row itself, the models
+     * it holds, and a related row a write creates. An update writes what it is given and fills
+     * nothing in, not even into a nested value it writes. `null` is a value, so it is stored as given.
      */
     default: DefaultPropertyValue<T>
 };

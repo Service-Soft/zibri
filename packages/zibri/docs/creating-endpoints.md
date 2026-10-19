@@ -133,6 +133,14 @@ The above will expose the endpoints
 - `PATCH /tests-crud/:id` (coming from CrudController, which updates a single Test with TestUpdateDTO)
 - `GET /metrics` (coming from MetricsController, which in this example returns a html dashboard)
 
+`GET /tests-crud` takes `page` and `limit` from the query: whole numbers of at least 1, and a `limit` of
+at most 100. Anything else is answered with a 400. Pass `maxLimit` to allow larger pages:
+
+```ts
+@Controller('/tests-crud-wide')
+export class WideTestCrudController extends CrudController(Test, TestCreateDTO, TestUpdateDTO, { maxLimit: 500 }) {}
+```
+
 ### Accessing request data
 
 #### request body

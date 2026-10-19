@@ -40,6 +40,15 @@ export class ThreadJob<
      */
     readonly tenantId: string | undefined;
     /**
+     * The trace the job was queued in, as a `traceparent` header writes it, or undefined for one
+     * queued outside any trace.
+     */
+    traceparent?: string | null;
+    /**
+     * The vendor state of that trace, as a `tracestate` header writes it.
+     */
+    tracestate?: string | null;
+    /**
      * The status of the job.
      */
     status: ThreadJobStatus;
@@ -88,6 +97,8 @@ export class ThreadJob<
         this.queuedAtMs = entity.queuedAtMs;
         this.id = entity.id;
         this.tenantId = entity.tenantId ?? undefined;
+        this.traceparent = entity.traceparent;
+        this.tracestate = entity.tracestate;
         this.status = entity.status;
         this.workerData = entity.workerData;
         this.onMessage = functions?.onMessage;

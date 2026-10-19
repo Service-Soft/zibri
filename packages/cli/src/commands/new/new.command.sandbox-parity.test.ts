@@ -82,7 +82,7 @@ describe('NewCommand (sandbox parity, without installing)', () => {
         // no ci workflow: the sandbox lives inside this repository, whose own workflows are the ones
         // GitHub runs, so it has none of its own to compare against. new.command.test.ts reads the
         // generated one and the heavy suite runs it
-        await quietly(async () => new NewCommand().start(['n', 'sandbox', 'none']));
+        await quietly(async () => new NewCommand().start(['n', 'sandbox', 'none', 'public']));
     }, PARITY_TIMEOUT_MS);
 
     afterAll(async () => {

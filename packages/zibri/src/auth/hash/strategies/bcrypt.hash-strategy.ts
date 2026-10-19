@@ -13,8 +13,16 @@ export type BcryptHashOptions = {
 };
 
 /**
- * Default bcrypt hash strategy implementation of zibri.
+ * Verifies the bcrypt hashes zibri 2.x wrote.
+ *
+ * Hashes with 10 rounds unless `rounds` says otherwise, and does its work on the main thread, where
+ * scrypt runs on the thread pool. Keep it registered while stored hashes need it, and mark it
+ * `DEPRECATED` in the hash strategy table: each of its hashes is then replaced with one of the
+ * default strategy the next time its user signs in.
+ * @deprecated Use `ScryptHashStrategy` for new hashes.
  */
+// the default of 10 rounds stays as it is: this exists to read what 2.x wrote, and raising it would
+// only make the strategy nobody should be writing with a little better at writing
 export class BcryptHashStrategy implements HashStrategyInterface<BcryptHashOptions> {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly name: string = 'bcrypt';

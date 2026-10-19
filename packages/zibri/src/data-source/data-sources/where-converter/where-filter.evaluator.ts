@@ -9,6 +9,7 @@ import { JsonUtilities } from '../../../utilities/json.utilities';
 import { MetadataUtilities } from '../../../utilities/metadata.utilities';
 import { BigNumber } from '../../../utilities/number.utilities';
 import { ObjectUtilities } from '../../../utilities/object.utilities';
+import { TrigramUtilities } from '../../../utilities/trigram.utilities';
 import { parseFuzzyLikeFilter } from '../../models/where/fuzzy-like.model';
 import { OneOfWhereFilterUtilities } from '../../models/where/one-of-where-filter.utilities';
 import { isAllOfWhereFilterKey, isWhereFilterKey, WhereFilterKeys } from '../../models/where/where-filter-keys.model';
@@ -95,21 +96,25 @@ export class WhereFilterEvaluator {
         lesserThan: (value, filterValue) => WhereValueUtilities.compare(value, filterValue) < 0,
         lesserThanEquals: (value, filterValue) => WhereValueUtilities.compare(value, filterValue) <= 0,
         where: (value, filterValue, metadata, path) => this.matchesNestedWhere(value, filterValue, metadata, path),
+        // a missing array is asked for with null alone, so none of the array keys below finds one
         includes: (value, filterValue, metadata) => {
-            const items: unknown[] = this.toItems(value);
-            return this.toArray(filterValue, 'includes')
+            const items: unknown[] | undefined = this.findItems(value);
+            return items != undefined && this.toArray(filterValue, 'includes')
                 .every(v => items.some(i => WhereValueUtilities.equals(i, v, WhereValueUtilities.itemMetadata(metadata))));
         },
+        // not empty as well: an empty array is asked for with a length of 0 alone, so that no allow
+        // list finds one without saying so
         isIncludedIn: (value, filterValue, metadata) => {
+            const items: unknown[] | undefined = this.findItems(value);
             const allowed: unknown[] = this.toArray(filterValue, 'isIncludedIn');
-            return this.toItems(value)
-                .every(i => allowed.some(v => WhereValueUtilities.equals(i, v, WhereValueUtilities.itemMetadata(metadata))));
+            return items != undefined && items.length > 0
+                && items.every(i => allowed.some(v => WhereValueUtilities.equals(i, v, WhereValueUtilities.itemMetadata(metadata))));
         },
-        length: (value, filterValue) => this.toItems(value).length === Number(filterValue),
-        lengthGreaterThan: (value, filterValue) => this.toItems(value).length > Number(filterValue),
-        lengthGreaterThanEquals: (value, filterValue) => this.toItems(value).length >= Number(filterValue),
-        lengthLesserThan: (value, filterValue) => this.toItems(value).length < Number(filterValue),
-        lengthLesserThanEquals: (value, filterValue) => this.toItems(value).length <= Number(filterValue)
+        length: (value, filterValue) => this.matchesLength(value, l => l === Number(filterValue)),
+        lengthGreaterThan: (value, filterValue) => this.matchesLength(value, l => l > Number(filterValue)),
+        lengthGreaterThanEquals: (value, filterValue) => this.matchesLength(value, l => l >= Number(filterValue)),
+        lengthLesserThan: (value, filterValue) => this.matchesLength(value, l => l < Number(filterValue)),
+        lengthLesserThanEquals: (value, filterValue) => this.matchesLength(value, l => l <= Number(filterValue))
     };
 
     /**
@@ -273,45 +278,16 @@ export class WhereFilterEvaluator {
     }
 
     private matchesFuzzyLike(value: unknown, filterValue: unknown): boolean {
-        const { value: search, minSimilarityRatio } = parseFuzzyLikeFilter(filterValue);
+        const { value: search, minSimilarityRatio, bound } = parseFuzzyLikeFilter(filterValue);
         if (typeof value !== 'string') {
             return false;
         }
-        return this.similarity(value, search) >= minSimilarityRatio;
-    }
-
-    /**
-     * Calculates the trigram similarity of two strings the same way that the postgres pg_trgm extension does.
-     * @param a - The first string.
-     * @param b - The second string.
-     * @returns The similarity as a value between 0 and 1.
-     */
-    private similarity(a: string, b: string): number {
-        const aTrigrams: Set<string> = this.trigrams(a);
-        const bTrigrams: Set<string> = this.trigrams(b);
-        if (!aTrigrams.size && !bTrigrams.size) {
-            return 0;
+        const similarity: number = TrigramUtilities.resolveSimilarity(value, search);
+        if (bound == undefined) {
+            return similarity >= minSimilarityRatio;
         }
-        let shared: number = 0;
-        for (const trigram of aTrigrams) {
-            if (bTrigrams.has(trigram)) {
-                shared++;
-            }
-        }
-        return shared / (aTrigrams.size + bTrigrams.size - shared);
-    }
-
-    private trigrams(value: string): Set<string> {
-        const res: Set<string> = new Set();
-        const words: string[] = value.toLowerCase().split(/[^\da-z]+/i)
-            .filter(Boolean);
-        for (const word of words) {
-            const padded: string = `  ${word} `;
-            for (let i: number = 0; i + 3 <= padded.length; i++) {
-                res.add(padded.slice(i, i + 3));
-            }
-        }
-        return res;
+        const boundSimilarity: number = TrigramUtilities.resolveSimilarity(bound.text, search);
+        return bound.comparison === 'lesser' ? similarity < boundSimilarity : similarity === boundSimilarity;
     }
 
     /**
@@ -434,6 +410,26 @@ export class WhereFilterEvaluator {
             return [];
         }
         return Array.isArray(value) ? value : [value];
+    }
+
+    /**
+     * The items of a value, unless there is no value at all.
+     * @param value - The value of an array property or of a relation to many rows.
+     * @returns The items, or undefined when the property holds no array.
+     */
+    private findItems(value: unknown): unknown[] | undefined {
+        return value == undefined ? undefined : this.toItems(value);
+    }
+
+    /**
+     * Whether a value holds an array whose length is the one asked for.
+     * @param value - The value of an array property or of a relation to many rows.
+     * @param matches - Whether a length is the one asked for.
+     * @returns False when the property holds no array.
+     */
+    private matchesLength(value: unknown, matches: (length: number) => boolean): boolean {
+        const items: unknown[] | undefined = this.findItems(value);
+        return items != undefined && matches(items.length);
     }
 
     /**

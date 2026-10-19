@@ -1,7 +1,6 @@
 import { Socket } from 'socket.io';
 
 import { BaseWebsocketConnection } from './base-websocket-connection.model';
-import { InternalError } from '../../../error-handling/internal-error.model';
 import { KnownHeader } from '../../../http/known-header.enum';
 import { Version } from '../../../versioning/version.model';
 import { LooseWebsocketEvent, WebsocketEvent } from '../websocket-event.enum';
@@ -21,13 +20,12 @@ export class SocketIOWebsocketConnection implements BaseWebsocketConnection {
     readonly recovered: boolean;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    get offset(): number {
-        if (typeof this.socket.handshake.auth['offset'] !== 'number') {
-            throw new InternalError('socket.io: auth.offset is not a number');
-        }
-        return this.socket.handshake.auth['offset'];
+    get offset(): number | undefined {
+        // anything but a number was refused at the handshake, so this is a client that sent none
+        const offset: unknown = this.socket.handshake.auth['offset'];
+        return typeof offset === 'number' ? offset : undefined;
     }
-    set offset(value: number) {
+    set offset(value: number | undefined) {
         this.socket.handshake.auth['offset'] = value;
     }
 

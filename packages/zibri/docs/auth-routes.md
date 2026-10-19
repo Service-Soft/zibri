@@ -54,7 +54,7 @@ Every route is below the path of your controller. A route is there when one of t
 |---|---|---|---|
 | `POST /login` | always | the credentials of the authenticator, eg. `{ "email", "password" }` | anyone |
 | `POST /refresh-login` | always | what the strategy refreshes with, eg. `{ "refreshToken" }` | anyone |
-| `POST /logout` | always | what the strategy logs out with. Answers where to log out at the provider the login was started at, if any | anyone |
+| `POST /logout` | always | what the strategy logs out with, eg. `{ "refreshToken" }`, or `{ "clearCookies" }` for the login of the cookies the request carries. Answers where to log out at the provider the login was started at, if any | anyone |
 | `GET /csrf-token` | a strategy issues csrf tokens, such as `CookieAuthStrategy` | nothing. Answers the token of the login the request carries | anyone |
 | `POST /request-password-reset` | `PasswordAuthenticator` | `{ "email" }`, see [asking for a password reset](./auth.md#asking-for-a-password-reset) | anyone |
 | `POST /verify-password-reset-token` | `PasswordAuthenticator` | `{ "resetToken" }`. Answers `{ "isValid" }` | anyone |
@@ -62,7 +62,8 @@ Every route is below the path of your controller. A route is there when one of t
 | `POST /sign-in-options` | an authenticator hands out a challenge to sign in with, such as `PasskeyAuthenticator` | nothing. Answers the challenge | anyone |
 | `POST /registration-options`, `POST /register` | an authenticator signs up users by itself, such as `PasskeyAuthenticator` | what the sign-up starts with, and the client's answer. `register` answers the ticket your own sign-up route creates the user with | anyone |
 | `GET /federated/authorize` | an authenticator signs users in at a provider | see [signing in at a provider](#signing-in-at-a-provider) | anyone |
-| `GET`/`POST /federated/:provider/callback`, `GET /federated/:provider/connect`, `GET /federated/:provider/logout`, `GET /federated/:provider/metadata` | an authenticator signs users in at a provider | what the provider sends the browser with | the browser, sent by the provider |
+| `GET`/`POST /federated/:provider/callback`, `GET /federated/:provider/connect`, `GET`/`POST /federated/:provider/logout`, `GET /federated/:provider/metadata` | an authenticator signs users in at a provider | what the provider sends the browser with | the browser, sent by the provider |
+| `POST /federated/:provider/logout/soap` | a [SAML](./sign-in-through-a-provider.md#logging-out) identity provider | a logout request in a SOAP envelope. Answers in one | the identity provider |
 | `POST /connect` | an authenticator connects identities to an account, such as a provider or `PasskeyAuthenticator` | what the connection is for, eg. `{ "redirectTo", "signIn" }`. Answers what the browser goes on with | a logged in user, with a second factor or a recent login |
 | `POST /connect/complete` | an authenticator finishes a connection with an answer of the client, such as `PasskeyAuthenticator` | the client's answer | a logged in user |
 | `GET /identities` | an authenticator links identities to users | nothing. Answers the identities of the user, each with the authenticator it signs in through | a logged in user |

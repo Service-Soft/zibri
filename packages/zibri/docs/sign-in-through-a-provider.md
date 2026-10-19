@@ -5,7 +5,7 @@ Users sign in with an account they already have somewhere else: Google, Apple, M
 | Export | Kind | Purpose |
 |---|---|---|
 | `FederatedAuthenticatorInterface`, `isFederatedAuthenticator` | interface, function | What a provider's authenticator is to the sign-in routes, and the function telling one apart |
-| `FederatedRoute` | type | A route whose url an authenticator gives out: `callback`, `connect` or `logout` |
+| `FederatedRoute` | type | A route whose url an authenticator gives out: `callback`, `connect`, `logout` or `logout/soap` |
 | `FederatedRouteEndpoint` | type | One of the `routes` of an authenticator: the route, and the method the browser requests its url with |
 | `BaseFederatedAuthenticator` | class | What every provider's authenticator extends, whichever protocol it speaks: the redirect, the callback and the links |
 | `BaseOAuthAuthenticator` | class | What every OAuth and OpenID Connect provider's authenticator extends: the client, the scopes and the tokens of the provider's apis |
@@ -125,7 +125,8 @@ The routes can also be ones you write. An authenticator gives out the urls of it
 |---|---|
 | `callback` | `GET`, or `POST` when the provider posts its answer: a [SAML](#saml) identity provider, or a `responseMode` of `form_post` |
 | `connect` | `GET` |
-| `logout` | `GET`, for a [SAML](#saml) identity provider only |
+| `logout` | `GET` and `POST`, for a [SAML](#saml) identity provider only |
+| `logout/soap` | `POST`, by the identity provider rather than the browser, for a [SAML](#saml) identity provider only |
 
 Override `resolveRouteUrl` to name yours, and `routes` to keep the ones you serve. Leave out `connect` when you do not [connect providers to accounts](#connecting-a-provider-to-an-account):
 
@@ -257,7 +258,7 @@ DELETE /auth/identities/...
 
 In routes of your own, `findIdentities` and `unlinkIdentity` of `AuthServiceInterface` do the same. Pass authenticators to `findIdentities` to list only the identities at those providers.
 
-A user who has no password can no longer sign in once their last identity is unlinked. Check that they keep a way to sign in before you unlink one.
+A user who has no password can no longer sign in once their last identity that signs in is unlinked, or [stops signing in](#signing-in-and-api-access-apart). Check that they keep a way to sign in before you unlink one.
 
 ## Calling a provider's apis
 An identity can also let your application call the provider's apis for the user, such as reading their Google calendar. Name the scopes of those apis your application may ask for in `apiScopes`, and declare `OAuthProviderTokens` next to the other entities:
@@ -348,6 +349,18 @@ export async function stopCalendarAccess(authService: AuthServiceInterface, user
 }
 ```
 
+### Signing in and api access apart
+`revokeProviderSignIn` stops an identity from signing in, and keeps the tokens of its apis, so your application goes on calling them. An identity without api access is unlinked. Connecting it again with `signIn: true` turns signing in on again.
+
+```ts
+// src/services/sign-in-disconnection.function.ts
+import { AuthServiceInterface } from 'zibri';
+
+export async function stopSigningInWithGoogle(authService: AuthServiceInterface, userId: string, identityId: string): Promise<void> {
+    await authService.revokeProviderSignIn(userId, identityId, undefined);
+}
+```
+
 ## Signing in again
 Add `reauthenticate=true` to the authorize route, and the provider asks the user to sign in again instead of using the session it has. Google and GitHub cannot be asked for that, and have the user pick their account instead. The login time of a sign-in is when the user signed in at the provider, which is what a route accepting a [recent login](./two-factor.md#accepting-a-recent-login-instead) checks. A sign-in through a [provider that speaks plain OAuth2](#providers-that-speak-plain-oauth2) never counts as a recent login.
 
@@ -361,7 +374,11 @@ POST /auth/logout
 
 Send the browser to the url. The provider ends its session, and sends the browser back to `{baseUrl}/auth/federated/{name}/logout`, which lands it on `signedOutUrl`. Without a `providerLogoutUrl`, the logout is done.
 
-A user who logs out at the provider is logged out here as well. The provider sends the browser to the same route with a logout request, which ends every login started from that session at the provider, and the browser goes back to the provider. A logout request that names no session ends every login the user started at that provider. One that is not signed by the provider is refused with `401`.
+A user who logs out at the provider is logged out here as well. The provider sends the browser to the same route with a logout request, in the url or as a posted form, which ends every login started from that session at the provider, and the browser goes back to the provider. A logout request that names no session ends every login the user started at that provider. One that is not signed by the provider is refused with `401`.
+
+The browser goes back to the provider's logout url for redirects. When the provider's metadata names a logout url for posted forms only, the route answers with a page that posts the answer there.
+
+A SAML identity provider can also send the logout request without a browser, to `{baseUrl}/auth/federated/{name}/logout/soap`, in a SOAP envelope. It ends the same logins, and is answered in a SOAP envelope. A body that is not a SOAP envelope carrying a logout request is refused with `400`.
 
 ## Other providers
 Extend `BaseOidcAuthenticator` for any other OpenID Connect provider:
@@ -532,7 +549,7 @@ export class CompanySamlAuthenticator extends BaseSamlAuthenticator<Roles, User>
 }
 ```
 
-Register it like any other provider, and add a `signedOutUrl` to the [options](#setting-it-up). Set the identity provider up with the metadata of your application at `{baseUrl}/auth/federated/company-saml/metadata`, which most identity providers read from the url. It names the entity id, the callback, the logout route, the NameID asked for and the certificates of your keys.
+Register it like any other provider, and add a `signedOutUrl` to the [options](#setting-it-up). Set the identity provider up with the metadata of your application at `{baseUrl}/auth/federated/company-saml/metadata`, which most identity providers read from the url. It names the entity id, the callback, the logout route for redirected and posted messages, the SOAP logout route, the NameID asked for and the certificates of your keys.
 
 | Member | What it is |
 |---|---|
@@ -541,7 +558,7 @@ Register it like any other provider, and add a `signedOutUrl` to the [options](#
 | `entityId` | The entity id of your application at the identity provider |
 | `identityProvider` | Where the identity provider's metadata is, as `metadataUrl`. For a provider that publishes none: its `signInUrl`, the `certificates` it signs with, and its `logoutUrl` if it has one |
 | `nameIdFormat` | Which NameID the identity provider is asked for. `SamlNameIdFormat.PERSISTENT` by default |
-| `signingKey` | The key requests are signed with, for a provider that asks for signed requests. None by default |
+| `signingKey` | The key requests, and logout answers that are posted or sent in a SOAP envelope, are signed with, for a provider that asks for signed messages. None by default |
 | `decryptionKey` | The key assertions are encrypted to, for a provider that encrypts them. None by default |
 | `resolveProfile` | Reads the email and names out of the attributes the provider sends. Override it for a provider that names them differently |
 

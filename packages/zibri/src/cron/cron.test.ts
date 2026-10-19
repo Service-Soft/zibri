@@ -26,7 +26,7 @@ function makeCronJob(config: Partial<InitialCronConfig> & { onTickImpl?: () => v
             name: 'test-cron-job',
             cron: CronExpression.every(1, 'minutes').build(),
             runOnInit: false,
-            stopOnError: true,
+            onFailure: { stopAfterFailures: 1 },
             syncToDataSource: true,
             ...cronConfig
         };
@@ -68,7 +68,7 @@ class AutoRegisteredCronJob extends CronJob {
         name: 'auto-registered-job',
         cron: CronExpression.every(1, 'minutes').build(),
         runOnInit: false,
-        stopOnError: true,
+        onFailure: { stopAfterFailures: 1 },
         syncToDataSource: true
     };
 
@@ -148,21 +148,22 @@ describe('CronService / CronJob — real server', () => {
             // both defaults used to be the dangerous one: every replica fired every job on every
             // boot, and one transient failure took a job off the schedule for good
             expect(job['fullInitialConfig'].runOnInit).toBe(false);
-            expect(job['fullInitialConfig'].stopOnError).toBe(false);
+            expect(job['fullInitialConfig'].onFailure).toEqual({});
         });
 
-        it('takes runOnInit and stopOnError from the class rather than from the stored row', async () => {
+        it('takes runOnInit from the class rather than from the stored row', async () => {
             // the row is a copy of what the class declares about how the job behaves, not the truth
             // about it - otherwise editing the declaration changes nothing in any deployment that has
             // booted once, which is every deployment that has been running longest
             await cronJobRepo.create({
                 name: 'declaration-wins',
+                source: 'code',
                 cron: CronExpression.every(1, 'minutes').build(),
                 timezone: 'UTC',
                 state: CronJobState.ACTIVE,
                 previousState: undefined,
                 runOnInit: true,
-                stopOnError: true,
+                consecutiveFailures: 0,
                 lastRun: undefined,
                 errorMessage: undefined
             });
@@ -171,7 +172,7 @@ describe('CronService / CronJob — real server', () => {
                 name: 'declaration-wins',
                 syncToDataSource: true,
                 runOnInit: false,
-                stopOnError: false
+                onFailure: {}
             });
             await cronService.schedule(job);
 
@@ -180,7 +181,6 @@ describe('CronService / CronJob — real server', () => {
                 required: false
             });
             expect(entity?.runOnInit).toBe(false);
-            expect(entity?.stopOnError).toBe(false);
         });
 
         it('reads the expression in the deployment default zone when the job names none', async () => {
@@ -336,12 +336,13 @@ describe('CronService / CronJob — real server', () => {
             const operatorSchedule: CronExpressionString = CronExpression.every(5, 'minutes').build();
             await cronJobRepo.create({
                 name: 'schedule-is-theirs',
+                source: 'code',
                 cron: operatorSchedule,
                 timezone: 'UTC',
                 state: CronJobState.ACTIVE,
                 previousState: undefined,
                 runOnInit: false,
-                stopOnError: false,
+                consecutiveFailures: 0,
                 lastRun: undefined,
                 errorMessage: undefined
             });
@@ -365,12 +366,13 @@ describe('CronService / CronJob — real server', () => {
             // Pre-create entity that an operator has turned off
             await cronJobRepo.create({
                 name: 'reuse-test',
+                source: 'code',
                 cron: CronExpression.every(1, 'minutes').build(),
                 timezone: 'UTC',
                 state: CronJobState.INACTIVE,
                 previousState: undefined,
                 runOnInit: false,
-                stopOnError: false,
+                consecutiveFailures: 0,
                 lastRun: undefined,
                 errorMessage: undefined
             });
@@ -520,7 +522,7 @@ describe('CronService / CronJob — real server', () => {
                 name: 'error-test',
                 syncToDataSource: false,
                 runOnInit: false,
-                stopOnError: false,
+                onFailure: {},
                 onTickImpl: () => {
                     throw new Error('boom');
                 }
@@ -532,12 +534,12 @@ describe('CronService / CronJob — real server', () => {
             expect(job['entity']?.errorMessage).toContain('boom');
         });
 
-        it('disables the job when stopOnError is true and onTick throws', async () => {
+        it('stops the job when onTick throws as often in a row as onFailure allows', async () => {
             const job: CronJob = makeCronJob({
                 name: 'stop-on-error',
                 syncToDataSource: false,
                 runOnInit: false,
-                stopOnError: true,
+                onFailure: { stopAfterFailures: 1 },
                 onTickImpl: () => {
                     throw new Error('fatal');
                 }
@@ -555,7 +557,7 @@ describe('CronService / CronJob — real server', () => {
                 name: 'stop-records-previous',
                 syncToDataSource: true,
                 runOnInit: false,
-                stopOnError: true,
+                onFailure: { stopAfterFailures: 1 },
                 onTickImpl: () => {
                     throw new Error('fatal');
                 }
@@ -577,17 +579,23 @@ describe('CronService / CronJob — real server', () => {
             // configuration change - is the same class of event that would have fixed the failure
             await cronJobRepo.create({
                 name: 'recovers-on-boot',
+                source: 'code',
                 cron: CronExpression.every(1, 'minutes').build(),
                 timezone: 'UTC',
                 state: CronJobState.STOPPED_ON_ERROR,
                 previousState: CronJobState.ACTIVE,
                 runOnInit: false,
-                stopOnError: true,
+                consecutiveFailures: 1,
                 lastRun: undefined,
                 errorMessage: 'the failure that stopped it'
             });
 
-            const job: CronJob = makeCronJob({ name: 'recovers-on-boot', syncToDataSource: true, runOnInit: false, stopOnError: true });
+            const job: CronJob = makeCronJob({
+                name: 'recovers-on-boot',
+                syncToDataSource: true,
+                runOnInit: false,
+                onFailure: { stopAfterFailures: 1 }
+            });
             await cronService.schedule(job);
 
             expect(job.state).toBe(CronJobState.ACTIVE);
@@ -605,28 +613,29 @@ describe('CronService / CronJob — real server', () => {
         it('leaves a job somebody turned off turned off', async () => {
             await cronJobRepo.create({
                 name: 'stays-disabled',
+                source: 'code',
                 cron: CronExpression.every(1, 'minutes').build(),
                 timezone: 'UTC',
                 state: CronJobState.INACTIVE,
                 previousState: undefined,
                 runOnInit: false,
-                stopOnError: false,
+                consecutiveFailures: 0,
                 lastRun: undefined,
                 errorMessage: undefined
             });
 
-            const job: CronJob = makeCronJob({ name: 'stays-disabled', syncToDataSource: true, runOnInit: false, stopOnError: false });
+            const job: CronJob = makeCronJob({ name: 'stays-disabled', syncToDataSource: true, runOnInit: false, onFailure: {} });
             await cronService.schedule(job);
 
             expect(job.state).toBe(CronJobState.INACTIVE);
         });
 
-        it('does not disable the job when stopOnError is false and onTick throws', async () => {
+        it('does not stop the job when onFailure asks for no stop and onTick throws', async () => {
             const job: CronJob = makeCronJob({
                 name: 'no-stop-on-error',
                 syncToDataSource: false,
                 runOnInit: false,
-                stopOnError: false,
+                onFailure: {},
                 onTickImpl: () => {
                     throw new Error('non-fatal');
                 }
@@ -643,7 +652,7 @@ describe('CronService / CronJob — real server', () => {
                 name: 'error-persist',
                 syncToDataSource: true,
                 runOnInit: false,
-                stopOnError: false,
+                onFailure: {},
                 onTickImpl: () => {
                     throw new Error('db-error');
                 }
@@ -755,14 +764,15 @@ describe('CronService / CronJob — real server', () => {
             await expect(cronService.update('nonexistent', { name: 'other' })).rejects.toThrow('Could not find cron job with name "nonexistent"');
         });
 
-        it('update applies data to the job', async () => {
+        it('update refuses a job declared in code, and leaves its row as it was', async () => {
             const job: CronJob = makeCronJob({ name: 'update-test', syncToDataSource: true, runOnInit: false });
             await cronService.schedule(job);
 
-            await cronService.update('update-test', { runOnInit: false, stopOnError: false });
+            // the class declares what update would change, and each start takes it back from there (04 §2.15)
+            await expect(cronService.update('update-test', { runOnInit: true })).rejects.toThrow('is declared in code');
 
             const entity: CronJobEntity | undefined = await cronJobRepo.findOne({ where: { name: 'update-test' }, required: false });
-            expect(entity?.stopOnError).toBe(false);
+            expect(entity?.runOnInit).toBe(false);
         });
 
         it('update throws when renaming to an already-used name', async () => {

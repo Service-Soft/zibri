@@ -259,15 +259,13 @@ describe('applyScopeToWhere', () => {
             expect(res.where).toEqual({ labels: { isIncludedIn: ['power'] } });
         });
 
-        // an empty allow list is not an impossible condition: a row carrying no labels at all
-        // satisfies it, which is exactly what both lists together say
+        // an allow list never finds a row without labels, so two lists sharing none match no row
         it('allows nothing when the two lists share no label', () => {
             const res: ScopedWhere<Invoice> = apply(
                 { labels: { isIncludedIn: ['rent'] } },
                 { labels: { isIncludedIn: ['water'] } }
             );
-            expect(res.matchesNothing).toBe(false);
-            expect(res.where).toEqual({ labels: { isIncludedIn: [] } });
+            expect(res.matchesNothing).toBe(true);
         });
 
         it('compares the values of a list rather than the objects holding them', () => {

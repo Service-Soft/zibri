@@ -3,11 +3,14 @@ import { Readable } from 'node:stream';
 import { FederatedAuthenticatorInterface, isFederatedAuthenticator } from './federated-authenticator.interface';
 import { FederatedCallbackForm } from './federated-callback-form.model';
 import { FederatedMetadata } from './federated-metadata.model';
+import { FederatedProviderLogoutMessage } from './federated-provider-logout-message.model';
 import { FederatedProviderLogout } from './federated-provider-logout.model';
 import { FederatedSignInFailure } from './federated-sign-in-failure.enum';
 import { FederatedSignInError } from './federated-sign-in.error';
+import { FederatedSoapLogout } from './federated-soap-logout.model';
 import { FederationOptions } from './federation-options.model';
 import { HttpRequestContext } from '../../../context/request/http-request.context';
+import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../../../context/request/request-context-token.model';
 import { WebsocketRequestContext } from '../../../context/request/websocket-request.context';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { NoProviderError } from '../../../di/errors/no-provider.error';
@@ -17,11 +20,14 @@ import { NotFoundError } from '../../../error-handling/errors/not-found.error';
 import { InternalError } from '../../../error-handling/internal-error.model';
 import { GlobalRegistry } from '../../../global/global-registry';
 import { HttpMethod } from '../../../http/http-method.enum';
+import { MimeType } from '../../../http/mime-type.enum';
 import { RedirectResponse } from '../../../http/redirect-response.model';
 import { $ts } from '../../../localization/translate.function';
 import { AuditAction, AuditOutcome } from '../../../logging/audit-event.model';
 import { auditReasonFor } from '../../../logging/audit-reason-for.function';
 import { FileResponse } from '../../../parsing/form-data/file-response.model';
+import { CspSource } from '../../../parsing/html/csp-options.model';
+import { HtmlResponse } from '../../../parsing/html/html-response.model';
 import { Newable } from '../../../types/newable.type';
 import { BaseUser } from '../../models/base-user.model';
 import { Authenticators } from '../authenticators.model';
@@ -154,32 +160,66 @@ export abstract class FederatedRouteUtilities {
     }
 
     /**
-     * Takes what a provider sent the browser to the logout route with: ends the logins of a session
-     * the user logged out of there and tells the provider, or lands the browser on `signedOutUrl` once
-     * the provider ended a session a logout here sent it to end.
-     * @param provider - The name in the route.
-     * @returns Where the browser goes on to.
-     * @throws NotFoundError when the application has no provider of that name, or it cannot be logged out at.
+     * Reads the query a provider sent the browser to the logout route with, exactly as it was sent.
+     * @returns The logout message of the redirect.
+     * @throws When not inside a http request.
      */
-    static async completeProviderLogout(provider: string): Promise<RedirectResponse> {
+    static resolveRedirectedLogout(): FederatedProviderLogoutMessage {
         const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
         if (!(context instanceof HttpRequestContext)) {
             throw new InternalError('A logout at a provider runs inside an http request.');
         }
         const url: string = context.request.originalUrl;
         const rawQuery: string = url.includes('?') ? url.slice(url.indexOf('?') + 1) : '';
-        const logout: FederatedProviderLogout = await inject(this.resolveAuthenticator(provider))
-            .readProviderLogout(new URLSearchParams(rawQuery), rawQuery);
+        return { binding: 'redirect', query: new URLSearchParams(rawQuery), rawQuery };
+    }
+
+    /**
+     * Takes what a provider sent the browser to the logout route with: ends the logins of a session
+     * the user logged out of there and tells the provider, or lands the browser on `signedOutUrl` once
+     * the provider ended a session a logout here sent it to end.
+     * @param provider - The name in the route.
+     * @param message - The query of a redirect, or the fields of a posted form.
+     * @returns Where the browser goes on to: a redirect, or a page posting a form to the provider.
+     * @throws NotFoundError when the application has no provider of that name, or it cannot be logged out at.
+     */
+    static async completeProviderLogout(
+        provider: string,
+        message: FederatedProviderLogoutMessage
+    ): Promise<RedirectResponse | HtmlResponse> {
+        const logout: FederatedProviderLogout = await inject(this.resolveAuthenticator(provider)).readProviderLogout(message);
         if (logout.type === 'response') {
-            const signedOutUrl: string | undefined = this.resolveOptions().signedOutUrl;
-            if (signedOutUrl == undefined) {
-                throw new InternalError(`FEDERATION_OPTIONS name no signedOutUrl to land on after a logout at ${provider}.`);
-            }
-            return RedirectResponse.to(new URL(signedOutUrl));
+            return this.toSignedOut(provider);
         }
         await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).endFederatedLogins(logout.session, undefined);
         inject(ZIBRI_DI_TOKENS.LOGGER).audit({ action: AuditAction.LOGOUT, outcome: AuditOutcome.SUCCESS });
-        return RedirectResponse.to(new URL(logout.redirectTo));
+        if (logout.answer == undefined) {
+            return this.toSignedOut(provider);
+        }
+        return logout.answer.binding === 'redirect'
+            ? RedirectResponse.to(new URL(logout.answer.url))
+            : this.toAutoPostedForm(logout.answer.url, logout.answer.fields);
+    }
+
+    /**
+     * Takes a logout request a provider sent server to server in a SOAP envelope: ends the logins of
+     * the session the user logged out of there, and answers the provider.
+     * @param provider - The name in the route.
+     * @param envelope - The envelope, exactly as it arrived.
+     * @returns The envelope the provider is answered with.
+     * @throws NotFoundError when the application has no provider of that name, or it takes no such requests.
+     */
+    static async completeSoapLogout(provider: string, envelope: string): Promise<FileResponse> {
+        const logout: FederatedSoapLogout = await inject(this.resolveAuthenticator(provider)).resolveSoapLogout(envelope);
+        await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).endFederatedLogins(logout.session, undefined);
+        inject(ZIBRI_DI_TOKENS.LOGGER).audit({ action: AuditAction.LOGOUT, outcome: AuditOutcome.SUCCESS });
+        // a file rather than a model written as xml, since it is signed and has to arrive as it was written
+        return FileResponse.fromStream({
+            stream: Readable.from([logout.answer]),
+            filename: 'logout-response.xml',
+            mimeType: MimeType.TEXT_XML,
+            size: Buffer.byteLength(logout.answer)
+        });
     }
 
     /**
@@ -206,8 +246,8 @@ export abstract class FederatedRouteUtilities {
      * @returns The document.
      * @throws NotFoundError when the application has no provider of that name, or it publishes nothing.
      */
-    static toMetadata(provider: string): FileResponse {
-        const metadata: FederatedMetadata | undefined = inject(this.resolveAuthenticator(provider)).resolveMetadata();
+    static async toMetadata(provider: string): Promise<FileResponse> {
+        const metadata: FederatedMetadata | undefined = await inject(this.resolveAuthenticator(provider)).resolveMetadata();
         if (metadata == undefined) {
             throw new NotFoundError($ts`The provider "${provider}" publishes no metadata.`);
         }
@@ -277,6 +317,53 @@ export abstract class FederatedRouteUtilities {
         const url: URL = new URL(this.resolveOptions().errorUrl);
         url.searchParams.set('error', error instanceof FederatedSignInError ? error.failure : FederatedSignInFailure.EXPIRED);
         return RedirectResponse.to(url);
+    }
+
+    /**
+     * Lands the browser on `signedOutUrl`.
+     * @param provider - The name in the route, for the message when it is not set.
+     * @returns The redirect.
+     * @throws InternalError when `FEDERATION_OPTIONS` name no `signedOutUrl`.
+     */
+    private static toSignedOut(provider: string): RedirectResponse {
+        const signedOutUrl: string | undefined = this.resolveOptions().signedOutUrl;
+        if (signedOutUrl == undefined) {
+            throw new InternalError(`FEDERATION_OPTIONS name no signedOutUrl to land on after a logout at ${provider}.`);
+        }
+        return RedirectResponse.to(new URL(signedOutUrl));
+    }
+
+    /**
+     * A page that posts a form to a provider on its own, as the HTTP-POST binding sends a message.
+     *
+     * Its policy lets it post to that provider and run its one script, and nothing else. Without
+     * scripts, a button posts the form.
+     * @param url - Where the form is posted.
+     * @param fields - Its fields.
+     * @returns The page.
+     */
+    private static toAutoPostedForm(url: string, fields: Record<string, string>): HtmlResponse {
+        const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
+        const nonce: string | undefined = context?.get(ZIBRI_REQUEST_CONTEXT_TOKENS.NONCE);
+        const inputs: string = Object.entries(fields)
+            .map(([name, value]) => `<input type="hidden" name="${this.escape(name)}" value="${this.escape(value)}">`)
+            .join('');
+        const target: URL = new URL(url);
+        const html: string = [
+            '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Logging out</title></head><body>',
+            `<form method="post" action="${this.escape(url)}">${inputs}<noscript><button type="submit">Continue</button></noscript></form>`,
+            // eslint-disable-next-line sonar/no-nested-template-literals
+            `<script${nonce == undefined ? '' : ` nonce="${this.escape(nonce)}"`}>document.forms[0].submit()</script>`,
+            '</body></html>'
+        ].join('');
+        const formAction: CspSource = target.protocol === 'https:' ? `https://${target.host}` : `http://${target.host}`;
+        return HtmlResponse.fromString(html, { csp: { formAction: [formAction] } });
+    }
+
+    private static escape(value: string): string {
+        return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;');
     }
 
     private static findAuthenticator(provider: string): FederatedAuthenticatorClass | undefined {

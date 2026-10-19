@@ -68,10 +68,22 @@ defineProvider({ token: ZIBRI_INVOICING_PLUGIN_DI_TOKENS.COMPANY_INFO_SERVICE, u
 
 The pdf and the electronic invoice of an invoice name the company of the invoice's own tenant. Labels, font sizes and the numbering format are the same for every tenant, and go into `ZIBRI_INVOICING_PLUGIN_DI_TOKENS.OPTIONS_INPUT`.
 
+The amounts of an invoice are calculated the way EN 16931 calculates them, in its pdf and its electronic invoice alike. Each item's total is rounded to the minor units of the invoice's currency, which `getCurrencyMinorUnits` of the [localize service](./localization.md#formatting) gives, half away from zero. The tax of each tax group is the group's total times its rate, rounded once, and the tax of the invoice is the sum of its groups. An invoice totalling less than 0 before tax is refused, since it is a credit note, and so is an electronic invoice in a currency with more than two minor units, which EN 16931 cannot state. A credit within an invoice is an item with a negative price.
+
+An electronic invoice names the company and the customer by the address each receives electronic invoices at, `electronicAddress` of `CompanyInfo` and of `InvoiceAddress`: a `scheme` from the Electronic Address Scheme code list, eg. `0204` for a Leitweg-ID or `9930` for a German VAT id, and its `value`. An XRechnung names a party without one by its email. A Peppol invoice requires both, and refuses an item whose total, rounded to its currency, is more than 0.02 from its amount times its price, as with a fractional price in a currency without minor units.
+
+An invoice number is the year, the recipient's name abbreviation and the count of the recipient's invoices that year, eg. `2026-SIEMEN-0001`. Each abbreviation belongs to one recipient, and is kept in `InvoiceRecipientAbbreviation`, which the plugin needs in your data source. A recipient's first invoice claims the abbreviation `getSuggestedNameAbbreviation` suggests, the first letters of a company name or of first and last name. When another recipient holds it, `generateInvoiceNumber` answers `409`: pass the recipient another one as `nameAbbreviation`, once, and their invoices are numbered with it from then on.
+
 #### ZibriMailingListPlugin
 Adds support for managing mailing lists, including subscribing, confirming subscriptions, unsubscribing and managing preferences.
 <br>
 Each [tenant](./tenancy.md) has its own mailing lists and subscribers. The links in the emails, such as the one to unsubscribe, name the tenant through [`resolveTenantUrl`](./tenancy.md#the-tenant-of-a-request), so following one opens the page in that tenant. The base email template gets them as `unsubscribeLink` and `managePreferencesLink`.
+<br>
+Every subscription is confirmed through the link of a confirmation email, including one of an address that is already on other lists. An address already on the list gets no email. The link subscribes to the list it names, once, until it expires after `CONFIRMATION_TOKEN_EXPIRES_IN_MS` (a day by default). Followed again, it shows the success page while the address is still on the list, and answers `401` once it left the list or the link expired. Expired confirmations are deleted every hour.
+<br>
+The links to unsubscribe and to manage preferences carry the subscriber's id and their `secret`, which is generated when the subscriber is created and stored encrypted. A link with any other secret answers `401`. Writing a new `secret` ends every link sent before.
+<br>
+An unsubscribe link opens the `UNSUBSCRIBE_CONFIRMATION_PAGE_TEMPLATE` with `unsubscribed: false`: render a form posting to `unsubscribeUrl`. The post unsubscribes and renders the page again with `unsubscribed: true`. Every mail to a list carries the [one-click unsubscribe headers](./email.md#sending-through-something-other-than-smtp), whose post unsubscribes the same way.
 <br>
 It requires you to provide the email/page templates it uses (eg. `SUBSCRIBE_CONFIRMATION_EMAIL_TEMPLATE`, `PREFERENCES_PAGE_TEMPLATE`) via the `ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS` tokens.
 <br>
@@ -91,7 +103,9 @@ Adds support for handling payments via configurable payment providers (eg. `PayP
 <br>
 It requires you to provide your payment methods and providers via `ZIBRI_PAYMENT_PLUGIN_DI_TOKENS.OPTIONS_INPUT`, as there is no sensible default for it. The providers are the same for every tenant, and each payment belongs to the [tenant](./tenancy.md) it is made in: a `transactionId` is unique among the payments of its tenant.
 
-A step of a payment - confirming, collecting, cancelling, refunding - is decided by the payment as it is stored, one step of a payment at a time across every instance, and the payment you pass is updated with the result. A step the stored status does not allow answers `409`, and so does a `transactionId` that is already used; payment data that is not valid answers `400`. `FAILED` means the provider declined. Every call that moves money carries an idempotency key, so you can repeat the step.
+A step of a payment - confirming, collecting, cancelling, refunding - is decided by the payment as it is stored, one step of a payment at a time across every instance, and the payment you pass is updated with the result. A step the stored status does not allow answers `409`, and so does a `transactionId` that is already used; payment data that is not valid answers `400`. `FAILED` means the provider declined.
+
+The `amount` of a payment is a `BigNumber`, which holds it exactly, and travels through json as a string. It has at most as many decimals as its currency: an amount for `PayPalPaymentProvider` in `HUF`, `JPY` or `TWD` has none, in any other currency two. One with more answers `400`. Every call that moves money carries an idempotency key, so you can repeat the step.
 
 ### Writing a custom plugin
 A custom plugin extends the abstract `ZibriPlugin` class:

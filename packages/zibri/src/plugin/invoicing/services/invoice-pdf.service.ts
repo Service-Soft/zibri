@@ -2,6 +2,7 @@ import { type CompanyInfoServiceInterface } from './company-info-service.interfa
 import { InvoiceConformanceServiceInterface, InvoiceConformance } from './conformance/invoice-conformance-service.interface';
 import { type InvoiceCalcServiceInterface } from './invoice-calc-service.interface';
 import { InvoicePdfServiceInterface } from './invoice-pdf-service.interface';
+import { validateInvoiceTotal } from './validate-invoice-total.function';
 import { Inject } from '../../../di/decorators/inject.decorator';
 import { Injectable } from '../../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
@@ -73,7 +74,8 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
         locale: LocaleCode,
         timezone: Timezone
     ): Promise<PdfDocumentDefinition> {
-        const taxGroups: Vat[] = this.getTaxGroups(invoice);
+        await validateInvoiceTotal(invoice, this.invoiceCalcService, this.localizeService);
+        const taxGroups: Vat[] = await this.getTaxGroups(invoice);
         // the company of the invoice's own tenant, whichever tenant asks for its pdf
         const company: CompanyInfo = await this.companyInfoService.resolveCompanyInfo(invoice.tenantId);
         const res: PdfDocumentDefinition = {
@@ -232,7 +234,7 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
         const res: PdfTableCellDefinition[][] = [this.getInvoiceItemsHeaders(taxGroups)];
 
         for (const item of invoice.items) {
-            const totalPricePreTax: BigNumber = await this.invoiceCalcService.getItemTotalPriceBeforeTax(item);
+            const totalPricePreTax: BigNumber = await this.invoiceCalcService.getItemTotalPriceBeforeTax(item, invoice.currency);
             const amount: string = `${item.amount} ${item.amountUnit.displayName}`;
             if (taxGroups.length) {
                 res.push([
@@ -464,8 +466,8 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
      * @param invoice - The invoice to get the tax groups for.
      * @returns The tax groups for the pdf.
      */
-    protected getTaxGroups(invoice: Invoice): Vat[] {
-        const vats: Vat[] = [...new Set(invoice.items.map(item => item.vat))];
+    protected async getTaxGroups(invoice: Invoice): Promise<Vat[]> {
+        const vats: Vat[] = await this.invoiceCalcService.getTaxGroups(invoice, true);
         return vats.filter(v => v.rate !== 0);
     }
 

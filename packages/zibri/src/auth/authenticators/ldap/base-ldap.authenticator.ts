@@ -3,6 +3,7 @@ import type { ConnectionOptions } from 'node:tls';
 
 import type { Client, ClientOptions, Entry, Filter } from 'ldapts';
 
+import { DisabledLdapEntriesCronJob } from './disabled-ldap-entries.cron-job';
 import { LdapCredentials } from './ldap-credentials.model';
 import { LdapEntry } from './ldap-entry.model';
 import { LdapIdentity, LdapIdentityCreateData } from './ldap-identity.model';
@@ -14,25 +15,40 @@ import { Transaction } from '../../../data-source/transaction/transaction.model'
 import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../di/inject.function';
+import { AccountDeactivatedError } from '../../../error-handling/errors/account-deactivated.error';
 import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.error';
 import { InternalError } from '../../../error-handling/internal-error.model';
 import { type LeaseServiceInterface } from '../../../leases/lease-service.interface';
 import { $ts } from '../../../localization/translate.function';
 import { type LoggerInterface } from '../../../logging/logger.interface';
+import { KeysetPage } from '../../../open-api/pagination-result.model';
 import { Newable } from '../../../types/newable.type';
 import { Ms } from '../../../utilities/ms';
 import { optionalPeer } from '../../../utilities/optional-peer.function';
 import { validateEntitiesRegistered } from '../../../utilities/validate-entities-registered.function';
+import { type AuthServiceInterface } from '../../auth-service.interface';
 import { Authentication } from '../../models/authentication.model';
 import { BaseUser } from '../../models/base-user.model';
 import { type UserServiceInterface } from '../../user/user-service.interface';
 import { AuthControllerAuthenticatorInterface } from '../auth-controller-authenticator.interface';
+import { RefreshResolvingAuthenticatorInterface } from '../refresh-resolving-authenticator.interface';
 
 /**
  * How long a first sign-in may take to link an entry, before another sign-in as the same entry stops
  * waiting for it.
  */
 const FIRST_SIGN_IN_LEASE_IN_MS: number = 30 * Ms.SECOND;
+
+/**
+ * How many linked entries one search of the job that looks for disabled entries asks for.
+ */
+const DISABLED_ENTRY_PAGE_SIZE: number = 100;
+
+/**
+ * The value of OpenLDAP's `pwdAccountLockedTime` that locks an account until an administrator unlocks
+ * it, rather than for a while after too many wrong passwords.
+ */
+const LOCKED_BY_ADMINISTRATOR: string = '000001010000Z';
 
 /**
  * The attribute list that asks for no attributes at all (RFC 4511, 4.5.1.8): only the names of the
@@ -50,12 +66,16 @@ const NO_ATTRIBUTES: string[] = ['1.1'];
  *
  * An entry is linked to a user by the id the directory gave it. The first sign-in as an entry hands
  * it to `resolveFirstSignIn`, which answers the user it signs in as; every later one hands it to
- * `resolveSignIn` with that user.
+ * `resolveSignIn` with that user, and so does every refresh of a login of that user.
+ *
+ * A user whose entry is disabled or deleted loses their logins and api keys: at the next refresh, or
+ * when `DisabledLdapEntriesCronJob` finds it, every 15 minutes by default.
  */
 export abstract class BaseLdapAuthenticator<
     RoleType extends string,
     UserType extends BaseUser<RoleType> = BaseUser<RoleType>
-> implements AuthControllerAuthenticatorInterface<RoleType, UserType, LdapCredentials> {
+> implements AuthControllerAuthenticatorInterface<RoleType, UserType, LdapCredentials>,
+    RefreshResolvingAuthenticatorInterface<RoleType, UserType> {
     /**
      * The name of the authenticator, which the links of the directory's entries to users are kept under.
      */
@@ -119,6 +139,12 @@ export abstract class BaseLdapAuthenticator<
     readonly attributes: string[] = ['*'];
 
     /**
+     * The attributes `isEntryActive` reads, asked for by name since a directory sends some of them only
+     * then: 389 Directory Server's `nsAccountLock` and OpenLDAP's `pwdAccountLockedTime` by default.
+     */
+    readonly entryStateAttributes: string[] = ['nsAccountLock', 'pwdAccountLockedTime'];
+
+    /**
      * The certificates of the authorities the directory's certificate is trusted from, PEM encoded.
      * The ones of the system when empty.
      */
@@ -143,6 +169,10 @@ export abstract class BaseLdapAuthenticator<
 
     private get identityRepository(): Repository<LdapIdentity, LdapIdentityCreateData> {
         return inject(repositoryTokenFor(LdapIdentity));
+    }
+
+    private get authService(): AuthServiceInterface {
+        return inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
     }
 
     /**
@@ -194,6 +224,9 @@ export abstract class BaseLdapAuthenticator<
             }
         }
         this.validateName(app);
+        if (!app.options.cronJobs.includes(DisabledLdapEntriesCronJob)) {
+            app.options.cronJobs.push(DisabledLdapEntriesCronJob);
+        }
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -205,6 +238,116 @@ export abstract class BaseLdapAuthenticator<
         }
         const entry: LdapEntry = await this.resolveEntry(credentials);
         return { user: await this.resolveUser(entry, transaction), authenticatedAt: new Date() };
+    }
+
+    /**
+     * Answers the user a refresh continues the login of, from the entries linked to them: refused with
+     * an AccountDeactivatedError when one of them is disabled or deleted, and handed to `resolveSignIn`
+     * otherwise. A user linked to no entry of this directory is answered as they are.
+     * @param user - The user of the login.
+     * @param transaction - The transaction of the refresh, if any.
+     * @returns The user.
+     * @throws AccountDeactivatedError when an entry linked to the user is disabled or deleted.
+     * @throws InternalError when no server of the directory can be reached.
+     */
+    async resolveRefreshUser(user: UserType, transaction: Transaction | undefined): Promise<UserType> {
+        const links: LdapIdentity[] = await this.identityRepository.findAll({
+            where: { directory: this.name, userId: user.id },
+            transaction
+        });
+        if (!links.length) {
+            return user;
+        }
+        const client: Client = await this.resolveServiceConnection();
+        try {
+            const entries: Map<string, LdapEntry> = await this.findEntriesById(client, links.map(link => link.entryId));
+            const disabled: LdapIdentity[] = links.filter(link => !this.isLinkActive(link, entries));
+            if (disabled.length) {
+                // once the transaction is finished, which the refusal rolls back
+                const mark: () => Promise<void> = async () => await this.markDisabled(disabled);
+                if (transaction == undefined) {
+                    await mark();
+                }
+                else {
+                    transaction.afterFinish(mark);
+                }
+                throw new AccountDeactivatedError();
+            }
+            let res: UserType = user;
+            // one after the other, since each is handed what the one before answered
+            for (const link of links) {
+                const entry: LdapEntry | undefined = entries.get(link.entryId);
+                if (entry != undefined) {
+                    res = await this.resolveSignIn(await this.resolveWithGroups(client, entry), res, transaction);
+                }
+            }
+            return res;
+        }
+        finally {
+            await client.unbind();
+        }
+    }
+
+    /**
+     * Ends the logins and api keys of the users whose entries were disabled or deleted, and marks their
+     * links, so the next run leaves them be. `DisabledLdapEntriesCronJob` calls it.
+     */
+    async endAccessOfDisabledEntries(): Promise<void> {
+        // connected once there is something to ask, so a directory nobody signed in at is never asked
+        let client: Client | undefined;
+        try {
+            let cursor: string | undefined;
+            do {
+                const page: KeysetPage<LdapIdentity> = await this.identityRepository.findAllAfter(
+                    cursor,
+                    DISABLED_ENTRY_PAGE_SIZE,
+                    // eslint-disable-next-line unicorn/no-null
+                    { where: { directory: this.name, disabledAt: null } }
+                );
+                if (page.items.length) {
+                    client ??= await this.resolveServiceConnection();
+                    const entries: Map<string, LdapEntry> = await this.findEntriesById(client, page.items.map(link => link.entryId));
+                    const disabled: LdapIdentity[] = page.items.filter(link => !this.isLinkActive(link, entries));
+                    if (disabled.length) {
+                        await this.markDisabled(disabled);
+                        const userIds: string[] = [...new Set(disabled.map(link => link.userId))];
+                        await Promise.all(userIds.map(async userId => await this.authService.endAccess(userId, undefined)));
+                    }
+                }
+                cursor = page.nextCursor;
+            }
+            while (cursor != undefined);
+        }
+        finally {
+            await client?.unbind();
+        }
+    }
+
+    /**
+     * Whether an entry may go on signing in, read from the attributes `entryStateAttributes` names: not
+     * when 389 Directory Server marks it inactivated, or OpenLDAP's password policy locked it until an
+     * administrator unlocks it.
+     * @param entry - The entry, with the attributes that were read.
+     * @returns Whether it is active.
+     */
+    protected isEntryActive(entry: LdapEntry): boolean {
+        // eslint-disable-next-line cspell/spellchecker
+        const inactivated: boolean = (entry.attributes['nsaccountlock'] ?? []).some(value => value.toLowerCase() === 'true');
+        // only the lock an administrator sets. One after too many wrong passwords ends by itself, and
+        // counting it would let whoever typed them end the logins of the person they were guessing for
+        // eslint-disable-next-line cspell/spellchecker
+        const locked: boolean = (entry.attributes['pwdaccountlockedtime'] ?? []).includes(LOCKED_BY_ADMINISTRATOR);
+        return !inactivated && !locked;
+    }
+
+    /**
+     * Turns the id an entry is linked by back into the value of the id attribute, which an entry is
+     * searched for by. The reverse of `toEntryId`.
+     * @param entryId - The id.
+     * @returns The value, as the directory holds it.
+     */
+    protected toEntryIdValue(entryId: string): Buffer {
+        return Buffer.from(entryId, 'utf8');
     }
 
     /**
@@ -329,6 +472,66 @@ export abstract class BaseLdapAuthenticator<
             return undefined;
         }
         return searchEntries[0];
+    }
+
+    /**
+     * Finds the entries with the given ids, in one search, with the attributes `isEntryActive` reads.
+     * @param client - The connection, bound as the service account.
+     * @param entryIds - The ids the entries are linked by.
+     * @returns The entries found, by their ids, without their groups. An entry missing here was deleted,
+     * or no longer matches `entryFilter`.
+     */
+    private async findEntriesById(client: Client, entryIds: string[]): Promise<Map<string, LdapEntry>> {
+        const ldapts: Ldapts = this.resolveLdapts();
+        const { searchEntries } = await client.search(this.searchBase, {
+            scope: 'sub',
+            filter: new ldapts.AndFilter({
+                filters: [
+                    ldapts.FilterParser.parseString(this.entryFilter),
+                    new ldapts.OrFilter({
+                        filters: entryIds.map(id => new ldapts.EqualityFilter({
+                            attribute: this.idAttribute,
+                            value: this.toEntryIdValue(id)
+                        }))
+                    })
+                ]
+            }),
+            attributes: [...this.attributes, this.idAttribute, ...this.entryStateAttributes]
+        });
+        const entries: LdapEntry[] = searchEntries.map(found => this.toEntry(found, []));
+        return new Map(entries.map(entry => [entry.id, entry]));
+    }
+
+    /**
+     * Whether the entry of a link was found and is active.
+     * @param link - The link.
+     * @param entries - The entries found, by their ids.
+     * @returns Whether it is.
+     */
+    private isLinkActive(link: LdapIdentity, entries: Map<string, LdapEntry>): boolean {
+        const entry: LdapEntry | undefined = entries.get(link.entryId);
+        return entry != undefined && this.isEntryActive(entry);
+    }
+
+    /**
+     * Marks links whose entries were found disabled or deleted.
+     * @param links - The links.
+     */
+    private async markDisabled(links: LdapIdentity[]): Promise<void> {
+        await this.identityRepository.updateAll({ id: { oneOf: links.map(link => link.id) } }, { disabledAt: new Date() });
+    }
+
+    /**
+     * Adds the groups of an entry, when groups are read at all.
+     * @param client - The connection, bound as the service account.
+     * @param entry - The entry, without its groups.
+     * @returns The entry with its groups.
+     */
+    private async resolveWithGroups(client: Client, entry: LdapEntry): Promise<LdapEntry> {
+        if (this.groupSearchBase == undefined) {
+            return entry;
+        }
+        return { ...entry, groups: await this.resolveGroups(client, entry.dn, this.groupSearchBase) };
     }
 
     /**
@@ -470,15 +673,22 @@ export abstract class BaseLdapAuthenticator<
     private async resolveUser(entry: LdapEntry, transaction: Transaction | undefined): Promise<UserType> {
         const linked: LdapIdentity | undefined = await this.findIdentity(entry, transaction);
         if (linked != undefined) {
+            if (linked.disabledAt != undefined) {
+                // the directory took the password, so the entry is enabled again
+                // eslint-disable-next-line unicorn/no-null
+                await this.identityRepository.updateById(linked.id, { disabledAt: null }, { transaction });
+            }
             return await this.resolveSignIn(entry, await this.findLinkedUser(linked.userId), transaction);
         }
         // two first sign-ins as the same entry at once would each create a user, and only one of them
-        // could be linked. The second waits, and finds the link the first made
+        // could be linked. The second waits, and finds the link the first made - held until the
+        // login's transaction ends, since the link only becomes visible once it commits (10 §10.5)
         const user: UserType | undefined = await this.leaseService.withLease(
             {
                 key: `ldap-first-sign-in:${this.name}:${entry.id}`,
                 leaseInMs: FIRST_SIGN_IN_LEASE_IN_MS,
-                mode: 'wait'
+                mode: 'wait',
+                heldUntil: transaction
             },
             async () => {
                 const linkedMeanwhile: LdapIdentity | undefined = await this.findIdentity(entry, transaction);

@@ -19,7 +19,7 @@ export class TwoFactorFailureStreak extends BaseEntity {
     /**
      * How many wrong codes in a row.
      */
-    @Property.number()
+    @Property.number({ format: 'integer' })
     count!: number;
 
     /**

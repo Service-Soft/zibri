@@ -57,7 +57,13 @@ describe('EmailService across tenants', () => {
                 ...defaultTestServerProviders,
                 defineProvider({
                     token: ZIBRI_DI_TOKENS.EMAIL_CONFIG,
-                    useValue: { maxEmailsPerHour: 1000, defaultSender: 'noreply@example.com', sendLeaseInMs: Ms.MINUTE, sendBatchSize: 10 }
+                    useValue: {
+                        maxEmailsPerHour: 1000,
+                        defaultSender: 'noreply@example.com',
+                        sendLeaseInMs: Ms.MINUTE,
+                        sendBatchSize: 10,
+                        failedRetentionInMs: 'forever'
+                    }
                 }),
                 defineProvider({ token: ZIBRI_DI_TOKENS.EMAIL_TRANSPORT, useValue: transport })
             ]

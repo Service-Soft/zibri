@@ -90,6 +90,13 @@ export class ApiKey extends BaseEntity {
     expiresAt: Date | undefined | null;
 
     /**
+     * When the key was last used: sent itself, exchanged for a token, or by a token it was exchanged
+     * for. Exact to `recordUseAfterMs` of `API_KEY_OPTIONS`. Null for a key never used.
+     */
+    @Property.date({ required: false })
+    lastUsedAt: Date | undefined | null;
+
+    /**
      * When the key was created.
      */
     @Property.date({ default: () => new Date() })
@@ -99,7 +106,7 @@ export class ApiKey extends BaseEntity {
 /**
  * Data for storing a new api key.
  */
-export class ApiKeyCreateDto extends OmitClass(ApiKey, ['id', 'value', 'createdAt']) {
+export class ApiKeyCreateDto extends OmitClass(ApiKey, ['id', 'value', 'lastUsedAt', 'createdAt']) {
     /**
      * The key as it is handed to its holder, before the hook hashes it. Undefined for a key without a
      * secret.

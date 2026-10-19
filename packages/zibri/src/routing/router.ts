@@ -167,7 +167,7 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
      * @returns The application wide deadline.
      */
     private get handlerTimeout(): HandlerTimeout {
-        return inject(ZIBRI_DI_TOKENS.HTTP_SERVER_TIMEOUTS).handlerInMs;
+        return inject(ZIBRI_DI_TOKENS.HTTP_SERVER_LIMITS).handlerInMs;
     }
 
     constructor(

@@ -55,7 +55,7 @@ export class RateLimitStateEntity extends BaseEntity {
      * a long query, a stalled event loop - a second instance takes it and both write. Requiring the
      * version means the second write is refused rather than silently overwriting the first.
      */
-    @Property.number()
+    @Property.number({ format: 'integer' })
     version!: number;
 
     /**

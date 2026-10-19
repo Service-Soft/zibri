@@ -150,6 +150,8 @@ export class SignUpController {
 
 `registration.name` is the name the sign-up started with, which nothing has proven. Verify an email before you trust it. The ticket logs in once.
 
+A sign-up asks for a passkey the device stores, so the user can sign in with it again. A security key that cannot store one is refused by the browser there.
+
 ## Adding a passkey to an account
 A user who is logged in adds a passkey in two steps:
 
@@ -158,10 +160,12 @@ A user who is logged in adds a passkey in two steps:
 
 The first step takes a second factor, or a [recent login](./two-factor.md#accepting-a-recent-login-instead) in its place, as changing a password does. In routes of your own, `startConnection` and `completeConnection` of `AuthServiceInterface` do the same.
 
-### Listing and removing
-A passkey is an identity linked to its user, like an account at a provider. `GET /auth/identities` lists the passkeys among the user's identities, under the authenticator name `passkey`, each with when it was created and last used, whether it is synced to the user's other devices, and the model of the device as its `aaguid`. `DELETE /auth/identities/{identityId}` removes one. See [listing and unlinking](./sign-in-through-a-provider.md#listing-and-unlinking).
+A device that cannot store a passkey, such as an older security key, is added as well. Its passkey is a second factor and does not sign in, since a sign-in names no passkey and the device has none to offer.
 
-A user whose last passkey you remove has no way in left unless they have a password or a provider.
+### Listing and removing
+A passkey is an identity linked to its user, like an account at a provider. `GET /auth/identities` lists the passkeys among the user's identities, under the authenticator name `passkey`, each with when it was created and last used, whether it is synced to the user's other devices, whether the device stores it and so signs in with it as `discoverable`, and the model of the device as its `aaguid`. `DELETE /auth/identities/{identityId}` removes one. See [listing and unlinking](./sign-in-through-a-provider.md#listing-and-unlinking).
+
+A user left without a passkey that signs in has no way in unless they have a password or a provider.
 
 ## As a second factor
 Register `PasskeyTwoFactorMethod`, name it in the `twoFactorMethods` of your auth controller, and declare `Passkey` and `PasskeyChallenge`:
@@ -177,7 +181,7 @@ export const twoFactorOptions: Pick<ZibriApplicationOptions, 'twoFactorMethods'>
 
 Before a guarded request, the frontend asks `POST /auth/2fa/start?method=passkey` for a challenge, logged in, has the browser use a passkey with it, and sends `credential.toJSON()` as base64url encoded json in the `x-authorization-passkey` header. Rename the header through `ZIBRI_DI_TOKENS.PASSKEY_HEADER`; CORS follows the token.
 
-The device always verifies its user. A passkey counts for the user it belongs to only, and each answer once. The passkeys are those the user signs in with: enrolling the method at `POST /auth/2fa/register?method=passkey` and `POST /auth/2fa/confirm?method=passkey` adds a passkey, and removing it removes every passkey of the user.
+The device always verifies its user. A passkey counts for the user it belongs to only, and each answer once. The passkeys are those the user signs in with: enrolling the method at `POST /auth/2fa/register?method=passkey` and `POST /auth/2fa/confirm?method=passkey` adds a passkey, and removing it removes every passkey of the user. A security key that cannot store a passkey is a second factor too.
 
 A sign-in with a passkey counts as a [recent login](./two-factor.md#accepting-a-recent-login-instead).
 

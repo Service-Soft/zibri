@@ -2,8 +2,9 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { io, Socket } from 'socket.io-client';
 import { ClusterInstance, StartedTestCluster, startTestCluster } from 'zibri-testing';
 
-import { clusterBroadcastEvent, ClusterLogin } from './websocket.instance-options';
+import { clusterAskedEvent, clusterBroadcastEvent, ClusterLogin } from './websocket.instance-options';
 import { FsUtilities } from '../../../utilities/fs.utilities';
+import { WebsocketAnswer } from '../../../websocket/models/websocket-answer.model';
 
 /**
  * Executable form of evaluation/04-infrastructure-subsystems.md section 1.10.
@@ -118,6 +119,32 @@ describe('evaluation/04-infrastructure-subsystems 1.10 - websocket broadcasts ac
         const data: { count: string, at: string } = { count: '18446744073709551616', at: '2026-01-02T03:04:05.000Z' };
         await expect(receivedOnFirst).resolves.toMatchObject({ data });
         await expect(receivedOnSecond).resolves.toMatchObject({ data });
+    }, 30000);
+});
+
+describe('evaluation/04-infrastructure-subsystems 1.13 - answers of clients connected to another instance', () => {
+
+    it('collects what a client connected to a different instance answers, naming its connection', async () => {
+        if (!cluster) {
+            throw new Error('the cluster did not start');
+        }
+        const first: ClusterInstance = cluster.instanceAt(0);
+        const onFirst: Socket = await connectClient(first.baseUrl);
+        const onSecond: Socket = await connectClient(cluster.instanceAt(1).baseUrl);
+        for (const socket of [onFirst, onSecond]) {
+            socket.on(clusterAskedEvent, (_message: unknown, ack: (answer: unknown) => void) => ack({ answeredBy: socket.id }));
+        }
+
+        const res: Response = await fetch(`${first.baseUrl}/cluster-websocket/ask-everyone`, { method: 'POST' });
+        expect(res.ok).toBe(true);
+        const answers: WebsocketAnswer[] = await res.json() as WebsocketAnswer[];
+
+        // the sockets of the cases before are still open and answer nothing, so they are listed as
+        // well, with the error of their timeout
+        // control: the client of the instance that asked
+        expect(answers).toContainEqual({ request: { answeredBy: onFirst.id }, connectionId: onFirst.id, userId: undefined });
+        // the instance that asked never held this socket, and only the other one could ask it
+        expect(answers).toContainEqual({ request: { answeredBy: onSecond.id }, connectionId: onSecond.id, userId: undefined });
     }, 30000);
 });
 

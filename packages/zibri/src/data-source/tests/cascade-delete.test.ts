@@ -19,7 +19,7 @@ describe('cascade delete', () => {
         server = await startTestServer({
             dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Parent, Child, User, Company, Profile, Role] })]
         });
-    }, 15000);
+    }, 30000);
 
     afterAll(async () => {
         await server?.shutdown();

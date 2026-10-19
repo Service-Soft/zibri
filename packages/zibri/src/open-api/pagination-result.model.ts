@@ -43,7 +43,7 @@ export function PaginationResultClass<T>(itemClass: Newable<T>): Newable<Paginat
         @Property.array({ items: { type: 'object', cls: () => itemClass }, description: 'the paginated items' })
         items!: T[];
         // eslint-disable-next-line jsdoc/require-jsdoc
-        @Property.number({ description: 'the total amount of items' })
+        @Property.number({ format: 'integer', description: 'the total amount of items' })
         totalAmount!: number;
     }
 
@@ -63,7 +63,7 @@ export function KeysetPageClass<T>(itemClass: Newable<T>): Newable<KeysetPage<T>
         @Property.array({ items: { type: 'object', cls: () => itemClass }, description: 'the items of this page' })
         items!: T[];
         // eslint-disable-next-line jsdoc/require-jsdoc
-        @Property.number({ description: 'the total amount of items the filter matches' })
+        @Property.number({ format: 'integer', description: 'the total amount of items the filter matches' })
         totalAmount!: number;
         // eslint-disable-next-line jsdoc/require-jsdoc
         @Property.string({

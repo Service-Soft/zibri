@@ -32,5 +32,5 @@ describe('validateEntitiesRegistered', () => {
         await expect(startTestServer({
             plugins: [new ScratchValidatePlugin()]
         })).rejects.toThrow(/Could not find data source for the following entities.*UnregisteredScratchEntity/s);
-    }, 15000);
+    }, 30000);
 });

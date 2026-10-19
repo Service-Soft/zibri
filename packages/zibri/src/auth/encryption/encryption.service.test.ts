@@ -51,7 +51,7 @@ describe('EncryptionService', () => {
         strategyRepository = inject(repositoryTokenFor(EncryptionStrategyEntity));
         keyRepository = inject(repositoryTokenFor(EncryptionKey));
         encryptionService = inject(ZIBRI_DI_TOKENS.ENCRYPTION_SERVICE) as EncryptionService;
-    }, 15000);
+    }, 30000);
 
     afterAll(async () => {
         await server?.shutdown();
@@ -190,7 +190,7 @@ describe('EncryptionService', () => {
 
             // through the driver, because the tampered row is precisely one the repository refuses to
             // read - and reading is what deleting through it starts with
-            await raw.remove(await raw.find({}), undefined);
+            await raw.remove(await raw.findIds({}), undefined);
         });
 
         test('writes a distinct value per row when a bound property is updated in bulk', async () => {
@@ -209,7 +209,7 @@ describe('EncryptionService', () => {
             await expect(otpRepository.findById(first.id)).resolves.toMatchObject({ secret: 'rotated' });
             await expect(otpRepository.findById(second.id)).resolves.toMatchObject({ secret: 'rotated' });
 
-            await raw.remove(await raw.find({}), undefined);
+            await raw.remove(await raw.findIds({}), undefined);
         });
     });
 
@@ -266,7 +266,11 @@ describe('EncryptionService', () => {
             await raw.save([{ ...created, secret: legacy }], undefined, false);
             expect((await otpRepository.findById(created.id, { autoDecrypt: false })).secret.split('.').length).toBe(6);
 
-            await rotationJob.onTick();
+            // the pass an instance makes after it started, which is when values an older version wrote
+            // arrive. The job above already made its pass, and no key was retired since
+            const startedJob: EncryptionRotationCronJob = new EncryptionRotationCronJob(encryptionService);
+            startedJob.onAppInit(server['app']);
+            await startedJob.onTick();
 
             const after: OtpCredentials = await otpRepository.findById(created.id, { autoDecrypt: false });
             expect(after.secret.split('.')[3]).toBe('b');

@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 
 import { BaseEntity } from '../../entity/base-entity.model';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
+import { EntityOrderUtilities } from '../../entity/models/entity-order.utilities';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { Newable } from '../../types/newable.type';
 import { JsonUtilities } from '../../utilities/json.utilities';
@@ -33,7 +34,15 @@ export type KeysetOrderKey = {
     /**
      * What the property holds, which decides how a value is compared and how it survives the cursor.
      */
-    type: 'string' | 'number' | 'date'
+    type: 'string' | 'number' | 'date',
+    /**
+     * The search the property is ordered by similarity to, when it is.
+     *
+     * The cursor then still carries the value itself rather than its similarity: the next page is the
+     * rows less similar to the search than that value is, which the store answers by comparing two
+     * similarities it calculates itself.
+     */
+    similarTo: string | undefined
 };
 
 /**
@@ -95,15 +104,21 @@ export function resolveKeysetOrder<T extends BaseEntity>(
             );
         }
 
+        if (EntityOrderUtilities.isSimilarityOrder(value) && metadata.type === 'string') {
+            // most similar first, which is descending
+            keys.push({ property, direction: 'DESC', type: 'string', similarTo: value.similarTo });
+            continue;
+        }
+
         const direction: 'ASC' | 'DESC' | undefined = directionOf(value);
         if (direction == undefined) {
             throw new InternalError(
                 `${entityClass.name}.${property} is ordered in a way a keyset read cannot continue through.`
-                + ' Order by a property of the entity itself, ascending or descending.'
+                + ' Order by a property of the entity itself, ascending, descending or by similarity.'
             );
         }
 
-        keys.push({ property, direction, type: metadata.type as 'string' | 'number' | 'date' });
+        keys.push({ property, direction, type: metadata.type as 'string' | 'number' | 'date', similarTo: undefined });
     }
 
     return keys;
@@ -147,15 +162,20 @@ function stableString(value: unknown): string {
  * including the part of it an entity's scope contributed, so a cursor cannot be carried from one
  * caller's rows to another's.
  *
- * Hashed rather than carried, because the filter is the application's and a cursor is handed out.
+ * Hashed rather than carried, because the filter is the application's and a cursor is handed out. The
+ * search an order by similarity compares with is hashed for the same reason: it is part of the order,
+ * since a position among the rows most similar to one search is none among those similar to another.
  * @param keys - The order the read was made in.
  * @param where - The filter of the read, after scopes have narrowed it.
  * @returns A short fingerprint of the two.
  */
 export function keysetFingerprint<T extends BaseEntity>(keys: KeysetOrderKey[], where: Where<T> | undefined): string {
-    const order: string = keys.map(k => `${k.property}:${k.direction}`).join(',');
+    const order: string = keys.map(k => `${k.property}:${k.similarTo == undefined ? k.direction : 'similarTo'}`).join(',');
+    // only where there is one, so that the fingerprint of every other order stays what it was and the
+    // cursors already handed out for one stay valid
+    const searches: string = keys.some(k => k.similarTo != undefined) ? `${stableString(keys.map(k => k.similarTo))}|` : '';
     const digest: string = createHash('sha256')
-        .update(`${order}|${stableString(where)}`, 'utf8')
+        .update(`${order}|${searches}${stableString(where)}`, 'utf8')
         .digest('base64url')
         .slice(0, 16);
     // the order stays readable so that a cursor refused for the wrong order can say which one it was

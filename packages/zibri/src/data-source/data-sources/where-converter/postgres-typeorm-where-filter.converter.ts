@@ -1,7 +1,8 @@
-import { Raw, FindOperator, DataSource as ToDataSource } from 'typeorm';
+import { And, ArrayContainedBy, ArrayContains, Raw, FindOperator, DataSource as ToDataSource } from 'typeorm';
 import { ColumnMetadata as ToColumnMetadata } from 'typeorm/metadata/ColumnMetadata.js';
 import { RelationMetadata as ToRelationMetadata } from 'typeorm/metadata/RelationMetadata.js';
 
+import { ParameterizedSql } from './parameterized-sql.model';
 import { TypeOrmParameters } from './typeorm-parameters';
 import { TypeOrmWhereFilterConverter, WhereFilterHandler } from './typeorm-where-filter.converter';
 import { BaseEntity } from '../../../entity/base-entity.model';
@@ -18,7 +19,7 @@ import { JsonUtilities } from '../../../utilities/json.utilities';
 import { MetadataUtilities } from '../../../utilities/metadata.utilities';
 import { ObjectUtilities } from '../../../utilities/object.utilities';
 import { TypeOrmUtilities } from '../../../utilities/typeorm.utilities';
-import { parseFuzzyLikeFilter } from '../../models/where/fuzzy-like.model';
+import { parseFuzzyLikeFilter, SimilarityBound } from '../../models/where/fuzzy-like.model';
 import { OneOfWhereFilterUtilities } from '../../models/where/one-of-where-filter.utilities';
 import { WhereFilterKeys } from '../../models/where/where-filter-keys.model';
 import { Where } from '../../models/where/where-filter.model';
@@ -164,13 +165,17 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
         notILike: ({ jsonPath, textPath, value, parameters }) => `(NOT ${hasJsonValue(jsonPath)}`
             + ` OR ${textPath} NOT ILIKE ${parameters.add(value)})`,
         fuzzyLike: ({ textPath, value, path, parameters }) => {
-            const { value: searchString, minSimilarityRatio } = parseFuzzyLikeFilter(value);
+            const { value: searchString, minSimilarityRatio, bound } = parseFuzzyLikeFilter(value);
+            const search: string = parameters.add(searchString);
+            if (bound != undefined) {
+                return this.boundCondition(textPath, search, parameters.add(bound.text), bound);
+            }
             // no operator here whatever the ratio is: a trigram index covers a column, and a value
             // inside a json document is not one, so there is no index for it to reach
             this.reportUnindexedSearch(path, minSimilarityRatio);
             // the ratio is a number by construction, so it cannot carry sql. Left in the statement
             // rather than bound so that a NaN still fails loudly instead of matching nothing.
-            return `similarity(${textPath}, ${parameters.add(searchString)}) >= ${minSimilarityRatio}`;
+            return `similarity(${textPath}, ${search}) >= ${minSimilarityRatio}`;
         },
         greaterThan: ({ castPath, value, parameters }) => `${castPath} > ${parameters.add(value)}`,
         after: ({ castPath, value, parameters }) => `${castPath} > ${parameters.add(value)}`,
@@ -195,7 +200,9 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
             if (!Array.isArray(value)) {
                 throw new InternalError(`"isIncludedIn" must be an array for JSONB field "${fieldKey}"`);
             }
-            return `${jsonPath} <@ ${this.toJsonbParameter(value, parameters)}`;
+            // not empty, as on a column. Compared rather than measured, as jsonb_array_length raises
+            // on a json scalar
+            return `(${jsonPath} <@ ${this.toJsonbParameter(value, parameters)} AND ${jsonPath} <> '[]'::jsonb)`;
         },
         where: ({ jsonPath, value, fieldKey, path, propMeta, parameters }) => this.buildJsonbWhereCondition(
             jsonPath,
@@ -235,9 +242,15 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     protected fuzzyLikeWhereFilterHandler: WhereFilterHandler = (value, metadata, nestedProperties, entityClass, property) => {
-        const { value: searchString, minSimilarityRatio } = parseFuzzyLikeFilter(value);
+        const { value: searchString, minSimilarityRatio, bound } = parseFuzzyLikeFilter(value);
         const parameters: TypeOrmParameters = this.createParameters();
         const search: string = parameters.add(searchString);
+        if (bound != undefined) {
+            // only ever next to the filter the walk was started with, which is what an index answers
+            // if anything does - a bound is a narrowing of that and asks for no index of its own
+            const text: string = parameters.add(bound.text);
+            return Raw(alias => this.boundCondition(alias, search, text, bound), parameters.values);
+        }
         const ratioCondition: (alias: string) => string = alias => `similarity(${alias}, ${search}) >= ${minSimilarityRatio}`;
 
         if (!this.indexCanAnswer(minSimilarityRatio)) {
@@ -269,6 +282,62 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
         return Raw(alias => `${alias} = ANY(${list})`, parameters.values);
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    protected buildArrayIncludesOperator(values: unknown[], metadata: PropertyMetadata): FindOperator<unknown> {
+        if (!this.isStoredAsJson(metadata)) {
+            return ArrayContains(values);
+        }
+        const parameters: TypeOrmParameters = this.createParameters();
+        return this.rawOnFilteredColumn(
+            `(${hasJsonValue(ALIAS)} AND ${ALIAS} @> ${this.toJsonbParameter(values, parameters)})`,
+            parameters
+        );
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    protected buildArrayIsIncludedInOperator(values: unknown[], metadata: PropertyMetadata): FindOperator<unknown> {
+        // not empty as well: an empty array is asked for with a length of 0 alone, so that no allow
+        // list finds one without saying so
+        if (!this.isStoredAsJson(metadata)) {
+            return And(ArrayContainedBy(values), Raw(alias => `cardinality(${alias}) > 0`));
+        }
+        const parameters: TypeOrmParameters = this.createParameters();
+        return this.rawOnFilteredColumn(
+            `(${hasJsonValue(ALIAS)} AND ${ALIAS} <@ ${this.toJsonbParameter(values, parameters)} AND ${ALIAS} <> '[]'::jsonb)`,
+            parameters
+        );
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    protected buildArrayLengthOperator(operator: string, value: unknown, metadata: PropertyMetadata): FindOperator<unknown> {
+        // the filter value is typed as a number but nothing checks that at runtime, so it is bound
+        // rather than written into the statement. A caller that sends something else now gets the
+        // database refusing it instead of a statement that says something else than it reads like.
+        const parameters: TypeOrmParameters = this.createParameters();
+        const length: string = parameters.add(value);
+        if (!this.isStoredAsJson(metadata)) {
+            // cardinality rather than array_length, which answers null for an empty array and so left
+            // a length of 0 finding none. Both answer null for a missing array, which a length passes over
+            return Raw(alias => `cardinality(${alias}) ${operator} ${length}`, parameters.values);
+        }
+        // a CASE rather than an AND guarding it, because jsonb_array_length raises on a json scalar and
+        // sql does not promise to look at the left side of an AND first
+        return this.rawOnFilteredColumn(
+            `CASE WHEN jsonb_typeof(${ALIAS}) = 'array' THEN jsonb_array_length(${ALIAS}) END ${operator} ${length}`,
+            parameters
+        );
+    }
+
+    /**
+     * Whether an array property is one json value rather than an array column, which is how the data
+     * source stores an array of objects or of values of several shapes.
+     * @param metadata - The array property.
+     * @returns Whether the column is jsonb.
+     */
+    private isStoredAsJson(metadata: PropertyMetadata): boolean {
+        return metadata.type === 'array' && (metadata.items.type === 'object' || metadata.items.type === 'oneOf');
+    }
+
     /**
      * The form a value takes as an element of a list bound as one value.
      *
@@ -285,6 +354,28 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
             return JsonUtilities.stringify(value);
         }
         return value;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    similarityExpression(path: string, similarTo: string): ParameterizedSql {
+        const parameters: TypeOrmParameters = this.createParameters();
+        return { sql: `similarity(${path}, ${parameters.add(similarTo)})`, parameters: parameters.values };
+    }
+
+    /**
+     * The condition comparing a similarity with the similarity of the bound's text to the same search.
+     *
+     * Both sides are calculated by the server in the same statement, so "exactly as similar" is an
+     * equality between two results of one function rather than between a stored and a carried number.
+     * @param path - The text being compared, as sql.
+     * @param search - The placeholder of the search.
+     * @param text - The placeholder of the bound's text.
+     * @param bound - The bound, for the comparison it asks for.
+     * @returns The condition.
+     */
+    private boundCondition(path: string, search: string, text: string, bound: SimilarityBound): string {
+        const operator: string = bound.comparison === 'lesser' ? '<' : '=';
+        return `similarity(${path}, ${search}) ${operator} similarity(${text}, ${search})`;
     }
 
     /**
@@ -565,6 +656,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
         metadata: RelationMetadata<BaseEntity>,
         entities: BaseEntity[]
     ): FindOperator<unknown> {
+        // a row has to have related rows, and all of them allowed, so allowing none is allowing no row
         if (entities.length === 0) {
             return Raw(() => 'FALSE');
         }
@@ -584,7 +676,11 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
             }
             const fkColumn: string = inverseProp.joinColumn;
             const ids: string = this.idParameters(entities, parameters);
-            const rawSql: string = `NOT EXISTS (SELECT 1 FROM "${targetMeta.tableName}" `
+            // the EXISTS is what leaves out a row without related rows, which is asked for with a
+            // length of 0 alone
+            const rawSql: string = `EXISTS (SELECT 1 FROM "${targetMeta.tableName}" `
+                + `WHERE "${targetMeta.tableName}"."${fkColumn}" = $alias$) `
+                + `AND NOT EXISTS (SELECT 1 FROM "${targetMeta.tableName}" `
                 + `WHERE "${targetMeta.tableName}"."${fkColumn}" = $alias$ `
                 + `AND "${targetMeta.tableName}"."id" <> ALL(${ids}))`;
             return this.rawOnRelation(rawSql, parameters);
@@ -608,7 +704,9 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
         const ownFkColumn: string = ownColumn.databaseName;
         const targetFkColumn: string = targetColumn.databaseName;
         const ids: string = this.idParameters(entities, parameters);
-        const rawSql: string = `NOT EXISTS (SELECT 1 FROM "${junctionTable}" `
+        const rawSql: string = `EXISTS (SELECT 1 FROM "${junctionTable}" `
+            + `WHERE "${junctionTable}"."${ownFkColumn}" = $alias$) `
+            + `AND NOT EXISTS (SELECT 1 FROM "${junctionTable}" `
             + `WHERE "${junctionTable}"."${ownFkColumn}" = $alias$ `
             + `AND "${junctionTable}"."${targetFkColumn}" <> ALL(${ids}))`;
         return this.rawOnRelation(rawSql, parameters);

@@ -2,8 +2,12 @@ import { Where, WhereFilter } from './where-filter.model';
 import { WhereValueUtilities } from './where-value.utilities';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { PropertyMetadata } from '../../../entity/decorators/property.decorator';
+import { EntityOrder } from '../../../entity/models/entity-order.model';
+import { EntityOrderUtilities } from '../../../entity/models/entity-order.utilities';
+import { isRelationMetadata } from '../../../entity/models/is-relation-metadata.function';
 import { InternalError } from '../../../error-handling/internal-error.model';
 import { Newable } from '../../../types/newable.type';
+import { MetadataUtilities } from '../../../utilities/metadata.utilities';
 import { ScopeWhereUtilities } from '../../scopes/scope-where.utilities';
 
 /**
@@ -103,16 +107,80 @@ export class FuzzySearchUtilities {
     }
 
     /**
+     * Refuses an order by similarity to a property that holds no text to be similar to.
+     *
+     * The same refusal a filter gets, apart from the index: an order sorts the rows the filter already
+     * narrowed to, so it needs no index of its own, and a property declaring `fuzzySearchable: false`
+     * can still be ordered by how similar it is.
+     * @param order - The order of the read, the entity's default included.
+     * @param entityClass - The entity being read.
+     * @throws When a similarity is asked of a property that holds a kind of value no similarity says
+     * anything about.
+     */
+    static validateOrderable<T>(order: EntityOrder<T> | undefined, entityClass: Newable<T>): void {
+        for (const key of EntityOrderUtilities.resolveKeys(order, entityClass)) {
+            if (key.similarTo == undefined) {
+                continue;
+            }
+            const refusal: string | undefined = this.meaninglessSimilarityFor(this.metadataAt(entityClass, key.path));
+            if (refusal != undefined) {
+                throw new InternalError(`Cannot order "${entityClass.name}.${key.path.join('.')}" by similarity, because ${refusal}`);
+            }
+        }
+    }
+
+    /**
+     * Follows the path of an order key to the metadata of the property it ends in.
+     * @param entityClass - The entity the path starts at.
+     * @param path - The property names to follow, through relations.
+     * @returns The metadata, or undefined when the path does not lead to a declared property.
+     */
+    private static metadataAt(entityClass: Newable<unknown>, path: readonly string[]): PropertyMetadata | undefined {
+        let properties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(entityClass);
+        let metadata: PropertyMetadata | undefined;
+        for (const [i, key] of path.entries()) {
+            metadata = properties[key];
+            if (i === path.length - 1) {
+                break;
+            }
+            if (!isRelationMetadata(metadata)) {
+                return undefined;
+            }
+            properties = MetadataUtilities.getModelProperties(metadata.target());
+        }
+        return metadata;
+    }
+
+    /**
+     * Why a similarity to the values of the given property cannot be asked for, when it cannot.
+     * @param metadata - The metadata of the property, where the entity declares it.
+     * @returns The half-sentence a refusal is built from, or undefined when the property is
+     * searchable.
+     */
+    private static refusalFor(metadata: PropertyMetadata | undefined): string | undefined {
+        const meaningless: string | undefined = this.meaninglessSimilarityFor(metadata);
+        if (meaningless != undefined) {
+            return meaningless;
+        }
+        if (metadata?.type === 'string' && !metadata.fuzzySearchable) {
+            return 'no trigram index is kept for it, so the search would read every row. Either it'
+                + ' declares "fuzzySearchable: false", or it is a value inside an array, which is'
+                + ' never indexed on its own.';
+        }
+        return undefined;
+    }
+
+    /**
      * Why a similarity to the values of the given property says nothing, when it says nothing.
      *
      * Every case here is a value that is not text a person wrote: it is either drawn at random, one
      * of a list, or the output of a function built so that similar inputs give unrelated results. The
      * declaration says which, so none of them needs a second flag.
      * @param metadata - The metadata of the property, where the entity declares it.
-     * @returns The half-sentence a refusal is built from, or undefined when the property is
-     * searchable.
+     * @returns The half-sentence a refusal is built from, or undefined when a similarity to the
+     * property's values says something.
      */
-    private static refusalFor(metadata: PropertyMetadata | undefined): string | undefined {
+    private static meaninglessSimilarityFor(metadata: PropertyMetadata | undefined): string | undefined {
         if (metadata?.type !== 'string') {
             return 'only a string property holds text to be similar to.';
         }
@@ -129,11 +197,6 @@ export class FuzzySearchUtilities {
         }
         if (metadata.encryption !== false) {
             return 'it is stored encrypted, so the stored value is similar to nothing the caller has.';
-        }
-        if (!metadata.fuzzySearchable) {
-            return 'no trigram index is kept for it, so the search would read every row. Either it'
-                + ' declares "fuzzySearchable: false", or it is a value inside an array, which is'
-                + ' never indexed on its own.';
         }
         return undefined;
     }

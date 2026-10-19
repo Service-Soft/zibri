@@ -72,7 +72,7 @@ describe('evaluation/04-infrastructure-subsystems', () => {
 
     describe('2.1 - a transient error must not disable a job permanently', () => {
         // CLOSED and proven for real in ../../cron/cron.test.ts. Two changes, because the default was
-        // only half of it: stopOnError is now off, so a failing tick costs one execution rather than
+        // only half of it: a job now stops only when its onFailure asks to, so a failing tick costs one execution rather than
         // the job; and a job it does stop records where to put it back, so the next start puts it
         // there. `active: boolean` could not express that - being turned off by somebody who meant it
         // and being taken off the schedule by a failure looked identical, so neither could be undone

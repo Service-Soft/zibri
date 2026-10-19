@@ -1,7 +1,7 @@
 /* eslint-disable jsdoc/require-jsdoc */
 import { beforeAll, describe, expect, it } from '@jest/globals';
+import { RoundTripCounter } from 'zibri-testing';
 
-import { RoundTripCounter } from '../../__testing__/test-server/round-trip-counter.model';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';

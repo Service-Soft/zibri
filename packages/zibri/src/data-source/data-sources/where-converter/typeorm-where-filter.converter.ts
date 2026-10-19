@@ -1,5 +1,6 @@
-import { And, ArrayContainedBy, ArrayContains, Equal, FindOperator, ILike, IsNull, LessThan, LessThanOrEqual, Like, MoreThan, MoreThanOrEqual, Not, Or, Raw, FindOptionsWhere as ToFindOptionsWhere, FindOptionsWhereProperty as ToFindOptionsWhereProperty, DataSource as ToDataSource } from 'typeorm';
+import { And, Equal, FindOperator, ILike, IsNull, LessThan, LessThanOrEqual, Like, MoreThan, MoreThanOrEqual, Not, Or, FindOptionsWhere as ToFindOptionsWhere, FindOptionsWhereProperty as ToFindOptionsWhereProperty, DataSource as ToDataSource } from 'typeorm';
 
+import { ParameterizedSql } from './parameterized-sql.model';
 import { TypeOrmParameters } from './typeorm-parameters';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { PropertyMetadata, RelationMetadata } from '../../../entity/decorators/property.decorator';
@@ -115,23 +116,23 @@ export abstract class TypeOrmWhereFilterConverter {
             return Equal(value);
         },
         where: (value, metadata, nestedProperties, entityClass) => this.whereHandler(value, metadata, nestedProperties, entityClass),
-        includes: (value) => {
+        includes: (value, metadata) => {
             if (!Array.isArray(value)) {
                 throw new InternalError('The "includes" property of the where filter needs to be an array.');
             }
-            return ArrayContains(value);
+            return this.buildArrayIncludesOperator(value, metadata);
         },
-        isIncludedIn: (value) => {
+        isIncludedIn: (value, metadata) => {
             if (!Array.isArray(value)) {
                 throw new InternalError('The "isIncludedIn" property of the where filter needs to be an array.');
             }
-            return ArrayContainedBy(value);
+            return this.buildArrayIsIncludedInOperator(value, metadata);
         },
-        length: (value) => this.arrayLengthOperator('=', value),
-        lengthGreaterThan: (value) => this.arrayLengthOperator('>', value),
-        lengthGreaterThanEquals: (value) => this.arrayLengthOperator('>=', value),
-        lengthLesserThan: (value) => this.arrayLengthOperator('<', value),
-        lengthLesserThanEquals: (value) => this.arrayLengthOperator('<=', value)
+        length: (value, metadata) => this.buildArrayLengthOperator('=', value, metadata),
+        lengthGreaterThan: (value, metadata) => this.buildArrayLengthOperator('>', value, metadata),
+        lengthGreaterThanEquals: (value, metadata) => this.buildArrayLengthOperator('>=', value, metadata),
+        lengthLesserThan: (value, metadata) => this.buildArrayLengthOperator('<', value, metadata),
+        lengthLesserThanEquals: (value, metadata) => this.buildArrayLengthOperator('<=', value, metadata)
     };
 
     /**
@@ -146,20 +147,22 @@ export abstract class TypeOrmWhereFilterConverter {
     constructor(protected readonly typeOrmDataSource: ToDataSource) {}
 
     /**
+     * The expression a read is ordered by when it orders by similarity to a search.
+     *
+     * The same measure a fuzzyLike filter matches by, so that a search and an order over the same text
+     * agree about which rows come closest.
+     * @param path - The text being compared, as a property path the query builder resolves.
+     * @param similarTo - The search the text is compared with.
+     * @returns The expression, with the search bound rather than written into it.
+     */
+    abstract similarityExpression(path: string, similarTo: string): ParameterizedSql;
+
+    /**
      * Starts collecting the values of one raw statement.
      * @returns A collector whose values are handed to the raw operator that is being built.
      */
     protected createParameters(): TypeOrmParameters {
         return new TypeOrmParameters(() => `zi_p${this.parameterIndex++}`);
-    }
-
-    private arrayLengthOperator(operator: string, value: unknown): FindOperator<unknown> {
-        // the filter value is typed as a number but nothing checks that at runtime, so it is bound
-        // rather than written into the statement. A caller that sends something else now gets the
-        // database refusing it instead of a statement that says something else than it reads like.
-        const parameters: TypeOrmParameters = this.createParameters();
-        const length: string = parameters.add(value);
-        return Raw(alias => `array_length(${alias}, 1) ${operator} ${length}`, parameters.values);
     }
 
     // ── Public entry point (concrete) ──────────────────────────
@@ -513,6 +516,35 @@ export abstract class TypeOrmWhereFilterConverter {
      * @returns A typeorm FindOperator, matching nothing for an empty list.
      */
     protected abstract equalsOneOf(values: unknown[], entityClass: Newable<unknown>, property: string): FindOperator<unknown>;
+
+    /**
+     * Builds the operator matching an array that holds every one of the given values.
+     *
+     * Abstract because an array is stored the way the dialect stores it, and an array of objects may
+     * not be an array column at all.
+     * @param values - The values.
+     * @param metadata - The array property.
+     * @returns A typeorm FindOperator, matching no row without an array.
+     */
+    protected abstract buildArrayIncludesOperator(values: unknown[], metadata: PropertyMetadata): FindOperator<unknown>;
+
+    /**
+     * Builds the operator matching an array that holds at least one item, each of them one of the
+     * given values.
+     * @param values - The values.
+     * @param metadata - The array property.
+     * @returns A typeorm FindOperator, matching no row with an empty array or without one.
+     */
+    protected abstract buildArrayIsIncludedInOperator(values: unknown[], metadata: PropertyMetadata): FindOperator<unknown>;
+
+    /**
+     * Builds the operator comparing the length of an array.
+     * @param operator - The sql comparison, eg. `>=`.
+     * @param value - The length to compare with, which nothing has checked to be a number.
+     * @param metadata - The array property.
+     * @returns A typeorm FindOperator, matching no row without an array.
+     */
+    protected abstract buildArrayLengthOperator(operator: string, value: unknown, metadata: PropertyMetadata): FindOperator<unknown>;
 
     protected abstract buildRelationLengthRawOperator<T>(
         entityClass: Newable<T>,

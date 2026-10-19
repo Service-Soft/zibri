@@ -28,5 +28,13 @@ export type Transaction = {
      * about it. The work runs once the commit is done, in the order it was added. It handles its own
      * failures, since the commit has happened either way.
      */
-    afterCommit: (work: () => Promise<void>) => void
+    afterCommit: (work: () => Promise<void>) => void,
+    /**
+     * Runs work once the transaction has ended: committed, rolled back, or its commit failed.
+     *
+     * For what has to last exactly as long as the transaction, such as a lease held for the writes
+     * made in it. The work is told whether the transaction was committed, runs once, in the order it
+     * was added, and handles its own failures.
+     */
+    afterFinish: (work: (committed: boolean) => Promise<void>) => void
 };

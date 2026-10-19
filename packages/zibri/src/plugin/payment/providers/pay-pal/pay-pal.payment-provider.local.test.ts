@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/glo
 import { createInMemoryDataSource } from 'zibri-testing';
 
 import { PayPalPaymentProvider, PayPalPaymentProviderPaymentData } from './pay-pal.payment-provider';
-import { LocalPayPalServer } from '../../../../__testing__/local-pay-pal-server';
+import { LocalPayPalCall, LocalPayPalServer } from '../../../../__testing__/local-pay-pal-server';
 import { defaultTestServerEntities } from '../../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../../../__testing__/test-server/start-test-server.function';
@@ -15,6 +15,8 @@ import { defineProvider } from '../../../../di/models/di-provider.model';
 import { BadRequestError } from '../../../../error-handling/errors/bad-request.error';
 import { ConflictError } from '../../../../error-handling/errors/conflict.error';
 import { type TenantServiceInterface } from '../../../../tenancy/tenant-service.interface';
+import { JsonUtilities } from '../../../../utilities/json.utilities';
+import { BigNumber, NumberUtilities } from '../../../../utilities/number.utilities';
 import { UUIDUtilities } from '../../../../utilities/uuid.utilities';
 import { KnownPaymentMethod, PaymentMethod } from '../../models/payment-method.model';
 import { PaymentPluginOptionsInput } from '../../models/payment-plugin-options-input.model';
@@ -59,8 +61,18 @@ async function inTenant<T>(work: () => Promise<T>): Promise<T> {
 async function startPayment(): Promise<PayPalPayment> {
     return await inTenant(async () => await payments.startPayment(
         KnownPaymentMethod.PAY_PAL,
-        { amount: 10, currencyCode: 'EUR', transactionId: UUIDUtilities.generate() }
+        { amount: NumberUtilities.new(10), currencyCode: 'EUR', transactionId: UUIDUtilities.generate() }
     ));
+}
+
+/**
+ * The amount of the order PayPal was last asked to create.
+ * @returns The amount, as it was sent.
+ */
+function lastOrderedAmount(): unknown {
+    const order: LocalPayPalCall | undefined = localPayPal.calls.filter(call => call.route === 'POST /v2/checkout/orders').at(-1);
+    const body: { purchase_units: { amount: unknown }[] } = JsonUtilities.parse(order?.body ?? '{}');
+    return body.purchase_units[0]?.amount;
 }
 
 describe('the PayPal provider, against a PayPal that behaves like one around a capture', () => {
@@ -159,7 +171,7 @@ describe('the PayPal provider, against a PayPal that behaves like one around a c
         const transactionId: string = UUIDUtilities.generate();
         const start: () => Promise<PayPalPayment> = async () => await inTenant(async () => await payments.startPayment(
             KnownPaymentMethod.PAY_PAL,
-            { amount: 10, currencyCode: 'EUR', transactionId }
+            { amount: NumberUtilities.new(10), currencyCode: 'EUR', transactionId }
         ));
         await start();
         const ordersBefore: number = localPayPal.countCalls('POST /v2/checkout/orders');
@@ -171,7 +183,7 @@ describe('the PayPal provider, against a PayPal that behaves like one around a c
     it('refuses payment data a caller got wrong as a bad request', async () => {
         await expect(inTenant(async () => await payments.validatePaymentData(
             KnownPaymentMethod.PAY_PAL,
-            { amount: 0, currencyCode: 'EUR', transactionId: UUIDUtilities.generate() }
+            { amount: NumberUtilities.new(0), currencyCode: 'EUR', transactionId: UUIDUtilities.generate() }
         ))).rejects.toThrow(BadRequestError);
     });
 
@@ -180,7 +192,45 @@ describe('the PayPal provider, against a PayPal that behaves like one around a c
 
         await expect(inTenant(async () => await payments.validatePaymentData(
             KnownPaymentMethod.PAY_PAL,
-            { amount: 10, currencyCode: 'EUR', transactionId: payment.transactionId }
+            { amount: NumberUtilities.new(10), currencyCode: 'EUR', transactionId: payment.transactionId }
         ))).rejects.toThrow(ConflictError);
+    });
+
+    it('sends PayPal the amount exactly, in the decimals of its currency, and stores it exactly', async () => {
+        // what a double makes of it is 0.30000000000000004
+        const amount: BigNumber = NumberUtilities.add(new BigNumber('0.1'), new BigNumber('0.2'));
+
+        const payment: PayPalPayment = await inTenant(async () => await payments.startPayment(
+            KnownPaymentMethod.PAY_PAL,
+            { amount, currencyCode: 'EUR', transactionId: UUIDUtilities.generate() }
+        ));
+
+        expect(lastOrderedAmount()).toEqual({ value: '0.30', currency_code: 'EUR' });
+        expect((await inTenant(async () => await repository.findById(payment.id))).amount.toFixed()).toBe('0.3');
+    });
+
+    it('sends an amount in a currency without decimals as a whole number', async () => {
+        await inTenant(async () => await payments.startPayment(
+            KnownPaymentMethod.PAY_PAL,
+            { amount: new BigNumber('1500'), currencyCode: 'JPY', transactionId: UUIDUtilities.generate() }
+        ));
+
+        expect(lastOrderedAmount()).toEqual({ value: '1500', currency_code: 'JPY' });
+    });
+
+    it('refuses an amount with more decimals than its currency has as a bad request', async () => {
+        await expect(inTenant(async () => await payments.validatePaymentData(
+            KnownPaymentMethod.PAY_PAL,
+            { amount: new BigNumber('10.001'), currencyCode: 'EUR', transactionId: UUIDUtilities.generate() }
+        ))).rejects.toThrow(BadRequestError);
+        await expect(inTenant(async () => await payments.validatePaymentData(
+            KnownPaymentMethod.PAY_PAL,
+            { amount: new BigNumber('1500.5'), currencyCode: 'JPY', transactionId: UUIDUtilities.generate() }
+        ))).rejects.toThrow(BadRequestError);
+        // and one too small to be a single cent, which a double writes as 1e-7
+        await expect(inTenant(async () => await payments.validatePaymentData(
+            KnownPaymentMethod.PAY_PAL,
+            { amount: new BigNumber('0.0000001'), currencyCode: 'EUR', transactionId: UUIDUtilities.generate() }
+        ))).rejects.toThrow(BadRequestError);
     });
 });

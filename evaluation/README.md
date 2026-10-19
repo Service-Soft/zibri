@@ -13,6 +13,9 @@ number of contributors, adoption, "it's new". None of the findings below rest on
 
 ## Verdict
 
+*As written on 2026-08-04, before the rework. What is still open is indexed in
+[11](./11-whats-left.md).*
+
 Zibri is a coherent, well-crafted, unusually broad **single-instance** framework.
 It is not adoptable as a primary backend platform for a large organization today, and the 
 reasons are architectural rather than bug-shaped.
@@ -133,7 +136,7 @@ anything but nodemailer was to subclass `EmailService` and override a `protected
 of this repository's own fixtures did exactly that** — so the project that wrote the class could not
 swap the transport through its public surface either. One of those overrides had drifted past a
 finding closed after it was written, deleting a failed mail the real send keeps, which is what a
-seam nobody can use costs. Still open: the remaining findings across 02 and 04.
+seam nobody can use costs. What is still open is indexed in [11](./11-whats-left.md).
 
 The dependency injection container (05 D1/D9) is where a finding was right about the mechanism and
 wrong about the fix. D1 says `resolvingStack` is maintained and never checked for cycles, which is

@@ -29,5 +29,17 @@ export type FakeSamlProviderOptions = {
      * answered with an error page, when undefined.
      * @default undefined
      */
-    serviceProviderLogoutUrl?: string
+    serviceProviderLogoutUrl?: string,
+    /**
+     * The bindings the metadata names for the provider's logout url: a logout request sent from the
+     * service provider in the browser's url, posted as a form, or both.
+     * @default ['redirect']
+     */
+    logoutBindings?: ('redirect' | 'post')[],
+    /**
+     * How the provider answers a logout request of the service provider: by redirecting the browser
+     * back, or with a page that posts the answer.
+     * @default 'redirect'
+     */
+    answersLogoutWith?: 'redirect' | 'post'
 };

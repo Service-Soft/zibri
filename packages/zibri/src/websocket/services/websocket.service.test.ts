@@ -191,9 +191,39 @@ describe('WebsocketService', () => {
             expect(() => wsService.findConnectionById('does-not-exist')).toThrow(/Could not find connection/);
         });
 
-        it('findConnectionByUserId throws NotFoundError when no connection matches', () => {
-            expect(() => wsService.findConnectionByUserId('does-not-exist')).toThrow(/Could not find connection/);
+        it('findConnectionsByUserId is empty when no connection matches', async () => {
+            expect(await wsService.findConnectionsByUserId('does-not-exist')).toEqual([]);
         });
+
+        it('findConnectionsByUserId returns every connection of the user, and only those still open', async () => {
+            const email: string = `connections-${Date.now()}@example.com`;
+            const password: string = 'secure123';
+            const user: JwtUser = await inject<Repository<JwtUser>>(repositoryTokenFor(JwtUser))
+                .create({ email, roles: [] });
+            await inject<Repository<PasswordCredentials, PasswordCredentialsCreateData>>(repositoryTokenFor(PasswordCredentials))
+                .create({ password, userId: user.id });
+            const loginRes: Response = await fetch(`${baseUrl}/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JsonUtilities.stringify({ email, password })
+            });
+            expect(loginRes.status).toBe(200);
+            const token: string = (await loginRes.json() as LoginResponseBody).accessToken.value;
+
+            // two tabs of the same user, and an anonymous connection that belongs to nobody
+            const first: Socket = await connectClient(baseUrl, token);
+            const second: Socket = await connectClient(baseUrl, token);
+            await connectClient(baseUrl);
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            const both: SocketIOWebsocketConnection[] = await wsService.findConnectionsByUserId(user.id);
+            expect(both.map(c => c.id).sort()).toEqual([first.id, second.id].sort());
+
+            first.close();
+            await new Promise(resolve => setTimeout(resolve, 100));
+            const remaining: SocketIOWebsocketConnection[] = await wsService.findConnectionsByUserId(user.id);
+            expect(remaining.map(c => c.id)).toEqual([second.id]);
+        }, 20000);
     });
 
     describe('channels', () => {

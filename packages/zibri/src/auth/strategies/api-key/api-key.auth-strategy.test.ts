@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
+import { ApiKeyCleanupCronJob } from './api-key-cleanup.cron-job';
+import { ApiKeyOptions } from './api-key-options.model';
 import { ApiKeyAuthStrategy } from './api-key.auth-strategy';
 import { ApiKey, ApiKeyCreateDto } from './api-key.model';
 import { CreatedApiKey } from './created-api-key.model';
@@ -11,10 +13,14 @@ import { DefaultTestServerMembershipRepository } from '../../../__testing__/test
 import { defaultTestServerProviders } from '../../../__testing__/test-server/providers';
 import { startAndStopTestServerWithout } from '../../../__testing__/test-server/start-and-stop-test-server-without.function';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
+import { CronJob } from '../../../cron/cron-job.model';
+import { CronServiceInterface } from '../../../cron/cron-service.interface';
+import { CronService } from '../../../cron/cron.service';
 import { Repository } from '../../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../di/inject.function';
+import { defineProvider, DiProvider } from '../../../di/models/di-provider.model';
 import { BadRequestError } from '../../../error-handling/errors/bad-request.error';
 import { AuditAction, AuditOutcome, AuditReason } from '../../../logging/audit-event.model';
 import { Log } from '../../../logging/log.model';
@@ -24,6 +30,7 @@ import { Get } from '../../../routing/decorators/get.decorator';
 import { type TenantServiceInterface } from '../../../tenancy/tenant-service.interface';
 import { Newable } from '../../../types/newable.type';
 import { JsonUtilities } from '../../../utilities/json.utilities';
+import { Ms } from '../../../utilities/ms';
 import { UUIDUtilities } from '../../../utilities/uuid.utilities';
 import { type AuthServiceInterface } from '../../auth-service.interface';
 import { Auth } from '../../decorators/auth.decorator';
@@ -167,11 +174,22 @@ async function createKey(user: JwtUser, roles: Roles[]): Promise<CreatedApiKey> 
 }
 
 /**
+ * When a key was last used, as it is stored.
+ * @param apiKeyId - The id of the key.
+ * @returns The time in milliseconds, or undefined for a key never used.
+ */
+async function findLastUse(apiKeyId: string): Promise<number | undefined> {
+    const lastUsedAt: Date | undefined | null = (await apiKeys().findById(apiKeyId)).lastUsedAt;
+    return lastUsedAt == undefined ? undefined : new Date(lastUsedAt).getTime();
+}
+
+/**
  * Starts an application keeping its data in memory.
  * @param authStrategies - The strategies it reads requests with.
+ * @param providers - What it runs with besides the defaults.
  * @returns The server, started.
  */
-async function startApp(authStrategies: AuthStrategies): Promise<StartedTestServer> {
+async function startApp(authStrategies: AuthStrategies, providers: DiProvider<unknown>[] = []): Promise<StartedTestServer> {
     const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({
         entities: [...defaultTestServerEntities, ApiKey],
         allowOrphan: true
@@ -180,8 +198,17 @@ async function startApp(authStrategies: AuthStrategies): Promise<StartedTestServ
         dataSources: [dataSourceClass],
         authStrategies,
         controllers: [MachineController],
-        providers: defaultTestServerProviders
+        providers: [...defaultTestServerProviders, ...providers]
     });
+}
+
+/**
+ * Provides the api key options.
+ * @param options - The options.
+ * @returns The provider.
+ */
+function apiKeyOptions(options: ApiKeyOptions): DiProvider<ApiKeyOptions> {
+    return defineProvider({ token: ZIBRI_DI_TOKENS.API_KEY_OPTIONS, useFactory: (): ApiKeyOptions => options });
 }
 
 /**
@@ -210,6 +237,29 @@ describe('ApiKeyAuthStrategy — starting', () => {
             const user: JwtUser = await createUser('no-strategy', [Roles.USER]);
 
             await expect(createKey(user, [Roles.USER])).rejects.toThrow('Api keys are read by nothing in this application');
+        }
+        finally {
+            await started.shutdown();
+        }
+    }, 30000);
+
+    it('refuses API_KEY_OPTIONS that are no whole number of milliseconds', async () => {
+        await expect(startApp([JwtAuthStrategy, ApiKeyAuthStrategy], [apiKeyOptions({ recordUseAfterMs: -1 })]))
+            .rejects.toThrow('API_KEY_OPTIONS.recordUseAfterMs must be a whole number of milliseconds, got -1.');
+        await expect(startApp([JwtAuthStrategy, ApiKeyAuthStrategy], [apiKeyOptions({ deleteExpiredAfterMs: 1.5 })]))
+            .rejects.toThrow('API_KEY_OPTIONS.deleteExpiredAfterMs must be a whole number of milliseconds, got 1.5.');
+    }, 30000);
+
+    it('schedules deleting expired keys', async () => {
+        // the test server's cron service schedules nothing, so the real one shows what is scheduled
+        const started: StartedTestServer = await startApp(
+            [JwtAuthStrategy, ApiKeyAuthStrategy],
+            [{ token: ZIBRI_DI_TOKENS.CRON_SERVICE, useClass: CronService }]
+        );
+        try {
+            const cronService: CronServiceInterface = inject(ZIBRI_DI_TOKENS.CRON_SERVICE);
+
+            expect(cronService.cronJobs.some((job: CronJob) => job instanceof ApiKeyCleanupCronJob)).toBe(true);
         }
         finally {
             await started.shutdown();
@@ -471,5 +521,85 @@ describe('ApiKeyAuthStrategy', () => {
         expect(events).toContainEqual({ action: AuditAction.API_KEY_CREATED, outcome: AuditOutcome.FAILURE, reason: AuditReason.REFUSED, userId: user.id });
         expect(events).toContainEqual({ action: AuditAction.API_KEY_REVOKED, outcome: AuditOutcome.SUCCESS, userId: user.id });
         expect(events).toContainEqual({ action: AuditAction.API_KEY_REVOKED, outcome: AuditOutcome.FAILURE, reason: AuditReason.REFUSED, userId: user.id });
+    });
+
+    it('writes down when a key was last used, at most once an hour', async () => {
+        const user: JwtUser = await createUser('lena', [Roles.USER]);
+        const { key, apiKey }: CreatedApiKey = await createKey(user, [Roles.USER]);
+        expect(await findLastUse(apiKey.id)).toBeUndefined();
+
+        expect((await callWithKey('/me', key)).status).toBe(200);
+
+        expect(await findLastUse(apiKey.id)).toBeGreaterThan(Date.now() - Ms.MINUTE);
+        expect((await authService().findApiKeys(user.id, undefined))[0]?.lastUsedAt ?? undefined).toBeDefined();
+        // used again within the hour, it is left as it was
+        const halfAnHourAgo: Date = new Date(Date.now() - (Ms.MINUTE * 30));
+        await apiKeys().updateById(apiKey.id, { lastUsedAt: halfAnHourAgo });
+        expect((await callWithKey('/me', key)).status).toBe(200);
+        expect(await findLastUse(apiKey.id)).toBe(halfAnHourAgo.getTime());
+        // and once the hour has passed, the next use is written down
+        await apiKeys().updateById(apiKey.id, { lastUsedAt: new Date(Date.now() - Ms.HOUR - Ms.MINUTE) });
+        expect((await callWithKey('/me', key)).status).toBe(200);
+        expect(await findLastUse(apiKey.id)).toBeGreaterThan(Date.now() - Ms.MINUTE);
+    });
+
+    it('writes down no use of a key that was refused', async () => {
+        const user: JwtUser = await createUser('lukas', [Roles.USER]);
+        const { key, apiKey }: CreatedApiKey = await authService().createApiKey(
+            user.id,
+            { name: 'bound to a DPoP key', roles: [Roles.USER], expiresAt: undefined, tenantId: undefined, clientAuthentication: undefined, requireDpop: true },
+            undefined
+        );
+
+        expect((await callWithKey('/me', key)).status).toBe(401);
+
+        expect(await findLastUse(apiKey.id)).toBeUndefined();
+    });
+
+    it('deletes a key thirty days after it expired, and lists it until then', async () => {
+        const user: JwtUser = await createUser('mona', [Roles.USER]);
+        const longExpired: CreatedApiKey = await createKey(user, [Roles.USER]);
+        const recentlyExpired: CreatedApiKey = await createKey(user, [Roles.USER]);
+        const lasting: CreatedApiKey = await createKey(user, [Roles.USER]);
+        await apiKeys().updateById(longExpired.apiKey.id, { expiresAt: new Date(Date.now() - (Ms.DAY * 31)) });
+        await apiKeys().updateById(recentlyExpired.apiKey.id, { expiresAt: new Date(Date.now() - (Ms.DAY * 29)) });
+
+        await new ApiKeyCleanupCronJob(inject(ZIBRI_DI_TOKENS.API_KEY_SERVICE)).onTick();
+
+        expect((await authService().findApiKeys(user.id, undefined)).map(k => k.id)).toEqual([recentlyExpired.apiKey.id, lasting.apiKey.id]);
+    });
+});
+
+describe('ApiKeyAuthStrategy — with API_KEY_OPTIONS', () => {
+    beforeAll(async () => {
+        server = await startApp([JwtAuthStrategy, ApiKeyAuthStrategy], [apiKeyOptions({ recordUseAfterMs: 0, deleteExpiredAfterMs: Ms.DAY })]);
+        baseUrl = await server.start();
+    });
+
+    afterAll(async () => {
+        await server?.shutdown();
+    });
+
+    it('writes down every use when recordUseAfterMs is 0', async () => {
+        const user: JwtUser = await createUser('nora', [Roles.USER]);
+        const { key, apiKey }: CreatedApiKey = await createKey(user, [Roles.USER]);
+        const aSecondAgo: Date = new Date(Date.now() - Ms.SECOND);
+        await apiKeys().updateById(apiKey.id, { lastUsedAt: aSecondAgo });
+
+        expect((await callWithKey('/me', key)).status).toBe(200);
+
+        expect(await findLastUse(apiKey.id)).toBeGreaterThan(aSecondAgo.getTime());
+    });
+
+    it('deletes a key once deleteExpiredAfterMs has passed since it expired', async () => {
+        const user: JwtUser = await createUser('otto', [Roles.USER]);
+        const expiredLong: CreatedApiKey = await createKey(user, [Roles.USER]);
+        const expiredRecently: CreatedApiKey = await createKey(user, [Roles.USER]);
+        await apiKeys().updateById(expiredLong.apiKey.id, { expiresAt: new Date(Date.now() - Ms.DAY - Ms.HOUR) });
+        await apiKeys().updateById(expiredRecently.apiKey.id, { expiresAt: new Date(Date.now() - Ms.HOUR) });
+
+        await new ApiKeyCleanupCronJob(inject(ZIBRI_DI_TOKENS.API_KEY_SERVICE)).onTick();
+
+        expect((await authService().findApiKeys(user.id, undefined)).map(k => k.id)).toEqual([expiredRecently.apiKey.id]);
     });
 });

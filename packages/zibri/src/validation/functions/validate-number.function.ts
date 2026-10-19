@@ -127,8 +127,10 @@ function isFormatValid(format: NumberFormat, value: AnyNumber): boolean {
         case 'bigint': {
             return INTEGER_REGEX.test(value.toString());
         }
+        // past the safe range a double stands for more than one whole number, so the value written is
+        // not certainly the value meant
         case 'integer': {
-            return Number.isInteger(value);
+            return Number.isSafeInteger(value);
         }
         // any number is one of these: a double is what a javascript number is, and a BigNumber
         // holds whatever it was given. The type check above is the whole of what they require

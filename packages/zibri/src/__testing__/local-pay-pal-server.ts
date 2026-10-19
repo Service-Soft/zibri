@@ -29,7 +29,11 @@ export type LocalPayPalCall = {
     /**
      * The idempotency key it was sent with, if any.
      */
-    requestId: string | undefined
+    requestId: string | undefined,
+    /**
+     * The body, as it was sent.
+     */
+    body: string
 };
 
 /**
@@ -106,13 +110,15 @@ export class LocalPayPalServer {
 
     private async handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
         // read to the end, so the client is not left writing into a socket nobody reads
+        let body: string = '';
+        req.setEncoding('utf8');
         for await (const chunk of req) {
-            void chunk;
+            body += String(chunk);
         }
         const route: string = `${req.method} ${req.url}`;
         const header: string | string[] | undefined = req.headers['paypal-request-id'];
         const requestId: string | undefined = typeof header === 'string' ? header : undefined;
-        this.calls.push({ route, requestId });
+        this.calls.push({ route, requestId, body });
 
         const key: string | undefined = requestId == undefined ? undefined : `${route}#${requestId}`;
         const repeated: LocalAnswer | undefined = key == undefined ? undefined : this.answers.get(key);

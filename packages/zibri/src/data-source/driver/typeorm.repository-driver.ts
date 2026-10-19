@@ -1,19 +1,30 @@
 import { Readable } from 'node:stream';
 
-import { EntityManager, FindManyOptions, FindOptionsOrder, FindOptionsRelations, FindOptionsSelect, FindOptionsWhere, QueryFailedError as TOQueryFailedError, QueryRunner, Repository as TORepository, SelectQueryBuilder, DeepPartial as ToDeepPartial, UpdateQueryBuilder, UpdateResult } from 'typeorm';
+import { EntityManager, FindManyOptions, FindOptionsOrder, FindOptionsRelations, FindOptionsSelect, FindOptionsWhere, InsertResult, QueryFailedError as TOQueryFailedError, QueryRunner, Repository as TORepository, SelectQueryBuilder, DeepPartial as ToDeepPartial, UpdateQueryBuilder, UpdateResult } from 'typeorm';
 import { ColumnMetadata } from 'typeorm/metadata/ColumnMetadata';
 import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 
 import { DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, RepositoryDriverInterface } from './repository-driver.interface';
 import { AlsUtilities } from '../../context/als.utilities';
+import { OperationLimit } from '../../context/operation-limit.model';
 import { BaseEntity } from '../../entity/base-entity.model';
+import { PropertyMetadata } from '../../entity/decorators/property.decorator';
+import { EntityOrderUtilities, OrderKey } from '../../entity/models/entity-order.utilities';
+import { isRelationMetadata } from '../../entity/models/is-relation-metadata.function';
+import { KeyWhere } from '../../entity/models/unique-declaration.model';
+import { InternalError } from '../../error-handling/internal-error.model';
 import { PaginationResult } from '../../open-api/pagination-result.model';
 import { DeepPartial } from '../../types/deep-partial.type';
 import { Newable } from '../../types/newable.type';
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { PromiseUtilities } from '../../utilities/promise.utilities';
 import { TypeOrmUtilities } from '../../utilities/typeorm.utilities';
+import { CheckConstraintViolationError } from '../check-constraint-violation.error';
 import { IsolationLevel } from '../data-sources/data-source.interface';
 import { cancelsStatements, StatementCancellingDataSource } from '../data-sources/statement-cancelling-data-source.model';
+import { limitsStatements, OPERATION_LIMIT_DATA_KEY, StatementLimitingDataSource } from '../data-sources/statement-limiting-data-source.model';
 import { type TypeOrmBaseDataSource } from '../data-sources/typeorm-base-data-source.model';
+import { ParameterizedSql } from '../data-sources/where-converter/parameterized-sql.model';
 import { DataSourceOptions } from '../models/data-source-options.model';
 import { UpsertRow } from '../models/upsert-row.model';
 import { Where } from '../models/where/where-filter.model';
@@ -21,6 +32,7 @@ import { QueryFailedError } from '../query-failed.error';
 import { MistypedStoredValue, StoredValueTypeMismatchError } from '../stored-value-type-mismatch.error';
 import { Transaction } from '../transaction/transaction.model';
 import { UniqueConstraintViolationError } from '../unique-constraint-violation.error';
+import { WriteDataUtilities } from '../write-data.utilities';
 
 /**
  * How many streamed ids are read back as entities at once.
@@ -30,6 +42,12 @@ import { UniqueConstraintViolationError } from '../unique-constraint-violation.e
  * whatever the entity happens to be is not the thing that fills the heap.
  */
 const STREAM_BATCH_SIZE: number = 500;
+
+/**
+ * One sort the orm placed from find options: a direction, or a direction and where nulls go.
+ */
+// eslint-disable-next-line jsdoc/require-jsdoc
+type PlacedSort = 'ASC' | 'DESC' | { order: 'ASC' | 'DESC', nulls?: 'NULLS FIRST' | 'NULLS LAST' };
 
 /**
  * The repository driver that reads and writes entities through typeorm.
@@ -44,6 +62,11 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
      */
     private readonly declaredColumns: ColumnMetadata[];
 
+    /**
+     * The properties of the entity, which say which columns hold an object an update merges.
+     */
+    private readonly properties: Record<string, PropertyMetadata>;
+
     constructor(
         private readonly entityClass: Newable<T>,
         private readonly typeOrmRepository: TORepository<T>,
@@ -51,6 +74,7 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
         private readonly maxBoundValuesPerStatement: number
     ) {
         this.declaredColumns = TypeOrmUtilities.declaredColumnsOf(typeOrmRepository.metadata);
+        this.properties = MetadataUtilities.getModelProperties(entityClass);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -58,43 +82,192 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
         // the orm inserts a batch as one statement binding a value per column per row, and reads the
         // rows it is about to write by id first. Past what one statement binds, both are cut into
         // chunks - which the orm still runs inside the one transaction it runs a save in
-        const chunk: number = Math.max(
-            1,
-            Math.floor(this.maxBoundValuesPerStatement / this.typeOrmRepository.metadata.columns.length)
-        );
         return await this.run(async () => await this.onConnection(transaction, async manager => await manager.save(
             this.entityClass,
             data as ToDeepPartial<T>[],
-            { reload, chunk }
+            { reload, chunk: this.resolveRowsPerStatement() }
         )));
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async insert(data: DeepPartial<T>[], transaction: Transaction | undefined): Promise<T[]> {
+        if (!data.length) {
+            return [];
+        }
+        // a relation value is a row beside this one or a row of a join table, which the orm's save
+        // writes and an insert statement cannot
+        if (data.some(row => this.writesRelations(row))) {
+            return await this.save(data, transaction, true);
+        }
+
+        // what the save spends on rows that are new is the read by id telling an insert from an
+        // update, and the transaction of its own holding that read and the write together. One
+        // statement per chunk needs neither, and hands the rows back as stored - with what the
+        // database filled in
+        const chunks: DeepPartial<T>[][] = PromiseUtilities.resolveChunks(data, this.resolveRowsPerStatement());
+        const inserted: T[] = chunks.length === 1
+            ? await this.insertInOneStatement(data, transaction)
+            // several statements are one write only inside one transaction, as the chunks of a save are
+            : await this.inTransaction(transaction, async own => {
+                const res: T[] = [];
+                for (const chunk of chunks) {
+                    res.push(...await this.insertInOneStatement(chunk, own));
+                }
+                return res;
+            });
+
+        // by id rather than by position: nothing says a store returns the rows of a statement in the
+        // order they went into it, and the caller pairs them with what it passed
+        const byId: Map<string, T> = new Map(inserted.map(row => [String(row.id), row]));
+        return data.map(row => {
+            const entity: T | undefined = byId.get(String(row.id));
+            if (entity == undefined) {
+                throw new InternalError(`Inserting "${this.entityClass.name}" returned no row with id "${String(row.id)}".`);
+            }
+            return entity;
+        });
+    }
+
+    /**
+     * Inserts rows with one statement.
+     * @param rows - The rows, no more than one statement binds.
+     * @param transaction - The transaction to run the statement in.
+     * @returns The rows as they were stored.
+     */
+    private async insertInOneStatement(rows: DeepPartial<T>[], transaction: Transaction | undefined): Promise<T[]> {
+        const res: InsertResult = await this.run(async () => await this.onConnection(transaction, async manager => await manager
+            .createQueryBuilder()
+            .insert()
+            .into(this.entityClass)
+            .values(rows as QueryDeepPartialEntity<T>[])
+            // every column, because what a caller gets back is the whole row
+            .returning('*')
+            // the rows come back in the result, so the objects that were passed stay as they were
+            .updateEntity(false)
+            .execute()));
+        return TypeOrmUtilities.toEntities(this.entityClass, this.declaredColumns, res.raw);
+    }
+
+    /**
+     * Resolves how many rows one statement writes: as many as its bound values allow.
+     * @param valuesPerRow - How many values a row binds, a value per column unless said otherwise.
+     * @returns The number of rows, at least one.
+     */
+    private resolveRowsPerStatement(valuesPerRow: number = this.typeOrmRepository.metadata.columns.length): number {
+        return Math.max(1, Math.floor(this.maxBoundValuesPerStatement / valuesPerRow));
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async find(options: DriverFindOptions<T>): Promise<T[]> {
-        return await this.run(async () => await this.onConnection(options.transaction, async manager => await manager.find(
-            this.entityClass,
-            {
-                where: this.resolveWhere(options),
-                ...this.orderAndRelations(options),
-                skip: options.skip,
-                take: options.take
-            }
-        )));
+        const findOptions: FindManyOptions<T> = {
+            where: this.resolveWhere(options),
+            ...this.orderAndRelations(options),
+            skip: options.skip,
+            take: options.take
+        };
+        const keys: OrderKey[] = EntityOrderUtilities.resolveKeys(options.order, this.entityClass);
+        return await this.run(async () => await this.onConnection(options.transaction, async manager => this.ordersBySimilarity(keys)
+            ? await this.similarityOrderedQuery(manager, findOptions, keys).getMany()
+            : await manager.find(this.entityClass, findOptions)));
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async findOne(options: DriverFindOptions<T>): Promise<T | undefined> {
+        const findOptions: FindManyOptions<T> = {
+            // an empty filter rather than none: the orm's findOne refuses a read without one, where
+            // every other store reads the first row - which is what a table of one row is read by
+            where: this.resolveWhere(options) ?? {},
+            ...this.orderAndRelations(options)
+        };
+        const keys: OrderKey[] = EntityOrderUtilities.resolveKeys(options.order, this.entityClass);
         const res: T | null = await this.run(async () => await this.onConnection(
             options.transaction,
-            async manager => await manager.findOne(
-                this.entityClass,
-                {
-                    where: this.resolveWhere(options),
-                    ...this.orderAndRelations(options)
-                }
-            )
+            async manager => this.ordersBySimilarity(keys)
+                // one row, the way the orm's own findOne asks for it
+                ? await this.similarityOrderedQuery(manager, { ...findOptions, take: 1 }, keys).getOne()
+                : await manager.findOne(this.entityClass, findOptions)
         ));
         return res ?? undefined;
+    }
+
+    /**
+     * Whether an order sorts by similarity anywhere, which the orm's own find options cannot say.
+     * @param keys - The keys of the order.
+     * @returns True when one of them orders by similarity to a search.
+     */
+    private ordersBySimilarity(keys: OrderKey[]): boolean {
+        return keys.some(key => key.similarTo != undefined);
+    }
+
+    /**
+     * Builds the query for a read whose order sorts by similarity to a search somewhere.
+     *
+     * The orm's find options take a direction per property and no expression, so every key goes to
+     * them as a direction first - a similarity one as descending by the value itself. That is what
+     * places it among the others and joins whatever relation it is reached through. Each of those is
+     * then swapped, in place, for the similarity it stands for: selected under a name of its own and
+     * ordered by that name, which is the one form the orm keeps intact when it pages a read that joins
+     * relations through a second query.
+     * @param manager - The manager to query through.
+     * @param findOptions - The find options of the read, its order included.
+     * @param keys - The keys of that order, in the order the orm places them in.
+     * @returns The query, ordered.
+     * @throws When the orm placed a different number of keys than the order has.
+     */
+    private similarityOrderedQuery(manager: EntityManager, findOptions: FindManyOptions<T>, keys: OrderKey[]): SelectQueryBuilder<T> {
+        const query: SelectQueryBuilder<T> = manager
+            .createQueryBuilder(this.entityClass, this.typeOrmRepository.metadata.name)
+            .setFindOptions({ ...findOptions, order: this.directionsOnly(findOptions.order, this.properties) });
+
+        // the orm walks an order the way the keys were resolved - each property in the order it was
+        // written, a relation's below it where the relation is named - so the nth sort it placed is
+        // the nth key
+        const placed: [string, PlacedSort][] = Object.entries(query.expressionMap.orderBys);
+        if (placed.length !== keys.length) {
+            throw new InternalError(`Ordering "${this.entityClass.name}" placed ${placed.length} sorts for ${keys.length} keys.`);
+        }
+        query.orderBy();
+        for (const [i, [sort, placedSort]] of placed.entries()) {
+            const similarTo: string | undefined = keys[i]?.similarTo;
+            if (similarTo == undefined) {
+                query.addOrderBy(
+                    sort,
+                    typeof placedSort === 'string' ? placedSort : placedSort.order,
+                    typeof placedSort === 'string' ? undefined : placedSort.nulls
+                );
+                continue;
+            }
+            const selection: string = `zi_similarity_${i}`;
+            const expression: ParameterizedSql = this.dataSource.similarityExpression(sort, similarTo);
+            // a row holding no text is similar to nothing, and sorts after every row that holds some
+            query
+                .addSelect(expression.sql, selection)
+                .setParameters(expression.parameters)
+                .addOrderBy(selection, 'DESC', 'NULLS LAST');
+        }
+        return query;
+    }
+
+    /**
+     * The given order with every similarity in it ordered descending by the value itself instead.
+     * @param value - The order at this level.
+     * @param properties - The property metadata of the entity at this level.
+     * @returns The order in the words the orm reads.
+     */
+    private directionsOnly(value: unknown, properties: Record<string, PropertyMetadata>): FindOptionsOrder<T> | undefined {
+        if (value == undefined || typeof value !== 'object') {
+            return undefined;
+        }
+        const res: Record<string, unknown> = {};
+        for (const [key, entry] of Object.entries(value)) {
+            const metadata: PropertyMetadata | undefined = properties[key];
+            if (isRelationMetadata(metadata)) {
+                res[key] = this.directionsOnly(entry, MetadataUtilities.getModelProperties(metadata.target()));
+                continue;
+            }
+            res[key] = EntityOrderUtilities.isSimilarityOrder(entry) ? 'DESC' : entry;
+        }
+        return res as FindOptionsOrder<T>;
     }
 
     /**
@@ -221,9 +394,9 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async remove(entities: T[], transaction: Transaction | undefined): Promise<T[]> {
-        if (!entities.length) {
-            return [];
+    async remove(ids: string[], transaction: Transaction | undefined): Promise<void> {
+        if (!ids.length) {
+            return;
         }
 
         // by id in one statement rather than `remove`, which issues a delete per entity. Relations
@@ -233,13 +406,28 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
             .createQueryBuilder()
             .delete()
             .from(this.entityClass)
-            .where(this.resolveIdsWhere(entities.map(e => e.id)))
+            .where(this.resolveIdsWhere(ids))
             .execute()));
+    }
 
-        // the entities as they were, ids included. `remove` hands back the objects it was given with
-        // their id stripped, on the grounds that the row is gone - but the id is what a caller
-        // deleting by filter needs most, and every caller here has to put it back.
-        return entities;
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async findIds(options: DriverFindOptions<T>): Promise<string[]> {
+        const findOptions: FindManyOptions<T> = {
+            where: this.resolveWhere(options),
+            ...this.orderAndRelations({ ...options, relations: undefined }),
+            // the id column alone, which is what keeps a large match from being read to be thrown away
+            select: ['id'],
+            skip: options.skip,
+            take: options.take
+        };
+        const keys: OrderKey[] = EntityOrderUtilities.resolveKeys(options.order, this.entityClass);
+        const found: T[] = await this.run(async () => await this.onConnection(
+            options.transaction,
+            async manager => this.ordersBySimilarity(keys)
+                ? await this.similarityOrderedQuery(manager, findOptions, keys).getMany()
+                : await manager.find(this.entityClass, findOptions)
+        ));
+        return found.map(e => e.id);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -280,10 +468,12 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
             // the entity is named as a type argument as well as a value, because a builder that has
             // not been told what it is over reads `update` as the overload taking the values to set
             // - and what comes back then describes no entity at all
+            const parameters: Record<string, unknown> = {};
             const builder: UpdateQueryBuilder<T> = manager
                 .createQueryBuilder()
                 .update<T>(this.entityClass)
-                .set(data as QueryDeepPartialEntity<T>);
+                .set(this.resolveUpdateSet(data, manager, parameters))
+                .setParameters(parameters);
 
             // a filter naming no condition is how a caller asks for every row, and a statement with
             // no `WHERE` is how that is written. Handing the empty filter over instead is refused: a
@@ -318,40 +508,38 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
         transaction: Transaction
     ): Promise<R extends true ? T[] : number> {
         const { where, data, returnUpdated }: DriverUpdateAllOptions<T, R> = options;
-        // the lock is the difference between this and a read followed by a write. A plain select
-        // takes none, so two callers both read the same rows and both write them; this one holds
-        // them until the transaction commits. Postgres also re-checks the filter once it has been
-        // granted each row, so a row that stopped matching while this waited is not returned here
-        // and therefore not written.
-        //
-        // "of" the entity's own table only: a filter that reaches through a relation joins, and the
-        // nullable side of an outer join cannot be locked.
-        //
-        // Only the ids are read: what the rows currently hold does not decide anything here, since
-        // this is the branch that writes one value to all of them.
-        const locked: T[] = await this.run(async () => await this.onConnection(transaction, async manager => await manager
-            .find(this.entityClass, {
-                select: { id: true } as FindOptionsSelect<T>,
-                where: this.resolveWhere({ where }),
-                lock: { mode: 'pessimistic_write', tables: [this.typeOrmRepository.metadata.tableName] }
-            })));
-        if (!locked.length) {
+        // only the ids: what the rows currently hold does not decide anything here, since this is
+        // the branch that writes one value to all of them
+        const ids: T['id'][] = await this.findLockedIds(where, transaction);
+        if (!ids.length) {
             return (returnUpdated === true ? [] : 0) as R extends true ? T[] : number;
         }
 
-        const ids: T['id'][] = locked.map(l => l.id);
         // a relation is not a column on this row: a many-to-many lives in a join table whose rows
         // belong to one owner each, and an update statement cannot reach it. `save` writes rows that
         // each carry their own values, at one statement per row, which is what that costs. Everything
         // else is one statement however many rows it matched.
-        await (this.writesRelations(data)
-            ? this.save(locked.map(l => ({ ...data, id: l.id })), transaction, false)
-            : this.run(async () => await this.onConnection(transaction, async manager => await manager
-                .createQueryBuilder()
-                .update(this.entityClass)
-                .set(data as QueryDeepPartialEntity<T>)
-                .where(this.resolveIdsWhere(ids))
-                .execute())));
+        //
+        // An object is merged into the stored one, which the orm's save cannot do: it writes what it
+        // is given over the column. So next to a relation, an object goes through the statement too
+        const [written, saved]: [DeepPartial<T>, DeepPartial<T> | undefined] = this.writesRelations(data)
+            ? this.splitMergedObjects(data)
+            : [data, undefined];
+        if (Object.keys(written).length) {
+            await this.run(async () => await this.onConnection(transaction, async manager => {
+                const parameters: Record<string, unknown> = {};
+                return await manager
+                    .createQueryBuilder()
+                    .update(this.entityClass)
+                    .set(this.resolveUpdateSet(written, manager, parameters))
+                    .where(this.resolveIdsWhere(ids))
+                    .setParameters(parameters)
+                    .execute();
+            }));
+        }
+        if (saved != undefined) {
+            await this.save(ids.map(id => ({ ...saved, id })), transaction, false);
+        }
 
         if (returnUpdated !== true) {
             return ids.length as R extends true ? T[] : number;
@@ -364,6 +552,155 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
         return updated as R extends true ? T[] : number;
     }
 
+    /**
+     * Finds the ids of the rows a filter matches, holding each of them until the transaction ends.
+     *
+     * The lock is the difference between this and a read followed by a write. A plain select takes
+     * none, so two callers both read the same rows and both write them; this one holds them until the
+     * transaction commits. Postgres also re-checks the filter once it has been granted each row, so a
+     * row that stopped matching while this waited is not returned here and therefore not written.
+     *
+     * "of" the entity's own table only: a filter that reaches through a relation joins, and the
+     * nullable side of an outer join cannot be locked.
+     * @param where - The filter.
+     * @param transaction - The transaction holding the rows.
+     * @returns The ids of the rows held.
+     */
+    private async findLockedIds(where: Where<T> | undefined, transaction: Transaction): Promise<T['id'][]> {
+        const locked: T[] = await this.run(async () => await this.onConnection(transaction, async manager => await manager
+            .find(this.entityClass, {
+                select: { id: true } as FindOptionsSelect<T>,
+                where: this.resolveWhere({ where }),
+                lock: { mode: 'pessimistic_write', tables: [this.typeOrmRepository.metadata.tableName] }
+            })));
+        return locked.map(l => l.id);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async updateEach(rows: DeepPartial<T>[], where: Where<T>, transaction: Transaction | undefined): Promise<T[]> {
+        if (!rows.length) {
+            return [];
+        }
+        // a relation value is a row beside this one or a row of a join table, which only the orm's
+        // save writes - and a filter reaching through a relation cannot be part of an update
+        // statement. Both write the rows the filter matches once they are held
+        if (rows.some(row => this.writesRelations(row)) || !this.filtersOwnColumnsOnly(where)) {
+            return await this.inTransaction(transaction, async own => {
+                const held: Set<string> = new Set((await this.findLockedIds(where, own)).map(id => String(id)));
+                const matched: DeepPartial<T>[] = rows.filter(r => held.has(String(r.id)));
+                if (rows.some(row => this.writesRelations(row))) {
+                    // an object through a statement, which merges it, as updateAll writes it next to a relation
+                    const split: [DeepPartial<T>, DeepPartial<T>][] = matched.map(row => this.splitMergedObjects(row));
+                    const merged: DeepPartial<T>[] = split
+                        .filter(([objects]) => Object.keys(objects).length)
+                        .map(([objects, rest]) => ({ ...objects, id: rest.id }));
+                    await this.updateEachInStatements(merged, { id: { oneOf: merged.map(r => r.id) } } as Where<T>, own);
+                    await this.save(split.map(([, rest]) => rest), own, false);
+                    return await this.find({ where: { id: { oneOf: matched.map(r => r.id) } } as Where<T>, transaction: own });
+                }
+                return await this.updateEachInStatements(matched, { id: { oneOf: matched.map(r => r.id) } } as Where<T>, own);
+            });
+        }
+        return await this.updateEachInStatements(rows, where, transaction);
+    }
+
+    /**
+     * Writes each row's own values with as few statements as their bound values allow.
+     * @param rows - The values to write, each with its row's id.
+     * @param where - The rows that may be written, on this table's own columns.
+     * @param transaction - The transaction to run the statements in.
+     * @returns The rows written, as they are stored now.
+     */
+    private async updateEachInStatements(rows: DeepPartial<T>[], where: Where<T>, transaction: Transaction | undefined): Promise<T[]> {
+        if (!rows.length) {
+            return [];
+        }
+        // a value per column per row, the row's id, and the id again in the list of rows to write
+        const chunks: DeepPartial<T>[][] = PromiseUtilities.resolveChunks(
+            rows,
+            this.resolveRowsPerStatement(this.typeOrmRepository.metadata.columns.length + 2)
+        );
+        if (chunks.length === 1) {
+            return await this.updateEachInOneStatement(rows, where, transaction);
+        }
+        // several statements are one write only inside one transaction
+        return await this.inTransaction(transaction, async own => {
+            const res: T[] = [];
+            for (const chunk of chunks) {
+                res.push(...await this.updateEachInOneStatement(chunk, where, own));
+            }
+            return res;
+        });
+    }
+
+    /**
+     * Writes each row's own values with one statement: every column some row gives a value for is
+     * set to that row's value where the id is that row's, and kept as it is everywhere else.
+     *
+     * The values are bound without a type: the column a case falls back to is what the database
+     * reads each of them as.
+     * @param rows - The values to write, no more than one statement binds.
+     * @param where - The rows that may be written, on this table's own columns.
+     * @param transaction - The transaction to run the statement in.
+     * @returns The rows written, as they are stored now.
+     */
+    private async updateEachInOneStatement(rows: DeepPartial<T>[], where: Where<T>, transaction: Transaction | undefined): Promise<T[]> {
+        const columns: ColumnMetadata[] = this.declaredColumns.filter(column => !column.isPrimary
+            && rows.some(row => Reflect.get(row, column.propertyName) !== undefined));
+        const ids: T['id'][] = rows.map(r => r.id).filter((id): id is T['id'] => id != undefined);
+        const resolved: FindOptionsWhere<T> | FindOptionsWhere<T>[] | undefined = this.resolveWhere({ where });
+        if (!columns.length) {
+            // nothing to set, so the rows as they stand
+            return await this.find({ where, transaction });
+        }
+
+        const res: UpdateResult = await this.run(async () => await this.onConnection(transaction, async manager => {
+            const idColumn: string = manager.connection.driver.escape(
+                this.typeOrmRepository.metadata.primaryColumns[0]?.databaseName ?? 'id'
+            );
+            const parameters: Record<string, unknown> = {};
+            const set: Record<string, () => string> = {};
+            for (const [c, column] of columns.entries()) {
+                const branches: string[] = [];
+                const own: string = manager.connection.driver.escape(column.databaseName);
+                const metadata: PropertyMetadata | undefined = this.properties[column.propertyName];
+                for (const [r, row] of rows.entries()) {
+                    const value: unknown = Reflect.get(row, column.propertyName);
+                    if (value === undefined) {
+                        continue;
+                    }
+                    parameters[`each_${r}`] = row.id;
+                    const merged: Newable<unknown> | undefined = metadata == undefined
+                        ? undefined
+                        : WriteDataUtilities.findMergedClass(value, metadata);
+                    if (merged != undefined && typeof value === 'object' && value != undefined) {
+                        const sql: string = this.dataSource.buildObjectMergeSql(own, value, merged, parameters, `each_${r}_${c}`);
+                        branches.push(`WHEN :each_${r} THEN ${sql}`);
+                        continue;
+                    }
+                    parameters[`each_${r}_${c}`] = manager.connection.driver.preparePersistentValue(value, column);
+                    branches.push(`WHEN :each_${r} THEN :each_${r}_${c}`);
+                }
+                set[column.propertyName] = () => `CASE ${idColumn} ${branches.join(' ')} ELSE ${own} END`;
+            }
+            const builder: UpdateQueryBuilder<T> = manager
+                .createQueryBuilder()
+                .update<T>(this.entityClass)
+                .set(set as QueryDeepPartialEntity<T>);
+            if (resolved != undefined) {
+                builder.where(resolved);
+            }
+            return await builder
+                // the rows of this statement only, when the filter names the rows of several
+                .andWhere(this.resolveIdsWhere(ids))
+                .setParameters(parameters)
+                // every column, because what a caller gets back is the whole row
+                .returning('*')
+                .execute();
+        }));
+        return TypeOrmUtilities.toEntities(this.entityClass, this.declaredColumns, res.raw);
+    }
+
     // eslint-disable-next-line jsdoc/require-jsdoc
     async upsert(
         identity: string[],
@@ -374,6 +711,53 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
         // the data source rather than the driver, because the statement is dialect specific and the
         // driver is shared by every typeorm backed data source
         return await this.run(async () => await this.dataSource.upsert(this.entityClass, identity, rows, transaction, reachable));
+    }
+
+    /**
+     * Resolves what an update statement sets each column to: the value given, and for an object the
+     * stored one with the given one merged in.
+     * @param data - The change about to be written.
+     * @param manager - The entity manager the statement is built with.
+     * @param parameters - The named parameters of the statement, which this adds the ones it binds to.
+     * @returns The values to set.
+     */
+    private resolveUpdateSet(data: DeepPartial<T>, manager: EntityManager, parameters: Record<string, unknown>): QueryDeepPartialEntity<T> {
+        const res: QueryDeepPartialEntity<T> = { ...data } as QueryDeepPartialEntity<T>;
+        for (const [c, column] of this.declaredColumns.entries()) {
+            const value: unknown = Reflect.get(data, column.propertyName);
+            const metadata: PropertyMetadata | undefined = this.properties[column.propertyName];
+            const merged: Newable<unknown> | undefined = metadata == undefined
+                ? undefined
+                : WriteDataUtilities.findMergedClass(value, metadata);
+            if (merged == undefined || typeof value !== 'object' || value == undefined) {
+                continue;
+            }
+            const sql: string = this.dataSource.buildObjectMergeSql(
+                manager.connection.driver.escape(column.databaseName),
+                value,
+                merged,
+                parameters,
+                `merge_${c}`
+            );
+            Reflect.set(res, column.propertyName, () => sql);
+        }
+        return res;
+    }
+
+    /**
+     * Takes the objects an update merges off the rest of it.
+     * @param data - The change about to be written.
+     * @returns The objects it merges, and everything else, its id included.
+     */
+    private splitMergedObjects(data: DeepPartial<T>): [DeepPartial<T>, DeepPartial<T>] {
+        const objects: DeepPartial<T> = { ...data };
+        const rest: DeepPartial<T> = { ...data };
+        for (const [key, value] of Object.entries(data)) {
+            const metadata: PropertyMetadata | undefined = this.properties[key];
+            const merged: boolean = metadata != undefined && WriteDataUtilities.findMergedClass(value, metadata) != undefined;
+            Reflect.deleteProperty(merged ? rest : objects, key);
+        }
+        return [objects, rest];
     }
 
     /**
@@ -475,27 +859,76 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
         transaction: Transaction | undefined,
         fn: (manager: EntityManager) => Promise<R>
     ): Promise<R> {
-        const signal: AbortSignal | undefined = AlsUtilities.findCurrentRequestSignal();
+        const signal: AbortSignal | undefined = AlsUtilities.findCurrentSignal();
+        const limit: OperationLimit | undefined = AlsUtilities.findCurrentOperationLimit();
         const store: TypeOrmBaseDataSource<DataSourceOptions> = this.dataSource;
-        if (!signal || !cancelsStatements(store)) {
+        const cancelling: StatementCancellingDataSource | undefined = signal != undefined && cancelsStatements(store) ? store : undefined;
+        const limiting: StatementLimitingDataSource | undefined = limit != undefined && limitsStatements(store) ? store : undefined;
+        if (cancelling == undefined && limiting == undefined) {
             return await fn(this.getManager(transaction));
         }
 
+        const run: (runner: QueryRunner) => Promise<R> = async runner => signal != undefined && cancelling != undefined
+            ? await this.whileCancellable(signal, cancelling, runner, fn)
+            : await fn(runner.manager);
+
         if (transaction) {
             const held: QueryRunner = TypeOrmUtilities.toTypeOrmTransaction(transaction).queryRunner;
-            return await this.whileCancellable(signal, store, held, fn);
+            // a transaction begun under this same limit already holds it, for every statement in it
+            const alreadyLimited: boolean = held.data[OPERATION_LIMIT_DATA_KEY] === limit;
+            return limiting == undefined || limit == undefined || alreadyLimited
+                ? await run(held)
+                : await this.whileLimited(limiting, held, limit, true, run);
         }
 
         const runner: QueryRunner = this.dataSource.createQueryRunner();
-        await runner.connect();
+        await this.dataSource.connectQueryRunner(runner);
         try {
-            return await this.whileCancellable(signal, store, runner, fn);
+            return limiting == undefined || limit == undefined
+                ? await run(runner)
+                : await this.whileLimited(limiting, runner, limit, false, run);
         }
         finally {
             // after the cancel has landed rather than before it. Handing the connection back first
             // would leave a cancel on its way to one the pool has already given to somebody else,
             // and it would stop their statement instead
             await runner.release();
+        }
+    }
+
+    /**
+     * Runs one operation on a named connection whose statements have the limit's time to take.
+     *
+     * The limit is put back afterwards, before the connection is handed on: set on its own, the next
+     * user of a pooled connection would inherit it.
+     * @param store - The data source, which is what knows how to limit a statement.
+     * @param runner - The connection the operation runs on.
+     * @param limit - The limit the operation runs under.
+     * @param inTransaction - Whether the connection is holding a transaction.
+     * @param run - The operation.
+     * @returns Whatever the operation returned.
+     */
+    private async whileLimited<R>(
+        store: StatementLimitingDataSource,
+        runner: QueryRunner,
+        limit: OperationLimit,
+        inTransaction: boolean,
+        run: (runner: QueryRunner) => Promise<R>
+    ): Promise<R> {
+        const restore: () => Promise<void> = await store.limitStatementsOn(runner, limit.timeoutInMs, inTransaction);
+        let failed: boolean = false;
+        try {
+            return await run(runner);
+        }
+        catch (error) {
+            failed = true;
+            throw error;
+        }
+        finally {
+            // a failed statement inside a transaction leaves nothing to put back into: the
+            // transaction refuses every statement until it is rolled back, which takes the limit with
+            // it. So putting it back is only allowed to fail where the operation already has
+            await (failed ? restore().catch(() => undefined) : restore());
         }
     }
 
@@ -569,6 +1002,11 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
                 // data source. The failed query is kept as the cause, so the sql is still readable.
                 if (violated) {
                     throw new UniqueConstraintViolationError(this.entityClass.name, violated, { cause: failed });
+                }
+                // the same for a check, which is declared on the entity as well
+                const check: KeyWhere | undefined = this.dataSource.findViolatedCheck(error as TOQueryFailedError, this.entityClass);
+                if (check != undefined) {
+                    throw new CheckConstraintViolationError(this.entityClass.name, check, { cause: failed });
                 }
 
                 // a json column is the one place a stored value can contradict what the entity says

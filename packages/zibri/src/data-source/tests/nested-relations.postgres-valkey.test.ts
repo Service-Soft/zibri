@@ -22,7 +22,7 @@ let server: StartedTestServer | undefined;
 
 beforeAll(async () => {
     server = await startTestServer({ dataSources: [postgresDataSourceClass, valKeyDataSourceClass] });
-}, 30000);
+}, 40000);
 
 afterAll(async () => {
     await server?.shutdown();

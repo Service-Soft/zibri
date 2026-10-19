@@ -23,11 +23,11 @@ export class NumberInvoices extends BaseEntity {
     /**
      * The amount of invoices of that year.
      */
-    @Property.number()
+    @Property.number({ format: 'integer' })
     number!: number;
     /**
      * The year for which this entity hold the amount of invoices.
      */
-    @Property.number()
+    @Property.number({ format: 'integer' })
     year!: number;
 }

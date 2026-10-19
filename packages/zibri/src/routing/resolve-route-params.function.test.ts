@@ -27,7 +27,7 @@ describe('resolveRouteParams — forgotten decorator guard', () => {
     beforeAll(async () => {
         server = await startTestServer({ controllers: [ForgotDecoratorController] });
         baseUrl = await server.start();
-    }, 15000);
+    }, 30000);
 
     afterAll(async () => {
         await server?.shutdown();

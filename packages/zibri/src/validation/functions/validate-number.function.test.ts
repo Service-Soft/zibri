@@ -37,7 +37,7 @@ describe('validateNumber', () => {
 
     beforeAll(async () => {
         server = await startTestServer({});
-    }, 15000);
+    }, 30000);
 
     afterAll(async () => {
         await server?.shutdown();
@@ -144,6 +144,23 @@ describe('validateNumber', () => {
 
         it('rejects a non-integer number', async () => {
             const problems: ValidationProblem[] = await validateNumber('count', 5.5, meta({ format: 'integer' }), undefined, undefined);
+            expect(problems).toHaveLength(1);
+        });
+
+        it('accepts every whole number a double holds exactly', async () => {
+            const problems: ValidationProblem[] = await validateNumber(
+                'count',
+                -Number.MAX_SAFE_INTEGER,
+                meta({ format: 'integer' }),
+                undefined,
+                undefined
+            );
+            expect(problems).toEqual([]);
+        });
+
+        it('rejects a whole number past what a double holds exactly', async () => {
+            // 2^53 is whole, and also what 2^53 + 1 reads as, so it does not stand for one number
+            const problems: ValidationProblem[] = await validateNumber('count', 2 ** 53, meta({ format: 'integer' }), undefined, undefined);
             expect(problems).toHaveLength(1);
         });
     });

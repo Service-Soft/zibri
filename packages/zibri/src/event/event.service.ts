@@ -3,11 +3,13 @@ import { filter, Subject, Subscription } from 'rxjs';
 import { EventCleanupCronJob } from './event-cleanup.cron-job';
 import { EventDispatchCronJob } from './event-dispatch.cron-job';
 import { EventProcessingError } from './event-processing.error';
+import { type EventReplayOptions } from './event-replay-options.model';
 import { EventServiceInterface, EventSubscribeOptions, EventSubscriptionInterface, ZibriEventMap } from './event-service.interface';
 import { ALL_EVENTS_TYPE, EventSubscriberRegistration, EventSubscriberRegistrationCreateData } from './event-subscriber-registration.model';
 import { EventSubscriberRun, EventSubscriberRunCreateData, EventSubscriberRunStatus } from './event-subscriber-run.model';
 import { Event, EventCreateData, EventStatus } from './event.model';
 import { ZibriApplication } from '../application/application';
+import { WhereFilter } from '../data-source/models/where/where-filter.model';
 import { Repository } from '../data-source/repository/repository';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { Inject } from '../di/decorators/inject.decorator';
@@ -140,6 +142,12 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
     // eslint-disable-next-line jsdoc/require-jsdoc
     onAppInit(app: ZibriApplication): void {
         validateEntitiesRegistered('EventService', app, Event, EventSubscriberRun, EventSubscriberRegistration);
+        if (inject(ZIBRI_DI_TOKENS.EVENT_FAILED_RETENTION_IN_MS) == undefined) {
+            throw new InternalError([
+                'The application has to provide ZIBRI_DI_TOKENS.EVENT_FAILED_RETENTION_IN_MS,',
+                'with how long a failed event is kept (a number of milliseconds, or \'forever\').'
+            ]);
+        }
         if (!app.options.cronJobs.includes(EventCleanupCronJob)) {
             app.options.cronJobs.push(EventCleanupCronJob);
         }
@@ -567,13 +575,87 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
     /**
      * Moves the event out of CREATED once no subscriber owes it anything.
      * @param event - The event to settle.
+     * @returns Whether the event is settled.
      */
-    private async settleEvent<K extends keyof ZibriEventMap>(event: Event<ZibriEventMap[K]>): Promise<void> {
+    private async settleEvent<K extends keyof ZibriEventMap>(event: Event<ZibriEventMap[K]>): Promise<boolean> {
         const settled: EventStatus | undefined = await this.settledStatusOf(event);
         if (settled == undefined) {
-            return;
+            return false;
         }
         await this.eventRepository.updateById(event.id, { status: settled });
+        if (settled === EventStatus.FINISHED) {
+            return true;
+        }
+        // a replay can put a failed run back between the read above and this write, and its own
+        // write of CREATED may land before this one - which would leave the event FAILED with a run
+        // that is owed again, and the poll only offers CREATED events. Looked at after the write,
+        // because a replay landing after this read also writes CREATED after this write
+        const replayed: boolean = await this.eventSubscriberRunRepository.exists({
+            where: { eventId: event.id, status: EventSubscriberRunStatus.PENDING_RETRY }
+        });
+        if (!replayed) {
+            return true;
+        }
+        await this.eventRepository.updateById(event.id, { status: EventStatus.CREATED });
+        return false;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async replayFailed(options: EventReplayOptions): Promise<number> {
+        const where: WhereFilter<EventSubscriberRun<ZibriEventMap[keyof ZibriEventMap]>> = {
+            status: EventSubscriberRunStatus.FAILED
+        };
+        if (options.eventIds != undefined) {
+            where.eventId = { oneOf: options.eventIds };
+        }
+        if (options.subscriberIds != undefined) {
+            where.subscriberId = { oneOf: options.subscriberIds };
+        }
+        if (options.types != undefined) {
+            where.event = { where: { type: { oneOf: options.types.map(String) } } };
+        }
+        const failed: EventSubscriberRun<ZibriEventMap[keyof ZibriEventMap]>[] = await this.eventSubscriberRunRepository.findAll({
+            where,
+            relations: ['event'],
+            take: 'all',
+            acrossTenants: options.acrossTenants
+        });
+        if (!failed.length) {
+            return 0;
+        }
+
+        // a run whose subscriber nothing hosts any more stays failed: the event it is put back on
+        // would be settled without it by the next poll, as FINISHED when the others succeeded, and
+        // the cleanup would then delete the only record of the failure
+        const registrations: EventSubscriberRegistration[] = await this.eventSubscriberRegistrationRepository.findAll({
+            where: { subscriberId: { oneOf: [...new Set(failed.map(r => r.subscriberId))] }, expiresAt: { after: new Date() } }
+        });
+        const liveRunIds: string[] = failed
+            .filter(run => registrations.some(r => r.subscriberId === run.subscriberId
+                && (r.eventType === run.event.type || r.eventType === ALL_EVENTS_TYPE)))
+            .map(run => run.id);
+        if (!liveRunIds.length) {
+            return 0;
+        }
+
+        // still FAILED in the filter, so a replay running beside this one puts back each run once.
+        // The error stays until the next attempt replaces it
+        const replayed: EventSubscriberRun<ZibriEventMap[keyof ZibriEventMap]>[] = await this.eventSubscriberRunRepository.updateAll(
+            { id: { oneOf: liveRunIds }, status: EventSubscriberRunStatus.FAILED },
+            { status: EventSubscriberRunStatus.PENDING_RETRY, attempts: 0, nextRetryAt: new Date() },
+            { returnUpdated: true, acrossTenants: options.acrossTenants }
+        );
+        if (!replayed.length) {
+            return 0;
+        }
+        // after the runs, for the reason settleEvent looks again after it writes FAILED. Whatever
+        // the status, since an event with a subscriber still retrying is CREATED already
+        await this.eventRepository.updateAll(
+            { id: { oneOf: [...new Set(replayed.map(r => r.eventId))] } },
+            { status: EventStatus.CREATED },
+            { acrossTenants: options.acrossTenants }
+        );
+        return replayed.length;
     }
 
     /**
@@ -610,9 +692,7 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
             // its registration lapses. Nothing else would notice - a subscriber that already ran is
             // filtered out before its hook, so the check that runs after a hook never runs again -
             // and the event would sit unfinished for good, never reaching the cleanup job.
-            const settled: EventStatus | undefined = await this.settledStatusOf(event);
-            if (settled != undefined) {
-                await this.eventRepository.updateById(event.id, { status: settled });
+            if (await this.settleEvent(event)) {
                 return;
             }
             this.eventSubject.next(event);

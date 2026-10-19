@@ -4,12 +4,14 @@ import type { CacheItem, CacheProvider, Profile, SAML } from '@node-saml/node-sa
 
 import { SamlMetadataEndpoint } from './metadata/saml-metadata-endpoint.model';
 import { SamlMetadataEntityDescriptor } from './metadata/saml-metadata-entity-descriptor.model';
+import { NodeSamlXml } from './node-saml-xml.type';
 import { NodeSaml } from './node-saml.type';
 import { SamlIdentityProviderSettings } from './saml-identity-provider-settings.model';
 import { SamlIdentityProvider } from './saml-identity-provider.model';
 import { SamlKeyPair } from './saml-key-pair.model';
 import { SamlLogoutSubject } from './saml-logout-subject.model';
 import { SamlNameIdFormat } from './saml-name-id-format.enum';
+import { SamlSoapUtilities } from './saml-soap.utilities';
 import { ZibriApplication } from '../../../application/application';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../di/inject.function';
@@ -27,8 +29,10 @@ import { UrlUtilities } from '../../../utilities/url.utilities';
 import { BaseUser } from '../../models/base-user.model';
 import { BaseFederatedAuthenticator } from '../federated/base-federated.authenticator';
 import { FederatedAnswerContext } from '../federated/federated-answer-context.model';
+import { FederatedLogoutAnswer } from '../federated/federated-logout-answer.model';
 import { FederatedMetadata } from '../federated/federated-metadata.model';
 import { FederatedProfile } from '../federated/federated-profile.model';
+import { FederatedProviderLogoutMessage } from '../federated/federated-provider-logout-message.model';
 import { FederatedProviderLogout } from '../federated/federated-provider-logout.model';
 import { FederatedReauthentication } from '../federated/federated-reauthentication.model';
 import { FederatedRouteEndpoint } from '../federated/federated-route-endpoint.model';
@@ -37,11 +41,33 @@ import { FederatedSignInFailure } from '../federated/federated-sign-in-failure.e
 import { FederatedSignInStart } from '../federated/federated-sign-in-start.model';
 import { FederatedSignInError } from '../federated/federated-sign-in.error';
 import { FederatedSignIn } from '../federated/federated-sign-in.model';
+import { FederatedSoapLogout } from '../federated/federated-soap-logout.model';
 
 /**
  * The binding the browser is sent to the identity provider with: the request in the query of a redirect.
  */
 const HTTP_REDIRECT_BINDING: string = 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect';
+
+/**
+ * The binding of a message a page posts as a form.
+ */
+const HTTP_POST_BINDING: string = 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST';
+
+/**
+ * The binding of a message sent server to server in a SOAP envelope.
+ */
+const SOAP_BINDING: string = 'urn:oasis:names:tc:SAML:2.0:bindings:SOAP';
+
+/**
+ * The namespace of SAML metadata.
+ */
+const METADATA_NAMESPACE: string = 'urn:oasis:names:tc:SAML:2.0:metadata';
+
+/**
+ * Where in a logout response a signature goes: the response, right after its issuer.
+ */
+const LOGOUT_RESPONSE_PATH: string = '//*[local-name(.)=\'LogoutResponse\' and namespace-uri(.)=\'urn:oasis:names:tc:SAML:2.0:protocol\']';
+const LOGOUT_RESPONSE_ISSUER_PATH: string = `${LOGOUT_RESPONSE_PATH}/*[local-name(.)='Issuer']`;
 
 /**
  * The NameID format of an id that is new for every sign-in, which could never find the user again.
@@ -170,10 +196,15 @@ export abstract class BaseSamlAuthenticator<
      */
     readonly decryptionKey: SamlKeyPair | undefined = undefined;
 
-    // the logout route as well, which the metadata names for the identity provider's single logout,
-    // and which the browser is redirected to there
+    // the logout routes as well, which the metadata names for the identity provider's single logout:
+    // the browser redirected or a form posted there, and a request sent server to server
     override get routes(): FederatedRouteEndpoint[] {
-        return [...super.routes, { route: 'logout', method: HttpMethod.GET }];
+        return [
+            ...super.routes,
+            { route: 'logout', method: HttpMethod.GET },
+            { route: 'logout', method: HttpMethod.POST },
+            { route: 'logout/soap', method: HttpMethod.POST }
+        ];
     }
 
     /**
@@ -208,32 +239,33 @@ export abstract class BaseSamlAuthenticator<
 
     /**
      * The metadata of the application as a SAML service provider, which the identity provider is set
-     * up with: its entity id, the callback the answers are posted to, the NameID it asks for and the
-     * certificates of its keys.
+     * up with: its entity id, the callback the answers are posted to, the logout urls for each binding,
+     * the NameID it asks for and the certificates of its keys.
      * @returns The metadata document.
      */
-    override resolveMetadata(): FederatedMetadata {
-        return {
-            content: this.resolveNodeSaml().generateServiceProviderMetadata({
-                issuer: this.entityId,
-                callbackUrl: this.getCallbackUrl(),
-                logoutCallbackUrl: this.resolveRouteUrl('logout'),
-                identifierFormat: this.nameIdFormat,
-                wantAssertionsSigned: true,
-                // node-saml names a certificate only together with its key, which tells it the key is
-                // in use. Neither key is written into the document, which is not signed
-                privateKey: this.signingKey?.privateKey,
-                publicCerts: this.signingKey?.certificate,
-                decryptionPvk: this.decryptionKey?.privateKey,
-                decryptionCert: this.decryptionKey?.certificate
-            }),
-            mimeType: 'application/samlmetadata+xml'
-        };
+    override async resolveMetadata(): Promise<FederatedMetadata> {
+        const metadata: string = this.resolveNodeSaml().generateServiceProviderMetadata({
+            issuer: this.entityId,
+            callbackUrl: this.getCallbackUrl(),
+            logoutCallbackUrl: this.resolveRouteUrl('logout'),
+            identifierFormat: this.nameIdFormat,
+            wantAssertionsSigned: true,
+            // node-saml names a certificate only together with its key, which tells it the key is
+            // in use. Neither key is written into the document, which is not signed
+            privateKey: this.signingKey?.privateKey,
+            publicCerts: this.signingKey?.certificate,
+            decryptionPvk: this.decryptionKey?.privateKey,
+            decryptionCert: this.decryptionKey?.certificate
+        });
+        return { content: await this.addLogoutServices(metadata), mimeType: 'application/samlmetadata+xml' };
     }
 
+    // a logout of the identity provider's pages is posted from the pages its logout urls are on
     // eslint-disable-next-line jsdoc/require-jsdoc
     async resolveFormPostOrigins(): Promise<string[]> {
-        return [new URL((await this.resolveSettings()).signInUrl).origin];
+        const settings: SamlIdentityProviderSettings = await this.resolveSettings();
+        const urls: string[] = [settings.signInUrl, settings.logoutUrl, settings.logoutPostUrl].filter(url => url != undefined);
+        return [...new Set(urls.map(url => new URL(url).origin))];
     }
 
     /**
@@ -260,39 +292,56 @@ export abstract class BaseSamlAuthenticator<
     }
 
     /**
-     * Reads what the identity provider sent the browser to the logout route with: a signed logout
-     * request when the user logged out there, or the answer to a logout request sent from here.
-     * @param query - The query of the request.
-     * @param rawQuery - The query exactly as it was sent, which the signature covers.
+     * Reads what the identity provider sent the browser to the logout route with, redirected or posted:
+     * a signed logout request when the user logged out there, or the answer to a logout request sent
+     * from here.
+     *
+     * A logout request is answered the way the provider's metadata says it takes answers: redirected,
+     * or posted by a page when it names a logout url for posted messages only.
+     * @param message - The query of the redirect, or the fields of the posted form.
      * @returns What the identity provider said.
-     * @throws FederatedSignInError when it is not signed by the identity provider or names another issuer.
+     * @throws UnauthorizedError when it is not signed by the identity provider or names another issuer.
      */
-    override async readProviderLogout(query: URLSearchParams, rawQuery: string): Promise<FederatedProviderLogout> {
+    override async readProviderLogout(message: FederatedProviderLogoutMessage): Promise<FederatedProviderLogout> {
         const settings: SamlIdentityProviderSettings = await this.resolveSettings();
-        const isRequest: boolean = query.has('SAMLRequest');
-        // node-saml takes a logout request without a signature, which would let anybody send a user a
-        // link that ends the logins of whoever they name
-        if (isRequest && (!query.has('Signature') || !query.has('SigAlg'))) {
-            throw new UnauthorizedError($ts`The logout request is not signed.`);
-        }
-        // the answer to a logout from here names a request that is not kept anywhere: what the browser
-        // lands on is the application's own page either way, so it is taken without it
         const saml: SAML = this.createSaml(settings, `_${randomBytes(20).toString('hex')}`, false, false);
-        let profile: Profile | null;
-        try {
-            ({ profile } = await saml.validateRedirectAsync(Object.fromEntries(query), rawQuery));
-        }
-        catch (error) {
-            throw new UnauthorizedError($ts`The logout could not be verified.`, { cause: error });
-        }
-        if (!isRequest) {
+        const profile: Profile | undefined = message.binding === 'redirect'
+            ? await this.verifyRedirectedLogout(saml, message.query, message.rawQuery)
+            : await this.verifyPostedLogout(saml, message.form);
+        if (profile == undefined) {
             return { type: 'response' };
         }
-        if (profile?.issuer !== this.issuer || !profile.nameID) {
-            throw new UnauthorizedError($ts`The logout could not be verified.`);
-        }
-        const redirectTo: string = await saml.getLogoutResponseUrlAsync(profile, query.get('RelayState') ?? '', {}, true);
-        return { type: 'request', session: this.resolveSessionKeys(profile.nameID, profile.sessionIndex), redirectTo };
+        const relayState: string = (message.binding === 'redirect' ? message.query : message.form).get('RelayState') ?? '';
+        return {
+            type: 'request',
+            session: this.resolveSessionKeys(profile.nameID, profile.sessionIndex),
+            answer: await this.createLogoutAnswer(saml, settings, profile, relayState)
+        };
+    }
+
+    /**
+     * Reads a logout request the identity provider sent server to server, in a SOAP envelope, and
+     * answers it in one: signed, when the application has a `signingKey`.
+     * @param envelope - The envelope, exactly as it arrived.
+     * @returns The logins that end, and the envelope the provider is answered with.
+     * @throws BadRequestError when it is not a SOAP envelope carrying a logout request.
+     * @throws UnauthorizedError when the request is not signed by the identity provider or names another issuer.
+     */
+    override async resolveSoapLogout(envelope: string): Promise<FederatedSoapLogout> {
+        const settings: SamlIdentityProviderSettings = await this.resolveSettings();
+        const request: string = await SamlSoapUtilities.findLogoutRequest(envelope);
+        // no destination in the answer: it goes back on the connection the request came in on
+        const saml: SAML = this.createSaml(
+            { ...settings, logoutUrl: undefined, logoutPostUrl: undefined },
+            `_${randomBytes(20).toString('hex')}`,
+            false,
+            false
+        );
+        const profile: Profile = await this.verifyPostedRequest(saml, Buffer.from(request).toString('base64'));
+        return {
+            session: this.resolveSessionKeys(profile.nameID, profile.sessionIndex),
+            answer: SamlSoapUtilities.toEnvelope(this.signLogoutResponse(saml._generateLogoutResponse(profile, true)))
+        };
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -386,6 +435,169 @@ export abstract class BaseSamlAuthenticator<
      */
     protected resolveNodeSaml(): NodeSaml {
         return optionalPeer<NodeSaml>('@node-saml/node-saml', 'Sign-in through a SAML identity provider');
+    }
+
+    /**
+     * Verifies what the identity provider redirected the browser to the logout route with.
+     * @param saml - The service provider, which knows the provider's certificates.
+     * @param query - The query of the redirect.
+     * @param rawQuery - The query exactly as it was sent, which the signature covers.
+     * @returns The logout request, or undefined for the answer to a logout from here.
+     * @throws UnauthorizedError when a logout request is not signed by the provider or names another issuer.
+     */
+    private async verifyRedirectedLogout(saml: SAML, query: URLSearchParams, rawQuery: string): Promise<Profile | undefined> {
+        const isRequest: boolean = query.has('SAMLRequest');
+        // node-saml takes a logout request without a signature, which would let anybody send a user a
+        // link that ends the logins of whoever they name
+        if (isRequest && (!query.has('Signature') || !query.has('SigAlg'))) {
+            throw new UnauthorizedError($ts`The logout request is not signed.`);
+        }
+        // the answer to a logout from here names a request that is not kept anywhere: what the browser
+        // lands on is the application's own page either way, so it is taken without it
+        let profile: Profile | null;
+        try {
+            ({ profile } = await saml.validateRedirectAsync(Object.fromEntries(query), rawQuery));
+        }
+        catch (error) {
+            throw new UnauthorizedError($ts`The logout could not be verified.`, { cause: error });
+        }
+        if (!isRequest) {
+            return undefined;
+        }
+        return this.validateLogoutRequest(profile);
+    }
+
+    /**
+     * Verifies the form a page of the identity provider posted to the logout route.
+     * @param saml - The service provider, which knows the provider's certificates.
+     * @param form - The fields of the form.
+     * @returns The logout request, or undefined for the answer to a logout from here.
+     * @throws UnauthorizedError when the form carries neither, or a logout request is not signed by the
+     * provider or names another issuer.
+     */
+    private async verifyPostedLogout(saml: SAML, form: URLSearchParams): Promise<Profile | undefined> {
+        const request: string | null = form.get('SAMLRequest');
+        if (request != undefined) {
+            return await this.verifyPostedRequest(saml, request);
+        }
+        if (!form.has('SAMLResponse')) {
+            throw new UnauthorizedError($ts`The logout could not be verified.`);
+        }
+        // like the answer in a redirect: it lands the browser on the application's own page either
+        // way, so it is taken without checking it
+        return undefined;
+    }
+
+    /**
+     * Verifies a logout request with its signature inside, as the HTTP-POST and SOAP bindings send it.
+     * @param saml - The service provider, which knows the provider's certificates.
+     * @param request - The request, base64 encoded.
+     * @returns The request.
+     * @throws UnauthorizedError when it is not signed by the provider or names another issuer.
+     */
+    private async verifyPostedRequest(saml: SAML, request: string): Promise<Profile> {
+        // node-saml refuses one without a signature on the request itself, which is the one that counts
+        let profile: Profile | null;
+        try {
+            ({ profile } = await saml.validatePostRequestAsync({ SAMLRequest: request }));
+        }
+        catch (error) {
+            throw new UnauthorizedError($ts`The logout could not be verified.`, { cause: error });
+        }
+        return this.validateLogoutRequest(profile);
+    }
+
+    /**
+     * Checks that a verified logout request is the identity provider's own, and names a user.
+     * @param profile - What node-saml read from it.
+     * @returns The request.
+     * @throws UnauthorizedError when it names another issuer or no user.
+     */
+    private validateLogoutRequest(profile: Profile | null): Profile {
+        if (profile?.issuer !== this.issuer || !profile.nameID) {
+            throw new UnauthorizedError($ts`The logout could not be verified.`);
+        }
+        return profile;
+    }
+
+    /**
+     * Answers a logout request of the identity provider the way its metadata says it takes answers:
+     * redirected when it names a logout url for that, posted by a page when it names one for posted
+     * messages only.
+     * @param saml - The service provider.
+     * @param settings - What the provider's metadata says.
+     * @param profile - The logout request.
+     * @param relayState - The relay state it came with, which the answer carries back.
+     * @returns The answer, or undefined when the provider names no logout url.
+     */
+    private async createLogoutAnswer(
+        saml: SAML,
+        settings: SamlIdentityProviderSettings,
+        profile: Profile,
+        relayState: string
+    ): Promise<FederatedLogoutAnswer | undefined> {
+        if (settings.logoutUrl != undefined) {
+            return { binding: 'redirect', url: await saml.getLogoutResponseUrlAsync(profile, relayState, {}, true) };
+        }
+        if (settings.logoutPostUrl == undefined) {
+            return undefined;
+        }
+        const response: string = this.signLogoutResponse(saml._generateLogoutResponse(profile, true));
+        const fields: Record<string, string> = { SAMLResponse: Buffer.from(response).toString('base64') };
+        if (relayState) {
+            fields['RelayState'] = relayState;
+        }
+        return { binding: 'post', url: settings.logoutPostUrl, fields };
+    }
+
+    /**
+     * Signs a logout response with the signature inside it, as the HTTP-POST and SOAP bindings carry
+     * it. Left unsigned without a `signingKey`.
+     * @param response - The response.
+     * @returns The response, signed.
+     */
+    private signLogoutResponse(response: string): string {
+        if (this.signingKey == undefined) {
+            return response;
+        }
+        return this.resolveNodeSamlXml().signXml(
+            response,
+            LOGOUT_RESPONSE_PATH,
+            // right after the issuer, which is where SAML has a signature go
+            { reference: LOGOUT_RESPONSE_ISSUER_PATH, action: 'after' },
+            { privateKey: this.signingKey.privateKey, publicCert: this.signingKey.certificate, signatureAlgorithm: 'sha256' }
+        );
+    }
+
+    /**
+     * Names the logout url for redirected messages and the SOAP logout url beside the logout url for
+     * posted messages, which is the only one node-saml writes into the metadata.
+     * @param metadata - The metadata node-saml wrote.
+     * @returns The metadata.
+     * @throws InternalError when node-saml named no logout url.
+     */
+    private async addLogoutServices(metadata: string): Promise<string> {
+        const document: Document = await this.resolveNodeSamlXml().parseDomFromString(metadata);
+        const posted: Element | null = document.getElementsByTagNameNS(METADATA_NAMESPACE, 'SingleLogoutService').item(0);
+        if (posted?.parentNode == undefined) {
+            throw new InternalError(`The metadata ${this.constructor.name} wrote names no logout url.`);
+        }
+        const createService: (binding: string, location: string) => Element = (binding, location) => {
+            const service: Element = document.createElementNS(METADATA_NAMESPACE, 'SingleLogoutService');
+            service.setAttribute('binding', binding);
+            service.setAttribute('location', location);
+            return service;
+        };
+        posted.parentNode.insertBefore(createService(HTTP_REDIRECT_BINDING, this.resolveRouteUrl('logout')), posted);
+        posted.parentNode.insertBefore(createService(SOAP_BINDING, this.resolveRouteUrl('logout/soap')), posted.nextSibling);
+        // the document is node-saml's xmldom one, typed as a browser Document: its toString writes the
+        // xml, which a browser Document has no counterpart for
+        // eslint-disable-next-line typescript/no-base-to-string
+        return document.toString();
+    }
+
+    private resolveNodeSamlXml(): NodeSamlXml {
+        return optionalPeer<NodeSamlXml>('@node-saml/node-saml/lib/xml', 'Sign-in through a SAML identity provider');
     }
 
     private toSignIn(profile: Profile, context: FederatedAnswerContext): FederatedSignIn | FederatedReauthentication {
@@ -506,7 +718,9 @@ export abstract class BaseSamlAuthenticator<
         return new SAML({
             callbackUrl: this.getCallbackUrl(),
             entryPoint: settings.signInUrl,
-            logoutUrl: settings.logoutUrl,
+            // where a logout response says it goes, which is the url for posted messages when the
+            // provider has no other
+            logoutUrl: settings.logoutUrl ?? settings.logoutPostUrl,
             logoutCallbackUrl: this.resolveRouteUrl('logout'),
             issuer: this.entityId,
             audience: this.entityId,
@@ -563,7 +777,12 @@ export abstract class BaseSamlAuthenticator<
     private async resolveSettings(): Promise<SamlIdentityProviderSettings> {
         const provider: SamlIdentityProvider = this.identityProvider;
         if (!('metadataUrl' in provider)) {
-            return { signInUrl: provider.signInUrl, certificates: provider.certificates, logoutUrl: provider.logoutUrl };
+            return {
+                signInUrl: provider.signInUrl,
+                certificates: provider.certificates,
+                logoutUrl: provider.logoutUrl,
+                logoutPostUrl: undefined
+            };
         }
         const previous: ReadSettings | undefined = this.readSettings;
         if (previous != undefined && Date.now() - previous.readAt < METADATA_MAX_AGE_IN_MS) {
@@ -617,15 +836,23 @@ export abstract class BaseSamlAuthenticator<
             throw new InternalError(`The metadata at ${metadataUrl} names no signing certificate.`);
         }
         this.validateProviderUrl(signInUrl);
-        const logoutUrl: string | undefined = this.findRedirectLocation(metadata.identityProvider?.logoutServices ?? []);
-        if (logoutUrl != undefined) {
-            this.validateProviderUrl(logoutUrl);
+        const logoutServices: SamlMetadataEndpoint[] = metadata.identityProvider?.logoutServices ?? [];
+        const logoutUrl: string | undefined = this.findLocation(logoutServices, HTTP_REDIRECT_BINDING);
+        const logoutPostUrl: string | undefined = this.findLocation(logoutServices, HTTP_POST_BINDING);
+        for (const url of [logoutUrl, logoutPostUrl]) {
+            if (url != undefined) {
+                this.validateProviderUrl(url);
+            }
         }
-        return { signInUrl, certificates, logoutUrl };
+        return { signInUrl, certificates, logoutUrl, logoutPostUrl };
     }
 
     private findRedirectLocation(endpoints: SamlMetadataEndpoint[]): string | undefined {
-        return endpoints.find(endpoint => endpoint.binding === HTTP_REDIRECT_BINDING)?.location;
+        return this.findLocation(endpoints, HTTP_REDIRECT_BINDING);
+    }
+
+    private findLocation(endpoints: SamlMetadataEndpoint[], binding: string): string | undefined {
+        return endpoints.find(endpoint => endpoint.binding === binding)?.location;
     }
 
     private toPem(certificate: string): string {

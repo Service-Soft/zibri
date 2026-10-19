@@ -24,5 +24,11 @@ export type FakePasskeyDeviceOptions = {
      * keeps them. Such a device counts no signatures. False by default, which is a security key: it
      * counts every signature.
      */
-    synced?: boolean
+    synced?: boolean,
+    /**
+     * Whether the device stores the passkeys it creates, so it can offer them at a sign-in that names
+     * none. True by default. False is an older security key: it uses only a passkey the site names, and
+     * refuses to create one when the site demands a stored one.
+     */
+    storesPasskeys?: boolean
 };

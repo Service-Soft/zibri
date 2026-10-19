@@ -20,8 +20,8 @@ export interface ClientCertificateAuthStrategyInterface<
      */
     findClientCertificate: (context: HttpRequestContext | WebsocketRequestContext) => X509Certificate | undefined,
     /**
-     * Whether a certificate may identify a caller: issued by an authority the strategy trusts, and valid
-     * right now.
+     * Whether a certificate may identify a caller: issued by an authority the strategy trusts, valid
+     * right now, and one for a client.
      */
     isTrusted: (certificate: X509Certificate) => boolean,
     /**

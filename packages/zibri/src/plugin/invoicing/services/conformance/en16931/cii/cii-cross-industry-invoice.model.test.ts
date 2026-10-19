@@ -8,7 +8,7 @@ import { GlobalRegistry } from '../../../../../../global/global-registry';
 const invoice: CiiCrossIndustryInvoice = {
     exchangedDocumentContext: {
         businessProcess: { id: 'urn:fdc:peppol.eu:2017:poacc:billing:01:1.0' },
-        guideline: { id: 'urn:cen.eu:en16931:2017#compliant#urn:xrechnung:3.0' }
+        guideline: { id: 'urn:cen.eu:en16931:2017#compliant#urn:xeinkauf.de:kosit:xrechnung_3.0' }
     },
     exchangedDocument: {
         id: 'R-1',
@@ -91,7 +91,7 @@ describe('CiiCrossIndustryInvoice', () => {
             '      <ram:ID>urn:fdc:peppol.eu:2017:poacc:billing:01:1.0</ram:ID>',
             '    </ram:BusinessProcessSpecifiedDocumentContextParameter>',
             '    <ram:GuidelineSpecifiedDocumentContextParameter>',
-            '      <ram:ID>urn:cen.eu:en16931:2017#compliant#urn:xrechnung:3.0</ram:ID>',
+            '      <ram:ID>urn:cen.eu:en16931:2017#compliant#urn:xeinkauf.de:kosit:xrechnung_3.0</ram:ID>',
             '    </ram:GuidelineSpecifiedDocumentContextParameter>',
             '  </rsm:ExchangedDocumentContext>',
             '  <rsm:ExchangedDocument>',

@@ -19,6 +19,7 @@ It needs the optional peer dependency `socket.io`. Startup fails when websockets
 | `WebsocketMessageSequence` | entity | The seq the last message was given |
 | `WebsocketMessageCleanupCronJob` | cron job | Deletes the messages older than `messageRetentionInMs` |
 | `WebsocketReplayIncomplete` | type | What a reconnecting client is sent instead of the messages it missed, when they cannot all be sent |
+| `WebsocketAnswer` | type | What one connection answered to a message sent to several, see [waiting for answers](#waiting-for-answers) |
 | `ZIBRI_DI_TOKENS.WEBSOCKET_SERVICE` | DI token | Injects `WebsocketService` |
 | `ZIBRI_DI_TOKENS.WEBSOCKET_OPTIONS_INPUT` | DI token | The websocket options your application sets, `messageRetentionInMs` among them |
 | `ZIBRI_DI_TOKENS.WEBSOCKET_OPTIONS` | DI token | The websocket options in effect, built from `WEBSOCKET_OPTIONS_INPUT` |
@@ -110,6 +111,33 @@ export class SendingWebsocketController {
 
 A message arrives as json, whichever way it is sent and whichever instance sends it: a bigint arrives as its digits, a date as its ISO string, and a buffer as `{ type: 'Buffer', data }`.
 
+#### Waiting for answers
+With `expectResponse: true`, `sendToChannel` and `sendToAll` wait for every connection they reach to answer, on every instance, and return one `WebsocketAnswer` per connection: what it answered as `request`, its `connectionId` and its `userId`. A connection that does not answer within `timeoutInMs` is listed too, with `request.body` holding `{ error }`, the error as a `LoggedError`.
+
+```ts
+import { Inject, Injectable, WebsocketAnswer, WebsocketService, ZIBRI_DI_TOKENS } from 'zibri';
+
+@Injectable()
+export class PresenceService {
+    constructor(
+        @Inject(ZIBRI_DI_TOKENS.WEBSOCKET_SERVICE)
+        private readonly websocketService: WebsocketService
+    ) {}
+
+    async findPresentUserIds(channelId: string): Promise<(string | undefined)[]> {
+        const answers: WebsocketAnswer[] = await this.websocketService.sendToChannel({
+            channelId,
+            event: 'are you there',
+            message: { ok: true, data: {}, senderUserId: undefined, senderConnectionId: undefined },
+            expectResponse: true
+        });
+        return answers.map(a => a.userId);
+    }
+}
+```
+
+`findConnectionById` finds the connection of an answer on the instance that holds it.
+
 ### Handling channels
 Channels are created by using a repository with the `WebsocketChannel` entity. See [accessing a data source](./data-source.md#accessing-the-data-source) for more information.
 
@@ -123,16 +151,16 @@ Every stored message has a `seq`, one higher than the message before it. Keep th
 import { io } from 'socket.io-client';
 import type { WebsocketMessage } from 'zibri';
 
-let lastSeq: number = 0;
+let lastSeq: number | undefined;
 
 // a function rather than an object, so that every reconnect sends the seq it has reached
-const socket = io('http://localhost:3000', { auth: callback => callback({ offset: lastSeq }) });
+const socket = io('http://localhost:3000', { auth: callback => callback(lastSeq == undefined ? {} : { offset: lastSeq }) });
 socket.on('chat message', (message: WebsocketMessage) => {
     lastSeq = message.seq;
 });
 ```
 
-A connecting client is sent every message after its `offset` that it would have received, oldest first. `offset: 0` asks for everything that is kept.
+A connecting client is sent every message after its `offset` that it would have received, oldest first. `offset: 0` asks for everything that is kept. A client that sends no `offset` is sent nothing it missed, and receives what is sent from then on. An `offset` that is not a whole number of at least 0 refuses the connection with a 400.
 
 A message is kept for `messageRetentionInMs`. A client that missed more than `maxReplayedMessages`, or whose missed messages are no longer all kept, is sent none of them. It is sent one `ws:replay-incomplete` instead, whose `data` is a `WebsocketReplayIncomplete`: reload your state, and continue from its `seq`.
 
@@ -221,11 +249,12 @@ defineProvider({
 
 It has to be a data source that can carry messages between instances — one implementing `PubSubDataSourceInterface`, which today means a `ValKeyDataSource`. Startup fails with a message saying so if it cannot, rather than quietly running without one.
 
-Under the hood this builds a socket.io adapter on socket.io's own `ClusterAdapter`, so heartbeats, acknowledgements and cross-instance socket lookups are socket.io's implementation. Zibri only supplies the transport. That base class lives in the optional peer dependency `socket.io-adapter`, which naming an `adapterDataSource` is the declaration for — startup fails without it.
+Under the hood this builds a socket.io adapter on socket.io's own cluster adapter, so heartbeats, acknowledgements and cross-instance socket lookups are socket.io's implementation. Zibri only supplies the transport. That base class lives in the optional peer dependency `socket.io-adapter`, which naming an `adapterDataSource` is the declaration for — startup fails without it.
 
-Two limits worth knowing:
+A send [waiting for answers](#waiting-for-answers) collects them from the clients of every instance. It waits `timeoutInMs` and one second more for the other instances, and leaves out the answers of an instance that has not sent them by then.
 
-- **`sendToChannel` and `sendToAll` with `expectResponse: true` still only reach this instance's clients.** Fire-and-forget sends go through socket.io rooms and travel; the request/response form iterates the connections this instance holds. Collecting responses from clients on other instances is not supported.
+One limit worth knowing:
+
 - **Socket.io's own connection state recovery does not span instances.** The adapter reports no message offsets, so only the instance that held the socket can restore it that way. Zibri recovers the rest itself and does so across instances: missed messages are replayed from the persisted `WebsocketMessage` rows in the shared data source, and an authenticated user is put back into the rooms of the channels they belong to. An anonymous connection has nothing linking it to a channel, so it has to join again.
 
 Left unset, broadcasts stay inside the instance that sent them — correct for exactly one instance, and wrong the moment there are two.

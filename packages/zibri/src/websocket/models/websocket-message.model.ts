@@ -37,7 +37,7 @@ export class WebsocketMessage extends BaseEntity {
     /**
      * An incremental number that can be used with a client offset to sync server state back to the client.
      */
-    @Property.number({ default: resolveNewSeqNumber })
+    @Property.number({ format: 'integer', default: resolveNewSeqNumber })
     seq!: number;
     /**
      * Whether or not the message is ok.
@@ -56,7 +56,7 @@ export class WebsocketMessage extends BaseEntity {
     /**
      * The http status code.
      */
-    @Property.number({ enum: HttpStatus })
+    @Property.number({ format: 'integer', enum: HttpStatus })
     status!: HttpStatus;
     /**
      * The id of the user that has sent the message.

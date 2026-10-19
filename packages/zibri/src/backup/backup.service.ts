@@ -9,6 +9,9 @@ import { BackupResourceEntity, BackupResourceEntityCreateData } from './backup-r
 import { BackupResourceInterface, isBackupResource } from './backup-resource.interface';
 import { BackupCreateData, BackupServiceInterface } from './backup-service.interface';
 import { BackupStagingCleanupCronJob } from './backup-staging-cleanup.cron-job';
+import { RestoreJournalEntry } from './restore-journal-entry.model';
+import { RestoreJournal } from './restore-journal.model';
+import { RestoreJournalUtilities } from './restore-journal.utilities';
 import { BackupDigest, followFile, stage } from './staging.function';
 import { ZibriApplication } from '../application/application';
 import { BackupResourceMetadata } from './decorators/backup-resource-metadata.model';
@@ -39,7 +42,7 @@ import { JsonUtilities } from '../utilities/json.utilities';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { Ms } from '../utilities/ms';
 import { ObjectUtilities } from '../utilities/object.utilities';
-import { PromiseUtilities } from '../utilities/promise.utilities';
+import { PromiseUtilities, TimeoutError } from '../utilities/promise.utilities';
 import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function';
 
 /**
@@ -103,6 +106,40 @@ class CorruptBackupError extends InternalError {
         this.name = 'CorruptBackupError';
     }
 }
+
+/**
+ * An error to throw when a backup was stopped because the application is shutting down.
+ */
+class BackupStoppedError extends InternalError {
+    constructor(backup: BackupEntity, deleteError?: unknown) {
+        super(
+            deleteError == undefined
+                ? `The backup "${backup.name}" was stopped because the application is shutting down, and what it wrote was deleted.`
+                : [
+                    `The backup "${backup.name}" was stopped because the application is shutting down.`,
+                    'Deleting what it wrote failed, so it stays recorded as a backup that was never finished.'
+                ],
+            { cause: deleteError }
+        );
+        this.name = 'BackupStoppedError';
+    }
+}
+
+/**
+ * An error to throw when a restore was stopped because the application is shutting down.
+ */
+class RestoreStoppedError extends InternalError {
+    constructor(backup: BackupEntity) {
+        super(`The restore of backup "${backup.name}" was stopped because the application is shutting down.`);
+        this.name = 'RestoreStoppedError';
+    }
+}
+
+/**
+ * How long stopping a running backup or restore may take once the application has stopped waiting for it:
+ * deleting what a backup wrote, or putting back what a restore applied.
+ */
+const STOPPING_TIMEOUT_IN_MS: number = Ms.SECOND * 30;
 
 /**
  * A resource of a backup being restored, whose data is fetched, checked and waiting on this instance's disk.
@@ -197,11 +234,19 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
     readonly isRestoringBackup: BehaviorSubject<boolean> = new BehaviorSubject(false);
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly shutdownTimeoutInMs: number = Ms.MINUTE * 15;
+    get shutdownTimeoutInMs(): number {
+        return this.shutdownWaitInMs + STOPPING_TIMEOUT_IN_MS;
+    }
+
+    // aborted when the application stops waiting for a running backup or restore. Never reset: a
+    // service whose application is shutting down starts nothing new
+    private readonly stopping: AbortController = new AbortController();
 
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
-        private readonly logger: LoggerInterface
+        private readonly logger: LoggerInterface,
+        @Inject(ZIBRI_DI_TOKENS.BACKUP_SHUTDOWN_WAIT_IN_MS)
+        private readonly shutdownWaitInMs: number
     ) {}
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -249,15 +294,107 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
         // after every service is initialized rather than during: a transport reads through them, and
         // one in a bucket needs the http client's body parsers, which the parser only registers in its
         // own onAppInit - one that may well run after this service's
+        // put back first, because what a half finished restore of the database left there is what the
+        // sync would otherwise read
+        await this.putBackInterruptedRestores();
         await this.syncBackupEntitiesFrom('skip');
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async onAppShutdown(): Promise<void> {
-        await Promise.all([
+        const finished: Promise<unknown> = Promise.all([
             firstValueFrom(this.isCreatingBackup.pipe(first(v => !v))),
             firstValueFrom(this.isRestoringBackup.pipe(first(v => !v)))
         ]);
+        try {
+            await PromiseUtilities.withTimeout(() => finished, this.shutdownWaitInMs);
+        }
+        catch (error) {
+            if (!(error instanceof TimeoutError)) {
+                throw error;
+            }
+            // stopped rather than waited for: the process is killed once the orchestrator's grace period
+            // is over, and a backup or restore killed halfway leaves more to clean up than one stopped
+            this.stopping.abort();
+            await finished;
+        }
+    }
+
+    /**
+     * Puts back what a restore applied before the process running it was killed.
+     *
+     * Its journal names what it started applying, and the snapshot beside each says what that held before.
+     * Only this instance's disk holds them, so a replacement started on a fresh disk finds nothing to put back.
+     */
+    private async putBackInterruptedRestores(): Promise<void> {
+        if (!this.backupResources.length) {
+            return;
+        }
+        // one journal after another, and each one's resources in reverse: the order a restore applies
+        // in is what putting back undoes
+        for (const p of await RestoreJournalUtilities.findPaths(this.stagingFolder)) {
+            let journal: RestoreJournal;
+            try {
+                journal = await RestoreJournalUtilities.resolve(p);
+            }
+            catch (error) {
+                this.logger.error(new Error(`Could not read the journal ${p} of a restore that was interrupted.`, { cause: error }));
+                continue;
+            }
+            const notPutBack: RestoreJournalEntry[] = [];
+            for (const entry of [...journal.applied].reverse()) {
+                try {
+                    const resource: BackupResourceInterface | undefined = this.findBackupResource(entry.resourceName);
+                    if (!resource) {
+                        throw new InternalError(`The application has no backup resource "${entry.resourceName}".`);
+                    }
+                    await resource.restoreBackup(FsUtilities.createReadStream(entry.snapshotPath));
+                    await FsUtilities.rm(entry.snapshotPath);
+                }
+                catch (error) {
+                    this.logger.error(new Error(
+                        [
+                            `Could not put back the resource "${entry.resourceName}", which the interrupted restore of backup`,
+                            `"${journal.backupName}" had applied. What it held before is kept in ${entry.snapshotPath},`,
+                            'and putting it back is tried again at the next start.'
+                        ].join(' '),
+                        { cause: error }
+                    ));
+                    notPutBack.unshift(entry);
+                }
+            }
+            if (notPutBack.length) {
+                await RestoreJournalUtilities.write(p, { ...journal, applied: notPutBack });
+                continue;
+            }
+            await FsUtilities.rm(p);
+            this.logger.warn(
+                `The restore of backup "${journal.backupName}" was interrupted, and what it had applied was put back: `
+                + journal.applied.map(e => `"${e.resourceName}"`).join(', ')
+            );
+        }
+    }
+
+    /**
+     * Runs work on a stream that is destroyed when the application stops waiting for it.
+     * @param stream - The stream to destroy.
+     * @param work - What reads it.
+     * @returns What the work returns.
+     */
+    private async stopOnShutdown<T>(stream: Readable, work: () => Promise<T>): Promise<T> {
+        // the stream rather than whatever reads it, because the end that produces the data is the one
+        // that can be waiting on something that is not coming
+        const stop: () => void = () => stream.destroy(new Error('The application is shutting down.'));
+        if (this.stopping.signal.aborted) {
+            stop();
+        }
+        this.stopping.signal.addEventListener('abort', stop, { once: true });
+        try {
+            return await work();
+        }
+        finally {
+            this.stopping.signal.removeEventListener('abort', stop);
+        }
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -465,7 +602,9 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
 
             this.isCreatingBackup.next(true);
 
-            await Promise.all(backup.resources.map(async r => {
+            // settled rather than raced, so that nothing is still writing to a transport once a backup that
+            // was stopped is deleted from it
+            const settled: PromiseSettledResult<void>[] = await Promise.allSettled(backup.resources.map(async r => {
                 const resource: BackupResourceInterface | undefined = this.resolveBackupResource(r);
                 if (!resource) {
                     this.logger.warn(
@@ -491,12 +630,31 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
                 // before staging, so that neither this instance's disk nor any transport ever holds
                 // the data unencrypted
                 const stored: Readable = key ? Readable.from(BackupEncryptionUtilities.encrypt(data, key)) : data;
-                const digest: BackupDigest = await this.storeAndMeasure(stored, transports, backup, r);
+                const digest: BackupDigest = await this.stopOnShutdown(
+                    data,
+                    async () => await this.storeAndMeasure(stored, transports, backup, r)
+                );
                 // only now, and only if every transport took the whole thing. What `completed` is
                 // for is telling a backup that finished from one that stopped halfway, which it can
                 // only do if nothing sets it before the halfway point
                 await this.backupResourceRepository.updateById(r.id, { ...digest, encryptedKey, completed: true });
             }));
+
+            const failure: PromiseRejectedResult | undefined = settled.find(r => r.status === 'rejected');
+            if (failure && this.stopping.signal.aborted) {
+                // deleted rather than left unfinished: nothing can be restored from it, and every stop
+                // would otherwise leave one more behind on the transports
+                try {
+                    await this.delete(backup);
+                }
+                catch (error) {
+                    throw new BackupStoppedError(backup, error);
+                }
+                throw new BackupStoppedError(backup);
+            }
+            if (failure) {
+                throw failure.reason;
+            }
 
             await this.storeMetadata(backup.id);
         }
@@ -524,6 +682,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
         this.isRestoringBackup.next(true);
         const staged: StagedResource[] = [];
         let keptSnapshotPaths: FsPath[] = [];
+        const journalPath: FsPath = RestoreJournalUtilities.getPath(this.stagingFolder, backup.id);
         try {
             await FsUtilities.mkdir(this.stagingFolder);
             // every archive is fetched and checked before any of them is applied: a resource applied
@@ -538,14 +697,23 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
                     staged.push(result.value);
                 }
             }
+            // nothing is applied yet, so a stop here has nothing to put back
+            if (this.stopping.signal.aborted) {
+                throw new RestoreStoppedError(backup);
+            }
             const failure: PromiseRejectedResult | undefined = settled.find(r => r.status === 'rejected');
             if (failure) {
                 throw failure.reason;
             }
             // what every resource holds right now, taken before any of them changes, so that one failing
             // to apply can be undone by putting the others back
-            await Promise.all(staged.map(async s => await stage(await s.resource.createBackupData(backup), s.snapshotPath)));
-            await this.applyStaged(staged, backup);
+            await Promise.all(staged.map(async s => {
+                const current: Readable = await s.resource.createBackupData(backup);
+                await this.stopOnShutdown(current, async () => await stage(current, s.snapshotPath));
+            })).catch((error: unknown) => {
+                throw this.stopping.signal.aborted ? new RestoreStoppedError(backup) : error;
+            });
+            await this.applyStaged(staged, backup, journalPath);
         }
         catch (error) {
             if (error instanceof RestoreNotUndoneError) {
@@ -554,27 +722,44 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
             throw error;
         }
         finally {
-            await Promise.all(staged.flatMap(s => [
-                FsUtilities.rm(s.path),
-                ...keptSnapshotPaths.includes(s.snapshotPath) ? [] : [FsUtilities.rm(s.snapshotPath)]
-            ]));
+            // only a killed process leaves its journal behind: anything else that ends a restore has
+            // either finished it, put it back, or named what it could not put back
+            await Promise.all([
+                FsUtilities.rm(journalPath),
+                ...staged.flatMap(s => [
+                    FsUtilities.rm(s.path),
+                    ...keptSnapshotPaths.includes(s.snapshotPath) ? [] : [FsUtilities.rm(s.snapshotPath)]
+                ])
+            ]);
             this.isRestoringBackup.next(false);
         }
     }
 
     /**
-     * Applies every staged resource, one after another, and puts back what was applied when one fails.
+     * Applies every staged resource, one after another, and puts back what was applied when one fails
+     * or the application stops waiting for the restore.
      *
      * One after another rather than together, so that a resource failing stops the restore before
      * anything after it is touched.
      * @param staged - The resources, each with its data and a snapshot of what it holds now.
      * @param backup - The backup being restored.
+     * @param journalPath - Where the restore notes what it started applying.
      * @throws What the failing resource threw, once the others are put back.
+     * @throws {RestoreStoppedError} When the application stopped waiting, once the applied resources are put back.
      * @throws {RestoreNotUndoneError} When a resource could not be put back either.
      */
-    private async applyStaged(staged: StagedResource[], backup: BackupEntity): Promise<void> {
+    private async applyStaged(staged: StagedResource[], backup: BackupEntity, journalPath: FsPath): Promise<void> {
         const applied: StagedResource[] = [];
+        const journal: RestoreJournal = { backupName: backup.name, applied: [] };
         for (const s of staged) {
+            // between two resources, the one place a restore can stop without leaving one of them half applied
+            if (this.stopping.signal.aborted) {
+                await this.putBack(applied, backup, new RestoreStoppedError(backup));
+            }
+            // noted before it is applied, so a process killed while applying it leaves it to be put back
+            // at the next start
+            journal.applied.push({ resourceName: s.entity.name, snapshotPath: s.snapshotPath });
+            await RestoreJournalUtilities.write(journalPath, journal);
             try {
                 await s.resource.restoreBackup(FsUtilities.createReadStream(s.path));
                 applied.push(s);
@@ -582,25 +767,37 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
             catch (error) {
                 // the failing one is put back too: nothing promises that a resource which throws has
                 // applied none of its data, and putting back one that did is the same state again
-                const notUndone: StagedResource[] = [];
-                for (const touched of [s, ...[...applied].reverse()]) {
-                    try {
-                        await touched.resource.restoreBackup(FsUtilities.createReadStream(touched.snapshotPath));
-                    }
-                    catch (undoError) {
-                        this.logger.error(new Error(
-                            `Could not put back the resource "${touched.entity.name}" after restoring backup "${backup.name}" failed.`,
-                            { cause: undoError }
-                        ));
-                        notUndone.push(touched);
-                    }
-                }
-                if (notUndone.length) {
-                    throw new RestoreNotUndoneError(backup, notUndone, error);
-                }
-                throw error;
+                await this.putBack([...applied, s], backup, error);
             }
         }
+    }
+
+    /**
+     * Puts the given resources back from their snapshots, the last one applied first, and fails with why.
+     * @param touched - The resources to put back, in the order they were applied.
+     * @param backup - The backup being restored.
+     * @param error - Why the restore ended.
+     * @throws The given error, once every resource is put back.
+     * @throws {RestoreNotUndoneError} When a resource could not be put back.
+     */
+    private async putBack(touched: StagedResource[], backup: BackupEntity, error: unknown): Promise<never> {
+        const notUndone: StagedResource[] = [];
+        for (const t of [...touched].reverse()) {
+            try {
+                await t.resource.restoreBackup(FsUtilities.createReadStream(t.snapshotPath));
+            }
+            catch (undoError) {
+                this.logger.error(new Error(
+                    `Could not put back the resource "${t.entity.name}" after restoring backup "${backup.name}" failed.`,
+                    { cause: undoError }
+                ));
+                notUndone.push(t);
+            }
+        }
+        if (notUndone.length) {
+            throw new RestoreNotUndoneError(backup, notUndone, error);
+        }
+        throw error;
     }
 
     /**
@@ -644,11 +841,12 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
         // is enough: nothing reaches the resource until every one of them has
         const p: FsPath = this.stagingPathFor(backup, resource);
         try {
-            const digest: BackupDigest = await stage(
-                await this.resolveData(transports, resource, backup),
+            const data: Readable = await this.resolveData(transports, resource, backup);
+            const digest: BackupDigest = await this.stopOnShutdown(data, async () => await stage(
+                data,
                 p,
                 key ? source => BackupEncryptionUtilities.decrypt(source, key) : undefined
-            );
+            ));
             if (digest.checksum !== resource.checksum || digest.size !== resource.size) {
                 throw new CorruptBackupError(backup, resource, digest);
             }
@@ -785,7 +983,18 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     resolveBackupResource(resource: BackupResourceEntity): BackupResourceInterface | undefined {
-        return this.backupResources.find(r => r.constructor.name === resource.name);
+        return this.findBackupResource(resource.name);
+    }
+
+    /**
+     * Finds the backup resource of the given name.
+     * @param name - The name a backup records the resource under.
+     * @returns The resource, or undefined when the application has none of that name.
+     */
+    private findBackupResource(name: string): BackupResourceInterface | undefined {
+        // by the name the decorator settled on, which is what a backup records: a resource given a name
+        // of its own was never found by its class name
+        return this.backupResources.find(r => MetadataUtilities.getBackupResourceMetadata(r)?.name === name);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

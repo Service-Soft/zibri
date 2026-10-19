@@ -83,6 +83,8 @@ export async function readAuditTrail(logRepository: Repository<Log>): Promise<un
 }
 ```
 
+Past the db transport's [budget](#how-many-rows-the-db-transport-writes), events are counted per kind like every other entry, and the whole event is part of the kind: a run of refused logins naming one address is one row with a count.
+
 `action` and `outcome` are the pair a detection rule keys on, and both are closed sets. `reason`
 is too, deliberately: messages are localized and are allowed to change wording, so nothing worth
 alerting on should have to be parsed out of one.
@@ -134,6 +136,8 @@ LoggerTransport.create({ name: 'MyTransport', level: LogLevel.WARN, register: 'd
 
 `send` receives only the entries this transport's level admits, oldest first, and is never called with an empty list. Writing a batch as one operation is the point — one statement rather than one per line.
 
+A transport that holds entries back takes a third argument, `flush`, which writes them out. The logger calls it on `flush()` and at shutdown, after every queued entry was sent.
+
 | Token | Meaning |
 |---|---|
 | `LOGGER_FLUSH_INTERVAL_MS` | How long entries gather before a write. Defaults to one second. `0` writes each entry on its own, which costs one write per log call |
@@ -142,6 +146,24 @@ LoggerTransport.create({ name: 'MyTransport', level: LogLevel.WARN, register: 'd
 The interval is how much a crash can lose. Shutdown flushes what is queued before the data sources close, so an orderly stop loses nothing.
 
 Raise it for an application that logs constantly and can afford to lose more on an unclean stop; lower it to keep that window small. Note that shortening it also shortens the window entries have to find each other in — an application handling a few requests a second is quiet on a 100ms window, so each line ends up written on its own again.
+
+### How many rows the db transport writes
+
+The db transport writes at most 1000 entries a minute as rows of their own, on each instance. Past that, entries with the same level, message and metadata become one row per kind, written when the minute ends. That row carries the first entry's message and context, and `context.collapsed` says how many entries it stands for and when the last one was logged:
+
+```ts
+export function countEntries(logs: Log[]): number {
+    return logs.reduce((sum, l) => sum + (l.context.collapsed?.count ?? 1), 0);
+}
+```
+
+When a batch is larger than what is left of the budget, its more important entries keep their rows. Each minute keeps at most 100 kinds apart; anything beyond them is counted in one row per level.
+
+Set the budget on the transport:
+
+```ts
+LoggerTransport.db(LogLevel.INFO, { maxEntriesPerMinute: 5000 })
+```
 
 ### The access log
 
@@ -156,7 +178,7 @@ defineProvider({
 
 **Reach for [metrics](./metrics.md) first.** A 404 storm, a spike of 400s after a client release and a route that got slower are all questions about counts and distributions, and `http_requests_total` and `http_request_duration_ms` already answer them — labelled by method, route and status, at a fixed cost that does not grow with traffic. That is what you build a dashboard and an alert on.
 
-Turn the access log on when you need the individual requests rather than the shape of them: which client asked for what, in what order, with which user agent. That is a debugging and forensics question, and it is worth the cost only while you have it. The cost is real — the default transports include the database one, which keeps everything from `info` upwards, so a busy application makes the log table its busiest table. Enable it together with a transport that can take the volume, or with `LOGGER_CLEANUP_AFTER_MS` set low enough for it.
+Turn the access log on when you need the individual requests rather than the shape of them: which client asked for what, in what order, with which user agent. That is a debugging and forensics question, and it is worth the cost only while you have it. The cost is real — the default transports include the database one, which keeps everything from `info` upwards, so a busy application makes the log table its busiest table. That transport writes 1000 entries a minute as rows of their own and [counts the rest](#how-many-rows-the-db-transport-writes), so on a busy application most requests end up counted rather than written. Enable it together with a transport that can take the volume, or raise the db transport's budget and set `LOGGER_CLEANUP_AFTER_MS` low enough for it.
 
 The entry is written once the response has closed, which includes a client that hung up mid-response and a request that matched no route at all.
 

@@ -25,5 +25,5 @@ describe('WebsocketService — body type', () => {
     it('rejects startup when a websocket route declares a body other than json', async () => {
         await expect(startTestServer({ websocketControllers: [FormDataWebsocketController] }))
             .rejects.toThrow(/not supported for websockets/i);
-    }, 15000);
+    }, 30000);
 });

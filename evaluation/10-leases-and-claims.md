@@ -321,10 +321,54 @@ the need for a lock — or the counter moves out of the caller's transaction and
 which costs a burnt number on rollback. The first needs a returning/conditional update in the
 repository layer, the gap the code comment already names.
 
-Held red by *gives every caller its own number when each one runs inside its own transaction* in
-`invoicing.evaluation.test.ts`.
+Held by *gives every caller its own number when each one runs inside its own transaction* in
+`invoicing.evaluation.test.ts`, red until the fix.
 
-### 10.5 The first sign-in lease of a directory ends before the login commits — **open**
+### 10.5 The first sign-in lease of a directory ends before the login commits — ~~open~~ **FIXED**
+
+> **Closed 2026-10-16: the lease now lasts until the login's transaction ends** (the user's call,
+> over the two other answers below).
+>
+> - **`LeaseOptions.heldUntil`** names a transaction the work writes in. `withLease` then hands the
+>   grant back once the work has returned *and* the transaction has ended, whichever comes last: a
+>   caller usually ends it afterwards, but the work may end it itself. In between the grant is kept
+>   through `keepAlive`, so it is renewed, the shutdown drain waits for it, and no TTL can run out
+>   under a slow commit. A rollback counts as the work having thrown for `onCompletion`; a
+>   transaction that has ended already, or none, behaves as before. `runInLeaseScope` no longer
+>   reports the transaction the grant is held until, since the grant does cover that commit.
+> - **`Transaction.afterFinish(work)`**, new beside `afterCommit`, runs once the transaction is
+>   committed, rolled back or its commit failed, and tells the work which. All three transactions
+>   implement it, spliced so a rollback after a failed commit does not run it twice; the valkey
+>   transaction's idle rollback reaches it too. A `Transaction` of an application's own implements it,
+>   which `upgrading-to-3.md` says.
+> - `BaseLdapAuthenticator.resolveUser` passes `heldUntil: transaction`, and nothing else changed:
+>   the hook and the link stay in the login's transaction and roll back with it.
+>
+> **Why not the obvious alternatives.** *Its own transaction* (the first sign-in commits inside the
+> lease) was the smallest change, but a login failing afterwards would keep the user and link, the
+> hook would no longer get the login's transaction, and every first sign-in would need a second
+> pooled connection while its login's is open, so a burst of them can exhaust the pool waiting on
+> each other. *Let the database decide* (insert the link first through `upsert`, with an empty
+> `userId`, and let the unique index make the second wait) is the 10.4 answer, but needs a nullable
+> `userId`, an `upsert` whose conflict path changes nothing (refused today), and an in-memory store
+> that makes a second transaction wait. Holding the lease until commit is the `withLockedTransaction`
+> shape 10.4 rejected; its reasons do not carry over. The TTL is renewed rather than outlived, the
+> caller keeps its own transaction, and no lock-order cycle can form: a waiting login has only read
+> by then.
+>
+> **Worse than filed.** On the in-memory store both logins *succeeded*, as two different users with
+> two links, because nothing there enforces a unique at commit. Postgres and valkey would have
+> failed the second login as filed.
+>
+> **Proof.** *links two first sign-ins as the same entry at once to one user while their logins commit
+> late* in `base-ldap.authenticator.test.ts` logs in through `AuthControllerUtilities.runInTransaction`
+> as `AuthController` does, and commits 300 ms after the session is started, longer than the waiting
+> side's poll. It was red first (two users), and also asserts that the lease warning stays quiet. The
+> older case, which logs in without a transaction, stays as it was. `lease.service.test.ts` holds
+> `heldUntil` (held past the work until commit; handed back on rollback, retained on one under
+> `retainOnError`; handed back once the work returns when the transaction ended inside it or
+> before), `run-in-lease-scope.test.ts` the quiet warning, and `afterFinish` has a case on each
+> store, a failed commit included on postgres and valkey.
 
 *Filed on the re-check of 2026-10-15. The shape of 10.4, in code written after it.*
 
@@ -348,6 +392,17 @@ ones.
 is green because the waiting side polls every 100 ms (`ACQUIRE_RETRY_INTERVAL_IN_MS`) and the first
 login usually commits inside that window. 03 §H4 records the lease as what makes the hook run once.
 
+### 10.6 A deadlock between valkey transactions ends every one of them, after ten seconds — **open (deferred)**
+
+*Filed on 2026-10-15; [Deadlock endings](#deadlock-endings) below has called it open and accepted since
+step 3.*
+
+Two transactions taking the same keys in opposite orders wait for each other until
+`VAL_KEY_TRANSACTION_LOCK_TIMEOUT_IN_MS` runs out, and then all of them fail. Postgres finds the same
+cycle in about a second and fails one, so the rest commit. The error names contention rather than a
+deadlock. Wait-die was considered and rejected; detecting the cycle by walking who-waits-for-whom is
+the design written down there, with two questions to settle first.
+
 ## Ruled out
 
 Checked and genuinely safe, recorded so the next audit does not repeat the work:
@@ -357,7 +412,7 @@ Checked and genuinely safe, recorded so the next audit does not repeat the work:
 | `log-cleanup`, `event-cleanup`, `cookie-auth-session-cleanup`, `jwt-refresh-token-cleanup` | `deleteAll` with a time predicate. Idempotent, so a duplicate run is a no-op |
 | `collect-metrics`, `rate-limiting-cleanup`, `form-data-body-parser-cleanup`, `cache-invalidation` | `distributed: false`. Per-replica work by design, no grant involved |
 | `PostgresTypeormDataSource.withLock` | Session-scoped advisory lock, no TTL to outlive |
-| `MultithreadingService` | The queue is an in-memory array, so a job never crosses instances. It has a different problem — a job dies with its replica and the row is orphaned — but not this one |
+| `MultithreadingService` | Ruled out at the time because the queue was an in-memory array, so a job never crossed instances. The queue is the table now and a job is claimed under a lease for its whole run, renewed while it runs ([04 §2.10](./04-infrastructure-subsystems.md)), so it is the shape this document fixed rather than one it ruled out |
 
 ## What `distributed: true` actually promises
 
@@ -705,7 +760,8 @@ than a defect.
      > an `onConflict` leaves the identity as it is, since the identity is what the written row is
      > paired back by.
 
-5. Docs: `withLock` disappears, leases documented once.
+5. ~~Docs: `withLock` disappears, leases documented once~~ — **done**: `docs/leases.md`, and no
+   page names `withLock` any more.
 6. ~~`updateAll` becomes atomic~~ — **done**, closing [01 §M20](./01-data-layer.md).
 
    The whole operation moved onto the driver rather than staying orchestrated in the repository,
@@ -738,11 +794,11 @@ Steps 1 and 2 are pure refactoring under `cluster/lock`, `cluster/cron`, `cluste
 `cluster/events`, all currently green. They should stay green throughout — which is the strongest
 safety net available for a change this size, and the reason to do it before anything that is not
 refactoring. They did: the only cluster failure across the whole of steps 1 and 2 is
-`heterogeneous-events`, which is the open §1.4b finding and was red before any of this started.
+`heterogeneous-events`, which was 04 §1.4b, open then and fixed since, and red before any of this started.
 
 ## Deadlock endings
 
-**Open, and deliberately accepted for now.** The deadlock itself is not a ValKey defect — two
+**Open, and deliberately accepted for now** — filed as 10.6. The deadlock itself is not a ValKey defect — two
 transactions taking the same rows in opposite orders deadlock on Postgres too, and that is the
 textbook case. What differs is the ending, and ours is worse in two ways:
 

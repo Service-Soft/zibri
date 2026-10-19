@@ -1,4 +1,4 @@
-import { BaseEntity, CacheInvalidation, Change, ChangeSet, CronJobEntity, Email, EncryptionKey, EncryptionStrategyEntity, Event, EventSubscriberRegistration, EventSubscriberRun, HashStrategyEntity, JwtRefreshToken, Lease, Log, MigrationEntity, Newable, OtpCredentials, PasswordCredentials, PasswordResetToken, ThreadJobEntity, TwoFactorFailureStreak, WebsocketChannel, WebsocketMessage, WebsocketMessageSequence } from 'zibri';
+import { BaseEntity, CacheInvalidation, Change, ChangeSet, CronJobEntity, Email, EncryptionKey, EncryptionRotationFailure, EncryptionRotationProgress, EncryptionStrategyEntity, Event, EventSubscriberRegistration, EventSubscriberRun, HashStrategyEntity, JwtRefreshToken, Lease, Log, MigrationEntity, Newable, OtpCredentials, PasswordCredentials, PasswordResetToken, ThreadJobEntity, TwoFactorFailureStreak, WebsocketChannel, WebsocketMessage, WebsocketMessageSequence } from 'zibri';
 
 /**
  * Every entity the framework itself stores something in.
@@ -31,5 +31,7 @@ export const zibriFrameworkEntities: Newable<BaseEntity>[] = [
     EventSubscriberRegistration,
     HashStrategyEntity,
     EncryptionKey,
-    EncryptionStrategyEntity
+    EncryptionStrategyEntity,
+    EncryptionRotationProgress,
+    EncryptionRotationFailure
 ];

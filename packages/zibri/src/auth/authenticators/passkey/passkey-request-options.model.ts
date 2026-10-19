@@ -19,7 +19,7 @@ export class PasskeyRequestOptions {
     /**
      * How long the user may take, in milliseconds.
      */
-    @Property.number({ required: false })
+    @Property.number({ format: 'integer', required: false })
     timeout?: number;
 
     /**

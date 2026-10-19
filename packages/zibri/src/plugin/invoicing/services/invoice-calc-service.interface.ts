@@ -1,4 +1,5 @@
 
+import { type CurrencyCode } from '../../../localization/models/currency-code.model';
 import { BigNumber } from '../../../utilities/number.utilities';
 import { InvoiceItem } from '../models/invoice-item.model';
 import { Invoice as BaseInvoice } from '../models/invoice.model';
@@ -6,30 +7,37 @@ import { Vat } from '../models/vat.model';
 
 /**
  * Handles calculating anything regarding invoices.
+ *
+ * Amounts are rounded to the minor units of the invoice's currency, the way EN 16931 rounds them:
+ * each item's total, and the tax of each tax group once, on the group's rounded total.
  */
 export interface InvoiceCalcServiceInterface<Invoice extends BaseInvoice> {
     /**
      * Gets the total price of an item before tax.
      * @param item - The invoice item to get the price from.
-     * @returns The amount of the item times its price.
+     * @param currency - The currency of its invoice.
+     * @returns The amount of the item times its price, rounded.
      */
-    getItemTotalPriceBeforeTax: (item: InvoiceItem) => BigNumber | Promise<BigNumber>,
+    getItemTotalPriceBeforeTax: (item: InvoiceItem, currency: CurrencyCode) => BigNumber | Promise<BigNumber>,
     /**
      * Gets the total price of an item after tax.
      * @param item - The invoice item to get the price from.
-     * @returns The total price before tax times 1 + tax/100.
+     * @param currency - The currency of its invoice.
+     * @returns The total price before tax plus the total tax of the item.
      */
-    getItemTotalPriceAfterTax: (item: InvoiceItem) => BigNumber | Promise<BigNumber>,
+    getItemTotalPriceAfterTax: (item: InvoiceItem, currency: CurrencyCode) => BigNumber | Promise<BigNumber>,
     /**
-     * Gets the total tax for the given item.
+     * Gets the total tax for the given item, on its own. The tax of an invoice is taxed per tax group
+     * rather than summed from its items, see getTotalTaxForTaxGroup.
      * @param item - The item to get the total tax from.
-     * @returns The total price before tax times tax/100.
+     * @param currency - The currency of its invoice.
+     * @returns The total price before tax times tax/100, rounded.
      */
-    getItemTotalTax: (item: InvoiceItem) => BigNumber | Promise<BigNumber>,
+    getItemTotalTax: (item: InvoiceItem, currency: CurrencyCode) => BigNumber | Promise<BigNumber>,
     /**
      * Gets the total price of an invoice before tax.
      * @param invoice - The invoice to get the price from.
-     * @returns The addition of the total price before tax of all items in the invoice. If this would be negative this returns 0.
+     * @returns The addition of the total price before tax of all items in the invoice.
      */
     getTotalBeforeTax: (invoice: Invoice) => BigNumber | Promise<BigNumber>,
     /**
@@ -41,23 +49,30 @@ export interface InvoiceCalcServiceInterface<Invoice extends BaseInvoice> {
     /**
      * Gets the total tax of the invoice.
      * @param invoice - The invoice to get the total tax from.
-     * @returns The addition of the tax of all items of the invoice.
+     * @returns The addition of the total tax of each tax group, by category code and rate.
      */
     getTotalTax: (invoice: Invoice) => BigNumber | Promise<BigNumber>,
+    /**
+     * Gets the tax groups of an invoice, each once.
+     * @param invoice - The invoice to get the tax groups of.
+     * @param groupOnlyByRate - Whether or not VAT groups are only determined by rate and not by category code.
+     * @returns The VAT of the first item of each group, in the order the groups first occur.
+     */
+    getTaxGroups: (invoice: Invoice, groupOnlyByRate: boolean) => Vat[] | Promise<Vat[]>,
     /**
      * Gets the total tax for a specific tax group (eg. 19%).
      * @param invoice - The invoice to get the total tax from.
      * @param group - The tax group for which the total tax should be calculated.
      * @param groupOnlyByRate - Whether or not VAT groups are only determined by rate and not by category code.
-     * @returns The addition of the tax of all items that are in the provided tax group.
+     * @returns The total price before tax of the group times its tax/100, rounded.
      */
     getTotalTaxForTaxGroup: (invoice: Invoice, group: Vat, groupOnlyByRate: boolean) => BigNumber | Promise<BigNumber>,
     /**
-     * Gets the total price of an invoice before tax.
+     * Gets the total price of a tax group before tax.
      * @param invoice - The invoice to get the price from.
      * @param group - The tax group to get the total before from.
      * @param groupOnlyByRate - Whether or not VAT groups are only determined by rate and not by category code.
-     * @returns The addition of the total price before tax of all items in the invoice. If this would be negative this returns 0.
+     * @returns The addition of the total price before tax of all items in the group.
      */
     getTotalBeforeTaxForTaxGroup: (invoice: Invoice, group: Vat, groupOnlyByRate: boolean) => BigNumber | Promise<BigNumber>
 }

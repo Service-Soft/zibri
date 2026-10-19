@@ -1,6 +1,7 @@
 import { TsxEmailComponent } from '../../tsx/tsx-email-component.model';
 import { LogLevel } from '../log-level.enum';
 import { Log } from '../log.model';
+import { LogBudget } from './log-budget';
 import { logToConsole } from './log-to-console.function';
 import { logToDb } from './log-to-db.function';
 import { createLogToEmail, EmailLoggerTransportConfig, EmailLoggerTransportConfigInput } from './log-to-email.function';
@@ -56,6 +57,27 @@ export type BaseLoggerTransportConfig = {
  */
 export type LoggerTransportSend<T extends BaseLoggerTransportConfig> = (logs: Log[], config: T) => void | Promise<void>;
 
+/**
+ * Writes out what a transport holds back, for a transport that holds anything back. The logger calls
+ * it when it is flushed, after every queued entry was sent.
+ */
+export type LoggerTransportFlush = () => Promise<void>;
+
+/**
+ * The options of a db logger transport.
+ */
+export type DbLoggerTransportOptions = {
+    /**
+     * How many entries a minute the transport writes as rows of their own, on this instance.
+     *
+     * Past it, entries of the same level, message and metadata are written as one row per kind when
+     * the minute ends, counted under `context.collapsed`. At most 100 kinds are kept apart; the rest
+     * are counted in one row per level.
+     * Defaults to 1000.
+     */
+    maxEntriesPerMinute?: number
+};
+
 // eslint-disable-next-line jsdoc/require-jsdoc
 export class LoggerTransport<T extends BaseLoggerTransportConfig> {
     /**
@@ -66,20 +88,30 @@ export class LoggerTransport<T extends BaseLoggerTransportConfig> {
      * What should happen when new logs should be sent.
      */
     send: LoggerTransportSend<T>;
+    /**
+     * Writes out what the transport holds back, if it holds anything back.
+     */
+    flush?: LoggerTransportFlush;
 
-    private constructor(config: T, send: LoggerTransportSend<T>) {
+    private constructor(config: T, send: LoggerTransportSend<T>, flush?: LoggerTransportFlush) {
         this.config = config;
         this.send = send;
+        this.flush = flush;
     }
 
     /**
      * Creates a new logger transport.
      * @param config - The configuration to be used by the transport.
      * @param send - What should happen when a new log should be send.
+     * @param flush - Writes out what the transport holds back, for a transport that holds anything back.
      * @returns The newly created transport.
      */
-    static create<X extends BaseLoggerTransportConfig>(config: X, send: LoggerTransportSend<X>): LoggerTransport<X> {
-        return new this(config, send);
+    static create<X extends BaseLoggerTransportConfig>(
+        config: X,
+        send: LoggerTransportSend<X>,
+        flush?: LoggerTransportFlush
+    ): LoggerTransport<X> {
+        return new this(config, send, flush);
     }
 
     /**
@@ -94,10 +126,18 @@ export class LoggerTransport<T extends BaseLoggerTransportConfig> {
     /**
      * Creates a new logger transport that saves the log into the data source.
      * @param level - The log level at which the transport should be active.
+     * @param options - How many rows it writes.
      * @returns The newly created transport.
      */
-    static db(level: LogLevel): LoggerTransport<BaseLoggerTransportConfig> {
-        return this.create<BaseLoggerTransportConfig>({ level, name: 'DbLoggerTransport', register: 'afterStartup' }, logToDb);
+    static db(level: LogLevel, options: DbLoggerTransportOptions = {}): LoggerTransport<BaseLoggerTransportConfig> {
+        // evaluation/03-auth-and-security G3: without a budget a caller filled the log table at request
+        // rate. Per transport, for the reason the email transport keeps its throttle per transport
+        const budget: LogBudget = new LogBudget(options.maxEntriesPerMinute ?? 1000, logToDb);
+        return this.create<BaseLoggerTransportConfig>(
+            { level, name: 'DbLoggerTransport', register: 'afterStartup' },
+            async logs => await budget.write(logs),
+            async () => await budget.flush()
+        );
     }
 
     /**

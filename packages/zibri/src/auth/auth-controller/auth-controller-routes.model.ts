@@ -1,5 +1,6 @@
 import { RedirectResponse } from '../../http/redirect-response.model';
 import { FileResponse } from '../../parsing/form-data/file-response.model';
+import { HtmlResponse } from '../../parsing/html/html-response.model';
 import { Route } from '../../routing/controller-route-configuration.model';
 import { FederatedCallbackForm } from '../authenticators/federated/federated-callback-form.model';
 import { LinkedIdentity } from '../authenticators/linked-identity.model';
@@ -86,9 +87,13 @@ export type AuthControllerFederatedRoutes = {
     // eslint-disable-next-line jsdoc/require-jsdoc
     connectProvider: (provider: string, code: string) => Promise<RedirectResponse>,
     // eslint-disable-next-line jsdoc/require-jsdoc
-    providerLogout: (provider: string) => Promise<RedirectResponse>,
+    providerLogout: (provider: string) => Promise<RedirectResponse | HtmlResponse>,
     // eslint-disable-next-line jsdoc/require-jsdoc
-    metadata: (provider: string) => FileResponse
+    postedProviderLogout: (provider: string, form: FederatedCallbackForm) => Promise<RedirectResponse | HtmlResponse>,
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    soapProviderLogout: (provider: string, envelope: string) => Promise<FileResponse>,
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    metadata: (provider: string) => Promise<FileResponse>
 };
 
 /**

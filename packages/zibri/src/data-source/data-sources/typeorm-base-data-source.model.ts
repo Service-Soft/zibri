@@ -8,8 +8,10 @@ import { RelationMetadata as TORelationMetadata } from 'typeorm/metadata/Relatio
 
 import { DataSourceInitializationError } from './data-source-initialization.error';
 import { DataSourceInterface, RepositoryTypeForEntity, SCHEMA_LOCK_KEY, StartTransactionOptions } from './data-source.interface';
+import { checkConstraintName } from '../check-constraint-name.function';
 import { RepositoryDriverInterface } from '../driver/repository-driver.interface';
 import { TypeOrmRepositoryDriver } from '../driver/typeorm.repository-driver';
+import { ParameterizedSql } from './where-converter/parameterized-sql.model';
 import { TypeOrmWhereFilterConverter } from './where-converter/typeorm-where-filter.converter';
 import { type AuthServiceInterface } from '../../auth/auth-service.interface';
 import { ChangeSetRepository } from '../../change-sets/change-set-repository';
@@ -19,6 +21,8 @@ import { isChangeSetEntityNewable } from '../../change-sets/models/is-change-set
 import { isSoftDeleteEntityNewable } from '../../change-sets/models/is-soft-delete-entity.function';
 import { SoftDeleteEntity } from '../../change-sets/models/soft-delete-entity.model';
 import { SoftDeleteRepository } from '../../change-sets/soft-delete-repository';
+import { AlsUtilities } from '../../context/als.utilities';
+import { OperationLimitUtilities } from '../../context/operation-limit.utilities';
 import { Inject } from '../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { BaseEntity } from '../../entity/base-entity.model';
@@ -27,7 +31,7 @@ import { PropertyMetadata, RelationMetadata } from '../../entity/decorators/prop
 import { EntityMetadataMissingError } from '../../entity/entity-metadata-missing.error';
 import { NumberFormat } from '../../entity/models/number-property-metadata.model';
 import { Relation } from '../../entity/models/relation.enum';
-import { coversEveryRow, UniqueGroup } from '../../entity/models/unique-declaration.model';
+import { coversEveryRow, KeyWhere, UniqueGroup } from '../../entity/models/unique-declaration.model';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { KeyGroups, keyGroupsOf } from '../../global/model-registry/key-descriptor';
 import { type LoggerInterface } from '../../logging/logger.interface';
@@ -69,6 +73,7 @@ import { UniqueConstraintViolationError } from '../unique-constraint-violation.e
 import { UpsertIdentityUtilities } from '../upsert-identity.utilities';
 import { ValueConversionUtilities } from '../value-conversion.utilities';
 import { keyWhereToSql } from '../where/key-where-to-sql.function';
+import { type WriteDataUtilities } from '../write-data.utilities';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 export type ToColumnMappableTypes = ExcludeStrict<PropertyMetadata, RelationMetadata<BaseEntity>>['type'];
@@ -254,7 +259,12 @@ export type UpsertInputRow = {
     /**
      * The changes to apply when the insert of this row conflicts.
      */
-    updates: UpsertUpdate[]
+    updates: UpsertUpdate[],
+    /**
+     * The rows this row's changes may be applied to on top of the ones `reachable` allows, or
+     * undefined when the row asks nothing of the row it conflicts with.
+     */
+    condition: UpsertReachable | undefined
 };
 
 /**
@@ -354,6 +364,9 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly migrations: Newable<Migration>[] = [];
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly migrationTimeoutInMs: number = 0;
 
     /**
      * The internal typeorm data source.
@@ -504,6 +517,20 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
             : ToFindOptionsWhere<T>;
     }
 
+    /**
+     * The expression a read is ordered by when it orders by similarity to a search.
+     * @param path - The text being compared, as a property path the query builder resolves.
+     * @param similarTo - The search the text is compared with.
+     * @returns The expression, with the search bound rather than written into it.
+     * @throws When the data source hasn't been initialized yet.
+     */
+    similarityExpression(path: string, similarTo: string): ParameterizedSql {
+        if (!this.whereFilterConverter) {
+            throw new DataSourceInitializationError();
+        }
+        return this.whereFilterConverter.similarityExpression(path, similarTo);
+    }
+
     // eslint-disable-next-line jsdoc/require-jsdoc
     async init(): Promise<void> {
         if (this.ds) {
@@ -532,22 +559,29 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
         // violation on a postgres catalog index rather than as anything recognizable. Holding the
         // lock across the whole block lets the first instance set the schema up and the rest find
         // the work already done.
-        await this.schemaLock(SCHEMA_LOCK_KEY, async () => {
-            await this.runMigrations();
+        // Under the migration timeout rather than the statement timeout: an index built over a large
+        // table, or a migration rewriting one, is the work this block exists for, and cutting it off
+        // after the limit an ordinary statement gets would fail the deploy
+        await OperationLimitUtilities.runWithin(
+            this.migrationTimeoutInMs,
+            `Setting up the schema of "${this.constructor.name}"`,
+            async () => await this.schemaLock(SCHEMA_LOCK_KEY, async () => {
+                await this.runMigrations();
 
-            // after the migrations, which may have renamed or removed what a declaration covers, and
-            // only where the migrations own the schema: synchronizing makes the indexes and uniques
-            // match on its own, and an external owner is told what is missing instead
-            if (this.schemaManagement === 'migrations' && await this.reconcileKeys()) {
-                await recordKeyReconciliation(this.constructor as Newable<DataSourceInterface>);
-            }
-            if (this.schemaManagement !== 'synchronize') {
-                return;
-            }
+                // after the migrations, which may have renamed or removed what a declaration covers,
+                // and only where the migrations own the schema: synchronizing makes the indexes and
+                // uniques match on its own, and an external owner is told what is missing instead
+                if (this.schemaManagement === 'migrations' && await this.reconcileKeys()) {
+                    await recordKeyReconciliation(this.constructor as Newable<DataSourceInterface>);
+                }
+                if (this.schemaManagement !== 'synchronize') {
+                    return;
+                }
 
-            await this.ds?.synchronize();
-            await this.afterSchemaSetup();
-        });
+                await this.ds?.synchronize();
+                await this.afterSchemaSetup();
+            })
+        );
     }
 
     /**
@@ -635,12 +669,18 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
         const reachableIds: UpsertReachable | undefined = reachable == undefined
             ? undefined
             : this.selectReachableIds(manager, entityClass, reachable, metadata.tableName, column('id'));
+        // each built once, whichever statement the row ends up in
+        const conditions: Map<UpsertRow<T>, UpsertReachable> = new Map(rows.flatMap(
+            (row): [UpsertRow<T>, UpsertReachable][] => row.where == undefined
+                ? []
+                : [[row, this.selectReachableIds(manager, entityClass, row.where, metadata.tableName, column('id'))]]
+        ));
         const conflict: UpsertConflictTarget = this.conflictTargetFor(entityClass, identity, column);
         const statementFor: (pending: UpsertRow<T>[]) => UpsertSql = pending => this.buildUpsertSql({
             tableName: metadata.tableName,
             idColumn: column('id'),
             conflict,
-            ...this.resolveUpsertInputRows(pending, column),
+            ...this.resolveUpsertInputRows(pending, column, conditions),
             reachable: reachableIds
         });
 
@@ -679,7 +719,7 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
             // it, so those rows are asked once more and land if they may. Nothing of theirs was
             // written by the first run, so running them again changes nothing twice
             const missing: UpsertRow<T>[] = ordered.filter(row => !res.has(row));
-            if (missing.length && reachable != undefined) {
+            if (missing.length && (reachable != undefined || conditions.size)) {
                 for (const [row, entity] of await run(on, this.resolveUpsertStatements(missing, statementFor))) {
                     res.set(row, entity);
                 }
@@ -700,9 +740,9 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
             if (res != undefined) {
                 return res;
             }
-            if (reachable != undefined) {
+            if (reachable != undefined || conditions.has(row)) {
                 // what inserting the identity would have answered, since to this caller the row
-                // holding it is not there
+                // holding it is not there - or not one they may change
                 const group: UniqueGroup = UpsertIdentityUtilities.resolveUniqueGroup(entityClass, identity);
                 throw new UniqueConstraintViolationError(entityClass.name, group.properties);
             }
@@ -739,12 +779,14 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
      * Resolves the rows of an upsert to the columns one statement inserts them with.
      * @param rows - The rows to insert, and what to change for each one whose insert conflicts.
      * @param column - Resolves a property to the column it is stored in.
+     * @param conditions - The statement selecting the rows each conditioned row may change.
      * @returns The columns, and each row's values and changes.
      * @throws When a row has nothing to change on a conflict.
      */
     private resolveUpsertInputRows<T extends BaseEntity>(
         rows: UpsertRow<T>[],
-        column: (property: string) => string
+        column: (property: string) => string,
+        conditions: Map<UpsertRow<T>, UpsertReachable>
     ): Pick<UpsertInput, 'columns' | 'rows'> {
         // every property any row names, because one statement inserts every row with the same columns
         const properties: string[] = [...new Set(rows.flatMap(row => Object.keys(row.create)))];
@@ -770,7 +812,8 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
                     id: values.get('id'),
                     // a property this row leaves out is written the way inserting it alone would write it
                     values: properties.map(p => values.has(p) ? { value: values.get(p) } : 'default'),
-                    updates
+                    updates,
+                    condition: conditions.get(row)
                 };
             })
         };
@@ -865,6 +908,24 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
     protected abstract buildUpsertSql(input: UpsertInput): UpsertSql;
 
     /**
+     * Builds the expression an update sets an object column to: the object it holds, with the given
+     * one merged in as {@link WriteDataUtilities.resolveMerged} merges it.
+     * @param target - The expression reading the stored object, the escaped column to begin with.
+     * @param value - The object the update gives.
+     * @param cls - Its declared class.
+     * @param parameters - The named parameters of the statement, which this adds the ones it binds to.
+     * @param name - What the names of the parameters it binds start with, unique in the statement.
+     * @returns The expression.
+     */
+    abstract buildObjectMergeSql(
+        target: string,
+        value: object,
+        cls: Newable<unknown>,
+        parameters: Record<string, unknown>,
+        name: string
+    ): string;
+
+    /**
      * Resolves what an upsert on the given identity conflicts against.
      *
      * A key covering every row is a constraint and is named. A key covering some of them is an
@@ -910,13 +971,36 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
         }
 
         const runner: QueryRunner = this.createQueryRunner();
+        // outside the try: a runner that gave up waiting hands its connection back itself, once it
+        // has one. Released here, before then, it would never be handed back
+        await this.connectQueryRunner(runner);
         try {
-            await runner.connect();
             await runner.startTransaction(options?.isolationLevel);
             return new TypeOrmTransaction(runner);
         }
         catch (error) {
             await runner.release();
+            throw error;
+        }
+    }
+
+    /**
+     * Takes a connection from the pool for the given runner, and stops waiting for one once the request
+     * or the work this runs in has run out of time.
+     * @param runner - The runner.
+     * @throws What the request or the work was abandoned with, when that comes first.
+     */
+    async connectQueryRunner(runner: QueryRunner): Promise<void> {
+        const connecting: Promise<unknown> = runner.connect();
+        try {
+            await PromiseUtilities.withSignal(connecting, AlsUtilities.findCurrentSignal());
+        }
+        catch (error) {
+            // the pool still hands a connection over once one comes free, and nobody is waiting for it
+            // any more. Released only then, since a runner released before it is connected never hands
+            // back what it is given afterwards
+            // eslint-disable-next-line promise/prefer-await-to-then
+            void connecting.then(async () => await runner.release(), () => undefined);
             throw error;
         }
     }
@@ -1581,9 +1665,39 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
                     return [{ name, columns: g.properties, unique: true, where }];
                 }),
                 ...this.indicesOwnedBySelf(cls, entityMetadata.tableName)
-            ]
+            ],
+            // `IS TRUE`, because a check passes a row its condition is NULL for - a comparison of a
+            // column holding none - where the filter it was declared as does not match that row
+            checks: (entityMetadata.checks ?? []).map(check => {
+                const predicate: string = keyWhereToSql(cls, check);
+                return { name: checkConstraintName(entityMetadata.tableName, predicate), expression: `(${predicate}) IS TRUE` };
+            })
         });
     }
+
+    /**
+     * Finds the check of an entity a failed write broke.
+     * @param error - What the store answered the write with.
+     * @param entityClass - The entity written.
+     * @returns The check, or undefined when the write broke none of them.
+     */
+    findViolatedCheck(error: TOQueryFailedError, entityClass: Newable<BaseEntity>): KeyWhere | undefined {
+        const name: string | undefined = this.violatedCheckName(error);
+        if (name == undefined) {
+            return undefined;
+        }
+        const entityMetadata: EntityMetadata | undefined = MetadataUtilities.getEntityMetadata(entityClass);
+        return entityMetadata?.checks?.find(
+            check => checkConstraintName(entityMetadata.tableName, keyWhereToSql(entityClass, check)) === name
+        );
+    }
+
+    /**
+     * Reads the name of the check constraint a failed statement broke.
+     * @param error - What the store answered the statement with.
+     * @returns The name, or undefined when the statement broke no check.
+     */
+    protected abstract violatedCheckName(error: TOQueryFailedError): string | undefined;
 
     /**
      * The indices this data source creates and drops itself, declared so that the orm leaves them be.

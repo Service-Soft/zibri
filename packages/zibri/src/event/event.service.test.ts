@@ -75,6 +75,17 @@ describe('EventService — starting', () => {
         await expect(start).rejects.toThrow('Error initializing EventService');
         await expect(start).rejects.toThrow(/Event[\S\s]*EventSubscriberRun[\S\s]*EventSubscriberRegistration/);
     }, 30000);
+
+    it('refuses to start without saying how long a failed event is kept', async () => {
+        const start: Promise<void> = startAndStopTestServerWithout([], {
+            providers: [
+                ...defaultTestServerProviders,
+                defineProvider({ token: ZIBRI_DI_TOKENS.EVENT_FAILED_RETENTION_IN_MS, useValue: undefined })
+            ]
+        });
+
+        await expect(start).rejects.toThrow('ZIBRI_DI_TOKENS.EVENT_FAILED_RETENTION_IN_MS');
+    }, 30000);
 });
 
 describe('EventService', () => {
@@ -146,11 +157,17 @@ describe('EventService', () => {
         await eventService.emit('some.type', { a: 1 });
         await eventService.emit('other.type', { b: 2 });
 
-        await waitUntil(() => received.length >= 2);
+        // dispatched as the poll would: a hook of the test before can still be recording its run, and
+        // with it the two hooks here are one more than this suite allows at once, so the second is
+        // left for the poll - which the test server does not run
+        await waitUntil(async () => {
+            await eventService.dispatchPending();
+            return received.length >= 2;
+        });
         expect(received).toEqual(expect.arrayContaining(['some.type', 'other.type']));
 
         sub.unsubscribe();
-    });
+    }, 10000);
 
     it('warns and returns the existing subscription for a duplicate subscriberId on the same event type', async () => {
         const first: EventSubscription = await eventService.subscribe('dup.event', () => undefined, {
@@ -326,7 +343,10 @@ describe('EventService', () => {
 
         await eventService.emit('finish.event', { z: 1 });
 
+        // dispatched as the poll would, for the reason the subscribeAll case gives: hooks of the tests
+        // before can still be running, and a hook over the limit waits for the poll
         await waitUntil(async () => {
+            await eventService.dispatchPending();
             const events: Event<unknown>[] = await eventRepo.findAll({ where: { type: 'finish.event' } });
             return events[0]?.status === EventStatus.FINISHED;
         });

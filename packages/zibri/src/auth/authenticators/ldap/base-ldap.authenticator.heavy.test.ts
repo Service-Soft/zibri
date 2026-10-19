@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
-import { Client, Entry } from 'ldapts';
+import { Attribute, Change, Client, Entry } from 'ldapts';
 import { GenericContainer, StartedTestContainer, Wait } from 'testcontainers';
 import { createFakeKeyPair, createInMemoryDataSource, FakeKeyPair, InMemoryDataSource } from 'zibri-testing';
 
@@ -27,8 +27,10 @@ import { Param } from '../../../routing/decorators/param.decorator';
 import { Post } from '../../../routing/decorators/post.decorator';
 import { Newable } from '../../../types/newable.type';
 import { JsonUtilities } from '../../../utilities/json.utilities';
+import { AuthControllerUtilities } from '../../auth-controller/auth-controller.utilities';
 import { Auth } from '../../decorators/auth.decorator';
 import { JwtAuthData } from '../../strategies/jwt/jwt-auth-data.model';
+import { JwtRefreshLoginDto } from '../../strategies/jwt/jwt-refresh-login-data.model';
 import { JwtAuthStrategy } from '../../strategies/jwt/jwt.auth-strategy';
 
 // the 389 Directory Server project's own image
@@ -118,10 +120,47 @@ class LdapLoginController {
         }
         return await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).login(authenticator, JwtAuthStrategy, credentials, undefined);
     }
+
+    // what the refresh route of AuthController does. Two parts, so that it is not taken for a directory
+    @Post('/tokens/refresh')
+    async refresh(
+        @Body(JwtRefreshLoginDto)
+        data: JwtRefreshLoginDto
+    ): Promise<JwtAuthData<string>> {
+        return await AuthControllerUtilities.runInTransaction(
+            JwtAuthStrategy,
+            async transaction => await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).refreshLogin(JwtAuthStrategy, { ...data, transaction })
+        );
+    }
 }
 
 let server: StartedTestServer;
 let baseUrl: string;
+
+/**
+ * Refreshes a login through the refresh route.
+ * @param refreshToken - The refresh token of the login.
+ * @returns The answer.
+ */
+async function refresh(refreshToken: string): Promise<Response> {
+    return await fetch(`${baseUrl}/login-ldap/tokens/refresh`, {
+        method: 'POST',
+        headers: { [KnownHeader.CONTENT_TYPE]: MimeType.JSON },
+        body: JsonUtilities.stringify({ refreshToken })
+    });
+}
+
+/**
+ * What a successful sign-in or refresh answered.
+ * @param res - The answer.
+ * @returns The auth data.
+ */
+async function authDataOf(res: Response): Promise<JwtAuthData<string>> {
+    expect(res.status).toBe(200);
+    // eslint-disable-next-line typescript/no-unsafe-assignment
+    const authData: JwtAuthData<string> = await res.json();
+    return authData;
+}
 
 /**
  * Signs in through the login route of a directory.
@@ -292,5 +331,19 @@ describe('BaseLdapAuthenticator against 389 Directory Server', () => {
         // eslint-disable-next-line typescript/no-unsafe-assignment
         const { roles }: JwtAuthData<string> = await again.json();
         expect(roles).toStrictEqual([Roles.ADMIN]);
+    });
+
+    // evaluation/03-auth-and-security H22
+    it('finds an entry by its nsUniqueId on a refresh, and refuses it once an administrator inactivated it', async () => {
+        await addPerson('erin');
+        const signedIn: JwtAuthData<string> = await authDataOf(await signIn({ username: 'erin', password: 'erin-secret' }));
+        const refreshed: JwtAuthData<string> = await authDataOf(await refresh(signedIn.refreshToken.value));
+
+        await asAdministrator(client => client.modify(
+            `uid=erin,${PEOPLE}`,
+            new Change({ operation: 'replace', modification: new Attribute({ type: 'nsAccountLock', values: ['true'] }) })
+        ));
+
+        expect((await refresh(refreshed.refreshToken.value)).status).toBe(403);
     });
 });

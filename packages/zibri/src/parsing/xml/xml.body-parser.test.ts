@@ -207,6 +207,45 @@ describe('XmlBodyParser', () => {
         await expect(receive(Item, { name: 'pen' })).rejects.toThrow(BadRequestError);
     });
 
+    describe('declared raw', () => {
+        // evaluation/03-auth-and-security H23: a signature over xml is checked over the document as it
+        // arrived, which a model read out of it no longer is
+        const signed: string = [
+            '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">',
+            '  <s:Body><p:LogoutRequest xmlns:p="urn:oasis:names:tc:SAML:2.0:protocol" ID="_1">',
+            '    <!-- kept as well -->',
+            '  </p:LogoutRequest></s:Body>',
+            '</s:Envelope>'
+        ].join('\n');
+
+        /**
+         * Reads a body declared as raw xml the way a websocket message is read, then validates it.
+         * @param body - What the caller sent.
+         * @returns The value the handler would get, and what validation reported.
+         */
+        async function receiveRaw(body: unknown): Promise<Received> {
+            const metadata: BodyMetadata = resolveBodyMetadata({ type: MimeType.XML, raw: true }, 0);
+            assert(metadata.type === MimeType.XML);
+            const request: WebsocketRequest = new WebsocketRequest();
+            request.body = body;
+            const value: unknown = new XmlBodyParser().parseFromWebsocketRequest(request, metadata);
+            const problems: ValidationProblem[] = await new ValidationService().getBodyValidationProblems(value, metadata);
+            return { value, problems };
+        }
+
+        it('hands over the document exactly as it was sent, whitespace, comments and prefixes included', async () => {
+            await expect(receiveRaw(signed)).resolves.toEqual({ value: signed, problems: [] });
+        });
+
+        it('answers 400 for a document that is not well formed', async () => {
+            await expect(receiveRaw('<s:Envelope><s:Body></s:Envelope>')).rejects.toThrow(BadRequestError);
+        });
+
+        it('answers 400 for an entity the document declares itself', async () => {
+            await expect(receiveRaw('<!DOCTYPE a [<!ENTITY e "x">]><a>&e;</a>')).rejects.toThrow(BadRequestError);
+        });
+    });
+
     it('reads a http client response from its text', () => {
         const metadata: BodyMetadata = resolveBodyMetadata({ type: MimeType.XML, modelClass: ListBucketResult }, 0);
         assert(metadata.type === MimeType.XML);

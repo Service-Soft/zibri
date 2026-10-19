@@ -70,7 +70,7 @@ type LoginAccessToken<Role extends string> = {
 /**
  * The refresh token one rotation minted.
  */
-type RotatedRefreshToken = {
+type RotatedRefreshToken<UserType> = {
     /**
      * The stored row, which holds the token hashed.
      */
@@ -82,7 +82,11 @@ type RotatedRefreshToken = {
     /**
      * The `auth_time` of the login the rotation continues.
      */
-    authTime: number
+    authTime: number,
+    /**
+     * The user the rotation continues the login of, as the authenticators answered them.
+     */
+    user: UserType
 };
 
 /**
@@ -318,8 +322,8 @@ implements AuthControllerStrategyInterface<
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async refreshLogin(data: JwtRefreshLoginData): Promise<JwtAuthData<RoleType>> {
-        const rotated: RotatedRefreshToken = await this.verifyAndResolveRefreshToken(data.refreshToken, data.transaction);
-        const user: UserType = await this.userService.findById(rotated.refreshToken.userId);
+        const rotated: RotatedRefreshToken<UserType> = await this.verifyAndResolveRefreshToken(data.refreshToken, data.transaction);
+        const user: UserType = rotated.user;
         // the login's time, not now: a refresh is not a login, and minting it fresh here would let
         // any client holding a refresh token present itself as having just logged in
         const accessTokenValue: string = await this.generateAccessToken(
@@ -345,7 +349,7 @@ implements AuthControllerStrategyInterface<
         };
     }
 
-    private async verifyAndResolveRefreshToken(tokenValue: string, transaction: Transaction): Promise<RotatedRefreshToken> {
+    private async verifyAndResolveRefreshToken(tokenValue: string, transaction: Transaction): Promise<RotatedRefreshToken<UserType>> {
         const encoded: EncodedJwt | undefined = await this.verifyRefreshToken(tokenValue);
         // the payload was read as an access token's here, which is the shape it never has. Nothing
         // happened to look at it, so the mistake was invisible - checking it is what keeps a token
@@ -381,6 +385,12 @@ implements AuthControllerStrategyInterface<
         // before it is spent, so that a refresh token stolen without the key it is bound to spends
         // nothing: the login it belongs to goes on for whoever holds the key
         await this.validateRefreshProof(refreshToken);
+        // before it is spent as well, so a refresh an authenticator refuses - a directory that cannot be
+        // reached, say - leaves the token working
+        const user: UserType = await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).resolveRefreshUser<RoleType, UserType>(
+            await this.userService.findById<RoleType, UserType>(refreshToken.userId),
+            transaction
+        );
 
         // claimed before anything is minted, and only while it is still usable. The read above takes
         // no lock, so two requests carrying the same token both get this far - the condition on the
@@ -404,7 +414,6 @@ implements AuthControllerStrategyInterface<
             throw new UnauthorizedError($ts`Invalid refresh token.`);
         }
 
-        const user: UserType = await this.userService.findById(refreshToken.userId);
         const authTime: number = encoded.payload.auth_time;
         const refreshTokenValue: string = await this.generateRefreshToken(user, authTime);
 
@@ -419,7 +428,8 @@ implements AuthControllerStrategyInterface<
                 transaction
             ),
             value: refreshTokenValue,
-            authTime
+            authTime,
+            user
         };
     }
 

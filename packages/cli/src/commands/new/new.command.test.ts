@@ -54,7 +54,7 @@ describe('NewCommand', () => {
     });
 
     it('scaffolds a new zibri application on disk', async () => {
-        await quietly(async () => new NewCommand().start(['n', 'api', 'none']));
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin']));
 
         const appDir: Path = path.join(workDir, 'api') as Path;
         expect(await FsUtilities.exists(path.join(appDir, 'package.json') as Path)).toBe(true);
@@ -70,7 +70,7 @@ describe('NewCommand', () => {
     });
 
     it('writes a package.json with the app name, without going through "npm init"', async () => {
-        await quietly(async () => new NewCommand().start(['n', 'api', 'none']));
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin']));
 
         const appDir: Path = path.join(workDir, 'api') as Path;
         const packageJson: unknown = JSON.parse(await FsUtilities.readFile(path.join(appDir, 'package.json') as Path));
@@ -94,7 +94,7 @@ describe('NewCommand', () => {
     });
 
     it('installs devDependencies and the real published zibri package, scoped to the new app directory', async () => {
-        await quietly(async () => new NewCommand().start(['n', 'api', 'none']));
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin']));
 
         const appDir: Path = path.join(workDir, 'api') as Path;
         expect(execSpy).toHaveBeenNthCalledWith(1, expect.stringContaining(`cd ${appDir} && npm i -D `));
@@ -121,7 +121,7 @@ describe('NewCommand', () => {
     });
 
     it('restarts the server in watch mode as a new process, never in the old one', async () => {
-        await quietly(async () => new NewCommand().start(['n', 'api', 'none']));
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin']));
 
         const config: string = await FsUtilities.readFile(path.join(workDir, 'api', 'webpack.config.js') as Path);
         const pluginSource: string | undefined = /^class OnBuildSuccessPlugin {[\S\s]*?^}$/m.exec(config)?.[0];
@@ -159,7 +159,7 @@ describe('NewCommand', () => {
     });
 
     it('writes a GitHub workflow that runs the project\'s own scripts on a checkout without ".env"', async () => {
-        await quietly(async () => new NewCommand().start(['n', 'api', 'github']));
+        await quietly(async () => new NewCommand().start(['n', 'api', 'github', 'requireLogin']));
 
         const appDir: Path = path.join(workDir, 'api') as Path;
         const workflow: string = await FsUtilities.readFile(path.join(appDir, '.github', 'workflows', 'ci.yml') as Path);
@@ -186,27 +186,61 @@ describe('NewCommand', () => {
     });
 
     it('writes no workflow when the project is to have none', async () => {
-        await quietly(async () => new NewCommand().start(['n', 'api', 'none']));
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin']));
 
         expect(await FsUtilities.exists(path.join(workDir, 'api', '.github') as Path)).toBe(false);
     });
 
     it('asks for the ci when the command line does not name one', async () => {
         const promptSpy: jest.SpiedFunction<typeof InquirerUtilities.prompt> = jest.spyOn(InquirerUtilities, 'prompt')
-            .mockResolvedValue({ ci: 'github' });
+            .mockResolvedValueOnce({ ci: 'github' })
+            .mockResolvedValueOnce({ defaultAuth: 'requireLogin' });
 
         await quietly(async () => new NewCommand().start(['n', 'api']));
 
-        // the name was given, so only the ci is asked for
-        expect(promptSpy).toHaveBeenCalledTimes(1);
-        expect(Object.keys(promptSpy.mock.calls[0]?.[0] ?? {})).toStrictEqual(['ci']);
+        // the name was given, so only the ci is asked for - and what follows it on the command line
+        expect(promptSpy.mock.calls.map(([questions]) => Object.keys(questions))).toStrictEqual([['ci'], ['defaultAuth']]);
         expect(await FsUtilities.exists(path.join(workDir, 'api', '.github', 'workflows', 'ci.yml') as Path)).toBe(true);
     });
 
     it('refuses a ci it does not know, before writing anything', async () => {
         mockExitGracefully();
 
-        await expect(quietly(async () => new NewCommand().start(['n', 'api', 'elsewhere']))).rejects.toThrow(ProcessExitError);
+        await expect(quietly(async () => new NewCommand().start(['n', 'api', 'elsewhere', 'requireLogin']))).rejects.toThrow(ProcessExitError);
+        expect(await FsUtilities.exists(path.join(workDir, 'api') as Path)).toBe(false);
+    });
+
+    it('asks what an endpoint without @Auth requires, offering a login first, and answers nothing itself', async () => {
+        const promptSpy: jest.SpiedFunction<typeof InquirerUtilities.prompt> = jest.spyOn(InquirerUtilities, 'prompt')
+            .mockResolvedValue({ defaultAuth: 'requireLogin' });
+
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none']));
+
+        const [question]: unknown[] = Object.values(promptSpy.mock.calls[0]?.[0] ?? {});
+        expect(question).toMatchObject({ type: 'select', choices: [{ value: 'requireLogin' }, { value: 'public' }] });
+        expect(question).not.toHaveProperty('default');
+        const options: string = await FsUtilities.readFile(path.join(workDir, 'api', 'src', 'application-options.base.ts') as Path);
+        expect(options).toContain('    defaultAuth: \'requireLogin\',');
+    });
+
+    it('writes the defaultAuth the command line names', async () => {
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'public']));
+
+        const options: string = await FsUtilities.readFile(path.join(workDir, 'api', 'src', 'application-options.base.ts') as Path);
+        expect(options).toContain('    defaultAuth: \'public\',');
+    });
+
+    it('keeps the pages it generates public, whichever defaultAuth was chosen', async () => {
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin']));
+
+        const pages: string = await FsUtilities.readFile(path.join(workDir, 'api', 'src', 'controllers', 'page.controller.ts') as Path);
+        expect(pages).toMatch(/@Auth\.skip\({ allowRedundant: true }\)\n@Controller\('\/'/);
+    });
+
+    it('refuses a defaultAuth it does not know, before writing anything', async () => {
+        mockExitGracefully();
+
+        await expect(quietly(async () => new NewCommand().start(['n', 'api', 'none', 'open']))).rejects.toThrow(ProcessExitError);
         expect(await FsUtilities.exists(path.join(workDir, 'api') as Path)).toBe(false);
     });
 
@@ -214,6 +248,6 @@ describe('NewCommand', () => {
         await FsUtilities.mkdir(path.join(workDir, 'api') as Path);
         mockExitGracefully();
 
-        await expect(quietly(async () => new NewCommand().start(['n', 'api', 'none']))).rejects.toThrow(ProcessExitError);
+        await expect(quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin']))).rejects.toThrow(ProcessExitError);
     });
 });

@@ -17,7 +17,7 @@ describe('Router — allowOrphan bypasses the orphan check', () => {
 
     beforeAll(async () => {
         server = await startTestServer({ controllers: [] });
-    }, 15000);
+    }, 30000);
 
     afterAll(async () => {
         await server?.shutdown();

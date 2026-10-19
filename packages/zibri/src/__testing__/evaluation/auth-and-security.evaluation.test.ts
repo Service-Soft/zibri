@@ -18,6 +18,8 @@ import { BaseDecryptOptions, BaseEncryptOptions, EncryptionStrategyInterface } f
 import { type HashServiceInterface } from '../../auth/hash/hash-service.interface';
 import { BaseUser } from '../../auth/models/base-user.model';
 import { PasswordResetToken } from '../../auth/models/password-reset-token.model';
+import { CookieAuthRefreshSession } from '../../auth/strategies/cookie/cookie-auth-refresh-session.model';
+import { CookieAuthSession } from '../../auth/strategies/cookie/cookie-auth-session.model';
 import { JwtRefreshToken } from '../../auth/strategies/jwt/jwt-refresh-token.model';
 import { type HttpRequestContext } from '../../context/request/http-request.context';
 import { type WebsocketRequestContext } from '../../context/request/websocket-request.context';
@@ -375,6 +377,21 @@ describe('evaluation/03-auth-and-security', () => {
         });
     });
 
+    describe('B7 - a cookie session is its row\'s id', () => {
+        it('stores what the session cookies carry hashed, and no csrf token at all', () => {
+            const sessionProps: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(CookieAuthSession);
+            const refreshProps: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(CookieAuthRefreshSession);
+
+            // the cookie used to carry the primary key, which cannot be hashed - so a backup, a replica
+            // or a support query held a working login for every session in the tables
+            expect(sessionProps['token']).toMatchObject({ hash: expect.anything() });
+            expect(sessionProps['token']).not.toMatchObject({ hash: false });
+            expect(refreshProps['token']).toMatchObject({ hash: expect.anything() });
+            expect(refreshProps['token']).not.toMatchObject({ hash: false });
+            expect(refreshProps['csrfToken']).toBeUndefined();
+        });
+    });
+
     describe('B6 - token lifetime defaults', () => {
         it('does not default refresh credentials to a 100 day lifetime', () => {
             const jwtRefreshMs: number = inject(ZIBRI_DI_TOKENS.JWT_AUTH_OPTIONS).refreshTokenExpiresInMs;
@@ -612,7 +629,7 @@ describe('evaluation/03-auth-and-security', () => {
 
             // through the driver, because the tampered row is precisely one the repository refuses to
             // read - and reading is what deleting through it starts with
-            await raw.remove(await raw.find({}), undefined);
+            await raw.remove(await raw.findIds({}), undefined);
         });
     });
 

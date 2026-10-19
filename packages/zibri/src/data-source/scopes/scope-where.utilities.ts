@@ -94,9 +94,12 @@ export abstract class ScopeWhereUtilities {
         is: (left, right, into, context) => this.mergeIs(left, right, context),
         // both require every listed value to be there, so both lists are required
         includes: (left, right, into, context) => this.union(left, right, 'includes', context),
-        // both say every item has to be on their list, so an item has to be on both of them. An empty
-        // result is not impossible: a row holding no items at all still satisfies it
-        isIncludedIn: (left, right, into, context) => this.intersection(left, right, 'isIncludedIn', context),
+        // both say every item has to be on their list, so an item has to be on both of them. Nothing
+        // on both is impossible: an allow list never finds an array without items
+        isIncludedIn: (left, right, into, context) => {
+            const allowed: unknown[] = this.intersection(left, right, 'isIncludedIn', context);
+            return allowed.length ? allowed : IMPOSSIBLE;
+        },
         where: (left, right, into, context) => this.mergeNestedWhere(left, right, context),
         // two patterns are two patterns: "starts with rent" and "ends with 2026" is neither of them
         // and is not a third one, so both are asked for

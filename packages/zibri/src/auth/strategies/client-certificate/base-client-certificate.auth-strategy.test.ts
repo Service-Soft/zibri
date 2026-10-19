@@ -109,6 +109,29 @@ class NoHeaderClientCertificateAuthStrategy extends LocalProxyClientCertificateA
     override readonly header: string = ' ';
 }
 
+/**
+ * The extended key usage of TLS client authentication.
+ */
+const CLIENT_AUTH: string = '1.3.6.1.5.5.7.3.2';
+
+/**
+ * The extended key usage of TLS server authentication.
+ */
+const SERVER_AUTH: string = '1.3.6.1.5.5.7.3.1';
+
+/**
+ * An extended key usage the test's own authority defines.
+ */
+const OWN_USAGE: string = '1.3.6.1.4.1.55555.1';
+
+class OwnUsageClientCertificateAuthStrategy extends LocalProxyClientCertificateAuthStrategy {
+    override readonly requiredExtendedKeyUsages: string[] = [CLIENT_AUTH, OWN_USAGE];
+}
+
+class WrongUsageClientCertificateAuthStrategy extends LocalProxyClientCertificateAuthStrategy {
+    override readonly requiredExtendedKeyUsages: string[] = ['client auth'];
+}
+
 let server: StartedTestServer | undefined;
 let baseUrl: string;
 
@@ -197,7 +220,8 @@ describe('BaseClientCertificateAuthStrategy — starting', () => {
         [WrongProxyClientCertificateAuthStrategy, 'The trusted proxy "10.0.0.0/33"'],
         [NoAuthorityClientCertificateAuthStrategy, 'names no authority that issues client certificates'],
         [WrongAuthorityClientCertificateAuthStrategy, 'is not a PEM encoded certificate'],
-        [NoHeaderClientCertificateAuthStrategy, 'names no header the proxy forwards the certificate in']
+        [NoHeaderClientCertificateAuthStrategy, 'names no header the proxy forwards the certificate in'],
+        [WrongUsageClientCertificateAuthStrategy, 'The extended key usage "client auth" of WrongUsageClientCertificateAuthStrategy is no object identifier']
     ])('refuses to start %p', async (strategy, message) => {
         await expect(startApp([JwtAuthStrategy, strategy])).rejects.toThrow(message);
     }, 30000);
@@ -247,6 +271,31 @@ describe('BaseClientCertificateAuthStrategy', () => {
         expect((await call('/me', certificateHeader(expired))).status).toBe(401);
     });
 
+    it('refuses a certificate issued for a server, or for any usage without naming the client\'s', async () => {
+        const user: JwtUser = await createUser('kim');
+
+        const forServer: X509Certificate = await issueCertificate(user, { issuer: authority, extendedKeyUsages: [SERVER_AUTH] });
+        // anyExtendedKeyUsage, which a proxy checking the usage refuses too
+        const forAnything: X509Certificate = await issueCertificate(user, { issuer: authority, extendedKeyUsages: ['2.5.29.37.0'] });
+        const forBoth: X509Certificate = await issueCertificate(user, { issuer: authority, extendedKeyUsages: [SERVER_AUTH, CLIENT_AUTH] });
+
+        expect((await call('/me', certificateHeader(forServer))).status).toBe(401);
+        expect((await call('/me', certificateHeader(forAnything))).status).toBe(401);
+        expect((await call('/me', certificateHeader(forBoth))).status).toBe(200);
+    });
+
+    it('refuses a certificate whose key may neither sign nor agree on a key', async () => {
+        const user: JwtUser = await createUser('lars');
+
+        const forEncrypting: X509Certificate = await issueCertificate(user, { issuer: authority, keyUsages: ['keyEncipherment'] });
+        const forSigning: X509Certificate = await issueCertificate(user, { issuer: authority, keyUsages: ['digitalSignature', 'keyEncipherment'] });
+        const forAgreeing: X509Certificate = await issueCertificate(user, { issuer: authority, keyUsages: ['keyAgreement'] });
+
+        expect((await call('/me', certificateHeader(forEncrypting))).status).toBe(401);
+        expect((await call('/me', certificateHeader(forSigning))).status).toBe(200);
+        expect((await call('/me', certificateHeader(forAgreeing))).status).toBe(200);
+    });
+
     it('refuses a certificate whose user is not found', async () => {
         const user: JwtUser = await createUser('dave');
         const certificate: X509Certificate = await issueCertificate(user);
@@ -292,6 +341,29 @@ describe('BaseClientCertificateAuthStrategy', () => {
         expect(spec).toMatchObject({
             components: { securitySchemes: { 'client-certificate': { type: 'mutualTLS', description: expect.any(String) } } }
         });
+    });
+});
+
+describe('BaseClientCertificateAuthStrategy — extended key usages of its own', () => {
+    beforeAll(async () => {
+        server = await startApp([JwtAuthStrategy, OwnUsageClientCertificateAuthStrategy]);
+        baseUrl = await server.start();
+    });
+
+    afterAll(async () => {
+        await server?.shutdown();
+    });
+
+    it('takes a certificate naming every one of them, or no extended key usage at all', async () => {
+        const user: JwtUser = await createUser('mia');
+
+        const clientOnly: X509Certificate = await issueCertificate(user, { issuer: authority, extendedKeyUsages: [CLIENT_AUTH] });
+        const both: X509Certificate = await issueCertificate(user, { issuer: authority, extendedKeyUsages: [CLIENT_AUTH, OWN_USAGE] });
+        const unrestricted: X509Certificate = await issueCertificate(user);
+
+        expect((await call('/me', certificateHeader(clientOnly))).status).toBe(401);
+        expect((await call('/me', certificateHeader(both))).status).toBe(200);
+        expect((await call('/me', certificateHeader(unrestricted))).status).toBe(200);
     });
 });
 

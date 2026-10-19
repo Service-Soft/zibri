@@ -1,6 +1,7 @@
 import { ChangeSetRepository } from './change-set-repository';
 import { isSoftDeleteEntityNewable } from './models/is-soft-delete-entity.function';
 import { SoftDeleteEntity } from './models/soft-delete-entity.model';
+import { BaseRepositoryOptions } from '../data-source/models/options/base-repository-options.model';
 import { DeleteAllOptions } from '../data-source/models/options/delete-all-options.model';
 import { DeleteByIdOptions } from '../data-source/models/options/delete-by-id-options.model';
 import { PaginationResult } from '../open-api/pagination-result.model';
@@ -143,23 +144,26 @@ export class SoftDeleteRepository<
         data: UpdateData,
         options?: SoftDeleteUpdateAllOptions<T, R>
     ): Promise<R extends true ? T[] : number> {
-        if (data.deleted !== false) {
-            return await super.updateAll(
-                this.softDeleteWhereToWhere(options?.deleted, where),
-                data,
-                options
-            );
-        }
-        // a restore, which restores the rows deleted along with these - so it needs to know which
-        // rows it restored, whether or not the caller asked for them
-        return await this.inTransaction(options, async transaction => {
-            const restored: T[] = await super.updateAll(
-                this.softDeleteWhereToWhere(options?.deleted, where),
-                { ...data, deletedWith: null },
-                { ...options, transaction, returnUpdated: true }
-            );
-            await this.restoreOwnedRows(restored.map(r => r.id), transaction);
-            return (options?.returnUpdated === true ? restored : restored.length) as R extends true ? T[] : number;
+        return await this.withinTimeout(options, 'updateAll', async () => {
+            if (data.deleted !== false) {
+                return await super.updateAll(
+                    this.softDeleteWhereToWhere(options?.deleted, where),
+                    data,
+                    options
+                );
+            }
+            // a restore, which restores the rows deleted along with these - so it needs to know which
+            // rows it restored, whether or not the caller asked for them
+            return await this.inTransaction(options, async transaction => {
+                const restored: T[] = await super.updateAll(
+                    this.softDeleteWhereToWhere(options?.deleted, where),
+                    // eslint-disable-next-line unicorn/no-null
+                    { ...data, deletedWith: null },
+                    { ...options, transaction, returnUpdated: true }
+                );
+                await this.restoreOwnedRows(restored.map(r => r.id), transaction);
+                return (options?.returnUpdated === true ? restored : restored.length) as R extends true ? T[] : number;
+            });
         });
     }
 
@@ -187,9 +191,36 @@ export class SoftDeleteRepository<
         }
         // a restore, which restores the rows deleted along with this one
         return await this.inTransaction(options, async transaction => {
+            // eslint-disable-next-line unicorn/no-null
             const res: WrittenUpdate<T> = await super.saveUpdate(id, { ...data, deletedWith: null }, { ...everyRow, transaction });
             await this.restoreOwnedRows([id], transaction);
             return res;
+        });
+    }
+
+    protected override async updateEach(
+        rows: UpdateData[],
+        options?: BaseRepositoryOptions & Pick<SoftDeleteUpdateByIdOptions<T>, 'deleted'>,
+        where?: SoftDeleteWhere<T>
+    ): Promise<WrittenUpdate<T>[]> {
+        const restoredIds: Set<string> = new Set(rows.filter(r => r.deleted === false).map(r => String(r.id)));
+        if (!restoredIds.size) {
+            return await super.updateEach(rows, options, this.softDeleteWhereToWhere(options?.deleted, where));
+        }
+        // what saveUpdate does for a restore of one row: the rows deleted along with these are
+        // restored with them, in the same transaction
+        return await this.inTransaction(options, async transaction => {
+            const updates: WrittenUpdate<T>[] = await super.updateEach(
+                // eslint-disable-next-line unicorn/no-null
+                rows.map(r => restoredIds.has(String(r.id)) ? { ...r, deletedWith: null } : r),
+                { ...options, transaction },
+                this.softDeleteWhereToWhere(options?.deleted, where)
+            );
+            await this.restoreOwnedRows(
+                updates.filter(u => restoredIds.has(String(u.entity.id))).map(u => u.entity.id),
+                transaction
+            );
+            return updates;
         });
     }
 
@@ -201,28 +232,30 @@ export class SoftDeleteRepository<
     }
 
     override async deleteById(id: T['id'], options?: SoftDeleteByIdOptions): Promise<T> {
-        if (options?.hardDelete === true) {
-            // every row, the way a hard deleteAll reaches every row: removing a soft deleted one is
-            // how it goes for good, and the guard answered that it was not there
-            const everyRow: SoftDeleteByIdOptions & Pick<SoftDeleteFindByIdOptions<T>, 'deleted'> = { ...options, deleted: 'include' };
-            return await super.deleteById(id, everyRow);
-        }
-        // one transaction over the read, the write that marks the row deleted and the change set
-        // recording it. A hard delete takes none: it writes no change set, so there is nothing for
-        // the write to be atomic with
-        return await this.inTransaction(options, async transaction => {
-            const inTransaction: SoftDeleteByIdOptions = { ...options, transaction };
-            const entity: T = await this.findById(id, inTransaction);
-            if (entity.deleted) {
-                throw new NotFoundError($ts`Could not find ${this.entityClass.name} with id "${id}".`);
+        return await this.withinTimeout(options, 'deleteById', async () => {
+            if (options?.hardDelete === true) {
+                // every row, the way a hard deleteAll reaches every row: removing a soft deleted one
+                // is how it goes for good, and the guard answered that it was not there
+                const everyRow: SoftDeleteByIdOptions & Pick<SoftDeleteFindByIdOptions<T>, 'deleted'> = { ...options, deleted: 'include' };
+                return await super.deleteById(id, everyRow);
             }
-            // through saveUpdate rather than through updateById, which would read the row a second
-            // time for a change set's before state - this already holds that row, and the change
-            // set it would write is the one `deleted` is excluded from anyway
-            const { entity: res }: WrittenUpdate<T> = await this.saveUpdate(id, { deleted: true } as UpdateData, inTransaction);
-            await this.createChangeSet(entity, { deleted: true } as UpdateData, ChangeSetType.DELETE, inTransaction, true);
-            await this.softDeleteOwnedRows([id], transaction);
-            return res;
+            // one transaction over the read, the write that marks the row deleted and the change set
+            // recording it. A hard delete takes none: it writes no change set, so there is nothing
+            // for the write to be atomic with
+            return await this.inTransaction(options, async transaction => {
+                const inTransaction: SoftDeleteByIdOptions = { ...options, transaction };
+                const entity: T = await this.findById(id, inTransaction);
+                if (entity.deleted) {
+                    throw new NotFoundError($ts`Could not find ${this.entityClass.name} with id "${id}".`);
+                }
+                // through saveUpdate rather than through updateById, which would read the row a
+                // second time for a change set's before state - this already holds that row, and the
+                // change set it would write is the one `deleted` is excluded from anyway
+                const { entity: res }: WrittenUpdate<T> = await this.saveUpdate(id, { deleted: true } as UpdateData, inTransaction);
+                await this.createChangeSet(entity, { deleted: true } as UpdateData, ChangeSetType.DELETE, inTransaction, true);
+                await this.softDeleteOwnedRows([id], transaction);
+                return res;
+            });
         });
     }
 
@@ -230,15 +263,17 @@ export class SoftDeleteRepository<
         where: SoftDeleteWhere<T>,
         options?: SoftDeleteAllOptions<T, R>
     ): Promise<R extends true ? T[] : number> {
-        if (options?.hardDelete === true) {
-            const everyRow: DeleteAllOptions<T, R> & Pick<SoftDeleteFindAllOptions<T>, 'deleted'> = { ...options, deleted: 'include' };
-            return await super.deleteAll(this.softDeleteWhereToWhere('include', where), everyRow);
-        }
+        return await this.withinTimeout(options, 'deleteAll', async () => {
+            if (options?.hardDelete === true) {
+                const everyRow: DeleteAllOptions<T, R> & Pick<SoftDeleteFindAllOptions<T>, 'deleted'> = { ...options, deleted: 'include' };
+                return await super.deleteAll(this.softDeleteWhereToWhere('include', where), everyRow);
+            }
 
-        return await this.inTransaction(options, async transaction => {
-            // eslint-disable-next-line unicorn/no-null
-            const res: T[] = await this.markDeleted(where, null, { ...options, transaction });
-            return (options?.returnDeleted === true ? res : res.length) as R extends true ? T[] : number;
+            return await this.inTransaction(options, async transaction => {
+                // eslint-disable-next-line unicorn/no-null
+                const res: T[] = await this.markDeleted(where, null, { ...options, transaction });
+                return (options?.returnDeleted === true ? res : res.length) as R extends true ? T[] : number;
+            });
         });
     }
 
@@ -254,7 +289,7 @@ export class SoftDeleteRepository<
     private async markDeleted(
         where: SoftDeleteWhere<T>,
         deletedWith: string | null,
-        options: SoftDeleteAllOptions<T, boolean> & { transaction: Transaction }
+        options: SoftDeleteAllOptions<T, boolean> & Pick<Required<SoftDeleteAllOptions<T, boolean>>, 'transaction'>
     ): Promise<T[]> {
         // through saveUpdateAll rather than updateAllWithoutChangeSet: a soft delete is an update,
         // and its change sets are written from the entities it wrote, so they are read whether or not

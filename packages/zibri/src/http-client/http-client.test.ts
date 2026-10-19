@@ -2,11 +2,13 @@ import { createServer, Server } from 'http';
 import { AddressInfo } from 'net';
 import { Readable } from 'node:stream';
 import { text } from 'node:stream/consumers';
+import { setTimeout as wait } from 'node:timers/promises';
 
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 import express from 'express';
 import NodeFormData from 'form-data';
 
+import { CircuitOpenError } from './circuit-open.error';
 import { HttpClientOptionsInput } from './http-client-options.model';
 import { HttpClientResponse } from './http-client-response.model';
 import { HttpClientError } from './http-client.error';
@@ -27,6 +29,7 @@ import { JsonBodyParser } from '../parsing/json/json.body-parser';
 import { Parser } from '../parsing/parser';
 import { StreamBodyParser } from '../parsing/stream/stream.body-parser';
 import { JsonUtilities } from '../utilities/json.utilities';
+import { Ms } from '../utilities/ms';
 
 class Item {
     @Property.string()
@@ -388,5 +391,211 @@ describe('fetchForLibrary', () => {
 
         // fetch hangs the reason off `cause`, and instanceof does not work across jest's realms
         expect(error).toMatchObject({ cause: { message: 'refused by the corporate proxy' } });
+    });
+});
+describe('idempotency keys', () => {
+    let server: Server;
+    let baseUrl: string;
+    /**
+     * The headers of every request the server was sent, in order.
+     */
+    const received: Record<string, string | string[] | undefined>[] = [];
+
+    beforeAll(async () => {
+        const app: express.Express = express();
+        // the answer to the first request is lost after it arrived, the way a dropped connection
+        // loses it: the server did the work, and the client cannot tell that from a request that
+        // never landed
+        app.post('/lost-once', (req, res) => {
+            received.push(req.headers);
+            if (received.length === 1) {
+                req.socket.destroy();
+                return;
+            }
+            res.json({});
+        });
+        server = createServer(app);
+        await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+        baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    });
+
+    afterAll(async () => {
+        await new Promise<void>((resolve, reject) => server.close((err) => err ? reject(err) : resolve()));
+    });
+
+    beforeEach(() => {
+        received.length = 0;
+    });
+
+    it('repeats a POST whose answer was lost when it carries a key, with the same key on every attempt', async () => {
+        const res: HttpClientResponse = await clientWith({}).post(`${baseUrl}/lost-once`, {}, { attempts: 2, idempotencyKey: true });
+
+        expect(res.status).toBe(200);
+        expect(received).toHaveLength(2);
+        const key: unknown = received[0]?.[KnownHeader.IDEMPOTENCY_KEY];
+        expect(typeof key).toBe('string');
+        expect(received[1]?.[KnownHeader.IDEMPOTENCY_KEY]).toBe(key);
+    });
+
+    it('does not repeat a POST whose answer was lost without a key', async () => {
+        await expect(clientWith({}).post(`${baseUrl}/lost-once`, {}, { attempts: 2 })).rejects.toBeInstanceOf(HttpClientError);
+        expect(received).toHaveLength(1);
+    });
+
+    it('sends a given key, under the header a provider names', async () => {
+        await clientWith({}).post(`${baseUrl}/lost-once`, {}, { attempts: 2, idempotencyKey: 'order-1' });
+        expect(received.map(h => h[KnownHeader.IDEMPOTENCY_KEY])).toEqual(['order-1', 'order-1']);
+
+        received.length = 0;
+        await clientWith({}).post(`${baseUrl}/lost-once`, {}, { attempts: 2, idempotencyKey: { value: 'order-2', header: 'PayPal-Request-Id' } });
+        expect(received.map(h => h['paypal-request-id'])).toEqual(['order-2', 'order-2']);
+        expect(received[0]?.[KnownHeader.IDEMPOTENCY_KEY]).toBeUndefined();
+    });
+});
+
+describe('circuit breaker', () => {
+    let down: Server;
+    let downUrl: string;
+    let up: Server;
+    let upUrl: string;
+    /**
+     * How many requests reached the origin that is down.
+     */
+    let downRequests: number = 0;
+    /**
+     * What the origin that is down answers.
+     */
+    let downStatus: number = 503;
+
+    /**
+     * Starts a server.
+     * @param app - What it serves.
+     * @returns The server and its url.
+     */
+    async function listen(app: express.Express): Promise<[Server, string]> {
+        const server: Server = createServer(app);
+        await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+        return [server, `http://127.0.0.1:${(server.address() as AddressInfo).port}`];
+    }
+
+    beforeAll(async () => {
+        const downApp: express.Express = express();
+        downApp.get('/status', (_req, res) => {
+            downRequests++;
+            res.status(downStatus).json({});
+        });
+        [down, downUrl] = await listen(downApp);
+        const upApp: express.Express = express();
+        upApp.get('/status', (_req, res) => {
+            res.json({});
+        });
+        [up, upUrl] = await listen(upApp);
+    });
+
+    afterAll(async () => {
+        await Promise.all([down, up].map(async s => await new Promise<void>((resolve, reject) => s.close((err) => err ? reject(err) : resolve()))));
+    });
+
+    beforeEach(() => {
+        downRequests = 0;
+        downStatus = 503;
+    });
+
+    /**
+     * What a call ends with.
+     * @param call - The call.
+     * @returns The error it rejected with, or undefined when it resolved.
+     */
+    async function failureOf(call: Promise<unknown>): Promise<unknown> {
+        return await call.then(() => undefined, (error: unknown) => error);
+    }
+
+    it('refuses requests to an origin that failed too often in a row without sending them, and only to that origin', async () => {
+        const http: HttpClientInterface = clientWith({ circuitBreaker: { failuresToOpen: 2, openForMs: Ms.MINUTE } });
+
+        expect(await failureOf(http.get(`${downUrl}/status`))).toMatchObject({ responseData: { status: 503 } });
+        expect(await failureOf(http.get(`${downUrl}/status`))).toMatchObject({ responseData: { status: 503 } });
+
+        const refused: unknown = await failureOf(http.get(`${downUrl}/status`));
+        expect(refused).toBeInstanceOf(CircuitOpenError);
+        expect(refused).toBeInstanceOf(HttpClientError);
+        expect(refused).toMatchObject({ origin: downUrl });
+        expect(downRequests).toBe(2);
+
+        expect((await http.get(`${upUrl}/status`)).status).toBe(200);
+    });
+
+    it('stops retrying once the circuit opens', async () => {
+        const http: HttpClientInterface = clientWith({ circuitBreaker: { failuresToOpen: 2, openForMs: Ms.MINUTE } });
+
+        expect(await failureOf(http.get(`${downUrl}/status`, { attempts: 5 }))).toBeInstanceOf(CircuitOpenError);
+        expect(downRequests).toBe(2);
+    });
+
+    it('lets one request through after openForMs, and closes when it is answered', async () => {
+        const http: HttpClientInterface = clientWith({ circuitBreaker: { failuresToOpen: 2, openForMs: 200 } });
+        await failureOf(http.get(`${downUrl}/status`));
+        await failureOf(http.get(`${downUrl}/status`));
+
+        await wait(250);
+        downStatus = 200;
+        expect((await http.get(`${downUrl}/status`)).status).toBe(200);
+
+        // closed: a single failure no longer opens it
+        downStatus = 503;
+        await failureOf(http.get(`${downUrl}/status`));
+        expect(await failureOf(http.get(`${downUrl}/status`))).toMatchObject({ responseData: { status: 503 } });
+        expect(downRequests).toBe(5);
+    });
+
+    it('opens again at once when the request let through fails', async () => {
+        const http: HttpClientInterface = clientWith({ circuitBreaker: { failuresToOpen: 2, openForMs: 200 } });
+        await failureOf(http.get(`${downUrl}/status`));
+        await failureOf(http.get(`${downUrl}/status`));
+
+        await wait(250);
+        expect(await failureOf(http.get(`${downUrl}/status`))).toMatchObject({ responseData: { status: 503 } });
+        expect(await failureOf(http.get(`${downUrl}/status`))).toBeInstanceOf(CircuitOpenError);
+        expect(downRequests).toBe(3);
+    });
+
+    it('counts any answer below 500 as the origin being up', async () => {
+        const http: HttpClientInterface = clientWith({ circuitBreaker: { failuresToOpen: 2, openForMs: Ms.MINUTE } });
+
+        await failureOf(http.get(`${downUrl}/status`));
+        downStatus = 429;
+        await failureOf(http.get(`${downUrl}/status`));
+        downStatus = 503;
+        await failureOf(http.get(`${downUrl}/status`));
+
+        expect(await failureOf(http.get(`${downUrl}/status`))).toMatchObject({ responseData: { status: 503 } });
+        expect(downRequests).toBe(4);
+    });
+
+    it('counts a request that got no answer as a failure', async () => {
+        const http: HttpClientInterface = clientWith({ circuitBreaker: { failuresToOpen: 2, openForMs: Ms.MINUTE } });
+        // port 1 refuses the connection at once
+        await failureOf(http.get('http://127.0.0.1:1/status'));
+        await failureOf(http.get('http://127.0.0.1:1/status'));
+
+        expect(await failureOf(http.get('http://127.0.0.1:1/status'))).toBeInstanceOf(CircuitOpenError);
+    });
+
+    it('is on by default, opening after five failures in a row', async () => {
+        const http: HttpClientInterface = clientWith({});
+        for (let i: number = 0; i < 5; i++) {
+            await failureOf(http.get(`${downUrl}/status`));
+        }
+
+        expect(await failureOf(http.get(`${downUrl}/status`))).toBeInstanceOf(CircuitOpenError);
+        expect(downRequests).toBe(5);
+    });
+
+    it('sends every request when the application turns it off', async () => {
+        const http: HttpClientInterface = clientWith({ circuitBreaker: false });
+        for (let i: number = 0; i < 8; i++) {
+            expect(await failureOf(http.get(`${downUrl}/status`))).toMatchObject({ responseData: { status: 503 } });
+        }
+        expect(downRequests).toBe(8);
     });
 });

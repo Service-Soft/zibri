@@ -297,6 +297,12 @@ export interface AuthServiceInterface {
      */
     revokeProviderAccess: (userId: string, identityId: string, transaction: Transaction | undefined) => Promise<void>,
     /**
+     * Stops an identity of a user from signing in as them, and keeps the provider's tokens for its
+     * apis. An identity without api access is unlinked. Connecting it again to sign in turns signing in
+     * on again.
+     */
+    revokeProviderSignIn: (userId: string, identityId: string, transaction: Transaction | undefined) => Promise<void>,
+    /**
      * Creates an api key for a user, with the roles the key may use. A key that is a secret is sent
      * by a request to act as the user through ApiKeyAuthStrategy, and answers with the key itself,
      * which is only ever handed out here. A key with `clientAuthentication` has no secret, and proves
@@ -336,6 +342,11 @@ export interface AuthServiceInterface {
      */
     reactivateUser: (userId: string, transaction: Transaction | undefined) => Promise<void>,
     /**
+     * Ends every login of a user and revokes their api keys. Unlike deactivating, it leaves them able to
+     * log in again.
+     */
+    endAccess: (userId: string, transaction: Transaction | undefined) => Promise<void>,
+    /**
      * Refreshes the login of a user using the provided auth strategy and refresh login data.
      */
     refreshLogin: <
@@ -348,6 +359,16 @@ export interface AuthServiceInterface {
         strategy: Newable<LoginAuthStrategyInterface<Role, UserType, AuthDataType, RefreshLoginDataType, LogoutDataType>>,
         data: RefreshLoginDataType
     ) => Promise<AuthDataType>,
+    /**
+     * Resolves the user a refresh of their login continues as, from every authenticator that has a say
+     * in refreshes. A login strategy calls it before it rotates anything. When one of them answers with
+     * an AccountDeactivatedError, the user's access is ended once the transaction is finished, and the
+     * error is thrown on.
+     */
+    resolveRefreshUser: <Role extends string, UserType extends BaseUser<Role>>(
+        user: UserType,
+        transaction: Transaction | undefined
+    ) => Promise<UserType>,
     /**
      * Get's the currently logged in user. When required is set to false this can return undefined.
      */

@@ -34,16 +34,29 @@ export class ThreadJobEntity<WorkerData extends BaseThreadJobWorkerData | BaseFu
     @Property.string({ format: 'uuid', required: false })
     tenantId?: string | null;
 
+    /**
+     * The trace the job was queued in, as a `traceparent` header writes it, or null for one queued
+     * outside any trace. The run of the job is recorded under it, wherever and whenever it runs.
+     */
+    @Property.string({ required: false })
+    traceparent?: string | null;
+
+    /**
+     * The vendor state of that trace, as a `tracestate` header writes it.
+     */
+    @Property.string({ required: false })
+    tracestate?: string | null;
+
     // eslint-disable-next-line jsdoc/require-jsdoc
-    @Property.number()
+    @Property.number({ format: 'integer' })
     queuedAtMs!: number;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    @Property.number({ required: false })
+    @Property.number({ format: 'integer', required: false })
     startedAtMs?: number | null;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    @Property.number({ required: false })
+    @Property.number({ format: 'integer', required: false })
     stoppedAtMs?: number | null;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -51,11 +64,11 @@ export class ThreadJobEntity<WorkerData extends BaseThreadJobWorkerData | BaseFu
     status!: ThreadJobStatus;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    @Property.number({ required: false })
+    @Property.number({ format: 'integer', required: false })
     threadId?: number | null;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    @Property.number()
+    @Property.number({ format: 'integer' })
     progress!: Percentage;
 
     // eslint-disable-next-line jsdoc/require-jsdoc

@@ -3,6 +3,7 @@ import { FederatedConnectionStart } from './federated-connection-start.model';
 import { FederatedCredentials, FederatedTicketCredentials } from './federated-credentials.model';
 import { FederatedIdentity } from './federated-identity.model';
 import { FederatedMetadata } from './federated-metadata.model';
+import { FederatedProviderLogoutMessage } from './federated-provider-logout-message.model';
 import { FederatedProviderLogout } from './federated-provider-logout.model';
 import { FederatedRegistration } from './federated-registration.model';
 import { FederatedRouteEndpoint } from './federated-route-endpoint.model';
@@ -10,6 +11,7 @@ import { FederatedRoute } from './federated-route.type';
 import { FederatedSession } from './federated-session.model';
 import { FederatedSignInRequest } from './federated-sign-in-request.model';
 import { FederatedSignInResult } from './federated-sign-in-result.model';
+import { FederatedSoapLogout } from './federated-soap-logout.model';
 import { BaseUser } from '../../models/base-user.model';
 import { IdentityLinkingAuthenticatorInterface, isIdentityLinkingAuthenticator } from '../identity-linking-authenticator.interface';
 
@@ -62,17 +64,22 @@ export interface FederatedAuthenticatorInterface<
     /**
      * The document about the application the provider is set up with, or undefined when the protocol has none.
      */
-    resolveMetadata: () => FederatedMetadata | undefined,
+    resolveMetadata: () => Promise<FederatedMetadata | undefined>,
     /**
      * The url at the provider that ends the session a login was started from, or undefined when the
      * provider cannot be told.
      */
     createLogoutUrl: (session: FederatedSession) => Promise<string | undefined>,
     /**
-     * Reads what the provider sent the browser to the `logout` route with: its query as it was read,
-     * and exactly as it was sent.
+     * Reads what the provider sent the browser to the `logout` route with: the query of a redirect, or
+     * the fields of a posted form.
      */
-    readProviderLogout: (query: URLSearchParams, rawQuery: string) => Promise<FederatedProviderLogout>
+    readProviderLogout: (message: FederatedProviderLogoutMessage) => Promise<FederatedProviderLogout>,
+    /**
+     * Reads the SOAP envelope the provider sent the `logout/soap` route server to server, exactly as
+     * it arrived, and answers which logins end and the envelope to answer with.
+     */
+    resolveSoapLogout: (envelope: string) => Promise<FederatedSoapLogout>
 }
 
 /**
@@ -93,7 +100,8 @@ export function isFederatedAuthenticator(value: unknown): value is FederatedAuth
         'resolveFormPostOrigins',
         'resolveMetadata',
         'createLogoutUrl',
-        'readProviderLogout'
+        'readProviderLogout',
+        'resolveSoapLogout'
     ];
     return keys.every(key => key in value);
 }

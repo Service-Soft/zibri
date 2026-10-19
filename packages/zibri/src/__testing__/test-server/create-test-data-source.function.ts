@@ -1,10 +1,12 @@
 import { Logger as TypeOrmLogger } from 'typeorm';
+import { RoundTripCounter } from 'zibri-testing';
 
-import { RoundTripCounter } from './round-trip-counter.model';
 import { OtpCredentials } from '../../auth/2fa/methods/otp/otp-credentials.model';
 import { TwoFactorFailureStreak } from '../../auth/2fa/two-factor-failure-streak.model';
 import { PasswordCredentials } from '../../auth/authenticators/password/password-credentials.model';
 import { EncryptionKey } from '../../auth/encryption/encryption-key.model';
+import { EncryptionRotationFailure } from '../../auth/encryption/encryption-rotation-failure.model';
+import { EncryptionRotationProgress } from '../../auth/encryption/encryption-rotation-progress.model';
 import { EncryptionStrategyEntity } from '../../auth/encryption/strategies/encryption-strategy-entity.model';
 import { HashStrategyEntity } from '../../auth/hash/strategies/hash-strategy-entity.model';
 import { PasswordResetToken } from '../../auth/models/password-reset-token.model';
@@ -105,7 +107,9 @@ export const defaultTestServerEntities: Newable<BaseEntity>[] = [
     EventSubscriberRegistration,
     HashStrategyEntity,
     EncryptionKey,
-    EncryptionStrategyEntity
+    EncryptionStrategyEntity,
+    EncryptionRotationProgress,
+    EncryptionRotationFailure
 ];
 
 export function createTestDataSource({
@@ -163,7 +167,7 @@ function countingLogger(roundTrips: RoundTripCounter): TypeOrmLogger {
     return {
         // typeorm logs a statement as it sends it, so a statement that fails is counted as well -
         // it was a round trip all the same
-        logQuery: () => roundTrips.record(),
+        logQuery: (query: string) => roundTrips.record(query),
         logQueryError: () => {},
         logQuerySlow: () => {},
         logSchemaBuild: () => {},

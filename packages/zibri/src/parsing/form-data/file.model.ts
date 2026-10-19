@@ -18,7 +18,7 @@ export class File {
     mimetype: string;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    @Property.number()
+    @Property.number({ format: 'integer' })
     size: number;
 
     // eslint-disable-next-line jsdoc/require-jsdoc

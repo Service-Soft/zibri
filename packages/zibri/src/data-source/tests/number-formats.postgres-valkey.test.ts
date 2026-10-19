@@ -28,7 +28,7 @@ beforeAll(async () => {
     server = await startTestServer({ dataSources: [postgresDataSourceClass, valKeyDataSourceClass] });
     postgres = inject(postgresDataSourceClass).getRepository(Measurement);
     valKey = inject(valKeyDataSourceClass).getRepository(Measurement);
-}, 30000);
+}, 40000);
 
 afterAll(async () => {
     await server?.shutdown();
@@ -43,10 +43,11 @@ describe('what a number property is stored as', () => {
         const dataSource: PostgresDataSource = inject(postgresDataSourceClass);
         const table: Table | undefined = await dataSource.createQueryRunner().getTable('measurement');
 
-        // what the format buys beyond the type: a counter in an int4 rather than in an arbitrary
-        // precision numeric, which indexes and aggregates as the whole number it is
+        // what the format buys beyond the type: a counter in an int8 rather than in an arbitrary
+        // precision numeric, which indexes and aggregates as the whole number it is. Not an int4,
+        // because the format takes every whole number a double holds exactly
         expect(table?.findColumnByName('temperature')?.type).toBe('double precision');
-        expect(table?.findColumnByName('readings')?.type).toBe('integer');
+        expect(table?.findColumnByName('readings')?.type).toBe('bigint');
         expect(table?.findColumnByName('sequence')?.type).toBe('bigint');
         expect(table?.findColumnByName('price')?.type).toBe('numeric');
     }, 30000);

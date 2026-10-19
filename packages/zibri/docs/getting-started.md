@@ -76,6 +76,7 @@ missing while it starts:
 | Sign-in through a provider, see [sign-in through a provider](./sign-in-through-a-provider.md) | `openid-client` |
 | Sign-in through a SAML provider, see [SAML](./sign-in-through-a-provider.md#saml) | `@node-saml/node-saml` |
 | Sign-in through a directory, see [sign-in through a directory](./sign-in-through-a-directory.md) | `ldapts` |
+| Client certificates, see [client certificates](./client-certificates.md) | `@peculiar/x509` |
 | Passkeys, see [passkeys](./passkeys.md) | `@simplewebauthn/server`, and `jose` when the devices are [restricted](./passkeys.md#restricting-the-devices) |
 | Websocket controllers | `socket.io`, and `socket.io-parser`, which `socket.io` brings with it |
 | A websocket adapter data source, for broadcasts across instances | `socket.io-adapter`, which `socket.io` brings with it |

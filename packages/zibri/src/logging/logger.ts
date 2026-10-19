@@ -7,7 +7,6 @@ import { LogLevel } from './log-level.enum';
 import { Log } from './log.model';
 import { LoggerInterface } from './logger.interface';
 import { ZibriApplication } from '../application/application';
-import { logToDb } from './transport/log-to-db.function';
 import { BaseLoggerTransportConfig, LoggerTransport } from './transport/logger-transport.model';
 import { AlsUtilities } from '../context/als.utilities';
 import { HttpRequestContext } from '../context/request/http-request.context';
@@ -90,8 +89,9 @@ export class Logger implements LoggerInterface, OnAppInit, OnAppShutdown {
     // eslint-disable-next-line jsdoc/require-jsdoc
     onAppInit(app: ZibriApplication): void {
         // only for the builtin db transport: it is what writes the table, and without it there is
-        // neither a table to require nor anything for the cleanup to remove
-        if (this.transports.some(t => t.send === logToDb)) {
+        // neither a table to require nor anything for the cleanup to remove. By name, since each one
+        // sends through a budget of its own rather than through logToDb itself
+        if (this.transports.some(t => t.config.name === 'DbLoggerTransport')) {
             validateEntitiesRegistered(Logger.name, app, Log);
             if (!app.options.cronJobs.includes(LogCleanupCronJob)) {
                 app.options.cronJobs.push(LogCleanupCronJob);
@@ -164,6 +164,9 @@ export class Logger implements LoggerInterface, OnAppInit, OnAppShutdown {
      *
      * The wait before a drain is skipped here rather than waited out - a caller asking to flush is
      * saying it will not be around for the timer, which is exactly the shutdown case.
+     *
+     * Then whatever a transport holds back is written too, such as the rows the db transport counts
+     * past its budget.
      */
     async flush(): Promise<void> {
         while (this.buffer.size || this.draining) {
@@ -174,6 +177,15 @@ export class Logger implements LoggerInterface, OnAppInit, OnAppShutdown {
             this.draining ??= this.drain();
             await this.draining;
         }
+        await Promise.all(this.transports.map(async transport => {
+            try {
+                await transport.flush?.();
+            }
+            catch (error) {
+                // eslint-disable-next-line no-console
+                console.error(`There was an error when flushing the transport ${transport.config.name}`, error);
+            }
+        }));
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

@@ -98,6 +98,7 @@ const defaultDescriptionForHttpStatus: Record<HttpStatus | 'default', string> = 
     [HttpStatus.URI_TOO_LONG]: '',
     [HttpStatus.UNSUPPORTED_MEDIA_TYPE]: '',
     [HttpStatus.UNPROCESSABLE_ENTITY]: '',
+    [HttpStatus.REQUEST_HEADER_FIELDS_TOO_LARGE]: '',
     [HttpStatus.NOT_IMPLEMENTED]: '',
     [HttpStatus.BAD_GATEWAY]: '',
     [HttpStatus.SERVICE_UNAVAILABLE]: '',
@@ -1330,7 +1331,7 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
                 return { type: 'number', format: 'double' };
             }
             case 'integer': {
-                return { type: 'integer', format: 'int32' };
+                return { type: 'integer', format: 'int64' };
             }
             case 'bigint': {
                 return { type: 'string', format: 'int64' };

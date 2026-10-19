@@ -1,4 +1,5 @@
 import { Readable } from 'node:stream';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { InMemoryDataSource, resetInMemoryStore } from 'zibri-testing';
@@ -12,6 +13,7 @@ import { UniqueConstraintViolationError } from '../data-source/unique-constraint
 import { initDiContainer } from '../di/init-di-container.function';
 import { inject } from '../di/inject.function';
 import { BaseEntity } from '../entity/base-entity.model';
+import { EntityOrder } from '../entity/models/entity-order.model';
 import { BadRequestError } from '../error-handling/errors/bad-request.error';
 import { InternalError } from '../error-handling/internal-error.model';
 import { EventSubscriberRegistration } from '../event/event-subscriber-registration.model';
@@ -288,6 +290,21 @@ describe('InMemoryDataSource', () => {
         expect(second.items.map(u => u.name)).toEqual(['arrived-during-the-walk', 'age-4']);
     });
 
+    it('keeps holding the filter on the property a walk is ordered by', async () => {
+        const users: Repository<User> = started.dataSource.getRepository(User);
+        await users.createAll([1, 2, 4, 5].map(age => mockCreateUserData({ age, name: `age-${age}` })));
+
+        const options: FindAllPaginatedOptions<User> = { where: { age: { lesserThan: 4 } }, order: { age: 'ASC' } };
+        const first: KeysetPage<User> = await users.findAllAfter(undefined, 2, options);
+        expect(first.items.map(u => u.age)).toEqual([1, 2]);
+
+        // the page after the cursor is "past age 2" and still "under 4": both speak about `age`, and
+        // the position is a second condition on it rather than a replacement for the caller's
+        const second: KeysetPage<User> = await users.findAllAfter(first.nextCursor, 2, options);
+        expect(second.items).toEqual([]);
+        expect(second.totalAmount).toBe(2);
+    });
+
     it('refuses a cursor from a differently ordered read', async () => {
         const users: Repository<User> = started.dataSource.getRepository(User);
         await users.createAll(Array.from({ length: 4 }, (_, i) => mockCreateUserData({ age: i })));
@@ -307,6 +324,48 @@ describe('InMemoryDataSource', () => {
 
         // `tags` holds an array, which has no order to compare a position against
         await expect(users.findAllAfter(undefined, 2, { order: { tags: 'ASC' } })).rejects.toThrow(InternalError);
+    });
+
+    it('gives up a stream held open past the timeout it was given', async () => {
+        const users: Repository<User> = started.dataSource.getRepository(User);
+        await users.createAll([mockCreateUserData({ name: 'first' }), mockCreateUserData({ name: 'second' })]);
+
+        const rows: AsyncIterator<User> = users.stream({ timeoutInMs: 50 })[Symbol.asyncIterator]();
+        expect((await rows.next()).done).toBe(false);
+
+        // the time between two rows counts: a stream held open is work that is still running, and
+        // nothing further is read once it has run out of time
+        await sleep(100);
+        await expect(rows.next()).rejects.toThrow('User.stream took longer than the 50ms it was given.');
+    });
+
+    it('refuses a timeout that is not a whole number of milliseconds', async () => {
+        const users: Repository<User> = started.dataSource.getRepository(User);
+
+        await expect(users.findAll({ timeoutInMs: -1 })).rejects.toThrow('User.findAll: a timeout has to be a whole number');
+    });
+
+    it('orders by how similar a value is to a search, through a relation as well', async () => {
+        const users: Repository<User> = started.dataSource.getRepository(User);
+        const companies: Repository<Company> = started.dataSource.getRepository(Company);
+        const owners: User[] = await users.createAll(['Grace Hopper', 'Adam Lovelace', 'Ada Lovelace'].map(name => mockCreateUserData({ name })));
+
+        const byName: User[] = await users.findAll({ order: { name: { similarTo: 'Ada Lovelace' } } });
+        expect(byName.map(u => u.name)).toEqual(['Ada Lovelace', 'Adam Lovelace', 'Grace Hopper']);
+
+        // the company is ordered by its owner's name, which is reached through the relation the same
+        // way a direction is - and the similarity is what tells it apart from a relation named
+        // `similarTo`, which only the metadata can
+        await companies.createAll(owners.map(owner => ({ ownerId: owner.id })));
+        const byOwner: Company[] = await companies.findAll({
+            order: { owner: { name: { similarTo: 'Ada Lovelace' } } },
+            relations: { owner: true }
+        });
+        expect(byOwner.map(c => c.owner.name)).toEqual(['Ada Lovelace', 'Adam Lovelace', 'Grace Hopper']);
+
+        // @ts-expect-error a number holds no text to be similar to
+        const byAge: EntityOrder<User> = { age: { similarTo: '36' } };
+        expect(byAge).toBeDefined();
     });
 
     it('resolves to one, has one and many to many relations', async () => {
@@ -425,6 +484,23 @@ describe('InMemoryDataSource', () => {
         await committed.commit();
 
         expect(ran).toEqual(['Seen', 'second']);
+    });
+
+    it('tells the work waiting for the end of a transaction whether it was committed, once', async () => {
+        const ended: string[] = [];
+
+        const rolledBack: Transaction = started.dataSource.startTransaction();
+        rolledBack.afterFinish(async committed => await Promise.resolve(void ended.push(`rolled back: ${committed}`)));
+        await rolledBack.rollback();
+        await rolledBack.rollback();
+
+        const committed: Transaction = started.dataSource.startTransaction();
+        committed.afterFinish(async hasCommitted => await Promise.resolve(void ended.push(`committed: ${hasCommitted}`)));
+        committed.afterFinish(async () => await Promise.resolve(void ended.push('second')));
+        expect(ended).toEqual(['rolled back: false']);
+        await committed.commit();
+
+        expect(ended).toEqual(['rolled back: false', 'committed: true', 'second']);
     });
 
     it('updates and deletes every row a filter matches', async () => {

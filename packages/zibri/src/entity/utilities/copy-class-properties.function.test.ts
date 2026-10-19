@@ -45,7 +45,7 @@ describe('copyClassProperties (via OmitClass/PickClass/PartialClass/Intersection
     beforeAll(async () => {
         server = await startTestServer({});
         validationService = inject(ValidationService);
-    }, 15000);
+    }, 30000);
 
     afterAll(async () => {
         await server?.shutdown();

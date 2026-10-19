@@ -2,14 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { inflateRawSync } from 'node:zlib';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
-import { createFakeKeyPair,
-    createInMemoryDataSource,
-    FakeKeyPair,
-    FakeSamlAnswer,
-    FakeSamlProvider,
-    InMemoryDataSource,
-    startFakeSamlProvider,
-    TestBrowser } from 'zibri-testing';
+import { createFakeKeyPair, createInMemoryDataSource, FakeKeyPair, FakeSamlAnswer, FakeSamlBackChannelAnswer, FakeSamlLogoutForm, FakeSamlLogoutResponse, FakeSamlProvider, InMemoryDataSource, startFakeSamlProvider, TestBrowser } from 'zibri-testing';
 
 import { BaseSamlAuthenticator } from './base-saml.authenticator';
 import { SamlIdentityProvider } from './saml-identity-provider.model';
@@ -64,6 +57,10 @@ const MAX_AUTHENTICATION_AGE_IN_MS: number = 3600000;
 
 let idp: FakeSamlProvider;
 let strictIdp: FakeSamlProvider;
+// answers a logout of the application with a page that posts the answer
+let postAnsweringIdp: FakeSamlProvider;
+// takes logouts as posted forms only
+let postOnlyIdp: FakeSamlProvider;
 let signingKey: FakeKeyPair;
 let decryptionKey: FakeKeyPair;
 
@@ -101,6 +98,37 @@ class StrictAuthenticator extends BaseSamlAuthenticator<Roles, JwtUser> {
     override readonly decryptionKey: SamlKeyPair = decryptionKey;
 }
 
+class PostAnsweringAuthenticator extends BaseSamlAuthenticator<Roles, JwtUser> {
+    readonly name: string = 'post-answering';
+
+    readonly entityId: string = SP_ENTITY_ID;
+
+    get issuer(): string {
+        return postAnsweringIdp.entityId;
+    }
+
+    get identityProvider(): SamlIdentityProvider {
+        return { metadataUrl: postAnsweringIdp.metadataUrl };
+    }
+}
+
+// signs what it sends, which for a provider taking posted forms is the answer inside the form
+class PostOnlyAuthenticator extends BaseSamlAuthenticator<Roles, JwtUser> {
+    readonly name: string = 'post-only';
+
+    readonly entityId: string = SP_ENTITY_ID;
+
+    get issuer(): string {
+        return postOnlyIdp.entityId;
+    }
+
+    get identityProvider(): SamlIdentityProvider {
+        return { metadataUrl: postOnlyIdp.metadataUrl };
+    }
+
+    override readonly signingKey: SamlKeyPair = signingKey;
+}
+
 // trusts the metadata of the fake provider for an entity it is not
 class ElsewhereAuthenticator extends BaseSamlAuthenticator<Roles, JwtUser> {
     readonly name: string = 'elsewhere';
@@ -119,14 +147,14 @@ class ElsewhereAuthenticator extends BaseSamlAuthenticator<Roles, JwtUser> {
 @Controller('/auth', { allowOrphan: true, versions: 'all' })
 class CookieSamlAuthController extends AuthController({
         strategies: [CookieAuthStrategy],
-        authenticators: [CompanyAuthenticator, StrictAuthenticator, ElsewhereAuthenticator],
+        authenticators: [CompanyAuthenticator, StrictAuthenticator, PostAnsweringAuthenticator, PostOnlyAuthenticator, ElsewhereAuthenticator],
         twoFactorMethods: [OtpTwoFactorMethod]
     }) {}
 
 @Controller('/auth', { allowOrphan: true, versions: 'all' })
 class JwtSamlAuthController extends AuthController({
         strategies: [JwtAuthStrategy],
-        authenticators: [CompanyAuthenticator, StrictAuthenticator, ElsewhereAuthenticator],
+        authenticators: [CompanyAuthenticator, StrictAuthenticator, PostAnsweringAuthenticator, PostOnlyAuthenticator, ElsewhereAuthenticator],
         twoFactorMethods: [OtpTwoFactorMethod]
     }) {}
 
@@ -273,19 +301,15 @@ async function isLoggedIn(browser: TestBrowser): Promise<boolean> {
 }
 
 /**
- * Logs a browser out the way the frontend does, with the refresh session of its login.
+ * Logs a browser out the way the frontend does, with the cookies of its login.
  * @param browser - The browser.
- * @param userId - The user it is logged in as, whose only login it is.
  * @returns What the logout answers.
  */
-async function logOut(browser: TestBrowser, userId: string): Promise<LogoutResult> {
-    // a refresh keeps the one it spent, marked as such
-    const refreshSession: CookieAuthRefreshSession = await inject(repositoryTokenFor(CookieAuthRefreshSession))
-        .findOne({ where: { userId, blacklisted: false } });
+async function logOut(browser: TestBrowser): Promise<LogoutResult> {
     const res: Response = await browser.open(`${baseUrl}/auth/logout`, {
         method: 'POST',
         headers: { [KnownHeader.CONTENT_TYPE]: MimeType.JSON },
-        body: JsonUtilities.stringify({ clearCookies: true, refreshSessionId: refreshSession.id })
+        body: JsonUtilities.stringify({ clearCookies: true })
     });
     expect(res.status).toBe(200);
     // eslint-disable-next-line typescript/no-unsafe-return
@@ -342,7 +366,7 @@ async function startApp(strategy: typeof CookieAuthStrategy | typeof JwtAuthStra
         baseUrl: PUBLIC_URL,
         dataSources: [dataSourceClass],
         authStrategies: [strategy],
-        authenticators: [CompanyAuthenticator, StrictAuthenticator, ElsewhereAuthenticator],
+        authenticators: [CompanyAuthenticator, StrictAuthenticator, PostAnsweringAuthenticator, PostOnlyAuthenticator, ElsewhereAuthenticator],
         controllers,
         providers: [
             ...defaultTestServerProviders,
@@ -368,13 +392,60 @@ beforeAll(async () => {
         requiresRequestsSignedBy: signingKey.certificate,
         serviceProviderLogoutUrl: `${PUBLIC_URL}/auth/federated/strict/logout`
     });
+    postAnsweringIdp = await startFakeSamlProvider({
+        serviceProviderEntityId: SP_ENTITY_ID,
+        serviceProviderLogoutUrl: `${PUBLIC_URL}/auth/federated/post-answering/logout`,
+        answersLogoutWith: 'post'
+    });
+    postOnlyIdp = await startFakeSamlProvider({
+        serviceProviderEntityId: SP_ENTITY_ID,
+        requiresRequestsSignedBy: signingKey.certificate,
+        serviceProviderLogoutUrl: `${PUBLIC_URL}/auth/federated/post-only/logout`,
+        logoutBindings: ['post']
+    });
 }, 15000);
 
 afterAll(async () => {
     // each on its own, so one that never started leaves no other listening
     await idp?.stop();
     await strictIdp?.stop();
+    await postAnsweringIdp?.stop();
+    await postOnlyIdp?.stop();
 }, 15000);
+
+/**
+ * Has a browser post a logout form of the identity provider to the logout route, the way the
+ * provider's page does.
+ * @param browser - The browser.
+ * @param form - The form.
+ * @param at - The identity provider whose page posts it.
+ * @returns The answer of the logout route.
+ */
+async function postLogout(browser: TestBrowser, form: FakeSamlLogoutForm, at: FakeSamlProvider): Promise<Response> {
+    return await browser.open(form.url, {
+        method: 'POST',
+        headers: { [KnownHeader.CONTENT_TYPE]: MimeType.FORM_URL_ENCODED },
+        body: form.fields,
+        crossSiteFrom: new URL(at.entityId).origin
+    });
+}
+
+/**
+ * Reads the form a page of the application posts on its own, as the HTTP-POST binding sends it.
+ * @param html - The page.
+ * @returns Where it posts and what.
+ */
+function readAutoPostedForm(html: string): FakeSamlLogoutForm {
+    const action: string = /<form[^>]*action="([^"]*)"/.exec(html)?.[1] ?? '';
+    const fields: URLSearchParams = new URLSearchParams();
+    for (const [, name, value] of html.matchAll(/<input[^>]*name="([^"]*)"[^>]*value="([^"]*)"/g)) {
+        fields.set(name ?? '', (value ?? '').replaceAll('&quot;', '"')
+            .replaceAll('&lt;', '<')
+            .replaceAll('&gt;', '>')
+            .replaceAll('&amp;', '&'));
+    }
+    return { url: action.replaceAll('&amp;', '&'), fields };
+}
 
 describe('BaseSamlAuthenticator', () => {
     let server: StartedTestServer;
@@ -628,7 +699,7 @@ describe('BaseSamlAuthenticator', () => {
         await signIn(browser, authorizeUrl('company'));
         await rotateLogin(browser, user.id);
 
-        const { providerLogoutUrl } = await logOut(browser, user.id);
+        const { providerLogoutUrl } = await logOut(browser);
 
         expect(providerLogoutUrl?.startsWith(idp.logoutUrl)).toBe(true);
     });
@@ -666,11 +737,11 @@ describe('BaseSamlAuthenticator', () => {
     });
 
     it('logs the user out at the provider too, and lands them on the signed-out page once it ended the session', async () => {
-        const user: JwtUser = await createLinkedUser();
+        await createLinkedUser();
         const browser: TestBrowser = newBrowser();
         const { answer } = await signIn(browser, authorizeUrl('company'));
 
-        const { providerLogoutUrl } = await logOut(browser, user.id);
+        const { providerLogoutUrl } = await logOut(browser);
 
         expect(await isLoggedIn(browser)).toBe(false);
         expect(providerLogoutUrl?.startsWith(idp.logoutUrl)).toBe(true);
@@ -680,15 +751,172 @@ describe('BaseSamlAuthenticator', () => {
     });
 
     it('signs its logout requests, for a provider that asks for it', async () => {
-        const user: JwtUser = await createLinkedUser(strictIdp);
+        await createLinkedUser(strictIdp);
         const browser: TestBrowser = newBrowser();
         await signIn(browser, authorizeUrl('strict'), strictIdp);
 
-        const { providerLogoutUrl } = await logOut(browser, user.id);
+        const { providerLogoutUrl } = await logOut(browser);
         const landing: string = await browser.follow(await browser.follow(providerLogoutUrl ?? ''));
 
         expect(strictIdp.logoutRequests.at(-1)?.signed).toBe(true);
         expect(landing).toBe(SIGNED_OUT_URL);
+    });
+
+    // evaluation/03-auth-and-security H23: the metadata named the logout url for posted messages only,
+    // and the route took none; logout requests sent server to server had no route at all
+    describe('logout through the post and SOAP bindings', () => {
+        it('publishes its logout url for redirected and posted messages, and its SOAP logout url', async () => {
+            const metadata: string = await (await newBrowser().open(`${baseUrl}/auth/federated/company/metadata`)).text();
+
+            const services: string[] = [...metadata.matchAll(/<(?:\w+:)?SingleLogoutService\b[^>]*>/g)].map(([tag]) => tag);
+            const logoutUrl: string = `${PUBLIC_URL}/auth/federated/company/logout`;
+            expect(services).toEqual([
+                expect.stringMatching(new RegExp(`Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="${logoutUrl}"`)),
+                expect.stringMatching(new RegExp(`Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="${logoutUrl}"`)),
+                expect.stringMatching(new RegExp(`Binding="urn:oasis:names:tc:SAML:2.0:bindings:SOAP" Location="${logoutUrl}/soap"`))
+            ]);
+        });
+
+        it('ends exactly the login of the session a posted logout request names, and tells the provider', async () => {
+            await createLinkedUser();
+            const loggedOut: TestBrowser = newBrowser();
+            const { answer } = await signIn(loggedOut, authorizeUrl('company'));
+            const stillIn: TestBrowser = newBrowser();
+            await signIn(stillIn, authorizeUrl('company'));
+
+            const res: Response = await postLogout(
+                newBrowser(),
+                idp.createLogoutRequestForm({ nameId: idp.identity.nameId, sessionIndex: answer.sessionIndex }),
+                idp
+            );
+
+            expect(res.status).toBe(303);
+            const location: string = res.headers.get(KnownHeader.LOCATION) ?? '';
+            expect(location.startsWith(idp.logoutUrl)).toBe(true);
+            const response: string = inflateRawSync(Buffer.from(new URL(location).searchParams.get('SAMLResponse') ?? '', 'base64')).toString('utf8');
+            expect(response).toContain('urn:oasis:names:tc:SAML:2.0:status:Success');
+            expect(await isLoggedIn(loggedOut)).toBe(false);
+            expect(await isLoggedIn(stillIn)).toBe(true);
+        });
+
+        it.each([
+            ['that is not signed', { unsigned: true }],
+            ['signed by a key the metadata does not name', { signedByAnotherKey: true }]
+        ])('refuses a posted logout request %s', async (_, changes) => {
+            await createLinkedUser();
+            const browser: TestBrowser = newBrowser();
+            const { answer } = await signIn(browser, authorizeUrl('company'));
+
+            const form: FakeSamlLogoutForm = idp.createLogoutRequestForm({ nameId: idp.identity.nameId, sessionIndex: answer.sessionIndex, ...changes });
+            const res: Response = await postLogout(newBrowser(), form, idp);
+
+            expect(res.status).toBe(401);
+            expect(await isLoggedIn(browser)).toBe(true);
+        });
+
+        it('lands on the signed-out page once a provider that answers with a form ended the session', async () => {
+            await createLinkedUser(postAnsweringIdp);
+            const browser: TestBrowser = newBrowser();
+            await signIn(browser, authorizeUrl('post-answering'), postAnsweringIdp);
+            const { providerLogoutUrl } = await logOut(browser);
+
+            await browser.open(providerLogoutUrl ?? '');
+            const posted: FakeSamlLogoutForm | undefined = postAnsweringIdp.logoutAnswers.at(-1);
+            const res: Response = await postLogout(browser, posted ?? { url: '', fields: new URLSearchParams() }, postAnsweringIdp);
+
+            expect(res.status).toBe(303);
+            expect(res.headers.get(KnownHeader.LOCATION)).toBe(SIGNED_OUT_URL);
+        });
+
+        it('answers a provider that takes posted forms only with a page posting the signed answer', async () => {
+            await createLinkedUser(postOnlyIdp);
+            const browser: TestBrowser = newBrowser();
+            const { answer } = await signIn(browser, authorizeUrl('post-only'), postOnlyIdp);
+            const form: FakeSamlLogoutForm = postOnlyIdp.createLogoutRequestForm({ nameId: postOnlyIdp.identity.nameId, sessionIndex: answer.sessionIndex });
+
+            const res: Response = await postLogout(newBrowser(), form, postOnlyIdp);
+
+            expect(res.status).toBe(200);
+            expect(res.headers.get(KnownHeader.CONTENT_TYPE)).toContain(MimeType.HTML);
+            const page: string = await res.text();
+            const answered: FakeSamlLogoutForm = readAutoPostedForm(page);
+            expect(answered.url).toBe(postOnlyIdp.logoutUrl);
+            // the page may post to the provider and run its one script, and nothing else
+            expect(res.headers.get('content-security-policy')).toContain(`form-action ${new URL(postOnlyIdp.entityId).origin}`);
+            expect(await isLoggedIn(browser)).toBe(false);
+
+            const posted: Response = await fetch(answered.url, { method: 'POST', body: answered.fields });
+            expect(posted.status).toBe(200);
+            const response: FakeSamlLogoutResponse | undefined = postOnlyIdp.logoutResponses.at(-1);
+            expect(response).toMatchObject({ status: 'urn:oasis:names:tc:SAML:2.0:status:Success', signed: true });
+            expect(response?.inResponseTo).toBe(new RegExp(/ID="([^"]+)"/).exec(Buffer.from(form.fields.get('SAMLRequest') ?? '', 'base64').toString('utf8'))?.[1]);
+        });
+
+        it('ends exactly the login of the session a logout request sent server to server names, and answers in SOAP', async () => {
+            await createLinkedUser();
+            const loggedOut: TestBrowser = newBrowser();
+            const { answer } = await signIn(loggedOut, authorizeUrl('company'));
+            const stillIn: TestBrowser = newBrowser();
+            await signIn(stillIn, authorizeUrl('company'));
+
+            const answered: FakeSamlBackChannelAnswer = await idp.sendBackChannelLogout(
+                `${baseUrl}/auth/federated/company/logout/soap`,
+                { nameId: idp.identity.nameId, sessionIndex: answer.sessionIndex }
+            );
+
+            expect(answered.status).toBe(200);
+            expect(answered.contentType).toContain(MimeType.TEXT_XML);
+            expect(answered.body).toMatch(/<(\w+:)?Envelope\b[^>]*xmlns(:\w+)?="http:\/\/schemas.xmlsoap.org\/soap\/envelope\/"/);
+            expect(answered.body).toContain(`InResponseTo="${answered.requestId}"`);
+            expect(answered.body).toContain('urn:oasis:names:tc:SAML:2.0:status:Success');
+            expect(answered.body).not.toContain('<?xml');
+            expect(await isLoggedIn(loggedOut)).toBe(false);
+            expect(await isLoggedIn(stillIn)).toBe(true);
+        });
+
+        it('signs its SOAP answer, for a provider that asks for signed messages', async () => {
+            await createLinkedUser(strictIdp);
+            const browser: TestBrowser = newBrowser();
+            const { answer } = await signIn(browser, authorizeUrl('strict'), strictIdp);
+
+            const answered: FakeSamlBackChannelAnswer = await strictIdp.sendBackChannelLogout(
+                `${baseUrl}/auth/federated/strict/logout/soap`,
+                { nameId: strictIdp.identity.nameId, sessionIndex: answer.sessionIndex }
+            );
+
+            expect(answered.status).toBe(200);
+            expect(answered.signed).toBe(true);
+            expect(await isLoggedIn(browser)).toBe(false);
+        });
+
+        it.each([
+            ['that is not signed', { unsigned: true }],
+            ['signed by a key the metadata does not name', { signedByAnotherKey: true }]
+        ])('refuses a logout request sent server to server %s', async (_, changes) => {
+            await createLinkedUser();
+            const browser: TestBrowser = newBrowser();
+            const { answer } = await signIn(browser, authorizeUrl('company'));
+
+            const answered: FakeSamlBackChannelAnswer = await idp.sendBackChannelLogout(
+                `${baseUrl}/auth/federated/company/logout/soap`,
+                { nameId: idp.identity.nameId, sessionIndex: answer.sessionIndex, ...changes }
+            );
+
+            expect(answered.status).toBe(401);
+            expect(await isLoggedIn(browser)).toBe(true);
+        });
+
+        it('refuses a body that is not a SOAP envelope carrying a logout request', async () => {
+            const send: (body: string) => Promise<number> = async body => (await fetch(`${baseUrl}/auth/federated/company/logout/soap`, {
+                method: 'POST',
+                headers: { [KnownHeader.CONTENT_TYPE]: MimeType.TEXT_XML },
+                body
+            })).status;
+
+            expect(await send('<LogoutRequest xmlns="urn:oasis:names:tc:SAML:2.0:protocol"/>')).toBe(400);
+            expect(await send('<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><a/></s:Body></s:Envelope>')).toBe(400);
+            expect(await send('<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body>')).toBe(400);
+        });
     });
 });
 
@@ -767,6 +995,21 @@ describe('BaseSamlAuthenticator with the jwt strategy', () => {
         await newBrowser().follow(idp.createLogoutRequestUrl({ nameId: idp.identity.nameId, sessionIndex: loggedOut.sessionIndex }));
 
         expect(await refresh(refreshed ?? '')).toBeUndefined();
+        expect(await refresh(stillIn.refreshToken)).toBeDefined();
+    });
+
+    it('ends exactly the login of the session a logout request sent server to server names', async () => {
+        await createLinkedUser();
+        const loggedOut: JwtLogin = await logIn();
+        const stillIn: JwtLogin = await logIn();
+
+        const answered: FakeSamlBackChannelAnswer = await idp.sendBackChannelLogout(
+            `${baseUrl}/auth/federated/company/logout/soap`,
+            { nameId: idp.identity.nameId, sessionIndex: loggedOut.sessionIndex }
+        );
+
+        expect(answered.status).toBe(200);
+        expect(await refresh(loggedOut.refreshToken)).toBeUndefined();
         expect(await refresh(stillIn.refreshToken)).toBeDefined();
     });
 

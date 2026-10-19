@@ -70,6 +70,28 @@ export abstract class MetadataUtilities {
         return clone as T;
     }
 
+    /**
+     * Freezes a declaration and everything it holds, so that nobody can write to it any more.
+     *
+     * The same parts as {@link cloneMetadata} copies, for the same reason: a class, a factory or a
+     * validator is what a declaration points at rather than what it holds, and freezing a class
+     * would freeze the class itself.
+     * @param value - The declaration.
+     */
+    private static freezeMetadata(value: unknown): void {
+        if (typeof value !== 'object' || value == undefined || Object.isFrozen(value)) {
+            return;
+        }
+        const prototype: unknown = Object.getPrototypeOf(value);
+        if (!Array.isArray(value) && prototype != undefined && prototype !== Object.prototype) {
+            return;
+        }
+        Object.freeze(value);
+        for (const entry of Object.values(value)) {
+            MetadataUtilities.freezeMetadata(entry);
+        }
+    }
+
     private static resolveInheritedStore<T extends Record<string, unknown>>(store: WeakMap<Function, T>, ctor: Newable<unknown>): T {
         let entry: T | undefined = store.get(ctor);
         if (entry !== undefined) {
@@ -497,7 +519,14 @@ export abstract class MetadataUtilities {
         // the record itself is copied so the caller keeps writing to its own, and the property
         // metadata inside it stays shared. Deliberately not the deep copy above: `@Property` reads
         // this record back, adds one entry and stores it again once per decorated property, and the
-        // class helpers that derive one model from another pass entries straight through.
+        // class helpers that derive one model from another pass entries straight through - as does
+        // a subclass, whose record starts as its parent's. Shared, a declaration is frozen instead:
+        // a change made through one model would otherwise reach every model derived from it, or the
+        // one it was derived from, and frozen it fails at whoever tries. A model that needs it
+        // otherwise declares the property again
+        for (const metadata of Object.values(properties)) {
+            MetadataUtilities.freezeMetadata(metadata);
+        }
         modelPropertiesStore.set(ctor as unknown as Function, { ...properties });
     }
 

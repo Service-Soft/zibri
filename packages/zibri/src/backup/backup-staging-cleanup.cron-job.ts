@@ -1,5 +1,7 @@
 import { Dirent } from 'node:fs';
 
+import { RestoreJournal } from './restore-journal.model';
+import { RestoreJournalUtilities } from './restore-journal.utilities';
 import { CronExpression } from '../cron/cron-expression.utilities';
 import { CronJob, InitialCronConfig } from '../cron/cron-job.model';
 import { Inject } from '../di/decorators/inject.decorator';
@@ -20,7 +22,8 @@ const ABANDONED_AFTER_IN_MS: number = Ms.HOUR * 12;
  * Removes staged backup data that no backup is using any more.
  *
  * A backup deletes what it staged when it is done, and when it fails - so what this finds is what a
- * process that was killed left behind, which nothing else is ever going to clean up.
+ * process that was killed left behind, which nothing else is ever going to clean up. The journal of a
+ * restore that was interrupted and the snapshots it names are kept, for the next start to put back.
  */
 export class BackupStagingCleanupCronJob extends CronJob {
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -48,9 +51,14 @@ export class BackupStagingCleanupCronJob extends CronJob {
         this.logger.info(`cleans up staged backup data in ${this.stagingPath}`);
 
         const files: Dirent[] = await FsUtilities.readdir(this.stagingPath);
+        const needed: Set<FsPath> = await this.resolveNeededByInterruptedRestores();
         let removed: number = 0;
         for (const file of files) {
             const p: FsPath = FsUtilities.getPath(this.stagingPath, file.name);
+            // however old: they are what the next start puts a half finished restore back from
+            if (needed.has(p)) {
+                continue;
+            }
             try {
                 // when it was last written to rather than when it was created, so an archive that is
                 // still being written is never mistaken for one that stopped
@@ -67,5 +75,26 @@ export class BackupStagingCleanupCronJob extends CronJob {
         }
 
         this.logger.info(`removed ${removed} out of ${files.length} staged files`);
+    }
+
+    /**
+     * Resolves the journals of restores that were interrupted, and the snapshots they name.
+     * @returns Their paths.
+     */
+    private async resolveNeededByInterruptedRestores(): Promise<Set<FsPath>> {
+        const needed: Set<FsPath> = new Set();
+        for (const p of await RestoreJournalUtilities.findPaths(this.stagingPath)) {
+            needed.add(p);
+            try {
+                const journal: RestoreJournal = await RestoreJournalUtilities.resolve(p);
+                for (const entry of journal.applied) {
+                    needed.add(entry.snapshotPath);
+                }
+            }
+            catch {
+                // a journal that cannot be read names nothing, and the start that finds it says so
+            }
+        }
+        return needed;
     }
 }

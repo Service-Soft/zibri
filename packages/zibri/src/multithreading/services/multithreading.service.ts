@@ -21,11 +21,18 @@ import { InternalError } from '../../error-handling/internal-error.model';
 import { OnAppInit } from '../../global/on-app-init.interface';
 import { OnAppShutdown } from '../../global/on-app-shutdown.interface';
 import { OnAppStart } from '../../global/on-app-start.interface';
+import { KnownHeader } from '../../http/known-header.enum';
 import { type LeaseServiceInterface } from '../../leases/lease-service.interface';
 import { errorToLoggedError } from '../../logging/error-to-logged-error.function';
 import { LoggedError } from '../../logging/logged-error.model';
 import { type LoggerInterface } from '../../logging/logger.interface';
 import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface';
+import { TraceContextUtilities } from '../../tracing/trace-context.utilities';
+import { TraceSpanContext } from '../../tracing/trace-span-context.model';
+import { TraceSpanKind } from '../../tracing/trace-span-kind.enum';
+import { TraceSpanStatus } from '../../tracing/trace-span-status.enum';
+import { TraceSpanInterface } from '../../tracing/trace-span.interface';
+import { TracingUtilities } from '../../tracing/tracing.utilities';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { FsUtilities, type FsPath } from '../../utilities/fs.utilities';
 import { JsonUtilities } from '../../utilities/json.utilities';
@@ -39,6 +46,7 @@ import { ThreadJobData, ThreadJobDataFunctions } from '../models/thread-job-data
 import { ThreadJobEntity } from '../models/thread-job-entity.model';
 import { ThreadJobFunction } from '../models/thread-job-function.model';
 import { ThreadJobMessage } from '../models/thread-job-message.model';
+import { ThreadJobStartMessage } from '../models/thread-job-start-message.model';
 import { ThreadJobStatus } from '../models/thread-job-status.enum';
 import { RunQueuedThreadJobsCronJob } from '../run-queued-thread-jobs.cron-job';
 
@@ -409,7 +417,8 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
             priority: threadJobData.priority ?? false,
             progress: 0,
             workerData: threadJobData.workerData,
-            timeout: threadJobData.timeout ?? this.getDefaultTimeout(threadJobData.priority ?? false)
+            timeout: threadJobData.timeout ?? this.getDefaultTimeout(threadJobData.priority ?? false),
+            ...this.resolveQueuedInTrace()
         };
 
         // the row is the queue. Nothing is kept here beyond the callbacks, which cannot be stored
@@ -472,7 +481,8 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
                 func: func.toString(),
                 input
             },
-            timeout: timeout ?? this.getDefaultTimeout(priority)
+            timeout: timeout ?? this.getDefaultTimeout(priority),
+            ...this.resolveQueuedInTrace()
         };
 
         const threadJob: ThreadJob<BaseFunctionThreadJobWorkerData<InputType>, ResultType> = new ThreadJob(entityData, 'function');
@@ -500,10 +510,26 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
             status: ThreadJobStatus.IN_QUEUE,
             startedAtMs: undefined,
             stoppedAtMs: undefined,
-            threadId: undefined
+            threadId: undefined,
+            // the run that follows answers to whoever asked for it, not to whoever queued it first
+            ...this.resolveQueuedInTrace()
         });
         this.rememberFunctions(jobId, data);
         await this.startQueuedJobs();
+    }
+
+    /**
+     * The trace a job queued right now belongs to, as its row keeps it.
+     * @returns The trace written as the headers would carry it, both null outside any trace.
+     */
+    private resolveQueuedInTrace(): Pick<ThreadJobEntity<BaseThreadJobWorkerData, unknown>, 'traceparent' | 'tracestate'> {
+        const context: TraceSpanContext | undefined = TracingUtilities.getCurrentTraceContext();
+        return {
+            // eslint-disable-next-line unicorn/no-null
+            traceparent: context == undefined ? null : TraceContextUtilities.resolveTraceparent(context),
+            // eslint-disable-next-line unicorn/no-null
+            tracestate: context?.traceState ?? null
+        };
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -694,7 +720,7 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
     }
 
     private getDefaultTimeout(priority: boolean): number {
-        return priority ? this.options.defaultTimeoutMs : this.options.defaultTimeoutPriorityMs;
+        return priority ? this.options.defaultTimeoutPriorityMs : this.options.defaultTimeoutMs;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -951,9 +977,44 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         job: ThreadJob<BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>, unknown>,
         worker: ThreadJobWorker
     ): Promise<void> {
-        this.runningJobs.push(job);
-        await this.startJob(job, worker);
-        await firstValueFrom(job.completedSubject.pipe(filter(i => i)));
+        // under the trace the job was queued in rather than the one running here: a job is started
+        // by whichever call found a worker free - the poll, another job finishing, or a request that
+        // queued something else - and none of those is what the job belongs to
+        const queuedIn: TraceSpanContext | undefined = job.traceparent == undefined
+            ? undefined
+            : TraceContextUtilities.findSpanContext({
+                [KnownHeader.TRACEPARENT]: job.traceparent,
+                [KnownHeader.TRACESTATE]: job.tracestate ?? undefined
+            });
+        const span: TraceSpanInterface = TracingUtilities.startSpan('runThreadJob', {
+            kind: TraceSpanKind.CONSUMER,
+            root: queuedIn == undefined,
+            parent: queuedIn,
+            attributes: {
+                'messaging.message.id': job.id,
+                'code.file.path': 'filePath' in job.workerData ? job.workerData.filePath : undefined
+            }
+        });
+        try {
+            await TracingUtilities.runWithSpan(span, async () => {
+                this.runningJobs.push(job);
+                await this.startJob(job, worker, span.context);
+                await firstValueFrom(job.completedSubject.pipe(filter(i => i)));
+            });
+        }
+        catch (error) {
+            span.recordError(error);
+            span.end(TraceSpanStatus.ERROR);
+            throw error;
+        }
+        // a job's own failure is a message from the worker rather than a throw here, so it is read
+        // off the job once it is over. Cancelled or interrupted is not the job failing
+        if (job.status === ThreadJobStatus.FAILED) {
+            span.recordError(job.error == undefined ? new InternalError(`Thread job ${job.id} failed`) : toThrownError(job.error));
+            span.end(TraceSpanStatus.ERROR);
+            return;
+        }
+        span.end();
     }
 
     /**
@@ -976,9 +1037,11 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
 
     private async startJob(
         job: ThreadJob<BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>, unknown>,
-        worker: ThreadJobWorker
+        worker: ThreadJobWorker,
+        traceContext: TraceSpanContext
     ): Promise<void> {
-        worker.worker.postMessage(job.workerData);
+        const message: ThreadJobStartMessage = { workerData: job.workerData, traceContext };
+        worker.worker.postMessage(message);
         worker.timeout = setTimeout(
             () => void this.trackWorkerEvent(this.stopOverdueJob(job, worker), worker.threadId),
             job.timeout

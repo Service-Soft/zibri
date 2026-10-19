@@ -1,3 +1,4 @@
+import { EmailCleanupCronJob } from './email-cleanup.cron-job';
 import { EmailServiceInterface } from './email-service.interface';
 import { ZibriApplication } from '../application/application';
 import { CreateEmailData, QueueEmailData } from './models/create-email-data.model';
@@ -90,7 +91,9 @@ export class EmailService implements EmailServiceInterface, OnAppInit, OnAppShut
         this.config = {
             ...config,
             sendLeaseInMs: config.sendLeaseInMs ?? Ms.MINUTE,
-            sendBatchSize: config.sendBatchSize ?? 10
+            sendBatchSize: config.sendBatchSize ?? 10,
+            maxSendAttempts: config.maxSendAttempts ?? 5,
+            retryDelayInMs: config.retryDelayInMs ?? Ms.MINUTE
         };
     }
 
@@ -107,6 +110,23 @@ export class EmailService implements EmailServiceInterface, OnAppInit, OnAppShut
         if (!app.options.cronJobs.includes(SendQueuedEmailsCronJob)) {
             app.options.cronJobs.push(SendQueuedEmailsCronJob);
         }
+        if (!app.options.cronJobs.includes(EmailCleanupCronJob)) {
+            app.options.cronJobs.push(EmailCleanupCronJob);
+        }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async deleteExpiredFailedEmails(): Promise<number> {
+        if (this.config.failedRetentionInMs === 'forever') {
+            return 0;
+        }
+        // counted from when the mail was queued, which no row lacks: a mail fails within minutes of
+        // that unless the queue is backed up, and a retention is counted in days
+        return await this.emailRepository.deleteAll(
+            { status: EmailStatus.FAILED, createdAt: { before: new Date(Date.now() - this.config.failedRetentionInMs) } },
+            // the queue is every tenant's, for the reason findMails reads that way
+            { acrossTenants: true }
+        );
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -172,10 +192,11 @@ export class EmailService implements EmailServiceInterface, OnAppInit, OnAppShut
         // Per mail rather than per batch, because the next batch a moment later is a different set
         // of mails and would otherwise be free to take one that is still being sent.
         //
-        // 'retainOnError' is the backoff: a send that died halfway is not handed straight back to
-        // whichever instance asks next, it waits out the lease. A TooManyRequestsError is caught
-        // below and returns normally, so the rate limited case does release and the next window can
-        // send them.
+        // a send that throws is counted on its own mail and backs off through its retryAt, so the work
+        // returns normally and the claims are released. 'retainOnError' is the backoff for what is
+        // left: recording the attempt itself failing, which leaves nothing on the rows to wait by. A
+        // TooManyRequestsError is caught below and returns normally, so the rate limited case does
+        // release and the next window can send them.
         const sent: boolean | undefined = await this.leaseService.withLeases(
             [...byKey.keys()],
             { leaseInMs: this.config.sendLeaseInMs, onCompletion: 'retainOnError' },
@@ -208,7 +229,47 @@ export class EmailService implements EmailServiceInterface, OnAppInit, OnAppShut
     // happened to trigger it.
     @RateLimited(ZIBRI_DI_TOKENS.EMAIL_RATE_LIMITER, { countFn: emails => emails.length, keyFn: RateLimitKeys.GLOBAL })
     protected async sendMany(emails: Email[]): Promise<void> {
-        await Promise.all(emails.map(m => this.sendInTenantOf(m)));
+        await Promise.all(emails.map(m => this.sendCountingAttempts(m)));
+    }
+
+    /**
+     * Sends out the given email, and counts an attempt on it when the send throws.
+     *
+     * Each mail on its own, so one that cannot be sent holds back none of the others in its batch.
+     * @param email - The email to send out.
+     */
+    private async sendCountingAttempts(email: Email): Promise<void> {
+        try {
+            await this.sendInTenantOf(email);
+        }
+        catch (error) {
+            // a mail that threw used to stay QUEUED at the head of its priority, tried again every
+            // minute forever and keeping the claims of its whole batch (04 §2.14)
+            await this.recordFailedAttempt(email, error);
+        }
+    }
+
+    /**
+     * Records that sending an email threw: it is tried again later, waiting twice as long after
+     * every attempt, and marked FAILED once it has used up `maxSendAttempts`.
+     * @param email - The email.
+     * @param error - What its send threw.
+     */
+    private async recordFailedAttempt(email: Email, error: unknown): Promise<void> {
+        const attempts: number = email.attempts + 1;
+        const cause: InternalError = new InternalError(
+            `mail ${email.id} could not be sent (attempt ${attempts} of ${this.config.maxSendAttempts})`,
+            { cause: error }
+        );
+        // across tenants, for the reason findMails reads that way
+        if (attempts >= this.config.maxSendAttempts) {
+            this.logger.error(cause);
+            await this.emailRepository.updateById(email.id, { status: EmailStatus.FAILED, attempts }, { acrossTenants: true });
+            return;
+        }
+        this.logger.warn(cause.message);
+        const retryAt: Date = new Date(Date.now() + (this.config.retryDelayInMs * (2 ** (attempts - 1))));
+        await this.emailRepository.updateById(email.id, { attempts, retryAt }, { acrossTenants: true });
     }
 
     /**
@@ -288,10 +349,12 @@ export class EmailService implements EmailServiceInterface, OnAppInit, OnAppShut
      */
     protected async findMails(priority: EmailPriority, amount: number): Promise<Email[]> {
         return await this.emailRepository.findAll({
-            where: {
-                status: EmailStatus.QUEUED,
-                priority
-            },
+            // a mail whose send threw is passed over until it is due, so the ones behind it are sent
+            where: [
+                // eslint-disable-next-line unicorn/no-null
+                { status: EmailStatus.QUEUED, priority, retryAt: null },
+                { status: EmailStatus.QUEUED, priority, retryAt: { before: new Date() } }
+            ],
             take: amount,
             // one queue for every tenant: the mail server and its limit are the deployment's
             acrossTenants: true

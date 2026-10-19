@@ -43,6 +43,7 @@ import { MimeType } from '../../http/mime-type.enum';
 import { isJsonMimeType } from '../../http/mime-type.helpers';
 import { RequestDeadlineUtilities } from '../../http/request-deadline.utilities';
 import { $ts } from '../../localization/translate.function';
+import { errorToLoggedError } from '../../logging/error-to-logged-error.function';
 import { type LoggerInterface } from '../../logging/logger.interface';
 import { resolveRouteParams } from '../../routing/resolve-route-params.function';
 import { RouteParamMetadata } from '../../routing/route-param-metadata.model';
@@ -69,6 +70,7 @@ import { type DataSourceWebsocketAdapter, type DataSourceWebsocketAdapterConstru
 import { WebsocketControllerData } from '../decorators/websocket-controller.decorator';
 import { JsonSocketIoEncoder } from '../json.socket-io-encoder';
 import { SocketIOWebsocketConnection } from '../models/connection/socket-io-websocket-connection.model';
+import { WebsocketAnswer } from '../models/websocket-answer.model';
 import { WebsocketChannel } from '../models/websocket-channel.model';
 import { WebsocketControllerRouteConfiguration } from '../models/websocket-controller-route-configuration.model';
 import { LooseWebsocketEvent, WebsocketEvent } from '../models/websocket-event.enum';
@@ -116,6 +118,101 @@ function userRoomOf(userId: string): string {
 const ENDED_LOGINS_EVENT: string = 'zibri.ended-logins';
 
 /**
+ * The event one instance asks the others with to collect what their connections answer to a message.
+ */
+const ASK_FOR_ANSWERS_EVENT: string = 'zibri.ask-for-answers';
+
+/**
+ * The event an instance sends what its connections answered back with.
+ */
+const ANSWERS_EVENT: string = 'zibri.answers';
+
+/**
+ * How much longer than a connection may take to answer the asking instance waits for the others: for
+ * the question to reach them, and their answers to come back.
+ */
+const ANSWERS_TRAVEL_IN_MS: number = 1000;
+
+/**
+ * What another instance is asked to collect the answers of its connections for.
+ */
+type AnswersRequest = {
+    /**
+     * Matches the answers to the question.
+     */
+    requestId: string,
+    /**
+     * The room whose connections are asked, every connection of the instance when undefined.
+     */
+    room: string | undefined,
+    /**
+     * The event to send the message as.
+     */
+    event: string,
+    /**
+     * The message.
+     */
+    message: WebsocketMessage
+};
+
+/**
+ * What one instance sends back: the answers of its connections.
+ */
+type AnswersReply = {
+    /**
+     * The question they answer.
+     */
+    requestId: string,
+    /**
+     * The answers.
+     */
+    answers: WebsocketAnswer[]
+};
+
+/**
+ * The answers of the other instances, while they are still being waited for.
+ */
+type PendingAnswers = {
+    /**
+     * What has arrived so far.
+     */
+    answers: WebsocketAnswer[],
+    /**
+     * How many instances have not sent theirs yet.
+     */
+    missingInstances: number,
+    /**
+     * Stops waiting, and hands over what has arrived.
+     */
+    finish: () => void
+};
+
+/**
+ * Narrows what another instance asked for.
+ * @param value - What arrived.
+ * @returns Whether it is a request for answers.
+ */
+function isAnswersRequest(value: unknown): value is AnswersRequest {
+    return typeof value === 'object' && value != undefined
+        && 'requestId' in value && typeof value.requestId === 'string'
+        // undefined is not written into json, so a room of every connection arrives as no room at all
+        && (!('room' in value) || typeof value.room === 'string')
+        && 'event' in value && typeof value.event === 'string'
+        && 'message' in value && typeof value.message === 'object' && value.message != undefined;
+}
+
+/**
+ * Narrows what another instance sent back.
+ * @param value - What arrived.
+ * @returns Whether it is a reply with answers.
+ */
+function isAnswersReply(value: unknown): value is AnswersReply {
+    return typeof value === 'object' && value != undefined
+        && 'requestId' in value && typeof value.requestId === 'string'
+        && 'answers' in value && Array.isArray(value.answers);
+}
+
+/**
  * The longest delay a timer holds, about 24 days. A credential expiring later is checked then, and
  * its check is scheduled again.
  */
@@ -145,8 +242,10 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
     private readonly websocketHandlers: Record<string, SocketIOWebsocketHandler | undefined> = {};
     // which connections are in a channel is read off the channel's room rather than kept in a list
     // of its own: a socket that closes or is moved out of a tenant leaves its rooms, and a list beside
-    // them kept every connection that had ever joined
-    private readonly connections: SocketIOWebsocketConnection[] = [];
+    // them kept every connection that had ever joined. The connections of a user are read off the
+    // user's room the same way. By socket id, so a connect or disconnect finds its own connection
+    // without looking at all the others, which a reconnect storm would do once per socket
+    private readonly connections: Map<string, SocketIOWebsocketConnection> = new Map();
     /**
      * The messages currently being handled, so a client that goes away can be answered for.
      *
@@ -154,6 +253,10 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
      * and a map would need its own emptying when the last message of a connection is over.
      */
     private readonly inFlight: Set<WebsocketRequestContext> = new Set();
+    /**
+     * The answers this instance is waiting for from the others, by the request they belong to.
+     */
+    private readonly pendingAnswers: Map<string, PendingAnswers> = new Map();
     /**
      * When each connection's credential is checked again, by the id of the connection: at its expiry.
      */
@@ -320,6 +423,14 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
             // an async middleware, so anything escaping it never reaches next() and leaves the client
             // waiting out the connect timeout without an error.
             try {
+                // no offset is a client with nothing to catch up on, the way socket.io documents
+                // connecting. One that was sent is the seq of the last message the client saw, and
+                // anything else is said at once rather than read as some other offset (02 §M18)
+                const offset: unknown = socket.handshake.auth['offset'];
+                if (offset !== undefined && !(typeof offset === 'number' && Number.isInteger(offset) && offset >= 0)) {
+                    next(new BadRequestError($ts`The offset has to be a whole number of at least 0.`));
+                    return;
+                }
                 const request: WebsocketRequest = {
                     headers: socket.handshake.headers as Partial<Record<KnownHeader, string | undefined>>,
                     body: undefined,
@@ -382,6 +493,14 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
                 error => this.logger.error(new InternalError('Could not close the websocket connections of ended logins', { cause: error }))
             );
         });
+        this.socketServer.on(ASK_FOR_ANSWERS_EVENT, (request: unknown) => {
+            // eslint-disable-next-line promise/prefer-await-to-then
+            void this.answerFor(request).catch(
+                // eslint-disable-next-line promise/prefer-await-to-callbacks
+                error => this.logger.error(new InternalError('Could not collect the answers another instance asked for', { cause: error }))
+            );
+        });
+        this.socketServer.on(ANSWERS_EVENT, (reply: unknown) => this.receiveAnswers(reply));
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -398,17 +517,24 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         // eslint-disable-next-line typescript/no-unsafe-member-access
         const resolvedVersion: Version = socket.data.resolvedVersion as Version;
 
-        let connection: SocketIOWebsocketConnection | undefined = this.connections.find(c => c.id === socket.id);
+        let connection: SocketIOWebsocketConnection | undefined = this.connections.get(socket.id);
 
         if (connection) {
-            connection.offset = socket.handshake.auth['offset'] as number;
+            // checked at the handshake, so anything but a number is no offset at all
+            const offset: unknown = socket.handshake.auth['offset'];
+            connection.offset = typeof offset === 'number' ? offset : undefined;
             await this.scheduleExpiryCheck(connection);
             await this.recoverConnection(connection, currentUser);
             return;
         }
 
         connection = new SocketIOWebsocketConnection(socket, currentUser?.id, resolvedVersion);
-        this.connections.push(connection);
+        this.connections.set(connection.id, connection);
+        // in the user's room before anything else is awaited, because the room is where an ended
+        // login looks for the user's connections: joined later, a logout in between would miss it
+        if (currentUser) {
+            await connection.join(userRoomOf(currentUser.id));
+        }
         this.logger.debug('a user connected');
 
         connection.onDisconnect(() => this.onDisconnect(connection));
@@ -544,32 +670,41 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         // eslint-disable-next-line unicorn/no-null
         const reachable: WhereFilter<WebsocketMessage>['tenantId'] = { oneOf: [...tenantIds, null] };
 
-        const whereFilters: WhereFilter<WebsocketMessage>[] = [
-            {
-                seq: { greaterThan: connection.offset },
-                recipientType: WebsocketRecipientType.ALL,
-                tenantId: reachable
-            }
-        ];
+        let channelsOfUser: WebsocketChannel[] = [];
         if (currentUser) {
-            await connection.join([userRoomOf(currentUser.id), ...tenantIds.map(tenantRoomOf)]);
+            await connection.join(tenantIds.map(tenantRoomOf));
 
-            const channelsOfUser: WebsocketChannel[] = await this.channelRepository.findAll({
+            channelsOfUser = await this.channelRepository.findAll({
                 where: { userIds: { includes: [currentUser.id] }, tenantId: reachable },
                 acrossTenants: true
             });
 
             await this.rejoinChannels(connection, channelsOfUser);
+        }
 
+        // in its rooms whatever the offset, and only the replay depends on it: a client that sent none
+        // has nothing to catch up on, like one connecting for the first time
+        const offset: number | undefined = connection.offset;
+        if (offset == undefined) {
+            return;
+        }
+        const whereFilters: WhereFilter<WebsocketMessage>[] = [
+            {
+                seq: { greaterThan: offset },
+                recipientType: WebsocketRecipientType.ALL,
+                tenantId: reachable
+            }
+        ];
+        if (currentUser) {
             whereFilters.push(
                 {
-                    seq: { greaterThan: connection.offset },
+                    seq: { greaterThan: offset },
                     recipientType: WebsocketRecipientType.CHANNEL,
                     recipientId: { oneOf: channelsOfUser.map(c => c.id) },
                     tenantId: reachable
                 },
                 {
-                    seq: { greaterThan: connection.offset },
+                    seq: { greaterThan: offset },
                     recipientType: WebsocketRecipientType.USER,
                     recipientId: currentUser.id,
                     tenantId: reachable
@@ -578,7 +713,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         }
 
         // asked first, because it is one row, and a client that lost messages is sent none of the rest
-        if (await this.hasLostMessagesAfter(connection.offset)) {
+        if (await this.hasLostMessagesAfter(offset)) {
             await this.sendReplayIncomplete(connection);
             return;
         }
@@ -675,12 +810,9 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         this.abandonMessagesOf(connection);
         clearTimeout(this.expiryChecks.get(connection.id));
         this.expiryChecks.delete(connection.id);
-        const foundConnection: SocketIOWebsocketConnection | undefined = this.connections.find(c => c.id === connection.id);
-        if (!foundConnection) {
+        if (!this.connections.delete(connection.id)) {
             this.logger.warn(`Could not find connection to disconnect with id "${connection.id}"`);
-            return;
         }
-        this.connections.splice(this.connections.indexOf(foundConnection), 1);
     }
 
     /**
@@ -827,7 +959,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
     // eslint-disable-next-line jsdoc/require-jsdoc
     async sendToChannel<B extends boolean>(
         data: WebsocketSendToChannelData<B>
-    ): Promise<B extends false ? void : WebsocketRequestWithConnection<SocketIOWebsocketConnection>[]> {
+    ): Promise<B extends false ? void : WebsocketAnswer[]> {
         data.expectResponse ??= false as B;
         // read first, so an application without websockets is told that, rather than being told
         // about the tables it only needs when it has them
@@ -856,41 +988,22 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
 
         if (data.responseHandler) {
             await data.responseHandler(message);
-            return undefined as B extends false ? void : WebsocketRequestWithConnection<SocketIOWebsocketConnection>[];
+            return undefined as B extends false ? void : WebsocketAnswer[];
         }
 
         if (!data.expectResponse) {
             server.to(channelRoomOf(channel)).emit(data.event, message);
-            return undefined as B extends false ? void : WebsocketRequestWithConnection<SocketIOWebsocketConnection>[];
+            return undefined as B extends false ? void : WebsocketAnswer[];
         }
 
-        const inChannel: SocketIOWebsocketConnection[] = this.connections.filter(c => c.isIn(channelRoomOf(channel)));
-        const res: WebsocketRequestWithConnection<SocketIOWebsocketConnection>[] = await Promise.all(
-            inChannel.map(async c => {
-                try {
-                    return await this.emitWithAckTo(c, data.event, message);
-                }
-                catch (error) {
-                    const res: WebsocketRequestWithConnection<SocketIOWebsocketConnection> = {
-                        request: {
-                            body: { error },
-                            headers: {},
-                            params: {},
-                            query: {}
-                        },
-                        connection: c
-                    };
-                    return res;
-                }
-            })
-        );
-        return res as B extends false ? void : WebsocketRequestWithConnection<SocketIOWebsocketConnection>[];
+        const answers: WebsocketAnswer[] = await this.collectAnswers(channelRoomOf(channel), data.event, message);
+        return answers as B extends false ? void : WebsocketAnswer[];
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async sendToAll<B extends boolean>(
         data: WebsocketSendToAllData<B>
-    ): Promise<B extends false ? void : WebsocketRequestWithConnection<SocketIOWebsocketConnection>[]> {
+    ): Promise<B extends false ? void : WebsocketAnswer[]> {
         data.expectResponse ??= false as B;
         // for the same reason as in sendToChannel
         const server: Server = this.server;
@@ -916,7 +1029,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
 
         if (data.responseHandler) {
             await data.responseHandler(message);
-            return undefined as B extends false ? void : WebsocketRequestWithConnection<SocketIOWebsocketConnection>[];
+            return undefined as B extends false ? void : WebsocketAnswer[];
         }
 
         // inside a tenant, everyone means the connections of its members - the users who could read
@@ -924,32 +1037,161 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         const tenantId: string | undefined = this.tenantService.getActiveTenantId();
         if (!data.expectResponse) {
             (tenantId == undefined ? server : server.to(tenantRoomOf(tenantId))).emit(data.event, message);
-            return undefined as B extends false ? void : WebsocketRequestWithConnection<SocketIOWebsocketConnection>[];
+            return undefined as B extends false ? void : WebsocketAnswer[];
         }
 
-        const recipients: SocketIOWebsocketConnection[] = tenantId == undefined
-            ? this.connections
-            : this.connections.filter(c => c.isIn(tenantRoomOf(tenantId)));
-        const res: WebsocketRequestWithConnection<SocketIOWebsocketConnection>[] = await Promise.all(
-            recipients.map(async c => {
-                try {
-                    return await this.emitWithAckTo(c, data.event, message);
-                }
-                catch (error) {
-                    const res: WebsocketRequestWithConnection<SocketIOWebsocketConnection> = {
-                        request: {
-                            body: { error },
-                            headers: {},
-                            params: {},
-                            query: {}
-                        },
-                        connection: c
-                    };
-                    return res;
-                }
-            })
+        const answers: WebsocketAnswer[] = await this.collectAnswers(
+            tenantId == undefined ? undefined : tenantRoomOf(tenantId),
+            data.event,
+            message
         );
-        return res as B extends false ? void : WebsocketRequestWithConnection<SocketIOWebsocketConnection>[];
+        return answers as B extends false ? void : WebsocketAnswer[];
+    }
+
+    /**
+     * Sends a message to the connections in a room, on every instance, and waits for each to answer.
+     * @param room - The room, every connection when undefined.
+     * @param event - The event to send the message as.
+     * @param message - The message.
+     * @returns What each connection answered.
+     */
+    private async collectAnswers(
+        room: string | undefined,
+        event: LooseWebsocketEvent,
+        message: WebsocketMessage
+    ): Promise<WebsocketAnswer[]> {
+        // a server of one instance has nobody to ask, and its adapter refuses to try
+        if (this.options.adapterDataSource == undefined) {
+            return await this.collectLocalAnswers(room, event, message);
+        }
+        const [own, others] = await Promise.all([
+            this.collectLocalAnswers(room, event, message),
+            this.askOtherInstances(room, event, message)
+        ]);
+        return [...own, ...others];
+    }
+
+    /**
+     * Sends a message to the connections in a room held by this instance, and waits for each to answer.
+     * @param room - The room, every connection of this instance when undefined.
+     * @param event - The event to send the message as.
+     * @param message - The message.
+     * @returns What each connection answered.
+     */
+    private async collectLocalAnswers(
+        room: string | undefined,
+        event: LooseWebsocketEvent,
+        message: WebsocketMessage
+    ): Promise<WebsocketAnswer[]> {
+        const recipients: SocketIOWebsocketConnection[] = room == undefined
+            ? [...this.connections.values()]
+            : this.findLocalConnectionsIn(room);
+        return await Promise.all(recipients.map(async c => await this.resolveAnswer(c, event, message)));
+    }
+
+    /**
+     * Sends a message to one connection and waits for its answer.
+     * @param connection - The connection.
+     * @param event - The event to send the message as.
+     * @param message - The message.
+     * @returns What it answered, or why it did not.
+     */
+    private async resolveAnswer(
+        connection: SocketIOWebsocketConnection,
+        event: LooseWebsocketEvent,
+        message: WebsocketMessage
+    ): Promise<WebsocketAnswer> {
+        try {
+            const request: WebsocketRequest = await connection.emitWithAck(event, message, this.options.timeoutInMs);
+            return { request, connectionId: connection.id, userId: connection.userId };
+        }
+        catch (error) {
+            // as a LoggedError, which is json: an answer collected on another instance is sent here as
+            // json, and an Error is written as {}
+            const failure: Error = error instanceof Error ? error : new Error(String(error));
+            return {
+                request: { body: { error: errorToLoggedError(failure) }, headers: {}, params: {}, query: {} },
+                connectionId: connection.id,
+                userId: connection.userId
+            };
+        }
+    }
+
+    /**
+     * Asks the other instances for what the connections in a room they hold answer to a message.
+     *
+     * Waits until every instance this one knows of has sent its answers, or until a connection could
+     * have answered and the answers come back. An instance that stopped since its last heartbeat
+     * is still counted, so past that its answers are given up on.
+     * @param room - The room, every connection when undefined.
+     * @param event - The event to send the message as.
+     * @param message - The message.
+     * @returns What their connections answered.
+     */
+    private async askOtherInstances(
+        room: string | undefined,
+        event: LooseWebsocketEvent,
+        message: WebsocketMessage
+    ): Promise<WebsocketAnswer[]> {
+        const server: Server = this.server;
+        const otherInstances: number = await server.of('/').adapter.serverCount() - 1;
+        if (otherInstances <= 0) {
+            return [];
+        }
+        const request: AnswersRequest = { requestId: UUIDUtilities.generate(), room, event, message };
+        return await new Promise(resolve => {
+            const pending: PendingAnswers = { answers: [], missingInstances: otherInstances, finish: () => undefined };
+            const deadline: NodeJS.Timeout = setTimeout(() => {
+                this.logger.warn(
+                    `${pending.missingInstances} of ${otherInstances} other instances did not send the answers`
+                    + ' of their websocket connections in time, which are left out'
+                );
+                pending.finish();
+            }, this.options.timeoutInMs + ANSWERS_TRAVEL_IN_MS);
+            pending.finish = () => {
+                clearTimeout(deadline);
+                this.pendingAnswers.delete(request.requestId);
+                resolve(pending.answers);
+            };
+            this.pendingAnswers.set(request.requestId, pending);
+            server.serverSideEmit(ASK_FOR_ANSWERS_EVENT, request);
+        });
+    }
+
+    /**
+     * Collects what the connections of this instance answer, for another instance that asked.
+     * @param request - What the other instance asked.
+     */
+    private async answerFor(request: unknown): Promise<void> {
+        if (!isAnswersRequest(request)) {
+            return;
+        }
+        const reply: AnswersReply = {
+            requestId: request.requestId,
+            answers: await this.collectLocalAnswers(request.room, request.event, request.message)
+        };
+        this.server.serverSideEmit(ANSWERS_EVENT, reply);
+    }
+
+    /**
+     * Takes the answers another instance sent, if this instance is waiting for them.
+     * @param reply - What the other instance sent.
+     */
+    private receiveAnswers(reply: unknown): void {
+        if (!isAnswersReply(reply)) {
+            return;
+        }
+        // every instance hears every reply: one this instance did not ask for, or no longer waits
+        // for, belongs to nobody here
+        const pending: PendingAnswers | undefined = this.pendingAnswers.get(reply.requestId);
+        if (pending == undefined) {
+            return;
+        }
+        pending.answers.push(...reply.answers);
+        pending.missingInstances--;
+        if (pending.missingInstances <= 0) {
+            pending.finish();
+        }
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -1039,7 +1281,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
      * @param userIds - The users.
      */
     private async closeEndedLoginsOf(userIds: string[]): Promise<void> {
-        const ofUsers: SocketIOWebsocketConnection[] = this.connections.filter(c => c.userId != undefined && userIds.includes(c.userId));
+        const ofUsers: SocketIOWebsocketConnection[] = [...new Set(userIds)].flatMap(id => this.findConnectionsByUserId(id));
         await Promise.all(ofUsers.map(async c => await this.closeIfLoginEnded(c)));
     }
 
@@ -1092,12 +1334,12 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     getConnections(): SocketIOWebsocketConnection[] {
-        return this.connections;
+        return [...this.connections.values()];
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     findConnectionById(id: string): SocketIOWebsocketConnection {
-        const foundConnection: SocketIOWebsocketConnection | undefined = this.connections.find(c => c.id === id);
+        const foundConnection: SocketIOWebsocketConnection | undefined = this.connections.get(id);
         if (!foundConnection) {
             throw new NotFoundError($ts`Could not find connection with id "${id}".`);
         }
@@ -1105,12 +1347,19 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    findConnectionByUserId(userId: string): SocketIOWebsocketConnection {
-        const foundConnection: SocketIOWebsocketConnection | undefined = this.connections.find(c => c.userId === userId);
-        if (!foundConnection) {
-            throw new NotFoundError($ts`Could not find connection with userId "${userId}".`);
-        }
-        return foundConnection;
+    findConnectionsByUserId(userId: string): SocketIOWebsocketConnection[] {
+        return this.findLocalConnectionsIn(userRoomOf(userId));
+    }
+
+    /**
+     * Finds the connections in a room that this instance holds.
+     * @param room - The room.
+     * @returns The connections.
+     */
+    private findLocalConnectionsIn(room: string): SocketIOWebsocketConnection[] {
+        // socket.io's own index of the rooms of this instance, so only the room's sockets are looked at
+        const socketIds: Set<string> = this.socketServer?.sockets.adapter.rooms.get(room) ?? new Set();
+        return [...socketIds].map(id => this.connections.get(id)).filter(c => c != undefined);
     }
 
     private createDispatchHandler(

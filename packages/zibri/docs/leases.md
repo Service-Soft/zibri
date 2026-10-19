@@ -9,7 +9,7 @@ This is the tool. For what it is used for, see [replication.md](./replication.md
 | Export | Kind | Purpose |
 |---|---|---|
 | `Lease` | entity | Where a grant lives |
-| `LeaseOptions` | type | What to take: `key`, `leaseInMs`, and the two axes below |
+| `LeaseOptions` | type | What to take: `key`, `leaseInMs`, the two axes below, and `heldUntil` |
 | `LeaseSetOptions` | type | The same without `key` or `mode`, for taking several at once |
 | `LeaseAcquisitionMode` | type | `'wait'` or `'skip'` - what to do when somebody else holds it |
 | `LeaseCompletion` | type | `'release'`, `'retain'` or `'retainOnError'` - what happens to the grant when the work is over |
@@ -47,7 +47,9 @@ released.
 So a lease protects **work**: something only one instance should be doing. It does not protect a
 **value** read and written back inside someone else's transaction. For that, use
 [`upsert`](./data-source.md#changing-a-value-based-on-what-is-stored--upsert), which has no window
-between the read and the write for anyone else to get in.
+between the read and the write for anyone else to get in. When the work is more than one value and has
+to stay in a transaction you were handed, [hold the lease until that transaction
+ends](#holding-a-lease-until-a-transaction-ends).
 
 This is not theoretical - it is how invoice numbering got a correct-looking lock that still handed
 out duplicate numbers. A lock and a transaction have independent lifetimes, and an invariant spanning
@@ -62,7 +64,7 @@ hand it back afterwards.
 
 ```ts
 // src/services/feed-import.service.ts
-import { Email, inject, Lease, LeaseServiceInterface, Ms, Repository, ZIBRI_DI_TOKENS } from 'zibri';
+import { Email, inject, Lease, LeaseServiceInterface, Ms, Repository, Transaction, ZIBRI_DI_TOKENS } from 'zibri';
 
 export async function importFeedOnce(feedId: string, importFeed: (id: string) => Promise<string>): Promise<string | undefined> {
     return await inject(ZIBRI_DI_TOKENS.LEASE_SERVICE).withLease(
@@ -100,6 +102,24 @@ prepared to queue for it.
 
 A wait inside a request also ends when that request's deadline does, whichever comes first - see
 [deadlines](./creating-endpoints.md#deadlines).
+
+### Holding a lease until a transaction ends
+
+`heldUntil` names a transaction the work writes in. The grant is then handed back once the work has
+returned and that transaction has committed or rolled back, so the next holder sees what the work
+wrote:
+
+```ts
+export async function linkOnce(entryId: string, transaction: Transaction, link: (transaction: Transaction) => Promise<void>): Promise<void> {
+    await inject(ZIBRI_DI_TOKENS.LEASE_SERVICE).withLease(
+        { key: `link:${entryId}`, leaseInMs: Ms.MINUTE, mode: 'wait', heldUntil: transaction },
+        async () => await link(transaction)
+    );
+}
+```
+
+A rollback counts as the work having thrown, for `onCompletion`. With a transaction that has ended
+already, the grant is handed back once the work returns, as it is without one.
 
 ### Taking several at once
 

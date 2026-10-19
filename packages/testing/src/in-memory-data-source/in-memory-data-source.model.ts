@@ -5,6 +5,7 @@ import { AddPropertyToEntityInput, type AuthServiceInterface, BaseEntity, Change
 import { InMemoryScope, inMemoryStoreFor, InMemoryStore, InMemoryStoreSnapshot, StoredRow } from './in-memory-store';
 import { InMemoryTransaction } from './in-memory-transaction.model';
 import { InMemoryRepositoryDriver } from './in-memory.repository-driver';
+import { RoundTripCounter } from '../round-trip-counter.model';
 
 /**
  * The fields to write and to remove for one row, or undefined when the row stays untouched.
@@ -74,6 +75,11 @@ export abstract class InMemoryDataSource implements DataSourceInterface {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly migrations: Newable<Migration>[] = [];
 
+    /**
+     * Where every call a repository makes on the store is recorded, if anywhere.
+     */
+    protected readonly roundTrips: RoundTripCounter | undefined = undefined;
+
     private get store(): InMemoryStore {
         return inMemoryStoreFor(this.constructor as Newable<DataSourceInterface>);
     }
@@ -108,13 +114,15 @@ export abstract class InMemoryDataSource implements DataSourceInterface {
         // the schema up at once, and there is only ever one instance on this store.
         await this.runMigrations();
         // there is nothing to build, since every filter goes through the rows and every write is
-        // checked against what the entity declares - but rows stored before a unique was declared
-        // never were, and a restart over them has to refuse to start as the shipped data sources do.
+        // checked against what the entity declares - but rows stored before a unique or a check was
+        // declared never were, and a restart over them has to refuse to start as the shipped data
+        // sources do.
         // A change is recorded as theirs is, so that an older version refuses to start after it
         let changed: boolean = false;
         for (const entity of this.entities) {
             const driver: InMemoryRepositoryDriver<BaseEntity> = new InMemoryRepositoryDriver(entity, this.store);
             driver.validateStoredRowsAreUnique();
+            driver.validateStoredRowsFollowChecks();
             changed = driver.reconcileKeyLists() || changed;
         }
         if (changed) {
@@ -148,7 +156,7 @@ export abstract class InMemoryDataSource implements DataSourceInterface {
             return existingRepository;
         }
 
-        const driver: InMemoryRepositoryDriver<T> = new InMemoryRepositoryDriver(cls, this.store);
+        const driver: InMemoryRepositoryDriver<T> = this.recordRoundTrips(new InMemoryRepositoryDriver(cls, this.store), cls.name);
 
         if (isSoftDeleteEntityNewable(cls)) {
             const res: RepositoryTypeForEntity<T> = new SoftDeleteRepository(
@@ -189,6 +197,34 @@ export abstract class InMemoryDataSource implements DataSourceInterface {
         ) as RepositoryTypeForEntity<T>;
         this.repositories.set(cls, res as Repository<BaseEntity>);
         return res;
+    }
+
+    /**
+     * Wraps a driver so that every call a repository makes on it is recorded, when calls are.
+     *
+     * A method runs against the driver itself rather than the wrapper, so the calls one method makes
+     * internally are not recorded again: what is recorded is what the repository asked for.
+     * @param driver - The driver of one entity.
+     * @param entityName - The name of its entity, which each recorded call is named after.
+     * @returns The driver, wrapped when calls are recorded.
+     */
+    private recordRoundTrips<D extends object>(driver: D, entityName: string): D {
+        const roundTrips: RoundTripCounter | undefined = this.roundTrips;
+        if (roundTrips == undefined) {
+            return driver;
+        }
+        return new Proxy(driver, {
+            get: (target, property, receiver) => {
+                const value: unknown = Reflect.get(target, property, receiver);
+                if (typeof value !== 'function') {
+                    return value;
+                }
+                return (...args: unknown[]): unknown => {
+                    roundTrips.record(`${entityName}.${String(property)}`);
+                    return Reflect.apply(value, target, args);
+                };
+            }
+        });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

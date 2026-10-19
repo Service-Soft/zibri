@@ -21,6 +21,7 @@ import { Controller } from '../../routing/decorators/controller.decorator';
 import { Get } from '../../routing/decorators/get.decorator';
 import { Param } from '../../routing/decorators/param.decorator';
 import { Patch } from '../../routing/decorators/patch.decorator';
+import { Post } from '../../routing/decorators/post.decorator';
 import { TsxUtilities } from '../../tsx/tsx.utilities';
 
 // reached from a link in an email, by someone who is not logged in and may not have an account at
@@ -76,8 +77,8 @@ export class MailingListController implements OnAppInit {
     ): Promise<HtmlResponse> {
         const mailingList: MailingList = await this.mailingListRepository.findById(id);
 
-        const subscriber: MailingListSubscriber = await this.mailingListService.confirmSubscribeToList(token);
-        const managePreferencesLink: string = await this.mailingListService.resolveManagePreferencesLink(subscriber.id);
+        const subscriber: MailingListSubscriber = await this.mailingListService.confirmSubscribeToList(id, token);
+        const managePreferencesLink: string = await this.mailingListService.resolveManagePreferencesLink(subscriber);
 
         const html: string = TsxUtilities.renderPage(
             this.SubscribeSuccessPage,
@@ -86,36 +87,50 @@ export class MailingListController implements OnAppInit {
         return HtmlResponse.fromString(html);
     }
 
+    // a GET changes nothing: mail scanners and link previews follow every link in a mail, and would
+    // unsubscribe the recipient. The page posts to the same link, as a mailbox provider's own
+    // unsubscribe button does (RFC 8058)
     @Response.html()
     @Get('/:id/unsubscribe')
+    async unsubscribePage(
+        @Param.path('id')
+        id: string,
+        @Param.query('subscriberId', { type: 'string', format: 'uuid' })
+        subscriberId: string,
+        @Param.query('secret', { type: 'string' })
+        secret: string
+    ): Promise<HtmlResponse> {
+        const subscriber: MailingListSubscriber = await this.mailingListService.resolveSubscriberOfLink(subscriberId, secret);
+        return await this.renderUnsubscribePage(id, subscriber, !subscriber.mailingLists.some(l => l.id === id));
+    }
+
+    @Response.html()
+    @Post('/:id/unsubscribe')
     async unsubscribe(
         @Param.path('id')
         id: string,
         @Param.query('subscriberId', { type: 'string', format: 'uuid' })
-        subscriberId: string
+        subscriberId: string,
+        @Param.query('secret', { type: 'string' })
+        secret: string
     ): Promise<HtmlResponse> {
-        const subscriber: MailingListSubscriber = await this.subscriberRepository.findById(subscriberId);
-        const mailingList: MailingList = await this.mailingListRepository.findById(id);
-
-        await this.mailingListService.unsubscribeFromList(id, subscriberId);
-        const managePreferencesLink: string = await this.mailingListService.resolveManagePreferencesLink(subscriberId);
-
-        const html: string = TsxUtilities.renderPage(
-            this.UnsubscribeConfirmationPage,
-            { subscriber, mailingList, managePreferencesLink }
-        );
-        return HtmlResponse.fromString(html);
+        // the body a mailbox provider sends, `List-Unsubscribe=One-Click`, says nothing the link does not
+        const subscriber: MailingListSubscriber = await this.mailingListService.resolveSubscriberOfLink(subscriberId, secret);
+        await this.mailingListService.unsubscribeFromList(id, subscriber.id);
+        return await this.renderUnsubscribePage(id, subscriber, true);
     }
 
     @Response.html()
     @Get('/preferences')
     async preferences(
         @Param.query('subscriberId', { type: 'string', format: 'uuid' })
-        subscriberId: string
+        subscriberId: string,
+        @Param.query('secret', { type: 'string' })
+        secret: string
     ): Promise<HtmlResponse> {
-        const subscriber: MailingListSubscriber = await this.subscriberRepository.findById(subscriberId);
+        const subscriber: MailingListSubscriber = await this.mailingListService.resolveSubscriberOfLink(subscriberId, secret);
         const mailingLists: MailingList[] = await this.mailingListRepository.findAll();
-        const managePreferencesApiUrl: string = await this.mailingListService.resolveManagePreferencesLink(subscriberId);
+        const managePreferencesApiUrl: string = await this.mailingListService.resolveManagePreferencesLink(subscriber);
 
         const html: string = TsxUtilities.renderPage(this.PreferencesPage, { subscriber, mailingLists, managePreferencesApiUrl });
         return HtmlResponse.fromString(html);
@@ -126,10 +141,35 @@ export class MailingListController implements OnAppInit {
     async changePreferences(
         @Param.query('subscriberId', { type: 'string', format: 'uuid' })
         subscriberId: string,
+        @Param.query('secret', { type: 'string' })
+        secret: string,
         @Body(UpdateMailingListPreferences)
         body: UpdateMailingListPreferences
     ): Promise<void> {
+        const subscriber: MailingListSubscriber = await this.mailingListService.resolveSubscriberOfLink(subscriberId, secret);
         const mailingLists: MailingList[] = await this.mailingListRepository.findAll({ where: { id: { oneOf: body.mailingListIds } } });
-        await this.subscriberRepository.updateById(subscriberId, { mailingLists });
+        await this.subscriberRepository.updateById(subscriber.id, { mailingLists });
+    }
+
+    /**
+     * Renders the page of an unsubscribe link.
+     * @param listId - The list the link leaves.
+     * @param subscriber - The subscriber the link was sent to.
+     * @param unsubscribed - Whether the subscriber is off the list.
+     * @returns The page.
+     */
+    private async renderUnsubscribePage(listId: string, subscriber: MailingListSubscriber, unsubscribed: boolean): Promise<HtmlResponse> {
+        const mailingList: MailingList = await this.mailingListRepository.findById(listId);
+        const html: string = TsxUtilities.renderPage(
+            this.UnsubscribeConfirmationPage,
+            {
+                subscriber,
+                mailingList,
+                unsubscribed,
+                unsubscribeUrl: await this.mailingListService.resolveUnsubscribeLink(listId, subscriber),
+                managePreferencesLink: await this.mailingListService.resolveManagePreferencesLink(subscriber)
+            }
+        );
+        return HtmlResponse.fromString(html);
     }
 }

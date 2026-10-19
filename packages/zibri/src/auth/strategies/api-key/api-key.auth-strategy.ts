@@ -104,6 +104,8 @@ export class ApiKeyAuthStrategy<
         if (apiKey == undefined || user == undefined || user.deactivatedAt != undefined) {
             return { active: false };
         }
+        // a service asking about the key was sent it by its holder
+        await this.apiKeyService.recordUse(apiKey);
         return {
             active: true,
             scope: user.roles.filter(role => apiKey.roles.includes(role)).join(' '),
@@ -144,7 +146,11 @@ export class ApiKeyAuthStrategy<
         const apiKey: ApiKey | undefined = await this.apiKeyService.findActiveByKey(key);
         // a key whose tokens are bound to a DPoP key is only ever exchanged for one: sent itself, it
         // would be the bearer credential the binding is there to avoid
-        return apiKey?.requireDpop === false ? apiKey : undefined;
+        if (apiKey?.requireDpop !== false) {
+            return undefined;
+        }
+        await this.apiKeyService.recordUse(apiKey);
+        return apiKey;
     }
 
     /**

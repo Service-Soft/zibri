@@ -173,7 +173,8 @@ private async shutdownHttpServer(): Promise<void> {
   hook catch blocks, so those writes have landed before the exit. What is genuinely unflushed is
   fire-and-forget logging elsewhere, such as `void this.logger.error(...)` in the process-level
   handlers. Fixing that properly needs a flush contract on `LoggerTransport`, which no transport
-  implements today, and is a separate piece of work from this finding.
+  implements today, and is a separate piece of work from this finding. *(It exists since: the
+  logger buffers every entry and `onAppShutdown` flushes it, 04 §3.3.)*
 
 #### Why the readiness half was withdrawn
 
@@ -211,7 +212,8 @@ the sane designs make.
 
 Nothing in C3 is open any more. The exit code is fixed, the drain is fixed and bounded, and the
 readiness half is withdrawn as the wrong layer with the reasoning above. The one thing carried out of
-here is a `LoggerTransport` flush contract, which belongs with logging rather than with shutdown.
+here is a `LoggerTransport` flush contract, which belongs with logging rather than with shutdown, and
+closed there (04 §3.3).
 
 **The withdrawal has since been honoured rather than merely argued.** "Any project can read that
 boolean from a controller of its own" was true and nobody had written the controller — `zi new` is
@@ -417,7 +419,8 @@ being written. The path is built from `folder.name` alone. Covered by
 `http-and-observability.evaluation.test.ts`, which creates one expired and one live folder and runs
 the real `onTick` over them.
 
-Still open: the default upload directory itself, which remains inside the installed package.
+~~Still open: the default upload directory itself, which remains inside the installed package.~~
+Closed since, see the note at the top of this entry.
 
 ### C7. One `ZibriApplication` per process — global mutable singletons — ~~CRITICAL~~ **FIXED**
 
@@ -495,7 +498,9 @@ story for the HTTP layer.
 > client missed and rejoins an authenticated user's channels out of the shared data source.
 >
 > `sendToChannel` with `expectResponse: true` remains local to the sending instance, and the
-> secondary O(n) `connections` array is untouched — both recorded in 04 §1.10.
+> secondary O(n) `connections` array is untouched — both recorded in 04 §1.10, and filed as 04 §1.13
+> and §1.12. Both are closed since: the array is a map by socket id, and a send waiting for answers
+> asks every instance.
 
 `src/websocket/services/websocket.service.ts:74-76`
 
@@ -677,7 +682,7 @@ garbage per request, purely to convert `bigint` to string — which one pass plu
 > shallow record copy they had: `@Property` builds a class's metadata by reading that record back and
 > storing it again, and the class helpers derive one model from another by passing entries straight
 > through. The nested sharing between a parent entity and its child is the same defect one layer
-> down, and it is not fixed here.
+> down, and it is not fixed here. Filed as §M22.
 >
 > Held by `route-metadata.evaluation.test.ts`. The framework's own fixtures had to move first: three
 > controllers in `auth.service.test.ts` carry declarations nothing can satisfy, and were registered
@@ -963,7 +968,8 @@ duration is an open TODO — `src/logging/logger.ts:85`: `// TODO: track duratio
 > reported per cache and per operation - hit rate, store duration, source duration - and sixteen call
 > sites across fifteen files buy a position in the trace and nothing else. And the work a thread job
 > does, because it runs in a worker thread, which shares no async context with the thread that queued
-> it; propagating into a worker is its own piece of work rather than a line of this one.
+> it; propagating into a worker is its own piece of work rather than a line of this one. Filed as
+> §M24.
 >
 > **`db.system` is absent on purpose**: neither the data source nor the driver interface exposes which
 > store it is, and adding a member to either is a breaking change to a public interface for one
@@ -1357,7 +1363,7 @@ Verified absent across `src/` (excluding tests):
 | HTTP/2 | absent — `src/application.ts:1` imports `node:http` only |
 | HTTPS / in-process TLS | absent, and **left there**: the deployment terminates it |
 | ~~`requestTimeout` / `headersTimeout` / `keepAliveTimeout`~~ | **fixed** — `HTTP_SERVER_TIMEOUTS`, narrower than node's defaults, validated against each other |
-| `maxHeadersCount` | not exposed — node's 2000 stands |
+| ~~`maxHeadersCount`~~ | **fixed with §M23** — `maxHeaderCount` (100) and `maxHeaderSizeInBytes` in `HTTP_SERVER_LIMITS`, over either answered 431 |
 | ~~Per-route request timeouts~~ | **fixed** — `timeoutInMs` on a route, a controller or a manually registered route, over `handlerInMs`; 504, and an `AbortSignal` the http client, the lease wait and the thread job wait read themselves |
 | ~~`trust proxy`~~ | **fixed** while closing C1 — `security.trustProxy`, and `req.secure` is what the HSTS decision reads |
 | ~~Clustering / worker support for HTTP~~ | **fixed** with C7 — a process can run applications one after another, and the cluster suites run replicas |
@@ -1696,7 +1702,27 @@ with 401 (`:1082-1084`), and a client that only listens never sends one.
 A deleted user is the one case that does end, through the memberships the deletion removes, and
 only for the tenant rooms (see M16 for the channels).
 
-### M18. A connection that sends no `auth.offset` joins none of its rooms — MAJOR, **open**
+### M18. A connection that sends no `auth.offset` joins none of its rooms — ~~MAJOR, open~~ **FIXED**
+
+> **Closed 2026-10-16. No offset is a client with nothing to catch up on** (the user's call, over
+> refusing it and over reading it as 0).
+>
+> - `BaseWebsocketConnection.offset` is `number | undefined`, and `SocketIOWebsocketConnection`
+>   answers undefined instead of throwing. `recoverConnection` joins the user, tenant and channel
+>   rooms first, whatever the offset, and only the replay depends on it: without one it returns
+>   there, having sent nothing.
+> - An offset that *was* sent and is not a whole number of at least 0 refuses the handshake with a
+>   400, "The offset has to be a whole number of at least 0.", so a client sending a wrong one is
+>   told instead of being read as some other offset. The connect handler's `as number` cast went
+>   with it.
+> - The docs half was closed by [M19](#m19-websocket-messages-are-kept-forever-and-a-client-picks-how-far-back-its-replay-reads--major-fixed),
+>   which added the reconnect section and its client example. That example now starts without an
+>   offset, and the section says what no offset and a bad one get.
+>
+> **Proof.** Two cases in the in-memory `websocket.service.tenancy.test.ts`, both red first: a
+> logged in member connecting with an empty `auth` receives a broadcast in their tenant and a
+> message to their channel, and not the persisted one sent before it connected; text, a negative
+> number and a fraction are each refused with the message above.
 
 *Filed on the re-check of 2026-10-15.*
 
@@ -1803,6 +1829,107 @@ body's default limit is `100kb` (`src/routing/resolve-body-metadata.function.ts:
 25,000 `<a/>`, so one request to any route taking an xml body blocks the event loop for seconds, the
 parse running after the route's access check. `XmlUtilities.parseFrom`
 (`src/document/xml.utilities.ts:51-67`) reads documents the same way and takes a string of any length.
+
+### M22. A model derived from another shares its nested property metadata — ~~MINOR, open~~ **FIXED**
+
+*Filed on 2026-10-15, from what §M3 left open.*
+
+§M3 made route metadata a deep copy through `cloneMetadata` and left model properties on the shallow
+record copy they had: `@Property` builds a class's metadata by reading that record back and storing it
+again, and the class helpers (`OmitClass`, `PickClass`, `PartialClass`, `IntersectionClass`) derive one
+model from another by passing entries straight through. So a parent model and a model built from it
+hold the same nested objects - an array item's metadata, a oneOf's shapes, `allowedMimeTypes` - and
+anything that changes one of them after declaration changes both.
+
+> **Closed 2026-10-17. A declaration is frozen once it is made, so sharing it is safe.** Wider than
+> filed: a subclass shares its parent's declarations too, its record starting as a copy of the
+> parent's that holds the same objects, and `PartialClass` copies an entry one level deep and shares
+> what is nested. Nothing in the framework writes to a declaration after it is made, so the sharing
+> was invisible - but `getModelProperties` hands out the stored entries, and anything writing to one
+> changed every model derived from it or the one it was derived from. The user's point was that a
+> DTO derived from a model is meant to inherit its metadata, so inheriting by sharing stays; asked
+> between freezing, a deep copy at every derivation, and merging a re-declared property into the
+> inherited one, they chose freezing. `setModelProperties` freezes every declaration it stores and
+> everything it holds - the plain objects and arrays, the parts `cloneMetadata` copies - and leaves
+> classes, factories, validators and other instances alone. A write now fails where it is made. A
+> derived model needing a property declared otherwise declares it again, as it already could, and the
+> record of properties itself stays the model's own. No cost per read; once per declaration.
+> Documented under "Deriving models".
+>
+> **Proof.** `metadata.utilities.test.ts` (pure): a write to a declaration, to its `allowedMimeTypes`
+> and to an array's items refused, the `PartialClass` built from it unchanged - red first, every write
+> accepted - and a subclass re-declaring a property without the parent's changing. The in-memory
+> suites and the entity, validation, OpenAPI, parsing, registry, document and routing tests run with
+> nothing writing to a frozen declaration.
+
+### M23. `maxHeadersCount` cannot be set — ~~MINOR, open~~ **FIXED**
+
+*Filed on 2026-10-15, from §M11's table.*
+
+The server is `createServer(this.express)` (`src/application/application.ts:143`), and
+`HTTP_SERVER_TIMEOUTS` covers the timeouts only. Node's limit of 2000 headers per request stands, and
+an application that wants a lower one has to reach past the framework for the server.
+
+> **Closed 2026-10-18. A request may carry 100 headers and 16 KB of them, both settable, and one
+> over either is answered 431.** Looking closer found node's limit is not one: past
+> `maxHeadersCount` the parser keeps the first headers and drops the rest without a word, and the
+> request goes on without them. The user's calls: refuse rather than truncate, make the size
+> settable as well, and find a reasonable default rather than node's 2000 - which is a hundred,
+> what apache (`LimitRequestFields`) and haproxy (`tune.http.maxhdr`) accept by default.
+>
+> `HTTP_SERVER_TIMEOUTS` is renamed `HTTP_SERVER_LIMITS` (`HttpServerLimits`), the user's choice
+> over a second token, with `maxHeaderCount` and `maxHeaderSizeInBytes` beside the four timeouts.
+> The size is only given to `createServer`, so the server is no longer created in a field
+> initializer but in `init`, right after the application's providers are registered and before any
+> lifecycle hook - the websocket server attaches to it in `onAppInit`. `server` is a getter that
+> refuses to answer before then, and the shutdown reads the field, so an application that failed
+> while initializing still shuts down. The server is given one header more than the limit, and its
+> request listener answers a request reaching that one `431` with the connection closed, before
+> express - where node answers headers that are too large. Both limits are refused at startup
+> unless whole numbers of at least one; the timeouts are applied and checked there too, at `init`
+> rather than `start`.
+>
+> **Proof.** `http-server-limits.test.ts` (in memory, raw requests over a socket so the count is
+> exact): a hundred headers served and a hundred and one answered 431 by default - red first,
+> served - and with limits of its own, ten served, eleven refused, headers inside the size served
+> and larger ones refused, and a count of 0 or a size of 1.5 refused at startup. The in-memory
+> suites booting an application, the websocket and routing ones included, all start.
+
+### M24. The work a thread job does is not traced — ~~MINOR, open~~ **FIXED**
+
+*Filed on 2026-10-15, from what §M7 left out.*
+
+A worker thread shares no async context with the thread that queued its job, so nothing a job does - a
+query, an http call, a log line - carries the trace it was queued under, and the job itself is no span.
+A request that hands its work to a thread job loses the trace exactly where the expensive part starts.
+
+> **Closed 2026-10-18. A job's run is a span under the trace it was queued in, and the worker is
+> handed that span.** Looking closer narrowed what there is to carry: a worker is a bare thread, with
+> no container, tracer or framework logger, running only the job's file or function - nothing in it
+> could record a span. What was missing is the job as a span, and the trace inside the worker for
+> whatever it passes it on to. The user's calls: a queued job hangs under the trace it was queued in
+> rather than starting its own like a cron tick, since it is work something asked for; and the worker
+> gets the job span's context.
+>
+> `ThreadJobEntity` (and `ThreadJob`) carry `traceparent` and `tracestate`, written from the trace
+> running when the job is queued, run or requeued - a requeued run answers to whoever asked for it.
+> `runToCompletion`, the one place a job runs from start to end, records it as `runThreadJob`
+> (`CONSUMER`, the job id as `messaging.message.id`, the file as `code.file.path`) under the stored
+> trace, or as a root of its own when there is none - never under what happens to be running, which
+> is the poll, another job finishing, or a request queueing something else. A failed job is a failed
+> span with its error; cancelled and interrupted are not failures. The worker is now posted a start
+> message, the job's data and the span's context, and keeps the context under a registry symbol on
+> its `workerData`, beside the data rather than in it, where `getThreadJobTraceContext()` reads it -
+> the registry because the worker and a worker file loading the framework as another module copy
+> share nothing else. Documented in multithreading and tracing; the upgrade migration adds both
+> columns.
+>
+> **Proof.** `multithreading.service.tracing.test.ts` (in memory, against the built worker): a job
+> queued in a trace recorded as a span under it, with the worker handed that span; a row carrying a
+> traceparent, picked up by a poll outside every trace, recorded under it; a `run` under its caller;
+> a failing job as an error; and a job queued outside any trace as a root - all five red first.
+> `optional-peer-dependencies.test.ts` posts the new start message to the built worker. Every
+> multithreading suite that runs without a container passes.
 
 ---
 

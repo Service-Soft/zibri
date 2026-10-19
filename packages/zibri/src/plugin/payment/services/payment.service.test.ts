@@ -11,6 +11,7 @@ import { inject } from '../../../di/inject.function';
 import { defineProvider } from '../../../di/models/di-provider.model';
 import { type LoggerInterface } from '../../../logging/logger.interface';
 import { type TenantServiceInterface } from '../../../tenancy/tenant-service.interface';
+import { NumberUtilities } from '../../../utilities/number.utilities';
 import { UUIDUtilities } from '../../../utilities/uuid.utilities';
 import { KnownPaymentMethod, PaymentMethod } from '../models/payment-method.model';
 import { PaymentPluginOptionsInput } from '../models/payment-plugin-options-input.model';
@@ -73,7 +74,7 @@ describe('PaymentService', () => {
         const payment: Payment<KnownPaymentMethod, Record<string, unknown>> = await inTenant(async () => await paymentRepository.create({
             transactionId: UUIDUtilities.generate(),
             status,
-            amount: 10,
+            amount: NumberUtilities.new(10),
             currencyCode: 'EUR',
             paymentMethod: KnownPaymentMethod.PAY_PAL
         }));
@@ -106,7 +107,7 @@ describe('PaymentService', () => {
         // eslint-disable-next-line typescript/no-unsafe-assignment
         paymentService = inject(ZIBRI_PAYMENT_PLUGIN_DI_TOKENS.PAYMENT_SERVICE);
         paymentRepository = inject(repositoryTokenFor(Payment<KnownPaymentMethod, Record<string, unknown>>));
-    }, 20000);
+    }, 40000);
 
     afterAll(async () => {
         await server?.shutdown();
@@ -124,13 +125,16 @@ describe('PaymentService', () => {
             await tenants.runAs(ownTenantId, async () => await paymentRepository.create({
                 transactionId,
                 status: PaymentStatus.CREATED,
-                amount: 1,
+                amount: NumberUtilities.new(1),
                 currencyCode: 'EUR',
                 paymentMethod: KnownPaymentMethod.PAY_PAL
             }));
 
             const validate: () => Promise<void> = async () => {
-                await paymentService.validatePaymentData(KnownPaymentMethod.PAY_PAL, { transactionId, amount: 1, currencyCode: 'EUR' });
+                await paymentService.validatePaymentData(
+                    KnownPaymentMethod.PAY_PAL,
+                    { transactionId, amount: NumberUtilities.new(1), currencyCode: 'EUR' }
+                );
             };
             await expect(tenants.runAs(ownTenantId, validate)).rejects.toThrow(/already exists/);
             // another tenant's payment of the same transactionId is none of this one

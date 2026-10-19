@@ -4,7 +4,7 @@ import { createInMemoryDataSource } from 'zibri-testing';
 import { EventCleanupCronJob } from './event-cleanup.cron-job';
 import { type EventServiceInterface, EventSubscriptionInterface } from './event-service.interface';
 import { EventSubscriberRegistration, EventSubscriberRegistrationCreateData } from './event-subscriber-registration.model';
-import { EventSubscriberRun } from './event-subscriber-run.model';
+import { EventSubscriberRun, EventSubscriberRunStatus } from './event-subscriber-run.model';
 import { Event, EventStatus } from './event.model';
 import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
@@ -15,6 +15,7 @@ import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { TenantServiceInterface } from '../tenancy/tenant-service.interface';
+import { RetentionInMs } from '../types/retention-in-ms.type';
 import { Ms } from '../utilities/ms';
 import { UUIDUtilities } from '../utilities/uuid.utilities';
 
@@ -24,7 +25,8 @@ declare module './event-service.interface' {
      */
     interface ZibriEventMap {
         'tenancy.emitted': Record<string, number>,
-        'tenancy.polled': Record<string, number>
+        'tenancy.polled': Record<string, number>,
+        'tenancy.failed': Record<string, number>
     }
 }
 
@@ -127,6 +129,36 @@ describe('EventService across tenants', () => {
         sub.unsubscribe();
     });
 
+    it('replays the failed runs of the active tenant, and those of every tenant when asked', async () => {
+        const sub: EventSubscriptionInterface = await eventService.subscribe(
+            'tenancy.failed',
+            () => {
+                throw new Error('always fails');
+            },
+            { subscriberId: 'tenancy-failed' }
+        );
+        await tenants.runAs(tenantA, async () => await eventService.emit('tenancy.failed', { n: 1 }));
+        await tenants.runAs(tenantB, async () => await eventService.emit('tenancy.failed', { n: 2 }));
+
+        const findEvents: () => Promise<Event<unknown>[]> = async () => await eventRepo.findAll({
+            where: { type: 'tenancy.failed' },
+            acrossTenants: true
+        });
+        await waitUntil(async () => {
+            const events: Event<unknown>[] = await findEvents();
+            return events.length === 2 && events.every(e => e.status === EventStatus.FAILED);
+        });
+
+        // outside every tenant, the way a cron job runs, neither tenant's run is reached
+        expect(await eventService.replayFailed({ subscriberIds: ['tenancy-failed'] })).toBe(0);
+        expect(await tenants.runAs(tenantA, async () => await eventService.replayFailed({ subscriberIds: ['tenancy-failed'] }))).toBe(1);
+        expect((await findEvents()).find(e => e.tenantId === tenantB)?.status).toBe(EventStatus.FAILED);
+
+        expect(await eventService.replayFailed({ subscriberIds: ['tenancy-failed'], acrossTenants: true })).toBe(1);
+        expect((await findEvents()).every(e => e.status === EventStatus.CREATED)).toBe(true);
+        sub.unsubscribe();
+    });
+
     it('cleans up the finished events of every tenant', async () => {
         const finished: Event<unknown> = await tenants.runAs(tenantA, async () => await eventRepo.create({
             type: 'tenancy.finished',
@@ -136,12 +168,57 @@ describe('EventService across tenants', () => {
         }));
         await eventRepo.updateById(finished.id, { status: EventStatus.FINISHED }, { acrossTenants: true });
 
-        // built by hand, because the test server runs no cron jobs
-        const cleanup: EventCleanupCronJob = new EventCleanupCronJob(eventRepo);
-        const cronJobRepo: Repository<CronJobEntity, CreateCronJobEntityData> = inject(repositoryTokenFor(CronJobEntity));
-        await cleanup.init(inject(ZIBRI_DI_TOKENS.LOGGER), cronJobRepo, async () => await Promise.resolve(true));
-        await cleanup.onTick();
+        await runCleanup('forever');
 
         expect(await eventRepo.count({ where: { id: finished.id }, acrossTenants: true })).toBe(0);
     });
+
+    it('deletes the failed events of every tenant once older than the retention, with their runs', async () => {
+        const createFailed: (tenantId: string, ageInMs: number) => Promise<Event<unknown>> = async (tenantId, ageInMs) => {
+            const event: Event<unknown> = await tenants.runAs(tenantId, async () => await eventRepo.create({
+                type: 'tenancy.retained',
+                subscriberIds: ['tenancy-retained'],
+                cleanupAt: new Date(Date.now() + Ms.DAY),
+                data: {}
+            }));
+            await tenants.runAs(tenantId, async () => await runRepo.create({
+                eventId: event.id,
+                subscriberId: 'tenancy-retained',
+                status: EventSubscriberRunStatus.FAILED,
+                attempts: 1,
+                finishedAt: new Date()
+            }));
+            await eventRepo.updateById(
+                event.id,
+                { status: EventStatus.FAILED, createdAt: new Date(Date.now() - ageInMs) },
+                { acrossTenants: true }
+            );
+            return event;
+        };
+        const expired: Event<unknown> = await createFailed(tenantA, 2 * Ms.DAY);
+        const kept: Event<unknown> = await createFailed(tenantB, Ms.HOUR);
+
+        await runCleanup(Ms.DAY);
+
+        expect(await eventRepo.count({ where: { id: expired.id }, acrossTenants: true })).toBe(0);
+        expect(await runRepo.count({ where: { eventId: expired.id }, acrossTenants: true })).toBe(0);
+        expect(await eventRepo.count({ where: { id: kept.id }, acrossTenants: true })).toBe(1);
+        expect(await runRepo.count({ where: { eventId: kept.id }, acrossTenants: true })).toBe(1);
+
+        // 'forever' keeps every failed event, however old
+        await eventRepo.updateById(kept.id, { createdAt: new Date(Date.now() - (365 * Ms.DAY)) }, { acrossTenants: true });
+        await runCleanup('forever');
+        expect(await eventRepo.count({ where: { id: kept.id }, acrossTenants: true })).toBe(1);
+    });
+
+    /**
+     * Runs the cleanup job once, built by hand, because the test server runs no cron jobs.
+     * @param failedRetentionInMs - How long the job keeps a failed event.
+     */
+    async function runCleanup(failedRetentionInMs: RetentionInMs): Promise<void> {
+        const cleanup: EventCleanupCronJob = new EventCleanupCronJob(eventRepo, failedRetentionInMs);
+        const cronJobRepo: Repository<CronJobEntity, CreateCronJobEntityData> = inject(repositoryTokenFor(CronJobEntity));
+        await cleanup.init(inject(ZIBRI_DI_TOKENS.LOGGER), cronJobRepo, async () => await Promise.resolve(true));
+        await cleanup.onTick();
+    }
 });

@@ -1,3 +1,4 @@
+import { CrudControllerOptions } from './crud-controller-options.model';
 import { Repository } from '../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { inject } from '../../di/inject.function';
@@ -13,6 +14,11 @@ import { Get } from '../decorators/get.decorator';
 import { Param } from '../decorators/param.decorator';
 import { Patch } from '../decorators/patch.decorator';
 import { Post } from '../decorators/post.decorator';
+
+/**
+ * The largest page a CRUD controller reads, when it was given no `maxLimit`.
+ */
+const DEFAULT_MAX_LIMIT: number = 100;
 
 /**
  * Interface for a CRUD (create, read, update, delete) controller.
@@ -55,8 +61,12 @@ export function CrudController<
 >(
     entityClass: Newable<T>,
     createDataClass: Newable<CreateData>,
-    updateDataClass: Newable<UpdateData>
+    updateDataClass: Newable<UpdateData>,
+    options: CrudControllerOptions = {}
 ): Newable<CrudControllerInterface<T, CreateData, UpdateData>> {
+    // the page size comes from whoever sends the request, so it is bounded here: the repository takes
+    // a limit named in code as meant, however large (01 §M41)
+    const maxLimit: number = options.maxLimit ?? DEFAULT_MAX_LIMIT;
     // eslint-disable-next-line jsdoc/require-jsdoc
     class Temp implements CrudControllerInterface<T, CreateData, UpdateData> {
         // eslint-disable-next-line jsdoc/require-jsdoc
@@ -80,9 +90,9 @@ export function CrudController<
         @Response.paginated(entityClass)
         @Get()
         async findAll(
-            @Param.query('page', { type: 'number' })
+            @Param.query('page', { type: 'number', format: 'integer', min: 1 })
             page: number,
-            @Param.query('limit', { type: 'number' })
+            @Param.query('limit', { type: 'number', format: 'integer', min: 1, max: maxLimit })
             limit: number
         ): Promise<PaginationResult<T>> {
             return await this.repo.findAllPaginated(page, limit);

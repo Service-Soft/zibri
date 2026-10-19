@@ -1,13 +1,14 @@
 import { HandlerTimeout } from './handler-timeout.type';
 
 /**
- * How long the http server waits for a client that has stopped making progress.
+ * How long the http server waits for a client that has stopped making progress, and how much it
+ * accepts from one before a route sees the request.
  *
- * Every one of these bounds a socket that is doing nothing. A connection nobody closes costs a file
+ * Every timeout bounds a socket that is doing nothing. A connection nobody closes costs a file
  * descriptor and a slot in whatever the process is willing to hold open, which is what makes a
  * request that never finishes arriving a way to take a server down without sending anything.
  */
-export type HttpServerTimeouts = {
+export type HttpServerLimits = {
     /**
      * How long a request may take to arrive in full, from the first byte to the last.
      *
@@ -40,5 +41,14 @@ export type HttpServerTimeouts = {
      * A route declares its own with `timeoutInMs`, and `'none'` - here or on a route - means the
      * handler is given as long as it needs.
      */
-    handlerInMs: HandlerTimeout
+    handlerInMs: HandlerTimeout,
+    /**
+     * How many headers a request may carry. One with more is answered `431`.
+     */
+    maxHeaderCount: number,
+    /**
+     * How many bytes the headers of a request may take up together. Headers that take more are
+     * answered `431`.
+     */
+    maxHeaderSizeInBytes: number
 };

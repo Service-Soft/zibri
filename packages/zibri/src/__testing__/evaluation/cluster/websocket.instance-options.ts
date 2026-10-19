@@ -20,6 +20,7 @@ import { Newable } from '../../../types/newable.type';
 import { Ms } from '../../../utilities/ms';
 import { UUIDUtilities } from '../../../utilities/uuid.utilities';
 import { SocketIOWebsocketConnection } from '../../../websocket/models/connection/socket-io-websocket-connection.model';
+import { WebsocketAnswer } from '../../../websocket/models/websocket-answer.model';
 import { type WebsocketServiceInterface } from '../../../websocket/services/websocket-service.interface';
 import { JwtUser } from '../../mocks/entities/jwt-user.entity';
 import { Roles } from '../../mocks/entities/roles.enum';
@@ -42,6 +43,11 @@ import '../../test-server/user-repository'; // this import is needed so that the
  * The event clients listen for.
  */
 export const clusterBroadcastEvent: string = 'cluster-broadcast';
+
+/**
+ * The event clients are asked to answer.
+ */
+export const clusterAskedEvent: string = 'cluster-asked';
 
 /**
  * A user the parent can connect as.
@@ -121,6 +127,25 @@ class ClusterWebsocketController {
                 senderConnectionId: undefined
             },
             expectResponse: false,
+            persist: false
+        });
+    }
+
+    /**
+     * Asks every connected client of the whole deployment to answer.
+     * @returns What they answered.
+     */
+    @Post('/ask-everyone')
+    async askEveryone(): Promise<WebsocketAnswer[]> {
+        // eslint-disable-next-line typescript/no-unsafe-assignment
+        const websocketService: WebsocketServiceInterface<SocketIOWebsocketConnection> = inject(
+            ZIBRI_DI_TOKENS.WEBSOCKET_SERVICE
+        );
+
+        return await websocketService.sendToAll({
+            event: clusterAskedEvent,
+            message: { ok: true, data: {}, senderUserId: undefined, senderConnectionId: undefined },
+            expectResponse: true,
             persist: false
         });
     }

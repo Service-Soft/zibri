@@ -1,12 +1,12 @@
 import { AddressInfo } from 'node:net';
 
-import { DataSourceInterface, DiProvider, FsPath, initDiContainer, inject, LoggerInterface, Newable, ZIBRI_DI_TOKENS, ZibriApplication, ZibriApplicationOptions } from 'zibri';
+import { DataSourceInterface, DiProvider, FsPath, initDiContainer, inject, LoggerInterface, Newable, PostgresDataSource, ZIBRI_DI_TOKENS, ZibriApplication, ZibriApplicationOptions } from 'zibri';
 
 import { createInMemoryDataSource } from './in-memory-data-source/create-in-memory-data-source.function';
 import { registerAheadOfInit } from './register-ahead-of-init.function';
 import { ApplicationOptionsFallback, resolveApplicationOptions } from './resolve-application-options.function';
 import { createScratchDirectory, removeScratchDirectory, scratchProviders } from './scratch-directory.function';
-import { applyContainerPort, needsContainer, StartedDataSourceContainer, startDataSourceContainers } from './start-data-source-containers.function';
+import { applyContainerPort, needsContainer, runAsSuperuser, StartedDataSourceContainer, startDataSourceContainers } from './start-data-source-containers.function';
 import { StartTestServerOptions } from './start-test-server-options.model';
 import { defaultTestProviders } from './test-providers';
 
@@ -68,6 +68,24 @@ export class StartedTestServer {
             ? '127.0.0.1'
             : address.address;
         return `http://${host}:${address.port}`;
+    }
+
+    /**
+     * Runs statements as the superuser of the server a postgres data source was given.
+     *
+     * For what a test has to arrange that the application's own role may not do: another role, or a
+     * grant across roles. Everything the application itself does stays with the role it connects as.
+     * @param dataSourceClass - The data source whose server and database the statements run against.
+     * @param statements - The statements, each run on its own.
+     * @throws When the data source got no postgres container, or a statement is refused.
+     */
+    async runAsSuperuser(dataSourceClass: Newable<DataSourceInterface>, statements: string[]): Promise<void> {
+        const started: StartedDataSourceContainer | undefined = this.containers.find(c => c.dataSourceClass === dataSourceClass);
+        const dataSource: DataSourceInterface = inject(dataSourceClass);
+        if (started == undefined || !(dataSource instanceof PostgresDataSource)) {
+            throw new Error(`${dataSourceClass.name} runs on no postgres container of this server`);
+        }
+        await runAsSuperuser(started.container, dataSource, statements);
     }
 
     /**

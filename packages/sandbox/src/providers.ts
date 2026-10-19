@@ -45,7 +45,8 @@ export const providers: DiProvider<unknown>[] = [
         useFactory: (): EmailConfigInput => {
             return {
                 maxEmailsPerHour: 0,
-                defaultSender: optionalEnv('EMAIL_DEFAULT_SENDER')
+                defaultSender: optionalEnv('EMAIL_DEFAULT_SENDER'),
+                failedRetentionInMs: 'forever'
             };
         }
     }),
@@ -59,6 +60,10 @@ export const providers: DiProvider<unknown>[] = [
                 pass: optionalEnv('SMTP_PASSWORD')
             }
         })
+    }),
+    defineProvider({
+        token: ZIBRI_DI_TOKENS.EVENT_FAILED_RETENTION_IN_MS,
+        useValue: 'forever'
     }),
     defineProvider({
         token: ZIBRI_DI_TOKENS.CONFIRM_PASSWORD_RESET_URL,

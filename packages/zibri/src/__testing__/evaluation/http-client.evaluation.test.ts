@@ -56,6 +56,10 @@ beforeAll(async () => {
     // and no database container
     DiContainer.reset();
     initDiContainer();
+    // off, because every case is about what one request does, and they all share one client and one
+    // stub origin answering 5xx on purpose: the breaker would carry the failures of one case into the
+    // next and refuse its request. Its own cases are in http-client.test.ts
+    register(defineProvider({ token: ZIBRI_DI_TOKENS.HTTP_CLIENT_OPTIONS_INPUT, useValue: { circuitBreaker: false } }));
 
     server = createServer((req: IncomingMessage, res: ServerResponse) => {
         received.push({ method: req.method ?? '', url: req.url ?? '' });

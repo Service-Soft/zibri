@@ -227,6 +227,7 @@ export class PasskeyService implements PasskeyServiceInterface, OnAppInit {
             aaguid: registration.aaguid,
             userHandle: challenge.userHandle,
             synced: registration.credentialBackedUp,
+            discoverable: this.findDiscoverable(response),
             createdAt: new Date()
         });
     }
@@ -279,6 +280,8 @@ export class PasskeyService implements PasskeyServiceInterface, OnAppInit {
             aaguid: found.aaguid,
             userHandle: found.userHandle,
             synced: found.synced,
+            // a sign-up demands a stored passkey, which the browser refuses to create otherwise
+            discoverable: true,
             createdAt: new Date(found.authenticatedAt)
         }, { transaction });
         await this.ticketRepository.updateById(found.id, { userId }, { transaction });
@@ -352,9 +355,15 @@ export class PasskeyService implements PasskeyServiceInterface, OnAppInit {
             // would only cost users a consent prompt
             attestationType: options.attestation == undefined ? 'none' : 'direct',
             excludeCredentials: excluded.map(p => ({ id: p.credentialId, transports: p.transports })),
-            // a passkey the device keeps for the site, so the device can offer it at sign-in without
-            // being told the account, and that it only uses once it verified who holds it
-            authenticatorSelection: { residentKey: 'required', userVerification: 'required' }
+            // a passkey the device keeps for the site can be offered at sign-in without being told the
+            // account. A sign-up has nothing else to sign in with, so it demands one. A user who is logged
+            // in may add a device that stores none, such as an older security key, as a second factor:
+            // signing in with it would mean asking who signs in first, which answers whether an address
+            // holds an account
+            authenticatorSelection: {
+                residentKey: ceremony === PasskeyCeremony.SIGN_UP ? 'required' : 'preferred',
+                userVerification: 'required'
+            }
         });
         await this.storeChallenge(
             creationOptions.challenge,
@@ -549,6 +558,21 @@ export class PasskeyService implements PasskeyServiceInterface, OnAppInit {
             { transaction }
         );
         return passkey;
+    }
+
+    /**
+     * Finds whether the device stored a new passkey, from what the browser says.
+     * @param response - What the browser answered.
+     * @returns Whether it did, or undefined when the browser did not say.
+     */
+    private findDiscoverable(response: PasskeyRegistrationResponse): boolean | undefined {
+        // the browser's word, which the device does not sign. It only tells the user which of their
+        // passkeys sign in, and grants nothing
+        const properties: unknown = response.clientExtensionResults['credProps'];
+        if (typeof properties !== 'object' || properties == undefined || !('rk' in properties) || typeof properties.rk !== 'boolean') {
+            return undefined;
+        }
+        return properties.rk;
     }
 
     private async claim(spend: () => Promise<unknown>): Promise<void> {

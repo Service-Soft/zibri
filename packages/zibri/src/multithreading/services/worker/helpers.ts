@@ -1,8 +1,39 @@
-import { parentPort } from 'node:worker_threads';
+import { parentPort, workerData } from 'node:worker_threads';
 
 import { errorToLoggedError } from '../../../logging/error-to-logged-error.function';
+import { TraceSpanContext } from '../../../tracing/trace-span-context.model';
 import { Percentage } from '../../../types/percentage.type';
 import { ThreadJobMessage } from '../../models/thread-job-message.model';
+import { THREAD_JOB_TRACE_CONTEXT_KEY } from '../../models/thread-job-trace-context-key.model';
+
+/**
+ * The trace the running thread job is recorded under, called from within a worker file.
+ *
+ * Pass it on to whatever the job calls, so that the work there continues the job's trace - for example
+ * the headers of an outgoing request, with `TraceContextUtilities.resolveHeaders(context)`, or the
+ * trace id on a log line.
+ * @returns The context, or undefined outside a thread job.
+ */
+export function getThreadJobTraceContext(): TraceSpanContext | undefined {
+    const data: unknown = workerData;
+    if (typeof data !== 'object' || data == undefined || !(THREAD_JOB_TRACE_CONTEXT_KEY in data)) {
+        return undefined;
+    }
+    const context: unknown = data[THREAD_JOB_TRACE_CONTEXT_KEY];
+    return isTraceSpanContext(context) ? context : undefined;
+}
+
+/**
+ * Whether a value is a trace context, as it arrives on the other side of a thread.
+ * @param value - The value.
+ * @returns True when it holds the ids and the sampled flag of one.
+ */
+function isTraceSpanContext(value: unknown): value is TraceSpanContext {
+    return typeof value === 'object' && value != undefined
+        && 'traceId' in value && typeof value.traceId === 'string'
+        && 'spanId' in value && typeof value.spanId === 'string'
+        && 'sampled' in value && typeof value.sampled === 'boolean';
+}
 
 /**
  * Reports the given progress to the thread job service.

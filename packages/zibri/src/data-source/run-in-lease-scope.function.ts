@@ -16,19 +16,21 @@ import { Transaction } from './transaction/transaction.model';
  * This is the shape of evaluation/10-leases-and-claims.md 10.4, which is why the guard exists at all.
  *
  * Committing inside the held section is fine and is not reported. Only a transaction that is still
- * open when the grant is about to be released is, because that is the case the grant cannot cover.
+ * open when the grant is about to be released is, because that is the case the grant cannot cover -
+ * except the one the grant is held until, whose commit it does cover.
  *
  * A warning rather than an error on purpose: the transaction may well be carrying writes that have
  * nothing to do with what the lease protects, which is unusual but not wrong. Reporting it costs a
  * log line, guessing wrong and throwing would break working code.
  * @param name - Names the grant, so the warning says which one it is about.
  * @param fn - The work to run under it.
+ * @param heldUntil - The transaction the grant is held until, if any.
  * @returns Whatever the work returned.
  */
-export async function runInLeaseScope<T>(name: string, fn: () => Promise<T>): Promise<T> {
+export async function runInLeaseScope<T>(name: string, fn: () => Promise<T>, heldUntil?: Transaction): Promise<T> {
     const scope: LeaseScopeResult<T> = await AlsUtilities.runInLeaseScope(fn);
 
-    const escaping: Transaction[] = scope.transactions.filter(t => !t.isFinished);
+    const escaping: Transaction[] = scope.transactions.filter(t => !t.isFinished && t !== heldUntil);
     if (escaping.length) {
         const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
         logger.warn([

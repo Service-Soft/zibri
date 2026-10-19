@@ -51,8 +51,10 @@ export class DataSourceService implements DataSourceServiceInterface {
         // has to happen before any data source is initialized, because only here it is known
         // which entities belong to more than one of them
         resolveEntityOwnership(registeredDataSources);
+        this.validateEntityNamesDistinct(registeredDataSources);
 
         for (const { dataSourceClass, dataSource } of registeredDataSources) {
+            this.validateTablesDistinct(dataSourceClass.name, dataSource);
             this.validateChangeSetEntitiesDeclared(dataSourceClass.name, dataSource);
             this.validateInverseSidesDeclared(dataSourceClass.name, dataSource);
             this.validateRelationsStayInTenant(dataSourceClass.name, dataSource);
@@ -75,6 +77,71 @@ export class DataSourceService implements DataSourceServiceInterface {
     // eslint-disable-next-line jsdoc/require-jsdoc
     async afterAppShutdown(): Promise<void> {
         await Promise.all(this.dataSources.map(ds => ds.shutDown()));
+    }
+
+    /**
+     * Refuses two entities of the same name in one application, in whichever data sources they are.
+     *
+     * An entity is told apart by its name: its repository is found by it, and it is what every
+     * message and trace calls the entity. Of two entities sharing one, the repository registered
+     * last would answer for both.
+     * @param dataSources - Every data source of the application.
+     * @throws When two different entity classes have the same name.
+     */
+    private validateEntityNamesDistinct(dataSources: RegisteredDataSource[]): void {
+        const byName: Map<string, Map<Newable<BaseEntity>, string[]>> = new Map();
+        for (const { dataSourceClass, dataSource } of dataSources) {
+            for (const entity of dataSource.entities) {
+                const classes: Map<Newable<BaseEntity>, string[]> = byName.get(entity.name) ?? new Map<Newable<BaseEntity>, string[]>();
+                classes.set(entity, [...classes.get(entity) ?? [], dataSourceClass.name]);
+                byName.set(entity.name, classes);
+            }
+        }
+        const clashes: string[] = [...byName.entries()]
+            .filter(([, classes]) => classes.size > 1)
+            .map(([name, classes]) => {
+                const where: string[] = [...new Set([...classes.values()].flat())];
+                return `  - "${name}", in ${where.join(' and ')}`;
+            });
+        if (!clashes.length) {
+            return;
+        }
+        throw new InternalError([
+            'The application declares different entities of the same name:',
+            ...clashes,
+            'An entity is told apart by its name, so its repository would answer for the other. Rename all but one of them.'
+        ]);
+    }
+
+    /**
+     * Refuses a data source declaring two entities that are stored in the same table.
+     *
+     * Each would read the other's rows as its own, and write over them. Two data sources are two
+     * stores, so the same table name in each is no clash.
+     * @param dataSourceName - The name of the data source, for the message.
+     * @param dataSource - The data source to check.
+     * @throws When two different entity classes resolve to one table.
+     */
+    private validateTablesDistinct(dataSourceName: string, dataSource: DataSourceInterface): void {
+        const byTable: Map<string, Newable<BaseEntity>[]> = new Map();
+        for (const entity of new Set(dataSource.entities)) {
+            const tableName: string | undefined = MetadataUtilities.getEntityMetadata(entity)?.tableName;
+            if (tableName == undefined) {
+                continue;
+            }
+            byTable.set(tableName, [...byTable.get(tableName) ?? [], entity]);
+        }
+        const shared: string[] = [...byTable.entries()]
+            .filter(([, entities]) => entities.length > 1)
+            .map(([tableName, entities]) => `  - "${tableName}": ${entities.map(e => e.name).join(' and ')}`);
+        if (!shared.length) {
+            return;
+        }
+        throw new InternalError([
+            `The data source ${dataSourceName} declares entities that are stored in the same table:`,
+            ...shared,
+            'Each entity is stored in a table of its own. Give all but one of them a "tableName" on @Entity.'
+        ]);
     }
 
     /**

@@ -11,6 +11,9 @@ A script, a service or an integration calls your api with an api key: a secret i
 | `ApiKeyClientAuthentication` | type | How a key without a secret proves itself, see [clients without a secret](#clients-without-a-secret) |
 | `ApiKeyAuthenticationMethod` | enum | The ways a key proves itself |
 | `ZIBRI_DI_TOKENS.API_KEY_HEADER` | DI token | Which header carries an api key. Defaults to `x-api-key` |
+| `ApiKeyOptions` | type | How often a key's last use is written down, and how long an expired key is kept |
+| `ZIBRI_DI_TOKENS.API_KEY_OPTIONS` | DI token | Configures the options above |
+| `ApiKeyCleanupCronJob` | cron job | Deletes the keys that expired longer ago than `deleteExpiredAfterMs`. Registered for you |
 | `ZIBRI_DI_TOKENS.API_KEY_SERVICE`, `ApiKeyServiceInterface` | DI token, interface | The service keeping the keys, which `AuthService` and every reader of a key go through. Replaceable |
 
 ## Setting it up
@@ -149,7 +152,22 @@ export class ProfileController {
 A key never counts as a recent login.
 
 ## Listing and revoking
-`findApiKeys` lists the keys of a user with their name, roles, expiry and creation, oldest first. Expired keys stay in the list until they are revoked. The key itself is never part of an answer.
+`findApiKeys` lists the keys of a user with their name, roles, expiry, last use and creation, oldest first. The key itself is never part of an answer.
+
+`lastUsedAt` is when the key was last used: sent with a request, exchanged at the [token endpoint](./authorization-server.md), or through an access token it was exchanged for, while [`ACCESS_TOKEN_REVOCATION`](./authorization-server.md#when-access-tokens-stop-working) is `'immediately'`. It is written down at most once an hour, so it tells a key nobody uses from one an integration depends on. A key never used has none.
+
+An expired key stays in the list for 30 days, and is then deleted. Change both with `ZIBRI_DI_TOKENS.API_KEY_OPTIONS`:
+
+```ts
+import { ApiKeyOptions, defineProvider, Ms, ZIBRI_DI_TOKENS } from 'zibri';
+
+defineProvider({
+    token: ZIBRI_DI_TOKENS.API_KEY_OPTIONS,
+    useFactory: (): ApiKeyOptions => ({ recordUseAfterMs: Ms.DAY, deleteExpiredAfterMs: Ms.DAY * 90 })
+})
+```
+
+`recordUseAfterMs: 0` writes down every use, and `deleteExpiredAfterMs: 0` deletes a key as soon as it expired. The application refuses to start with a value that is no whole number of milliseconds.
 
 `revokeApiKey` revokes one key of the user, and answers `404` for an id that is not a key of theirs. `revokeApiKeys` revokes every key of the user. Ending the logins of a user, such as by a password reset, keeps their keys; [deactivating the user](./auth.md#deactivating-a-user) revokes them.
 

@@ -23,6 +23,7 @@ import { AuditAction, AuditOutcome, AuditReason } from '../../logging/audit-even
 import { auditReasonFor } from '../../logging/audit-reason-for.function';
 import { Response } from '../../open-api/decorators/response.decorator';
 import { FileResponse } from '../../parsing/form-data/file-response.model';
+import { HtmlResponse } from '../../parsing/html/html-response.model';
 import { RateLimited } from '../../rate-limiting/decorators/rate-limited.decorator';
 import { AcceptCrossSitePosts } from '../../routing/decorators/accept-cross-site-posts.decorator';
 import { Body } from '../../routing/decorators/body.decorator';
@@ -39,6 +40,7 @@ import { ConnectingAuthenticatorInterface, isConnectingAuthenticator } from '../
 import { ConnectionCompletingAuthenticatorInterface, isConnectionCompletingAuthenticator } from '../authenticators/connection-completing-authenticator.interface';
 import { FederatedAuthenticatorInterface, isFederatedAuthenticator } from '../authenticators/federated/federated-authenticator.interface';
 import { FederatedCallbackForm } from '../authenticators/federated/federated-callback-form.model';
+import { FederatedProviderLogoutMessage } from '../authenticators/federated/federated-provider-logout-message.model';
 import { FederatedRouteUtilities } from '../authenticators/federated/federated-route.utilities';
 import { FederatedSignInResult } from '../authenticators/federated/federated-sign-in-result.model';
 import { LinkedIdentity } from '../authenticators/linked-identity.model';
@@ -501,12 +503,47 @@ export function AuthController<
         @Auth.skip({ allowRedundant: true })
         @RateLimited(ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER)
         @Response.redirect()
+        @Response.html()
         @Get(`${FEDERATED_ROUTE}/:provider/logout`)
         async providerLogout(
             @Param.path('provider')
             provider: string
-        ): Promise<RedirectResponse> {
-            return await FederatedRouteUtilities.completeProviderLogout(provider);
+        ): Promise<RedirectResponse | HtmlResponse> {
+            return await FederatedRouteUtilities.completeProviderLogout(provider, FederatedRouteUtilities.resolveRedirectedLogout());
+        }
+
+        // the same, for a provider whose page posts it. Another site's page sends it, so it is let
+        // through with cookies - from that provider's pages only
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        @Auth.skip({ allowRedundant: true })
+        @AcceptCrossSitePosts({ acceptedOrigins: async params => await FederatedRouteUtilities.resolveFormPostOrigins(params) })
+        @RateLimited(ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER)
+        @Response.redirect()
+        @Response.html()
+        @Post(`${FEDERATED_ROUTE}/:provider/logout`)
+        async postedProviderLogout(
+            @Param.path('provider')
+            provider: string,
+            @Body(FederatedCallbackForm, { type: MimeType.FORM_URL_ENCODED, allowAdditionalProperties: true })
+            form: FederatedCallbackForm
+        ): Promise<RedirectResponse | HtmlResponse> {
+            const message: FederatedProviderLogoutMessage = { binding: 'post', form: FederatedRouteUtilities.toCallbackParams(form) };
+            return await FederatedRouteUtilities.completeProviderLogout(provider, message);
+        }
+
+        // where a provider sends a logout request server to server, without a browser
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        @Auth.skip({ allowRedundant: true })
+        @RateLimited(ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER)
+        @Response.file()
+        @Post(`${FEDERATED_ROUTE}/:provider/logout/soap`)
+        async soapProviderLogout(
+            @Param.path('provider')
+            provider: string,
+            @Body({ type: MimeType.XML, raw: true })
+            envelope: string
+        ): Promise<FileResponse> {
+            return await FederatedRouteUtilities.completeSoapLogout(provider, envelope);
         }
 
         // the document the provider is set up with, for a provider whose protocol publishes one
@@ -514,11 +551,11 @@ export function AuthController<
         @Auth.skip({ allowRedundant: true })
         @Response.file()
         @Get(`${FEDERATED_ROUTE}/:provider/metadata`)
-        metadata(
+        async metadata(
             @Param.path('provider')
             provider: string
-        ): FileResponse {
-            return FederatedRouteUtilities.toMetadata(provider);
+        ): Promise<FileResponse> {
+            return await FederatedRouteUtilities.toMetadata(provider);
         }
 
         // guarded the way changing a password is: an identity is a way into the account
@@ -696,7 +733,16 @@ export function AuthController<
         { routes: ['signInOptions'], present: challenging.length > 0 },
         { routes: ['registrationOptions', 'register'], present: signingUp.length > 0 },
         {
-            routes: ['authorize', 'callback', 'formPostCallback', 'connectProvider', 'providerLogout', 'metadata'],
+            routes: [
+                'authorize',
+                'callback',
+                'formPostCallback',
+                'connectProvider',
+                'providerLogout',
+                'postedProviderLogout',
+                'soapProviderLogout',
+                'metadata'
+            ],
             present: federated.length > 0
         },
         { routes: ['startConnection'], present: connecting.length > 0 },

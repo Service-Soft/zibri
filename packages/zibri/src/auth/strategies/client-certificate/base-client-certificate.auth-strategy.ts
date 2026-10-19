@@ -1,16 +1,25 @@
 import { X509Certificate } from 'node:crypto';
 import { BlockList, isIP } from 'node:net';
 
+import type { ExtendedKeyUsageExtension, KeyUsagesExtension, X509Certificate as ParsedCertificate } from '@peculiar/x509';
+
 import { ClientCertificateHeaderFormat } from './client-certificate-header-format.type';
 import { ClientCertificateHeaderUtilities } from './client-certificate-header.utilities';
 import { ClientCertificateUtilities } from './client-certificate.utilities';
+import { PeculiarX509 } from './peculiar-x509.type';
 import { HttpRequestContext } from '../../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../../context/request/websocket-request.context';
 import { InternalError } from '../../../error-handling/internal-error.model';
 import { OpenApiSecuritySchemeObject } from '../../../open-api/open-api.model';
+import { optionalPeer } from '../../../utilities/optional-peer.function';
 import { BaseUser } from '../../models/base-user.model';
 import { AuthorizationHeaderUtilities } from '../authorization-header.utilities';
 import { ClientCertificateAuthStrategyInterface } from '../client-certificate-auth-strategy.interface';
+
+/**
+ * The extended key usage of TLS client authentication.
+ */
+const CLIENT_AUTH: string = '1.3.6.1.5.5.7.3.2';
 
 /**
  * Identifies a caller by the client certificate it showed the proxy in front of the api.
@@ -58,6 +67,13 @@ export abstract class BaseClientCertificateAuthStrategy<
      */
     abstract readonly certificateAuthorities: string[];
 
+    /**
+     * The extended key usages a certificate has to name every one of, as object identifiers, when it
+     * names any. A certificate without them may be used for anything. Defaults to TLS client
+     * authentication, so a certificate issued for a server identifies nobody.
+     */
+    readonly requiredExtendedKeyUsages: string[] = [CLIENT_AUTH];
+
     private proxies: BlockList = new BlockList();
 
     private authorities: X509Certificate[] = [];
@@ -81,6 +97,12 @@ export abstract class BaseClientCertificateAuthStrategy<
         if (!this.certificateAuthorities.length) {
             throw new InternalError(`${this.constructor.name} names no authority that issues client certificates.`);
         }
+        const invalidUsage: string | undefined = this.requiredExtendedKeyUsages.find(usage => !/^\d+(\.\d+)+$/.test(usage));
+        if (invalidUsage != undefined) {
+            throw new InternalError(`The extended key usage "${invalidUsage}" of ${this.constructor.name} is no object identifier.`);
+        }
+        // while it starts rather than at the first request with a certificate
+        this.resolvePeculiarX509();
         this.proxies = this.resolveProxies();
         this.authorities = this.certificateAuthorities.map(pem => {
             try {
@@ -124,13 +146,15 @@ export abstract class BaseClientCertificateAuthStrategy<
     }
 
     /**
-     * Whether a certificate was issued by one of the authorities and is valid right now. Revocation is
-     * the proxy's to check, which is where the lists of revoked certificates are configured.
+     * Whether a certificate was issued by one of the authorities, is valid right now, and is one for a
+     * client: its key usages allow signing or agreeing on a key, and its extended key usages name the
+     * `requiredExtendedKeyUsages`. Revocation is the proxy's to check, which is where the lists of
+     * revoked certificates are configured.
      * @param certificate - The certificate.
      * @returns True when it may identify a caller.
      */
     isTrusted(certificate: X509Certificate): boolean {
-        if (!ClientCertificateUtilities.isWithinValidity(certificate)) {
+        if (!ClientCertificateUtilities.isWithinValidity(certificate) || !this.isForClient(certificate)) {
             return false;
         }
         // the names and key ids, and then the signature, which is what proves the authority signed it
@@ -170,6 +194,37 @@ export abstract class BaseClientCertificateAuthStrategy<
         return typeof value === 'string'
             ? ClientCertificateHeaderUtilities.findEncodedCertificate(value, this.headerFormat)
             : undefined;
+    }
+
+    /**
+     * Whether the usages a certificate names allow it to identify a client. A certificate naming none
+     * may be used for anything.
+     * @param certificate - The certificate.
+     * @returns True when its key may prove a client in a TLS handshake, and its extended key usages
+     * name every required one.
+     */
+    private isForClient(certificate: X509Certificate): boolean {
+        // checked here as well as by the proxy's TLS library, which leaves them unchecked when it takes
+        // any certificate. The rules are OpenSSL's for a TLS client, so the application refuses what a
+        // checking proxy would: anyExtendedKeyUsage names no usage of its own, and node reads neither
+        // extension in a form to trust, so a parser of its own reads both
+        const x509: PeculiarX509 = this.resolvePeculiarX509();
+        const parsed: ParsedCertificate = new x509.X509Certificate(certificate.raw);
+        const keyUsages: KeyUsagesExtension | null = parsed.getExtension(x509.KeyUsagesExtension);
+        if (keyUsages != undefined && (keyUsages.usages & (x509.KeyUsageFlags.digitalSignature | x509.KeyUsageFlags.keyAgreement)) === 0) {
+            return false;
+        }
+        const extendedKeyUsages: ExtendedKeyUsageExtension | null = parsed.getExtension(x509.ExtendedKeyUsageExtension);
+        return extendedKeyUsages == undefined || this.requiredExtendedKeyUsages.every(usage => extendedKeyUsages.usages.includes(usage));
+    }
+
+    /**
+     * Loads the parser of certificate extensions.
+     * @returns Its module.
+     * @throws An InternalError when it is not installed.
+     */
+    private resolvePeculiarX509(): PeculiarX509 {
+        return optionalPeer<PeculiarX509>('@peculiar/x509', 'Client certificates');
     }
 
     /**

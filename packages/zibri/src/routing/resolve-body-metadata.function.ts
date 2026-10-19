@@ -1,4 +1,5 @@
-import { createAnyOfShapesMetadata } from '../entity/decorators/property.decorator';
+import { createAnyOfShapesMetadata, createArrayItemPropertyMetadata } from '../entity/decorators/property.decorator';
+import { ArrayPropertyItemMetadata } from '../entity/models/array-property-metadata.model';
 import { FileSize, fileSizeToBytes } from '../entity/models/file-property-metadata.model';
 import { ObjectPropertyMetadata } from '../entity/models/object-property-metadata.model';
 import { InternalError } from '../error-handling/internal-error.model';
@@ -6,7 +7,7 @@ import { MimeType } from '../http/mime-type.enum';
 import { ExcludeStrict } from '../types/exclude-strict.type';
 import { isNewable, Newable } from '../types/newable.type';
 import { Ms } from '../utilities/ms';
-import { BodyMetadata, BodyShapeMetadata, FormDataBodyMetadataInput, FormUrlEncodedBodyMetadataInput, JsonBodyMetadata, JsonBodyMetadataInput, JsonBodyShapeMetadataInput, StreamBodyMetadataInput, XmlBodyMetadata, XmlBodyMetadataInput } from './decorators/body-metadata.model';
+import { BodyMetadata, BodyShapeMetadata, FormDataBodyMetadataInput, FormUrlEncodedBodyMetadataInput, JsonBodyMetadata, JsonBodyMetadataInput, JsonBodyShapeMetadataInput, RawXmlBodyMetadataInput, StreamBodyMetadataInput, XmlBodyMetadata, XmlBodyMetadataInput } from './decorators/body-metadata.model';
 
 /**
  * What a body may weigh, besides its files, when the declaration does not say.
@@ -25,6 +26,11 @@ type JsonBodyDeclaration = BaseBodyDeclaration & JsonBodyMetadataInput;
  * An xml body, declared by a model or several shapes.
  */
 type XmlBodyDeclaration = BaseBodyDeclaration & XmlBodyMetadataInput;
+
+/**
+ * An xml body handed over as the document that arrived.
+ */
+type RawXmlBodyDeclaration = RawXmlBodyMetadataInput;
 
 /**
  * A form data body, declared by a model or several shapes.
@@ -49,6 +55,7 @@ type StreamBodyDeclaration = StreamBodyMetadataInput;
  */
 export type BodyDeclaration = JsonBodyDeclaration
     | XmlBodyDeclaration
+    | RawXmlBodyDeclaration
     | FormDataBodyDeclaration
     | FormUrlEncodedBodyDeclaration
     | StreamBodyDeclaration;
@@ -56,7 +63,7 @@ export type BodyDeclaration = JsonBodyDeclaration
 /**
  * A body declared as text that describes a structure: json or xml.
  */
-export type StructuredBodyDeclaration = JsonBodyDeclaration | XmlBodyDeclaration;
+export type StructuredBodyDeclaration = JsonBodyDeclaration | XmlBodyDeclaration | RawXmlBodyDeclaration;
 
 /**
  * Fills in everything a body's metadata needs that the caller did not state.
@@ -133,15 +140,31 @@ export function resolveStructuredBodyMetadata(
     input: StructuredBodyDeclaration,
     index: number
 ): JsonBodyMetadata | XmlBodyMetadata {
-    const shape: BodyShapeMetadata = resolveBodyShape(input);
-    return {
-        type: input.type ?? MimeType.JSON,
+    const common: Pick<JsonBodyMetadata, 'index' | 'required' | 'description' | 'baseMaxSize'> = {
         index,
-        shape,
         required: input.required ?? true,
         description: input.description,
         baseMaxSize: fileSizeToBytes(input.maxSize ?? DEFAULT_BASE_MAX_SIZE)
     };
+    if ('raw' in input) {
+        return { ...common, type: MimeType.XML, shape: resolveRawXmlShape(), raw: true };
+    }
+    const shape: BodyShapeMetadata = resolveBodyShape(input);
+    const type: JsonBodyMetadata['type'] | MimeType.XML = input.type ?? MimeType.JSON;
+    return type === MimeType.XML ? { ...common, type, shape, raw: false } : { ...common, type, shape };
+}
+
+/**
+ * The shape of an xml body handed over as the document that arrived: a string.
+ * @returns The shape.
+ * @throws When the property metadata built for a string is not a string's.
+ */
+function resolveRawXmlShape(): BodyShapeMetadata {
+    const shape: ArrayPropertyItemMetadata = createArrayItemPropertyMetadata({ type: 'string' }, 'body');
+    if (shape.type !== 'string') {
+        throw new InternalError(`body: Unexpected shape "${shape.type}" for a raw xml body.`);
+    }
+    return { ...shape, required: true };
 }
 
 /**
@@ -150,7 +173,7 @@ export function resolveStructuredBodyMetadata(
  * @returns The shape.
  * @throws When a form body is declared as something other than a class, or several classes.
  */
-function resolveBodyShape(input: ExcludeStrict<BodyDeclaration, StreamBodyDeclaration>): BodyShapeMetadata {
+function resolveBodyShape(input: ExcludeStrict<BodyDeclaration, StreamBodyDeclaration | RawXmlBodyDeclaration>): BodyShapeMetadata {
     // json by default
     input.type ??= MimeType.JSON;
 

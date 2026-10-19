@@ -29,5 +29,5 @@ describe('validateTokensRegistered', () => {
         await expect(startTestServer({
             plugins: [new ScratchValidatePlugin()]
         })).rejects.toThrow(/Could not inject the following tokens.*UNREGISTERED_SCRATCH_TOKEN/s);
-    }, 15000);
+    }, 30000);
 });

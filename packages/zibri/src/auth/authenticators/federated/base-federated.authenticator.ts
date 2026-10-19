@@ -12,6 +12,7 @@ import { FederatedIdentity, FederatedIdentityCreateData } from './federated-iden
 import { FederatedLoginAttempt, FederatedLoginAttemptCreateData } from './federated-login-attempt.model';
 import { FederatedMetadata } from './federated-metadata.model';
 import { FederatedProviderIdentity } from './federated-provider-identity.model';
+import { FederatedProviderLogoutMessage } from './federated-provider-logout-message.model';
 import { FederatedProviderLogout } from './federated-provider-logout.model';
 import { FederatedProviderSession } from './federated-provider-session.model';
 import { FederatedReauthentication } from './federated-reauthentication.model';
@@ -28,6 +29,7 @@ import { FederatedSignInResult } from './federated-sign-in-result.model';
 import { FederatedSignInStart } from './federated-sign-in-start.model';
 import { FederatedSignInError } from './federated-sign-in.error';
 import { FederatedSignIn } from './federated-sign-in.model';
+import { FederatedSoapLogout } from './federated-soap-logout.model';
 import { FederationOptions } from './federation-options.model';
 import { ProviderTokenGrant } from './provider-token-grant.model';
 import { ZibriApplication } from '../../../application/application';
@@ -609,7 +611,8 @@ export abstract class BaseFederatedAuthenticator<
      * provider to be set up with. None by default.
      * @returns The document, or undefined when the protocol has none.
      */
-    resolveMetadata(): FederatedMetadata | undefined {
+    // eslint-disable-next-line typescript/require-await
+    async resolveMetadata(): Promise<FederatedMetadata | undefined> {
         return undefined;
     }
 
@@ -630,20 +633,33 @@ export abstract class BaseFederatedAuthenticator<
     /**
      * Reads what the provider sent the browser to the `logout` route with: that the user logged out
      * there, or the answer to a logout that started here.
-     * @param query - The query of the request, as it was read.
-     * @param rawQuery - The query exactly as it was sent, which a signature covers.
+     * @param message - The query of a redirect, or the fields of a posted form.
      * @returns What the provider said.
      * @throws NotFoundError for a protocol without logout at the provider.
-     * @throws FederatedSignInError when what the provider sent cannot be verified.
+     * @throws UnauthorizedError when what the provider sent cannot be verified.
      */
     // eslint-disable-next-line typescript/require-await
     async readProviderLogout(
         // eslint-disable-next-line unusedImports/no-unused-vars
-        query: URLSearchParams,
-        // eslint-disable-next-line unusedImports/no-unused-vars
-        rawQuery: string
+        message: FederatedProviderLogoutMessage
     ): Promise<FederatedProviderLogout> {
         throw new NotFoundError($ts`The provider "${this.name}" cannot be logged out at.`);
+    }
+
+    /**
+     * Reads a logout request the provider sent server to server in a SOAP envelope, and answers which
+     * logins end and the envelope to answer the provider with.
+     * @param envelope - The envelope, exactly as it arrived.
+     * @returns The logins that end, and the answer.
+     * @throws NotFoundError for a protocol without such logout requests.
+     * @throws UnauthorizedError when the request cannot be verified.
+     */
+    // eslint-disable-next-line typescript/require-await
+    async resolveSoapLogout(
+        // eslint-disable-next-line unusedImports/no-unused-vars
+        envelope: string
+    ): Promise<FederatedSoapLogout> {
+        throw new NotFoundError($ts`The provider "${this.name}" takes no logout requests sent server to server.`);
     }
 
     /**

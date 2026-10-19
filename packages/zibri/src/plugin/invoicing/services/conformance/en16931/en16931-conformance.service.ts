@@ -1,32 +1,38 @@
 import { CiiCrossIndustryInvoice } from './cii/cii-cross-industry-invoice.model';
 import { CiiDateTime } from './cii/cii-date-time.model';
 import { CiiHeaderTradeSettlement } from './cii/cii-header-trade-settlement.model';
+import { CiiSchemedId } from './cii/cii-schemed-id.model';
 import { CiiTaxRegistration } from './cii/cii-tax-registration.model';
 import { CiiTradeLineItem } from './cii/cii-trade-line-item.model';
 import { CiiTradeParty } from './cii/cii-trade-party.model';
 import { CiiTradeTax } from './cii/cii-trade-tax.model';
 import { Inject } from '../../../../../di/decorators/inject.decorator';
+import { ZIBRI_DI_TOKENS } from '../../../../../di/default/zibri-di-tokens.default';
 import { PdfDocumentDefinition, PdfAttachmentDefinition, PdfDocument } from '../../../../../document/pdf.utilities';
 import { XmlString } from '../../../../../document/xml-string.type';
 import { XmlUtilities } from '../../../../../document/xml.utilities';
 import { InternalError } from '../../../../../error-handling/internal-error.model';
 import { MimeType } from '../../../../../http/mime-type.enum';
 import { getZonedDate, ZonedDate } from '../../../../../localization/format-date.function';
+import { type LocalizeServiceInterface } from '../../../../../localization/localize-service.interface';
 import { type Timezone } from '../../../../../localization/models/timezone.model';
+import { BigNumber, NumberUtilities } from '../../../../../utilities/number.utilities';
 import { optionalPeer } from '../../../../../utilities/optional-peer.function';
 import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../../../invoicing.tokens';
 import { CompanyInfo } from '../../../models/company-info.model';
+import { ElectronicAddress } from '../../../models/electronic-address.model';
 import { Invoice } from '../../../models/invoice.model';
 import { type InvoicingOptions } from '../../../models/invoicing-options.model';
 import { Vat } from '../../../models/vat.model';
 import { type CompanyInfoServiceInterface } from '../../company-info-service.interface';
 import { type InvoiceCalcServiceInterface } from '../../invoice-calc-service.interface';
+import { validateInvoiceTotal } from '../../validate-invoice-total.function';
 import { InvoiceConformance, InvoiceConformanceServiceInterface } from '../invoice-conformance-service.interface';
 
 /**
  * The different possible document context ids.
  */
-export type EN16931DocumentContextId = 'urn:cen.eu:en16931:2017#compliant#urn:xrechnung:3.0'
+export type EN16931DocumentContextId = 'urn:cen.eu:en16931:2017#compliant#urn:xeinkauf.de:kosit:xrechnung_3.0'
     | 'urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0';
 
 /**
@@ -42,9 +48,11 @@ export abstract class EN16931ConformanceService implements InvoiceConformanceSer
         @Inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.OPTIONS)
         protected readonly options: InvoicingOptions,
         @Inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.INVOICE_CALC_SERVICE)
-        private readonly invoiceCalcService: InvoiceCalcServiceInterface<Invoice>,
+        protected readonly invoiceCalcService: InvoiceCalcServiceInterface<Invoice>,
         @Inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.COMPANY_INFO_SERVICE)
-        private readonly companyInfoService: CompanyInfoServiceInterface
+        private readonly companyInfoService: CompanyInfoServiceInterface,
+        @Inject(ZIBRI_DI_TOKENS.LOCALIZE_SERVICE)
+        private readonly localizeService: LocalizeServiceInterface
     ) {
         // at startup rather than at the first invoice, like pdfmake in the invoice pdf service. The
         // document is checked with saxes, like every document generateFrom writes
@@ -79,6 +87,7 @@ export abstract class EN16931ConformanceService implements InvoiceConformanceSer
      * @returns The document, indented.
      */
     async generateXml(invoice: Invoice, timezone: Timezone): Promise<XmlString> {
+        await this.validateInvoice(invoice);
         // the company of the invoice's own tenant, whichever tenant asks for it
         const company: CompanyInfo = await this.companyInfoService.resolveCompanyInfo(invoice.tenantId);
         const document: CiiCrossIndustryInvoice = await this.resolveCrossIndustryInvoice(
@@ -89,6 +98,47 @@ export abstract class EN16931ConformanceService implements InvoiceConformanceSer
             this.documentContextId
         );
         return await XmlUtilities.generateFrom(CiiCrossIndustryInvoice, document, { indent: true });
+    }
+
+    /**
+     * Validates that the invoice can be stated in the standard.
+     * @param invoice - The invoice.
+     * @throws When it cannot.
+     */
+    protected async validateInvoice(invoice: Invoice): Promise<void> {
+        // BR-DEC-* allow two decimals for every amount, and rounding to fewer than the currency has
+        // would state other amounts than the invoice's pdf
+        const minorUnits: number = this.localizeService.getCurrencyMinorUnits(invoice.currency);
+        if (minorUnits > 2) {
+            throw new InternalError(`EN 16931 allows amounts of at most two decimals, and ${invoice.currency} has ${minorUnits}.`);
+        }
+        await validateInvoiceTotal(invoice, this.invoiceCalcService, this.localizeService);
+    }
+
+    /**
+     * Resolves the electronic address a party is named by (BT-34 and BT-49).
+     * @param party - Which party it is, for the message.
+     * @param electronicAddress - The party's electronic address, if it has one.
+     * @param email - The party's email, which names it without one.
+     * @returns The address, as the document states it.
+     * @throws When the party has neither.
+     */
+    protected resolveElectronicAddress(
+        party: 'seller' | 'buyer',
+        electronicAddress: ElectronicAddress | null | undefined,
+        email: string | null | undefined
+    ): CiiSchemedId {
+        if (electronicAddress != undefined) {
+            return { schemeId: electronicAddress.scheme, value: electronicAddress.value };
+        }
+        if (!email) {
+            throw new InternalError(
+                party === 'buyer'
+                    ? 'No customer email has been provided (invoice.customerAddressData.email).'
+                    : 'No company email has been provided (CompanyInfo.email).'
+            );
+        }
+        return { schemeId: 'EM', value: email };
     }
 
     private async resolveCrossIndustryInvoice(
@@ -138,24 +188,24 @@ export abstract class EN16931ConformanceService implements InvoiceConformanceSer
 
         // taxes
         const taxes: CiiTradeTax[] = [];
-        for (const taxGroup of this.getTaxGroups(invoice)) {
+        for (const taxGroup of await this.getTaxGroups(invoice)) {
             if (taxGroup.categoryCode === 'E' && !taxGroup.exemptionReason) {
                 throw new InternalError('No exemption reason has been provided.');
             }
             taxes.push({
-                calculatedAmount: (await this.invoiceCalcService.getTotalTaxForTaxGroup(invoice, taxGroup, false)).toString(),
+                calculatedAmount: this.getAmount(await this.invoiceCalcService.getTotalTaxForTaxGroup(invoice, taxGroup, false), invoice),
                 typeCode: 'VAT',
                 exemptionReason: taxGroup.categoryCode === 'E' ? taxGroup.exemptionReason ?? undefined : undefined,
-                basisAmount: (await this.invoiceCalcService.getTotalBeforeTaxForTaxGroup(invoice, taxGroup, false)).toString(),
+                basisAmount: this.getAmount(await this.invoiceCalcService.getTotalBeforeTaxForTaxGroup(invoice, taxGroup, false), invoice),
                 categoryCode: taxGroup.categoryCode,
-                rateApplicablePercent: taxGroup.rate.toString()
+                rateApplicablePercent: NumberUtilities.new(taxGroup.rate).toFixed()
             });
         }
 
         // summary
-        const totalBeforeTax: string = (await this.invoiceCalcService.getTotalBeforeTax(invoice)).toString();
-        const totalAfterTax: string = (await this.invoiceCalcService.getTotalAfterTax(invoice)).toString();
-        const totalTax: string = (await this.invoiceCalcService.getTotalTax(invoice)).toString();
+        const totalBeforeTax: string = this.getAmount(await this.invoiceCalcService.getTotalBeforeTax(invoice), invoice);
+        const totalAfterTax: string = this.getAmount(await this.invoiceCalcService.getTotalAfterTax(invoice), invoice);
+        const totalTax: string = this.getAmount(await this.invoiceCalcService.getTotalTax(invoice), invoice);
         return {
             currency: invoice.currency,
             paymentMeans,
@@ -176,9 +226,11 @@ export abstract class EN16931ConformanceService implements InvoiceConformanceSer
     }
 
     private resolveBuyerParty(invoice: Invoice): CiiTradeParty {
-        if (!invoice.customerAddressData.email) {
-            throw new InternalError('No customer email has been provided (invoice.customerAddressData.email).');
-        }
+        const uriId: CiiSchemedId = this.resolveElectronicAddress(
+            'buyer',
+            invoice.customerAddressData.electronicAddress,
+            invoice.customerAddressData.email
+        );
         return {
             name: this.getCustomerName(invoice),
             address: {
@@ -187,7 +239,7 @@ export abstract class EN16931ConformanceService implements InvoiceConformanceSer
                 city: invoice.customerAddressData.city,
                 countryId: invoice.customerAddressData.countryId
             },
-            communication: { uriId: { schemeId: 'EM', value: invoice.customerAddressData.email } }
+            communication: { uriId }
         };
     }
 
@@ -215,7 +267,7 @@ export abstract class EN16931ConformanceService implements InvoiceConformanceSer
                 city: company.address.city,
                 countryId: company.address.countryId
             },
-            communication: { uriId: { schemeId: 'EM', value: company.email } },
+            communication: { uriId: this.resolveElectronicAddress('seller', company.electronicAddress, company.email) },
             taxRegistrations
         };
     }
@@ -223,22 +275,48 @@ export abstract class EN16931ConformanceService implements InvoiceConformanceSer
     private async resolveTradeLineItems(invoice: Invoice): Promise<CiiTradeLineItem[]> {
         const lineItems: CiiTradeLineItem[] = [];
         for (const [i, invoiceItem] of invoice.items.entries()) {
+            // a credit is a negative quantity at a positive price (BR-27), where an item states it as
+            // a negative price. The same amount either way
+            const credit: boolean = invoiceItem.price < 0;
             lineItems.push({
                 associatedDocument: { lineId: (i + 1).toString() },
                 product: { name: invoiceItem.name },
-                agreement: { netPrice: { chargeAmount: invoiceItem.price.toString() } },
-                delivery: { billedQuantity: { unitCode: invoiceItem.amountUnit.code, value: invoiceItem.amount.toString() } },
+                // as given, in fixed notation: a price and a quantity may have more decimals than an
+                // amount, but no exponent
+                agreement: { netPrice: { chargeAmount: NumberUtilities.new(Math.abs(invoiceItem.price)).toFixed() } },
+                delivery: {
+                    billedQuantity: {
+                        unitCode: invoiceItem.amountUnit.code,
+                        value: NumberUtilities.new(credit ? -invoiceItem.amount : invoiceItem.amount).toFixed()
+                    }
+                },
                 settlement: {
                     tax: {
                         typeCode: 'VAT',
                         categoryCode: invoiceItem.vat.categoryCode,
-                        rateApplicablePercent: invoiceItem.vat.rate.toString()
+                        rateApplicablePercent: NumberUtilities.new(invoiceItem.vat.rate).toFixed()
                     },
-                    summation: { lineTotalAmount: (await this.invoiceCalcService.getItemTotalPriceBeforeTax(invoiceItem)).toString() }
+                    summation: {
+                        lineTotalAmount: this.getAmount(
+                            await this.invoiceCalcService.getItemTotalPriceBeforeTax(invoiceItem, invoice.currency),
+                            invoice
+                        )
+                    }
                 }
             });
         }
         return lineItems;
+    }
+
+    /**
+     * Gets an amount as the document states it: in fixed notation, with the minor units of the
+     * invoice's currency.
+     * @param amount - The amount, as calculated.
+     * @param invoice - The invoice it is an amount of.
+     * @returns The amount.
+     */
+    protected getAmount(amount: BigNumber, invoice: Invoice): string {
+        return amount.toFixed(this.localizeService.getCurrencyMinorUnits(invoice.currency));
     }
 
     private resolveDateTime(value: Date, timezone: Timezone): CiiDateTime {
@@ -274,7 +352,7 @@ export abstract class EN16931ConformanceService implements InvoiceConformanceSer
      * @param invoice - The invoice to get the tax groups for.
      * @returns The tax groups for the xml.
      */
-    protected getTaxGroups(invoice: Invoice): Vat[] {
-        return [...new Set(invoice.items.map(item => item.vat))];
+    protected async getTaxGroups(invoice: Invoice): Promise<Vat[]> {
+        return await this.invoiceCalcService.getTaxGroups(invoice, false);
     }
 }

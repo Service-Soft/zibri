@@ -25,7 +25,7 @@ export type StoredEncryptedValue = {
 };
 
 /**
- * Finds every encrypted value on the given row, its relations included.
+ * Finds every encrypted value on the given row, leaving out the rows of its relations.
  *
  * Expects a row read with `autoDecrypt: false`, because what a caller asks about is the envelope rather
  * than the value: which strategy and key wrote it, and whether it is bound to its row. None of that
@@ -74,6 +74,10 @@ async function findEncryptedValuesRecursive<Data, EntityClass>(
     }
 
     for (const nested of descriptor.nestedValues(data)) {
+        // a row read along with this one is a row of its own entity, and found as one
+        if (nested.related) {
+            continue;
+        }
         await findEncryptedValuesRecursive(context, nested.data, nested.descriptor, found, visited);
     }
 }

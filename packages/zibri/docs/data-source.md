@@ -32,7 +32,7 @@ They provide a lot of functionality out of the box, including:
 | `ChangeSetRepository` | class | Extended `Repository` that automatically tracks who changed what & when |
 | `SoftDeleteRepository` | class | Extended `ChangeSetRepository` that adds soft delete functionality |
 | `ChangeSet`, `Change` | entity | The recorded change sets |
-| `Transaction` | class | Represents a started transaction (`commit`/`rollback`/`afterCommit`) |
+| `Transaction` | class | Represents a started transaction (`commit`/`rollback`/`afterCommit`/`afterFinish`) |
 | `Migration` | class | Base class to extend when defining a migration |
 | `SemVerVersion` | type | Version type used for `Migration.version` |
 
@@ -221,6 +221,11 @@ export class Test extends BaseEntity {
 
 An entity to be included in a data source needs to extend `BaseEntity`, which defines an id property.
 
+An entity is stored in the table its class is named after, `test` here, and `tableName` on `@Entity`
+names another. Every entity of a data source needs a table of its own, and every entity of the
+application a name of its own: two entities named alike, or two in one data source stored in the same
+table, fail at startup.
+
 Every entity says which tenant its rows belong to: the property holding the tenant of each row, or
 `'shared'` for rows every tenant shares. See [tenants](./tenancy.md).
 
@@ -283,7 +288,7 @@ export class Account extends SoftDeleteEntity {
 
 `whereFor` is what type-checks the filter: a property decorator receives its options before it knows which class it was written on, so the entity has to be named for its columns and their value types to be checked. A filter that did not go through it is not accepted, which is what keeps a mistyped column a compile error.
 
-The filter compares properties against plain values — a string, a number, a boolean or null — because it becomes part of the schema rather than part of a query. Anything else is refused while the schema is built.
+The filter compares properties against plain values — a string, a number, a boolean or null — as they are, or with `not`, `oneOf`, `notOneOf` or a comparison of numbers, because it becomes part of the schema rather than part of a query. Anything else is refused while the schema is built.
 
 **On a `SoftDeleteEntity` this is not optional.** A soft deleted row is present and absent at once, and both readings are ordinary: an address that a deleted account no longer holds is what lets somebody register again, while one that stays taken is how deleting an account stops being a way to shed its history. Nothing in `unique: true` says which is meant, so a soft delete entity that does not answer is refused where it is declared:
 
@@ -330,8 +335,48 @@ never read. So is one key written twice: two unique groups over the same columns
 column that already carries the `index` flag. Each refusal names the class, the columns and the
 declaration to drop.
 
-A property that declares `index` and a group that begins with the same column stand next to each
-other. They are two lookups — one column, and that column with more beside it — so both are declared.
+An index that is the leading part of another is refused the same way: `index` on `customerId` beside
+the group `['customerId', 'status']`, or a group that begins a unique group in its order. The longer one
+already answers every lookup the shorter one does.
+
+#### Rules every row follows
+
+`checks` on the entity are rules every row has to follow, each written as a filter every row has to
+match:
+
+```ts
+// src/models/task.model.ts
+import { BaseEntity, Entity, Property, whereFor } from 'zibri';
+
+@Entity({
+    checks: [
+        // a task is not done, or has a completion date
+        whereFor<Task>([{ status: { not: 'done' } }, { completedAt: { not: null } }]),
+        whereFor<Task>({ estimate: { greaterThanEquals: 1 } })
+    ]
+})
+export class Task extends BaseEntity {
+    @Property.string({ format: 'uuid' })
+    tenantId!: string;
+
+    @Property.string()
+    status!: string;
+
+    @Property.date({ required: false })
+    completedAt?: Date | null;
+
+    @Property.number()
+    estimate!: number;
+}
+```
+
+A create, update or upsert leaving a row that breaks a check is refused with a
+`CheckConstraintViolationError`, which answers 400 and names the properties the check compares. Nothing
+of the write is stored.
+
+A check compares the same way a `where` on a unique does. A row holding null matches `not` and
+`notOneOf` unless they name null, and never matches a comparison, so `{ estimate: { greaterThanEquals: 1 } }`
+also says the estimate is there.
 
 #### Keeping indexes and uniques
 
@@ -344,6 +389,7 @@ index or a unique, changing which rows it covers, or deleting it is all a releas
   keep working while it is built.
 - A unique the stored rows already break stops the start, naming the values they share. Remove the
   duplicates in a migration, which runs before the unique is created.
+- Checks are kept the same way. A check a stored row breaks stops the start, naming the row.
 - Once a release has changed the indexes and uniques, an older release refuses to start, the same way
   it refuses a database migrated past it, see [going back](#going-back).
 - A transaction that commits while a newer release next to it changes the indexes and uniques of an
@@ -438,6 +484,9 @@ async function readSome(): Promise<void> {
     await testRepository.findAll({ take: 'all' });     // every row that matches
 }
 ```
+
+A page, a limit and a `take` are whole numbers of at least 1, and a `skip` is one of at least 0. Any
+other value throws before the data source is asked.
 
 A page comes with the total that belongs to it. `findAllPaginated` reads the rows and counts them as
 of one moment, so `items` and `totalAmount` describe the same table, and both narrow by the same
@@ -541,10 +590,54 @@ entities carries the bound `findAll` has: more than ten thousand matching is ref
 is written, so a bulk write that outgrows the heap says so instead of doing it. A count has no such
 limit — it is what an unbounded update is for.
 
+#### Updating part of an object
+
+An update changes the properties it names and keeps the others, and an object property works the
+same way: the object you pass is merged into the stored one, as deep as the objects go.
+
+```ts
+// src/models/customer.model.ts
+export class Address {
+    @Property.string()
+    street!: string;
+
+    @Property.string()
+    number!: string;
+
+    @Property.string({ required: false })
+    note?: string | null;
+}
+
+@Entity()
+export class Customer extends BaseEntity {
+    @Property.string({ format: 'uuid' })
+    tenantId!: string;
+
+    @Property.object({ cls: () => Address })
+    address!: Address;
+}
+
+// src/services/customer.service.ts
+const customerRepository: Repository<Customer> = inject(repositoryTokenFor(Customer));
+
+async function moveNextDoor(id: string): Promise<Customer> {
+    // the street and the note stay as they are
+    return await customerRepository.updateById(id, { address: { number: '42' } });
+}
+```
+
+An array is a list, and is replaced whole, as is a value of several shapes. `null` is stored as `null`,
+for the whole object or for one property of it. An object passed where the row holds none is stored
+as you pass it.
+
 #### What a write hands back
 
 Every write answers with the rows as they now stand — every column of them, not only the ones you
 wrote, and the same as finding them would give.
+
+The data you pass stays as you passed it, the objects and arrays it holds included: values are
+encrypted, hashed and given their defaults in the write's own copy, so you can write the same data
+again.
 
 Relations are the part you decide. Name them on the options the same way [a read names
 them](#reading-relations), and the entity's `defaultRelations` are used when you name none:
@@ -676,6 +769,10 @@ restricts:
 An entity that soft deletes can only remove rows of entities that soft delete as well. Otherwise the
 application refuses to start.
 
+When the relation's `cascade` leaves out `'remove'`, hard deleting a row that rows of the relation
+still point at, soft deleted ones included, throws a `ConflictError` and deletes nothing. Unlink or
+delete those rows first. Rows deleted in the same call may point at each other.
+
 #### Two people editing the same thing
 
 Last write wins. That is right for most properties and silent data loss for the ones two people edit
@@ -731,6 +828,39 @@ async function renameRegardless(id: string, name: string): Promise<void> {
 
 Which is told apart from having forgotten by the property being named at all, so a filter you built
 that came out empty is still refused.
+
+An [`upsert`](#changing-a-value-based-on-what-is-stored--upsert) whose `onConflict` sets a locked
+property says what it read the same way, with `where` in its options. In `upsertAll` each row brings
+its own `where`:
+
+```ts
+@Entity({ uniques: [['slug']] })
+export class Workspace extends BaseEntity {
+    @Property.string({ format: 'uuid' })
+    tenantId!: string;
+
+    @Property.string()
+    slug!: string;
+
+    @Property.string({ optimisticLocking: true })
+    name!: string;
+}
+
+const workspaceRepository: Repository<Workspace> = inject(repositoryTokenFor(Workspace));
+
+async function nameWorkspace(tenantId: string, slug: string, name: string, seen: string): Promise<void> {
+    await workspaceRepository.upsert(
+        { slug },
+        { tenantId, slug, name },
+        { name: { set: name } },
+        { where: { name: seen } }
+    );
+}
+```
+
+The condition applies to the row that already holds the identity. When that row no longer matches,
+nothing is written and the call fails with a `ConflictError`; a row you may not see is answered as
+inserting its identity would be. An `increment` adds to whatever is stored, so it needs no condition.
 
 A filter asking for a value a property cannot hold is answered with no rows, rather than with an
 error. A property declares its format, so a value outside that format names nothing, and every method
@@ -893,6 +1023,29 @@ A search is also refused where a similarity says nothing about the values — a 
 uuid, one of an enum, a hashed value or an encrypted one. Each of those is answered exactly by `is`
 or `oneOf` instead.
 
+`{ similarTo }` in place of a direction orders by the same measure, the most similar values first and
+a property holding nothing last:
+
+```ts
+async function findByNameClosestFirst(): Promise<void> {
+    // the contacts whose name resembles 'Miller Holding', the closest one first
+    await contactRepository.findAll({
+        where: { name: { fuzzyLike: { value: 'Miller Holding' } } },
+        order: { name: { similarTo: 'Miller Holding' } }
+    });
+}
+```
+
+It orders with or without a `fuzzyLike` beside it, takes part in an order of several keys like a
+direction does, reaches through a relation, and pages with `findAllPaginated` and `findAllAfter`. It
+is refused on the same properties a search is, apart from `fuzzySearchable: false`, which orders by
+similarity as well.
+
+A similarity counts letters of every alphabet, so "Müller" and "Möller" are two different words. On
+postgres that needs a database created with a utf-8 character type, which the official images
+create. One created with `C` counts only ascii as a letter, and the data source says so when it
+starts.
+
 #### Filtering inside an object property
 
 `where` reaches into an object property, and the properties inside it take the same operators as the
@@ -929,6 +1082,45 @@ back. `{ not: null }` answers with exactly the rows `null` leaves out, so the tw
 for every row that has the object at all. A row whose object property is empty answers a question
 about the properties inside it the way it answers a question about a color it has no metadata to
 hold: it stays out of both halves.
+
+#### Filtering an array
+
+`includes` asks for an array holding every value it lists. `isIncludedIn` asks for an array holding at
+least one item, each of them one it lists:
+
+```ts
+@Entity()
+export class Story extends BaseEntity {
+    @Property.string({ format: 'uuid' })
+    tenantId!: string;
+
+    @Property.array({ items: { type: 'string' }, required: false })
+    tags: string[] | undefined | null;
+}
+
+const storyRepository: Repository<Story> = inject(repositoryTokenFor(Story));
+
+async function findByTags(): Promise<void> {
+    // returns the stories tagged both 'news' and 'sport'
+    await storyRepository.findAll({ where: { tags: { includes: ['news', 'sport'] } } });
+    // returns the stories that have tags, all of them either 'news' or 'sport'
+    await storyRepository.findAll({ where: { tags: { isIncludedIn: ['news', 'sport'] } } });
+    // returns the stories tagged 'news' or 'sport', and maybe more
+    await storyRepository.findAll({ where: [{ tags: { includes: ['news'] } }, { tags: { includes: ['sport'] } }] });
+    // returns the stories whose tags are an empty list
+    await storyRepository.findAll({ where: { tags: { length: 0 } } });
+    // returns the stories without a list of tags
+    await storyRepository.findAll({ where: { tags: null } });
+}
+```
+
+An empty array is found by `{ length: 0 }`, and a missing one by `null`. Every other operator on an
+array passes over both, so `{ isIncludedIn: [] }` finds nothing. To find the stories tagged only
+`'news'` together with the ones without tags, ask for both:
+`[{ tags: { isIncludedIn: ['news'] } }, { tags: { length: 0 } }]`.
+
+A relation to many rows takes the same operators, with the related rows as its items. It always holds
+a list, so `{ length: 0 }` finds the rows without related rows.
 
 #### Filtering a value of several shapes
 
@@ -1163,6 +1355,11 @@ async function createAndAnnounce(testRepository: Repository<Test>, transaction: 
 }
 ```
 
+Work that has to follow the end of the transaction however it ended goes to `afterFinish`. It runs once the
+transaction is committed, rolled back or its commit failed, and is told whether it was committed. A
+[lease held until a transaction ends](./leases.md#holding-a-lease-until-a-transaction-ends) is handed back
+this way.
+
 A transaction that reaches neither a commit nor a rollback is rolled back once it has sat idle for
 ten seconds, and everything it held is handed back. The clock runs from the last thing it did, so a
 transaction that keeps working keeps its full allowance however long it runs. A transaction that
@@ -1231,6 +1428,32 @@ A migration says how each property is stored, with the same metadata the `@Prope
 
 Something written out means the same in every later version. Something resolved means whatever the entity has become by the time the migration runs.
 
+Setting the schema up and running each migration take as long as they need: they run under the data
+source's `migrationTimeoutInMs` rather than [the time a statement may take](#how-long-a-call-may-take),
+and that is no limit unless the data source declares one. A migration that should stop sooner, or
+may take longer than the data source allows, declares a `timeoutInMs` of its own:
+
+```ts
+@Injectable()
+class RemovePaidInvoicesMigration extends Migration {
+    version: SemVerVersion = '0.0.2';
+
+    override readonly timeoutInMs: number = 15 * 60 * 1000;
+
+    constructor() {
+        super(DbDataSource);
+    }
+
+    override async up(transaction: Transaction): Promise<void> {
+        await invoiceRepository.deleteAll({ paid: true }, { transaction });
+    }
+
+    override async down(): Promise<void> {
+        throw new Error('The removed invoices cannot be restored.');
+    }
+}
+```
+
 #### Converting values
 `changePropertyOfEntity` converts every stored value, and fails without changing anything when one of them cannot be converted. The error names each of those values. `convert` lists values that become specific other values, and its `default` says what happens to all the others:
 
@@ -1259,7 +1482,7 @@ A cast keeps the value, or fails:
 | From | To | A value is kept when |
 |---|---|---|
 | any type | the same type | the new property can hold it: a string has to be one of its `enum`, at most `maxLength` characters long, and a uuid if it has to be one |
-| number | number of another `format` | it is the same number afterwards: `1.5` fails as an `'integer'` |
+| number | number of another `format` | it is the same number afterwards and the `format` holds it: `1.5` and `2 ** 53` fail as an `'integer'` |
 | number | string | always, written the way javascript writes it, eg. `'1.5'` or `'1e+21'`. A `'bigint'` or `'bignumber'` is written in decimal digits |
 | string | number | it is a number written out, eg. `'-1.5'` or `'2e3'`, and that number fits the `format`. An `'integer'` or `'bigint'` takes digits only. `' 7'` and `'0x10'` fail |
 
@@ -1455,7 +1678,15 @@ export class Note extends ChangeSetEntity {
 
 Change sets are stored in the same data source as the entity they record. A change set belongs to the
 [tenant](./tenancy.md#work-outside-a-request) of the row it describes, also when the change was made
-across tenants.
+across tenants. Hard deleting a row deletes its change sets along with it, and a soft delete keeps
+them.
+
+A change set is found by the id of its row, and the change sets of all entities share one table. An id
+you give a row through `allowId` is one that no row of another change set entity has, or the two
+share a history. Resetting a change set or rolling back to one refuses a change set of another row.
+
+A change of an object property records the whole object, before and after. Resetting it writes the
+object back as it was, with `null` for a property added to it since.
 
 #### A change and its record are one write
 
@@ -1510,6 +1741,40 @@ afterwards.
 
 `hardDelete: true` on `deleteById` or `deleteAll` removes rows for good, soft deleted ones included.
 
+### How long a call may take
+Every statement a data source runs has a time limit, inside a request or not — a cron job, an event
+subscriber and a thread job included. A statement past it fails. A postgres data source gives a
+statement 30 seconds, and `statementTimeoutInMs` says otherwise. A valkey data source gives a command
+the `requestTimeout` of its options, 5 seconds by default.
+
+A call that needs longer, or should give up sooner, names `timeoutInMs` on its options. Each statement
+of the call may take that long, and the call as a whole as well: once it has run out of time, the
+statement still running is stopped where the store can stop one, and nothing further is asked of the
+store. `0` lifts the limit. A single valkey command keeps its `requestTimeout` either way.
+
+```ts
+@DataSource()
+class WarehouseDataSource extends PostgresDataSource {
+    options: OmitStrict<PostgresOptions, 'type' | 'entities'> = { host: 'warehouse.internal', database: 'warehouse', ssl: true };
+    entities: Newable<BaseEntity>[] = [];
+    schemaManagement: SchemaManagement = 'external';
+
+    protected override readonly statementTimeoutInMs: number = 60000;
+}
+
+async function removePaidInvoices(): Promise<void> {
+    await invoiceRepository.deleteAll({ paid: true }, { timeoutInMs: 10 * 60 * 1000 });
+}
+```
+
+A stream counts the time between two of its rows too: it has run out of time once it has been open
+for longer than its `timeoutInMs`, however much of it was read.
+
+A call that finds every connection of a postgres data source's pool taken waits for one to come free,
+for 30 seconds at most, and fails past that. `connectTimeoutMS` in the data source's `options` says
+otherwise. A call's `timeoutInMs`, and the request it belongs to, end the wait sooner. Starting a
+transaction waits the same way.
+
 ### Reads and writes inside a request
 A repository operation belongs to the request that asked for it. When that request runs out of the
 time its route allows, the next operation is refused rather than issued, and a statement already
@@ -1518,6 +1783,9 @@ running is stopped where it runs when the store offers a way to do that. Both fa
 
 A statement inside a transaction is stopped the same way, and the transaction goes with it: nothing
 it wrote is going to be asked for, so it rolls back and the rows it was holding are free again.
+
+A call naming a [`timeoutInMs`](#how-long-a-call-may-take) inside a request ends with whichever of the
+two runs out first.
 
 See [deadlines](./creating-endpoints.md#deadlines).
 

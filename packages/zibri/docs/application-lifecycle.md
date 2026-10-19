@@ -22,7 +22,7 @@ Any class decorated with `@Injectable()` (the default `register: 'immediately'`)
 
 ```ts
 // src/services/analytics.service.ts
-import { defineProvider, HttpServerTimeouts, Injectable, Ms, OnAppInit, OnAppShutdown, ShutdownSignal, ZIBRI_DI_TOKENS, ZibriApplication } from 'zibri';
+import { defineProvider, HttpServerLimits, Injectable, Ms, OnAppInit, OnAppShutdown, ShutdownSignal, ZIBRI_DI_TOKENS, ZibriApplication } from 'zibri';
 
 import { AnalyticsClient } from './analytics-client';
 
@@ -100,16 +100,18 @@ export async function startOn(app: ZibriApplication): Promise<void> {
 Once the port is bound the server keeps an error handler of its own. An error it raises later — a connection it cannot accept because the process ran out of file descriptors, say — is logged at `error` level, and the instance carries on serving the connections it already has.
 
 ### How long a request may take
-Four timeouts bound one request. Three of them bound the client sending it, because a connection nobody closes costs a file descriptor whether or not a request ever finishes arriving on it. The fourth bounds your own code:
+Four timeouts bound one request. Three of them bound the client sending it, because a connection nobody closes costs a file descriptor whether or not a request ever finishes arriving on it. The fourth bounds your own code. Two more limits bound its headers:
 
 ```ts
 defineProvider({
-    token: ZIBRI_DI_TOKENS.HTTP_SERVER_TIMEOUTS,
-    useFactory: (): HttpServerTimeouts => ({
+    token: ZIBRI_DI_TOKENS.HTTP_SERVER_LIMITS,
+    useFactory: (): HttpServerLimits => ({
         requestInMs: Ms.SECOND * 60,
         headersInMs: Ms.SECOND * 15,
         keepAliveInMs: Ms.SECOND * 5,
-        handlerInMs: Ms.SECOND * 30
+        handlerInMs: Ms.SECOND * 30,
+        maxHeaderCount: 100,
+        maxHeaderSizeInBytes: 16 * 1024
     })
 })
 ```
@@ -119,6 +121,8 @@ defineProvider({
 `keepAliveInMs` is how long an idle connection is kept. **Raise it above the idle timeout of whatever sits in front of the application.** A proxy that reuses a connection the server closed in the same moment has nothing to answer with, and reports a gateway error that no log on this side explains.
 
 `handlerInMs` is how long a route handler has to produce a result, for every route that does not say otherwise. It runs from the handler being called to it returning, so it is independent of the three above: they are all satisfied the moment the request has arrived. Set it to `'none'` to leave handlers unbounded unless a route asks for a deadline itself. A route declares its own with `timeoutInMs` — see [creating endpoints](./creating-endpoints.md#deadlines).
+
+`maxHeaderCount` is how many headers a request may carry and `maxHeaderSizeInBytes` how many bytes they may take up together. A request over either is answered `431` before any middleware or route sees it. Both are whole numbers of at least one, and the application refuses to start otherwise.
 
 ### Handling shutdown timeouts and errors
 `BeforeAppShutdown`, `OnAppShutdown` and `AfterAppShutdown` accept an optional `shutdownTimeoutInMs` (default 30 seconds). All implementers within the same shutdown phase run in parallel; if one throws or times out, the error is logged and the remaining implementers in that phase are unaffected.

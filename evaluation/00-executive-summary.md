@@ -36,7 +36,7 @@ before the fix and passes after it. Run them with `npm run test:cluster -w zibri
 | [01 §M7](./01-data-layer.md) a pool of 100 per process asked a stock database for twenty times what it accepts, so the first scale-out took it down for every replica at once | `data-layer.evaluation.test.ts` |
 | [01 §M4](./01-data-layer.md) one `findAll()` streamed a whole table into the heap — refused now rather than trimmed, because a caller looping over a trimmed result does half its work silently | `data-layer.evaluation.test.ts` |
 | [01 §M5](./01-data-layer.md) a paginated read reached the store with no `ORDER BY` at all — `defaultOrder` is optional and almost nothing declares one — so which rows a page held depended on where each row happened to sit, and a table being written to handed the same row back on two pages while passing over one that was never read. **No concurrent writer was needed for it.** The page and its total were separate statements on top of that; they are one `findAndCount` now, and the postgres driver takes the snapshot it needs itself. What no per-call fix reaches — a walk spanning requests, where every page number shifts under an insert — is `findAllAfter`, a cursor read that hands back every row present when the walk started exactly once | `data-layer.evaluation.test.ts`, `in-memory-data-source.test.ts`, `repository.test.ts` |
-| [01 §M2](./01-data-layer.md) no index could be declared at all, so every lookup the framework did not build itself read the table — and a column declaring itself `unique` could not identify a row for an `upsert` | `declared-indexes.test.ts`, `data-layer.evaluation.test.ts` *(partial and covering indexes stay open)* |
+| [01 §M2](./01-data-layer.md) no index could be declared at all, so every lookup the framework did not build itself read the table — and a column declaring itself `unique` could not identify a row for an `upsert` | `declared-indexes.test.ts`, `data-layer.evaluation.test.ts` *(the partial unique closed with §M13; covering indexes and the other shapes are §M53)* |
 | [01 §M19, §M18](./01-data-layer.md) a filter reaching into an object column answered two ways about the same rows. Asking for `null` found a property written as null but never one that was never written — while `not: null` found both, so a row holding null answered yes to both questions at once. And a value whose type the entity no longer declares made the *whole query* throw with the value and nothing else, reading like the query is broken rather than like one row is. The null halves are one condition now and exact complements; the throw is kept deliberately — a row that cannot be compared is not a row that failed the comparison — and names the property, the declared type and what it found. **Pinning the semantics first is what caught the fix the finding itself suggested being wrong**, and a second defect with it: once absent counts as null, a row with no object at all starts answering questions about the properties inside it | `postgres-jsonb-value-types.test.ts`, `mistyped-values.cases.ts` *(the same rows compared loosely on the other stores, named in §M18, closed since: every store refuses them alike)* |
 | [06 §C4, 05 §P6, 02 §C3](./06-tooling-ci-and-testing.md) a generated project had no way to be deployed and no way to say whether it was healthy. It has a Dockerfile, a `.dockerignore` and the health controller §C3 withdrew from the framework on the grounds that a project would write one — nobody had. **Writing the Dockerfile is what exposed the defect underneath it**: the application created its `versions` folder when it found none and recorded the version being deployed as the first that ever existed, so an image that left the folder out came up healthy with every route-history guarantee silently gone. An absent folder is a refusal to start now, and only an empty one is permission to record a first snapshot. §P6's asymmetry turned out to be correct and its premise wrong — a `dist`-only deployment does not exist, since the bundle leaves `express` and `handlebars` as runtime requires — so what closed there is a copy nothing reads | `new.command.docker.heavy.test.ts` *(the image is built and run against a database and asked what only a running one can answer)*, `versioning.service.test.ts`, `new.command.sandbox-parity.test.ts` *(the CI workflow closed with §CD5: `zi new` asks, and the heavy suite runs the generated workflow on a checkout without `.env`)* |
 | [01 §M26](./01-data-layer.md) two entities referencing each other are a cycle, and whichever of them was resolved first decided — permanently — whether the other's nested defaults, encryption, hashing and exclusion were registered at all. No declaration changed the outcome, nothing warned, and a nested `encryption: true` value could be written in plaintext | `model-registry.test.ts` |
@@ -47,9 +47,9 @@ before the fix and passes after it. Run them with `npm run test:cluster -w zibri
 | [01 §M23, §M24](./01-data-layer.md) a migration's version answered two questions and could not answer both, so the second schema change of a release — the ordinary case — was treated as applied the moment the first recorded itself and **silently never ran**, while reverting either one deleted both records. Identity is the class name now, which `runUp` was already writing on every row, so nothing had to be backfilled; what had to go is `version` being declared `unique`, which is the schema asserting that a release carries one change. **A second half nobody had filed closed with it**: reverts were ordered by version, which stops being an order at all once two migrations share one. §M24's two stores turned out not to disagree on purpose — valkey already resolved a to-one relation to its foreign key and postgres's single-statement upsert had never learned it — so the translation moved above both drivers, where `belongsToOne` and `manyToOne` are written as their key and the three kinds that keep their key elsewhere are refused by name | `migration-identity.test.ts`, `upsert-relations.test.ts` |
 | [01 §M8, §M12](./01-data-layer.md) every number column was an arbitrary precision `numeric` read back through `Number`, so a value above 2^53 came back as a different number and a counter indexed and aggregated as a decimal. A number property now says which of four kinds it holds — `number`, `integer`, `bigint`, `bignumber` — and each is stored as something its own TypeScript type holds *exactly*, so **the precision loss becomes unreachable rather than caught**: the fix the entry asks for, refusing a value that does not round-trip, was declined for that. What it costs is the declared type having to match the format, checked at declaration time where TypeScript emits one and against the value where it does not — `number \| null` compiles to `Object`, and that union is what most nullable number properties use. §M12 was **two thirds already closed and unrevisited**, the third round running; its soft delete read the row twice, once for the guard and once for a change set that excludes the column being written. Its last third closed after that: an update no longer reads the row it just wrote, because `UPDATE … WHERE … RETURNING *` is the single operation the driver interface claimed no store has, and typeorm's `save` was reading the row a second time on top of that — **a plain `updateById` costs two statements rather than four** | `number-formats.cases.ts`, `number-format.test.ts`, `data-layer.evaluation.test.ts`, `validate-number.function.test.ts`, `updated-entity.cases.ts`, `json-column-values.test.ts` |
 | [01 §M13](./01-data-layer.md) a soft deleted row kept holding the address it was registered with, so deleting an account burned that email forever. A unique declaration now says which rows it covers, and on a soft delete entity **saying nothing is refused at declaration time** — both answers are ordinary, so neither can be the default | `data-layer.evaluation.test.ts`, `soft-delete-key-declarations.test.ts`, `key-where-to-sql.test.ts` |
-| [01 §M14](./01-data-layer.md) there was no `count` and no `exists`, so how many rows match was answered by reading all of them — and once M4 refused an unbounded read past ten thousand, not answerable at all above that. Both narrow through the entity's scopes, so a count reports what the caller may see rather than what is stored | `data-layer.evaluation.test.ts`, `soft-delete-repository.test.ts` *(the cursor/stream half stays open)* |
+| [01 §M14](./01-data-layer.md) there was no `count` and no `exists`, so how many rows match was answered by reading all of them — and once M4 refused an unbounded read past ten thousand, not answerable at all above that. Both narrow through the entity's scopes, so a count reports what the caller may see rather than what is stored | `data-layer.evaluation.test.ts`, `soft-delete-repository.test.ts` *(the cursor closed since, as `stream`)* |
 | [03 §D4](./03-auth-and-security.md) the encryption service loaded its strategies without their keys, so every strategy row that already existed came back with `keys` undefined and the service searched and pushed to it anyway. A first boot could not show it — the table is empty then, so every strategy is one the process just made and still holds its keys — which is why the only symptom was the master-rotation test failing on the *second* boot | `auth-and-security.evaluation.test.ts` |
-| [01 §M15](./01-data-layer.md) every unique lookup on valkey read the whole entity | *(partial — a unique declaration is now indexed)* |
+| [01 §M15](./01-data-layer.md) every lookup on valkey read the whole entity | `val-key-data-source.test.ts`, `migration-helpers.cases.ts` *(a unique declaration was indexed first, every declared index since)* |
 | [01 §C1](./01-data-layer.md) `synchronize` was opt-out, so a rename dropped a column on the next deploy | `schema-management.evaluation.test.ts` |
 | [01 §C4](./01-data-layer.md) `CREATE EXTENSION` on every boot made superuser a condition of starting | `trigram-extension.evaluation.test.ts`, and every container-backed suite, which now boots as a role that owns its database and nothing more |
 | [01 §C6](./01-data-layer.md) a backup of one application dumped the whole cluster, and wrote every role's password verifier into the artifact | `backup.evaluation.test.ts` |
@@ -120,8 +120,8 @@ using the framework rather than reading it:
 
 | Finding | |
 |---|---|
-| [04 §1.3b](./04-infrastructure-subsystems.md) | scheduled work starts before the app is listening, so a pod that never becomes ready still runs the nightly job |
-| [04 §1.4b](./04-infrastructure-subsystems.md) | `emit` only knows about subscribers in its own process — narrowed and **confirmed red** by `cluster/heterogeneous-events.cluster.test.ts`. The originally described case turned out to work by accident; what breaks is two *different* subscribers split across roles |
+| [04 §1.3b](./04-infrastructure-subsystems.md) | scheduled work starts before the app is listening, so a pod that never becomes ready still runs the nightly job — **fixed**, by an `AfterAppStart` hook that runs once the port is bound |
+| [04 §1.4b](./04-infrastructure-subsystems.md) | `emit` only knows about subscribers in its own process — narrowed and **confirmed red** by `cluster/heterogeneous-events.cluster.test.ts`. The originally described case turned out to work by accident; what breaks is two *different* subscribers split across roles — **fixed**, by a registry of subscribers in the data source |
 | [05 §D9](./05-di-metadata-and-packaging.md) | `@Injectable` registration is a one-shot snapshot; being late produces an error that blames the decorator. Hit three times — **fixed**, by having `inject` consult the global record it already consulted for lazy injectables |
 | [05 §D10](./05-di-metadata-and-packaging.md) | defining a data source you never use fails boot — **fixed**, with `allowOrphan` and by comparing class identity rather than class name, which had been letting a factory's identically named classes vouch for each other |
 | [07](./07-documentation-vs-code.md) | the documented `subscribe` example does not compile — **fixed**, by removing the type parameter it needed. A DI token carries one type and hands every consumer that same type, so a generic on the service had to be instantiated at the token, which could only name the widest map there is. An application declares what it emits by merging into `ZibriEventMap` instead |
@@ -130,7 +130,7 @@ using the framework rather than reading it:
 | [10 §10.2](./10-leases-and-claims.md) | an event claim was never renewed, so a slow subscriber ran repeatedly — and the replica that lost the claim exited with code 1 — **fixed** |
 | [03 §E5](./03-auth-and-security.md) | the rate limiter's compare-and-set retried three times with no delay, and every writer that lost did so at the same instant — so they retried into the same race and a burst became an `InternalError` from the limiter itself. Eight attempts with a random wait in a doubling window; the randomness matters more than the count. §2.3 in another subsystem — **fixed** |
 | [06 §T4](./06-tooling-ci-and-testing.md) | the thread job worker is started from `dist`, correctly — but only CI builds before testing, so a local run exercises whatever the last build contained. Caught by it twice in one sitting: one worker fix's test was red against eight-day-old code, and the other's **passed without testing anything**. The suite now refuses a build older than its source, and the weak test was replaced by one that compares thread ids — **fixed** |
-| [01 §M25](./01-data-layer.md) | an `Error` written to a column keeps `{}` of it: `message`, `stack` and `cause` are non-enumerable, and `@Property.unknown` is `jsonb`. `ThreadJobEntity.error` and `Payment.error` are each the only record of their failure and each say nothing about it. Survived because every assertion on those columns checks that they are *defined*, and `{}` is. Found while fixing 04 §2.4, whose third instance is now a `LoggedError` |
+| [01 §M25](./01-data-layer.md) | an `Error` written to a column keeps `{}` of it: `message`, `stack` and `cause` are non-enumerable, and `@Property.unknown` is `jsonb`. `ThreadJobEntity.error` and `Payment.error` are each the only record of their failure and each say nothing about it. Survived because every assertion on those columns checks that they are *defined*, and `{}` is. Found while fixing 04 §2.4, whose third instance is now a `LoggedError` — **fixed** |
 | [10 §10.2a](./10-leases-and-claims.md) | `updateById` on a deleted row inserted it back instead of failing — **fixed** |
 | [04 §4.3](./04-infrastructure-subsystems.md) | a **type-only** dependency can still be the wrong one. Typing `HttpClientOptions.dispatcher` as undici's own `Dispatcher` looked free, because `undici-types` reaches every project through `@types/node` — but at whatever version their `@types/node` major pulls, and **this repository's three workspaces carry undici-types 6, 7 and 8 at once**. A `Dispatcher` from one is not assignable to a `Dispatcher` from another (v8 widened `UndiciHeaders`), so any version named is wrong for somebody and the option refuses the `ProxyAgent` it exists to accept. `tsc` sees none of this: it resolves the nearest copy. The type is described by the framework now, to the one member it touches — none, since it forwards a dispatcher and never calls it — and all three majors satisfy it — **fixed** |
 | [10 §10.3](./10-leases-and-claims.md) | queued mail was claimed per cron tick rather than per row, so a slow send was re-sent by the next slot — **fixed** |
@@ -171,8 +171,8 @@ that transactions and leases are the only two coordination primitives this frame
 `withLock`, `atomicUpsert`, the cron lease, the event claim and the mail claim are all one of the
 two wearing a different name. Under that model the mail queue stops claiming by updating, so §M20
 loses its concrete requirement and becomes a user-facing gap rather than a blocking one. The model
-is written up in [10, The two primitives](./10-leases-and-claims.md#the-two-primitives) and is the
-next thing to be built.
+is written up in [10, The two primitives](./10-leases-and-claims.md#the-two-primitives), and has been
+built: the mail claim is a lease, and `EmailSendClaim` is gone.
 
 ---
 
@@ -218,37 +218,34 @@ them whatever the container did. See [02 §C7](./02-http-runtime-core.md).
 - ~~**Migrations take no lock**~~ **fixed** — schema setup now runs inside `withLock`, on
   `DataSourceInterface`. Note the original finding named only migrations: `synchronize` was racing
   too, and hit first.
-- **Down-migrations run automatically on version downgrade** —
-  `src/data-source/migration/run-migrations.function.ts:50-63`. A rollback, or an old pod
-  restarting mid-deploy, reverts the schema the new pods are using. The documented `down()`
-  example is `throw new Error('Not implemented yet.')`.
-- **Failed emails are deleted** — `src/email/email.service.ts:129-141`. A rejected mail with
-  `persist: false` (the default) is `DELETE`d. No retry, no DLQ.
-- **`runOnInit: true` is the cron default** — `src/cron/cron-job.model.ts:86-92`. Every pod
-  restart fires every job off-schedule. Zibri's own internal jobs all override it to `false`.
+- ~~**Down-migrations run automatically on version downgrade**~~ — **fixed**. A database holding a
+  migration this build does not carry refuses to start rather than being reverted, and the documented
+  `down()` is a real one. See [01 §C3](./01-data-layer.md).
+- ~~**Failed emails are deleted**~~ — **fixed**. A mail the server refused is kept as `FAILED` with
+  the recipients it refused, whatever `persist` says. See [04 §2.2](./04-infrastructure-subsystems.md);
+  retrying one is still open (§2.14, §2.20).
+- ~~**`runOnInit: true` is the cron default**~~ — **fixed**. It defaults to `false`, and a startup
+  run is elected like any other execution. See [04 §1.3](./04-infrastructure-subsystems.md).
 
 → [01-data-layer.md](./01-data-layer.md) §C1–C3
 
 ### 3. Security defaults and gaps
 
-- **`Access-Control-Allow-Origin: *`, hardcoded and unconfigurable** **[verified]** —
-  `src/http/cors.middleware.ts:11-19`. No CORS option exists anywhere. It also omits `PATCH`
-  from allowed methods and omits the framework's own `x-csrf-token` / `x-authorization-otp`
-  headers from allowed headers, so a cross-origin browser client physically cannot send the
-  CSRF token or the 2FA code. It short-circuits every `OPTIONS` with a 200, making
-  `HttpMethod.OPTIONS` routes unreachable.
-- **Routes are open by default with no warning** — `src/auth/auth.service.ts:211-288`. A route
-  with no `@Auth.*` metadata skips every check. The only warning emitted is the *inverse* case.
-- **JWT access tokens cannot be revoked; role checks never hit the DB** —
-  `src/auth/strategies/jwt/jwt.auth-strategy.ts:330-350`. A terminated employee keeps `ADMIN`
-  for up to the token lifetime (default 1h).
-- **Unconfirmed TOTP enrollments satisfy 2FA** **[verified]** —
-  `src/auth/2fa/methods/otp/otp.two-factor-method.ts:79-83` never checks `c.confirmed`, though
-  `confirmRegisterForUser` sets it at line 59.
-- **No rate limiting or lockout on any built-in auth endpoint.** Not one route in
-  `jwt-auth.controller.ts` carries `@RateLimited`.
-- **Secrets stored in plaintext**: password-reset tokens, TOTP seeds, refresh tokens, CSRF
-  tokens — none use the framework's own `hash` / `encryption` property flags.
+- ~~**`Access-Control-Allow-Origin: *`, hardcoded and unconfigurable**~~ — **fixed**. `cors` is an
+  application option, every routable method and the framework's own headers are allowed, and only a
+  real preflight is short-circuited. See [02 §C1](./02-http-runtime-core.md).
+- ~~**Routes are open by default with no warning**~~ — **fixed**, by making `defaultAuth` a required
+  option rather than picking a default. See [03 §A1](./03-auth-and-security.md).
+- ~~**JWT access tokens cannot be revoked; role checks never hit the DB**~~ — **fixed**. Checks read
+  the stored user unless an application chooses the token's word, and `ACCESS_TOKEN_REVOCATION` ends
+  an access token with its login. See [03 §A3](./03-auth-and-security.md) and §H8.
+- ~~**Unconfirmed TOTP enrollments satisfy 2FA**~~ — **fixed**. See [03 §C2](./03-auth-and-security.md).
+- ~~**No rate limiting or lockout on any built-in auth endpoint.**~~ — **fixed**: a per caller limit
+  on login and the reset routes, and a doubling wait on wrong second factor codes. See
+  [03 §E1](./03-auth-and-security.md) and §C3.
+- ~~**Secrets stored in plaintext**~~ — **fixed** for reset tokens, TOTP seeds, refresh tokens and
+  cookie sessions, whose csrf token is derived rather than stored ([03 §B5](./03-auth-and-security.md),
+  §C1, §B7).
 
 → [03-auth-and-security.md](./03-auth-and-security.md)
 
@@ -266,6 +263,12 @@ redesigning the interface, not implementing it.
 
 No large organization runs its own password database as the primary identity source. This is a
 procurement-stage rejection.
+
+> **Built since.** Authenticators prove who someone is and strategies hold the session, so a
+> redirect fits: OpenID Connect, plain OAuth2, SAML, LDAP and Active Directory, passkeys, SCIM,
+> asymmetric tokens with a JWKS, client certificates, api keys, the client credentials grant with
+> introspection and revocation, step-up and code second factors, and multi-tenancy. What is open
+> there is a tenant's own sign-in ([03 §H20](./03-auth-and-security.md)) and §H22–H27.
 
 → [03-auth-and-security.md](./03-auth-and-security.md) §H
 
@@ -292,10 +295,9 @@ procurement-stage rejection.
   **fixed**, behind `ZIBRI_DI_TOKENS.ACCESS_LOG` and off by default, since metrics already answer the
   aggregate questions more cheaply. See [02 §M6](./02-http-runtime-core.md) and
   [02 §M7](./02-http-runtime-core.md).
-- **Prometheus cardinality bomb** **[verified]** — `src/metrics/metrics.service.ts:105` uses
-  `req.originalUrl ?? req.route?.path`. `originalUrl` is always defined and includes path
-  params *and* query string, so the templated route path is dead code. Each distinct URL
-  creates ~11 series with no eviction. Unauthenticated remote OOM.
+- ~~**Prometheus cardinality bomb**~~ — **fixed**. The label is the route template, and every
+  request that matched no route shares one `<unmatched>` label. See
+  [02 §C2](./02-http-runtime-core.md).
 
 → [02-http-runtime-core.md](./02-http-runtime-core.md) §M6–M7,
   [04-infrastructure-subsystems.md](./04-infrastructure-subsystems.md) §3.1
@@ -312,8 +314,8 @@ procurement-stage rejection.
 - ~~**`process.exit(0)` unconditionally**, even if every shutdown hook threw~~ — **fixed**. A failed
   hook sets `shutdownFailed` and the process exits `1`, so an orchestrator no longer reads a clean
   exit after a broken teardown. The *"does not flush pending async log writes"* half was overstated:
-  the shutdown path awaits its logging. Fire-and-forget logging elsewhere is still unflushed, which
-  needs a flush contract on `LoggerTransport`.
+  the shutdown path awaits its logging. Fire-and-forget logging elsewhere is flushed too, since
+  the logger buffers every entry and `onAppShutdown` flushes it ([04 §3.3](./04-infrastructure-subsystems.md)).
 - ~~**`server.listen()` has no error handler**~~ — **fixed**. `start()` waits for the bind, so
   `EADDRINUSE` rejects it instead of resolving, logging *"running on port 8080"* and then killing the
   process. The word the finding got most right was *anywhere*: the server keeps emitting `'error'`
@@ -337,28 +339,32 @@ procurement-stage rejection.
 
 ## Tier 2 — Serious (must be fixed before rollout)
 
-**Data access** — no index can be declared anywhere in the entity model and there is no raw-DDL
-escape hatch; no optimistic locking or version column; `updateAll`/`deleteAll` materialize the
-whole result set; ~~SQL is built by string concatenation including unescaped JSONB keys and entity
+**Data access** — ~~no index can be declared anywhere in the entity model and there is no raw-DDL
+escape hatch~~ **fixed** (§M2); ~~no optimistic locking or version column~~ **fixed**, the version
+column declined (§M1); ~~`updateAll`/`deleteAll` materialize the whole result set~~ **fixed** (§M3);
+~~SQL is built by string concatenation including unescaped JSONB keys and entity
 ids~~ **fixed**; ~~`CREATE EXTENSION pg_trgm` on every boot needs superuser~~ **fixed**;
-`poolSize: 100` default;
-transactions must be threaded by hand and leak pooled connections on a throwing commit; every
-number column is `DECIMAL` round-tripped through strings; bulk audit rows lose the actor;
+~~`poolSize: 100` default~~ **fixed** (§M7);
+~~transactions must be threaded by hand and leak pooled connections on a throwing commit~~ **fixed**,
+the helper declined (§M6); ~~every number column is `DECIMAL` round-tripped through strings~~
+**fixed** (§M8); ~~bulk audit rows lose the actor~~ **fixed** (§M10);
 ~~backups shell out to `pg_dumpall` with stored superuser credentials~~ **fixed** — and the artifact
 it produced carried every role's password verifier, which the finding had not noticed;
 ~~a `unique` declaration is a constraint on postgres and a comment on valkey, which `upsert` depends
 on being true~~ **fixed** — and the framework's own rate limiter was depending on it too.
 → [01-data-layer.md](./01-data-layer.md)
 
-**Runtime correctness** — a crashed idle worker poisons the thread pool forever; `eval` of a
-function body read from a database column; non-priority thread jobs are LIFO and starve;
-uploaded temp files default into `node_modules` and the cleanup cron has an inverted predicate;
+**Runtime correctness** — ~~a crashed idle worker poisons the thread pool forever~~ **fixed**
+(04 §2.6); ~~`eval` of a function body read from a database column~~ **fixed** (04 §2.9);
+~~non-priority thread jobs are LIFO and starve~~ **fixed** (04 §2.10);
+~~uploaded temp files default into `node_modules` and the cleanup cron has an inverted predicate~~
+**fixed** (02 §C6);
 ~~multipart parsing sets no busboy `limits`~~ **fixed**, and so is the refusal arriving as a
 connection reset rather than a 413; ~~stream errors after headers are sent throw inside an
-`'error'` listener~~ **fixed**, and with it a failed download ending the process; one transient
-SMTP blip permanently disables outbound email; multi-tier
-cache tag invalidation is a no-op; the HTTP client retries non-idempotent requests on any 4xx
-with zero backoff.
+`'error'` listener~~ **fixed**, and with it a failed download ending the process; ~~one transient
+SMTP blip permanently disables outbound email~~ **fixed** (04 §2.1); ~~multi-tier
+cache tag invalidation is a no-op~~ **fixed** (04 §1.8); ~~the HTTP client retries non-idempotent
+requests on any 4xx with zero backoff~~ **fixed** (04 §4.1).
 → [02-http-runtime-core.md](./02-http-runtime-core.md),
   [04-infrastructure-subsystems.md](./04-infrastructure-subsystems.md)
 
@@ -373,14 +379,15 @@ what it was asked;
 ~~every log call materializes a V8 stack trace~~ **fixed**; ~~logging is awaited with one DB INSERT per
 line~~ **fixed** — the awaited half went with the access log, and the per-line half needed a batch
 *and* somewhere for entries to gather, since a drain that starts on the first entry batches nothing
-for an application that logs once per request; validation regexes recompiled per request.
+for an application that logs once per request; ~~validation regexes recompiled per request~~
+**fixed**, compiled once each and run on a linear-time engine (02 MINOR).
 → [02-http-runtime-core.md](./02-http-runtime-core.md) §M2–M4
 
 **DI and packaging** — ~~no request scope and no cycle detection (a circular dependency is a stack
 overflow, not a diagnostic)~~ **fixed**; ~~providers silently overwrite each other~~ **fixed**;
 ~~`unregister` does not evict instances and its JSDoc is false~~ **fixed**;
 ~~a parameter the type metadata could not keep is injected as `Object`~~ **fixed**;
-`emitDecoratorMetadata` locks consumers to `tsc`;
+~~`emitDecoratorMetadata` locks consumers to `tsc`~~ **fixed**, as two supported styles (§M1);
 ~~the ESM build's post-processing is wrapped in `catch {}` and reads a file `tsc` did not emit~~ **fixed**.
 → [05-di-metadata-and-packaging.md](./05-di-metadata-and-packaging.md)
 
@@ -388,15 +395,18 @@ overflow, not a diagnostic)~~ **fixed**; ~~providers silently overwrite each oth
 
 ## Tier 3 — Notable
 
-No 403 (role failures return 401, causing infinite SPA refresh loops); authorization errors leak
-role names and entity class names to unauthenticated callers; password reset is a three-state
-enumeration oracle *and* a denial-of-reset vector; scrypt work factor hardcoded and
-unconfigurable; `needsRehash`/`needsReEncryption` are dead features; encrypted values have no AAD
-binding so encrypted values are portable between rows; the default rate-limit key is the literal
-string `'global'` and there is no supported way to key by IP; the distributed rate-limit lock is
-TTL-based with no fencing; `req.method` is mutated to lowercase for all downstream middleware;
-the hand-rolled cookie parser has last-wins duplicate handling and an unauthenticated
-log-flooding DoS; middleware ordering is emergent and undocumented; ~~no compression, ETag,
+~~No 403 (role failures return 401, causing infinite SPA refresh loops)~~ **fixed** (02 §M9);
+~~authorization errors leak role names and entity class names to unauthenticated callers~~
+**fixed** (03 §G2); ~~password reset is a three-state enumeration oracle *and* a denial-of-reset
+vector~~ **fixed** (03 §B4); ~~scrypt work factor hardcoded and unconfigurable~~ **fixed** (03 §D1);
+~~`needsRehash`/`needsReEncryption` are dead features~~ **fixed** (03 §D2); ~~encrypted values have no
+AAD binding so encrypted values are portable between rows~~ **fixed** (03 §D3); ~~the default
+rate-limit key is the literal string `'global'` and there is no supported way to key by IP~~
+**fixed** (03 §E2); ~~the distributed rate-limit lock is TTL-based with no fencing~~ **fixed**, a
+version on the row took over correctness (03 §E4); ~~`req.method` is mutated to lowercase for all
+downstream middleware~~ **fixed**, see below; ~~the hand-rolled cookie parser has last-wins duplicate
+handling and an unauthenticated log-flooding DoS~~ **fixed** (03 §F3; the log-flooding mechanism is
+03 §G3); ~~middleware ordering is emergent and undocumented~~ **fixed** (02 §M12); ~~no compression, ETag,
 HTTP/2, request timeouts or `trust proxy`~~ — **compression, the server timeouts and `trust proxy`
 are fixed**, ETag was there all along and unreachable (see the method mutation below), and HTTP/2
 and in-process TLS stay open.
@@ -421,3 +431,9 @@ If the memo has to be three bullets:
 3. **Authentication and authorization failures produce no log records at all** (Tier 1 §5).
    Without those events, brute-force detection, incident response, and every audit control that
    depends on an access trail cannot be built on top.
+
+> **All three have closed.** Cron, events, the mail queue, websocket broadcasts and cache
+> invalidation coordinate through the shared data source; `defaultAuth` is required and an access
+> token can be ended with its login; and the audit trail records every login, refusal and denial
+> ([03 §G1](./03-auth-and-security.md)). What is still open is indexed in
+> [11](./11-whats-left.md).

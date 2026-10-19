@@ -99,7 +99,8 @@ alive, and both `startTestServer` and `reInit` correctly tear down containers on
 
 The problems here are that this asset is not exported ([06](./06-tooling-ci-and-testing.md) §T2)
 and that it needs private-field access to work ([06](./06-tooling-ci-and-testing.md) §T1) — both of
-which are *symptoms* of missing public API, not of a bad test strategy.
+which are *symptoms* of missing public API, not of a bad test strategy. *(Both closed since: the
+harness is the `zibri-testing` package, and needs no private access.)*
 
 **Coverage is merged across split runs.** The `test:coverage:normal` / `:heavy` / `:merge` pipeline
 using `nyc merge` is a careful solution to running `--runInBand` performance tests separately
@@ -136,6 +137,9 @@ Nearly every Tier-1 blocker is a single architectural decision, not a rewrite:
 | Routes open by default | One default-deny switch plus a boot-time warning listing unprotected routes |
 | Every 5xx logs as "Global Error" | Stop nulling `globalError.stack` |
 | Metrics OOM | Use `req.route?.path` first instead of `req.originalUrl` |
+
+*All nine have closed since, several through a different fix than the one named here; each finding
+says which.*
 
 That list is a plausible quarter of work, not a rearchitecture. The items that genuinely require
 redesign are the enterprise identity layer ([03](./03-auth-and-security.md) §H), the DI request

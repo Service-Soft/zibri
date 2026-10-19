@@ -22,6 +22,7 @@ import { Where } from '../data-source/models/where/where-filter.model';
 import { Repository, WrittenUpdate } from '../data-source/repository/repository';
 import { ScopedWhere } from '../data-source/scopes/scope-where.utilities';
 import { TenantUtilities } from '../data-source/tenancy/tenant.utilities';
+import { WriteDataUtilities } from '../data-source/write-data.utilities';
 import { PropertyMetadata } from '../entity/decorators/property.decorator';
 import { BadRequestError } from '../error-handling/errors/bad-request.error';
 import { InternalError } from '../error-handling/internal-error.model';
@@ -92,21 +93,21 @@ export class ChangeSetRepository<
         // takes one: written apart, a failure in between leaves either a mutation nothing recorded or
         // a record of a mutation that was rolled back. A trail with a hole in it is worse than no
         // trail, because it reads as complete. `inTransaction` uses the caller's when they passed one
-        return await this.inTransaction(options, async transaction => {
+        return await this.withinTimeout(options, 'create', async () => await this.inTransaction(options, async transaction => {
             const inTransaction: CreateOptions<T> = { ...options, transaction };
             const res: T = await super.create(data, inTransaction);
             await this.createChangeSet(res, res, ChangeSetType.CREATE, inTransaction);
             return res;
-        });
+        }));
     }
 
     override async createAll(data: CreateData[], options?: CreateAllOptions<T>): Promise<T[]> {
-        return await this.inTransaction(options, async transaction => {
+        return await this.withinTimeout(options, 'createAll', async () => await this.inTransaction(options, async transaction => {
             const inTransaction: CreateAllOptions<T> = { ...options, transaction };
             const res: T[] = await super.createAll(data, inTransaction);
             await this.createAllChangeSets(res, res, ChangeSetType.CREATE, inTransaction);
             return res;
-        });
+        }));
     }
 
     override async updateById(id: T['id'], data: UpdateData, options?: UpdateByIdOptions<T>): Promise<T> {
@@ -114,7 +115,7 @@ export class ChangeSetRepository<
         // the base would otherwise read the same row again purely to prove it is there. Without the
         // caller's condition for the same reason the base leaves it out: the before state of a row is
         // what it holds, not what the write is about to require of it
-        return await this.inTransaction(options, async transaction => {
+        return await this.withinTimeout(options, 'updateById', async () => await this.inTransaction(options, async transaction => {
             const inTransaction: UpdateByIdOptions<T> = { ...options, transaction };
             // `where: undefined` drops the caller's compare and set condition for the read only -
             // `unscoped` and everything else the caller asked for is carried through, and the
@@ -128,7 +129,7 @@ export class ChangeSetRepository<
             const { entity, written }: WrittenUpdate<T> = await this.saveUpdate(id, data, inTransaction);
             await this.createChangeSet(original, written, ChangeSetType.UPDATE, inTransaction);
             return entity;
-        });
+        }));
     }
 
     override async updateAll<R extends boolean = false>(
@@ -139,7 +140,7 @@ export class ChangeSetRepository<
         // one transaction over the read, the update and the change sets. Taken here rather than left
         // to the base, so that the change sets commit or roll back with the update they describe -
         // otherwise an update that succeeded could be left with no record of who made it.
-        return await this.inTransaction(options, async transaction => {
+        return await this.withinTimeout(options, 'updateAll', async () => await this.inTransaction(options, async transaction => {
             const inTransaction: UpdateAllOptions<T, boolean> = { ...options, transaction };
             // before the write, because this is the before state: read afterwards it would be the
             // rows as the update left them, every column would compare equal to itself, and every
@@ -161,6 +162,52 @@ export class ChangeSetRepository<
             // the entities were read either way, because a change set cannot be written without
             // them. What the caller asked for still decides what they are handed.
             return (options?.returnUpdated === true ? updates.map(u => u.entity) : updates.length) as R extends true ? T[] : number;
+        }));
+    }
+
+    protected override async updateEach(
+        rows: UpdateData[],
+        options?: BaseRepositoryOptions,
+        where?: Where<T>
+    ): Promise<WrittenUpdate<T>[]> {
+        if (!rows.length) {
+            return [];
+        }
+        // the before state of every row, read once, and their change sets written together - in the
+        // transaction of the write, for the reason updateAll takes one
+        return await this.inTransaction(options, async transaction => {
+            const inTransaction: BaseRepositoryOptions = { ...options, transaction };
+            const original: T[] = await this.findAll({
+                ...inTransaction,
+                where: { id: { oneOf: rows.map(r => r.id) } } as Where<T>,
+                take: 'all'
+            });
+            const originalById: Map<T['id'], T> = new Map(original.map(row => [row.id, row]));
+
+            const updates: WrittenUpdate<T>[] = await super.updateEach(rows, inTransaction, where);
+            await this.createAllChangeSets(
+                updates.map(u => originalById.get(u.entity.id) ?? u.entity),
+                updates.map(u => u.written),
+                ChangeSetType.UPDATE,
+                inTransaction
+            );
+            return updates;
+        });
+    }
+
+    protected override async removeRows(ids: string[], options: BaseRepositoryOptions | undefined): Promise<void> {
+        if (!ids.length) {
+            return;
+        }
+        // the change sets of a row go with it, in the same transaction: they describe a row that is
+        // no longer there. Found by the row's id, which is all a change set names of it - an id given
+        // through allowId has to be one no other change set entity uses (decided in 01-data-layer M42)
+        await this.inTransaction(options, async transaction => {
+            await super.removeRows(ids, { ...options, transaction });
+            await this.changeSetRepository.deleteAll(
+                { changeSetEntityId: { oneOf: ids } },
+                { transaction, unscoped: true, acrossTenants: true }
+            );
         });
     }
 
@@ -215,7 +262,8 @@ export class ChangeSetRepository<
         // set being undone - so all the more reason for them to land together. A reset that wrote the
         // row and then failed to delete the change set it undid would offer that change set to be
         // undone a second time
-        return await this.inTransaction(options, async transaction => {
+        const name: string = 'resetSingleChangeSet';
+        return await this.withinTimeout(options, name, async () => await this.inTransaction(options, async transaction => {
             const inTransaction: BaseRepositoryOptions = { ...options, transaction };
             const changeSet: ChangeSet = await this.changeSetRepository.findById(
                 changeSetId,
@@ -237,7 +285,11 @@ export class ChangeSetRepository<
             // is a write like any other, so the hooks add to it, and the change set recording the
             // reset has to say what the reset actually did. The existence check the public method
             // performs is redundant here - the row was passed in.
-            const { written }: WrittenUpdate<T> = await this.saveUpdate(entity.id, data as UpdateData, inTransaction);
+            //
+            // An object an update gives is merged into the stored one, so the object a reset goes
+            // back to names what was added to it since as null - merged, that would stay
+            const replacing: DeepPartial<T> = WriteDataUtilities.resolveReplacing(data, entity, this.entityClass);
+            const { written }: WrittenUpdate<T> = await this.saveUpdate(entity.id, replacing as UpdateData, inTransaction);
             if (createChangeSet) {
                 await this.createChangeSet(entity, written, ChangeSetType.RESET, inTransaction);
             }
@@ -247,7 +299,7 @@ export class ChangeSetRepository<
             // the written change rather than the one assembled from the stored values, so a caller
             // aggregating several resets - the method below does - aggregates what landed
             return { entity: await this.findById(entity.id, inTransaction), changedValues: written };
-        });
+        }));
     }
 
     /**
@@ -269,8 +321,10 @@ export class ChangeSetRepository<
         preserveCreateChangeSet: boolean = true,
         options?: BaseRepositoryOptions
     ): Promise<ResetChangeSetResult<T>> {
-        const entity: T = await this.findById(id, options);
-        return this.resetSingleChangeSet(entity, changeSetId, createChangeSet, preserveCreateChangeSet, options);
+        return await this.withinTimeout(options, 'resetSingleChangeSetById', async () => {
+            const entity: T = await this.findById(id, options);
+            return await this.resetSingleChangeSet(entity, changeSetId, createChangeSet, preserveCreateChangeSet, options);
+        });
     }
 
     /**
@@ -293,8 +347,17 @@ export class ChangeSetRepository<
         preserveCreateChangeSet: boolean = true,
         options?: BaseRepositoryOptions
     ): Promise<T> {
-        const changeSet: ChangeSet = await this.changeSetRepository.findById(changeSetId, options);
-        return this.rollbackToTimestamp(entity, changeSet.createdAt, createChangeSet, preserveCreateChangeSet, options);
+        return await this.withinTimeout(options, 'rollbackToChangeSet', async () => {
+            const changeSet: ChangeSet = await this.changeSetRepository.findById(changeSetId, options);
+            // the change set only lends its timestamp, so another row's would roll this one back to a
+            // moment of that row's history - checked here, as resetting a single change set checks it
+            if (changeSet.changeSetEntityId !== entity.id) {
+                throw new BadRequestError(
+                    $ts`Could not rollback to the given change set: The changeSet doesn\'t belong to the entity with the given id.`
+                );
+            }
+            return await this.rollbackToTimestamp(entity, changeSet.createdAt, createChangeSet, preserveCreateChangeSet, options);
+        });
     }
 
     /**
@@ -317,13 +380,12 @@ export class ChangeSetRepository<
         preserveCreateChangeSet: boolean = true,
         options?: BaseRepositoryOptions
     ): Promise<T> {
-        const changeSet: ChangeSet = await this.changeSetRepository.findById(changeSetId);
-        if (changeSet.changeSetEntityId !== id) {
-            throw new BadRequestError(
-                $ts`Could not rollback to the given change set: The changeSet doesn\'t belong to the entity with the given id.`
-            );
-        }
-        return this.rollbackToTimestampById(id, changeSet.createdAt, createChangeSet, preserveCreateChangeSet, options);
+        return await this.withinTimeout(options, 'rollbackToChangeSetById', async () => {
+            // read in the caller's transaction, like the change set: a row written in it is not there
+            // outside of it
+            const entity: T = await this.findById(id, options);
+            return await this.rollbackToChangeSet(entity, changeSetId, createChangeSet, preserveCreateChangeSet, options);
+        });
     }
 
     /**
@@ -348,7 +410,7 @@ export class ChangeSetRepository<
         // one transaction over every reset this walks through, so a rollback that fails partway does
         // not leave the row at a state it was never in - between two of the change sets it is
         // undoing, which is not a state anything recorded
-        return await this.inTransaction(options, async transaction => {
+        return await this.withinTimeout(options, 'rollbackToTimestamp', async () => await this.inTransaction(options, async transaction => {
             const inTransaction: BaseRepositoryOptions = { ...options, transaction };
             const changeSets: ChangeSet[] = await this.changeSetRepository.findAll({
                 // every change since the timestamp, because a rollback that skipped some would land
@@ -373,7 +435,7 @@ export class ChangeSetRepository<
                 await this.createChangeSet(entity, data, ChangeSetType.RESET, inTransaction);
             }
             return await this.findById(entity.id, inTransaction);
-        });
+        }));
     }
 
     /**
@@ -395,8 +457,10 @@ export class ChangeSetRepository<
         preserveCreateChangeSet: boolean = true,
         options?: BaseRepositoryOptions
     ): Promise<T> {
-        const entity: T = await this.findById(id, options);
-        return this.rollbackToTimestamp(entity, timestampInNs, createChangeSet, preserveCreateChangeSet, options);
+        return await this.withinTimeout(options, 'rollbackToTimestampById', async () => {
+            const entity: T = await this.findById(id, options);
+            return await this.rollbackToTimestamp(entity, timestampInNs, createChangeSet, preserveCreateChangeSet, options);
+        });
     }
 
     /**
@@ -421,7 +485,8 @@ export class ChangeSetRepository<
         // one transaction over all of them, for the same reason the singular version takes one over
         // its own resets: rolling back half the rows the filter matched is not a rollback of that
         // filter, and nothing afterwards says which half it got to
-        return await this.inTransaction(options, async transaction => {
+        const name: string = 'rollbackAllToTimestamp';
+        return await this.withinTimeout(options, name, async () => await this.inTransaction(options, async transaction => {
             const inTransaction: BaseRepositoryOptions = { ...options, transaction };
             // a rollback covers everything the filter matches or it is not a rollback of that filter -
             // of the rows it may change, which inside a tenant leaves out the ones of no tenant
@@ -434,7 +499,7 @@ export class ChangeSetRepository<
                 e => this.rollbackToTimestamp(e, timestampInNs, createChangeSet, preserveCreateChangeSet, inTransaction)
             );
             return entitiesToRollback.length;
-        });
+        }));
     }
 
     /**
@@ -557,13 +622,18 @@ export class ChangeSetRepository<
      */
     protected getChangesFromData(entityPriorChanges: T, data: CreateData | UpdateData | DeepPartial<T>, type: ChangeSetType): NewChange[] {
         const res: NewChange[] = [];
-        for (const key of this.getKeysToIncludeInChangeSet(data)) {
+        // an object an update gives is merged into the stored one, so what the property holds now is
+        // the merged object rather than the part of it the update named
+        const changed: CreateData | UpdateData | DeepPartial<T> = type === ChangeSetType.CREATE
+            ? data
+            : WriteDataUtilities.resolveMerged(data, entityPriorChanges, this.entityClass);
+        for (const key of this.getKeysToIncludeInChangeSet(changed)) {
             const previousValue: T[keyof T] | undefined = type === ChangeSetType.CREATE ? undefined : entityPriorChanges[key];
-            if (this.hasValueChanged(previousValue, data[key] as CreateData[keyof CreateData])) {
+            if (this.hasValueChanged(previousValue, changed[key] as CreateData[keyof CreateData])) {
                 res.push({
                     key: String(key),
                     previousValue: previousValue,
-                    newValue: data[key]
+                    newValue: changed[key]
                 });
             }
         }

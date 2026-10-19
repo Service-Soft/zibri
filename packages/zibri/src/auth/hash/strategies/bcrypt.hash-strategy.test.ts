@@ -4,6 +4,8 @@ import { BcryptHashStrategy } from './bcrypt.hash-strategy';
 import { HashString } from '../hash.utilities';
 
 describe('BcryptHashStrategy', () => {
+    // deprecated for new hashes, and still what verifies the ones 2.x wrote
+    // eslint-disable-next-line typescript/no-deprecated
     const strategy: BcryptHashStrategy = new BcryptHashStrategy();
 
     it('has the expected name and version', () => {

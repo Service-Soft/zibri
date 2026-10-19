@@ -5,5 +5,6 @@
  * - `connect`: where the url `startConnection` answers with leads, which sends the browser on to the provider.
  * - `logout`: where the provider sends the browser to say the user logged out there, or that it
  * ended its session after a logout here.
+ * - `logout/soap`: where the provider sends a logout request server to server, in a SOAP envelope.
  */
-export type FederatedRoute = 'callback' | 'connect' | 'logout';
+export type FederatedRoute = 'callback' | 'connect' | 'logout' | 'logout/soap';

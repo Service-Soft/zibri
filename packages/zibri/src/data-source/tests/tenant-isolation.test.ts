@@ -18,6 +18,7 @@ beforeAll(async () => {
     server = await startTestServer({ dataSources: [dataSourceClass] });
     const dataSource: InMemoryDataSource = inject(dataSourceClass);
     repositories = {
+        dataSource,
         notes: dataSource.getRepository(TenantNote),
         notices: dataSource.getRepository(TenantNotice),
         projects: dataSource.getRepository(TenantProject),

@@ -47,6 +47,11 @@ export enum AuditAction {
      */
     IDENTITY_UNLINKED = 'auth.identity.unlinked',
     /**
+     * Stopping an identity at a provider from signing in as its user, which stays linked for the
+     * provider's apis.
+     */
+    IDENTITY_SIGN_IN_REVOKED = 'auth.identity.sign-in-revoked',
+    /**
      * Starting to keep a provider's tokens for an identity, which lets the application call the
      * provider's apis for the user it is linked to.
      */
@@ -80,6 +85,11 @@ export enum AuditAction {
      * Reactivating a deactivated user.
      */
     USER_REACTIVATED = 'auth.user.reactivated',
+    /**
+     * Ending every login and revoking every api key of a user who stays active, such as one whose
+     * entry was disabled in a directory.
+     */
+    ACCESS_ENDED = 'auth.access.ended',
     /**
      * An identity provider provisioning a user through SCIM.
      */

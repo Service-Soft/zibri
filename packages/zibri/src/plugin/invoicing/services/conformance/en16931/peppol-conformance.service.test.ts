@@ -19,6 +19,7 @@ import { UUIDUtilities } from '../../../../../utilities/uuid.utilities';
 import { ZibriInvoicingPlugin } from '../../../invoicing.plugin';
 import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../../../invoicing.tokens';
 import { CompanyInfo } from '../../../models/company-info.model';
+import { InvoiceRecipientAbbreviation } from '../../../models/invoice-recipient-abbreviation.model';
 import { Invoice } from '../../../models/invoice.model';
 import { InvoicingOptions } from '../../../models/invoicing-options.model';
 import { NumberInvoices } from '../../../models/number-invoices.model';
@@ -74,7 +75,8 @@ const companyInfo: CompanyInfo = {
     iban: 'DE75 5121 0800 1245 1261 99',
     bic: 'ABCD5F',
     bankName: 'Example Bank',
-    taxOffice: 'Tax Office Example City'
+    taxOffice: 'Tax Office Example City',
+    electronicAddress: { scheme: '9930', value: 'DE123456789' }
 };
 
 let conformanceService: PeppolConformanceService;
@@ -87,7 +89,7 @@ describe('generateXml', () => {
         await FsUtilities.mkdir(testFileFolder);
         server = await startTestServer({
             plugins: [new ZibriInvoicingPlugin()],
-            dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Invoice, NumberInvoices] })],
+            dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Invoice, NumberInvoices, InvoiceRecipientAbbreviation] })],
             providers: [
                 ...defaultTestServerProviders,
                 defineProvider({ token: ZIBRI_INVOICING_PLUGIN_DI_TOKENS.OPTIONS_INPUT, useValue: invoicingOptions }),
@@ -138,7 +140,8 @@ describe('generateXml', () => {
                 company: true,
                 companyName: 'Great Company LLC',
                 countryId: 'DE',
-                email: 'info@great-company-llc.com'
+                email: 'info@great-company-llc.com',
+                electronicAddress: { scheme: '9930', value: 'DE987654321' }
             },
             textBeforeItems: [''],
             textAfterItems: ['Unless otherwise stated, the date of delivery/service corresponds to the date of invoice.']
@@ -150,7 +153,9 @@ describe('generateXml', () => {
         expect(xmlString).toContain('urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0');
         expect(xmlString).toContain(invoice.number);
         expect(xmlString).toContain('Great Company LLC');
-        expect(xmlString).toContain('info@great-company-llc.com');
+        // both parties named by the address they receive invoices at in the network, not by email
+        expect(xmlString).toContain('<ram:URIID schemeID="9930">DE123456789</ram:URIID>');
+        expect(xmlString).toContain('<ram:URIID schemeID="9930">DE987654321</ram:URIID>');
         expect(xmlString).toContain('Example Company LLC');
         expect(xmlString).toContain('DE75 5121 0800 1245 1261 99');
         expect(xmlString).toContain('ABCD5F');

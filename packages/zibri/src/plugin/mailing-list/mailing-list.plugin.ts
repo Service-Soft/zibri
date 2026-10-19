@@ -1,10 +1,13 @@
 import { ZibriApplication } from '../../application/application';
+import { CronJob } from '../../cron/cron-job.model';
 import { DiProvider } from '../../di/models/di-provider.model';
 import { DiTokenProviderRecord, providersFromTokenRecord } from '../../di/models/di-token.model';
+import { Newable } from '../../types/newable.type';
 import { Ms } from '../../utilities/ms';
 import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function';
 import { validateTokensRegistered } from '../../utilities/validate-tokens-registered.function';
 import { ZibriPlugin } from '../plugin.model';
+import { MailingListConfirmationTokenCleanupCronJob } from './mailing-list-confirmation-token-cleanup.cron-job';
 import { ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from './mailing-list.tokens';
 import { MailingListSubscriber } from './models/mailing-list-subscriber.model';
 import { MailingListSubscriptionConfirmationToken } from './models/mailing-list-subscription-confirmation-token.model';
@@ -26,6 +29,8 @@ export class ZibriMailingListPlugin extends ZibriPlugin {
     };
 
     override providers: DiProvider<unknown>[] = providersFromTokenRecord(ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS, this.defaultDiProviders);
+
+    override cronJobs: Newable<CronJob>[] = [MailingListConfirmationTokenCleanupCronJob];
 
     override validate(app: ZibriApplication): void {
         // eslint-disable-next-line stylistic/max-len

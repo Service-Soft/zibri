@@ -19,6 +19,7 @@ It peer depends on `zibri`, so the framework under test is the copy your applica
 | `resolveApplicationOptions` | function | The merge itself, for a harness of your own |
 | `createInMemoryDataSource` | function | Builds a data source class that keeps everything in this process |
 | `InMemoryDataSource` | class | The data source those classes extend |
+| `RoundTripCounter`, `RoundTrip` | class, type | Records each call a data source makes on its store, and the repository calls it came from |
 | `createPostgresTestDataSource` | function | Builds a postgres data source class for a container the harness starts |
 | `zibriFrameworkEntities` | value | Every entity the framework itself stores rows in |
 | `defaultTestProviders` | value | The providers that make a deployment's defaults workable in a test |
@@ -33,7 +34,8 @@ It peer depends on `zibri`, so the framework under test is the copy your applica
 | `FakeSamlProviderOptions`, `FakeSamlIdentity`, `FakeSamlAnswerChanges`, `FakeSamlLogoutOptions` | type | How it answers, who signs in, what the next answer gets wrong, and who a logout request logs out |
 | `FakeSamlRequest`, `FakeSamlAnswer`, `FakeSamlLogoutRequest` | type | What it was asked, and what it answered |
 | `createFakeKeyPair`, `FakeKeyPair` | function, type | A key and its certificate: your application's SAML signing and decryption keys, or a TLS server's |
-| `FakeKeyPairOptions` | type | The hosts a certificate is valid for, whether it is an authority, and the authority that signs it |
+| `FakeKeyPairOptions` | type | The hosts a certificate is valid for, whether it is an authority, the authority that signs it, when it is valid, and its key usages and extended key usages |
+| `FakeKeyUsage` | type | A key usage a certificate can name, such as `digitalSignature` |
 | `startFakeLdapDirectory` | function | Starts a directory inside the test, speaking LDAP over TLS |
 | `FakeLdapDirectory` | class | The running directory: its entries, and the binds and searches it was asked for |
 | `FakeLdapDirectoryOptions`, `FakeLdapEntry`, `FakeLdapBind`, `FakeLdapSearch` | type | Its entries, and what it was asked |
@@ -229,6 +231,33 @@ databases, so a suite fails wherever your application would need more than that 
 Both creators build a class per call, because a data source is identified by its class. Pass
 `allowOrphan: true` for one a test builds and hands to something other than the application it starts.
 
+#### Counting what a call costs
+Hand `createInMemoryDataSource` a `RoundTripCounter`, and it records every call a repository makes
+on the store, as `Entity.method`. That is how you pin down what a repository call costs, and find out
+what changed when it costs more:
+
+```ts
+import { inject, Newable, repositoryTokenFor } from 'zibri';
+import { InMemoryDataSource, RoundTripCounter } from 'zibri-testing';
+
+import { Order } from './order.model';
+
+const roundTrips: RoundTripCounter = new RoundTripCounter();
+const costedDataSource: Newable<InMemoryDataSource> = createInMemoryDataSource({ entities, roundTrips });
+
+it('updates an order with one read and one write', async () => {
+    const orders: Repository<Order> = inject(repositoryTokenFor(Order));
+    const order: Order = await orders.create({ status: 'new' });
+
+    await roundTrips.resolveCountOf(async () => await orders.updateById(order.id, { status: 'sent' }));
+
+    expect(roundTrips.trips.map(t => t.statement)).toEqual(['Order.find', 'Order.updateAll']);
+});
+```
+
+`roundTrips.describe()` lists each call with the repository calls it came from, eg.
+`ChangeSetRepository.updateById > Repository.saveUpdate`.
+
 ### Where a test server writes
 An application records things on disk while it runs — its route history above all. Each started
 server gets a directory of its own for that, under `src/__testing__/file-output/`, and takes it with
@@ -290,7 +319,8 @@ a test:
 | `JWT_AUTH_OPTIONS_INPUT` | two fixed secrets, so tokens are reproducible across processes, and `requireDpop: false` |
 | `DPOP_NONCES` | `false`, since it has no default |
 | `CONFIRM_PASSWORD_RESET_URL`, `PASSWORD_RESET_EMAIL_TEMPLATE` | fixtures, so an application that never resets a password still starts |
-| `EMAIL_CONFIG`, `EMAIL_TRANSPORT` | an `UnconfiguredEmailTransport`, which refuses to send and names the token to register a real one under |
+| `EMAIL_CONFIG`, `EMAIL_TRANSPORT` | an `UnconfiguredEmailTransport`, which refuses to send and names the token to register a real one under, and failed mails kept `'forever'` |
+| `EVENT_FAILED_RETENTION_IN_MS` | `'forever'`, since it has no default |
 | `ENCRYPTION_MASTER_OPTIONS` | `testMasterKey`, the same 32 bytes in every process, so replicas sharing a database read each other's values |
 | `CRON_SERVICE` | a stub that schedules nothing, so tests run on their own clock |
 | `MULTITHREADING_SERVICE` | a stub that spawns nothing, so no worker outlives the test that started it |
@@ -427,13 +457,18 @@ it('signs a user in, and logs them out when they log out at the identity provide
 | `denyNext(status)` | Answers the next sign-in with a second level status, eg. `urn:oasis:names:tc:SAML:2.0:status:RequestDenied` |
 | `changeNextAnswer(changes)` | Gets the next answer wrong: another issuer or audience, unsolicited, expired, unsigned, signed by another key, or changed after it was signed |
 | `createLogoutRequestUrl(options)` | The url a user logging out at the provider is sent to: your logout route with a signed logout request, or one that is not signed |
+| `createLogoutRequestForm(options)` | The same logout request as a form a page posts to your logout route, signed inside |
+| `sendBackChannelLogout(url, options)` | Sends the logout request to your SOAP logout route without a browser, and reads what it answered and whether the answer is signed |
 | `requests`, `answers` | What your application asked the provider for, and what it answered, with the session it names |
 | `logoutRequests` | The logout requests your application sent the provider |
+| `logoutAnswers`, `logoutResponses` | The forms its page posted to answer your logout requests, and the logout responses your application posted to it |
 | `metadataReads` | How often the metadata was read |
 | `signs` | An option: whether it signs the assertion, the whole response, or both |
 | `encryptsTo` | An option: the certificate of your decryption key, which it encrypts the assertion to |
 | `requiresRequestsSignedBy` | An option: the certificate of your signing key, which every request has to be signed with |
 | `serviceProviderLogoutUrl` | An option: your logout route, where it sends logout requests and the answers to yours |
+| `logoutBindings` | An option: whether its metadata names its logout url for redirects, posted forms or both. Redirects by default |
+| `answersLogoutWith` | An option: whether it answers your logout requests with a redirect or with a page posting the answer. A redirect by default |
 
 ### Passkeys
 A `FakePasskeyDevice` does what a browser and a device do with [passkeys](./passkeys.md): hand it the options your routes answer with and the origin of the page, and it answers what the browser would:
@@ -464,6 +499,7 @@ it('signs a user in with a passkey', async () => {
 | `copy()` | A copy of the device with every passkey and count on it |
 | `verifiesUser` | Whether it verifies its user before the next passkey it creates or uses |
 | `synced` | An option: its passkeys are synced, like a phone's password manager keeps them, and count no signatures |
+| `storesPasskeys` | An option: whether it stores its passkeys, so it offers them at a sign-in that names none. `false` is an older security key, which refuses to create a passkey where a stored one is demanded |
 | `aaguid` | An option: the model it names |
 | `attestation` | An option: what it proves its model with, from a `FakeFidoMetadataService` |
 
@@ -567,7 +603,7 @@ afterAll(async () => {
 });
 ```
 
-A bind in the clear is refused, a bind with a name and no password succeeds without binding as anybody, and only a connection bound with a password may search. An entry without an `entryUUID` gets one, sent only when a search asks for it by name. A search with Active Directory's in-chain rule, `(member:1.2.840.113556.1.4.1941:=<dn>)`, finds the groups an entry is a member of through other groups as well.
+A bind in the clear is refused, a bind with a name and no password succeeds without binding as anybody, and only a connection bound with a password may search. An entry without an `entryUUID` gets one. `entryUUID`, `nsAccountLock` and `pwdAccountLockedTime` are sent only when a search asks for them by name. A search with Active Directory's in-chain rule, `(member:1.2.840.113556.1.4.1941:=<dn>)`, finds the groups an entry is a member of through other groups as well.
 
 | Member | What it does |
 |---|---|

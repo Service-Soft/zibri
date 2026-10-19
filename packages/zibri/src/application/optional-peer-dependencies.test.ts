@@ -103,7 +103,10 @@ function runningJob(filePath: string, data: Record<string, unknown> = {}): strin
         const result = await new Promise((resolve, reject) => {
             worker.on('message', message => {
                 if (message.type === 'initialization') {
-                    worker.postMessage({ ...${JsonUtilities.stringify(data)}, filePath: ${JsonUtilities.stringify(filePath)} });
+                    worker.postMessage({
+                        workerData: { ...${JsonUtilities.stringify(data)}, filePath: ${JsonUtilities.stringify(filePath)} },
+                        traceContext: { traceId: '${'1'.repeat(32)}', spanId: '${'2'.repeat(16)}', sampled: true }
+                    });
                     return;
                 }
                 if (message.type === 'completion') {
@@ -423,6 +426,56 @@ describe('re2', () => {
         // where the property is declared rather than at the first request that sends one
         expect(res.message).toContain('re2');
         expect(res.message).toContain('npm i re2');
+    });
+});
+
+describe('@peculiar/x509', () => {
+
+    it('is an optional peer dependency', () => {
+        // only a client certificate strategy reads certificate extensions with it
+        expect(optionalPeers()).toContain('@peculiar/x509');
+    });
+
+    it('is not needed to load the framework', () => {
+        const res: { loaded: boolean } = inConsumerProcess(`
+            ${hiding(['@peculiar/x509'])}
+            const { createRequire } = await import('node:module');
+            const require = createRequire(process.cwd() + '/index.cjs');
+            const zibri = require('zibri');
+            console.log(JSON.stringify({ loaded: typeof zibri.BaseClientCertificateAuthStrategy === 'function' }));
+        `);
+
+        expect(res.loaded).toBe(true);
+    });
+
+    it('says so by name when a client certificate strategy starts without it', () => {
+        const res: { message: string } = inConsumerProcess(`
+            ${hiding(['@peculiar/x509'])}
+            const { createRequire } = await import('node:module');
+            const require = createRequire(process.cwd() + '/index.cjs');
+            const { BaseClientCertificateAuthStrategy } = require('zibri');
+            let message = 'it did not fail';
+            try {
+                const strategy = new (class extends BaseClientCertificateAuthStrategy {
+                    header = 'client-cert';
+                    headerFormat = 'rfc9440';
+                    trustedProxies = ['127.0.0.1'];
+                    certificateAuthorities = ['unread'];
+                    async resolveUserByCertificate() {
+                        return undefined;
+                    }
+                })();
+                strategy.init();
+            }
+            catch (error) {
+                message = error.message;
+            }
+            console.log(JSON.stringify({ message }));
+        `);
+
+        // while the application starts rather than at the first request with a certificate
+        expect(res.message).toContain('@peculiar/x509');
+        expect(res.message).toContain('npm i @peculiar/x509');
     });
 });
 

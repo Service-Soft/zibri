@@ -6,9 +6,10 @@ What a repository call costs is how often it talks to the data source: a round t
 - **`stream` reads in pages** of 500 rows, so it takes one more round trip for every page.
 - **Relations are read once for the whole result**, not once per row. Asking for them adds a round trip or two to a call, whatever the number of rows.
 - **`findAll` without a `take` refuses to answer with more than 10,000 rows.** `updateAll` and `deleteAll` asked to return the rows count them first and refuse the same way, before anything is written.
-- **`deleteAll` reads every row it deletes**, because the delete hooks run for each entity. The rows are held in memory for as long as the call runs, so delete a very large set in parts.
+- **`deleteAll` reads only the ids of the rows it deletes**, unless it hands the rows to somebody: to you with `returnDeleted`, or to a before-save hook of your own, which runs for each deleted row. Then it reads every row and holds it in memory for as long as the call runs, so delete a very large set in parts.
 - **Updating an encrypted property that is bound to its row reads the matching rows** and writes each its own value, since every row needs a value encrypted for it. Setting `bindToRow: false` on the property makes it one write again.
-- **`count` and `exists` decrypt nothing**, and every row you receive is decrypted once. `deleteAll` decrypts every row it deletes, whether or not you asked for them back.
+- **An `upsert` whose `onConflict` sets an encrypted property bound to its row writes that value in one more round trip** when the row was already there, since it is encrypted for that row. `bindToRow: false` makes it part of the single write again.
+- **`count` and `exists` decrypt nothing**, and every row you receive is decrypted once. `deleteAll` decrypts the rows it reads, so only when it hands them to somebody.
 
 ## Per data source
 The round trips each call takes on the data sources zibri ships with. Measured on an entity with one unique property and a many to one relation, which is read only when the call asks for it.
@@ -24,11 +25,11 @@ The round trips each call takes on the data sources zibri ships with. Measured o
 | `stream` | 2 | 2 |
 | `count` | 1 | 2 |
 | `exists` | 1 | 2 |
-| `create` | 4 | 7 |
-| `create` with relations | 6 | 9 |
-| `createAll` | 4 | 7 |
-| `createAll` with relations | 5 | 9 |
-| `createAll` on an entity declaring nothing unique | 4 | 3 |
+| `create` | 1 | 7 |
+| `create` with relations | 3 | 9 |
+| `createAll` | 1 | 7 |
+| `createAll` with relations | 2 | 9 |
+| `createAll` on an entity declaring nothing unique | 1 | 3 |
 | `updateById` | 2 | 7 |
 | `updateById` with a condition | 2 | 8 |
 | `updateById` with relations | 4 | 9 |

@@ -28,10 +28,10 @@ import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { WebsocketController } from '../decorators/websocket-controller.decorator';
 import { WebsocketRoute } from '../decorators/websocket-route.decorator';
 import { SocketIOWebsocketConnection } from '../models/connection/socket-io-websocket-connection.model';
+import { WebsocketAnswer } from '../models/websocket-answer.model';
 import { WebsocketChannel } from '../models/websocket-channel.model';
 import { WebsocketMessage } from '../models/websocket-message.model';
 import { WebsocketOptionsInput } from '../models/websocket-options.model';
-import { WebsocketRequestWithConnection } from '../models/websocket-request.model';
 
 @WebsocketController({ allowOrphan: true, eventPrefix: 'tenancy-ws:' })
 class TenancyWsController {
@@ -110,12 +110,13 @@ type RecordingClient = {
 /**
  * Opens a socket that records every event it receives, and acknowledges each.
  * @param accessToken - Who the socket connects as, if anyone.
- * @param offset - The sequence number of the last message the client saw.
+ * @param auth - What the client sends to authenticate, which holds the sequence number of the last
+ * message it saw as `offset`.
  * @returns The connected client.
  */
-async function connectClient(accessToken?: string, offset: number = 0): Promise<RecordingClient> {
+async function connectClient(accessToken?: string, auth: Record<string, unknown> = { offset: 0 }): Promise<RecordingClient> {
     const socket: Socket = io(baseUrl, {
-        auth: { offset },
+        auth,
         extraHeaders: accessToken == undefined ? {} : { authorization: `Bearer ${accessToken}` },
         autoConnect: false
     });
@@ -184,14 +185,14 @@ async function sendToChannel(channel: WebsocketChannel, event: string): Promise<
  * @returns The ids of the connections that were asked.
  */
 async function askChannel(channel: WebsocketChannel, event: string): Promise<string[]> {
-    const answers: WebsocketRequestWithConnection<SocketIOWebsocketConnection>[] = await wsService.sendToChannel({
+    const answers: WebsocketAnswer[] = await wsService.sendToChannel({
         channelId: channel.id,
         event,
         message: { ok: true, data: { event }, senderUserId: undefined, senderConnectionId: undefined },
         expectResponse: true,
         persist: false
     });
-    return answers.map(a => a.connection.id);
+    return answers.map(a => a.connectionId);
 }
 
 /**
@@ -414,9 +415,34 @@ describe('websockets across tenants', () => {
         await tenants.runAs(tenantB, async () => await broadcast('missed-in-b', true));
         await broadcast('missed-everywhere', true);
 
-        const client: RecordingClient = await connectClient(returning.accessToken, Number(last?.seq ?? 0));
+        const client: RecordingClient = await connectClient(returning.accessToken, { offset: Number(last?.seq ?? 0) });
         await waitUntil(() => client.received.has('missed-everywhere'));
         expect(client.received.has('missed-in-a')).toBe(true);
         expect(client.received.has('missed-in-b')).toBe(false);
+    });
+
+    it('puts a connection that sends no offset into the broadcasts of its tenants and the channels of its user, and replays it nothing', async () => {
+        const tenantA: string = UUIDUtilities.generate();
+        const newcomer: { user: JwtUser, accessToken: string } = await logIn('newcomer');
+        await addMember(newcomer.user.id, tenantA);
+        const channel: WebsocketChannel = await tenants.runAs(tenantA, async () => await channels.create({ name: 'news', userIds: [newcomer.user.id] }));
+        await tenants.runAs(tenantA, async () => await broadcast('before-connecting', true));
+
+        // the way socket.io documents connecting: nothing in auth
+        const client: RecordingClient = await connectClient(newcomer.accessToken, {});
+
+        await tenants.runAs(tenantA, async () => await broadcast('to-a-without-offset'));
+        await tenants.runAs(tenantA, async () => await sendToChannel(channel, 'to-channel-without-offset'));
+        expect(await hasReceived(client, 'to-a-without-offset')).toBe(true);
+        expect(await hasReceived(client, 'to-channel-without-offset')).toBe(true);
+        expect(await hasReceived(client, 'before-connecting')).toBe(false);
+    });
+
+    it.each([
+        ['text', 'last'],
+        ['a negative number', -1],
+        ['a fraction', 1.5]
+    ])('refuses a connection whose offset is %s', async (_, offset) => {
+        await expect(connectClient(undefined, { offset })).rejects.toThrow('The offset has to be a whole number of at least 0.');
     });
 });

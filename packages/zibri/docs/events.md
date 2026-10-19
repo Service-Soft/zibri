@@ -8,16 +8,18 @@ A durable pub/sub system for decoupling parts of your app. Unlike a plain event 
 | `EventServiceInterface` | interface | Contract for emitting and subscribing to events |
 | `EventSubscribeOptions` | type | Options passed to `subscribe`/`subscribeAll` (`subscriberId`, `attempts`, `timeout`) |
 | `EventSubscriptionInterface` | type | Return value of `subscribe`/`subscribeAll`, exposes `unsubscribe` |
+| `EventReplayOptions` | type | Which failed runs `replayFailed` offers again (`eventIds`, `subscriberIds`, `types`, `acrossTenants`) |
 | `Event` | entity | Persisted record of an emitted event |
 | `EventSubscriberRun` | entity | Persisted ledger of one subscriber's attempts at one event: where it stands, how many it has spent, and what the last one failed with |
 | `EventSubscriberRunStatus` | enum | `PENDING_RETRY`, `SUCCEEDED` or `FAILED` — where a subscriber stands with an event |
 | `EventSubscriberRegistration` | entity | Which subscribers exist across the deployment |
-| `EventCleanupCronJob` | class | Cron job that deletes `FINISHED` events past their `cleanupAt`, and leaves `FAILED` ones alone |
+| `EventCleanupCronJob` | class | Cron job that deletes `FINISHED` events past their `cleanupAt`, and `FAILED` ones older than `EVENT_FAILED_RETENTION_IN_MS` |
 | `EventProcessingError` | error | Logged when a subscriber's hook fails after exhausting all attempts |
 | `ZIBRI_DI_TOKENS.EVENT_SERVICE` | DI token | Injects `EventServiceInterface` |
 | `ZIBRI_DI_TOKENS.EVENT_SUBSCRIBER_REGISTRATION_TTL_IN_MS` | DI token | How long a subscriber stays on record without being refreshed. Defaults to one minute |
 | `ZIBRI_DI_TOKENS.EVENT_RETRY_DELAY_IN_MS` | DI token | How long the first retry waits, doubling for each one after it. Defaults to one minute |
 | `ZIBRI_DI_TOKENS.EVENT_MAX_CONCURRENT_HOOKS` | DI token | How many hooks one instance runs at a time. Defaults to 50 |
+| `ZIBRI_DI_TOKENS.EVENT_FAILED_RETENTION_IN_MS` | DI token | How long a `FAILED` event is kept, counted from when it was emitted, or `'forever'`. Required |
 
 ## Usage
 ### Declaring what your application emits
@@ -94,7 +96,7 @@ export async function subscribeOnce(
 ```
 
 ### Why `subscriberId` must stay stable
-Per the `EventSubscribeOptions` JSDoc, the id "needs to be unique and should stay consistent to survive power cycles". `EventDispatchCronJob` periodically reloads every event that isn't `FINISHED` and re-offers it to this instance's subscribers, so pending work is picked up where it left off. Matching an event's remaining subscribers against completed `EventSubscriberRun` records is done by `subscriberId` — if a subscriber uses a different id after a restart, it looks like a brand-new subscriber and the event's already-run subscribers won't be recognized as done for it.
+Per the `EventSubscribeOptions` JSDoc, the id "needs to be unique and should stay consistent to survive power cycles". `EventDispatchCronJob` periodically reloads every event that is still owed and re-offers it to this instance's subscribers, so pending work is picked up where it left off. Matching an event's remaining subscribers against completed `EventSubscriberRun` records is done by `subscriberId` — if a subscriber uses a different id after a restart, it looks like a brand-new subscriber and the event's already-run subscribers won't be recognized as done for it.
 
 ### Running more than one instance
 
@@ -125,6 +127,12 @@ Raise it if a tier can be down longer than a minute during a deploy and you woul
 ## Configuration
 `Event`, `EventSubscriberRun` and `EventSubscriberRegistration` are regular entities and must be added to a data source's `entities` array, same as any other entity (see [data source](./data-source.md)). `EventService` validates this on `onAppInit` and throws a `MissingEntitiesError` naming exactly what's missing if you forget. Coordination additionally needs the `Lease` entity — see [leases](./leases.md).
 <br>
+`EventService` refuses to start without `ZIBRI_DI_TOKENS.EVENT_FAILED_RETENTION_IN_MS`, how long a `FAILED` event is kept:
+
+```ts
+defineProvider({ token: ZIBRI_DI_TOKENS.EVENT_FAILED_RETENTION_IN_MS, useValue: Ms.DAY * 90 })
+```
+<br>
 `EventService` also registers `EventCleanupCronJob` and `EventDispatchCronJob` automatically on `onAppInit` if they aren't already present in `app.options.cronJobs` — no manual registration needed. `EventDispatchCronJob` is what re-offers unfinished events, including work abandoned by an instance that died; it is deliberately not distributed, so every instance polls and the lease decides who runs.
 
 ### How many hooks run at once
@@ -150,7 +158,7 @@ A retry that succeeds clears the error and puts the run at `SUCCEEDED`. Spending
 ### When an event cannot be handled
 An event is `FINISHED` once every subscriber registered at emit time has `SUCCEEDED`. If any of them gave up instead, the event is `FAILED`.
 
-`EventCleanupCronJob` deletes only `FINISHED` events past their `cleanupAt`. A `FAILED` event and the runs under it are kept, because together they are the record of work that was owed and never done — what was emitted, which subscribers gave up, what each of them failed with, and how many attempts it took. Query them by status:
+`EventCleanupCronJob` deletes `FINISHED` events past their `cleanupAt`. A `FAILED` event and the runs under it are kept for `ZIBRI_DI_TOKENS.EVENT_FAILED_RETENTION_IN_MS`, counted from when it was emitted, because together they are the record of work that was owed and never done — what was emitted, which subscribers gave up, what each of them failed with, and how many attempts it took. Query them by status:
 
 ```ts
 export async function findFailedEvents(): Promise<Event<unknown>[]> {
@@ -162,7 +170,20 @@ export async function findFailedEvents(): Promise<Event<unknown>[]> {
 }
 ```
 
-They accumulate, so an application emitting at volume wants a retention policy for the two tables. The framework has none and does not pretend to.
+Once older than the retention, `EventCleanupCronJob` deletes them with their runs. With `'forever'`, they are kept until you delete them.
+
+### Replaying failed runs
+Once the cause is fixed, `replayFailed` offers failed runs to their subscribers again:
+
+```ts
+export async function replayWelcomeMails(eventService: EventServiceInterface): Promise<number> {
+    return await eventService.replayFailed({ subscriberIds: ['send-welcome-mail'] });
+}
+```
+
+`eventIds`, `subscriberIds` and `types` select the runs. Each one you give narrows the selection, and `{}` selects every failed run. The runs are those of the active [tenant](./tenancy.md#reaching-every-tenant), or of every tenant with `acrossTenants: true`.
+
+Each selected run gets all of its `attempts` again, with the delay starting over, and its event is owed again, so `EventDispatchCronJob` offers it on its next pass. A run whose subscriber no instance has registered any more stays `FAILED`. `replayFailed` resolves to the number of runs it offered again.
 
 ## See also
 - [Replication](./replication.md) — how an event is handled exactly once across instances

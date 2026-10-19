@@ -79,6 +79,15 @@ because they are the most consequential and the most surprising:
 These were in scope for the two terminated passes and I covered them only partially or not at all.
 They are gaps in the report, not clean bills of health.
 
+> **Where this list stands (2026-10-15).** Covered since: two copies of `zibri` (05 §D7), the TSX
+> compiler's syntax (06 §X1, the hand parser is gone), the Handlebars walk (06 §X3), what `zi new`
+> generates (06 §C4), the plugins on a first read (04 §6), and the dynamic pass (the cluster suites).
+> Two entity classes of the same name is filed as 01 §M59. **Still unreviewed**: the class helpers
+> (`OmitClass`, `PickClass`, `PartialClass`, `IntersectionClass`) and metadata inheritance, the
+> `lazyInjectables` promotion under concurrent first resolution, source maps of the compiled templates,
+> the webpack plugin and the MJML parity layer, the upgrade path of an already generated project,
+> and `src/document`, `src/localization`, `src/assets` and `src/validation`.
+
 ### DI internals
 
 Covered: the container, resolution algorithm, scope model, packaging.

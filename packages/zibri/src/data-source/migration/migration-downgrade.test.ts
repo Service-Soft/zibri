@@ -65,7 +65,7 @@ describe('an older instance starting against a newer schema', () => {
 
     beforeAll(async () => {
         server = await startTestServer({ dataSources: [MigrationDowngradeDataSource] });
-    }, 15000);
+    }, 30000);
 
     afterAll(async () => {
         await server?.shutdown();

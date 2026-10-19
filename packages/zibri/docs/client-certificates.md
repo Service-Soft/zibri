@@ -56,9 +56,10 @@ export const authOptions: Pick<ZibriApplicationOptions, 'authStrategies'> = {
 | `trustedProxies` | The proxies the header is taken from: addresses, such as `10.0.0.7` or `::1`, and subnets, such as `10.0.0.0/8`. The header of a request whose connection comes from anywhere else is ignored. Required |
 | `certificateAuthorities` | The certificates, PEM encoded, of the authorities that sign client certificates directly. Required |
 | `resolveUserByCertificate` | Answers the user a certificate belongs to, see [finding the user](#finding-the-user). Required |
+| `requiredExtendedKeyUsages` | The extended key usages, as object identifiers, a certificate naming any has to name every one of, see [what is checked](#what-is-checked). `['1.3.6.1.5.5.7.3.2']`, TLS client authentication, by default |
 | `name` | The name of the security scheme in the OpenAPI spec. `client-certificate` by default |
 
-The application refuses to start when `header`, `trustedProxies` or `certificateAuthorities` is empty, when an entry of `trustedProxies` is neither an address nor a subnet, or when one of `certificateAuthorities` is not a certificate.
+The strategy needs the package `@peculiar/x509`. The application refuses to start without it, when `header`, `trustedProxies` or `certificateAuthorities` is empty, when an entry of `trustedProxies` is neither an address nor a subnet, when one of `certificateAuthorities` is not a certificate, or when an entry of `requiredExtendedKeyUsages` is no object identifier.
 
 ## Proxies
 | `headerFormat` | What the header holds | Proxies |
@@ -99,7 +100,23 @@ The proxy checks revocation, such as with `ssl_crl` in nginx.
 A service that acts on its own gets a user of its own, without a password, like a [service account](./api-keys.md#service-accounts).
 
 ## What is checked
-A request has a certificate when its connection comes from one of `trustedProxies` and the header holds one. The certificate counts when one of `certificateAuthorities` signed it and the current time lies between its `notBefore` and `notAfter`. A request with a certificate that fails a check is refused with a `401`.
+A request has a certificate when its connection comes from one of `trustedProxies` and the header holds one. The certificate counts when:
+
+- one of `certificateAuthorities` signed it;
+- the current time lies between its `notBefore` and `notAfter`;
+- its key usage, if it names one, includes `digitalSignature` or `keyAgreement`;
+- its extended key usage, if it names one, includes every one of `requiredExtendedKeyUsages`. By default that refuses a certificate issued for a server, and one naming only `anyExtendedKeyUsage`.
+
+A request with a certificate that fails a check is refused with a `401`.
+
+An authority of your own that marks its client certificates with a usage of its own names it beside the default:
+
+```ts
+// src/auth/partner-client-certificate.auth-strategy.ts
+export class PartnerClientCertificateAuthStrategy extends IngressClientCertificateAuthStrategy {
+    override readonly requiredExtendedKeyUsages: string[] = ['1.3.6.1.5.5.7.3.2', '1.3.6.1.4.1.55555.1'];
+}
+```
 
 A request carrying a certificate and another credential, such as a bearer token, is refused with a `401`. The exception is an access token bound to that certificate, see [bound tokens](#bound-tokens). A route that only people may call names the strategies it accepts, as in [what a key may do](./api-keys.md#what-a-key-may-do). A certificate never counts as a recent login.
 
@@ -116,7 +133,7 @@ The authorization server and bound tokens read the certificate of a request thro
 | Method | What it does |
 |---|---|
 | `findClientCertificate` | Finds the certificate a request presents, whoever issued it |
-| `isTrusted` | Whether a certificate may identify a caller: issued by an authority you trust, and valid right now |
+| `isTrusted` | Whether a certificate may identify a caller: issued by an authority you trust, valid right now, and one for a client |
 | `resolveUserByCertificate` | Answers the user a trusted certificate belongs to |
 
 ## See also

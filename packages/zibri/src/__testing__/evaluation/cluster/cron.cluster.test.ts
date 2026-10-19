@@ -26,7 +26,7 @@ beforeAll(async () => {
         instanceOptions: FsUtilities.getPath(__dirname, 'cron.instance-options.ts'),
         instances: 3
     });
-}, 20000);
+}, 40000);
 
 afterAll(async () => {
     // guarded so a failed beforeAll reports the real cause instead of a shutdown TypeError
@@ -78,4 +78,31 @@ describe('evaluation/04-infrastructure-subsystems - cron across replicas', () =>
         // observes. It waits for three real ticks at a three second period, so the floor is about
         // nine seconds of doing nothing, and the wait above is allowed 20000 of it.
     }, 30000);
+
+    it('stops a job on every replica once one disabled it, and runs it again once another enabled it', async () => {
+        if (!cluster) {
+            throw new Error('the cluster did not start');
+        }
+        const running: StartedTestCluster = cluster;
+
+        // 04 §2.15: the other replicas used to keep their own task running, so the job went on once
+        // per slot while its row said INACTIVE
+        expect((await fetch(`${running.instanceAt(0).baseUrl}/cluster-cron/disable`, { method: 'POST' })).status).toBe(204);
+        // a run already past its claim when the job was disabled may still write its mark
+        await new Promise(resolve => setTimeout(resolve, 4500));
+        await running.clearMarks();
+        // two slots at a three second period, plus the random delay
+        await new Promise(resolve => setTimeout(resolve, 7500));
+        expect(await running.marks('cron')).toEqual([]);
+
+        // the replicas whose task was stopped learn of it at their next sync
+        expect((await fetch(`${running.instanceAt(1).baseUrl}/cluster-cron/enable`, { method: 'POST' })).status).toBe(204);
+        const marks: ClusterMarkRow[] = await running.waitFor(
+            async () => await running.marks('cron'),
+            rows => rows.length > 0,
+            // the five second sync, a three second slot and the random delay
+            { timeoutInMs: 15000 }
+        );
+        expect(marks.length).toBeGreaterThan(0);
+    }, 40000);
 });

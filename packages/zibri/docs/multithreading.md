@@ -19,6 +19,7 @@ Zibri aims to take care of most of your multi threading concerns, including:
 | `reportCompletion` | function | Reports a thread job as completed, called from within a worker file |
 | `reportError` | function | Reports a thread job as failed, called from within a worker file |
 | `reportProgress` | function | Reports the progress (0-100) of a running thread job |
+| `getThreadJobTraceContext` | function | The trace a running thread job is recorded under, called from within a worker file |
 | `MultithreadingOptions` | type | Options accepted by the `MULTITHREADING_OPTIONS` DI token |
 | `ZIBRI_DI_TOKENS.MULTITHREADING_OPTIONS` | DI token | Overrides worker pool defaults |
 | `ThreadJobEntity` | entity | The queue itself |
@@ -135,6 +136,26 @@ Work is picked up on start rather than on init deliberately: a pod that comes up
 
 ### Callbacks
 `onMessage`, `onComplete`, `onError` and `onCancel` are functions, so they stay in the instance that queued the job and fire only if that instance is also the one that runs it. A job picked up elsewhere still runs, still writes its row, and still ends the `runThreadJob` that is waiting for it — it just cannot call back into a process it cannot reach. Anything that has to happen wherever the job runs belongs in the worker file.
+
+### Tracing
+The run of a job is a [span](./tracing.md#what-the-framework-records) named `runThreadJob`, recorded under the trace the job was queued in — whenever it runs and on whichever instance. A `run` call is recorded under the trace of its caller. A job that failed is a span that failed.
+
+The worker records no spans itself. `getThreadJobTraceContext` gives the worker file the span of its run, to pass on to whatever the job calls:
+
+```ts
+// src/services/report.worker.ts
+import { getThreadJobTraceContext, reportCompletion, TraceContextUtilities, TraceSpanContext } from 'zibri';
+
+async function render(): Promise<void> {
+    const context: TraceSpanContext | undefined = getThreadJobTraceContext();
+    const headers: Record<string, string> = context == undefined ? {} : TraceContextUtilities.resolveHeaders(context);
+
+    const response: Response = await fetch('https://reports.example.com/render', { method: 'POST', headers });
+    reportCompletion(response.status);
+}
+
+void render();
+```
 
 ### Run a simple function
 You can run simple functions on a separate thread by using the `run` method of the `MultithreadingServiceInterface`.

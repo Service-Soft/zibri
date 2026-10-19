@@ -604,12 +604,10 @@ describe('BaseKeycloakAuthenticator', () => {
         const identities: FederatedIdentity[] = await inject(repositoryTokenFor(FederatedIdentity)).findAll({ where: { userId: user.id } });
         expect(identities.map(i => i.issuer)).toEqual([`${keycloakUrl}/realms/${REALM}`]);
 
-        const refreshSession: CookieAuthRefreshSession = await inject(repositoryTokenFor(CookieAuthRefreshSession))
-            .findOne({ where: { userId: user.id, blacklisted: false } });
         const loggedOut: Response = await browser.open(`${baseUrl}/auth/logout`, {
             method: 'POST',
             headers: { [KnownHeader.CONTENT_TYPE]: 'application/json' },
-            body: JsonUtilities.stringify({ clearCookies: true, refreshSessionId: refreshSession.id })
+            body: JsonUtilities.stringify({ clearCookies: true })
         });
         expect(loggedOut.status).toBe(200);
         // eslint-disable-next-line typescript/no-unsafe-assignment

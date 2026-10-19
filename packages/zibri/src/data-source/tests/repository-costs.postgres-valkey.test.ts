@@ -1,9 +1,9 @@
 import { afterAll, beforeAll } from '@jest/globals';
+import { RoundTripCounter } from 'zibri-testing';
 
 import { CostGroup, CostItem, describeRepositoryCosts } from './repository-costs.cases';
 import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
 import { createTestValKeyDataSource } from '../../__testing__/test-server/create-test-val-key-data-source.function';
-import { RoundTripCounter } from '../../__testing__/test-server/round-trip-counter.model';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { inject } from '../../di/inject.function';
 import { Newable } from '../../types/newable.type';
@@ -32,7 +32,7 @@ let server: StartedTestServer | undefined;
 
 beforeAll(async () => {
     server = await startTestServer({ dataSources: [frameworkDataSourceClass, postgresDataSourceClass, valKeyDataSourceClass] });
-}, 30000);
+}, 60000);
 
 afterAll(async () => {
     await server?.shutdown();

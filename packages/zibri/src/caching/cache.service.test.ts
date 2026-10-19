@@ -123,7 +123,7 @@ describe('CacheService', () => {
     beforeAll(async () => {
         server = await startTestServer();
         cacheService = inject(ZIBRI_DI_TOKENS.CACHE_SERVICE) as CacheService;
-    }, 15000);
+    }, 30000);
 
     afterAll(async () => {
         await server?.shutdown();

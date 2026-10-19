@@ -25,6 +25,13 @@ export class LdapIdentity extends BaseEntity {
      */
     @Property.string({ format: 'uuid' })
     userId!: string;
+
+    /**
+     * When the entry was found disabled or deleted, and the logins of the user ended. Null while it
+     * is not, and again once someone signs in as it.
+     */
+    @Property.date({ required: false })
+    disabledAt?: Date | null;
 }
 
 /**

@@ -5,6 +5,7 @@ import { createInMemoryDataSource } from 'zibri-testing';
 import { ZibriInvoicingPlugin } from './invoicing.plugin';
 import { CompanyInfo } from './models/company-info.model';
 import { InvoiceAddress } from './models/invoice-address.model';
+import { InvoiceRecipientAbbreviation } from './models/invoice-recipient-abbreviation.model';
 import { Invoice } from './models/invoice.model';
 import { NumberInvoices } from './models/number-invoices.model';
 import { XRechnungConformanceService } from './services/conformance/en16931/x-rechnung-conformance.service';
@@ -100,7 +101,7 @@ async function issueInvoice(): Promise<Invoice> {
 describe('invoicing across tenants', () => {
     beforeAll(async () => {
         server = await startTestServer({
-            dataSources: [createInMemoryDataSource({ entities: [...defaultTestServerEntities, Invoice, NumberInvoices] })],
+            dataSources: [createInMemoryDataSource({ entities: [...defaultTestServerEntities, Invoice, NumberInvoices, InvoiceRecipientAbbreviation] })],
             plugins: [new ZibriInvoicingPlugin()],
             providers: [
                 ...defaultTestServerProviders,

@@ -10,6 +10,7 @@ import { currencyCodeEnum, type CurrencyCode } from '../../../../localization/mo
 import { $ts } from '../../../../localization/translate.function';
 import { errorToLoggedError } from '../../../../logging/error-to-logged-error.function';
 import { LoggedError } from '../../../../logging/logged-error.model';
+import { BigNumber } from '../../../../utilities/number.utilities';
 import { KnownPaymentMethod } from '../../models/payment-method.model';
 import { PaymentStatus } from '../../models/payment-status.enum';
 import { Payment } from '../../models/payment.model';
@@ -29,13 +30,14 @@ type SupportedMethods = [KnownPaymentMethod.PAY_PAL];
  */
 export class PayPalPaymentData {
     /**
-     * The amount of the payment.
+     * The amount of the payment, with at most as many decimals as its currency has: none for `HUF`,
+     * `JPY` and `TWD`, two for every other currency PayPal takes.
      *
      * `min` is inclusive, so this rejects negatives and lets a zero through. `validatePaymentData`
      * is what refuses that one - the real bound is above zero, and metadata cannot say so.
      */
-    @Property.number({ min: 0 })
-    amount!: number;
+    @Property.number({ format: 'bignumber', min: 0 })
+    amount!: BigNumber;
     /**
      * The currency of the payment.
      */
@@ -251,11 +253,17 @@ export class PayPalPaymentProvider implements PaymentProviderInterface<
         // eslint-disable-next-line sonar/no-small-switch
         switch (method) {
             case KnownPaymentMethod.PAY_PAL: {
-                if (data.amount <= 0) {
+                if (!data.amount.isGreaterThan(0)) {
                     throw new BadRequestError($ts`The amount has to be greater than 0.`);
                 }
                 if (!data.currencyCode) {
                     throw new BadRequestError($ts`A currency code is required.`);
+                }
+                // refused here rather than rounded when it is sent: an amount the caller did not
+                // ask for is a charge they did not agree to, and PayPal refuses it anyway
+                const decimals: number = PayPalPaymentProvider.getCurrencyDecimals(data.currencyCode);
+                if ((data.amount.decimalPlaces() ?? 0) > decimals) {
+                    throw new BadRequestError($ts`An amount in ${data.currencyCode} has at most ${decimals} decimals.`);
                 }
                 return data;
             }
@@ -300,7 +308,14 @@ export class PayPalPaymentProvider implements PaymentProviderInterface<
         try {
             order = await this.client.createOrder({
                 intent,
-                purchase_units: [{ amount: { value: String(data.amount), currency_code: data.currencyCode } }],
+                purchase_units: [
+                    {
+                        amount: {
+                            value: PayPalPaymentProvider.getValue(data.amount, data.currencyCode),
+                            currency_code: data.currencyCode
+                        }
+                    }
+                ],
                 application_context: {
                     cancel_url: data.cancelUrl,
                     return_url: data.returnUrl
@@ -421,7 +436,7 @@ export class PayPalPaymentProvider implements PaymentProviderInterface<
         try {
             captureResp = await this.client.captureAuthorization(
                 authId,
-                { value: String(payment.amount), currency_code: payment.currencyCode },
+                { value: PayPalPaymentProvider.getValue(payment.amount, payment.currencyCode), currency_code: payment.currencyCode },
                 `${payment.id}:collect`
             );
         }
@@ -499,7 +514,7 @@ export class PayPalPaymentProvider implements PaymentProviderInterface<
         try {
             resp = await this.client.refundCapture(
                 captureId,
-                { value: String(payment.amount), currency_code: payment.currencyCode },
+                { value: PayPalPaymentProvider.getValue(payment.amount, payment.currencyCode), currency_code: payment.currencyCode },
                 `${payment.id}:refund`
             );
         }
@@ -604,6 +619,27 @@ export class PayPalPaymentProvider implements PaymentProviderInterface<
      */
     private static findAuthorization(order: GetOrderResp): PayPalAuthorization | undefined {
         return order.purchase_units?.flatMap(unit => unit.payments?.authorizations ?? []).at(0);
+    }
+
+    /**
+     * How many decimals PayPal takes in an amount of a currency.
+     * @param currencyCode - The currency.
+     * @returns The decimals.
+     */
+    private static getCurrencyDecimals(currencyCode: CurrencyCode): number {
+        // PayPal's own rule, which is not ISO 4217's: HUF and TWD have two decimals there, and PayPal
+        // refuses any. Every other currency PayPal takes has two
+        return ['HUF', 'JPY', 'TWD'].includes(currencyCode) ? 0 : 2;
+    }
+
+    /**
+     * Writes an amount the way PayPal reads it: in fixed notation, with the decimals of its currency.
+     * @param amount - The amount, which `validatePaymentData` checked has no more decimals than that.
+     * @param currencyCode - The currency of the amount.
+     * @returns The value of the amount.
+     */
+    private static getValue(amount: BigNumber, currencyCode: CurrencyCode): string {
+        return amount.toFixed(PayPalPaymentProvider.getCurrencyDecimals(currencyCode));
     }
 }
 

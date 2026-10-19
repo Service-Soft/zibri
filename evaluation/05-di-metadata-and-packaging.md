@@ -332,7 +332,7 @@ module-instance identity.
 > The fallback undoes an `unregister`, though - the global record outlives the container, so the next
 > lookup would put back what was just taken out. A token removed on purpose is remembered as removed,
 > which is not [D4](#d4-unregister-does-not-evict-instances-and-its-jsdoc-is-false--major) - an
-> already constructed instance still answers from the cache, and that half stays open - but it stops
+> already constructed instance still answered from the cache then, a half D4 has closed since - but it stops
 > this fix from making that one harder.
 
 `init-di-container.function.ts` reads `GlobalRegistry.injectables` **once**:
@@ -634,7 +634,7 @@ parameter typed via a `import type` binding erases to `undefined` at runtime and
 > property in the public API, so its 234 errors are largely a question of which of the two each
 > option type, each entity and each decorator input means — a modelling pass over the framework's
 > surface, with a breaking change at the end of it for anyone who writes `{ logo: undefined }`. Worth
-> doing deliberately, not as the tail of a strictness round.
+> doing deliberately, not as the tail of a strictness round. Filed as §M6.
 
 `tsconfig.base.json` enables `strict: true` and nothing beyond it. Absent:
 `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`, `noUnusedLocals`,
@@ -1159,6 +1159,17 @@ order, or a discriminator field naming the alternative — the latter is what ma
 validation unambiguous and maps to OpenAPI's `discriminator`), how a parse failure against all
 alternatives is reported, and how a union property is stored (a json column on postgres, like an object
 property today).
+
+### M6. `exactOptionalPropertyTypes` is off — MINOR, **open**
+
+*Filed on 2026-10-15, from what §M2 declined to do as part of a strictness round.*
+
+`foo?: string` and `foo: string | undefined` mean the same thing to the compiler across the whole public
+api, so an option type cannot say whether leaving a key out and writing it as `undefined` differ - and
+in places they do (an option present and undefined took a default away, 06 §T3). Turning the flag on
+raised 234 errors, each a question of which of the two a property means: a modelling pass over every
+option type, entity and decorator input, ending in a breaking change for anyone writing
+`{ key: undefined }`. §M2 called it worth doing deliberately.
 
 ---
 

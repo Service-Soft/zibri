@@ -9,11 +9,11 @@ import { BaseEntity } from '../../entity/base-entity.model';
 import { EntityMetadata } from '../../entity/decorators/entity.decorator';
 import { PropertyMetadata, RelationMetadata } from '../../entity/decorators/property.decorator';
 import { EntityMetadataMissingError } from '../../entity/entity-metadata-missing.error';
-import { EntityOrderUtilities, OrderKey } from '../../entity/models/entity-order.utilities';
+import { EntityOrderUtilities, OrderComparator, OrderKey } from '../../entity/models/entity-order.utilities';
 import { RelationTree, RelationTreeByRowId } from '../../entity/models/entity-relations.model';
 import { EntityRelationsUtilities } from '../../entity/models/entity-relations.utilities';
 import { Relation } from '../../entity/models/relation.enum';
-import { coversEveryRow, UniqueGroup } from '../../entity/models/unique-declaration.model';
+import { coversEveryRow, KeyWhere, UniqueGroup } from '../../entity/models/unique-declaration.model';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { ModelRegistry } from '../../global/model-registry/model.registry';
 import { PaginationResult } from '../../open-api/pagination-result.model';
@@ -29,6 +29,7 @@ import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
 import { PromiseUtilities } from '../../utilities/promise.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { CheckConstraintViolationError } from '../check-constraint-violation.error';
 import { scanValKeyKeys } from '../data-sources/val-key/scan-val-key-keys.function';
 import { type ValKeyDataSource } from '../data-sources/val-key/val-key-data-source.model';
 import { valKeyGlide } from '../data-sources/val-key/val-key-glide.function';
@@ -42,6 +43,7 @@ import { Transaction } from '../transaction/transaction.model';
 import { ValKeyBufferedWrite, ValKeyTransaction } from '../transaction/val-key-transaction.model';
 import { UniqueConstraintViolationError } from '../unique-constraint-violation.error';
 import { UpsertIdentityUtilities } from '../upsert-identity.utilities';
+import { WriteDataUtilities } from '../write-data.utilities';
 
 /**
  * How many rows a stream reads back at once.
@@ -76,7 +78,11 @@ type PendingUpsert<T extends BaseEntity> = {
     /**
      * The filter naming the row that holds its identity.
      */
-    conflictWhere: Where<T>
+    conflictWhere: Where<T>,
+    /**
+     * What the row holding its identity has to match for the changes to apply, if anything.
+     */
+    where: Where<T> | undefined
 };
 
 /**
@@ -141,7 +147,11 @@ type KeyLists = {
     /**
      * The index declarations, each sorted.
      */
-    indexes: string[][]
+    indexes: string[][],
+    /**
+     * The checks every row is held to, absent when the entity declares none.
+     */
+    checks?: KeyWhere[]
 };
 
 /**
@@ -274,7 +284,14 @@ function isKeyLists(value: unknown): value is KeyLists {
         && value.uniques.every((unique: unknown) => isListedUnique(unique))
         && 'indexes' in value
         && Array.isArray(value.indexes)
-        && value.indexes.every((index: unknown) => isTextList(index));
+        && value.indexes.every((index: unknown) => isTextList(index))
+        && (
+            !('checks' in value)
+            || (
+                Array.isArray(value.checks)
+                && value.checks.every((check: unknown) => typeof check === 'object' && check != undefined)
+            )
+        );
 }
 
 /**
@@ -353,8 +370,9 @@ const WRITES_PER_PIPELINE: number = 1000;
  * ## Unique declarations
  * That index is also what enforces them. A save reads it under a grant on the index key and refuses
  * the write with a {@link UniqueConstraintViolationError} when another row is already there, which is
- * the same answer a sql store gives to the same declaration. It costs a grant and a read per changed
- * value, so a save only pays it for a declaration whose value it is actually taking up: an update
+ * the same answer a sql store gives to the same declaration. A value a transaction gives up stays
+ * granted until it ends, so a write taking it up waits for the outcome rather than being refused, as
+ * on a sql store. It costs a grant per changed value and a read per value taken up, so an update
  * that leaves the value alone, and every entity that declares nothing unique, pay nothing.
  *
  * ## Filtering
@@ -395,6 +413,11 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
      */
     private readonly indexGroups: string[][];
 
+    /**
+     * The rules every row of the entity has to follow.
+     */
+    private readonly checks: KeyWhere[];
+
     constructor(
         private readonly entityClass: Newable<T>,
         private readonly client: GlideClient,
@@ -406,9 +429,13 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
             throw new EntityMetadataMissingError(entityClass);
         }
         this.tableName = metadata.tableName;
+        this.checks = metadata.checks ?? [];
         this.properties = MetadataUtilities.getModelProperties(entityClass);
         this.uniqueGroups = this.resolveUniqueGroups();
-        this.indexGroups = this.resolveIndexGroups(ModelRegistry.get(this.entityClass).keyDescriptor.indexes);
+        this.indexGroups = this.resolveIndexGroups(
+            ModelRegistry.get(this.entityClass).keyDescriptor.indexes,
+            ModelRegistry.get(this.entityClass).keyDescriptor.uniques
+        );
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -428,6 +455,13 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
             return await this.saveThrough(data, this.toValKeyTransaction(transaction), reload);
         }
         return await this.inTransaction(transaction, async own => await this.saveThrough(data, own, reload));
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async insert(data: DeepPartial<T>[], transaction: Transaction | undefined): Promise<T[]> {
+        // a save of rows nobody stored reads nothing it would not read for these as well: the stored
+        // row and the keys come back in the one request that also tells it which uniques to hold
+        return await this.save(data, transaction, true);
     }
 
     /**
@@ -502,6 +536,38 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
     }
 
     /**
+     * Refuses rows that break a check the store keeps for the entity.
+     *
+     * The checks the store lists rather than the ones this version declares, as a write keeps the
+     * uniques the store lists: a newer release beside this one may hold the rows to more.
+     * @param changes - The rows as they were stored and as they will be.
+     * @param checks - The checks the store lists.
+     * @throws CheckConstraintViolationError naming the first check a row breaks.
+     */
+    private validateChecks(changes: StoredRowChange[], checks: KeyWhere[] | undefined): void {
+        if (!checks?.length) {
+            return;
+        }
+        for (const { after } of changes) {
+            const broken: KeyWhere | undefined = after == undefined ? undefined : this.findBrokenCheck(after, checks);
+            if (broken != undefined) {
+                throw new CheckConstraintViolationError(this.entityClass.name, broken);
+            }
+        }
+    }
+
+    /**
+     * Finds the first of the given checks a row breaks.
+     * @param fields - The row, as the json encoded fields it is stored as.
+     * @param checks - The checks.
+     * @returns The check, or undefined when the row follows all of them.
+     */
+    private findBrokenCheck(fields: Record<string, string>, checks: KeyWhere[]): KeyWhere | undefined {
+        const entity: T = this.fromFields(fields);
+        return checks.find(check => !this.evaluator.matches<BaseEntity>(entity, check, this.entityClass));
+    }
+
+    /**
      * Applies the writes of a save together with what they change in the indexes and uniques the
      * store keeps.
      *
@@ -515,6 +581,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
      * @param keys - The indexes and uniques the store keeps, as the save read them.
      * @param transaction - The transaction to write through, when there is one.
      * @throws When another row already holds the values one of the uniques names.
+     * @throws CheckConstraintViolationError when a row breaks a check the store keeps.
      * @throws KeyDeclarationsChangedError when the list kept changing under a save without a transaction.
      */
     private async saveWithKeys(
@@ -524,6 +591,8 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         transaction: ValKeyTransaction | undefined
     ): Promise<void> {
         if (transaction) {
+            // before anything is written; the guard below refuses the commit should the list change
+            this.validateChecks(changes, keys.checks);
             transaction.guardKey(this.keysKey(), keys.stored);
             await this.writeAll([...writes, ...this.resolveIndexWrites(changes, keys.indexes)], transaction);
             await this.saveUniqueIndexes(changes, keys.uniques, transaction);
@@ -538,6 +607,8 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
                 });
                 return;
             }
+            // judged by the list each attempt is applied against, so a check listed meanwhile holds
+            this.validateChecks(changes, current.checks);
             if (await this.writeGuarded([...writes, ...this.resolveIndexWrites(changes, current.indexes)], current)) {
                 return;
             }
@@ -676,6 +747,26 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         );
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async updateEach(rows: DeepPartial<T>[], where: Where<T>, transaction: Transaction | undefined): Promise<T[]> {
+        if (!rows.length) {
+            return [];
+        }
+        // held from the read to the write, as updateAll holds them, and written in the one request a
+        // save sends whatever each row gives
+        return await this.inTransaction(transaction, async valKeyTransaction => {
+            const matched: Map<string, T> = new Map((await this.holdRowsMatching(where, valKeyTransaction)).map(m => [String(m.id), m]));
+            return await this.save(
+                rows.flatMap(r => {
+                    const stored: T | undefined = matched.get(String(r.id));
+                    return stored == undefined ? [] : [WriteDataUtilities.resolveMerged(r, stored, this.entityClass)];
+                }),
+                valKeyTransaction,
+                true
+            );
+        });
+    }
+
     /**
      * Applies the change to the rows a filter matches, while holding each of them.
      * @param options - What to change, where, and whether the changed entities are wanted back.
@@ -698,8 +789,9 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         // may well have changed a column the filter matches on - updateAll({ status: 'QUEUED' },
         // { status: 'SENT' }) being the obvious case - and re-running it then returns the rows that
         // were *not* touched
+        // merged into what each row holds as it is read once held, so nothing writes it in between
         const updated: T[] = await this.save(
-            matched.map(m => ({ ...data, id: m.id })),
+            matched.map(m => ({ ...WriteDataUtilities.resolveMerged(data, m, this.entityClass), id: m.id })),
             valKeyTransaction,
             returnUpdated === true
         );
@@ -779,7 +871,8 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
                 .filter((entry): entry is [string, UpsertChange] => entry[1] != undefined),
             // the rows an identity may land on are the ones the key covers, which is not every row
             // holding the identity's values: a key over part of a table leaves the rest free
-            conflictWhere: UpsertIdentityUtilities.resolveConflictWhere(this.entityClass, identity, row.create)
+            conflictWhere: UpsertIdentityUtilities.resolveConflictWhere(this.entityClass, identity, row.create),
+            where: row.where
         }));
         if (pending.some(p => !p.changes.length)) {
             throw new InternalError('upsert was called with an empty onConflict, so the conflict path would do nothing.');
@@ -818,11 +911,14 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
             // after it - and a plain write may have been holding one, and committing, the whole time
             // the read was happening. Reading again once they are held is what makes the value this
             // adds to the value that is actually stored, rather than the one that was stored a moment
-            // ago. With whatever relations `reachable` needs, so each row can be judged by it right
-            // here rather than read a second time through a filter
+            // ago. With whatever relations `reachable` and the rows' own conditions need, so each row
+            // can be judged by them right here rather than read a second time through a filter
             await this.claimRows([...foundIds.values()], valKeyTransaction);
+            const judgedBy: WhereFilter<T>[] = [reachable, ...pending.map(p => p.where)]
+                .flatMap(w => w == undefined ? [] : Array.isArray(w) ? w : [w]);
             const held: Map<string, T> = new Map(
-                (await this.findByIds([...foundIds.values()], { where: reachable }, valKeyTransaction)).map(e => [e.id, e])
+                (await this.findByIds([...foundIds.values()], { where: judgedBy.length ? judgedBy : undefined }, valKeyTransaction))
+                    .map(e => [e.id, e])
             );
 
             const data: DeepPartial<T>[] = pending.map(p => {
@@ -832,7 +928,10 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
                     return p.create;
                 }
                 // judged while the row's grant is held, so what decides it is what the write lands on
-                if (reachable != undefined && !this.evaluator.matches(existing, reachable, this.entityClass)) {
+                if (
+                    (reachable != undefined && !this.evaluator.matches(existing, reachable, this.entityClass))
+                    || (p.where != undefined && !this.evaluator.matches(existing, p.where, this.entityClass))
+                ) {
                     const group: UniqueGroup = UpsertIdentityUtilities.resolveUniqueGroup(this.entityClass, identity);
                     throw new UniqueConstraintViolationError(this.entityClass.name, group.properties);
                 }
@@ -913,19 +1012,17 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async remove(entities: T[], transaction: Transaction | undefined): Promise<T[]> {
-        if (!entities.length) {
-            return [];
+    async remove(ids: string[], transaction: Transaction | undefined): Promise<void> {
+        if (!ids.length) {
+            return;
         }
         const valKeyTransaction: ValKeyTransaction | undefined = this.toValKeyTransaction(transaction);
-        const ids: string[] = entities.map(e => e.id);
         // one claim for every row, rather than one per delete
         await valKeyTransaction?.claimKeys(ids.map(id => this.rowKey(id)));
 
-        // the values a row gives up in its indexes are read off the row as it is stored, not off the
-        // entity handed in: that one was read and decrypted for the delete hook, and an encrypted
-        // value never encrypts to the same text twice, so encoding it again names no entry that exists.
-        // Read for every entity, since which indexes and uniques there are is the store's to say
+        // the values a row gives up in its indexes are read off the row as it is stored, which is the
+        // only form that names the entries: an encrypted value never encrypts to the same text twice.
+        // Read for every row, since which indexes and uniques there are is the store's to say
         const [stored, keys]: [Map<string, Record<string, string>>, StoredKeys] = await this.readRowsAndKeys(ids, valKeyTransaction);
 
         // every write of every row in one go: nothing has to happen in order, since each row knows its
@@ -933,36 +1030,50 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         const writes: ValKeyBufferedWrite[] = await this.resolveManyToManyRemovals(ids, valKeyTransaction);
         writes.push(...ids.map((id): ValKeyBufferedWrite => ({ type: 'delete', key: this.rowKey(id) })));
         writes.push({ type: 'setRemove', key: this.idsKey(), members: ids });
-        // giving a value up needs nothing held, so this never needs a transaction of its own
+        // giving a value up outside a transaction is applied at once, so it needs nothing held and
+        // never needs a transaction of its own
+        const uniqueRemovals: (current: StoredKeys) => ValKeyBufferedWrite[] = current => ids.flatMap(
+            id => this.resolveUniqueIndexRemovals(id, stored.get(id), current.uniques)
+        );
         const withKeys: (current: StoredKeys) => ValKeyBufferedWrite[] = current => [
             ...writes,
-            ...ids.flatMap(id => this.resolveUniqueIndexRemovals(id, stored.get(id), current.uniques)),
+            ...uniqueRemovals(current),
             ...this.resolveIndexWrites(ids.map(id => ({ id, before: stored.get(id), after: undefined })), current.indexes)
         ];
 
         if (valKeyTransaction) {
             valKeyTransaction.guardKey(this.keysKey(), keys.stored);
+            // inside one, the values are only free once it commits: held until then, for the reason a
+            // save holds the values it gives up
+            await valKeyTransaction.claimKeys(uniqueRemovals(keys).map(w => w.key));
             await this.writeAll(withKeys(keys), valKeyTransaction);
-            return entities;
+            return;
         }
         let current: StoredKeys = keys;
         for (let attempt: number = 1; attempt <= KEY_CHANGE_ATTEMPTS; attempt++) {
             if (await this.writeGuarded(withKeys(current), current)) {
-                return entities;
+                return;
             }
             current = await this.readStoredKeys();
         }
         throw new KeyDeclarationsChangedError();
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async findIds(options: DriverFindOptions<T>): Promise<string[]> {
+        // through `find`, since a row is only judged by a filter once it is read: what this saves a
+        // valkey caller is the rows being handed up and held, not the reading of them
+        return (await this.find(options)).map(e => e.id);
+    }
+
     /**
      * Points every unique declaration the written rows satisfy at them, and stops pointing the values
      * they no longer have.
      *
-     * Giving a value up is written as a plain set operation, for the reason the id set is: removals
-     * commute, so two rows letting go of different values never have to be ordered against each other
-     * and neither has to take a grant. Taking one up does not commute - that is the whole of what
-     * unique means - so it is claimed and checked first.
+     * Taking a value up does not commute - that is the whole of what unique means - so it is claimed
+     * and checked first. A value given up is claimed as well, and held until the transaction ends: a
+     * write taking it up meanwhile waits to see whether the row lets go of it, rather than being
+     * refused over a value that is about to be free.
      *
      * Every row stored before a unique was kept is indexed under it by the boot that starts keeping
      * it, before anything reads it.
@@ -988,7 +1099,12 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         // inserting the same value at the same time is exactly the case this covers, and neither of
         // them has a row to hold instead. All of them in one claim and one read
         const takenKeys: string[] = [...new Set(changes.flatMap(c => c.next == undefined ? [] : [this.uniqueKey(c.group, c.next)]))];
-        await transaction?.claimKeys(takenKeys);
+        // the removal of a value given up is buffered until the commit, so a write taking it up in
+        // the meantime would still read this row holding it and be refused - where postgres has it
+        // wait for the outcome. Held, it waits too, and reads the value free once this commits.
+        // In the same claim, so that every key is taken in one sorted order
+        const givenUpKeys: string[] = changes.flatMap(c => c.previous == undefined ? [] : [this.uniqueKey(c.group, c.previous)]);
+        await transaction?.claimKeys([...takenKeys, ...givenUpKeys]);
         // as stored, without this transaction's writes: those are laid over it change by change below
         const holders: string[][] = await this.readSets(takenKeys, undefined);
         const storedHolders: Map<string, string[]> = new Map(takenKeys.map((key, i) => [key, holders[i] ?? []]));
@@ -1361,35 +1477,105 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
      * keeps it, and then built over the rows stored before. A filter is answered from one only once it
      * is built. Every declaration the store keeps and the entity no longer declares is taken off the
      * list, and its keys are deleted. Run by booting, while it holds the schema lock.
-     * @returns Whether a declaration was added or removed.
-     * @throws When stored rows break a unique the entity declares. That unique is taken off the list
-     * again, so nothing enforces or reads it.
+     *
+     * A check is listed the same way, so that every write from then on is held to it, and then
+     * judged against the rows stored before.
+     * @returns Whether a declaration or a check was added or removed.
+     * @throws When stored rows break a unique or a check the entity declares. That one is taken off the
+     * list again, so nothing enforces or reads it.
      */
     async reconcileStoredKeys(): Promise<boolean> {
         const stored: StoredKeys = await this.readStoredKeys();
-        const declared: KeyLists = { uniques: this.uniqueGroups, indexes: this.indexGroups };
+        // the checks only when there are some, so the list of an entity declaring none reads as it did
+        // before checks were kept
+        const declared: KeyLists = {
+            uniques: this.uniqueGroups,
+            indexes: this.indexGroups,
+            ...this.checks.length ? { checks: this.checks } : {}
+        };
         const declaredText: string = JsonUtilities.stringify(declared);
         const storedDeclarations: Map<string, KeyDeclaration> = this.resolveKeyDeclarations(stored);
         const declaredDeclarations: KeyDeclaration[] = [...this.resolveKeyDeclarations(declared).values()];
         const added: KeyDeclaration[] = declaredDeclarations.filter(d => !storedDeclarations.has(d.identity));
         const removed: KeyDeclaration[] = [...storedDeclarations.values()]
             .filter(s => !declaredDeclarations.some(d => d.identity === s.identity));
+        const storedChecks: Set<string> = new Set((stored.checks ?? []).map(c => this.checkIdentity(c)));
+        const declaredChecks: Set<string> = new Set(this.checks.map(c => this.checkIdentity(c)));
+        const checksChanged: boolean = storedChecks.size !== declaredChecks.size || [...declaredChecks].some(c => !storedChecks.has(c));
         const [built = []]: string[][] = await this.readSets([this.builtKey()], undefined);
         // with the ones listed and never built, which a boot that failed half way leaves behind
         const unbuilt: KeyDeclaration[] = declaredDeclarations.filter(d => added.includes(d) || !built.includes(d.identity));
-        if (stored.stored === declaredText && !unbuilt.length) {
+        const unjudged: KeyWhere[] = this.checks.filter(c => !built.includes(this.checkIdentity(c)));
+        if (stored.stored === declaredText && !unbuilt.length && !unjudged.length) {
             return false;
         }
 
         // whatever keys an added declaration has were left by nobody keeping them, since no list
         // named it - and an entry nobody keeps would be read as one somebody does
         await this.deleteKeysOf(added);
-        await this.replaceStoredKeys(declaredText, [...added, ...removed]);
+        // a check taken off is no longer built, so declaring it again judges the rows again
+        const removedChecks: string[] = [...storedChecks].filter(c => !declaredChecks.has(c));
+        await this.replaceStoredKeys(declaredText, [...[...added, ...removed].map(d => d.identity), ...removedChecks]);
         // after the list rather than before it, so that no write is still adding to them: one that
         // read the old list is refused when it is applied, and reads the new one
         await this.deleteKeysOf(removed);
         await this.buildKeys(unbuilt, declared);
-        return added.length > 0 || removed.length > 0;
+        await this.judgeStoredRows(unjudged, declared);
+        return added.length > 0 || removed.length > 0 || checksChanged;
+    }
+
+    /**
+     * Judges every stored row by the given checks, and names each of them built once every row follows it.
+     *
+     * The checks are on the list already, so a row written meanwhile was held to them by its writer.
+     * @param checks - The checks to judge the rows by.
+     * @param declared - Everything the entity declares, which a check the rows break is taken out of.
+     * @throws When a stored row breaks one of the checks, naming the row.
+     */
+    private async judgeStoredRows(checks: KeyWhere[], declared: KeyLists): Promise<void> {
+        if (!checks.length) {
+            return;
+        }
+        // a batch of rows at a time, as building does
+        for (const ids of PromiseUtilities.resolveChunks(await this.readIds(undefined), STREAM_BATCH_SIZE)) {
+            for (const [id, fields] of await this.readRows(ids, undefined)) {
+                const broken: KeyWhere | undefined = this.findBrokenCheck(fields, checks);
+                if (broken == undefined) {
+                    continue;
+                }
+                // so that nothing enforces a check the stored rows already break
+                const brokenIdentity: string = this.checkIdentity(broken);
+                const kept: KeyWhere[] = (declared.checks ?? []).filter(c => this.checkIdentity(c) !== brokenIdentity);
+                await this.replaceStoredKeys(
+                    JsonUtilities.stringify({
+                        uniques: declared.uniques,
+                        indexes: declared.indexes,
+                        ...kept.length ? { checks: kept } : {}
+                    }),
+                    []
+                );
+                const properties: string = CheckConstraintViolationError.resolveProperties(broken).join(', ');
+                throw new InternalError([
+                    `Cannot hold ${this.entityClass.name} to the check on ${properties}:`,
+                    `the stored row ${id} breaks it.`,
+                    'Change the rows breaking it in a migration.'
+                ]);
+            }
+        }
+        await this.writeAll([{ type: 'setAdd', key: this.builtKey(), members: checks.map(c => this.checkIdentity(c)) }], undefined);
+    }
+
+    /**
+     * Names a check the way the set of the built ones names it.
+     * @param check - The check.
+     * @returns `check:` and a short hash of the filter.
+     */
+    private checkIdentity(check: KeyWhere): string {
+        const hash: string = createHash('sha256')
+            .update(JsonUtilities.stringify(check))
+            .digest('hex')
+            .slice(0, 8);
+        return `check:${hash}`;
     }
 
     /**
@@ -1445,10 +1631,10 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         const brokenIdentities: Set<string> = new Set(broken.map(d => d.identity));
         // so that nothing enforces a unique the stored rows already break, and nothing reads it
         const kept: KeyLists = {
-            uniques: declared.uniques.filter(u => !brokenIdentities.has(this.uniqueIdentity(u))),
-            indexes: declared.indexes
+            ...declared,
+            uniques: declared.uniques.filter(u => !brokenIdentities.has(this.uniqueIdentity(u)))
         };
-        await this.replaceStoredKeys(JsonUtilities.stringify(kept), broken);
+        await this.replaceStoredKeys(JsonUtilities.stringify(kept), broken.map(d => d.identity));
         await this.deleteKeysOf(broken);
 
         const [entryKey = '', holder = '', id = ''] = conflicts;
@@ -1481,14 +1667,14 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
     /**
      * Lists the store keeps, and names which declarations are no longer built, as one step.
      * @param stored - The list to keep, as it is stored.
-     * @param unbuilt - The declarations that are not built from now on.
+     * @param unbuilt - The identities of the declarations and checks that are not built from now on.
      */
-    private async replaceStoredKeys(stored: string, unbuilt: KeyDeclaration[]): Promise<void> {
+    private async replaceStoredKeys(stored: string, unbuilt: string[]): Promise<void> {
         const batch: Batch = new (valKeyGlide().Batch)(true);
         batch.set(this.keysKey(), stored);
         if (unbuilt.length) {
             // eslint-disable-next-line cspell/spellchecker
-            batch.srem(this.builtKey(), unbuilt.map(d => d.identity));
+            batch.srem(this.builtKey(), unbuilt);
         }
         await this.client.exec(batch, true);
     }
@@ -1543,13 +1729,27 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
 
     /**
      * Collects the index declarations a filter can be answered from.
+     *
+     * An index answers a lookup by any leading part of itself, and a unique over every row is kept by
+     * one over its columns in the order they are written. An entry here is the whole combination of a
+     * group's values, so every leading part of each is kept as a group of its own - which is what lets
+     * an entity declare (tenantId, status) and nothing on tenantId alone, as it does on a sql store.
      * @param indexes - The declarations, a property carrying `index` being a group of one.
+     * @param uniques - The unique declarations, whose leading parts are answered the same way.
      * @returns The groups, each sorted, without duplicates and without a group naming an encrypted or
-     * hashed property.
+     * hashed property, the longest first so a filter is answered from the one that names most of it.
      */
-    private resolveIndexGroups(indexes: string[][]): string[][] {
+    private resolveIndexGroups(indexes: string[][], uniques: UniqueGroup[]): string[][] {
         const seen: Set<string> = new Set();
-        return indexes
+        const leadingParts: (group: string[], length: number) => string[][] = (group, length) => Array
+            .from({ length }, (_, i) => group.slice(0, i + 1));
+        return [
+            ...indexes.flatMap(group => leadingParts(group, group.length)),
+            // the whole group is answered through the unique's own entries
+            ...uniques.filter(group => coversEveryRow(group.where))
+                .flatMap(group => leadingParts(group.properties, group.properties.length - 1))
+        ]
+            .sort((a, b) => b.length - a.length)
             .map(group => [...group].sort())
             .filter(group => group.every(key => !this.isTransformedOnWrite(this.properties[key])))
             .filter(group => {
@@ -1799,7 +1999,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         // as deep as the filter reaches: one naming a relation of a relation is judged against it, and
         // resolving only the first level left the second unread, so the filter matched nothing
         const forFilter: RelationTree = EntityRelationsUtilities.resolveFilterTree(options.where, this.properties);
-        return EntityRelationsUtilities.mergeTrees(EntityOrderUtilities.resolveRelations(options.order), forFilter);
+        return EntityRelationsUtilities.mergeTrees(EntityOrderUtilities.resolveRelations(options.order, this.entityClass), forFilter);
     }
 
     /**
@@ -2310,19 +2510,21 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         // a property of one of the entities this reached through is compared exactly as a property
         // of the entity is - the only difference is how far the value is reached through, which the
         // key carries
-        const keys: OrderKey[] = EntityOrderUtilities.resolveKeys(order);
+        const keys: OrderKey[] = EntityOrderUtilities.resolveKeys(order, this.entityClass);
         if (!keys.length) {
             return entities;
         }
 
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        const sorts: { path: string[], compare: OrderComparator }[] = keys.map(key => ({
+            path: key.path,
+            compare: EntityOrderUtilities.resolveComparator(key, (a, b) => this.compareValues(a, b))
+        }));
         return [...entities].sort((a, b) => {
-            for (const { path, direction } of keys) {
-                const comparison: number = this.compareValues(
-                    EntityOrderUtilities.valueAt(a, path),
-                    EntityOrderUtilities.valueAt(b, path)
-                );
+            for (const { path, compare } of sorts) {
+                const comparison: number = compare(EntityOrderUtilities.valueAt(a, path), EntityOrderUtilities.valueAt(b, path));
                 if (comparison !== 0) {
-                    return direction === 'DESC' ? -comparison : comparison;
+                    return comparison;
                 }
             }
             return 0;
@@ -2585,7 +2787,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         if (!isKeyLists(lists)) {
             throw new InternalError(`The indexes and uniques kept for ${this.entityClass.name} are not a list this version can read.`);
         }
-        return { uniques: lists.uniques, indexes: lists.indexes, stored };
+        return { uniques: lists.uniques, indexes: lists.indexes, checks: lists.checks, stored };
     }
 
     /**

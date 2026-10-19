@@ -1,3 +1,5 @@
+import { EncryptionRotationFailure } from './encryption-rotation-failure.model';
+
 /**
  * What is still encrypted under the keys and strategies being retired.
  *
@@ -44,7 +46,12 @@ export type RetiredDataKeyUsage = {
      * How many recorded backups need it to still exist when they are restored: those taken while it
      * existed that do not hold the data keys themselves.
      */
-    backups: number
+    backups: number,
+    /**
+     * The rows holding a value encrypted with it that `EncryptionRotationCronJob` could not rewrite,
+     * with why and when it tries again. The key cannot be retired before they are rewritten.
+     */
+    stuckRows: EncryptionRotationFailure[]
 };
 
 /**

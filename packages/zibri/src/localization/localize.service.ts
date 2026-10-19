@@ -325,12 +325,32 @@ export class LocalizeService implements LocalizeServiceInterface, OnAppInit {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
+    getCurrencyMinorUnits(currency: CurrencyCode): number {
+        // eslint-disable-next-line stylistic/max-len
+        const res: number | undefined = new Intl.NumberFormat('en', { style: 'currency', currency }).resolvedOptions().maximumFractionDigits;
+        // set for every currency format, and optional in the type only for the formats rounding by
+        // significant digits instead
+        if (res == undefined) {
+            throw new InternalError(`Could not resolve the minor units of currency "${currency}"`);
+        }
+        return res;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
     formatPrice(price: AnyNumber, options: FormatPriceOptions): string {
         options.locale ??= this.resolveSupportedLocale();
         options.currency ??= this.resolveCurrencyCodeForLocale(options.locale);
 
         const v: number | bigint = typeof price === 'number' || typeof price === 'bigint' ? price : price.toNumber();
-        return v.toLocaleString(options.locale, { style: 'currency', currency: options.currency });
+        // the minor units asked for rather than left to the runtime, so a price shows the decimals an
+        // amount calculated in its currency was rounded to, whoever answers how many those are
+        const minorUnits: number = this.getCurrencyMinorUnits(options.currency);
+        return new Intl.NumberFormat(options.locale, {
+            style: 'currency',
+            currency: options.currency,
+            minimumFractionDigits: minorUnits,
+            maximumFractionDigits: minorUnits
+        }).format(v);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

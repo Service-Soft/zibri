@@ -1,3 +1,4 @@
+import { HttpClientCircuitBreakerOptions } from './http-client-circuit-breaker-options.model';
 import { FileSize } from '../entity/models/file-property-metadata.model';
 
 /**
@@ -66,7 +67,12 @@ export type HttpClientOptions = {
      * framework has no business deciding that on an application's behalf.
      * @default undefined
      */
-    dispatcher?: HttpClientDispatcher
+    dispatcher?: HttpClientDispatcher,
+    /**
+     * When requests to an origin that keeps failing stop being sent, or false to always send them.
+     * @default { failuresToOpen: 5, openForMs: 30000 }
+     */
+    circuitBreaker: HttpClientCircuitBreakerOptions | false
 };
 
 /**

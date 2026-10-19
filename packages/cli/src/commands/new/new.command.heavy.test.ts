@@ -37,7 +37,7 @@ describe('NewCommand (real npm install)', () => {
     });
 
     it('really installs devDependencies and links zibri to the local workspace build', async () => {
-        await quietly(async () => new NewCommand().start(['n', 'api', 'none']));
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin']));
 
         const appDir: Path = path.join(workDir, 'api') as Path;
         expect(await FsUtilities.exists(path.join(appDir, 'node_modules', 'webpack') as Path)).toBe(true);
@@ -52,7 +52,7 @@ describe('NewCommand (real npm install)', () => {
     }, TEST_TIMEOUT_MS);
 
     it('builds only what the bundle imports, so a broken test does not break the build', async () => {
-        await quietly(async () => new NewCommand().start(['n', 'api', 'none']));
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin']));
         const appDir: Path = path.join(workDir, 'api') as Path;
         // jest reports this when the tests run. The build used to compile every file the tsconfig
         // includes, so it failed here too and "start" never restarted the server
@@ -62,7 +62,7 @@ describe('NewCommand (real npm install)', () => {
     }, CI_WORKFLOW_TIMEOUT_MS);
 
     it('passes its own ci workflow on a checkout, which has no ".env"', async () => {
-        await quietly(async () => new NewCommand().start(['n', 'api', 'github']));
+        await quietly(async () => new NewCommand().start(['n', 'api', 'github', 'requireLogin']));
         const appDir: Path = path.join(workDir, 'api') as Path;
         // what a clone has: everything committed. ".env" is git ignored, and it is what the tests
         // would otherwise read their secrets from

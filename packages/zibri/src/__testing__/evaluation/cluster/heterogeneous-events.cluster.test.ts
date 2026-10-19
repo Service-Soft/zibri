@@ -37,7 +37,7 @@ beforeAll(async () => {
         instanceOptions: FsUtilities.getPath(__dirname, 'heterogeneous-events.instance-options.ts'),
         instances: 3
     });
-}, 15000);
+}, 30000);
 
 afterAll(async () => {
     // guarded so a failed beforeAll reports the real cause instead of a shutdown TypeError

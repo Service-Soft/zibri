@@ -1,5 +1,7 @@
 import { EncryptionKeyCreateData, EncryptionKeyStatus, EncryptionKey } from './encryption-key.model';
 import { type EncryptionMasterOptions, EncryptionMasterKey } from './encryption-master-options.model';
+import { EncryptionRotationFailure } from './encryption-rotation-failure.model';
+import { EncryptionRotationProgress } from './encryption-rotation-progress.model';
 import { EncryptionRotationCronJob } from './encryption-rotation.cron-job';
 import { type DeleteEncryptionKeyOptions, EncryptionServiceInterface, EncryptOptions } from './encryption-service.interface';
 import { EncryptionContent, type EncryptionString, EncryptionUtilities } from './encryption.utilities';
@@ -34,6 +36,7 @@ import { InternalError } from '../../error-handling/internal-error.model';
 import { findEncryptedValues, StoredEncryptedValue } from '../../global/model-registry/find-encrypted-values.function';
 import { OnAppInit } from '../../global/on-app-init.interface';
 import { $ts } from '../../localization/translate.function';
+import { KeysetPage } from '../../open-api/pagination-result.model';
 import { type DeepPartial } from '../../types/deep-partial.type';
 import { type Newable } from '../../types/newable.type';
 import { type OmitStrict } from '../../types/omit-strict.type';
@@ -126,6 +129,10 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         return inject(repositoryTokenFor(EncryptionKey));
     }
 
+    private get rotationFailureRepository(): Repository<EncryptionRotationFailure> {
+        return inject(repositoryTokenFor(EncryptionRotationFailure));
+    }
+
     constructor(
         @Inject(ZIBRI_DI_TOKENS.ENCRYPTION_STRATEGIES)
         private readonly strategyClasses: Newable<EncryptionStrategyInterface<unknown>>[],
@@ -142,7 +149,16 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
     async onAppInit(app: ZibriApplication): Promise<void> {
         // at every boot that uses this implementation, since its lifecycle hooks make every boot build
         // it. A declared entity whose table is missing refuses the boot as well, on the reads below
-        validateEntitiesRegistered(EncryptionService.name, app, EncryptionStrategyEntity, EncryptionKey);
+        // the last two for the rotation job registered below, which keeps its progress and the rows it
+        // could not rewrite in them
+        validateEntitiesRegistered(
+            EncryptionService.name,
+            app,
+            EncryptionStrategyEntity,
+            EncryptionKey,
+            EncryptionRotationProgress,
+            EncryptionRotationFailure
+        );
         if (!this.strategyClasses.length) {
             throw new InitEncryptionServiceError('Needs to provide at least one encryption strategy.');
         }
@@ -562,13 +578,20 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
+    async findRetiredKeyIds(): Promise<string[]> {
+        const keys: EncryptionKey[] = await this.keyRepository.findAll({ relations: ['strategy'], take: 'all' });
+        return keys.filter(k => this.isRetired(k)).map(k => k.id);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async resolveRetiredKeyUsage(): Promise<RetiredKeyUsage> {
         await this.loadStrategies();
         const keys: EncryptionKey[] = await this.keyRepository.findAll({ relations: ['strategy'], take: 'all' });
-        const retiredKeys: EncryptionKey[] = keys.filter(
-            k => k.status === EncryptionKeyStatus.DEPRECATED || k.strategy.status === EncryptionStrategyStatus.DEPRECATED
-        );
+        const retiredKeys: EncryptionKey[] = keys.filter(k => this.isRetired(k));
         const values: Map<string, number> = new Map(retiredKeys.map(k => [k.id, 0]));
+        const failures: EncryptionRotationFailure[] = retiredKeys.length
+            ? await this.rotationFailureRepository.findAll({ take: 'all' })
+            : [];
         // the stored values are only worth reading when there is a retired key to find among them
         if (values.size) {
             for (const { entityClass, repository } of resolveEncryptedEntities(this.dataSourceClasses)) {
@@ -593,7 +616,8 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
                 strategyName: k.strategy.name,
                 strategyVersion: k.strategy.version,
                 values: values.get(k.id) ?? 0,
-                backups: backups.filter(b => b.dataKeyIds.includes(k.id)).length
+                backups: backups.filter(b => b.dataKeyIds.includes(k.id)).length,
+                stuckRows: failures.filter(f => f.keyIds.includes(k.id))
             })),
             masterKeys: (this.options.oldMasterKeys ?? []).map(k => ({ keyId: k.id, ...countUnder(r => r.keyId === k.id) })),
             masterStrategies: (this.options.oldMasterStrategies ?? []).map(s => ({
@@ -644,11 +668,14 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         repository: Repository<BaseEntity>,
         counts: Map<string, number>
     ): Promise<void> {
-        for (let skip: number = 0; ; skip += REPORT_PAGE_SIZE) {
-            // as stored, because a decrypted value no longer says which key wrote it
-            const page: BaseEntity[] = await repository.findAll({ skip, take: REPORT_PAGE_SIZE, autoDecrypt: false });
+        let cursor: string | undefined = undefined;
+        do {
+            // as stored, because a decrypted value no longer says which key wrote it. A cursor rather
+            // than an offset, which counts rows in no order at all without one
+            const page: KeysetPage<BaseEntity> = await repository.findAllAfter(cursor, REPORT_PAGE_SIZE, { autoDecrypt: false });
+            cursor = page.nextCursor;
             const found: StoredEncryptedValue[][] = await PromiseUtilities.allChunked(
-                page,
+                page.items,
                 async row => await findEncryptedValues(row, entityClass)
             );
             for (const { value } of found.flat()) {
@@ -658,10 +685,13 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
                     counts.set(keyId, count + 1);
                 }
             }
-            if (page.length < REPORT_PAGE_SIZE) {
-                return;
-            }
         }
+        while (cursor != undefined);
+    }
+
+    // a key of a retired strategy is retired with it, whatever its own status says
+    private isRetired(key: EncryptionKey): boolean {
+        return key.status === EncryptionKeyStatus.DEPRECATED || key.strategy.status === EncryptionStrategyStatus.DEPRECATED;
     }
 
     private needsMasterReEncryption(encrypted: EncryptionString): boolean {

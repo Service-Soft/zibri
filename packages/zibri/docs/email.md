@@ -13,6 +13,7 @@ Zibri provides an out of the box email service with with templating, mail queue,
 | `SmtpEmailTransport` | class | The transport Zibri ships, over SMTP |
 | `EmailPriority` | enum | Priority of a queued email (eg. `HIGH`, `NORMAL`) |
 | `Email` | entity | A queued email |
+| `EmailCleanupCronJob` | cron job | Deletes the failed emails older than `failedRetentionInMs`. Registered for you |
 
 ## Usage
 ### Configuring email
@@ -20,7 +21,7 @@ Email needs two things: what the subsystem should do, and what delivers a mail. 
 
 ```ts
 // src/providers.ts
-import { defineProvider, DiProvider, ZIBRI_DI_TOKENS, EmailConfigInput, SmtpEmailTransport } from 'zibri';
+import { defineProvider, DiProvider, ZIBRI_DI_TOKENS, EmailConfigInput, Ms, SmtpEmailTransport } from 'zibri';
 
 export const providers: DiProvider<unknown>[] = [
     // ...
@@ -29,7 +30,8 @@ export const providers: DiProvider<unknown>[] = [
         useFactory: (): EmailConfigInput => {
             return {
                 defaultSender: 'Test Test',
-                maxEmailsPerHour: 1000
+                maxEmailsPerHour: 1000,
+                failedRetentionInMs: Ms.DAY * 90
             };
         }
     }),
@@ -77,7 +79,7 @@ Two rules decide whether a mail is kept, retried or recorded as failed, so a tra
 
 | The transport | Means | The row |
 |---|---|---|
-| Throws | The message never reached the provider — a refused connection, a timeout, a 5xx, an expired credential | Stays `QUEUED` and is attempted again once the claim on it expires |
+| Throws | The message never reached the provider — a refused connection, a timeout, a 5xx, an expired credential | Stays `QUEUED` and is attempted again at its `retryAt`, `FAILED` after `maxSendAttempts` attempts |
 | Returns `rejectedRecipients` | The provider answered and refused those addresses | `FAILED`, and never attempted again |
 
 Answering where you should have thrown loses the mail silently. Throwing where you should have answered sends the accepted recipients a second copy on the next attempt.
@@ -85,6 +87,8 @@ Answering where you should have thrown loses the mail silently. Throwing where y
 Add `close()` if the transport holds something — a connection pool, a keep-alive agent, an sdk client. It is called when the application shuts down.
 
 A mail queued in a [tenant](./tenancy.md#work-outside-a-request) belongs to it, and the transport sends it in that tenant. The transport reads it in `email.tenantId`, eg. to send it from that tenant's own address.
+
+A mail sent to a mailing list carries `listUnsubscribeUrl`. Send it as the `List-Unsubscribe: <url>` header, together with `List-Unsubscribe-Post: List-Unsubscribe=One-Click`, as `SmtpEmailTransport` does: a mailbox provider then shows its own unsubscribe button, which posts to that url (RFC 8058).
 
 ### Queueing an email
 Then you can use the email service:
@@ -123,11 +127,14 @@ A queued mail is a row in the `Email` table, and what becomes of it depends on h
 | Sent, `persist: false` (the default) | Deleted — the queue drains |
 | Sent, `persist: true` | Kept, `status: SENT` |
 | A recipient was refused | Kept, `status: FAILED`, with `rejectedRecipients` naming the addresses |
-| The send threw before reaching the server | Kept, `status: QUEUED` — it is tried again |
+| The send threw before reaching the server, eg. an attachment is missing | Kept, `status: QUEUED`, with `attempts` counting it and `retryAt` saying when it is tried again |
+| The send threw `maxSendAttempts` times | Kept, `status: FAILED` |
+
+Each mail of a pass is sent on its own, so one whose send throws holds back none of the others. It is passed over until its `retryAt`: `retryDelayInMs` after the first attempt, and twice as long after each further one.
 
 `persist` decides what happens to a mail that was **sent**. A mail that failed is kept either way: the row is the only record that it was ever owed, and a rejected password reset or 2FA code is exactly the thing you need to be able to look up afterwards.
 
-Only `QUEUED` mails are picked up, so a `FAILED` row is a record rather than a retry — nothing attempts it again. That also means failures accumulate: if you send at volume, clean the table up on whatever schedule your retention calls for.
+Only `QUEUED` mails are picked up, so a `FAILED` row is a record rather than a retry — nothing attempts it again. It is kept for `failedRetentionInMs`, counted from when the mail was queued, and `EmailCleanupCronJob` deletes it once a day after that. With `'forever'`, failed mails are kept until you delete them.
 
 A mail server routinely accepts some recipients of one message and refuses others, which is the common real bounce — one address in a list that no longer exists. `rejectedRecipients` is which ones, so the row answers *who* rather than only *that something went wrong*.
 
@@ -151,8 +158,11 @@ These are also hot reloaded when you change your templates and eg. introduce or 
 |---|---|
 | `defaultSender` | The address a mail queued without a sender goes out as |
 | `maxEmailsPerHour` | The hourly budget queued mails are rate limited against |
+| `failedRetentionInMs` | How long a `FAILED` mail is kept, counted from when it was queued, or `'forever'`. Required |
 | `sendLeaseInMs` | How long one instance may hold a queued mail while sending it. Renewed while the send runs, so it decides how long a mail waits before another instance takes over from one that stopped existing. Defaults to one minute |
 | `sendBatchSize` | How many mails one pass of the queue sends at most. Raise it to drain a backlog faster, lower it for a provider that dislikes bursts. Defaults to 10 |
+| `maxSendAttempts` | How many times sending a mail may throw before it is `FAILED`. Defaults to 5 |
+| `retryDelayInMs` | How long a mail whose send threw waits before it is tried again, doubling with each further attempt. Defaults to one minute |
 
 Priorities cannot starve each other whatever `sendBatchSize` is: each priority may take at most that many slots less one per priority below it, so a permanent flood of `HIGH` still leaves a slot for `NORMAL` and one for `LOW` every pass.
 

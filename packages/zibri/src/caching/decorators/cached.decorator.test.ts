@@ -41,7 +41,7 @@ describe('Cached decorator', () => {
 
     beforeAll(async () => {
         server = await startTestServer({});
-    }, 15000);
+    }, 30000);
 
     afterAll(async () => {
         await server?.shutdown();

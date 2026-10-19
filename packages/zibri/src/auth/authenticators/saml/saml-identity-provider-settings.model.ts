@@ -14,5 +14,10 @@ export type SamlIdentityProviderSettings = {
     /**
      * The single logout url for the HTTP-Redirect binding, if the provider has one.
      */
-    logoutUrl: string | undefined
+    logoutUrl: string | undefined,
+    /**
+     * The single logout url for the HTTP-POST binding, if the provider has one: where a logout request
+     * the provider sent is answered when it has no url for the HTTP-Redirect binding.
+     */
+    logoutPostUrl: string | undefined
 };

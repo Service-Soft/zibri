@@ -70,6 +70,19 @@ A `regex` takes time linear to the value it checks, and needs the `re2` package.
 lookarounds or backreferences: a `regex` with one is refused while the application starts, naming the
 property. The same goes for a `regex` on a parameter.
 
+A `default` fills a property in when a row is created without a value for it. It applies to the
+models the row holds and to a related row a write creates, too. An update writes what it is given and
+fills nothing in, a nested object or array it writes included. `null` is a value, so it is stored as
+`null`:
+
+```ts
+// src/models/member.model.ts
+export class Member {
+    @Property.string({ default: 'active', required: false })
+    status?: string | null;
+}
+```
+
 ### What kind of number a property holds
 
 A number property says which kind of number it is, and that decides what type it has in TypeScript:
@@ -253,6 +266,17 @@ export class User {
 export class UserCreateDTO extends OmitClass(User, ['id']) {}
 
 export class UserUpdateDTO extends PartialClass(UserCreateDTO) {}
+```
+
+A derived model takes over the declarations of the properties it keeps. A declaration cannot be
+changed once it is made, so a derived model that needs a property declared differently declares it
+again:
+
+```ts
+export class UserSignUpDTO extends UserCreateDTO {
+    @Property.string({ required: false })
+    override name: string = '';
+}
 ```
 
 ## See also

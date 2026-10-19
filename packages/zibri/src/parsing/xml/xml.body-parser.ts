@@ -64,6 +64,10 @@ export class XmlBodyParser implements BodyParserInterface<MimeType.XML> {
         }
         try {
             const root: XmlElementNode = XmlReaderUtilities.resolveRootElement(xml);
+            // read all the same, so a raw body is as well formed as any other
+            if (metadata.raw) {
+                return xml;
+            }
             return parseShape(XmlReaderUtilities.readShape(root, metadata.shape), metadata.shape);
         }
         catch {

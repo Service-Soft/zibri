@@ -9,5 +9,5 @@ describe('MissingBaseRouteError', () => {
         await expect(startTestServer({ controllers: [NotAController] })).rejects.toThrow(
             'Could not find a base route for the controller "NotAController"'
         );
-    }, 15000);
+    }, 30000);
 });

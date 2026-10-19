@@ -79,7 +79,12 @@ export interface LocalizeServiceInterface {
         variant: DateFormatShortcut
     ) => DateFormatString<S>,
     /**
-     * Formats the given price.
+     * Gets how many decimals an amount in the given currency has, eg. 2 for EUR, 0 for JPY and 3 for KWD.
+     * A price is formatted with them, and an amount that is calculated is rounded to them.
+     */
+    getCurrencyMinorUnits: (currency: CurrencyCode) => number,
+    /**
+     * Formats the given price, with the minor units of its currency.
      */
     formatPrice: (price: AnyNumber, options: FormatPriceOptions) => string,
     /**

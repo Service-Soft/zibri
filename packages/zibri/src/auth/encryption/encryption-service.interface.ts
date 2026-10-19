@@ -118,6 +118,11 @@ export interface EncryptionServiceInterface {
      */
     resolveKeysInUse: () => Promise<KeysInUse>,
     /**
+     * Finds the data keys being retired: every key that is deprecated or belongs to a deprecated
+     * strategy.
+     */
+    findRetiredKeyIds: () => Promise<string[]>,
+    /**
      * Counts what is still encrypted under the data keys, master keys and master strategies being
      * retired, which says when a rotation is done.
      *
@@ -126,7 +131,7 @@ export interface EncryptionServiceInterface {
      * model declares, is not seen, and neither is a backup the transports hold that is not recorded.
      *
      * Reads every row of every entity holding an encrypted property, so it costs as much as one full
-     * pass of `EncryptionRotationCronJob`.
+     * pass of `EncryptionRotationCronJob`. The rows that job could not rewrite are named per key.
      */
     resolveRetiredKeyUsage: () => Promise<RetiredKeyUsage>
 }

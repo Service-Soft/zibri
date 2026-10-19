@@ -20,6 +20,7 @@ export type BaseWebsocketConnection = {
     /**
      * The current offset of the connection.
      * Is used to sync the state of the server with the client after a reconnect.
+     * Undefined when the client sent none, which is a client with nothing to catch up on.
      */
-    offset: number
+    offset: number | undefined
 };

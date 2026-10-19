@@ -12,5 +12,10 @@ export interface EmailServiceInterface {
      * Sends some of the queued emails.
      * @returns True when there are still resources available to send new emails, false otherwise.
      */
-    sendQueuedEmails: () => Promise<boolean>
+    sendQueuedEmails: () => Promise<boolean>,
+    /**
+     * Deletes the failed emails older than the configured `failedRetentionInMs`.
+     * @returns How many emails were deleted.
+     */
+    deleteExpiredFailedEmails: () => Promise<number>
 }

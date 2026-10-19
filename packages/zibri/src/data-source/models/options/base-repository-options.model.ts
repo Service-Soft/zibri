@@ -29,5 +29,14 @@ export type BaseRepositoryOptions = {
      * report - and by code outside any tenant writing a tenant's row, which then names the tenant in
      * the data. A row's tenant cannot be changed either way.
      */
-    acrossTenants?: boolean
+    acrossTenants?: boolean,
+    /**
+     * How long this call may take, in milliseconds, in place of the data source's own statement
+     * timeout. 0 for no limit.
+     *
+     * Each statement of the call may take that long, and the call as a whole as well: once it has run
+     * out of time, the statement still running is stopped where the store can stop one, and nothing
+     * further is asked of the store. Inside a request the call still ends with the request.
+     */
+    timeoutInMs?: number
 };

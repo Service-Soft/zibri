@@ -1,6 +1,8 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
+import { SaveOperation } from './before-save';
+import { getDefaultBeforeReturnHook } from './hooks.default';
 import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { type EncryptionServiceInterface } from '../../auth/encryption/encryption-service.interface';
@@ -74,15 +76,18 @@ describe('deleting a row with an encrypted property', () => {
         await expect(lockers.findById(deleted.id, { required: false })).resolves.toBeUndefined();
     });
 
-    it('decrypts each row once for deleteAll, and encrypts none of them', async () => {
+    it('decrypts and encrypts nothing for a deleteAll that hands nothing back', async () => {
         await createLockers('counted', 3);
         const encrypt: jest.SpiedFunction<EncryptionServiceInterface['encrypt']> = jest.spyOn(encryption, 'encrypt');
         const decrypt: jest.SpiedFunction<EncryptionServiceInterface['decrypt']> = jest.spyOn(encryption, 'decrypt');
 
         expect(await lockers.deleteAll({ label: 'counted' })).toBe(3);
 
+        // a count hands back no row, and the default hook does nothing with one on its way out, so
+        // only the ids are read and nothing is decrypted
         expect(encrypt).not.toHaveBeenCalled();
-        expect(decrypt).toHaveBeenCalledTimes(3);
+        expect(decrypt).not.toHaveBeenCalled();
+        await expect(lockers.count({ where: { label: 'counted' } })).resolves.toBe(0);
     });
 
     it('hands back readable rows for deleteAll asked for them, decrypting each once', async () => {
@@ -95,5 +100,26 @@ describe('deleting a row with an encrypted property', () => {
         expect(deleted.map(d => d.combination).sort()).toEqual(['secret-0', 'secret-1']);
         expect(encrypt).not.toHaveBeenCalled();
         expect(decrypt).toHaveBeenCalledTimes(2);
+    });
+
+    it('hands every row a deleteAll removes to a hook of your own, readable', async () => {
+        await createLockers('audited', 2);
+        const seen: string[] = [];
+        const audited: Repository<Locker> = new Repository(
+            Locker,
+            lockers,
+            inject(ZIBRI_DI_TOKENS.LOGGER),
+            lockers.dataSource,
+            (data, operation) => {
+                if (operation === SaveOperation.DELETE && 'combination' in data && typeof data.combination === 'string') {
+                    seen.push(data.combination);
+                }
+            },
+            getDefaultBeforeReturnHook()
+        );
+
+        expect(await audited.deleteAll({ label: 'audited' })).toBe(2);
+
+        expect(seen.sort()).toEqual(['secret-0', 'secret-1']);
     });
 });

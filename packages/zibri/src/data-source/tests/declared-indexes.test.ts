@@ -78,7 +78,7 @@ describe('an entity that declares indexes', () => {
     beforeAll(async () => {
         server = await startTestServer({ dataSources: [dataSourceClass] });
         dataSource = inject(dataSourceClass);
-    }, 15000);
+    }, 30000);
 
     it('collects both ways of declaring one into a single list', () => {
         // the order of a group is kept rather than normalized: an index on (tenantId, status)

@@ -11,6 +11,7 @@ import { Email } from '../../../email/models/email.model';
 import { EmailSendResult, EmailTransportInterface } from '../../../email/transports/email-transport.interface';
 import { Controller } from '../../../routing/decorators/controller.decorator';
 import { Post } from '../../../routing/decorators/post.decorator';
+import { Ms } from '../../../utilities/ms';
 
 /**
  * What every instance of the mail cluster boots with.
@@ -73,7 +74,10 @@ const mailConfig: EmailConfig = {
     // shorter than a slow send on purpose, so the claim has to be renewed to survive one. A lease
     // that comfortably outlasted the work would let this pass without the renewal ever running.
     sendLeaseInMs: 3000,
-    sendBatchSize: 10
+    sendBatchSize: 10,
+    maxSendAttempts: 5,
+    retryDelayInMs: Ms.MINUTE,
+    failedRetentionInMs: 'forever'
 };
 
 /**

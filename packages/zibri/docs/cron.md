@@ -6,9 +6,13 @@ Cron jobs in Zibri use the node-cron package and its cron syntax under the hood.
 |---|---|---|
 | `CronJob` | class | Base class to extend when defining a cron job |
 | `InitialCronConfig` | interface | Config shape (`name`, `cron`, `active`, `syncToDataSource`, ...) required by `CronJob.initialConfig` |
+| `CronFailurePolicy` | type | What a job does when its ticks throw, see [when a tick throws](#when-a-tick-throws) |
+| `CronRetryOptions` | type | How a job runs a failed slot again |
+| `CronBackOffOptions` | type | How a job that keeps failing skips slots |
 | `CronExpression` | class | Builder for cron expression strings (eg. `CronExpression.every(1, 'seconds').build()`) |
 | `ShouldRunExecution` | type | The election contract a cron service provides |
 | `CronJobEntity` | entity | The stored state of a cron job |
+| `CronSyncCronJob` | cron job | Applies what other instances changed about a job. Registered for you |
 | `ZIBRI_DI_TOKENS.CRON_EXECUTION_LEASE_IN_MS` | DI token | How long a claim is held. Defaults to five minutes |
 | `ZIBRI_DI_TOKENS.CRON_REGISTRATION_LEASE_IN_MS` | DI token | How long one instance may take to register its jobs at boot. Defaults to thirty seconds |
 
@@ -78,7 +82,9 @@ Which in this case means that
 At that first startup, the cron job is saved as a cron job entity in a data source.
 After that you can programmatically change its configuration, like putting it on the schedule or changing the cron expression.
 
-**Who owns which value.** The schedule and whether the job is running are yours to change while the app runs, so the stored row wins for those — a change you make through the cron service survives every restart, and editing `cron` in the class afterwards has no effect. `runOnInit` and `stopOnError` describe what the job *does* rather than when, so the class stays the single source of truth for them: every start brings the row back in line with what it declares. Set `syncToDataSource: false` to keep the whole configuration in the class, at the cost of the row that records `lastRun` and the last error.
+**Who owns which value.** The schedule and whether the job is running are yours to change while the app runs, so the stored row wins for those — a change you make through the cron service survives every restart, and editing `cron` in the class afterwards has no effect. `runOnInit` and `onFailure` describe what the job *does* rather than when, so the class stays the single source of truth for them: every start brings the row back in line with what it declares, and `onFailure` is read from the class alone. Set `syncToDataSource: false` to keep the whole configuration in the class, at the cost of the row that records `lastRun` and the last error.
+
+**Changing a job while the app runs.** `cronService.enable()`, `disable()` and `changeCron()` change a job on every instance: the row's `source` is `'code'` for a job declared as a class, and `cronService.update()` refuses such a job, since its class declares the rest. Every instance reads the row before each run of a job, so a job disabled, stopped or rescheduled on one instance is skipped from its next run on all of them, and a job runs only at the times of its new schedule. `CronSyncCronJob`, registered for you on every instance, reads the rows every five seconds and puts enabled jobs back on the schedule and moves rescheduled ones. This is how a job that misbehaves is turned off without a deploy, also from its own `onError`.
 
 A job runs outside every [tenant](./tenancy.md#work-outside-a-request), and every tenant shares it.
 
@@ -90,7 +96,7 @@ A job is in one of three states, readable as `job.state`:
 |---|---|
 | `ACTIVE` | On the schedule |
 | `INACTIVE` | Off the schedule because that is what was asked for — in `initialConfig`, or through `cronService.disable()` |
-| `STOPPED_ON_ERROR` | Off the schedule because a tick threw and the job asked to stop for that |
+| `STOPPED_ON_ERROR` | Off the schedule because its ticks threw as often in a row as its `onFailure.stopAfterFailures` allows |
 
 `active: false` in `initialConfig` says where the job begins; from then on the state is what the row records.
 
@@ -158,7 +164,9 @@ export class CatchingUpCronJob extends CronJob {
 
 On start, the job runs **once** for the most recent slot it missed — not once per slot the outage covered, so a week of downtime owes one invoice run rather than seven. `catchUpWithinMs` is also how far back it looks: anything older is left alone, because past some age a make-up run stops being a service and becomes a surprise.
 
-Left unset, a missed slot stays missed. That is right for work that is only about the moment it was scheduled for — collecting this minute's metrics is not worth doing later.
+The same limit covers a slot a running process reaches late, for example while a long synchronous computation blocks it: a slot no later than `catchUpWithinMs` still runs, and of several such slots only the most recent one.
+
+Left unset, a missed slot stays missed, and so does a slot reached more than a second late. The app logger warns about each slot left out this way. That is right for work that is only about the moment it was scheduled for — collecting this minute's metrics is not worth doing later.
 
 A job that has never run catches up nothing: there is no point to measure "since" from, and treating a whole schedule as outstanding would fire every job on the first boot of every new environment.
 
@@ -168,7 +176,41 @@ Across replicas the make-up run is claimed exactly like the real one it stands i
 
 The error is logged and recorded on the job's row as `errorMessage`, and the next tick runs as usual. A failure that clears on its own — an smtp server refusing connections for a minute, a database mid-failover — costs you one execution.
 
-Set `stopOnError: true` for work where continuing after a failure is worse than stopping. The job then moves to `STOPPED_ON_ERROR` and comes back at the next start, as above. It is a halt, not a backoff: nothing retries it in the meantime.
+`onFailure` says what else happens. Each part is off when you leave it out:
+
+```ts
+// src/cron/careful-invoices.cron-job.ts
+import { CronExpression, CronJob, InitialCronConfig, Injectable, Ms } from 'zibri';
+
+@Injectable()
+export class CarefulInvoicesCronJob extends CronJob {
+    readonly initialConfig: InitialCronConfig = {
+        name: 'Careful invoices',
+        cron: CronExpression.daily().at(3, 'hours').build(),
+        onFailure: {
+            // run a failed slot again after 30 s, 60 s and 120 s
+            retry: { attempts: 3, delayInMs: 30 * Ms.SECOND },
+            // while failing, skip 1, then 3, then 7 slots, at most 15
+            backOff: { maxSkippedSlots: 15 },
+            // off the schedule after 5 failures in a row
+            stopAfterFailures: 5,
+            // and back on it an hour after its last run
+            restartAfterMs: Ms.HOUR
+        }
+    };
+
+    async onTick(): Promise<void> {}
+}
+```
+
+| Option | What it does |
+|---|---|
+| `retry` | Runs a slot whose tick threw again, waiting `delayInMs` before the first attempt and twice as long before each one after it. No attempt starts once the next slot is due, and none after the app began shutting down. Only for work that is safe to run twice |
+| `backOff` | After n failures in a row the job skips the next 2^n - 1 slots, at most `maxSkippedSlots` |
+| `stopAfterFailures` | After this many failures in a row the job moves to `STOPPED_ON_ERROR`, and comes back at the next start, as above |
+| `restartAfterMs` | Puts a job `stopAfterFailures` stopped back on the schedule this long after its last run. Its failures are still counted, so a failure of its next tick stops it again |
+
+Failures are counted in a row across every instance, as `consecutiveFailures` on the job's row, and a slot whose retries all failed counts once. A tick that succeeds sets the count back to 0 and ends a back off.
 
 ### Running more than one instance
 
@@ -219,7 +261,7 @@ The claim is keyed by the job and the slot it fired for, so the next slot is a d
 If that is possible for your job, claim the individual work items it processes rather than relying on the slot. `SendQueuedEmailsCronJob` is the worked example: it claims each mail before sending it, because a slow smtp server makes a send outlast the interval easily. See [leases.md](./leases.md).
 
 ## Configuration
-Each cron job's `initialConfig` (`name`, `cron` schedule, `active`, `runOnInit`, `stopOnError`, `distributed`, `syncToDataSource`) is set on the job class itself — see "Defining a cron job" above. There is no separate global configuration object.
+Each cron job's `initialConfig` (`name`, `cron` schedule, `active`, `runOnInit`, `onFailure`, `distributed`, `syncToDataSource`) is set on the job class itself — see "Defining a cron job" above. There is no separate global configuration object.
 <br>
 Cluster-wide behaviour is configured through DI: `ZIBRI_DI_TOKENS.CRON_EXECUTION_LEASE_IN_MS` for how long a claim is held, `ZIBRI_DI_TOKENS.CRON_REGISTRATION_LEASE_IN_MS` for how long one instance may take to register its jobs at boot, or `ZIBRI_DI_TOKENS.CRON_SERVICE` to replace election entirely.
 

@@ -2,6 +2,7 @@ import { CronExpressionString } from './cron-expression.utilities';
 import { CronJobEntity } from './cron-job-entity.model';
 import { CronJob } from './cron-job.model';
 import { CronServiceInterface } from './cron-service.interface';
+import { CronSyncCronJob } from './cron-sync.cron-job';
 import { ZibriApplication } from '../application/application';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { Inject } from '../di/decorators/inject.decorator';
@@ -26,7 +27,10 @@ import { validateEntitiesRegistered } from '../utilities/validate-entities-regis
  * Data that can be used to update a cron job.
  */
 export type CronUpdateData = Partial<
-    OmitStrict<CronJobEntity, 'id' | 'cron' | 'state' | 'previousState' | 'errorMessage' | 'lastRun'>
+    OmitStrict<
+        CronJobEntity,
+        'id' | 'source' | 'cron' | 'state' | 'previousState' | 'errorMessage' | 'lastRun' | 'consecutiveFailures' | 'backedOffUntil'
+    >
 >;
 
 /**
@@ -66,6 +70,10 @@ export class CronService implements CronServiceInterface, AfterAppInit, AfterApp
         validateEntitiesRegistered(CronService.name, app, CronJobEntity);
         if (!cronJobs.length) {
             return;
+        }
+        // what another instance changes about a job reaches this one through its row only
+        if (!cronJobs.includes(CronSyncCronJob)) {
+            cronJobs.push(CronSyncCronJob);
         }
 
         this.logger.info(`registers ${cronJobs.length} ${cronJobs.length > 1 ? 'cron jobs' : 'cron job'}`);
@@ -226,6 +234,30 @@ export class CronService implements CronServiceInterface, AfterAppInit, AfterApp
         // the two steps run together here, unlike at boot: this is called by an application that is
         // already up, so there is nothing left to wait for
         await cronJob.start();
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async applyStoredChanges(): Promise<void> {
+        // a job keeping no row has no other instance to hear from, only its own cooldown
+        for (const job of this.cronJobs.filter(j => !j.syncsToDataSource)) {
+            await job.restartAfterCooldown();
+        }
+        const synced: CronJob[] = this.cronJobs.filter(j => j.syncsToDataSource);
+        if (!synced.length) {
+            return;
+        }
+        // one read for every job, rather than one per job
+        const stored: CronJobEntity[] = await inject(repositoryTokenFor(CronJobEntity)).findAll({
+            where: { name: { oneOf: synced.map(j => j.name) } },
+            take: 'all'
+        });
+        const byName: Map<string, CronJobEntity> = new Map(stored.map(row => [row.name, row]));
+        for (const job of synced) {
+            const row: CronJobEntity | undefined = byName.get(job.name);
+            if (row != undefined) {
+                await job.applyStoredChanges(row);
+            }
+        }
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

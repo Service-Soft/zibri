@@ -1,6 +1,6 @@
 import type { GlideClient } from '@valkey/valkey-glide';
+import { RoundTripCounter } from 'zibri-testing';
 
-import { RoundTripCounter } from './round-trip-counter.model';
 import { ValKeyDataSource, ValKeyOptions } from '../../data-source/data-sources/val-key/val-key-data-source.model';
 import { DataSource } from '../../data-source/decorators/data-source.decorator';
 import { MigrationEntity } from '../../data-source/migration/migration-entity.model';
@@ -97,7 +97,7 @@ function countingClient(client: GlideClient, roundTrips: RoundTripCounter): Glid
                 return value;
             }
             return (...args: unknown[]) => {
-                roundTrips.record();
+                roundTrips.record(String(property));
                 const res: unknown = Reflect.apply(value, target, args);
                 return res;
             };

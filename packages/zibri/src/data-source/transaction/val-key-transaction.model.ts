@@ -178,6 +178,8 @@ export class ValKeyTransaction implements Transaction {
 
     private readonly committedWork: (() => Promise<void>)[] = [];
 
+    private readonly finishedWork: ((committed: boolean) => Promise<void>)[] = [];
+
     /**
      * Rolls the transaction back once nothing has happened on it for long enough.
      *
@@ -501,14 +503,17 @@ export class ValKeyTransaction implements Transaction {
         }
         this.finished = true;
 
+        let committed: boolean = false;
         try {
             await this.applyWrites();
+            committed = true;
         }
         finally {
             // after the batch, never before: the grants are what stopped anyone else writing these
             // keys, and letting go while the writes were still unapplied would be the same as never
             // having taken them
             await this.releaseGrants();
+            await this.runFinishedWork(committed);
         }
         for (const work of this.committedWork.splice(0)) {
             await work();
@@ -518,6 +523,22 @@ export class ValKeyTransaction implements Transaction {
     // eslint-disable-next-line jsdoc/require-jsdoc
     afterCommit(work: () => Promise<void>): void {
         this.committedWork.push(work);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    afterFinish(work: (committed: boolean) => Promise<void>): void {
+        this.finishedWork.push(work);
+    }
+
+    /**
+     * Runs the work waiting for the end of the transaction.
+     * @param committed - Whether the transaction was committed.
+     */
+    private async runFinishedWork(committed: boolean): Promise<void> {
+        // spliced, so a rollback after a failed commit does not run it a second time
+        for (const work of this.finishedWork.splice(0)) {
+            await work(committed);
+        }
     }
 
     /**
@@ -560,5 +581,6 @@ export class ValKeyTransaction implements Transaction {
         this.guards.clear();
         this.committedWork.length = 0;
         await this.releaseGrants();
+        await this.runFinishedWork(false);
     }
 }

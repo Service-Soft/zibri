@@ -6,13 +6,17 @@ Encryption and hashing of entity properties can be easily defined via the `@Prop
 |---|---|---|
 | `Property.string` | decorator | Marks a string property for encryption/hashing (among other things) |
 | `HashString` | type | Type of a hashed property's value |
+| `ScryptHashStrategy` | class | The default hash, for passwords and everything else guessable |
 | `Sha256HashStrategy` | class | Unsalted hash for values that must stay findable. Never for passwords |
+| `BcryptHashStrategy` | class | Deprecated. Verifies the password hashes of zibri 2.x, see [bcrypt](#bcrypt) |
 | `ZIBRI_DI_TOKENS.ENCRYPTION_MASTER_OPTIONS` | DI token | The key that encrypts the encryption keys. No default, required by the default encryption service |
 | `EncryptionStrategyInterface` | interface | What an encryption algorithm implements, including a kms or hsm backed one |
 | `ZIBRI_DI_TOKENS.ENCRYPTION_SERVICE` | DI token | Injects the encryption service for manual encryption |
 | `ZIBRI_DI_TOKENS.HASH_SERVICE` | DI token | Injects the hash service for manual hashing |
 | `ZIBRI_DI_TOKENS.ENCRYPTION_STRATEGIES` | DI token | Overrides the available encryption algorithms |
 | `ZIBRI_DI_TOKENS.HASH_STRATEGIES` | DI token | Overrides the available hash algorithms |
+| `EncryptionRotationProgress` | entity | How far the rotation job is through the stored values |
+| `EncryptionRotationFailure` | entity | A row the rotation job could not rewrite, and when it tries again |
 
 ## Usage
 ### Defining encrypted/hashed properties
@@ -137,6 +141,18 @@ It also picks up values written before binding existed and binds them, so
 [binding](#where-an-encrypted-value-is-allowed-to-be) reaches data that was already in the database
 rather than only new writes.
 
+The job reads the stored values in passes. A pass starts when a key or strategy is retired that the
+last finished pass did not look for, and once on every instance after it started. Each run continues
+the pass where the last one stopped, and `EncryptionRotationProgress` holds how far it got. With
+nothing retired, a run reads no stored values at all.
+
+A row it cannot rewrite is recorded as an `EncryptionRotationFailure`, with the error, and logged once.
+The job tries it again an hour later, then after a wait that doubles with every failure, up to a day.
+The record is removed once the row is rewritten or deleted.
+
+Both entities belong in the data source that holds `EncryptionKey`, and the application refuses to
+start without them.
+
 Once the job has nothing left to do, the old key can be deleted. Deprecating the *default* key is
 refused — something has to be the key new values are written with.
 
@@ -151,6 +167,9 @@ export async function findUnusedRetiredKeyIds(encryptionService: EncryptionServi
     return usage.dataKeys.filter(k => k.values === 0).map(k => k.keyId);
 }
 ```
+
+Each retired data key also names its `stuckRows`: the rows the rotation job could not rewrite, with
+the error and when it tries again. A key with stuck rows still encrypts their values.
 
 It counts what the framework stores: the values of the encrypted properties your models declare, the
 data keys, and the backups recorded in the database. A value you encrypt yourself with `encrypt`, or
@@ -359,6 +378,14 @@ gradual upgrade of everything active.
 The same applies to retiring a whole strategy: marking one `DEPRECATED` in the hash strategy table
 makes `needsRehash` return true for every hash it produced, and those accounts move to the current
 default strategy on their next login.
+
+### bcrypt
+`BcryptHashStrategy` verifies the password hashes zibri 2.x wrote, and is deprecated. It hashes with
+10 rounds and does its work on the main thread, where scrypt runs on the thread pool, so every bcrypt
+hash a login checks holds up the requests around it. Keep it registered while stored hashes need it,
+with bcrypt marked `DEPRECATED` in the hash strategy table: each of its hashes is replaced with a scrypt
+hash the next time its user signs in. The [upgrade migration](./upgrading-to-3.md#the-migration) does
+both.
 
 ### Writing to a hashed property
 A hashed property takes **plaintext only**. Writing a value that is already a hash is refused:

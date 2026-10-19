@@ -85,6 +85,16 @@ export interface DataSourceInterface extends BackupResourceInterface {
     readonly migrations: Newable<Migration>[],
 
     /**
+     * How long setting the schema up and running one migration may take, in milliseconds. 0, the
+     * default, for no limit.
+     *
+     * Takes the place of the data source's own statement timeout while the schema is set up and while
+     * a migration runs, so that a migration rewriting a large table is not cut off on deploy. A
+     * migration can name a `timeoutInMs` of its own instead.
+     */
+    readonly migrationTimeoutInMs?: number,
+
+    /**
      * Initializes the data source.
      *
      * Runs the migrations, and then makes the indexes and uniques the data source keeps match what

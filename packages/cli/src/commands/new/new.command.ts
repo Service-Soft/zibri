@@ -15,6 +15,13 @@ type ContinuousIntegration = 'github' | 'none';
 const CONTINUOUS_INTEGRATIONS: ContinuousIntegration[] = ['github', 'none'];
 
 /**
+ * What an endpoint without an `@Auth` decorator requires in the new app.
+ */
+type DefaultAuth = 'requireLogin' | 'public';
+
+const DEFAULT_AUTHS: DefaultAuth[] = ['requireLogin', 'public'];
+
+/**
  * Configuration for creating a new zibri app.
  */
 type NewConfiguration = {
@@ -25,7 +32,11 @@ type NewConfiguration = {
     /**
      * The continuous integration workflow to generate.
      */
-    ci: ContinuousIntegration
+    ci: ContinuousIntegration,
+    /**
+     * What an endpoint without an `@Auth` decorator requires.
+     */
+    defaultAuth: DefaultAuth
 };
 
 /**
@@ -81,6 +92,18 @@ const newConfigurationQuestions: QuestionsFor<NewConfiguration> = {
         choices: [
             { name: 'GitHub Actions', value: 'github' },
             { name: 'none', value: 'none' }
+        ]
+    },
+    // asked rather than answered, as the application options require it to be said: an endpoint
+    // whose decorator was forgotten is open or closed by this, and only the developer knows which
+    // they want. A login first, as forgetting is what it guards against
+    defaultAuth: {
+        name: 'defaultAuth',
+        type: 'select',
+        message: 'what an endpoint without @Auth requires',
+        choices: [
+            { name: 'a login (a forgotten decorator answers 401)', value: 'requireLogin' },
+            { name: 'nothing (a forgotten decorator serves anyone)', value: 'public' }
         ]
     }
 };
@@ -163,10 +186,20 @@ async function resolveContinuousIntegration(value: string): Promise<ContinuousIn
 }
 
 /**
+ * Reads the default auth named on the command line.
+ * @param value - What was passed.
+ * @returns The default auth it names. Exits naming the valid ones when it names none.
+ */
+async function resolveDefaultAuth(value: string): Promise<DefaultAuth> {
+    return DEFAULT_AUTHS.find(defaultAuth => defaultAuth === value)
+        ?? await exitWithError(`Unknown defaultAuth "${value}", expected one of: ${DEFAULT_AUTHS.join(', ')}`);
+}
+
+/**
  * Creates a new Zibri application.
  */
 export class NewCommand extends BaseCommand<NewConfiguration> {
-    protected override maxLength: number | undefined = 3;
+    protected override maxLength: number | undefined = 4;
 
     protected override async run(configuration: NewConfiguration): Promise<void> {
         console.log('creates a new zibri application', configuration.name);
@@ -341,7 +374,7 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             getPath(appPath, 'src', 'controllers', 'page.controller.ts'),
             [
                 // eslint-disable-next-line stylistic/max-len
-                'import { AssetServiceInterface, Cache, Cached, CacheServiceInterface, Controller, Get, GlobalRegistry, HtmlResponse, HttpRequestContext, Inject, inject, InMemoryCacheStore, LocaleCode, LoggerInterface, MetricsServiceInterface, Response, TreeNode, TsxUtilities, WebsocketRequestContext, WriteThroughReadThroughCache, ZIBRI_DI_TOKENS } from \'zibri\';',
+                'import { AssetServiceInterface, Auth, Cache, Cached, CacheServiceInterface, Controller, Get, GlobalRegistry, HtmlResponse, HttpRequestContext, Inject, inject, InMemoryCacheStore, LocaleCode, LoggerInterface, MetricsServiceInterface, Response, TreeNode, TsxUtilities, WebsocketRequestContext, WriteThroughReadThroughCache, ZIBRI_DI_TOKENS } from \'zibri\';',
                 '',
                 'import { AssetsPage } from \'../templates/pages/assets\';',
                 'import { HomePage } from \'../templates/pages/home\';',
@@ -369,6 +402,8 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
                 '    }',
                 '}',
                 '',
+                // public whichever defaultAuth the project chose, as its pages are its front door
+                '@Auth.skip({ allowRedundant: true })',
                 '@Controller(\'/\', { versions: \'all\' })',
                 'export class PageController {',
                 '',
@@ -468,7 +503,8 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
                 '        useFactory: (): EmailConfigInput => {',
                 '            return {',
                 '                maxEmailsPerHour: 3600,',
-                '                defaultSender: optionalEnv(\'EMAIL_DEFAULT_SENDER\')',
+                '                defaultSender: optionalEnv(\'EMAIL_DEFAULT_SENDER\'),',
+                '                failedRetentionInMs: \'forever\'',
                 '            };',
                 '        }',
                 '    }),',
@@ -482,6 +518,10 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
                 '                pass: optionalEnv(\'SMTP_PASSWORD\')',
                 '            }',
                 '        })',
+                '    }),',
+                '    defineProvider({',
+                '        token: ZIBRI_DI_TOKENS.EVENT_FAILED_RETENTION_IN_MS,',
+                '        useValue: \'forever\'',
                 '    }),',
                 '    defineProvider({',
                 '        token: ZIBRI_DI_TOKENS.CONFIRM_PASSWORD_RESET_URL,',
@@ -621,10 +661,18 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             '    websocketControllers: [],',
             '    cronJobs: [],',
             '    version,',
-            '    // what an endpoint with no @Auth decorator requires. Switch to \'requireLogin\' to have',
-            '    // a forgotten decorator answer 401 instead of serving anyone, and mark the endpoints',
-            '    // that really are public with @Auth.skip(). See the auth docs.',
-            '    defaultAuth: \'public\',',
+            ...configuration.defaultAuth === 'public'
+                ? [
+                    '    // what an endpoint with no @Auth decorator requires. Switch to \'requireLogin\' to have',
+                    '    // a forgotten decorator answer 401 instead of serving anyone, and mark the endpoints',
+                    '    // that really are public with @Auth.skip(). See the auth docs.'
+                ]
+                : [
+                    '    // what an endpoint with no @Auth decorator requires: a forgotten decorator answers 401',
+                    '    // instead of serving anyone. Mark the endpoints that really are public with @Auth.skip().',
+                    '    // See the auth docs.'
+                ],
+            `    defaultAuth: '${configuration.defaultAuth}',`,
             '    providers',
             '};'
         ]);
@@ -1109,7 +1157,7 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
         ]);
         await FsUtilities.createFile(getPath(appPath, 'src', DATA_SOURCES_DIR, 'db', 'entities.ts'), [
             // eslint-disable-next-line stylistic/max-len
-            'import { BaseEntity, BackupEntity, BackupResourceEntity, CacheInvalidation, Change, ChangeSet, CronJobEntity, Email, EncryptionKey, EncryptionStrategyEntity, Event, EventSubscriberRegistration, EventSubscriberRun, HashStrategyEntity, JwtRefreshToken, Lease, Log, MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken, MigrationEntity, Newable, OtpCredentials, PasswordCredentials, PasswordResetToken, ThreadJobEntity, TwoFactorFailureStreak, WebsocketChannel, WebsocketMessage, WebsocketMessageSequence } from \'zibri\';',
+            'import { BaseEntity, BackupEntity, BackupResourceEntity, CacheInvalidation, Change, ChangeSet, CronJobEntity, Email, EncryptionKey, EncryptionRotationFailure, EncryptionRotationProgress, EncryptionStrategyEntity, Event, EventSubscriberRegistration, EventSubscriberRun, HashStrategyEntity, JwtRefreshToken, Lease, Log, MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken, MigrationEntity, Newable, OtpCredentials, PasswordCredentials, PasswordResetToken, ThreadJobEntity, TwoFactorFailureStreak, WebsocketChannel, WebsocketMessage, WebsocketMessageSequence } from \'zibri\';',
             '',
             'import { Membership, User } from \'../../models\';',
             '',
@@ -1150,6 +1198,8 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             '    HashStrategyEntity,',
             '    EncryptionStrategyEntity,',
             '    EncryptionKey,',
+            '    EncryptionRotationProgress,',
+            '    EncryptionRotationFailure,',
             '    CacheInvalidation',
             '];'
         ]);
@@ -1476,15 +1526,20 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
         ]);
     }
 
-    // `zi new [name] [ci]`: what the command line leaves out is asked for, in that order
+    // `zi new [name] [ci] [defaultAuth]`: what the command line leaves out is asked for, in that order
     protected override async resolveInput(args: string[]): Promise<NewConfiguration> {
-        const [, name, ci]: (string | undefined)[] = args;
+        const [, name, ci, defaultAuth]: (string | undefined)[] = args;
         return {
             name: name
                 ?? (await InquirerUtilities.prompt<Pick<NewConfiguration, 'name'>>({ name: newConfigurationQuestions.name })).name,
             ci: ci == undefined
                 ? (await InquirerUtilities.prompt<Pick<NewConfiguration, 'ci'>>({ ci: newConfigurationQuestions.ci })).ci
-                : await resolveContinuousIntegration(ci)
+                : await resolveContinuousIntegration(ci),
+            defaultAuth: defaultAuth == undefined
+                ? (await InquirerUtilities.prompt<Pick<NewConfiguration, 'defaultAuth'>>({
+                    defaultAuth: newConfigurationQuestions.defaultAuth
+                })).defaultAuth
+                : await resolveDefaultAuth(defaultAuth)
         };
     }
 }

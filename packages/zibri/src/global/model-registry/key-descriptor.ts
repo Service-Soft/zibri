@@ -4,7 +4,7 @@ import { BaseEntity } from '../../entity/base-entity.model';
 import { EntityMetadata } from '../../entity/decorators/entity.decorator';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { type EntityTenant } from '../../entity/models/entity-tenant.model';
-import { declaresUnique, KeyWhere, UniqueGroup, uniqueWhereOf } from '../../entity/models/unique-declaration.model';
+import { coversEveryRow, declaresUnique, KeyWhere, UniqueGroup, uniqueWhereOf } from '../../entity/models/unique-declaration.model';
 import { Newable } from '../../types/newable.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
@@ -69,7 +69,8 @@ export function keyGroupsOf(entityClass: Newable<unknown>): KeyGroups {
  * @param groups - The groups as the entity declares them.
  * @param tenantProperty - The property holding the tenant of a row.
  * @param tenantRequired - Whether every row belongs to a tenant, or a row may belong to none.
- * @returns The groups each led by the tenant, and an index on the tenant alone.
+ * @returns The groups each led by the tenant, and an index on the tenant alone when no group answers
+ * a lookup by it.
  */
 function withinTenant(groups: KeyGroups, tenantProperty: string, tenantRequired: boolean): KeyGroups {
     // a group already naming the tenant is unique or indexed per tenant as it was written - one row
@@ -78,24 +79,23 @@ function withinTenant(groups: KeyGroups, tenantProperty: string, tenantRequired:
         ? properties
         : [tenantProperty, ...properties];
     const indexes: string[][] = groups.indexes.map(lead);
-    if (!indexes.some(group => group.length === 1 && group[0] === tenantProperty)) {
-        // asked of by every read, and a store reading a group's index only for a filter naming every
-        // column of it would otherwise read the whole table for a lookup by tenant alone
+    const uniques: UniqueGroup[] = groups.uniques.flatMap(group => {
+        const led: UniqueGroup = { ...group, properties: lead(group.properties) };
+        if (tenantRequired || group.properties.includes(tenantProperty)) {
+            return [led];
+        }
+        // a row of no tenant holds null for the tenant, and no store compares a null in a unique,
+        // so the led group lets any number of them hold the same value. The rows of no tenant get
+        // a group of their own, unique among themselves the way each tenant's rows are
+        return [led, { properties: group.properties, where: withNoTenant(group.where, tenantProperty) }];
+    });
+    // asked of by every read. An index answers a lookup by any leading part of itself, so every index
+    // and every unique over all rows answers it already, each being led by the tenant; an entity
+    // declaring neither gets one of its own
+    if (!indexes.length && !uniques.some(group => group.properties[0] === tenantProperty && coversEveryRow(group.where))) {
         indexes.push([tenantProperty]);
     }
-    return {
-        uniques: groups.uniques.flatMap(group => {
-            const led: UniqueGroup = { ...group, properties: lead(group.properties) };
-            if (tenantRequired || group.properties.includes(tenantProperty)) {
-                return [led];
-            }
-            // a row of no tenant holds null for the tenant, and no store compares a null in a unique,
-            // so the led group lets any number of them hold the same value. The rows of no tenant get
-            // a group of their own, unique among themselves the way each tenant's rows are
-            return [led, { properties: group.properties, where: withNoTenant(group.where, tenantProperty) }];
-        }),
-        indexes
-    };
+    return { uniques, indexes };
 }
 
 /**

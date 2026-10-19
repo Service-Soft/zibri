@@ -8,7 +8,8 @@ import { Where } from '../models/where/where-filter.model';
 import { Transaction } from '../transaction/transaction.model';
 
 /**
- * Refuses a store operation whose request is already over.
+ * Refuses a store operation whose request is already over, or whose work has run out of the time it
+ * was given.
  *
  * A handler that has been answered without it goes on running, and most of what it does next is
  * read and write a store for a caller who will never see any of it. One query cannot be taken back,
@@ -28,6 +29,18 @@ export class DeadlineAwareRepositoryDriver<T extends BaseEntity> implements Repo
     async save(data: DeepPartial<T>[], transaction: Transaction | undefined, reload: boolean): Promise<T[]> {
         this.validateStillWanted();
         return await this.inner.save(data, transaction, reload);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async insert(data: DeepPartial<T>[], transaction: Transaction | undefined): Promise<T[]> {
+        this.validateStillWanted();
+        return await this.inner.insert(data, transaction);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async updateEach(rows: DeepPartial<T>[], where: Where<T>, transaction: Transaction | undefined): Promise<T[]> {
+        this.validateStillWanted();
+        return await this.inner.updateEach(rows, where, transaction);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -55,9 +68,15 @@ export class DeadlineAwareRepositoryDriver<T extends BaseEntity> implements Repo
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async remove(entities: T[], transaction: Transaction | undefined): Promise<T[]> {
+    async remove(ids: string[], transaction: Transaction | undefined): Promise<void> {
         this.validateStillWanted();
-        return await this.inner.remove(entities, transaction);
+        await this.inner.remove(ids, transaction);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async findIds(options: DriverFindOptions<T>): Promise<string[]> {
+        this.validateStillWanted();
+        return await this.inner.findIds(options);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -95,11 +114,12 @@ export class DeadlineAwareRepositoryDriver<T extends BaseEntity> implements Repo
     }
 
     /**
-     * Checks that the request this is running in has not already been answered without it.
-     * @throws Whatever the request was abandoned with, which is the deadline's own error.
+     * Checks that the request this is running in has not already been answered without it, and that
+     * the work it belongs to has not run out of the time it was given.
+     * @throws Whatever the request or the work was abandoned with, which is the deadline's own error.
      */
     private validateStillWanted(): void {
-        const signal: AbortSignal | undefined = AlsUtilities.findCurrentRequestSignal();
+        const signal: AbortSignal | undefined = AlsUtilities.findCurrentSignal();
         if (signal?.aborted === true) {
             throw signal.reason;
         }

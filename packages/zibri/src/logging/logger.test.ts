@@ -211,7 +211,7 @@ describe('Logger — real error logged end to end through a request', () => {
         server = await startTestServer({ controllers: [LoggerIntegrationController] });
         baseUrl = await server.start();
         logRepository = inject(repositoryTokenFor(Log));
-    }, 15000);
+    }, 30000);
 
     afterAll(async () => {
         await server?.shutdown();

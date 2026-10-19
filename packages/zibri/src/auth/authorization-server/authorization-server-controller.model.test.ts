@@ -1085,6 +1085,19 @@ describe('AuthorizationServerController — access tokens revoked at once', () =
         expect(await body(res)).toMatchObject({ error: 'unauthorized_client' });
         expect((await callWith('/me', theirs)).status).toBe(200);
     });
+
+    it('writes down exchanging a key and using its tokens as using the key', async () => {
+        const key: CreatedApiKey = await createKey(await createUser('used-client'));
+        const keys: Repository<ApiKey> = inject(repositoryTokenFor(ApiKey));
+
+        const token: string = await issueToken(key);
+
+        expect((await keys.findById(key.apiKey.id)).lastUsedAt ?? undefined).toBeDefined();
+        const twoHoursAgo: Date = new Date(Date.now() - (Ms.HOUR * 2));
+        await keys.updateById(key.apiKey.id, { lastUsedAt: twoHoursAgo });
+        expect((await callWith('/me', token)).status).toBe(200);
+        expect(new Date((await keys.findById(key.apiKey.id)).lastUsedAt ?? twoHoursAgo).getTime()).toBeGreaterThan(twoHoursAgo.getTime());
+    });
 });
 
 describe('AuthorizationServerController — DPoP proofs that carry a nonce', () => {

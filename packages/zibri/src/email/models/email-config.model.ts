@@ -1,4 +1,5 @@
 import { OmitStrict } from '../../types/omit-strict.type';
+import { type RetentionInMs } from '../../types/retention-in-ms.type';
 
 /**
  * Configuration for emails.
@@ -38,12 +39,31 @@ export type EmailConfig = {
      * a slot for NORMAL and one for LOW every pass.
      * Defaults to 10.
      */
-    sendBatchSize: number
+    sendBatchSize: number,
+    /**
+     * How many times sending a mail may throw, eg. Because its server cannot be reached, before the
+     * mail is marked FAILED. Defaults to 5.
+     */
+    maxSendAttempts: number,
+    /**
+     * How long a mail whose send threw waits before it is tried again, in milliseconds. Each further
+     * attempt waits twice as long as the one before. Defaults to one minute.
+     */
+    retryDelayInMs: number,
+    /**
+     * How long a mail that failed is kept, counted from when it was queued, or 'forever'.
+     */
+    // required: keeping every failure and deleting them after a while are both legitimate, so a
+    // default would make "forgot to say" read as one of them
+    failedRetentionInMs: RetentionInMs
 };
+
+/**
+ * The keys of the email configuration that have a default.
+ */
+type DefaultedEmailConfigKey = 'sendLeaseInMs' | 'sendBatchSize' | 'maxSendAttempts' | 'retryDelayInMs';
 
 /**
  * The configuration for sending emails.
  */
-export type EmailConfigInput
-    = OmitStrict<EmailConfig, 'sendLeaseInMs' | 'sendBatchSize'>
-        & Pick<Partial<EmailConfig>, 'sendLeaseInMs' | 'sendBatchSize'>;
+export type EmailConfigInput = OmitStrict<EmailConfig, DefaultedEmailConfigKey> & Pick<Partial<EmailConfig>, DefaultedEmailConfigKey>;

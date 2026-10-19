@@ -89,6 +89,11 @@ async function encryptEncryptionPropertiesRecursive<Data, EntityClass>(
     }
 
     for (const nested of descriptor.nestedValues(data)) {
+        // a row this one references is not written along with it: only the reference is. Its own
+        // repository encrypts it, for its own id, and what the caller holds of it stays the value
+        if (nested.related) {
+            continue;
+        }
         await encryptEncryptionPropertiesRecursive(context, nested.data, nested.descriptor, encryptionService, rowId, visited);
     }
 }
@@ -146,6 +151,10 @@ async function boundEncryptionPropertiesRecursive<Data, EntityClass>(
     }
 
     for (const nested of descriptor.nestedValues(data)) {
+        // nothing of a referenced row is written, so nothing of it is bound either
+        if (nested.related) {
+            continue;
+        }
         res.push(...await boundEncryptionPropertiesRecursive(context, nested.data, nested.descriptor, `${prefix}${nested.path}.`, visited));
     }
 

@@ -22,6 +22,7 @@ import { UUIDUtilities } from '../../../utilities/uuid.utilities';
 import { ZibriInvoicingPlugin } from '../invoicing.plugin';
 import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../invoicing.tokens';
 import { CompanyInfo } from '../models/company-info.model';
+import { InvoiceRecipientAbbreviation } from '../models/invoice-recipient-abbreviation.model';
 import { Invoice } from '../models/invoice.model';
 import { InvoicingOptions } from '../models/invoicing-options.model';
 import { NumberInvoices } from '../models/number-invoices.model';
@@ -88,7 +89,7 @@ describe('createInvoicePdf', () => {
     beforeAll(async () => {
         await FsUtilities.mkdir(testFileFolder);
         server = await startTestServer({
-            dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Invoice, NumberInvoices] })],
+            dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Invoice, NumberInvoices, InvoiceRecipientAbbreviation] })],
             plugins: [new ZibriInvoicingPlugin()],
             providers: [
                 ...defaultTestServerProviders,

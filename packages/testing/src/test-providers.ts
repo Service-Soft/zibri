@@ -1,15 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import { AesGcmEncryptionStrategy,
-    CronServiceInterface,
-    defineProvider,
-    DiProvider,
-    EncryptionMasterKey,
-    JwtAuthOptionsInput,
-    Ms,
-    MultithreadingServiceInterface,
-    ScryptCost,
-    ZIBRI_DI_TOKENS } from 'zibri';
+import { AesGcmEncryptionStrategy, CronServiceInterface, defineProvider, DiProvider, EmailConfigInput, EncryptionMasterKey, JwtAuthOptionsInput, Ms, MultithreadingServiceInterface, ScryptCost, ZIBRI_DI_TOKENS } from 'zibri';
 
 import { defaultPasswordResetEmailTemplate } from './password-reset-email.template';
 import { UnconfiguredEmailTransport } from './unconfigured.email-transport';
@@ -71,7 +62,13 @@ export const defaultTestProviders: DiProvider<unknown>[] = [
     }),
     defineProvider({
         token: ZIBRI_DI_TOKENS.EMAIL_CONFIG,
-        useFactory: () => ({ maxEmailsPerHour: 0, defaultSender: 'Max Mustermann' })
+        useFactory: (): EmailConfigInput => ({ maxEmailsPerHour: 0, defaultSender: 'Max Mustermann', failedRetentionInMs: 'forever' })
+    }),
+    // required, so an application using events cannot start without one. A test about the cleanup
+    // registers its own
+    defineProvider({
+        token: ZIBRI_DI_TOKENS.EVENT_FAILED_RETENTION_IN_MS,
+        useValue: 'forever'
     }),
     defineProvider({
         token: ZIBRI_DI_TOKENS.EMAIL_TRANSPORT,
@@ -96,6 +93,7 @@ export const defaultTestProviders: DiProvider<unknown>[] = [
                 disable: noOpAsync,
                 changeCron: noOpAsync,
                 update: noOpAsync,
+                applyStoredChanges: noOpAsync,
                 // never actually reached, because this stub schedules nothing. True rather than
                 // false so that it cannot silently suppress a job if it ever is.
                 shouldRunExecution: () => Promise.resolve(true)

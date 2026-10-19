@@ -16,6 +16,7 @@ import { FederatedSignInFailure } from './federated-sign-in-failure.enum';
 import { FederatedSignInRequest } from './federated-sign-in-request.model';
 import { FederatedSignInResult } from './federated-sign-in-result.model';
 import { FederatedSignInError } from './federated-sign-in.error';
+import { FederatedSoapLogout } from './federated-soap-logout.model';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../__testing__/mocks/entities/roles.enum';
 import { defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function';
@@ -111,8 +112,8 @@ class DirectAuthenticator implements FederatedAuthenticatorInterface<Roles, JwtU
         return Promise.resolve([]);
     }
 
-    resolveMetadata(): FederatedMetadata | undefined {
-        return undefined;
+    async resolveMetadata(): Promise<FederatedMetadata | undefined> {
+        return Promise.resolve(undefined);
     }
 
     async createLogoutUrl(): Promise<string | undefined> {
@@ -120,6 +121,10 @@ class DirectAuthenticator implements FederatedAuthenticatorInterface<Roles, JwtU
     }
 
     async readProviderLogout(): Promise<FederatedProviderLogout> {
+        return Promise.reject(new NotFoundError($ts`Nothing can be logged out at.`));
+    }
+
+    async resolveSoapLogout(): Promise<FederatedSoapLogout> {
         return Promise.reject(new NotFoundError($ts`Nothing can be logged out at.`));
     }
 
@@ -154,13 +159,13 @@ class LostDirectAuthenticator extends DirectAuthenticator {
 }
 
 /**
- * Has the provider post to the logout route, which the federated controller only answers when the
- * browser is sent there.
+ * Has the browser sent to the SOAP logout route, which the federated controller only answers when a
+ * provider posts to it.
  */
-class PostedLogoutDirectAuthenticator extends DirectAuthenticator {
+class RedirectedSoapLogoutDirectAuthenticator extends DirectAuthenticator {
     override readonly routes: FederatedRouteEndpoint[] = [
         { route: 'callback', method: HttpMethod.GET },
-        { route: 'logout', method: HttpMethod.POST }
+        { route: 'logout/soap', method: HttpMethod.GET }
     ];
 }
 
@@ -271,7 +276,7 @@ describe('FederatedAuthenticatorInterface — starting', () => {
     }, 20000);
 
     it('refuses to start when the route answering a url an authenticator of the application\'s own gives out takes another method', async () => {
-        await expect(startThenShutDown(PostedLogoutDirectAuthenticator))
-            .rejects.toThrow(/PostedLogoutDirectAuthenticator[\S\s]*http:\/\/zibri\.test\/auth\/federated\/direct\/logout[\S\s]*POST[\S\s]*GET/);
+        await expect(startThenShutDown(RedirectedSoapLogoutDirectAuthenticator))
+            .rejects.toThrow(/RedirectedSoapLogoutDirectAuthenticator[\S\s]*http:\/\/zibri\.test\/auth\/federated\/direct\/logout\/soap[\S\s]*GET[\S\s]*POST/);
     }, 20000);
 });

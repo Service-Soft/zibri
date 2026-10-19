@@ -56,6 +56,24 @@ export class TracedRepositoryDriver<T extends BaseEntity> implements RepositoryD
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
+    async insert(data: DeepPartial<T>[], transaction: Transaction | undefined): Promise<T[]> {
+        return await this.traced('insert', async span => {
+            const res: T[] = await this.inner.insert(data, transaction);
+            span.recordAttribute(returnedRows, res.length);
+            return res;
+        });
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async updateEach(rows: DeepPartial<T>[], where: Where<T>, transaction: Transaction | undefined): Promise<T[]> {
+        return await this.traced('updateEach', async span => {
+            const res: T[] = await this.inner.updateEach(rows, where, transaction);
+            span.recordAttribute(returnedRows, res.length);
+            return res;
+        });
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async find(options: DriverFindOptions<T>): Promise<T[]> {
         return await this.traced('find', async span => {
             const res: T[] = await this.inner.find(options);
@@ -88,10 +106,19 @@ export class TracedRepositoryDriver<T extends BaseEntity> implements RepositoryD
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async remove(entities: T[], transaction: Transaction | undefined): Promise<T[]> {
-        return await this.traced('remove', async span => {
-            span.recordAttribute(returnedRows, entities.length);
-            return await this.inner.remove(entities, transaction);
+    async remove(ids: string[], transaction: Transaction | undefined): Promise<void> {
+        await this.traced('remove', async span => {
+            span.recordAttribute(returnedRows, ids.length);
+            await this.inner.remove(ids, transaction);
+        });
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async findIds(options: DriverFindOptions<T>): Promise<string[]> {
+        return await this.traced('findIds', async span => {
+            const res: string[] = await this.inner.findIds(options);
+            span.recordAttribute(returnedRows, res.length);
+            return res;
         });
     }
 

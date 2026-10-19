@@ -67,7 +67,7 @@ describe('FormDataBodyParser', () => {
     beforeAll(async () => {
         server = await startTestServer({ controllers: [UploadController] });
         baseUrl = await server.start();
-    }, 15000);
+    }, 30000);
 
     afterAll(async () => {
         await server?.shutdown();

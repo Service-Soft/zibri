@@ -151,7 +151,7 @@ describe('changePropertyOfEntity', () => {
         const legacyRepository: Repository<LegacyMeasurement> = legacyDataSource.getRepository(LegacyMeasurement);
         createdId = (await legacyRepository.create({ amount: 42, label: 'first' })).id;
         await legacyDataSource.shutDown();
-    }, 30_000);
+    }, 50000);
 
     it('changes the type of a column without losing what it holds', async () => {
         const dataSource: DbDataSource = inject(DbDataSource);

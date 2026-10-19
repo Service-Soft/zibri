@@ -8,5 +8,5 @@ import { EN16931ConformanceService, EN16931DocumentContextId } from './en16931-c
 @Injectable({ register: 'onUse' })
 export class XRechnungConformanceService extends EN16931ConformanceService {
     override readonly name: InvoiceConformance = 'x-rechnung';
-    override readonly documentContextId: EN16931DocumentContextId = 'urn:cen.eu:en16931:2017#compliant#urn:xrechnung:3.0';
+    override readonly documentContextId: EN16931DocumentContextId = 'urn:cen.eu:en16931:2017#compliant#urn:xeinkauf.de:kosit:xrechnung_3.0';
 }

@@ -10,8 +10,10 @@ import { ForbiddenError } from '../../error-handling/errors/forbidden.error';
 import { NotFoundError } from '../../error-handling/errors/not-found.error';
 import { TenantServiceInterface } from '../../tenancy/tenant-service.interface';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { DataSourceInterface } from '../data-sources/data-source.interface';
 import { Repository } from '../repository/repository';
 import { NoActiveTenantError } from '../tenancy/no-active-tenant.error';
+import { Transaction } from '../transaction/transaction.model';
 import { UniqueConstraintViolationError } from '../unique-constraint-violation.error';
 
 /**
@@ -132,6 +134,10 @@ export class TenantTask extends BaseEntity {
  * The repositories the cases run against.
  */
 export type TenantIsolationRepositories = {
+    /**
+     * The data source the repositories belong to, for the cases that run in a transaction.
+     */
+    dataSource: DataSourceInterface,
     /**
      * Rows that always belong to a tenant.
      */
@@ -458,6 +464,39 @@ export function describeTenantIsolation(name: string, getRepositories: () => Ten
             );
             await expect(tasks().updateById(taskOfA.id, { projectId: other.id }, { acrossTenants: true }))
                 .rejects.toThrow(ForbiddenError);
+        });
+
+        it('refuses to point a row at a row another tenant wrote earlier in the same transaction', async () => {
+            // a job going through every tenant in one transaction: what it wrote for one tenant is
+            // still that tenant's while it works for the next
+            const transaction: Transaction = await getRepositories().dataSource.startTransaction();
+            try {
+                const other: TenantProject = await tenants().runAs(
+                    tenantB,
+                    async () => await projects().create({ name: 'written for b' }, { transaction })
+                );
+                await tenants().runAs(tenantA, async () => {
+                    await expect(tasks().create({ title: 'for a', projectId: other.id }, { transaction })).rejects.toThrow(ForbiddenError);
+                });
+            }
+            finally {
+                await transaction.rollback();
+            }
+        });
+
+        it('refuses to point a row at a row the same transaction deleted', async () => {
+            const transaction: Transaction = await getRepositories().dataSource.startTransaction();
+            try {
+                await tenants().runAs(tenantA, async () => {
+                    const gone: TenantProject = await projects().create({ name: 'deleted again' }, { transaction });
+                    await projects().deleteById(gone.id, { transaction });
+
+                    await expect(tasks().create({ title: 'orphan', projectId: gone.id }, { transaction })).rejects.toThrow(ForbiddenError);
+                });
+            }
+            finally {
+                await transaction.rollback();
+            }
         });
 
         it('never moves a row into a tenant or out of one', async () => {

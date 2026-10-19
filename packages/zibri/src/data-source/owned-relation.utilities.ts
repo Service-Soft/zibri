@@ -1,6 +1,8 @@
-import { OwnedRelationWrite } from './models/owned-relation-write.model';
-import { OwnedRelation } from './models/owned-relation.model';
-import { Where } from './models/where/where-filter.model';
+
+// Shared by every store, because what saving an owner does to the rows of its one to many and has one
+// relations is part of the contract rather than of any one implementation: a store answering
+// differently makes the same save delete a row on one and keep it on another. Each store only does
+// the writes this resolves, in its own way and inside its own transaction.
 import { BaseEntity } from '../entity/base-entity.model';
 import { PropertyMetadata, RelationMetadata } from '../entity/decorators/property.decorator';
 import { isRelationMetadata } from '../entity/models/is-relation-metadata.function';
@@ -10,11 +12,10 @@ import { DeepPartial } from '../types/deep-partial.type';
 import { Newable } from '../types/newable.type';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
+import { OwnedRelationWrite } from './models/owned-relation-write.model';
+import { OwnedRelation } from './models/owned-relation.model';
+import { Where } from './models/where/where-filter.model';
 
-// Shared by every store, because what saving an owner does to the rows of its one to many and has one
-// relations is part of the contract rather than of any one implementation: a store answering
-// differently makes the same save delete a row on one and keep it on another. Each store only does
-// the writes this resolves, in its own way and inside its own transaction.
 /**
  * Resolves what saving and deleting a row does with the rows of its one to many and has one
  * relations.
@@ -81,6 +82,7 @@ export class OwnedRelationUtilities {
      * with one, and the id it is saved under.
      * @returns One write per relation that some owner gives a value for.
      */
+    // eslint-disable-next-line sonar/cognitive-complexity
     static resolveWrites(relations: OwnedRelation[], entries: [Record<string, unknown>, string][]): OwnedRelationWrite[] {
         const res: OwnedRelationWrite[] = [];
         for (const relation of relations) {
@@ -136,6 +138,22 @@ export class OwnedRelationUtilities {
     }
 
     /**
+     * Resolves the filter finding the rows of a relation that still point at owners about to be
+     * deleted, leaving out the owners themselves when the relation points at its own entity.
+     * @param relation - The relation, which does not cascade removes.
+     * @param ownerIds - The ids of the owners being deleted.
+     * @param ownerClass - The entity of the owners.
+     * @returns The filter.
+     */
+    static resolveStillReferencingWhere(relation: OwnedRelation, ownerIds: string[], ownerClass: Newable<BaseEntity>): Where<BaseEntity> {
+        // rows deleted together may point at each other: a foreign key is checked once the whole
+        // delete is done, when neither is there anymore
+        return relation.target === ownerClass
+            ? { [relation.foreignKey]: { oneOf: ownerIds }, id: { notOneOf: ownerIds } }
+            : { [relation.foreignKey]: { oneOf: ownerIds } };
+    }
+
+    /**
      * Reads the rows a value of a relation gives.
      * @param value - The value, which is defined.
      * @returns Its rows: none for `null`, the list for a list, and the row itself otherwise.
@@ -145,7 +163,7 @@ export class OwnedRelationUtilities {
             return [];
         }
         const rows: unknown[] = Array.isArray(value) ? value : [value];
-        return rows.filter((row): row is DeepPartial<BaseEntity> => typeof row === 'object' && row != null);
+        return rows.filter((row): row is DeepPartial<BaseEntity> => typeof row === 'object' && row != undefined);
     }
 
     /**

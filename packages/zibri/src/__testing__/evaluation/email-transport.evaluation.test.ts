@@ -6,6 +6,7 @@ import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { defineProvider } from '../../di/models/di-provider.model';
 import { EmailServiceInterface } from '../../email/email-service.interface';
+import { EmailConfigInput } from '../../email/models/email-config.model';
 import { EmailStatus } from '../../email/models/email-status.enum';
 import { Email } from '../../email/models/email.model';
 import { EmailSendResult, EmailTransportInterface } from '../../email/transports/email-transport.interface';
@@ -112,13 +113,15 @@ beforeAll(async () => {
                 // is a mail configuration that assumes one, and the whole finding is that a
                 // deployment sending over an http API has no such thing to name. That this type
                 // accepts the object below is half of what is being asserted here
-                useFactory: () => ({
+                useFactory: (): EmailConfigInput => ({
                     // the shared default is 0, which is a token bucket that refuses every send
                     maxEmailsPerHour: 100,
                     defaultSender: 'sender@example.com',
-                    // short, so the retry test can wait out the claim a failed attempt retains
-                    // rather than the minute it defaults to
-                    sendLeaseInMs: 1000
+                    // short, so the retry test can wait out the claim a failed attempt retains and the
+                    // backoff it sets, rather than the minute each defaults to
+                    sendLeaseInMs: 1000,
+                    retryDelayInMs: 1000,
+                    failedRetentionInMs: 'forever'
                 })
             }),
             defineProvider({ token: ZIBRI_DI_TOKENS.EMAIL_TRANSPORT, useValue: transport })
@@ -221,9 +224,9 @@ describe('evaluation/04-infrastructure-subsystems 5.2 - the mail transport is re
         await emailService.sendQueuedEmails().catch(() => undefined);
 
         transport.failWith = undefined;
-        // the claim taken for the failed attempt is retained as the backoff, so the row is not
-        // available again until it expires. Waiting it out is what proves the row was kept as
-        // sendable rather than merely kept
+        // a failed attempt holds the row back until its retry is due, and the claim taken for it is
+        // retained as well, so the row is not available again until both expire. Waiting them out is
+        // what proves the row was kept as sendable rather than merely kept
         await new Promise<void>(resolve => setTimeout(resolve, 1500));
         await emailService.sendQueuedEmails();
 

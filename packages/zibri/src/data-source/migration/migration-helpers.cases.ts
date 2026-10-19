@@ -265,6 +265,19 @@ export function describeMigrationHelpers(dataSourceName: string, targetOf: () =>
             expect(await storedGadgets()).toStrictEqual([['a', 1], ['b', 2]]);
         });
 
+        it('narrows a number into a whole number only where a double holds it exactly', async () => {
+            // whole, and also what 2^53 + 1 reads as, so it does not stand for one whole number
+            await targetOf().gadgets.create({ label: 'c', count: 2 ** 53 });
+
+            await expect(migrate((dataSource, transaction) => dataSource.changePropertyOfEntity({
+                entity: Gadget,
+                currentProperty: { name: 'count', type: 'number' },
+                property: { name: 'count', type: 'number', format: 'integer' },
+                transaction
+            }))).rejects.toThrow('9007199254740992');
+            expect(await storedGadgets()).toStrictEqual([['a', 1], ['b', 2], ['c', 2 ** 53]]);
+        });
+
         it('refuses a missing value where the changed property requires one, and changes nothing', async () => {
             await targetOf().gadgets.create({ label: null, count: 3 });
 

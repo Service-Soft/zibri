@@ -89,9 +89,11 @@ const START_TLS_OID: string = '1.3.6.1.4.1.1466.20037';
 const IN_CHAIN_RULE: string = '1.2.840.113556.1.4.1941';
 
 /**
- * The attributes only sent when a search names them.
+ * The attributes only sent when a search names them: the id OpenLDAP gives an entry, the mark 389
+ * Directory Server puts on an inactivated account, and the lock of OpenLDAP's password policy.
  */
-const OPERATIONAL_ATTRIBUTES: Set<string> = new Set(['entryuuid']);
+// eslint-disable-next-line cspell/spellchecker
+const OPERATIONAL_ATTRIBUTES: Set<string> = new Set(['entryuuid', 'nsaccountlock', 'pwdaccountlockedtime']);
 
 /**
  * The host the directory listens on.

@@ -268,11 +268,10 @@ function narrowRelationCondition(condition: unknown): unknown | typeof IMPOSSIBL
         return res;
     }
     const possible: unknown[] = res['isIncludedIn'].filter(e => !isImpossibleEntityId(e));
-    // an allow list is only narrowed while something is left to allow. Emptying it would say "no
-    // related row is permitted", which is not what an empty list is currently answered with, and
-    // narrowing must never be the thing that changes an answer
+    // a row has to have related rows, and all of them allowed, so an allow list left with nothing to
+    // allow is a requirement nothing satisfies - as an empty one is answered on every store
     if (!possible.length) {
-        return res;
+        return IMPOSSIBLE;
     }
     return { ...res, isIncludedIn: possible };
 }

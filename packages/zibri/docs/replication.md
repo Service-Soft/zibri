@@ -53,8 +53,7 @@ defineProvider({
 The named data source must support publish/subscribe, which today means valkey. Postgres is not an
 option here: `NOTIFY` caps payloads at 8000 bytes, which a broadcast can exceed.
 
-One limit remains with the adapter in place: a send with `expectResponse: true` still only collects
-answers from the sending instance's clients.
+A send with `expectResponse: true` collects the answers of the clients of every instance.
 
 Reconnecting to a *different* instance does work. Socket.io's own connection state recovery cannot
 span instances, so Zibri does that part itself out of the shared data source - it replays the

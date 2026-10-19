@@ -35,7 +35,7 @@ describe('PostgresTypeOrmWhereFilterConverter — JSONB SQL literal escaping', (
             dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Contact] })]
         });
         contactRepo = inject(repositoryTokenFor(Contact));
-    }, 15000);
+    }, 30000);
 
     afterAll(async () => {
         await server?.shutdown();

@@ -1,3 +1,4 @@
+import { FederatedLogoutAnswer } from './federated-logout-answer.model';
 import { FederatedSessionMatch } from './federated-session-match.model';
 
 /**
@@ -13,9 +14,10 @@ export type FederatedProviderLogout = {
      */
     session: FederatedSessionMatch,
     /**
-     * Where the browser goes on to, telling the provider they ended.
+     * How the browser tells the provider they ended. Undefined when the provider takes no answer, and
+     * the browser lands on `signedOutUrl`.
      */
-    redirectTo: string
+    answer: FederatedLogoutAnswer | undefined
 } | {
     /**
      * The provider ended its session, after a logout here sent the browser there.

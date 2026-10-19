@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it } from '@jest/globals';
 import { type Relation } from 'typeorm';
 
+import { ChangeSetType } from '../../change-sets/models/change-set-type.enum';
 import { ChangeSet } from '../../change-sets/models/change-set.model';
 import { SoftDeleteEntity } from '../../change-sets/models/soft-delete-entity.model';
 import { SoftDeleteRepository } from '../../change-sets/soft-delete-repository';
@@ -9,7 +10,9 @@ import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { scopeFor } from '../../entity/models/entity-scope.model';
+import { ConflictError } from '../../error-handling/errors/conflict.error';
 import { NotFoundError } from '../../error-handling/errors/not-found.error';
+import { Newable } from '../../types/newable.type';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { Repository } from '../repository/repository';
 
@@ -44,12 +47,20 @@ export class Household extends BaseEntity {
     // an entity with change sets and a soft delete, which its own repository writes
     @Property.oneToMany({ target: () => Guest, inverseSide: 'household' })
     guests!: Guest[];
+
+    // a soft deleting entity not removed along with the household
+    @Property.oneToMany({ target: () => Lodger, inverseSide: 'household', cascade: ['insert', 'update'] })
+    lodgers!: Lodger[];
 }
 
 @Entity({ tenant: 'shared', allowOrphan: true, allowDuplicate: true })
 export class Resident extends BaseEntity {
     @Property.string()
     name!: string;
+
+    // what one row of an update can give and another leave alone, or empty
+    @Property.string({ required: false })
+    nickname?: string | null;
 
     @Property.manyToOne({ target: () => Household, joinColumn: 'householdId', inverseSide: 'residents' })
     household!: Household;
@@ -156,6 +167,51 @@ export class Ticket extends SoftDeleteEntity {
     stopId!: string;
 }
 
+@Entity({ tenant: 'shared', allowOrphan: true, allowDuplicate: true })
+export class Lodger extends SoftDeleteEntity {
+    @Property.string()
+    name!: string;
+
+    @Property.manyToOne({ target: () => Household, joinColumn: 'householdId', inverseSide: 'lodgers' })
+    household!: Household;
+
+    @Property.string({ format: 'uuid' })
+    householdId!: string;
+}
+
+@Entity({ tenant: 'shared', allowOrphan: true, allowDuplicate: true })
+export class Folder extends BaseEntity {
+    @Property.string()
+    name!: string;
+
+    // pointing at a row of the same entity, and not removed along with it
+    @Property.oneToMany({ target: () => Folder, inverseSide: 'parent', cascade: ['insert', 'update'] })
+    children!: Folder[];
+
+    @Property.manyToOne({ target: () => Folder, joinColumn: 'parentId', inverseSide: 'children', required: false })
+    parent?: Folder;
+
+    @Property.string({ format: 'uuid', required: false })
+    parentId?: string;
+}
+
+/**
+ * The entities of the cases, for the data sources running them.
+ */
+export const ownedRelationEntities: Newable<BaseEntity>[] = [
+    Household,
+    Resident,
+    Chore,
+    Pet,
+    Doorplate,
+    Guest,
+    Trip,
+    Stop,
+    Ticket,
+    Lodger,
+    Folder
+];
+
 /**
  * The repositories the cases run against.
  */
@@ -169,7 +225,9 @@ export type OwnedRelationRepositories = {
     changeSets: Repository<ChangeSet>,
     trips: SoftDeleteRepository<Trip>,
     stops: SoftDeleteRepository<Stop>,
-    tickets: SoftDeleteRepository<Ticket>
+    tickets: SoftDeleteRepository<Ticket>,
+    lodgers: SoftDeleteRepository<Lodger>,
+    folders: Repository<Folder>
 };
 
 /**
@@ -204,6 +262,25 @@ export function describeOwnedRelations(dataSourceName: string, repositoriesOf: (
             await repositoriesOf().households.updateById(household.id, { residents: [{ id: ada?.id, name: 'Ada L.' }] });
 
             expect((await repositoriesOf().residents.findById(ada?.id ?? '')).name).toBe('Ada L.');
+        });
+
+        it('updates the rows of a relation given with their ids, each with its own values', async () => {
+            const household: Household = await repositoriesOf().households.create({
+                name: 'each',
+                residents: [{ name: 'Ada', nickname: 'A' }, { name: 'Bob', nickname: 'B' }]
+            });
+            const ada: Resident | undefined = household.residents.find(r => r.name === 'Ada');
+            const bob: Resident | undefined = household.residents.find(r => r.name === 'Bob');
+
+            await repositoriesOf().households.updateById(household.id, {
+                // eslint-disable-next-line unicorn/no-null
+                residents: [{ id: ada?.id, name: 'Ada L.' }, { id: bob?.id, nickname: null }]
+            });
+
+            const updatedAda: Resident = await repositoriesOf().residents.findById(ada?.id ?? '');
+            const updatedBob: Resident = await repositoriesOf().residents.findById(bob?.id ?? '');
+            expect([updatedAda.name, updatedAda.nickname]).toEqual(['Ada L.', 'A']);
+            expect([updatedBob.name, updatedBob.nickname ?? undefined]).toEqual(['Bob', undefined]);
         });
 
         it('links a row given with its id to a relation that does not cascade updates, and writes nothing else of it', async () => {
@@ -357,6 +434,17 @@ export function describeOwnedRelations(dataSourceName: string, repositoriesOf: (
             expect(await repositoriesOf().changeSets.count({ where: { changeSetEntityId: ada?.id } })).toBe(1);
         });
 
+        it('records the change set of a row updated along with its owner', async () => {
+            const household: Household = await repositoriesOf().households.create({ name: 'renamed guest', guests: [{ name: 'Ada' }] });
+            const [ada] = household.guests;
+
+            await repositoriesOf().households.updateById(household.id, { guests: [{ id: ada?.id, name: 'Ada L.' }] });
+
+            const changeSets: ChangeSet[] = await repositoriesOf().changeSets.findAll({ where: { changeSetEntityId: ada?.id } });
+            expect(changeSets.map(c => c.type)).toEqual([ChangeSetType.CREATE, ChangeSetType.UPDATE]);
+            expect(changeSets[1]?.changes.map(c => [c.key, c.previousValue, c.newValue])).toEqual([['name', 'Ada', 'Ada L.']]);
+        });
+
         it('soft deletes a row left out of a relation whose entity soft deletes', async () => {
             const household: Household = await repositoriesOf().households.create({ name: 'soft', guests: [{ name: 'Ada' }] });
             const [ada] = household.guests;
@@ -413,6 +501,59 @@ export function describeOwnedRelations(dataSourceName: string, repositoriesOf: (
 
             expect(await repositoriesOf().stops.count({ where: { tripId: trip.id }, deleted: 'include' })).toBe(0);
             expect(await repositoriesOf().tickets.count({ where: { stopId: rome?.id }, deleted: 'include' })).toBe(0);
+        });
+
+        it('refuses to delete a row that rows of a relation not removing them point at, and deletes nothing', async () => {
+            const household: Household = await repositoriesOf().households.create({
+                name: 'kept',
+                residents: [{ name: 'Ada' }],
+                pets: [{ name: 'Rex' }]
+            });
+
+            await expect(repositoriesOf().households.deleteById(household.id)).rejects.toThrow(ConflictError);
+
+            expect(await repositoriesOf().households.count({ where: { id: household.id } })).toBe(1);
+            expect(await repositoriesOf().residents.count({ where: { householdId: household.id } })).toBe(1);
+        });
+
+        it('refuses to delete a row that a soft deleted row points at', async () => {
+            const household: Household = await repositoriesOf().households.create({ name: 'lodged', lodgers: [{ name: 'Ada' }] });
+            const [ada] = household.lodgers;
+            await repositoriesOf().lodgers.deleteById(ada?.id ?? '');
+
+            await expect(repositoriesOf().households.deleteById(household.id)).rejects.toThrow(ConflictError);
+        });
+
+        it('deletes rows that point at each other in one delete', async () => {
+            const parent: Folder = await repositoriesOf().folders.create({ name: 'parent', children: [{ name: 'child' }] });
+            const [child] = parent.children;
+
+            await expect(repositoriesOf().folders.deleteById(parent.id)).rejects.toThrow(ConflictError);
+            expect(await repositoriesOf().folders.deleteAll({ id: { oneOf: [parent.id, child?.id ?? ''] } })).toBe(2);
+        });
+
+        it('deletes the change sets of a row deleted for good, and keeps those of one soft deleted', async () => {
+            const household: Household = await repositoriesOf().households.create({
+                name: 'recorded',
+                guests: [{ name: 'Ada' }, { name: 'Bob' }]
+            });
+            const ada: Guest | undefined = household.guests.find(g => g.name === 'Ada');
+            const bob: Guest | undefined = household.guests.find(g => g.name === 'Bob');
+
+            await repositoriesOf().guests.deleteById(ada?.id ?? '', { hardDelete: true });
+            await repositoriesOf().guests.deleteById(bob?.id ?? '');
+
+            expect(await repositoriesOf().changeSets.count({ where: { changeSetEntityId: ada?.id } })).toBe(0);
+            expect(await repositoriesOf().changeSets.count({ where: { changeSetEntityId: bob?.id } })).toBeGreaterThan(0);
+        });
+
+        it('deletes the change sets of the rows deleted along with their owner', async () => {
+            const household: Household = await repositoriesOf().households.create({ name: 'gone', guests: [{ name: 'Ada' }] });
+            const [ada] = household.guests;
+
+            await repositoriesOf().households.deleteById(household.id);
+
+            expect(await repositoriesOf().changeSets.count({ where: { changeSetEntityId: ada?.id } })).toBe(0);
         });
     });
 }

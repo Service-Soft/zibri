@@ -59,13 +59,29 @@ export class LogRequestContext {
     /**
      * The http status of the response, if the request already finished.
      */
-    @Property.number({ enum: HttpStatus, required: false })
+    @Property.number({ format: 'integer', enum: HttpStatus, required: false })
     status?: HttpStatus | null;
     /**
      * The duration that the request took in ms, if it already finished.
      */
     @Property.number({ required: false })
     durationInMs?: number | null;
+}
+
+/**
+ * What a row standing for several entries counts.
+ */
+export class LogCollapsedContext {
+    /**
+     * How many entries the row stands for, including the one whose message and context it carries.
+     */
+    @Property.number({ format: 'integer' })
+    count!: number;
+    /**
+     * When the last of them was logged. The first was logged at the row's `createdAt`.
+     */
+    @Property.date()
+    lastAt!: Date;
 }
 
 /**
@@ -97,12 +113,18 @@ export class LogContext {
      */
     @Property.object({ cls: () => LoggedError, required: false })
     error?: LoggedError | null;
+    /**
+     * Set when the row stands for several entries of one kind, which the db transport writes past its
+     * budget.
+     */
+    @Property.object({ cls: () => LogCollapsedContext, required: false })
+    collapsed?: LogCollapsedContext | null;
 }
 
 /**
  * The input for creating a new log context.
  */
-export type LogContextInput = OmitStrict<LogContext, 'origin' | 'request' | 'cache' | 'error'> & {
+export type LogContextInput = OmitStrict<LogContext, 'origin' | 'request' | 'cache' | 'error' | 'collapsed'> & {
     /**
      * An error associated to this log.
      */

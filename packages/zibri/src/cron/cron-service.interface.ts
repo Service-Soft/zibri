@@ -28,9 +28,14 @@ export interface CronServiceInterface {
      */
     changeCron: (name: string, cron: CronExpressionString) => Promise<void>,
     /**
-     * Updates the cron job with the given name.
+     * Updates the cron job with the given name. Refused for a job declared in code.
      */
     update: (name: string, data: CronUpdateData) => Promise<void>,
+    /**
+     * Brings the schedule of this instance in line with the stored cron jobs, which other instances
+     * may have enabled, disabled, stopped or rescheduled.
+     */
+    applyStoredChanges: () => Promise<void>,
     /**
      * Decides whether this instance is the one that runs the given scheduled execution.
      *

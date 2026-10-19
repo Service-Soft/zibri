@@ -1,10 +1,10 @@
 # What to do after all findings are fixed
-- we introduced multiple generic systems, check if they can benefit from each other (the lease system was something like that for example)
+- we introduced multiple generic systems, check if they can benefit from each other (the lease system was something like that for example, or the event system that could notify other systems when eg. a user is deleted, his membership is revoked etc.)
 - regarding clusters: Currently, there is eg. one pod recovering all the thread jobs. We should check if it makes sense to spread them evenly. This evenly spreading is something that will probably be at multiple parts in the codebase, we should check that.
 - user facing documentation, the evaluation md files and code comments got a bit mixed up in their content and also their articulation. There were for example multiple instances where user facing documentation described problems or reasoning why a certain programmatic approach was taken. Or code comments were either unnecessary way more verbose than they had to be. The evaluation docs are things we can throw away at the end, but the user facing documentation and the code comments needs to be improved. For the docs we should also stick way closer to the handwritten ones in terms of articulation. It shouldn't sound like something written by an AI and be as easily accessible as possible.
 - currently, thread jobs are guaranted "at least once" instead of "exactly once", check if there is a better way
 - Also check if the delay due to the cron job is acceptable and whether it makes sense to have a distributed flag on the thread job, same as we already have
-- Investigate performance issues with all those database reads. Bigger projects usually use things like the saga pattern.
+- Investigate performance issues with all those database reads. Bigger projects usually use things like the saga pattern. Also check why findAllPaginated takes 6 roundtrips.
 - we should integrate the evaluation tests into the existing normal tests or remove their evaluation references as soon as the evaluation is done
 - regarding backups: I think currently we are not dealing well with partial backups. They are just abandoned on remote resources and never cleaned up. Also, there is no way to have certain resources already done and then continue from there in case of eg. a restart or on an error if we specify a retry policy etc.
 - rename startConnection & linkIdentity to startLinkIdentity & confirmLinkIdentity, so that they are closer to their password reset counterparts

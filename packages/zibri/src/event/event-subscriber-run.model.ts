@@ -81,7 +81,7 @@ export class EventSubscriberRun<T> extends BaseEntity {
      * Counted on the row rather than in the process that runs it, because the attempts are spread
      * across polls and restarts and no one process sees all of them.
      */
-    @Property.number()
+    @Property.number({ format: 'integer' })
     attempts!: number;
     /**
      * What the last attempt failed with, if it did.

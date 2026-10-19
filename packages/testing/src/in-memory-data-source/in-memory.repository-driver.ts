@@ -1,4 +1,4 @@
-import { BaseEntity, coversEveryRow, DeepPartial, DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, EntityMetadata, EntityMetadataMissingError, EntityOrderUtilities, EntityRelationsUtilities, InternalError, JsonUtilities, MetadataUtilities, ModelRegistry, Newable, ObjectUtilities, OrderKey, PaginationResult, parseArray, parseNumber, parseObject, parseOneOf, PropertyMetadata, Relation, RelationMetadata, RelationTree, RelationTreeByRowId, RepositoryDriverInterface, Transaction, UniqueConstraintViolationError, UniqueGroup, UpsertIdentityUtilities, UpsertRow, UUIDUtilities, Where, WhereFilterEvaluator } from 'zibri';
+import { BaseEntity, CheckConstraintViolationError, coversEveryRow, DeepPartial, DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, EntityMetadata, EntityMetadataMissingError, EntityOrderUtilities, EntityRelationsUtilities, InternalError, JsonUtilities, KeyWhere, MetadataUtilities, ModelRegistry, Newable, ObjectUtilities, OrderComparator, OrderKey, PaginationResult, parseArray, parseNumber, parseObject, parseOneOf, PropertyMetadata, Relation, RelationMetadata, RelationTree, RelationTreeByRowId, RepositoryDriverInterface, Transaction, UniqueConstraintViolationError, UniqueGroup, UpsertIdentityUtilities, UpsertRow, UUIDUtilities, Where, WhereFilterEvaluator, WriteDataUtilities } from 'zibri';
 
 import { InMemoryScope, InMemoryStore, StoredRow } from './in-memory-store';
 import { InMemoryTransaction } from './in-memory-transaction.model';
@@ -61,6 +61,11 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
      */
     private readonly uniqueGroups: UniqueGroup[];
 
+    /**
+     * The rules every row of the entity has to follow.
+     */
+    private readonly checks: KeyWhere[];
+
     constructor(
         private readonly entityClass: Newable<T>,
         private readonly store: InMemoryStore
@@ -70,6 +75,7 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
             throw new EntityMetadataMissingError(entityClass);
         }
         this.tableName = metadata.tableName;
+        this.checks = metadata.checks ?? [];
         this.properties = MetadataUtilities.getModelProperties(entityClass);
         this.uniqueGroups = this.resolveUniqueGroups();
     }
@@ -95,6 +101,12 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
         return this.persist(data, this.scope(transaction), reload);
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
+    async insert(data: DeepPartial<T>[], transaction: Transaction | undefined): Promise<T[]> {
+        // finding a stored row is a lookup in memory, so there is nothing for a new row to skip
+        return this.persist(data, this.scope(transaction), true);
+    }
+
     /**
      * Writes the given rows and their relations.
      * @param data - The rows to write. Entries without an id are inserted, entries with one are updated.
@@ -118,6 +130,7 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
             // before the write rather than after it, so a refused save leaves nothing behind even
             // when the caller passed no transaction to roll back
             this.assertUniquesFree(row, id, scope);
+            this.validateChecks(row);
 
             scope.writeRow(this.tableName, id, row);
             this.saveManyToManyRelations(id, entry, scope);
@@ -235,14 +248,18 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
-    async remove(entities: T[], transaction: Transaction | undefined): Promise<T[]> {
+    async remove(ids: string[], transaction: Transaction | undefined): Promise<void> {
         const scope: InMemoryScope = this.scope(transaction);
 
-        for (const entity of entities) {
-            this.removeManyToManyRelations(entity.id, scope);
-            scope.deleteRow(this.tableName, entity.id);
+        for (const id of ids) {
+            this.removeManyToManyRelations(id, scope);
+            scope.deleteRow(this.tableName, id);
         }
-        return entities;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
+    async findIds(options: DriverFindOptions<T>): Promise<string[]> {
+        return this.findRows(options, this.scope(options.transaction)).map(e => e.id);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
@@ -266,11 +283,26 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
         // { status: 'SENT' }) being the obvious case - and re-running it then returns the rows that
         // were *not* touched
         const updated: T[] = this.persist(
-            matched.map(m => ({ ...data, id: m.id })),
+            matched.map(m => ({ ...WriteDataUtilities.resolveMerged(data, m, this.entityClass), id: m.id })),
             scope,
             returnUpdated === true
         );
         return (returnUpdated === true ? updated : matched.length) as R extends true ? T[] : number;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
+    async updateEach(rows: DeepPartial<T>[], where: Where<T>, transaction: Transaction | undefined): Promise<T[]> {
+        const scope: InMemoryScope = this.scope(transaction);
+        // nothing is awaited between finding the rows and writing them, as in updateAll
+        const matched: Map<string, T> = new Map(this.findRows({ where }, scope).map(m => [String(m.id), m]));
+        return this.persist(
+            rows.flatMap(r => {
+                const stored: T | undefined = matched.get(String(r.id));
+                return stored == undefined ? [] : [WriteDataUtilities.resolveMerged(r, stored, this.entityClass)];
+            }),
+            scope,
+            true
+        );
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
@@ -304,7 +336,10 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
             if (found == undefined) {
                 return row.create;
             }
-            if (reachableIds != undefined && !reachableIds.has(found.id)) {
+            // the row's own condition is judged the way `reachable` is, against the row as it is now
+            const meetsCondition: boolean = row.where == undefined
+                || this.findRows({ where: row.where }, scope).some(r => r.id === found.id);
+            if ((reachableIds != undefined && !reachableIds.has(found.id)) || !meetsCondition) {
                 const group: UniqueGroup = UpsertIdentityUtilities.resolveUniqueGroup(this.entityClass, identity);
                 throw new UniqueConstraintViolationError(this.entityClass.name, group.properties);
             }
@@ -330,6 +365,24 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
      * @param scope - What to read through, so rows written earlier in this transaction are seen.
      * @throws When another row already holds the values one of the declarations names.
      */
+    /**
+     * Refuses a row that breaks a check of the entity.
+     * @param row - The row as it will be stored.
+     * @throws CheckConstraintViolationError naming the first check it breaks.
+     */
+    private validateChecks(row: StoredRow): void {
+        if (!this.checks.length) {
+            return;
+        }
+        const entity: T = this.fromFields(row);
+        const broken: KeyWhere | undefined = this.checks.find(
+            check => !this.evaluator.matches<BaseEntity>(entity, check, this.entityClass)
+        );
+        if (broken != undefined) {
+            throw new CheckConstraintViolationError(this.entityClass.name, broken);
+        }
+    }
+
     private assertUniquesFree(row: StoredRow, id: string, scope: InMemoryScope): void {
         for (const group of this.uniqueGroups) {
             const values: string | undefined = this.uniqueValuesOf(group.properties, row);
@@ -502,11 +555,41 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
     reconcileKeyLists(): boolean {
         const lists: string = JsonUtilities.stringify({
             uniques: this.uniqueGroups,
-            indexes: ModelRegistry.get(this.entityClass).keyDescriptor.indexes
+            indexes: ModelRegistry.get(this.entityClass).keyDescriptor.indexes,
+            // only when there are some, as the valkey driver lists them
+            ...this.checks.length ? { checks: this.checks } : {}
         });
         const previous: string | undefined = this.store.getKeyLists(this.tableName);
         this.store.setKeyLists(this.tableName, lists);
         return previous !== lists;
+    }
+
+    /**
+     * Refuses checks the stored rows already break.
+     *
+     * What booting needs, for the reason {@link validateStoredRowsAreUnique} is.
+     * @throws When a stored row breaks one of the checks, naming the row.
+     */
+    validateStoredRowsFollowChecks(): void {
+        if (!this.checks.length) {
+            return;
+        }
+        const scope: InMemoryScope = this.scope(undefined);
+        for (const id of scope.ids(this.tableName)) {
+            const row: StoredRow | undefined = scope.readRow(this.tableName, id);
+            const entity: T | undefined = row == undefined ? undefined : this.fromFields(row);
+            const broken: KeyWhere | undefined = entity == undefined
+                ? undefined
+                : this.checks.find(check => !this.evaluator.matches<BaseEntity>(entity, check, this.entityClass));
+            if (broken != undefined) {
+                throw new InternalError([
+                    // eslint-disable-next-line stylistic/max-len
+                    `Cannot hold ${this.entityClass.name} to the check on ${CheckConstraintViolationError.resolveProperties(broken).join(', ')}:`,
+                    `the stored row ${id} breaks it.`,
+                    'Change the rows breaking it in a migration.'
+                ]);
+            }
+        }
     }
 
     /**
@@ -643,7 +726,7 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
         return EntityRelationsUtilities.mergeTrees(
             EntityRelationsUtilities.mergeTrees(
                 EntityRelationsUtilities.resolveTree(options.relations),
-                EntityOrderUtilities.resolveRelations(options.order)
+                EntityOrderUtilities.resolveRelations(options.order, this.entityClass)
             ),
             forFilter
         );
@@ -1008,19 +1091,21 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
         // a property of one of the entities this reached through is compared exactly as a property
         // of the entity is - the only difference is how far the value is reached through, which the
         // key carries
-        const keys: OrderKey[] = EntityOrderUtilities.resolveKeys(order);
+        const keys: OrderKey[] = EntityOrderUtilities.resolveKeys(order, this.entityClass);
         if (!keys.length) {
             return entities;
         }
 
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        const sorts: { path: string[], compare: OrderComparator }[] = keys.map(key => ({
+            path: key.path,
+            compare: EntityOrderUtilities.resolveComparator(key, (a, b) => this.compareValues(a, b))
+        }));
         return [...entities].sort((a, b) => {
-            for (const { path, direction } of keys) {
-                const comparison: number = this.compareValues(
-                    EntityOrderUtilities.valueAt(a, path),
-                    EntityOrderUtilities.valueAt(b, path)
-                );
+            for (const { path, compare } of sorts) {
+                const comparison: number = compare(EntityOrderUtilities.valueAt(a, path), EntityOrderUtilities.valueAt(b, path));
                 if (comparison !== 0) {
-                    return direction === 'DESC' ? -comparison : comparison;
+                    return comparison;
                 }
             }
             return 0;

@@ -19,6 +19,7 @@ import { UUIDUtilities } from '../../../../../utilities/uuid.utilities';
 import { ZibriInvoicingPlugin } from '../../../invoicing.plugin';
 import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../../../invoicing.tokens';
 import { CompanyInfo } from '../../../models/company-info.model';
+import { InvoiceRecipientAbbreviation } from '../../../models/invoice-recipient-abbreviation.model';
 import { Invoice } from '../../../models/invoice.model';
 import { InvoicingOptions } from '../../../models/invoicing-options.model';
 import { NumberInvoices } from '../../../models/number-invoices.model';
@@ -100,7 +101,7 @@ describe('generateXml', () => {
         await FsUtilities.mkdir(testFileFolder);
         server = await startTestServer({
             plugins: [new ZibriInvoicingPlugin()],
-            dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Invoice, NumberInvoices] })],
+            dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Invoice, NumberInvoices, InvoiceRecipientAbbreviation] })],
             providers: [
                 ...defaultTestServerProviders,
                 defineProvider({ token: ZIBRI_INVOICING_PLUGIN_DI_TOKENS.OPTIONS_INPUT, useValue: invoicingOptions }),
@@ -160,7 +161,8 @@ describe('generateXml', () => {
         const xmlString: string = await conformanceService.generateXml(invoice, 'UTC');
         await FsUtilities.upsertFile(FsUtilities.getPath(testFileFolder, 'xrechnung.xml'), xmlString);
 
-        expect(xmlString).toContain('urn:cen.eu:en16931:2017#compliant#urn:xrechnung:3.0');
+        // the guideline XRechnung 3.0 is identified by, which validators pick the XRechnung rules by
+        expect(xmlString).toContain('<ram:ID>urn:cen.eu:en16931:2017#compliant#urn:xeinkauf.de:kosit:xrechnung_3.0</ram:ID>');
         expect(xmlString).toContain(invoice.number);
         expect(xmlString).toContain('Great Company LLC');
         expect(xmlString).toContain('info@great-company-llc.com');

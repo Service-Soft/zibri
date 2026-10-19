@@ -29,6 +29,21 @@ export function getDefaultBeforeReturnHook<T extends BaseEntity>(): BeforeReturn
 }
 
 /**
+ * Every hook `getDefaultBeforeSaveHook` handed out. What one does for a delete is known - nothing a
+ * row that is not handed back needs - which a hook of an application's own is not.
+ */
+const defaultBeforeSaveHooks: WeakSet<object> = new WeakSet();
+
+/**
+ * Whether the given hook is one `getDefaultBeforeSaveHook` handed out.
+ * @param hook - The hook a repository was given.
+ * @returns True for the default hook, false for one of your own.
+ */
+export function isDefaultBeforeSaveHook(hook: object): boolean {
+    return defaultBeforeSaveHooks.has(hook);
+}
+
+/**
  * Gets the default before save hook.
  */
 export function getDefaultBeforeSaveHook<
@@ -60,5 +75,6 @@ export function getDefaultBeforeSaveHook<
         await encryptEncryptionProperties(data, cls, inject(ZIBRI_DI_TOKENS.ENCRYPTION_SERVICE));
         await hashHashProperties(data, cls, inject(ZIBRI_DI_TOKENS.HASH_SERVICE));
     };
+    defaultBeforeSaveHooks.add(res);
     return res;
 }

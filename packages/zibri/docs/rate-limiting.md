@@ -112,6 +112,19 @@ new InMemoryRateLimiterStore<TokenBucketState>({ maxKeys: 5000 })
 
 A full store refuses keys it has never seen, which reaches the caller as whatever that limiter's `onStoreFailure` says, and reports itself once as an error in the log. Keys already in the store keep counting exactly, so what being full costs is one limited endpoint rather than the process — and rather than the limit itself, which is what evicting would cost: whoever filled the store would be resetting everybody else's counter for them.
 
+`RepositoryRateLimiterStore` takes the same option as its fourth argument, 1 000 000 by default, and is full the same way:
+
+```ts
+new RepositoryRateLimiterStore<TokenBucketState>(
+    inject(repositoryTokenFor(RateLimitStateEntity, CacheDbDataSource)),
+    new ValKeyRateLimiterLock(inject(CacheDbDataSource)),
+    'TestRateLimiter',
+    { maxKeys: 200_000 }
+)
+```
+
+Its size is the number of unexpired keys of its namespace, counted at most every ten seconds per instance, plus the keys that instance created since. Instances creating keys at the same moment can take it past `maxKeys` by what they create in those ten seconds.
+
 ### Applying a limiter to an endpoint
 Use `@RateLimited()` on a controller method, passing the limiter class:
 

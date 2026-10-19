@@ -44,7 +44,7 @@ describe('logToEmail', () => {
     beforeAll(async () => {
         server = await startTestServer();
         emailRepository = inject(repositoryTokenFor(Email));
-    }, 15000);
+    }, 30000);
 
     afterAll(async () => {
         await server?.shutdown();

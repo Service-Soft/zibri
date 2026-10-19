@@ -166,12 +166,12 @@ describe('dropImpossibleConditions', () => {
             expect(res).toEqual([{ revisions: { isIncludedIn: [{ id: a }] } }]);
         });
 
-        it('leaves an allow list alone when nothing in it survives', () => {
-            // emptying it would say "no related row is permitted", which is a different question
-            // from the one that was asked, and narrowing must never be what changes an answer
+        it('drops a branch whose allow list has nothing left in it', () => {
+            // a row has to have related rows, and all of them allowed, so nothing left to allow is a
+            // requirement nothing satisfies - the answer an empty allow list gets on every store
             const where: WhereFilter<Document> = { revisions: { isIncludedIn: [{ id: 'not-a-uuid' } as Revision] } };
 
-            expect(drop(where)).toEqual([where]);
+            expect(drop(where)).toEqual([]);
         });
 
         it('leaves a relation filter that names no entity alone', () => {

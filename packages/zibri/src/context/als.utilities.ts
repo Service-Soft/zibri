@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 
 import { CacheContext } from './cache/cache.context';
+import { OperationLimit } from './operation-limit.model';
 import { HttpRequestContext } from './request/http-request.context';
 import { WebsocketRequestContext } from './request/websocket-request.context';
 import { type Transaction } from '../data-source/transaction/transaction.model';
@@ -34,6 +35,7 @@ export abstract class AlsUtilities {
     private static readonly span: AsyncLocalStorage<TraceSpanInterface> = new AsyncLocalStorage<TraceSpanInterface>();
     private static readonly traceContext: AsyncLocalStorage<TraceSpanContext> = new AsyncLocalStorage<TraceSpanContext>();
     private static readonly tenant: AsyncLocalStorage<string> = new AsyncLocalStorage<string>();
+    private static readonly operationLimit: AsyncLocalStorage<OperationLimit> = new AsyncLocalStorage<OperationLimit>();
 
     /**
      * Resolves the currently active request context from the async local storage.
@@ -54,6 +56,37 @@ export abstract class AlsUtilities {
      */
     static findCurrentRequestSignal(): AbortSignal | undefined {
         return this.getCurrentRequestContext()?.signal;
+    }
+
+    /**
+     * Finds the signal of the limit the work running here is under, or else of its request.
+     *
+     * What a store reads to find out whether an operation is still wanted. The limit's signal already
+     * fires with the request's, so it is the one to listen to where both exist.
+     * @returns The signal, or undefined when neither the work nor a request has a deadline.
+     */
+    static findCurrentSignal(): AbortSignal | undefined {
+        return this.findCurrentOperationLimit()?.signal ?? this.findCurrentRequestSignal();
+    }
+
+    /**
+     * Runs the given function under a limit on how long its work may take.
+     *
+     * A limit set inside another replaces it for as long as the inner function runs.
+     * @param limit - The limit.
+     * @param fn - The function to run.
+     * @returns The result of the function.
+     */
+    static runWithOperationLimit<T>(limit: OperationLimit, fn: () => T): T {
+        return this.operationLimit.run(limit, fn);
+    }
+
+    /**
+     * Finds the limit the work running here is under.
+     * @returns The limit, or undefined when nobody set one.
+     */
+    static findCurrentOperationLimit(): OperationLimit | undefined {
+        return this.operationLimit.getStore();
     }
 
     /**

@@ -338,7 +338,7 @@ describe('NewCommand (the generated Dockerfile, built and run)', () => {
         // ZIBRI_CLI_LOCAL_DEV is deliberately not set: the generator is asked for the same project it
         // writes for anybody else, one that depends on the framework by name. What makes that
         // resolvable is the registry above rather than a path back into this repository.
-        await quietly(async () => new NewCommand().start(['n', 'api', 'none']));
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin']));
         appDir = path.join(workDir, 'api') as Path;
 
         // the lock the generator just wrote resolves to "127.0.0.1", which inside the image is the

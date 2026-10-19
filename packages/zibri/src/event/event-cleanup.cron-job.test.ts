@@ -24,7 +24,7 @@ function fakeLogger(): LoggerInterface {
 describe('EventCleanupCronJob', () => {
     it('deletes finished events whose cleanupAt has passed', async () => {
         const repo: Repository<Event<unknown>> & { deleteAll: jest.Mock<(options: unknown) => Promise<number>> } = fakeEventRepository();
-        const cronJob: EventCleanupCronJob = new EventCleanupCronJob(repo);
+        const cronJob: EventCleanupCronJob = new EventCleanupCronJob(repo, 'forever');
         (cronJob as unknown as { logger: LoggerInterface }).logger = fakeLogger();
 
         const before: Date = new Date();
@@ -42,7 +42,7 @@ describe('EventCleanupCronJob', () => {
     it('logs how many events were removed', async () => {
         const repo: Repository<Event<unknown>> & { deleteAll: jest.Mock<(options: unknown) => Promise<number>> } = fakeEventRepository();
         repo.deleteAll.mockResolvedValue(2);
-        const cronJob: EventCleanupCronJob = new EventCleanupCronJob(repo);
+        const cronJob: EventCleanupCronJob = new EventCleanupCronJob(repo, 'forever');
         const logger: LoggerInterface = fakeLogger();
         (cronJob as unknown as { logger: LoggerInterface }).logger = logger;
 
@@ -54,14 +54,14 @@ describe('EventCleanupCronJob', () => {
     it('silently swallows errors from the repository instead of throwing', async () => {
         const repo: Repository<Event<unknown>> & { deleteAll: jest.Mock<(options: unknown) => Promise<number>> } = fakeEventRepository();
         repo.deleteAll.mockRejectedValue(new Error('db is down'));
-        const cronJob: EventCleanupCronJob = new EventCleanupCronJob(repo);
+        const cronJob: EventCleanupCronJob = new EventCleanupCronJob(repo, 'forever');
         (cronJob as unknown as { logger: LoggerInterface }).logger = fakeLogger();
 
         await expect(cronJob.onTick()).resolves.toBeUndefined();
     });
 
     it('is configured to run daily and not on init', () => {
-        const cronJob: EventCleanupCronJob = new EventCleanupCronJob(fakeEventRepository());
+        const cronJob: EventCleanupCronJob = new EventCleanupCronJob(fakeEventRepository(), 'forever');
 
         expect(cronJob.initialConfig.name).toBe('Event Cleanup');
         expect(cronJob.initialConfig.runOnInit).toBe(false);

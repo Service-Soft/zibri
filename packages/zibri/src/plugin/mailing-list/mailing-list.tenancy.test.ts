@@ -106,7 +106,7 @@ describe('mailing lists across tenants', () => {
         await createSubscribedList(GLOBEX, 'Globex-News');
         const service: MailingListServiceInterface = inject(ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS.MAILING_LIST_SERVICE);
 
-        const link: URL = new URL(await inTenant(ACME, async () => await service.resolveManagePreferencesLink(ofAcme.id)));
+        const link: URL = new URL(await inTenant(ACME, async () => await service.resolveManagePreferencesLink(ofAcme)));
         // the application's baseUrl is not where the test reaches it, the path and query are the link's
         const res: Response = await fetch(`${baseUrl}${link.pathname}${link.search}`);
 
@@ -114,7 +114,9 @@ describe('mailing lists across tenants', () => {
         const html: string = await res.text();
         expect(html).toContain('Acme-News');
         expect(html).not.toContain('Globex-News');
-        // the same subscriber named for another tenant is no row of it
-        expect((await fetch(`${baseUrl}/mailing-lists/preferences?subscriberId=${ofAcme.id}&x-tenant-id=${GLOBEX}`)).status).toBe(404);
+        // the same link naming another tenant reaches no row of it, and answers like any link that
+        // names no subscriber
+        link.searchParams.set('x-tenant-id', GLOBEX);
+        expect((await fetch(`${baseUrl}${link.pathname}${link.search}`)).status).toBe(401);
     });
 });

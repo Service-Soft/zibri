@@ -4,6 +4,10 @@ import { CronExpression } from '../../../cron/cron-expression.utilities';
 import { CronJob, InitialCronConfig } from '../../../cron/cron-job.model';
 import { Repository } from '../../../data-source/repository/repository';
 import { InjectRepository } from '../../../di/decorators/inject-repository.decorator';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
+import { inject } from '../../../di/inject.function';
+import { Controller } from '../../../routing/decorators/controller.decorator';
+import { Post } from '../../../routing/decorators/post.decorator';
 
 /**
  * What every instance of the cron cluster boots with.
@@ -39,6 +43,7 @@ function currentTick(): string {
  */
 class ClusterCronJob extends CronJob {
     readonly initialConfig: InitialCronConfig = {
+        // eslint-disable-next-line sonar/no-duplicate-string
         name: 'cluster-cron',
         cron: CronExpression.fromString('*/3 * * * * *'),
         // off, so that only genuinely scheduled runs are recorded. Every instance firing every job
@@ -67,8 +72,31 @@ class ClusterCronJob extends CronJob {
     }
 }
 
+/**
+ * Turns the job off or on through the instance it is asked on, the way an operator would.
+ */
+@Controller('/cluster-cron')
+class ClusterCronController {
+    /**
+     * Disables the job, on this instance's say.
+     */
+    @Post('/disable')
+    async disable(): Promise<void> {
+        await inject(ZIBRI_DI_TOKENS.CRON_SERVICE).disable('cluster-cron');
+    }
+
+    /**
+     * Enables the job, on this instance's say.
+     */
+    @Post('/enable')
+    async enable(): Promise<void> {
+        await inject(ZIBRI_DI_TOKENS.CRON_SERVICE).enable('cluster-cron');
+    }
+}
+
 const options: StartTestServerOptions = {
-    cronJobs: [ClusterCronJob]
+    cronJobs: [ClusterCronJob],
+    controllers: [ClusterCronController]
 };
 
 export default options;

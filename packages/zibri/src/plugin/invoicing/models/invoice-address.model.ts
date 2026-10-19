@@ -1,3 +1,4 @@
+import { ElectronicAddress } from './electronic-address.model';
 import { Property } from '../../../entity/decorators/property.decorator';
 
 /**
@@ -26,6 +27,12 @@ export class InvoiceAddress {
      */
     @Property.string({ required: false })
     email?: string | null;
+    /**
+     * The address the customer receives electronic invoices at. A Peppol invoice requires it, an
+     * XRechnung names the customer by their email without it.
+     */
+    @Property.object({ cls: () => ElectronicAddress, required: false })
+    electronicAddress?: ElectronicAddress | null;
     /**
      * The street of the address.
      */

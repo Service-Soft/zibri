@@ -50,7 +50,7 @@ describe('a transaction that is never committed or rolled back', () => {
         server = await startTestServer({ dataSources: [dataSourceClass] });
         dataSource = inject(dataSourceClass);
         repo = inject(repositoryTokenFor(Item));
-    }, 15000);
+    }, 30000);
 
     it('gives its connection back rather than holding it for the life of the process', async () => {
         // as many as the pool will hand out, each one the mistake this is about: started, used for

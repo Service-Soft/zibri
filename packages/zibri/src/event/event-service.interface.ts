@@ -1,3 +1,4 @@
+import { type EventReplayOptions } from './event-replay-options.model';
 import { Event } from './event.model';
 
 /**
@@ -73,6 +74,14 @@ export interface EventServiceInterface {
      * instance hosting it is left to say otherwise.
      */
     refreshSubscriberRegistrations: () => Promise<void>,
+    /**
+     * Offers the failed runs the options select to their subscribers again, each with all of its
+     * attempts, and puts their events back among the ones still owed.
+     *
+     * A run whose subscriber no instance hosts any more stays failed.
+     * @returns How many runs are offered again.
+     */
+    replayFailed: (options: EventReplayOptions) => Promise<number>,
     /**
      * Emits an event of the given type and data.
      */

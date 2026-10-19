@@ -1,6 +1,7 @@
 import { DiTokenProviderRecord, providersFromTokenRecord } from '../../di/models/di-token.model';
 import { ZibriPlugin } from '../plugin.model';
 import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from './invoicing.tokens';
+import { InvoiceRecipientAbbreviation } from './models/invoice-recipient-abbreviation.model';
 import { Invoice } from './models/invoice.model';
 import { InvoicingOptionsInput } from './models/invoicing-options-input.model';
 import { InvoicingOptions } from './models/invoicing-options.model';
@@ -82,7 +83,7 @@ export class ZibriInvoicingPlugin extends ZibriPlugin {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     validate(app: ZibriApplication): void {
-        validateEntitiesRegistered(this.constructor.name, app, Invoice, NumberInvoices);
+        validateEntitiesRegistered(this.constructor.name, app, Invoice, NumberInvoices, InvoiceRecipientAbbreviation);
         validateTokensRegistered(this.constructor.name, ZIBRI_INVOICING_PLUGIN_DI_TOKENS);
     }
 }

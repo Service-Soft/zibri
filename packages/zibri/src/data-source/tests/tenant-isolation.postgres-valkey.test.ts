@@ -27,12 +27,14 @@ beforeAll(async () => {
     const postgresDataSource: PostgresDataSource = inject(postgresDataSourceClass);
     const valKeyDataSource: ValKeyDataSource = inject(valKeyDataSourceClass);
     postgres = {
+        dataSource: postgresDataSource,
         notes: postgresDataSource.getRepository(TenantNote),
         notices: postgresDataSource.getRepository(TenantNotice),
         projects: postgresDataSource.getRepository(TenantProject),
         tasks: postgresDataSource.getRepository(TenantTask)
     };
     valKey = {
+        dataSource: valKeyDataSource,
         notes: valKeyDataSource.getRepository(TenantNote),
         notices: valKeyDataSource.getRepository(TenantNotice),
         projects: valKeyDataSource.getRepository(TenantProject),

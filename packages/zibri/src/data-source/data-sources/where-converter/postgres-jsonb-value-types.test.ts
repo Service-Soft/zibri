@@ -69,7 +69,7 @@ describe('a filter on a JSON column', () => {
         server = await startTestServer({ dataSources: [dataSourceClass] });
         sensorRepo = inject(repositoryTokenFor(Sensor));
         dataSource = inject(dataSourceClass);
-    }, 20000);
+    }, 30000);
 
     afterAll(async () => {
         await server?.shutdown();

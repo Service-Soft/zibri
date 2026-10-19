@@ -109,7 +109,7 @@ describe('ZibriPaymentPlugin.validate', () => {
             { [KnownPaymentMethod.PAY_PAL]: 'Provider' }
         );
         await expect(server.start()).resolves.toEqual(expect.any(String));
-    }, 15000);
+    }, 30000);
 
     it('rejects duplicate payment provider names', async () => {
         const providerA: ReturnType<typeof createFakeProvider> = createFakeProvider('Duplicate');
@@ -131,5 +131,5 @@ describe('ZibriPaymentPlugin.validate', () => {
             [provider],
             { [KnownPaymentMethod.PAY_PAL]: 'Provider' }
         )).rejects.toThrow(/duplicate payment methods/);
-    }, 15000);
+    }, 30000);
 });

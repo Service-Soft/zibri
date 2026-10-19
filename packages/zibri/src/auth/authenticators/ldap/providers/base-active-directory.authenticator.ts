@@ -3,6 +3,7 @@ import type { Client, Filter } from 'ldapts';
 import { InternalError } from '../../../../error-handling/internal-error.model';
 import { BaseUser } from '../../../models/base-user.model';
 import { BaseLdapAuthenticator } from '../base-ldap.authenticator';
+import { LdapEntry } from '../ldap-entry.model';
 import { Ldapts } from '../ldapts.type';
 
 /**
@@ -10,6 +11,11 @@ import { Ldapts } from '../ldapts.type';
  * as deep as they go (LDAP_MATCHING_RULE_IN_CHAIN).
  */
 const IN_CHAIN_RULE: string = '1.2.840.113556.1.4.1941';
+
+/**
+ * The flag of `userAccountControl` that marks a disabled account (ACCOUNTDISABLE).
+ */
+const ACCOUNT_DISABLED: number = 0x2;
 
 /**
  * Authenticates a user by the password of their account in Active Directory, or a Samba domain.
@@ -36,6 +42,8 @@ export abstract class BaseActiveDirectoryAuthenticator<
 
     override readonly groupFilter: string = '(objectClass=group)';
 
+    override readonly entryStateAttributes: string[] = ['userAccountControl'];
+
     /**
      * Writes an `objectGUID` the way Active Directory shows it, eg. `5f2c4b1e-…`: its first three
      * parts are stored with their bytes in reverse order.
@@ -54,6 +62,38 @@ export abstract class BaseActiveDirectoryAuthenticator<
             value.subarray(8, 10),
             value.subarray(10, 16)
         ].map(part => part.toString('hex')).join('-');
+    }
+
+    /**
+     * Turns a GUID written the way Active Directory shows it back into the 16 bytes of the `objectGUID`.
+     * @param entryId - The GUID.
+     * @returns The bytes.
+     * @throws InternalError when the GUID does not have 16 bytes.
+     */
+    protected override toEntryIdValue(entryId: string): Buffer {
+        const value: Buffer = Buffer.from(entryId.replaceAll('-', ''), 'hex');
+        if (value.length !== 16) {
+            throw new InternalError(`${this.constructor.name}: an objectGUID has 16 bytes, not ${value.length}.`);
+        }
+        return Buffer.concat([
+            Buffer.from(value.subarray(0, 4)).reverse(),
+            Buffer.from(value.subarray(4, 6)).reverse(),
+            Buffer.from(value.subarray(6, 8)).reverse(),
+            value.subarray(8, 16)
+        ]);
+    }
+
+    /**
+     * Whether an account may go on signing in: not when its `userAccountControl` marks it disabled.
+     * @param entry - The account, with the attributes that were read.
+     * @returns Whether it is active.
+     */
+    protected override isEntryActive(entry: LdapEntry): boolean {
+        // a lockout after too many wrong passwords is `lockoutTime` rather than a flag, and is left alone
+        // for the reason the base class leaves OpenLDAP's: whoever typed them must not end the logins
+        // eslint-disable-next-line cspell/spellchecker
+        const [flags] = entry.attributes['useraccountcontrol'] ?? [];
+        return flags == undefined || (Number(flags) & ACCOUNT_DISABLED) === 0;
     }
 
     /**

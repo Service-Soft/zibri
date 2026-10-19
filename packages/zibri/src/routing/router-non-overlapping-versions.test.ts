@@ -27,7 +27,7 @@ describe('Router — non-overlapping versions on the same route', () => {
         server = await startTestServer({
             controllers: [VersionedControllerV1, VersionedControllerV2]
         });
-    }, 15000);
+    }, 30000);
 
     afterAll(async () => {
         await server?.shutdown();

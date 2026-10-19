@@ -190,7 +190,8 @@ nothing later to wait for.
 >
 > **Same shape, not touched:** `EventService.onAppStart` replays unfinished events, which is also work
 > beginning on an instance nothing can reach yet. It is a different subsystem and a different
-> finding — noted rather than changed.
+> finding — noted rather than changed. *(Gone since: [1.5](#15-restart-replay-is-per-replica-and-duplicates--critical-fixed)
+> replaced the replay with the dispatch poll, a cron job, which starts once the port is bound.)*
 
 Scheduling belongs in `onAppStart` at the earliest, and ideally behind an explicit enable.
 
@@ -202,7 +203,7 @@ with an inert stub, so the test has to put the real one back before there is any
 
 ### 1.4 The "durable event system" does not cross processes — ~~CRITICAL~~ ~~MOSTLY FIXED~~ **FIXED**
 
-> **Closed for delivery and exactly-once; see 1.4b for what remains.**
+> **Closed for delivery and exactly-once; see 1.4b for what remained, closed since.**
 >
 > `EventSubscriberRun` is now a *claim* rather than a record. It carries a unique
 > `claimKey` (`<eventId>:<subscriberId>`), a `lockedUntil` and a `finishedAt`, and the row is
@@ -413,6 +414,10 @@ has exactly the shape `RateLimiterLockInterface` requires, so a postgres-only de
 correct shared limits with a small adapter. See E4 below for why that lock is not sufficient on its
 own either.
 
+*Closed since, without the adapter: `RepositoryRateLimiterStore` keeps a version on each row, and that
+compare keeps a count right across instances under the in-process lock, which is how the limiters of
+[03 §H21](./03-auth-and-security.md) share theirs on any data source.*
+
 ### 1.8 Tag invalidation never reaches multi-tier caches — ~~CRITICAL~~ **FIXED**
 
 > **Closed.** The root cause was not the double filter itself but what forced it: `MultiTierCache`
@@ -533,7 +538,7 @@ postgres `LISTEN`/`NOTIFY`, a valkey pub/sub channel, or a short-lived table eve
 >
 > **Residue, and it is the user's call rather than a defect**: a single-instance push-only
 > application declares neither, and still gets no server. Closing that means an explicit option,
-> which is a public API question.
+> which is a public API question. Filed as §1.14.
 >
 > **The original filing had one thing wrong and it mattered.** It said "rooms are a plain object",
 > which would have meant an adapter could not help — an adapter fans out socket.io *rooms*, so a
@@ -553,7 +558,7 @@ postgres `LISTEN`/`NOTIFY`, a valkey pub/sub channel, or a short-lived table eve
 > only needed by features that have to tell the other instances something. A data source that cannot
 > do it is perfectly usable, it just cannot back those features.
 
-Two limits remain, the first documented in `docs/websocket.md`:
+Two limits remain, filed as §1.13 and §1.12 (both since closed):
 
 - **`sendToChannel` with `expectResponse: true` still only reaches this instance's clients**
   (`websocket.service.ts:466`), because that path iterates the local connections array rather than
@@ -671,6 +676,114 @@ cannot be closed with a unique `INSERT`: the counter already exists and has to b
 it needs an atomic increment or a row lock. This is the finding that makes adding one concrete
 rather than speculative.
 
+### 1.12 The websocket connections of an instance are a list scanned on every connect and disconnect — ~~MINOR, open~~ **FIXED**
+
+> **Closed 2026-10-19.** `connections` is a `Map` by socket id, so a connect, a disconnect and
+> `findConnectionById` each find their own connection without walking the others.
+>
+> **The connections of a user are read off the user's room**, which socket.io already indexes per
+> instance (`sockets.adapter.rooms`). A second map by user id was the alternative, and was not
+> built: it would be a second record of membership kept beside the rooms, which is exactly what
+> the comment on the field says the channels stopped doing. So an ended login, the path
+> `disconnectEndedLogins` and the `ENDED_LOGINS_EVENT` from another instance take, now looks only at
+> the sockets of the users whose logins ended, instead of filtering every connection of the
+> instance once per logout.
+>
+> That moved the join of the user's room out of `recoverConnection` into `onConnect`, ahead of
+> every await. Joined where it was, after the expiry check and the membership lookup, a logout in
+> between would have found the room empty where the list used to hold the connection already.
+>
+> **`findConnectionByUserId` is now `findConnectionsByUserId`**, chosen by the user. One user holds
+> several connections (two tabs, a phone and a laptop), and the old method returned whichever came
+> first in the array and threw when there was none. It returns all of this instance's, and an empty
+> list for none. The rename is breaking, and the compiler names every caller, so it gets no entry
+> in `upgrading-to-3.md`.
+>
+> **Found on the way:** `getConnections` handed out the array itself, so a caller filtering it in
+> place or splicing a closed connection out changed what the service believed was connected. It
+> returns a copy now.
+>
+> **Left to §1.13**, by choice: the two paths that wait for answers, `sendToChannel` and `sendToAll`
+> with `expectResponse`, still filter all of this instance's connections by room. §1.13 reworks
+> exactly that path to reach the other instances, which will change how it finds its recipients.
+> It did: they read the room off the same index since.
+>
+> Held by `findConnectionsByUserId returns every connection of the user, and only those still open`
+> in `websocket.service.test.ts`: two sockets of one user and an anonymous one, then one of the
+> user's closing. That suite runs on Postgres, and is green on the user's run. The in-memory websocket suites,
+> ended logins and tenancy among them, which go through the user's room, are green (45), and so is
+> `websocket.evaluation.test.ts`. The scan itself has no test: at sizes a test can open, a lookup in
+> an array of a few hundred sockets costs nothing against one handshake, so no timing would tell the
+> two apart.
+
+*Filed on 2026-10-15, from the limits 1.10 names; carried over from [02 §C8](./02-http-runtime-core.md).*
+
+`WebsocketService.connections` is a plain array (`src/websocket/services/websocket.service.ts:149`),
+searched with `.find()` on connect (`:401`) and with `.find()`, `.indexOf()` and `.splice()` on
+disconnect (`:678-683`). Every connection event is O(n) and a reconnect storm O(n²), on exactly the
+instances clustering puts the most sockets on. A `Map` keyed by socket id is the fix.
+
+### 1.13 `sendToChannel` waiting for answers asks only this instance's connections — ~~MINOR, open~~ **FIXED**
+
+> **Closed 2026-10-19.** Decided with the user: **every instance is asked, and each answer says
+> who gave it.** The instance sending emits `zibri.ask-for-answers` to the others with the room
+> (a channel's, a tenant's, or none for everyone) and the message. Each instance asks the
+> connections it holds in that room, as the sender asks its own, and sends back `zibri.answers`.
+> The sender merges them. A connection object only exists on the instance holding its socket, so
+> `sendToChannel` and `sendToAll` return `WebsocketAnswer`s: `request`, `connectionId` and
+> `userId`. `send` to one connection keeps its connection.
+>
+> **The wait is socket.io's message and Zibri's own count.** socket.io's acknowledged
+> `serverSideEmit` was the obvious tool and was not used: its wait is a fixed 5 seconds inside
+> socket.io-adapter, the same as the default `timeoutInMs`. An instance waiting out a silent
+> client of its own answers just after that, and all its answers would have been lost. So the
+> sender waits until every instance it knows of has answered, or until `timeoutInMs` plus one second
+> for the round trip (`ANSWERS_TRAVEL_IN_MS`), and logs how many instances it gave up on.
+>
+> **A silent connection is listed with a `LoggedError`**, at the user's pointer to
+> `errorToLoggedError`. An `Error` is written as `{}` on its way between instances. The
+> `LoggedError` form is json, the same on every instance and the same as thread jobs and events
+> store. This replaces the `Error` in `request.body.error`, which `upgrading-to-3.md` names,
+> because `body` is `unknown` and no compiler would.
+>
+> **Found on the way, and it is what made this possible:** the adapter of §1.10 extended socket.io's
+> plain `ClusterAdapter`, whose `serverCount` is always 1. `fetchSockets` and an acknowledged
+> `serverSideEmit` therefore never looked past their own instance, although the adapter's JSDoc and
+> `docs/websocket.md` promised cross-instance socket lookups. Nothing in Zibri used either, so no
+> test noticed. It now extends `ClusterAdapterWithHeartbeat`, which counts the instances it hears
+> from. It announces itself only once its subscription is up, so the immediate answers to the
+> announcement are not missed. Its `close` calls the base's, which tells the others it has gone and
+> stops the heartbeat timers.
+>
+> The two scans §1.12 left here are gone with it: the local collection reads the room off
+> socket.io's index of this instance's rooms, as a user's connections already were.
+>
+> **Tests.** `collects what a client connected to a different instance answers, naming its
+> connection` in `websocket.cluster.test.ts`: a client on each instance, asked from the first. It
+> would be red twice over before: with the old collection, and with the plain adapter, which counts
+> no other instance to ask. Green on the user's run of 2026-10-19. In memory,
+> `websocket-answers.test.ts`: each answer names its connection, and a silent connection is listed
+> with its timeout as a `LoggedError` that survives json. That case went red with the `Error` put
+> back. The in-memory websocket suites (49) and docs-examples are green.
+
+*Filed on 2026-10-15, from the limits 1.10 names.*
+
+`sendToChannel({ expectResponse: true })` collects answers from `this.connections` filtered by the
+channel's room (`src/websocket/services/websocket.service.ts:867`), so members connected to another
+instance are neither asked nor counted. A broadcast without answers goes through the adapter and reaches
+them. `docs/websocket.md` states the limit; nothing lifts it.
+
+### 1.14 An application that only pushes over websockets on one instance gets no server — MINOR, **open, waiting on a decision**
+
+*Filed on 2026-10-15, from 1.10's residue, which calls it "the user's call".*
+
+The socket.io server starts when the application declares a websocket controller or names an
+`adapterDataSource` (`src/websocket/services/websocket.service.ts:272-273`). A push-only application -
+clients that listen, a server that broadcasts from http routes - declares neither on a single instance,
+and its clients find nothing to connect to. Naming an adapter needs a data source that can publish, so
+the only way in today is a valkey adapter for an instance that has nothing to share it with. Closing it
+means an explicit option, which is a public api question.
+
 ---
 
 ## 2. Robustness
@@ -709,7 +822,7 @@ SQL `UPDATE`. The same mechanism kills `LogCleanupCronJob` (unbounded log-table 
 >
 > **Not done, and named in the finding:** there is still no retry, no backoff and no error budget.
 > `stopOnError: true` is a halt that a restart clears, not a circuit breaker — a job failing every
-> tick still fails every tick.
+> tick still fails every tick. Filed as §2.17.
 
 ### 2.2 Failed emails are silently deleted — ~~CRITICAL~~ **FIXED**
 
@@ -752,7 +865,8 @@ is the whole defect.
 >
 > **Still not there,** and named in the finding: `attempts`, `nextRetryAt`, an actual retry with
 > backoff, a dead letter queue. Those are a delivery feature rather than a correction, and the defect
-> here was destroying evidence, which no longer happens.
+> here was destroying evidence, which no longer happens. Retention and retries are §2.20 and §2.14.
+> *(Both closed since.)*
 >
 > **The test asserting those columns was retired to a comment**, found red while closing §5.2. It
 > asked `Email` for `attempts` and `lastError` — the two things this fix decided against — so it
@@ -829,10 +943,10 @@ hammers a downed dependency three times within microseconds and gives up.
 > which predicts it exactly: `"EventSubscriberRun" has no property "event"`, because a postgres
 > upsert is one statement built out of columns and a relation is not one. The create data names
 > `eventId` now, which is what the finding recommends - and is one entity stepping around it rather
-> than the finding being closed.
+> than the finding being closed. *(01 §M24 closed since.)*
 >
 > **Still not there:** no replay-failures API, and nothing walks a `FAILED` event back to
-> `CREATED`. The record is queryable and that is the whole of it.
+> `CREATED`. The record is queryable and that is the whole of it. Filed as §2.19. *(Closed since.)*
 
 `src/event/event.service.ts:222-234` — the `EventSubscriberRun` row is written **whether or not**
 the hook succeeded, so a failed subscriber counts as "ran". Once all subscribers have a row the
@@ -1242,7 +1356,7 @@ silently skips/doubles a 02:30 job.
 >
 > **Not done:** `missedExecutionTolerance` and `suppressMissedWarning` are still unwired. They are
 > about an execution that ran late within one process, which is a different question from a process
-> that was not there.
+> that was not there. Filed as §2.18.
 
 ### 2.12 Unbounded thread-job queue — ~~MINOR~~ **FIXED**
 
@@ -1307,7 +1421,39 @@ correctly, and are the evidence that flooring was the intent.
 > Held by `src/cron/cron-expression.utilities.test.ts`, which needs no container and runs in the
 > normal suite.
 
-### 2.14 A mail whose send throws stays at the head of the queue, and enough of them stop a priority — MAJOR, **open**
+### 2.14 A mail whose send throws stays at the head of the queue, and enough of them stop a priority — ~~MAJOR, open~~ **FIXED**
+
+> **Closed 2026-10-16: retried with backoff, then FAILED, with configurable defaults** (both the
+> user's calls, over failing it at once and over a required `maxSendAttempts`).
+>
+> - **Each mail is judged on its own.** `sendMany` sends every mail through `sendCountingAttempts`,
+>   which catches what its send throws, so one mail no longer fails its batch, and the work handed to
+>   `withLeases` returns normally and releases every claim. `retainOnError` stays as the backoff for
+>   what is left: recording the attempt itself failing.
+> - **A throw counts an attempt.** `Email` gets `attempts` (integer, 0 on create) and `retryAt`. A
+>   throw writes `attempts + 1` and a `retryAt` of `retryDelayInMs × 2^(attempts − 1)` from now, and
+>   logs a warning naming the attempt; `findMails` reads only mails with no `retryAt` or one in the
+>   past, so the mails behind it are sent. The attempt that reaches `maxSendAttempts` writes `FAILED`
+>   instead and logs the error with its cause; the row is kept, as a rejected mail's is.
+> - **Config:** `maxSendAttempts` (5) and `retryDelayInMs` (one minute) are optional in
+>   `EmailConfigInput`, so a mail is given up on after about 15 minutes by default. A missing
+>   attachment is an attempt like any other: in a cluster the file can be on another instance, which
+>   a retry may land on.
+> - `attempts` is left out of `CreateEmailData`, as `createdAt` is, and `retryAt` out of
+>   `QueueEmailData`. The upgrade migration in `upgrading-to-3.md` adds both columns.
+>
+> A throw after the provider accepted the mail (the status write failing, say) is still sent again
+> on the next attempt, as before; `email.md` already tells a transport to throw only when nothing
+> reached the provider.
+>
+> **Proof.** `email.service.retries.test.ts`, in memory, five cases red first: the rest of the batch
+> is sent and the one that threw is passed over until due; the second attempt waits twice as long;
+> it is sent once the server answers again; `FAILED` after `maxSendAttempts`, kept, and tried no
+> more; a missing attachment counts as an attempt rather than failing the pass. The postgres
+> `email.service.test.ts` case that expected the pass to throw for a missing attachment now asserts
+> the attempt instead. `email-transport.evaluation.test.ts`'s recovery case waited out only the
+> retained claim and failed on the user's run, since the row is now held back until its retry is due;
+> its configuration shortens `retryDelayInMs` as it already shortened `sendLeaseInMs`.
 
 *Filed on the re-check of 2026-10-15.*
 
@@ -1329,7 +1475,40 @@ once a priority's share of a batch (`sendBatchSize` less the slots held back for
 is made of such mails, nothing of that priority is sent again. There is no attempt count, no
 `FAILED` for this path and no way past the head of the queue.
 
-### 2.15 Disabling, enabling, rescheduling or stopping a cron job reaches only one instance — MAJOR, **open**
+### 2.15 Disabling, enabling, rescheduling or stopping a cron job reaches only one instance — ~~MAJOR, open~~ **FIXED**
+
+> **Closed 2026-10-16. The row is what every instance goes by, read before each run and synced every
+> five seconds; `update` refuses a job declared in code** (the user's calls, over a tick check
+> alone, and over making renaming work).
+>
+> - **Before every run** `runOnTick(scheduledAt)` reads the job's row (node-cron hands it the
+>   scheduled time). A job that is `INACTIVE` or `STOPPED_ON_ERROR` there is skipped, takes the state
+>   over and stops its task, so a disable or a stop on another instance holds from the next slot on
+>   every instance. A changed `cron` makes the run happen only when the new expression names its
+>   time; the task itself is not rebuilt inside its own tick.
+> - **`CronSyncCronJob`**, registered by `CronService.afterAppInit` whenever the application has
+>   cron jobs, runs on every instance (`distributed: false`, and `syncToDataSource: false` so it never
+>   applies a change to itself from inside its own tick) every five seconds. It calls the new
+>   `CronServiceInterface.applyStoredChanges`, one read for every synced job, and
+>   `CronJob.applyStoredChanges(row)` puts an enabled job back on the schedule, takes a disabled one
+>   off and rebuilds the task of a rescheduled one. So `enable` and `changeCron` reach the instances
+>   whose task was not firing.
+> - **`source`**, new on `CronJobEntity`: `'code'` for every job class, written on the first boot
+>   and by the upgrade migration. A string, because jobs created at runtime are planned to name
+>   their tenant there. `CronJob.update` refuses a code job with a `BadRequestError`: its class
+>   declares what `update` would change, each start took that back from the class anyway, and a new
+>   name left every later write reaching no row. `enable`, `disable` and `changeCron` stay, as the
+>   way to stop a misbehaving job without a deploy, also from its own `onError`. `source` is left out
+>   of `CronConfig` and `CronUpdateData`.
+>
+> **Proof.** `cron.service.stored-changes.test.ts`, in memory with the real cron service, plays the
+> other instance by writing the row: a disable and a stop elsewhere skip the next tick and take the
+> state over; a reschedule elsewhere runs only the new schedule's times; the sync puts an enabled job
+> back and moves a rescheduled one; the sync job is registered and per instance; `update` refuses a
+> code job. Its first run was red only as a whole (the sync job's module did not exist yet), not
+> case by case. `cron.cluster.test.ts` gains the real thing across three replicas: disabled through
+> one, no replica runs it for two slots; enabled through another, it runs again. The postgres
+> `cron.test.ts` case that updated a job now asserts the refusal.
 
 *Filed on the re-check of 2026-10-15.*
 
@@ -1351,7 +1530,13 @@ describes all of these as states of the job.
 (`lastRun`, the state, the error) still filters on the class's own name (`:495`, `:528`, `:565`) and
 reaches no row, and the next boot creates a new one under the old name.
 
-### 2.16 The default timeouts of normal and priority thread jobs are swapped — MAJOR, **open**
+### 2.16 The default timeouts of normal and priority thread jobs are swapped — ~~MAJOR, open~~ **FIXED**
+
+> **Closed 2026-10-16.** `getDefaultTimeout` answers `defaultTimeoutPriorityMs` for a priority job
+> and `defaultTimeoutMs` for a normal one, as the option's JSDoc and `docs/multithreading.md` always
+> said. Held by `multithreading.service.default-timeouts.test.ts`, in memory, which reads the timeout off
+> the row of a queued normal and a queued priority job; both cases were red first, swapped exactly
+> as filed.
 
 *Filed on the re-check of 2026-10-15.*
 
@@ -1361,6 +1546,167 @@ option's JSDoc and `docs/multithreading.md` say the opposite: an hour for a norm
 for a priority one. So a queued background job given no `timeout` is stopped after five minutes, and
 `run(func, input)`, whose `priority` defaults to `true`, gets an hour. No test asserts which default
 a job without a `timeout` gets.
+
+### 2.17 A failing cron job has no retry, backoff or error budget — ~~MINOR, open~~ **FIXED**
+
+> **Closed 2026-10-19.** Decided with the user: **all four, each optional and off when left out,
+> grouped as `onFailure` in `initialConfig`**. `stopOnError` is gone; `stopOnError: true` is now
+> `onFailure: { stopAfterFailures: 1 }`.
+>
+> - `retry: { attempts, delayInMs }` runs a failed slot again, doubling the wait each time. It
+>   starts no attempt once the next slot is due, which would run beside it, and none once the app is
+>   shutting down: the wait listens to an abort fired by `shutdown`, so it cannot hold the process.
+> - `backOff: { maxSkippedSlots }` skips 2^n - 1 slots after n failures in a row, up to the cap. It
+>   is written as `backedOffUntil`, the first slot that runs again, counted from the failure on.
+> - `stopAfterFailures` is the error budget: `STOPPED_ON_ERROR` after that many in a row, undone
+>   at the next start as before.
+> - `restartAfterMs` is the half-open state. The sync, every five seconds on every instance, puts a
+>   stopped job back once that long has passed since its last run. The write only applies while the
+>   row is still stopped, so a job an operator disabled meanwhile stays off. The count is kept, so a
+>   failure of the next tick stops it again and a success starts the count over. A job without a
+>   row is put back by the sync of its own instance.
+>
+> **The count is on the row, `consecutiveFailures`**, read with the row before each tick, since
+> each slot of a distributed job may run on another instance. A slot whose retries all failed counts
+> once. A tick that succeeds sets it to 0 and ends a back off. Mine: **`onFailure` is not stored**.
+> The class has always been the source of truth for `stopOnError`, and every start overwrote the
+> row's copy anyway, so a column holding a copy of a nested policy would only be read by nobody.
+> Not an atomic increment: `updateAll` has none, and two slots of one job failing at once is an
+> overlap the slot claim already makes rare. Two concurrent failures would count one.
+>
+> **Tests.** `cron-job.on-failure.test.ts`, in memory, with the real cron service: a retry that
+> succeeds counts nothing, one that gives up counts once, none past the next slot; the budget stops
+> at three and not at two, a success starts over, failures elsewhere count; the cooldown puts a
+> stopped job back and its next failure stops it again, not before the cooldown, not a disabled job,
+> and a job without a row too; the back off skips one slot, then three cut to the cap, never more,
+> ends with a success, and holds a back off decided elsewhere. 15 green. Seen red with the count
+> left out of what the row is read for: three cases. The first run of that showed the budget case
+> passing on a count left in memory by the case before; `beforeEach` resets memory too since. The
+> postgres `cron.test.ts` moved from `stopOnError` to `onFailure` case for case, green on the
+> user's run of 2026-10-19 with `cron.cluster.test.ts`.
+>
+> Docs: `cron.md` (when a tick throws, with every option), and `upgrading-to-3.md`. The migration
+> drops `stopOnError` and adds `consecutiveFailures` and `backedOffUntil`, and the table of changes
+> says how `stopOnError: true` is written now.
+>
+> **Noticed, not touched:** `CronJob.adoptDeclaredPolicy` has no caller since `reconcileOnBoot`
+> took its job. It only lost its `stopOnError` here.
+
+*Filed on 2026-10-15, from what 2.1 named as not done.*
+
+A tick that throws is logged and the job waits for its next slot (`stopOnError` defaults to `false`,
+`src/cron/cron-job.model.ts:121`), or with `stopOnError: true` stops until the next start. Nothing in
+between: no retry of the failed slot, no backoff for a job that fails every tick, no budget after which
+it stops on its own. `stopOnError` is a halt that a restart clears, not a circuit breaker.
+
+### 2.18 A cron execution that runs late inside one process is not handled — ~~MINOR, open~~ **FIXED**
+
+> **Closed 2026-10-19.** What node-cron did: a slot reached more than a second late was dropped,
+> and its warning went to `console.warn`, past the app's logger, as did its other messages (a
+> failing claim, a failed task). Decided with the user: **`catchUpWithinMs` covers it**, as
+> node-cron's `missedExecutionTolerance`. One option now says how late a slot may still run, whether
+> no instance was up or the process was blocked; unset keeps node-cron's second. node-cron runs only
+> the most recent of several passed slots, the same as a catch-up at start, and through the same
+> slot claim, so across instances it runs once. And **all of node-cron's logging goes to the app
+> logger**, as an adapter passed as its `logger`, prefixed with the job's name. That also brought the
+> framework's own jobs' missed slots into the app log.
+>
+> **Tests.** `cron-job.late-slot.test.ts`, in memory, with the real cron service: two jobs every five
+> seconds, the event loop blocked from half a second before a slot to two seconds past it. The job
+> with `catchUpWithinMs` runs the slot, the one without leaves it out and warns through the app
+> logger with its name. Both red before (no run, no call on the logger), 2 green.
+>
+> Docs: `cron.md`, under catching up a run that was missed. No upgrade entry: nothing to act on.
+
+*Filed on 2026-10-15, from what 2.11 named as not done.*
+
+`catchUpWithinMs` makes up a slot missed while no instance was running. A slot node-cron reaches late
+inside a running process - an event loop blocked past it - is node-cron's own question, and its
+`missedExecutionTolerance` and `suppressMissedWarning` are not passed through (`createTask`,
+`src/cron/cron-job.model.ts:289-293`), so its defaults decide.
+
+### 2.19 A `FAILED` event cannot be replayed — ~~MINOR, open~~ **FIXED**
+
+> **Closed 2026-10-19.** `EventServiceInterface.replayFailed(options)` puts failed runs back:
+> each goes to `PENDING_RETRY`, due now, and its event goes back to `CREATED`, so the dispatch poll
+> offers it with the same claim and the same ledger row. Decided with the user: **a filter**
+> (`eventIds`, `subscriberIds`, `types`, each given one narrowing it, plus `acrossTenants` the way a
+> repository call takes it), so recovering after a subscriber's bug is one call. **A fresh budget**:
+> `attempts` goes back to 0 and the backoff starts over; the last error stays until the next attempt
+> replaces it. **A run whose subscriber has no live registration stays failed**, because the poll
+> would settle its event without it, as `FINISHED` when the others succeeded, and the cleanup would
+> delete the only record of the failure. It resolves to how many runs went back. The reset is one
+> `updateAll` still filtered on `FAILED`, so two replays at once put each run back once.
+>
+> **A race the replay brought, closed in the same change.** Another subscriber's settle could read
+> the runs before a replay reset one and write `FAILED` after the replay wrote `CREATED`, leaving a
+> `FAILED` event with a run owed again, which the poll never offers. `settleEvent` now looks for a
+> `PENDING_RETRY` run after writing `FAILED` and writes `CREATED` back if there is one; the replay
+> writes `CREATED` after its runs, so one of the two always sees the other. The dispatch poll settles
+> through `settleEvent` now as well, rather than a copy of it. No test interleaves the two.
+>
+> **Tests.** `event.service.replay.test.ts`, in memory (3): a replayed run fails once more and
+> succeeds on the next attempt, so it had both attempts again, and the event ends `FINISHED`; the
+> filters narrow together and a second replay of the same run puts back nothing; a run whose
+> registration lapsed stays `FAILED` with its event. `event.service.tenancy.test.ts` (+1): outside
+> every tenant no tenant's run is reached, inside tenant A only A's, and `acrossTenants` reaches B's.
+>
+> Docs: `events.md`, replaying failed runs, and `EventReplayOptions` in its exports. Upgrade guide:
+> an `EventServiceInterface` of your own implements `replayFailed`, and `dispatchPending` and
+> `refreshSubscriberRegistrations` as well, which 2.x did not have and the guide had not said.
+
+*Filed on 2026-10-15, from what 2.4 named as still not there.*
+
+An event whose subscriber spent its attempts is `FAILED` and kept (`src/event/event.service.ts:491-505`,
+`:652`), and the cleanup leaves it alone. That is a record and nothing more: no api walks a failed run
+or event back to be offered again, so recovering one once the cause is fixed means editing rows.
+
+### 2.20 Failed mails are kept forever — ~~MINOR, open~~ **FIXED**
+
+> **Closed 2026-10-19.** The retry half was out of date by the time this was picked up: 2.14 retries
+> a send that throws with backoff and only then fails the mail, and a rejection is a permanent bounce.
+> What was left is the retention. Decided with the user: **required**, because keeping every failure
+> and deleting them after a while are both legitimate: `failedRetentionInMs: RetentionInMs` in
+> `EmailConfig` (`number | 'forever'`, a new exported type). **No requeue** for failed mails: a
+> rejection will be rejected again, and a throw already had its attempts. And **failed events in the
+> same round**, which had the same gap: `ZIBRI_DI_TOKENS.EVENT_FAILED_RETENTION_IN_MS`, no default,
+> refused by `EventService.onAppInit` when unset, the way the websocket service refuses a missing
+> `messageRetentionInMs`. `EventService` is a default provider with an `onAppInit`, built in every
+> application whatever its `register: 'onUse'` says, so every application is asked, as it is for the
+> event entities; first said otherwise here, until the user's `new.command.docker.heavy.test.ts` run
+> showed the scaffolded app refusing to start. The `zi new` template and the sandbox provide it.
+>
+> - **Mails:** `EmailCleanupCronJob`, daily, registered by `EmailService.onAppInit`, calls the new
+>   `EmailServiceInterface.deleteExpiredFailedEmails()` rather than reading the email config itself,
+>   so an email service of the application's own decides. It deletes `FAILED` rows older than the
+>   retention across tenants; `SENT` rows kept with `persist` stay.
+> - **Events:** `EventCleanupCronJob` takes the token and deletes `FAILED` events older than it after
+>   the `FINISHED` ones; their runs go with them through the relation's `'remove'` cascade.
+> - Both count from `createdAt`, which every row has, rather than from a new failed-at column: a
+>   failure lands within minutes of the queue or the emit unless a backlog delays it, and a retention
+>   is counted in days.
+>
+> **Tests**, in memory: `email-cleanup.cron-job.test.ts` (2): failed mails older than a day go, in a
+> tenant as well, while a recent failure, an old `SENT` and an old `QUEUED` mail stay; `'forever'`
+> keeps a year-old failure. `event.service.tenancy.test.ts` (+1): an expired failed event of tenant A
+> goes with its run, a recent one of tenant B stays with its run, and `'forever'` keeps it once it is
+> a year old. `event.service.test.ts` (+1, in memory through `startAndStopTestServerWithout`):
+> without the token the application refuses to start, naming it. The other in-memory suites that boot
+> an app are green apart from the two that need a container.
+>
+> Every `EMAIL_CONFIG` the repository provides names the retention: `defaultTestProviders` (with the
+> event token, both `'forever'`), the sandbox and the `zi new` template (both values `'forever'`,
+> with the accepted sandbox difference following), and the email, 2fa, evaluation and cluster suites. Docs:
+> `email.md`, `events.md`, `testing.md`; upgrade guide: "Say how long failures are kept", and an
+> email service of the application's own implements `deleteExpiredFailedEmails`.
+
+*Filed on 2026-10-15, from what 2.2 states as its cost.*
+
+A mail the server refused for some recipients is kept as `FAILED` whatever `persist` says
+(`src/email/email.service.ts:241-249`), which is the record 2.2 wanted. Nothing ever removes one, so at
+volume the `Email` table grows by every bounce; the docs say so, and there is no option to set a
+retention. A mail that keeps failing is never tried again either, which 2.2
+decided against as a correction; together with 2.14 there is no delivery retry of any kind.
 
 ---
 
@@ -1803,7 +2149,8 @@ no delay, no jitter and no `Retry-After` handling. Retrying a `POST /payments` t
 > `HttpStatus` was missing `408`, sitting between `406` and `409` which were both there.
 >
 > **Still not there,** and named in the finding: no idempotency-key support and no circuit breaker.
-> Those are delivery features; the defect here was re-submitting charges.
+> Those are delivery features; the defect here was re-submitting charges. Filed as §4.4. *(Closed
+> since.)*
 
 ### 4.2 Response body download is unbounded and untimed — ~~MAJOR~~ **FIXED**
 
@@ -1922,6 +2269,49 @@ limitation.
 > and `instanceof` answers no about a value that is exactly what it claims to be. That is the seam
 > [05 §D7](./05-di-metadata-and-packaging.md) refuses to let two copies of the framework create,
 > met for real in a test rather than argued about.
+
+### 4.4 The http client has no idempotency keys and no circuit breaker — ~~MINOR, open~~ **FIXED**
+
+> **Closed 2026-10-19.** Decided with the user:
+>
+> - **`idempotencyKey` per request**, `true | string | { value?, header? }`: `true` generates a UUID,
+>   a string is the key, the object names the header a provider reads (PayPal's `PayPal-Request-Id`)
+>   and generates a missing value. Resolved once per call, so every attempt carries the same key,
+>   sent as `Idempotency-Key` (`KnownHeader.IDEMPOTENCY_KEY`) by default. A POST or PATCH carrying
+>   one counts as repeatable in `retryDelayFor`, so it is retried after a connection error, a timeout
+>   or a retryable 5xx like a PUT; the status rule is unchanged.
+> - **A circuit breaker per origin, on by default** (`HttpClientOptions.circuitBreaker`, `{
+>   failuresToOpen: 5, openForMs: 30000 }`, `false` turns it off), in the instance's memory: a store
+>   would make outbound calls depend on it. Kept in `sendRequest`, so `fetchForLibrary` is covered
+>   too. **A failure** is a request without an answer (refused, reset, timed out) or a 500, 502, 503,
+>   504; any other answer, 429 included, closes and resets. A request let go because the request it
+>   was sent for had been answered counts as neither. **Open**: requests fail at once with
+>   `CircuitOpenError` (a `HttpClientError` with `origin` and `reopensAt`), nothing sent and no
+>   further attempts. **Half-open** after `openForMs`: exactly one request goes through, the others
+>   are refused until it ends; an answer closes the circuit, a failure opens it again at once.
+>
+> **On by default reached one suite:** `http-client.evaluation.test.ts` shares one client and one stub
+> origin across cases that answer 5xx on purpose, and from the fifth the breaker refused the next
+> case's request. Its cases are each about one request, so the suite turns the breaker off, with the
+> reason beside it.
+>
+> **Tests**, `http-client.test.ts` (+11, no container): a keyed POST whose answer was lost after it
+> arrived is repeated with the same generated key, the same POST without a key is not; a given key
+> and a named header are sent on every attempt. The breaker refuses after `failuresToOpen` without
+> sending, only for that origin; it stops a call's retries; one request goes through after
+> `openForMs` and an answer closes; a failed trial opens it again at once; a 429 in between resets the
+> count; a refused connection counts; it is on by default at five; `false` sends every request.
+> The in-memory suites that boot an app are green apart from the ones needing a container.
+>
+> Docs: `http-client.md`, idempotency keys and when an upstream keeps failing. Upgrade guide, under
+> behavior: the client stops calling an upstream that keeps failing.
+
+*Filed on 2026-10-15, from what 4.1 named as still not there.*
+
+4.1 stopped the client repeating a `POST` or `PATCH` that may have landed. What would let such a request
+be retried safely, an `Idempotency-Key` the client generates per logical request and sends with every
+attempt, does not exist. Nor does a circuit breaker: a dependency that is down is called, timed out and
+retried for every request that needs it, rather than refused fast until it recovers.
 
 ---
 
@@ -2054,7 +2444,8 @@ compiler there will not pass build-pipeline or container-hardening review.
 > work: a *utility class* has no declaration point, so calling one can only fail when it is called.
 > `XmlUtilities` had the same shape and got a declaration point from its two callers rather than
 > from itself. Turning the utilities into services registered under a token would give them one
-> directly, and the startup sweep would then check them like everything else.
+> directly, and the startup sweep would then check them like everything else. Filed as §5.5.
+> *(Withdrawn since: templates are imported, so the build is their declaration point.)*
 
 **Opened while fixing §5.1, by the test written for it.** `peerDependenciesMeta` calls four peers
 optional. Measured against the built package, in a process with the resolver patched to refuse each
@@ -2341,7 +2732,7 @@ utilities on several platforms.
 > - **The 15 minute shutdown wait** (`shutdownTimeoutInMs`) still exceeds most Kubernetes grace
 >   periods. An interrupted backup is now refused rather than mistaken for a good one, which is the
 >   part that bites; making the wait fit the platform is a separate question about what a backup
->   should do when it is told to stop.
+>   should do when it is told to stop. Filed as §5.6. *(Fixed since: a configurable wait, then stop.)*
 > **The format contract that rule needed now exists**, at the user's prompting, and building it showed
 > that `zibriVersion` was the wrong thing to key it on. The obvious rule — refuse an archive from a
 > different major — ties backup compatibility to the framework's whole release cycle, so a major bump
@@ -2390,6 +2781,116 @@ for an in-flight backup (`:71`, `:118-123`), which exceeds most Kubernetes
 `terminationGracePeriodSeconds` and will be SIGKILLed mid-write, leaving a partial archive that
 `syncBackupEntities` happily registers.
 
+### 5.5 A missing `handlebars` is found at the first render — ~~MINOR~~ **WITHDRAWN**
+
+*Filed on 2026-10-15, from the gap 5.1b names.*
+
+Every other optional peer is checked while the application starts, where the feature needing it is
+declared. `handlebars` is used through `HandlebarUtilities` (`src/handlebars/handlebar.utilities.ts`), a
+utility class, which has no declaration point, so a deployment without the package finds out at the
+first template it renders. Turning the utilities into a service behind a token would let the startup
+sweep check it like the rest.
+
+> **Withdrawn on 2026-10-19: the declaration point is the build, which comes long before the first
+> render.** A template is a `.hbs` file the application imports (`docs/templating.md`), so it is
+> compiled by `handlebars-loader`, whose own peer is `handlebars`. Without the package the build
+> stops there. Even before the loader, the typegen plugin's `generateHandlebarTypeFiles` runs in
+> `beforeCompile` and parses every template, so a project with templates notices while it builds,
+> not when it is deployed.
+>
+> **A service would not have added a declaration point either.** It would be a default provider,
+> and a default provider is built in every application, so it cannot refuse over a missing package
+> unless something says the application uses templates. The import is what says that, and the build
+> checks it.
+>
+> **Left as they are, deliberately:**
+> - Without the package, `generateHandlebarTypeFiles` reports one "Error processing" line per
+>   template before the loader fails the build.
+> - `HandlebarUtilities.init` skips without the package, even when component partials exist in
+>   `assets/templates/components`.
+> - A template string rendered at runtime with `renderTemplateString` fails at the call. Its error
+>   names the package and the command that installs it.
+>
+> In each case the missing package is either already named, or the build has already failed.
+
+### 5.6 A backup in progress holds the shutdown for fifteen minutes — ~~MINOR~~ **FIXED**
+
+*Filed on 2026-10-15, from what 5.4 leaves open.*
+
+`BackupService.shutdownTimeoutInMs` is fifteen minutes (`src/backup/backup.service.ts:200`), longer than
+most orchestrators' grace period, so the process is usually killed mid-backup instead. An interrupted
+backup is refused rather than mistaken for a good one, but what a backup should do when told to stop is
+undecided. A restore is not atomic against a kill either: a process killed between two resources'
+applies leaves the first applied and the snapshot that would undo it on disk.
+
+> **Fixed on 2026-10-19.** Decided with the user: a wait the application configures, then stop; and a
+> journal that the next start rolls back from.
+>
+> **The wait is `ZIBRI_DI_TOKENS.BACKUP_SHUTDOWN_WAIT_IN_MS`, 0 by default.** `onAppShutdown` waits that
+> long for a running backup or restore, then aborts the service's `stopping` controller. Stopping gets 30
+> seconds of its own, so `shutdownTimeoutInMs` is now a getter returning the wait plus 30 seconds. With
+> the default, stopping fits Kubernetes' default grace period of 30 seconds.
+> - **The default is not required.** Unlike a retention, a timeout is no policy choice. A required token
+>   would also have had to go into every application, because `BackupService` is a default provider.
+>
+> **A stopped backup is deleted.** Stopping destroys the stream each resource produces, which is the
+> end that can be waiting on something that never comes. The staging pipeline and every transport
+> following the staged file fail from there.
+> - The resources are now settled rather than raced, so nothing is still writing to a transport when
+>   `delete` removes the backup from it and from the database.
+> - `createBackup` fails with `BackupStoppedError`. When the delete fails too, the error says the backup
+>   stays recorded as unfinished.
+> - An unfinished backup was already refused by a restore (§5.4). What changes is that stops no longer
+>   pile them up on the transports.
+>
+> **A stopped restore ends at a resource boundary.** That is the one place it can stop without leaving
+> a resource half applied.
+> - During fetching or snapshotting, nothing has been applied, so it simply ends.
+> - Between two applies, it puts back what it applied through the same `putBack` a failing apply uses,
+>   and fails with `RestoreStoppedError`. When a resource cannot be put back, it fails with
+>   `RestoreNotUndoneError`, with `RestoreStoppedError` as the cause.
+>
+> **A killed restore is rolled back at the next start.** Before each apply, the restore writes a
+> journal beside its snapshots in `BACKUP_TEMP_FOLDER`, naming every resource it has started applying.
+> - The journal is written beside the old one and renamed over it, so a kill never leaves half a journal.
+> - A restore that ends inside the process removes its journal, whether it finished, put back, or named
+>   what it could not put back. Only a kill leaves one behind.
+> - `afterAppInit` puts back the resources a leftover journal names, in reverse, before the startup
+>   sync. The sync would otherwise read whatever a half-restored database holds.
+> - A resource that cannot be put back is logged with its snapshot path and stays in the journal, so it
+>   is tried again at every start.
+> - `BackupStagingCleanupCronJob` keeps a journal and the snapshots it names, however old. It used to
+>   delete those snapshots after 12 hours without a word.
+> - **The limit**: journal and snapshots live on this instance's own disk, so a replacement started on
+>   a fresh disk finds nothing to roll back. `docs/backup.md` says so.
+>
+> **A defect found on the way, fixed red-first:** `resolveBackupResource` looked a resource up by its
+> class name, while the backup records it under the name `@Backup` settled on. A resource given
+> `@Backup({ name })` was never found:
+> - `createBackup` warned and skipped it, so it was never `completed`;
+> - `restore` left it out;
+> - `delete` refused the whole backup.
+>
+> The lookup now goes through the metadata name.
+>
+> **The test server no longer stages backups in `.zibri/backups`.** It now points `BACKUP_TEMP_FOLDER`
+> into its scratch directory, so backup suites running in parallel no longer share the same staging
+> folder.
+>
+> **Tests**, none needing a container:
+> - **`backup-service.shutdown.test.ts`** (6):
+>   - a backup is stopped and deleted at once by default;
+>   - a backup is let finish within the wait;
+>   - a backup is stopped once the wait is over;
+>   - a restore stops before its next resource and puts back the first;
+>   - a restore killed while applying its second resource is rolled back at the next start;
+>   - a resource that cannot be put back at one start is put back at the next.
+>
+>   A kill is simulated: the staging folder is copied while the second resource applies, and put back
+>   once the restore has ended.
+> - **`backup-service.resource-name.test.ts`**: the name lookup.
+> - **`backup-staging-cleanup.cron-job.test.ts`**: what the journal names is kept.
+
 ---
 
 ## 6. Plugins
@@ -2397,7 +2898,15 @@ for an in-flight backup (`:71`, `:118-123`), which exceeds most Kubernetes
 *Added on the re-check of 2026-10-15. [09](./09-method-and-coverage.md) lists the mailing list and
 payment plugins as essentially unreviewed; these are what a first read of them found.*
 
-### 6.1 An address already on one mailing list is put on any other without confirming — MAJOR, **open**
+### 6.1 An address already on one mailing list is put on any other without confirming — ~~MAJOR~~ **FIXED**
+
+> **Closed 2026-10-15.** `requestSubscribeToList` sends a known address a token and a confirmation
+> mail like an unknown one, and writes no list onto it. Knowing an address is no consent to a list it
+> never asked for. An address already on the list is sent nothing, which also ends the duplicate
+> append; the caller learns which case it was from neither, since the method returns nothing either
+> way. The test that asserted the old behaviour ("directly attaches the mailing list when the
+> subscriber already exists") now asserts the opposite and then confirms through the mailed link.
+> One new case covers the address already on the list.
 
 `MailingListService.requestSubscribeToList` (`src/plugin/mailing-list/services/mailing-list.service.ts:166-199`)
 looks the address up first, and when a subscriber with it exists, writes the list onto it at once
@@ -2406,7 +2915,34 @@ application has never seen. Anybody who can call the route the application build
 existing subscriber on every list, and the list is appended again when the subscriber is on it
 already (`[...foundSubscriber.mailingLists, list]`).
 
-### 6.2 A subscription confirmation token never expires and is never used up — MAJOR, **open**
+### 6.2 A subscription confirmation token never expires and is never used up — ~~MAJOR~~ **FIXED**
+
+> **Closed 2026-10-15.** Each part, in the order the finding names them:
+>
+> - **The expiration date.** `confirmSubscribeToList` refuses an expired token with `401 Link
+>   expired`, the message the password reset uses.
+> - **Used up.** The token carries `spent`, set by a write conditional on `spent: false`, so of two
+>   requests following one link only one subscribes. The other gets `401`; that one is a case of its
+>   own. Following the link again was a decision the user took. While the address is still on the
+>   list, a spent token answers with its subscriber and writes nothing, because mail scanners often
+>   follow the link before the person does. Once the address left the list it is refused, so an old
+>   mail no longer puts it back.
+>   - The token is spent before the subscription is written, not in one transaction with it. The
+>     token's entity need not live in the subscribers' data source.
+>   - So a write that fails after spending leaves a link to request again, never a second subscriber.
+> - **The table.** `MailingListConfirmationTokenCleanupCronJob`, registered by the plugin, deletes
+>   expired tokens of every tenant hourly, spent or not.
+> - **Stored as it is.** `value` is hashed with `Sha256HashStrategy`, as 03 §B5 did for reset tokens.
+>   The link is built from a local before the write. The test reads the token from the mailed link.
+>   The queued mail is pinned to `persist: false` after the spread, so a copy of the link does not
+>   outlive the send.
+> - **The list in the path.** The list is part of the lookup:
+>   `confirmSubscribeToList(listId, token)`. A link naming another list than its token's finds
+>   nothing and answers `401`.
+>
+> The upgrade migration in `upgrading-to-3.md` deletes the tokens 2.x stored (they match nothing
+> hashed) and adds `spent`. Held by eight new cases in `mailing-list.service.test.ts` and one in
+> `mailing-list.controller.test.ts`.
 
 `confirmSubscribeToList` (`:202-221`) finds the token by its value and nothing else. The
 `expirationDate` written at creation (`:184`) is read nowhere, the token is not deleted once it
@@ -2416,7 +2952,63 @@ years old still subscribes, as often as it is followed. The `subscribe/:id/:toke
 (`src/plugin/mailing-list/mailing-list.controller.ts:69-87`) reads the list named in the path for the
 page it renders and subscribes to the one the token names.
 
-### 6.3 Unsubscribing is a GET, and a subscriber's id is the only credential for their preferences — MINOR, **open**
+### 6.3 Unsubscribing is a GET, and a subscriber's id is the only credential for their preferences — ~~MINOR~~ **FIXED**
+
+> **Closed 2026-10-15.** The user took three decisions; the options are noted under each part.
+>
+> - **The GET.** `GET /:id/unsubscribe` changes nothing any more. It renders the existing
+>   `UNSUBSCRIBE_CONFIRMATION_PAGE_TEMPLATE` with `unsubscribed: false` and the `unsubscribeUrl` its
+>   form posts to. `POST /:id/unsubscribe` unsubscribes and renders the same template with
+>   `unsubscribed: true`.
+>   - The user had suggested a page whose script posts on load. It was dropped because the link
+>     scanners of corporate mail (Safe Links, Proofpoint, Mimecast) run JavaScript, and would
+>     unsubscribe recipients just as the GET did.
+>   - A separate template for the button was the other option. The user kept one template.
+>   - The cookie check lets both through. The page's form is same-origin, and a provider's
+>     one-click post carries no cookies.
+> - **RFC 8058.** `Email` gets `listUnsubscribeUrl` (chosen over a generic headers record), which
+>   `queueEmailForList` sets to the subscriber's unsubscribe link. `SmtpEmailTransport` writes
+>   `List-Unsubscribe` and `List-Unsubscribe-Post: List-Unsubscribe=One-Click` from it. The one-click
+>   post a provider sends is the same POST; its body is ignored, since the route declares none.
+> - **The id as the credential.** Each subscriber gets a `secret`: 32 random bytes as hex, generated
+>   by a property default on create and stored with `encryption: true`.
+>   - Chosen over HMAC-signed links, which would need a new signing key and cannot end one
+>     subscriber's links.
+>   - Every link carries `subscriberId` and `secret`. `resolveSubscriberOfLink` compares them in
+>     constant time.
+>   - An unknown id, a wrong secret and another tenant's subscriber all answer `401 Link invalid`.
+>   - Hashing was not an option: a mail to a list is built after the subscriber was created, so the
+>     secret has to be readable then.
+> - **Found on the way.** `GET /preferences` read the subscriber with `findById` and no relations, so
+>   a page reading `subscriber.mailingLists` (the sandbox's does) got `undefined`. The controller
+>   test's template now renders those lists. The subscriber now comes from
+>   `resolveSubscriberOfLink`, which loads them.
+> - **Found on the way, in the framework.** The secret was the first encrypted property read
+>   through a relation, and `queueEmailForList` failed on it (`MailingList.subscribers`). The
+>   repository hooks treated a related row like an embedded object:
+>   - decryption checked the subscriber's secret against the list's id;
+>   - encryption and hashing walked into the rows a write merely references, re-encrypting and
+>     re-hashing the caller's loaded copies in place. A referenced row with a hashed property threw
+>     "already hashed";
+>   - `findEncryptedValues` counted a related row's values towards the row holding it.
+>
+>   `NestedValue` now says whether an object is a `related` row. Decryption binds it to its own id,
+>   and the write walks and `findEncryptedValues` leave it out, as its own repository writes and
+>   sweeps it. `model-registry.related-rows.test.ts` (in memory) was red first on both counts.
+>
+> Upgrade: `upgrading-to-3.md` adds `listUnsubscribeUrl` in the first migration, and fills a secret
+> for every 2.x subscriber in a third one, `AddMailingListSecretsMigration`. It is a migration of its
+> own for the reason `EncryptOtpSecretsMigration` is.
+>
+> Tests:
+> - `smtp.email-transport.test.ts` drives a local capturing SMTP server
+>   (`__testing__/capturing-smtp-server.model.ts`). It was red first.
+> - `mailing-list.controller.test.ts` has five cases: a GET that changes nothing, the button's POST,
+>   the one-click POST, a wrong or missing secret on every route, and the preferences page with its
+>   lists.
+> - `mailing-list.service.test.ts` has four cases: the links, the encrypted secret, the secret check,
+>   and `listUnsubscribeUrl` on queued mails.
+> - The tenancy test follows the link into another tenant.
 
 `GET /mailing-lists/:id/unsubscribe` (`src/plugin/mailing-list/mailing-list.controller.ts:89-108`)
 changes state, so a mail scanner or link preview that follows the link unsubscribes the recipient.
@@ -2474,7 +3066,30 @@ captured ends the same way.
 order for it. Refusals a caller caused - a reused `transactionId`, a status that does not allow the
 transition - are `InternalError`s, so a client's retry is answered with a 500.
 
-### 6.5 A payment amount is a float, sent as `String(amount)` — MINOR, **open**
+### 6.5 A payment amount is a float, sent as `String(amount)` — ~~MINOR~~ **FIXED**
+
+> **Closed 2026-10-16.**
+>
+> - **Exact amounts.** `Payment.amount` and `PayPalPaymentData.amount` are `BigNumber`s, declared
+>   `format: 'bignumber'`, the format the number metadata names for a price.
+> - **Decimals.** `validatePaymentData` refuses an amount with more decimals than PayPal takes in its
+>   currency, with `400`. The rule is PayPal's, not ISO 4217's: none for HUF, JPY and TWD, two for
+>   the rest. Refused rather than rounded, since a rounded amount is a charge the caller did not ask
+>   for.
+>   - `!amount.isGreaterThan(0)` also refuses a `NaN` that the old `<= 0` let through.
+> - **What PayPal gets.** Every call sends `amount.toFixed(decimals)`, which is fixed notation, so
+>   neither `0.30000000000000004` nor `1e-7` can go out any more.
+> - **Upgrade.** `Payment.amount` left `retypeNumbers` in the upgrade migration. 2.x stored an exact
+>   decimal, which is what a bignumber is stored as.
+>
+> Tests:
+> - `pay-pal.payment-provider.local.test.ts` (in memory, red first) has three cases: `0.1 + 0.2` is
+>   sent as `"0.30"` and stored as `0.3`, JPY 1500 is sent as `"1500"`, and EUR `10.001`, JPY `1500.5`
+>   and EUR `0.0000001` are refused.
+> - `LocalPayPalServer` now records each request's body.
+> - `pay-pal.payment-provider.test.ts` (heavy, against the real sandbox) expected messages that
+>   `validatePaymentData` no longer writes (`amount must be > 0`, `currencyCode required`), so it
+>   failed on them. It now expects the real ones.
 
 `PayPalPaymentData.amount` and `Payment.amount` are `number`s, and every call to PayPal writes
 `value: String(amount)` (`pay-pal.payment-provider.ts:264`, `:296`, `:418`, `:497`). An amount computed
@@ -2483,7 +3098,48 @@ an amount with more decimals than its currency has (two for most, none for `JPY`
 `validatePaymentData` and is refused by PayPal with an error that becomes `FAILED`. The invoicing
 plugin calculates with `BigNumber`; the payment plugin does not.
 
-### 6.6 Two recipients whose names abbreviate alike draw the same invoice numbers — MAJOR, **open**
+### 6.6 Two recipients whose names abbreviate alike draw the same invoice numbers — ~~MAJOR~~ **FIXED**
+
+> **Closed 2026-10-16.** The user decided the rule.
+>
+> - **The rule.** The prefix stays the recipient's, and an abbreviation belongs to one recipient.
+> - **Not disambiguated.** A generated suffix (SIEMEN, SIEMEN2) was rejected, because the number
+>   alone would no longer say whose invoice it is.
+> - **Not unique on the counter.** A unique column on `NumberInvoices` was looked at and dropped.
+>   That table has a row per year and recipient, so a unique abbreviation would block a recipient's
+>   own second year, and a unique (year, abbreviation) would let another recipient take it in a new
+>   year.
+>
+> **What was built instead.** A new entity, `InvoiceRecipientAbbreviation`, holds one row per
+> recipient, with `recipientId` and `nameAbbreviation` each unique in the tenant.
+>
+> - The plugin requires the entity.
+> - `generateInvoiceNumber` keeps its signature. It numbers with the abbreviation the recipient holds.
+> - A recipient holding none claims the passed `nameAbbreviation`, or else the suggested one. Passing
+>   one that differs also claims it, which makes it a rename.
+> - Claiming happens before the counter is touched, so a refused abbreviation draws no number, with a
+>   transaction or without one. Without one, the old code burnt a number on every attempt.
+> - The claim is an `upsert` on `recipientId`. The unique constraint refuses an abbreviation another
+>   recipient holds; the service turns that into a `409` naming the abbreviation.
+> - Concurrent first invoices of one recipient claim the same abbreviation and don't trip over each
+>   other.
+> - An abbreviation a recipient gives up is free again. A number from that year which the new holder
+>   would draw again is refused by `validateInvoiceNumber` and the unique `Invoice.number`.
+> - The former private `getCustomerNameAbbreviation` is public on the interface as
+>   `getSuggestedNameAbbreviation`.
+>
+> Tests:
+> - The new cases are an in-memory `name abbreviations` block in `invoice-number.service.test.ts`
+>   (red first): Siemens AG gets `SIEMEN-0001`; Siemens Healthineers is refused twice with no counter
+>   drawn, given `SIEHEA` once and keeps it; an explicit abbreviation another recipient holds is
+>   refused too.
+> - The existing temporary-number case for recipient 2 expects `XXX` now, because it was given `XXX`
+>   in the case before.
+> - The 1.11 evaluation gives each of its three recipients an abbreviation of its own, since they
+>   share an address.
+>
+> Upgrade: `upgrading-to-3.md` creates the entity in the first migration. A recipient from 2.x claims
+> their abbreviation with their next invoice.
 
 `InvoiceNumberService.getConsecutiveNumber`
 (`src/plugin/invoicing/services/invoice-number.service.ts:105-125`) keeps one counter per year and
@@ -2499,7 +3155,72 @@ draws `0001` again on every attempt and cannot be invoiced at all while the firs
 year. Called without one, each attempt burns a number until the two counters stop overlapping. [1.11](#111-invoice-numbering-is-a-read-modify-write-race--critical-fixed)
 made the counter atomic and left what it counts as it was; nothing in its tests uses two recipients.
 
-### 6.7 E-invoice amounts are written unrounded, and VAT is summed per line — MAJOR, **open**
+### 6.7 E-invoice amounts are written unrounded, and VAT is summed per line — ~~MAJOR~~ **FIXED**
+
+> **Closed 2026-10-16**, once the KoSIT validator of `test:heavy` accepted every invoice below. The
+> user took eight decisions; the options are noted under each part.
+>
+> - **Rounding.** `InvoiceCalcService` rounds where EN 16931 does, half away from zero:
+>   - each line's net amount (`BR-DEC-23`), which every total adds up from (`BR-CO-10`, `BR-S-08`);
+>   - the VAT of each group once, on the group's rounded taxable amount (`BR-S-09` and its siblings);
+>   - the document's VAT is the sum of the groups (`BR-CO-14`), and the grand total net plus VAT
+>     (`BR-CO-15`).
+>   The PDF shows the same amounts, since it asks the same service.
+> - **Precision.** Amounts round to the currency's minor units (chosen over always 2), which
+>   `getCurrencyMinorUnits`, new on `LocalizeServiceInterface`, gives from `Intl`. The user moved it
+>   there from a standalone function, and `formatPrice` formats with the same number, so an override
+>   changes both. EN 16931 allows two decimals, so the XRechnung and Peppol services refuse a
+>   currency with more (KWD) instead of stating amounts other than the PDF's.
+> - **Negative totals.** The clamp to 0 is gone. An invoice totalling less than 0 before tax is
+>   refused by the PDF and the electronic invoice alike (chosen over writing it negative), since it is
+>   a credit note, which the plugin does not write. A negative group within a positive invoice is
+>   kept.
+> - **Writing.** Every amount is written with `toFixed`, a price and a quantity as given but in fixed
+>   notation, never with an exponent.
+> - **Proof.** Two layers.
+>   - `invoicing.electronic-invoice.test.ts` (in memory) parses the generated XML and asserts the
+>     rules above and below. It was red first, as were the new cases of `invoice-calc.service.test.ts`.
+>   - `en16931-conformance.kosit.heavy.test.ts` has the official KoSIT validator check five invoices
+>     in both formats, in about 20 seconds. The user chose the official validator over asserting the rules alone, and
+>     over third-party validator images and the Mustang CLI, which checks no Peppol. A Dockerfile
+>     building an image was too heavy, so the test starts the official `eclipse-temurin` JDK image
+>     and copies in pinned, checksummed downloads:
+>     - KoSIT's validator 1.6.3;
+>     - its XRechnung configuration 2026-08-31, whose plain EN 16931 scenario covers the core rules;
+>     - for Peppol, OpenPeppol's `PEPPOL-EN16931-CII.sch` (v3.0.20). KoSIT's Peppol configuration
+>       covers UBL only and the plugin writes CII, so the user chose compiling Peppol's CII rules over
+>       leaving them unchecked. SchXslt 1.10.1 compiles them, run by the Saxon inside the validator.
+> - **Found on the way.**
+>   - The VAT groups were deduplicated by object identity. Items read from a data source each hold
+>     their own `vat`, so two 19 % items gave two breakdowns, each stating the whole group
+>     (`BR-CO-14` broken). `getTaxGroups`, new on the calc service, groups by value, and both the PDF
+>     and the electronic invoice use it.
+>   - The XRechnung named its guideline `urn:cen.eu:en16931:2017#compliant#urn:xrechnung:3.0`, which
+>     is no identifier of XRechnung. KoSIT's configuration matches XRechnung 3.0 by
+>     `urn:cen.eu:en16931:2017#compliant#urn:xeinkauf.de:kosit:xrechnung_3.0`, so every XRechnung
+>     was rejected before any rule ran. The service writes that one now. The XRechnung test's
+>     expectation changed first.
+> - **Found by the validator's first run**, which accepted the amounts and refused three things:
+>   - `BR-27`, both formats: a credit was written as a negative price, where EN 16931 takes a
+>     negative quantity at a positive price. The writer flips the signs of such an item, the same
+>     amount either way. The user chose this over a model where `amount` may be negative and `price`
+>     may not, which would have broken every caller writing credits as negative prices.
+>   - `PEPPOL-EN16931-CL008`, Peppol: both parties were named by their email with scheme `EM`, which
+>     Peppol's scheme list lacks. `ElectronicAddress` (`scheme`, `value`) is new on `CompanyInfo` and
+>     `InvoiceAddress`. The user chose it over deriving the address from a VAT id, which only fits
+>     German ids and the buyer has none of. An XRechnung names a party without one by its email; a
+>     Peppol invoice refuses it, through `resolveElectronicAddress`, which the Peppol service
+>     overrides.
+>   - `PEPPOL-EN16931-R120`, Peppol: a line's amount has to be within 0.02 of quantity times price.
+>     Rounded to a currency without minor units, a fractional price such as 1000.5 yen cannot be.
+>     The Peppol service refuses such a line in `validateInvoice`, naming it. The user chose this over
+>     refusing fractional prices everywhere: the PDF and XRechnung can state them, and real tariffs
+>     have them, eg. 25.5 yen per kWh. Letting the conformance service set the precision of the whole
+>     invoice was considered, and left, as it would state fractional yen nobody can pay.
+>
+> Upgrade: `upgrading-to-3.md` names the changed calc service methods, `getTaxGroups`,
+> `getCurrencyMinorUnits`, the refused negative invoice, the identifier, `electronicAddress`, and the
+> two hooks of `EN16931ConformanceService`.
 
 `InvoiceCalcService` (`src/plugin/invoicing/services/invoice-calc.service.ts`) calculates exactly and
 rounds nowhere, and `En16931ConformanceService`

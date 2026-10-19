@@ -31,7 +31,7 @@ export class PasskeyAttestation {
     /**
      * The algorithm of the new passkey's public key.
      */
-    @Property.number({ required: false })
+    @Property.number({ format: 'integer', required: false })
     publicKeyAlgorithm?: number;
 
     /**

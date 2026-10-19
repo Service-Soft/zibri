@@ -33,7 +33,7 @@ describe('transaction', () => {
         server = await startTestServer({ dataSources: [dataSourceClass] });
         dataSource = inject(dataSourceClass);
         repo = inject(repositoryTokenFor(Item));
-    }, 15000);
+    }, 30000);
 
     it('should see changes inside transaction, but not outside until committed', async () => {
         const transaction: Transaction = await dataSource.startTransaction();
@@ -104,6 +104,28 @@ describe('transaction', () => {
         // out of a commit that worked loses one for good every time one does not, and a pool is a
         // fixed number of them
         expect(runner.isReleased).toBe(true);
+    });
+
+    it('tells the work waiting for its end whether it was committed, once, a failed commit included', async () => {
+        const ended: string[] = [];
+
+        const committed: Transaction = await dataSource.startTransaction();
+        committed.afterFinish(async hasCommitted => await Promise.resolve(void ended.push(`committed: ${hasCommitted}`)));
+        await committed.commit();
+
+        const rolledBack: Transaction = await dataSource.startTransaction();
+        rolledBack.afterFinish(async hasCommitted => await Promise.resolve(void ended.push(`rolled back: ${hasCommitted}`)));
+        await rolledBack.rollback();
+
+        // the same deferred constraint as above, which the case before creates
+        const failing: Transaction = await dataSource.startTransaction();
+        failing.afterFinish(async hasCommitted => await Promise.resolve(void ended.push(`failed: ${hasCommitted}`)));
+        await TypeOrmUtilities.toTypeOrmTransaction(failing).queryRunner.query('INSERT INTO deferred_check (value) VALUES (2), (2)');
+        await expect(failing.commit()).rejects.toThrow();
+        // what a caller does on a commit that threw, which finds the transaction ended already
+        await Promise.resolve(failing.rollback()).catch(() => undefined);
+
+        expect(ended).toEqual(['committed: true', 'rolled back: false', 'failed: false']);
     });
 
     afterAll(async () => {

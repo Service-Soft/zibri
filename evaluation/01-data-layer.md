@@ -117,7 +117,7 @@ once → deadlocks, duplicate columns, or a failed boot.
 > with `includes(m.version)`, so two migrations declared with the same version mean the second is
 > treated as already applied and silently never runs, and `runDown`'s `deleteAll({ version })` would
 > delete both records. Ordering is declaration order rather than the version. Filed as
-> [M23](#m23-a-migrations-version-is-also-its-identity--major).
+> [M23](#m23-a-migrations-version-is-also-its-identity--major), and closed there.
 >
 > **Held by `migration-downgrade.test.ts`**, which was missing until the evaluation suite's todos were
 > audited: a 1.0.0 application restarting against a database holding a 2.0.0 migration it carries and
@@ -267,7 +267,9 @@ DBAs do not grant extension or DDL rights to application roles at all.
 > left exactly as it was. Narrowing it to `[]` would hand it to the converter's
 > `entities.length === 0` short circuit, which answers `FALSE`, while the valkey evaluator's `.every`
 > is vacuously **true** for a row with no related rows at all. That divergence is pre-existing and is
-> a different finding; narrowing must not be the thing that changes an answer.
+> a different finding, §M48; narrowing must not be the thing that changes an answer. *(Closed with
+> [M48](#m48-an-isincludedin-that-allows-nothing-answers-differently-on-each-store--minor-open-fixed):
+> an allow list never finds an empty array, so one with nothing possible left drops its branch.)*
 >
 > **Also not covered**, and out of reach of this fix: table and column names still reach the
 > statement as quoted identifiers built from entity metadata. They are declared in code rather than
@@ -422,7 +424,8 @@ The other three:
 > an object kind that is not a table, the restore fails loudly on it rather than silently skipping it,
 > which is the failure mode to prefer but still a failure. And a restore replaces the objects it
 > dumps, so it still needs ddl rights on the application's own tables — no design removes that, and
-> the finding's complaint was superuser, not ddl.
+> the finding's complaint was superuser, not ddl. The rest is §M55, since closed: a backup is the
+> data source's schema now, with its owners, grants and comments.
 
 The original finding, for the record:
 
@@ -486,7 +489,7 @@ read, so nothing is disclosed that a plain `findById` would not have disclosed.
 
 Still open: `upsert`'s `onConflict` is an update that the declaration does not reach, and the refusal
 happens at write time rather than at startup — nothing at boot can tell which call sites will write
-which property.
+which property. Filed as §M49.
 
 ### M2. No way to declare a database index — ~~MAJOR~~ **FIXED**
 
@@ -540,7 +543,8 @@ called for rather than as a raw SQL predicate; what it needed on top of the filt
 one down that a schema can be built from, since `WhereFilterConverter` produces a TypeORM
 `FindOptionsWhere` and a predicate has to be sql. Also open is the startup check for a declaration
 that another one already covers: an index that is a leading part of another, or a unique group
-covering a column that is unique alone.
+covering a column that is unique alone. All of this is §M53 now, closed: checks and the leading-part
+refusal built, covering and partial indexes decided against.
 
 ### M3. `updateAll` / `deleteAll` materialize the whole result set — ~~MAJOR~~ **FIXED**
 
@@ -590,7 +594,7 @@ handing them out, and only the caller's own ask is bounded.
 Still open: `deleteAll` reads every matching entity even when only the count was wanted, because the
 delete hook runs per entity and a hook is replaceable. Skipping that read when nothing needs it means
 knowing that the configured hook does nothing for a delete, which the descriptors can answer and the
-repository currently does not ask.
+repository currently does not ask. Filed as §M50.
 
 ### M4. No default limit on `findAll` — ~~MAJOR~~ **FIXED**
 
@@ -705,7 +709,8 @@ repository call must be handed `{ transaction }` manually — forget it once and
 silently runs outside the transaction. The documented pattern (`docs/data-source.md:239-251`) is
 exactly the leak-prone one.
 
-**PARTLY FIXED.** Two of the three are closed; the helper is still open by decision.
+**PARTLY FIXED** at first, **FIXED** since. Two of the three closed here, and the helper was
+declined, below.
 
 The throwing commit is fixed: `TypeOrmTransaction.commit` and `.rollback` now release in a
 `finally`. `ValKeyTransaction` already did this for its grants, so the typeorm one was the outlier.
@@ -823,7 +828,8 @@ leaves the chunks where they were.
 >
 > **Residue:** the framework's own sixty-seven declarations were left at the default rather than
 > given the format each of them wants. They are counters and status codes in a double now instead of
-> in a `numeric`, which is better than before and not what `integer` is for.
+> in a `numeric`, which is better than before and not what `integer` is for. Filed as §M54, since
+> closed.
 
 `postgres-typeorm-data-source.model.ts:46` (`number: 'decimal'`) and `:315-335` (transformer
 `to: String(v)`, `from: Number(v)`). No int/bigint/smallint mapping unless `format` is set.
@@ -1074,7 +1080,8 @@ cannot express.
 > against a constraint, and a key over part of a table is an index, so the identity does not name the
 > row to change. That is refused rather than mis-resolved. Covering indexes and check constraints stay
 > open under M2, and `index` does not take a `where` yet - only `unique` does, because only it had
-> something asking for one.
+> something asking for one. *(Since: the partial `upsert` target closed as §M31, and the rest is
+> §M53.)*
 
 ### M14. The repository is missing the operations a real app needs — ~~PARTIALLY FIXED~~ **FIXED**
 
@@ -1151,6 +1158,8 @@ cannot express.
 > the substantial one and stays open on purpose - it needs a cursor on the driver interface, and the
 > valkey driver has no equivalent to answer with, so it is a data source contract question rather than
 > a method. It is also what M4's refusal points a caller at, so it is the next thing this finding owes.
+> *(Since: the stream is built, as the first note of this entry says; the insert is §M47's, and the
+> timeout is §M57, closed 2026-10-17.)*
 
 Per `docs/data-source.md:153-163` the full surface is find / create / update / delete. Absent:
 `count`, `exists`, `upsert` / `onConflict`, atomic `increment`, a bulk-insert fast path,
@@ -1219,7 +1228,8 @@ does a read-before-write per entity — there is no `INSERT` fast path at all.
 > they commute with each other exactly like the id set does and neither takes a grant.
 >
 > **Still open:** the general case. A filter on anything not declared unique still loads every row of
-> the entity and filters in process, and reads are still one round trip per row.
+> the entity and filters in process, and reads are still one round trip per row. *(Closed since, in
+> the first note of this entry.)*
 >
 > The index was built to make a unique lookup *fast*, and it is also what makes the value unique —
 > see [M22](#m22-unique-is-enforced-on-postgres-and-ignored-on-valkey--major-fixed), which this is
@@ -1379,7 +1389,8 @@ JSON holds a non-numeric string makes the whole query throw at runtime instead o
 > entity is stored — the same failure as ordering text by the runtime's locale, one chapter over.
 >
 > **What is not covered**: an index over several columns, a search across them, and any ordering by
-> similarity. `fuzzyLike` still answers a question about one column at a time.
+> similarity. `fuzzyLike` still answers a question about one column at a time. Filed as §M56, which
+> closed with ordering by similarity; the search across columns is §M62.
 >
 > **The residue closed too (2026-09-28), found-bug sweep item 7.** The evaluator now carries the
 > path of the property it is matching and, before any key that compares — the value itself, `not`,
@@ -1501,7 +1512,7 @@ ciphertext to every matched row.
 > `findAll` re-ran the *original* filter against the *new* data, so
 > `updateAll({ status: 'QUEUED' }, { status: 'SENT' })` returned `[]` — indistinguishable from
 > "updated nothing", inverting any `if (!updated.length)` guard. It now reads back by the ids it
-> matched. The missing conditional update above stands.
+> matched. The missing conditional update stood until the closing note above.
 
 ### M19. `not: null` is wrong — on every column type, not just JSONB — **FIXED**
 
@@ -1781,7 +1792,8 @@ what the migration table means, so existing rows have to be considered.
 > see it — the same gap the read side answers by falling back to reading every row, and it closes for a
 > row the next time that row is written. And a row *giving up* a value in a transaction that has not
 > committed yet still holds the index entry, so a concurrent write of that value is refused where
-> postgres would have blocked and then allowed it. A spurious conflict, never a duplicate.
+> postgres would have blocked and then allowed it. A spurious conflict, never a duplicate. Filed as
+> §M58.
 >
 > One more, inherited rather than introduced: two multi-row saves taking up the same values in
 > opposite orders hold one index key each and wait for the other. Postgres blocks on the same pair and
@@ -2621,8 +2633,9 @@ the database enforces from then on. Valkey indexes the stored rows under it, and
 checks them, but both enforce what the *entity* declares on every write afterwards. So a second row
 with the same value is refused on postgres and accepted on the other two. Held, red, by "keeps a
 unique property unique under the values a migration converted it to" in `migration-helpers.cases.ts`
-(red on in-memory and valkey; green on postgres once the dropped unique noted under M15 was fixed). Waiting on a decision: the stores remember what a
-migration added, or a migration may only add what the entity declares.
+(red on in-memory and valkey; green on postgres once the dropped unique noted under M15 was fixed). The decision this waited on - the stores
+remember what a migration added, or a migration may only add what the entity declares - went a third
+way, above: a migration names no keys at all.
 
 ### M37. A date property stores an instant, whatever the value means — **open (deferred)**
 
@@ -2685,7 +2698,33 @@ The decision it waits on, offered on 2026-10-13 and not yet taken: full composit
 everywhere; composite keys only for entities under `'external'`, read and written by key without
 relations; or declining it in favour of unique groups.
 
-### M41. A page can be as large as its caller asks, and a negative one reads differently on each store — MAJOR, **open**
+### M41. A page can be as large as its caller asks, and a negative one reads differently on each store — ~~MAJOR, open~~ **FIXED**
+
+> **Closed 2026-10-16. The bound lives at the HTTP boundary, and every store refuses the same
+> values** (both the user's calls).
+>
+> - **Values that are not a page are refused in the repository**, before any store sees them: a
+>   page, a limit and a `take` have to be whole numbers of at least 1, a `skip` one of at least 0.
+>   `findAllPaginated` names `page` and `limit` in the error, `findAllAfter` its `limit`, and every
+>   read going through `toDriverFindOptions` its `skip` and `take` (`take: 'all'` stays the absence
+>   of a limit). An `InternalError`, since a value reaching the repository unchecked is the calling
+>   code's mistake.
+> - **The size of a page is bounded where a request chooses it.** `CrudController.findAll` validates
+>   `page` and `limit` as integers of at least 1, and `limit` as at most `maxLimit`, so a bad value is
+>   a 400 and shows up in the OpenAPI spec. `maxLimit` is a new optional fourth argument
+>   (`CrudControllerOptions`) and defaults to 100. A limit named in code stays trusted, as `take` is:
+>   only the `findAll` that names none keeps [M4](#m4-no-default-limit-on-findall--major-fixed)'s cap.
+>   *Also in the repository* (refusing explicit limits above 10,000) was the alternative, and would
+>   have broken code that pages in larger chunks on purpose.
+> - **Swept:** the framework's own computed `take`s and `skip`s (mail batches, SCIM paging, event
+>   and thread job candidates, websocket replay) are already guarded or come from configuration.
+>
+> **Proof.** `paging-values.cases.ts` runs on the in-memory store (`paging-values.test.ts`) and on
+> postgres and valkey (`paging-values.postgres-valkey.test.ts`): a page that reads what it names, 15
+> refusals across the three reads, and `skip: 0, take: 'all'` reading everything. 15 were red on the
+> in-memory store first. `crud-controller.model.test.ts`, the first test of the controller, holds
+> the 400s, the default of 100 and a `maxLimit` of 500; it was red first (200 above the limit, 500
+> for the rest).
 
 *Filed on the re-check of 2026-10-15.*
 
@@ -2704,7 +2743,23 @@ driver slices (`src/data-source/driver/val-key.repository-driver.ts:610-611`), a
 store and sliced by the other. Two stores answering one call differently is the class of bug the
 shared `.cases.ts` files exist for, and none of them pages with a value below 1.
 
-### M42. A change set names the id of its row and not which entity the row is of — MINOR, **open**
+### M42. A change set names the id of its row and not which entity the row is of — ~~MINOR, open~~ **DECIDED AGAINST**
+
+> **Decided against, 2026-10-16 (the user's call).** Ids are uuids, generated so that two rows never
+> share one; the only way two entities do is an application choosing it through `allowId`, and
+> reusing an id across change set entities is that application's to avoid rather than the
+> framework's to support. No second column, so no upgrade migration either. `data-source.md` says
+> so where it describes change sets: an id given through `allowId` is one no other change set entity
+> uses, or the two share a history.
+>
+> **Found on the way, and fixed** (red first, in the in-memory
+> `change-set-repository.foreign-change-set.test.ts`):
+> - `rollbackToChangeSet(entity, changeSetId)` never checked that the change set was the entity's,
+>   so another row's change set rolled this row back to a moment of that row's history. It checks
+>   now, with the same `BadRequestError` its `ById` sibling and `resetSingleChangeSet` give.
+> - `rollbackToChangeSetById` read the change set outside the caller's transaction, so one written
+>   in it was a `NotFoundError`. It now reads the row in the transaction and goes through
+>   `rollbackToChangeSet`, which keeps the check in one place.
 
 *Filed on the re-check of 2026-10-15.*
 
@@ -2788,23 +2843,775 @@ Held by `owned-relations.cases.ts` (19 cases, in memory here and on postgres and
 by the start refusal in `data-source.service.test.ts`. A hard delete still writes no change set
 anywhere, which was so before.
 
-### M45. Deleting a row that records change sets keeps its change sets — MINOR, **open**
+**What it cost, found by M12 the same day.** Writing the rows through their own repository made
+every write of a change set entity dearer, and the [M12](#m12-write-amplification-on-change-set-and-soft-delete-entities--major-fixed)
+evaluation tests went red on postgres (an update read the row six times against a soft delete's
+four; twenty creates took eleven statements). Traced with the `RoundTripCounter`, which now records
+what each round trip was and which repository calls sent it, and which the in memory data source
+feeds as well:
+- `Change.createAll` checked the tenant of the change set the same write had just stored, by reading
+  it back. Rows a transaction writes are now remembered with their tenant
+  (`WrittenRowTenantUtilities`, keyed by the transaction, forgotten on delete), and the check reads
+  only rows it does not know. A transaction working through several tenants is still refused a row
+  pointing at another tenant's, which `tenant-isolation.cases.ts` holds, with a row deleted in the
+  same transaction.
+- `Change.save` read its rows by id before inserting them, which the cascade had folded into the
+  change set's own save. Solved for every create by [M47](#m47-a-create-read-its-rows-by-id-and-took-a-transaction-of-its-own-on-postgres--minor-fixed).
+- A change set was read back with its changes, and `createChangeSet` threw it away. `create` and
+  `createAll` now answer the relations they hand back from the rows they wrote, when every one is a
+  one to many or has one relation the data gave and nothing below it is asked for. An update still
+  reads: rows of the relation the caller may not see are not replaced, and only a read hands them back.
+- A change set with no changes created none and still asked the store to; `createAll` of nothing and
+  a delete that matched nothing now return without a round trip.
+- The rows a relation is given by id were each read and written on their own: two calls a row, four
+  for an entity with change sets, where the cascade had read them all at once. `Repository.updateEach`
+  writes them with the new driver method `updateEach` - one `UPDATE … SET col = CASE id WHEN … END`
+  on postgres, narrowed by the caller's scope in the same statement, the batch a save sends on valkey
+  - with no read beforehand; a row it did not land on is told apart afterwards the way `updateById`
+  tells it apart. `ChangeSetRepository` reads every before state once and writes all change sets
+  together; `SoftDeleteRepository` narrows the write to live rows and restores in bulk.
 
-*Filed 2026-10-15, while fixing [M44](#m44-the-rows-of-a-relation-were-written-past-their-own-repository--major-fixed).*
+What is left of an update of a change set entity is its before state, the write, the change set and
+its changes, and of a soft delete the same without the changes - `change-set-repository.costs.test.ts`
+lists them call by call, and `repository.costs.test.ts` the rest, each red before. In memory only:
+the postgres and valkey cases of the same behavior are in the container suites.
+
+### M45. Deleting a row that records change sets kept its change sets — MINOR, **fixed**
+
+*Filed 2026-10-15, while fixing [M44](#m44-the-rows-of-a-relation-were-written-past-their-own-repository--major-fixed).
+Fixed the same day.*
 
 `ChangeSetEntity.changeSets` points at `ChangeSet.changeSetEntityId`, a plain column rather than a
 relation, so no store has a foreign key for it and `OwnedRelationUtilities` leaves it out. Hard deleting
-such a row leaves its change sets behind, describing a row that is gone. The user: they should go with
-it. Held by *deletes its change sets along with it* in `relation-deletes.evaluation.test.ts`, red.
+such a row left its change sets behind, describing a row that is gone. The user: they should go with
+it.
 
-### M46. Deleting a row that rows point at, through no relation that removes them, leaves them dangling off postgres — MINOR, **open**
+`Repository.removeRows` is protected now, and `ChangeSetRepository` overrides it: the rows are removed
+and their change sets deleted by `changeSetEntityId` in the same transaction. Every hard delete goes
+through it - `deleteById`, `deleteAll`, `hardDelete` on a soft deleting entity, and the rows another
+row's delete takes along. A soft delete is an update and keeps them. Found by the row's id alone, so
+two entities sharing an id share this as they share the history, which is [M42](#m42-a-change-set-names-the-id-of-its-row-and-not-which-entity-the-row-is-of--minor-open).
 
-*Filed 2026-10-15, while fixing [M44](#m44-the-rows-of-a-relation-were-written-past-their-own-repository--major-fixed).*
+Held by *deletes its change sets along with it* in `relation-deletes.evaluation.test.ts`, green now,
+and by two cases in `owned-relations.cases.ts` (hard deleted against soft deleted, and taken along by
+an owner's delete), all three red before.
+
+### M46. Deleting a row that rows pointed at, through no relation that removes them, left them dangling off postgres — MINOR, **fixed**
+
+*Filed 2026-10-15, while fixing [M44](#m44-the-rows-of-a-relation-were-written-past-their-own-repository--major-fixed).
+Fixed the same day.*
 
 A relation without `remove` gets no `ON DELETE` on postgres, so its foreign key refuses deleting a row
-other rows still point at. Valkey and the in memory store have no foreign keys and delete it, leaving
-those rows pointing at nothing. Held by *refuses the delete, as a foreign key does* in
-`relation-deletes.evaluation.test.ts`, red in memory.
+other rows still point at. Valkey and the in memory store have no foreign keys and deleted it, leaving
+those rows pointing at nothing.
+
+`removeRows` now checks, for every one to many and has one relation without `remove`, whether a row
+still points at one of the rows being removed - unscoped, across tenants and soft deleted rows
+included, since those still point at their owner - and refuses with a `ConflictError` before
+removing anything, on every store. Postgres answers through the check too, so the error is the same
+everywhere rather than a foreign key's `QueryFailedError`. The check runs after the rows of relations
+with `remove` are deleted, inside the same transaction, because that is when a foreign key is
+checked: a row pointing at its owner through a second relation is gone by then if the first removed
+it. Rows of the same entity deleted in one call may point at each other, which a single delete
+statement allows as well. The relations come from the owner's side, which is complete because the
+data source service refuses a relation whose inverse side is not declared.
+
+Held by *refuses the delete, as a foreign key does* in `relation-deletes.evaluation.test.ts`, green
+now, and by three cases in `owned-relations.cases.ts`, all red before: the refusal leaving the
+cascaded rows in place, a soft deleted row still refusing it, and rows pointing at each other
+deleted together. The last two were mutation checked.
+
+### M47. A create read its rows by id and took a transaction of its own on postgres — MINOR, **fixed**
+
+*Filed 2026-10-15, while tracing what [M44](#m44-the-rows-of-a-relation-were-written-past-their-own-repository--major-fixed)
+cost. Fixed the same day.*
+
+`create` and `createAll` wrote through the orm's `save`, which cannot know its rows are new: it read
+them by id to tell an insert from an update, inside a transaction it opened for that read and the
+write. Four statements for one create (`docs/costs.md` said so), where the ids were generated a
+moment before and no stored row can hold one.
+
+The driver has `insert` now, for rows whose ids were generated for them: one
+`INSERT … RETURNING *` per statement's worth of rows on postgres, the rows handed back as stored.
+A create uses it unless `allowId` is set - a row given its id may be stored already, and `save`
+updates it, as before. Rows carrying a relation value still go through `save`, which is what writes
+a join table. Valkey and the in memory store save as they did: their save reads nothing it would not
+read for a new row. A driver of your own implements `insert`, and handing it to `save` is enough.
+
+`docs/costs.md` says one statement for `create` and `createAll` on postgres, and two or three with
+relations; `repository-costs.postgres-valkey.test.ts` compares the page with what is measured.
+
+### M48. An `isIncludedIn` that allows nothing answers differently on each store — ~~MINOR, open~~ **FIXED**
+
+> **Closed 2026-10-16. `isIncludedIn` never finds an empty array, and a missing array is found by
+> `null` alone** (both the user's calls).
+>
+> - **The meaning was the decision, not the store.** Three paths answered the subset question, where
+>   a row without items passes every allow list; postgres's relation path alone answered `[]` with
+>   `FALSE`. Talked through with users and roles, the user expected the opposite of the subset
+>   reading: an allow list finding a user without roles was the surprise. *Redefining it as any-of*
+>   was declined because scope merging intersects allow lists, which is only right for an "all items
+>   within" question, and any-of is already an OR of `includes` branches. *Renaming the three
+>   questions* (`includesAll`/`includesAny`/`includesOnly`) and *an `isIncludedInAndNotEmpty`* were
+>   declined as more ways to say one thing. What was kept is the user's own definition - every item
+>   is one of these - with one rule added: **an empty array is asked for with `length: 0` and
+>   nothing else**, so no allow list finds one without saying so.
+> - **So `isIncludedIn` is "holds at least one item, each of them listed"**, on every path: the
+>   evaluator (in memory, valkey), postgres arrays (`<@` and `cardinality > 0`), arrays inside json
+>   (`<@` and `<> '[]'`), and relations (an `EXISTS` beside the `NOT EXISTS`). `[]` is `FALSE`
+>   everywhere, which made postgres's short circuit right rather than wrong.
+> - **What it made possible.** `dropImpossibleConditions` drops a branch whose allow list has nothing
+>   possible left, as it drops an impossible `includes`; [C5](#c5-sql-is-built-by-string-concatenation-not-parameters--critical-fixed)'s
+>   deliberate exception is gone, and the postgres `22P02` it left with it. Scope merging answers two
+>   allow lists sharing nothing with `matchesNothing` instead of an empty list.
+> - **Found on the way: a missing array was empty on two stores and absent on the third.** The
+>   evaluator read `null` as `[]`, so `length: 0`, `lengthLesserThan` and `includes` found a missing
+>   array off postgres and not on it. By the user's choice a missing array is found by `null` alone,
+>   and every other array operator passes over it on every store.
+> - **Found on the way: `length: 0` never found an empty postgres array.** `array_length(…, 1)` is
+>   null for `{}`; the length operators use `cardinality` now.
+> - **Docs:** a "Filtering an array" section in `data-source.md`, and an `upgrading-to-3.md` entry,
+>   since a filter that relied on empty arrays matching has to add a `{ length: 0 }` branch.
+>
+> **Proof.** `relation-allow-list.cases.ts` runs in memory (`relation-allow-list.test.ts`) and on
+> postgres and valkey (`relation-allow-list.postgres-valkey.test.ts`): ten cases over a string array,
+> an array of objects, a relation to many rows and one through a join table - allow lists, `[]`,
+> impossible ids, `length: 0`, `null`, and the OR that finds both. Under the subset reading the user
+> ran it red on postgres (`[]` found nothing, impossible ids raised `22P02`); under the decided
+> meaning 9 of 10 were red in memory first. Rewritten assertions: the all-impossible case of
+> `drop-impossible-conditions.test.ts`, the disjoint lists of `scope-where.utilities.test.ts`, and the
+> operator shape in `where-filter-to-find-options-where-function.test.ts`.
+>
+> **Found by the user's postgres run: a top-level array of objects could not be filtered at all.**
+> It is a jsonb column, and `includes`, `isIncludedIn` and the length operators went through the
+> native-array operators: `array_length` (later `cardinality`) does not exist for jsonb, and `@>`/`<@`
+> were handed the objects as a native array. No test had reached them. The three are abstract
+> building blocks of the converter now, as the relation ones are, and postgres answers an array
+> stored as json with jsonb containment and a `jsonb_array_length` behind a `CASE`, since it raises on
+> a json scalar. The relation and native-array cases were green on that run; the five json-array
+> cases are what it was red on.
+
+*Filed on 2026-10-15, from §C5's note that called it "a different finding".*
+
+`isIncludedIn` on a relation asks for rows whose related rows are all in the list. Postgres answers an
+empty list with `FALSE` for every row
+(`src/data-source/data-sources/where-converter/postgres-typeorm-where-filter.converter.ts:568-570`),
+while a non-empty list is a `NOT EXISTS` (`:587-589`) that a row with no related rows passes. The
+evaluator the other stores use takes `.every` over the related rows
+(`src/data-source/data-sources/where-converter/where-filter.evaluator.ts:103-107`), which is true for a
+row with none. So a row without related rows matches `isIncludedIn: [a]` on every store, and
+`isIncludedIn: []` only off postgres. `dropImpossibleConditions` can produce the empty list itself, from
+a list whose entries are all ids the column cannot hold, which is why §C5 left it alone.
+
+### M49. `optimisticLocking` does not reach the conflict path of an `upsert` — ~~MINOR, open~~ **FIXED**
+
+> **Closed 2026-10-16. The conflict path takes a `where`, as an update does** (both the user's
+> calls).
+>
+> - **What the finding said was worse than written.** `upsert` and `upsertAll` called
+>   `validateWriteIsNotBlind` for nothing at all - the line it cited had moved to `updateEach` - so
+>   an `onConflict` set a locked property blindly on every store.
+> - **`upsert` takes `{ where }` in its options and each `upsertAll` row its own `where`.** The
+>   check is an update's: a `set` of a locked property the `where` does not name is refused before
+>   anything runs, and naming it with `undefined` overwrites regardless. *Refusing such a set on
+>   upsert altogether* was the alternative, and would have left upsert unable to write one.
+> - **Increments are exempt**: an increment adds to whatever is stored, so the write that landed in
+>   between is kept, not lost.
+> - **The condition is judged where the scope already was**, in the step that writes the row: the
+>   in-memory and valkey drivers match each row against its own `where` beside `reachable`, and
+>   postgres adds a `CASE EXCLUDED.id WHEN … THEN id IN (…)` beside the reachable select, so a
+>   batch stays one statement and binds only what the conditioned rows bring. The driver contract
+>   says a row's `where` is refused like `reachable`. A batch holding a conditioned row runs in a
+>   transaction, as a scoped batch does, so a refused row leaves the others unwritten.
+> - **A refusal is told apart the way an update tells it apart.** The store answers both the scope
+>   and the condition with `UniqueConstraintViolationError`; the repository then reads the rows
+>   holding the identities through the scope and without the condition, and a visible row no longer
+>   matching its `where` is a `ConflictError`. A row the caller may not see keeps upsert's answer.
+> - **A value the property cannot hold** is narrowed as a read's filter is, into a condition no row
+>   meets, so it is a `ConflictError` rather than a `22P02`.
+> - **Still at write time only**, as on an update: which call sets which property is not something
+>   startup can see.
+> - **Docs:** the optimistic-locking section of `data-source.md` shows the upsert form; no upgrade
+>   entry, since `optimisticLocking` is new in 3.0.
+>
+> **Proof.** `locked-upsert.cases.ts` runs in memory (`locked-upsert.test.ts`) and on postgres and
+> valkey (`locked-upsert.postgres-valkey.test.ts`): eight cases - the refusal for `upsert` and
+> `upsertAll`, a held condition, a changed one, an impossible one, `undefined`, an insert whatever the
+> condition, an increment, and a batch where one changed row writes neither. 4 of 8 were red in
+> memory first; the other four describe writes that were already allowed.
+
+*Filed on 2026-10-15, from what §M1 left open.*
+
+`validateWriteIsNotBlind` refuses an update naming a property declared `optimisticLocking` unless the
+filter names it too (`src/data-source/repository/repository.ts:1847`, `:2145`). `upsert` and
+`upsertAll` (`:925`, `:988`) only call it for the rows they create (`:1962`), so an `onConflict` that
+sets such a property overwrites it without saying what it was. The refusal also happens at write time
+only, since nothing at startup can tell which call writes which property.
+
+### M50. `deleteAll` reads every row it deletes, even when only a count is wanted — ~~MINOR, open~~ **FIXED**
+
+> **Closed 2026-10-16. A `deleteAll` that hands no row to anybody reads only ids** (the user's call:
+> the default hook decides, a hook of your own keeps getting every row).
+>
+> - **What needed the rows was narrower than the finding said.** Every store removes by id - postgres
+>   in one `DELETE … WHERE id = ANY`, valkey reading what its indexes need off the stored row itself -
+>   and so do the owned relations, the user's memberships and the change sets a row takes with it.
+>   Only two things were handed rows: the caller asking for them back, and the before-save hook.
+> - **The default hook is marked, and a count asks for nothing more with it.** `getDefaultBeforeSaveHook`
+>   records what it hands out; with such a hook and no `returnDeleted`, `deleteAll` reads the ids
+>   through the same scope, tenant and filter a read applies, and removes them. A repository given a
+>   hook of its own still reads, decrypts and hands it every row. *Not running the hook for deletes at
+>   all* was the alternative, and would have silently stopped a hook that audits or vetoes them.
+> - **The driver contract says so.** `remove` takes ids and returns nothing, and `findIds` reads the
+>   ids of a match - one column on postgres. The membership-reporting driver, the one that needed rows
+>   from `remove`, reads the memberships before removing them, as its `save` already did.
+> - **It reaches further than `deleteAll` itself**: the rows a relation value leaves out, and the
+>   change sets of a deleted row, are count-only deletes, so neither reads its rows any more.
+> - **Docs:** `costs.md` says when `deleteAll` reads and decrypts rows; no upgrade entry, since the
+>   driver interface is new in 3.0.
+>
+> **Proof.** `hooks.default.delete.test.ts` (in memory): its count-only case asserted three
+> decryptions and was rewritten to assert none, red first; a new case hands every deleted row to a
+> hook of the repository's own. `repository.costs.test.ts` records the left-out rows of a relation as
+> `findIds` rather than `find`. The postgres and valkey sides run through the existing delete suites.
+
+*Filed on 2026-10-15, from what §M3 left open.*
+
+`deleteAll` reads the matching rows in full before removing them
+(`src/data-source/repository/repository.ts:2456-2497`), because the delete hook runs per entity and can
+be replaced. A caller who wants the count still pays for reading, decrypting and holding every row. The
+descriptors can say whether the configured hook does anything for a delete, and nothing asks them.
+
+### M51. A write still shares the nested objects of the caller's data — ~~MINOR, open~~ **FIXED**
+
+> **Closed 2026-10-16. A write copies what the caller's data holds, as deep as the entity declares
+> objects and arrays.**
+>
+> - **Worse than "may reuse".** Every write path handed back the caller's nested objects holding
+>   ciphertext and filled-in defaults, so writing the same data twice encrypted the ciphertext.
+>   `repository.caller-data.test.ts` showed it on all six paths it covers.
+> - **`WriteDataUtilities.copy`** replaces the shallow copy of `create`, `createAll`, the upsert row,
+>   `updateById`, `updateEach` and both `updateAll` paths, and the per-row copy of an update with
+>   row-bound encryption. The data itself is still copied as a spread, so a loaded entity's excluded
+>   properties stay out of the write as before; what an `object`, `array` or `oneOf` property holds is
+>   copied by the metadata, a nested model keeping its class and its getters, since a nested model is
+>   written whole. Relations are not copied: a related row is named by its id or written through
+>   its own repository. `ObjectUtilities.copyDeep` was not enough, as it shares class instances.
+> - **Docs:** a sentence in "What a write hands back" of `data-source.md`.
+>
+> **Proof.** `repository.caller-data.test.ts` (in memory): six cases, create, createAll, updateById,
+> updateAll, the update of several rows by id and upsert, each with a plain nested object and a class
+> instance in an array; all six red first.
+>
+> **Found on the way:** an upsert's `onConflict` that set an encrypted or hashed property stored the
+> value as given - [M60](#m60-an-upserts-conflict-path-stored-an-encrypted-or-hashed-value-as-it-was-given--major-fixed),
+> fixed in the same round.
+
+*Filed on 2026-10-15, from the first entry of the MINOR list.*
+
+Every write path copies the caller's data before working on it, but shallowly
+(`src/data-source/repository/repository.ts:660`, `:1851`, `:2151`, `:2229`). An object or array
+property is still the caller's own object, so whatever the save hooks write into it (encryption, hashing,
+defaults of a nested model) lands in the object the caller holds and may reuse.
+
+### M52. A property's `default` is applied on create only, and the note saying why is missing — ~~MINOR, open~~ **DECIDED**
+
+> **Closed 2026-10-16. A default is filled in when a row is created, and an update fills nothing in**
+> (the user's call).
+>
+> - **Create:** the row, the models it holds, and a related row a write creates - an update creating
+>   one included, since that row is written through its own repository as a create. `undefined` is
+>   filled in; `null` is a value and is stored.
+> - **Update:** writes what it is given. *Filling in the defaults of a nested object or array an
+>   update writes* was the alternative, since an update replaces a nested value whole and the value
+>   it stores then lacks them; declined, because somebody sending a partial update expects nothing
+>   but what they named to change. That a partial nested object replaces the stored one at all is
+>   the defect behind the alternative, filed as [M61](#m61-an-update-takes-a-partial-nested-object-and-replaces-the-stored-one-with-it--minor-open-fixed).
+> - The change set path the finding mentions has nothing to carry under this rule, which is the rule.
+> - **Docs:** the `default` paragraph in `models.md`, and the JSDoc of `default`.
+>
+> **Proof.** `repository.defaults.test.ts` (in memory) pins the rule in five cases: a create filling in
+> a property and a nested model, `null` kept, an update leaving a property out keeping what is
+> stored, a nested value an update writes getting nothing filled in, and a related row an update
+> creates filled in. Green from the start, since it records behavior rather than changing it.
+
+*Filed on 2026-10-15, from the first entry of the MINOR list.*
+
+The default save hook calls `setDefaultValues` for `SaveOperation.CREATE` alone
+(`src/data-source/hooks/hooks.default.ts:57-58`). The MINOR list calls that "a deliberate gap rather than
+an oversight — see the note below", and there is no note below. So it is undecided in writing whether an
+update that leaves a defaulted property unset, or sets it to `undefined`, should get the default, and the
+change set path built to record generated values on update has nothing to carry.
+
+### M53. Some index shapes cannot be declared — ~~MINOR, open~~ **FIXED**
+
+> **Closed 2026-10-17. Checks are declared, and an index another one leads is refused; covering and
+> partial indexes are decided against** (the user's calls on all four).
+>
+> - **Checks:** `checks: [whereFor<T>(...)]` on the entity, each a filter every row has to match - the
+>   user kept that reading over "no row matches", since a second key would be a second way to say the
+>   same thing. A write leaving a row that breaks one is refused with a `CheckConstraintViolationError`
+>   (400) naming the properties it compares, on every store: postgres holds a `CHECK ((predicate) IS
+>   TRUE)` named `chk_{table}_{hash}` and maps sql state 23514 back to the check; valkey and in memory
+>   judge the row as it will be stored with the evaluator before writing. `IS TRUE`, because a CHECK
+>   passes a row its predicate is NULL for, where the evaluator does not match it.
+> - **What a check can say** is what `keyWhereToSql` writes, widened for it: a literal as it is, `not`
+>   (`IS DISTINCT FROM`), `oneOf`, `notOneOf` and comparisons of numbers, null answered as the
+>   evaluator answers it. Text is not compared by size - the store's collation orders it, the
+>   evaluator does not - and a date is not a literal there. Refused where the entity is declared, so
+>   a store judging the filter itself refuses it too. A unique's `where` takes the same operators now.
+> - **Kept like keys.** Postgres reconciliation adds a missing check `NOT VALID` in a short lock and
+>   validates it beside the writes; a stored row breaking it drops it again and stops the boot naming
+>   the row. Valkey lists the checks with its uniques and indexes, judges a write by the list it is
+>   applied against - so a newer release beside an older one holds every write to its checks - and
+>   judges the stored rows once per check, keeping it in the set of built ones.
+> - **An index leading another** - `index` on a column beside a group starting with it, a group
+>   leading a longer group, or one leading or repeating a unique group over every row - is refused at
+>   declaration, compared as the key descriptor keeps them, led by the tenant. A unique among some
+>   rows does not lead anything, its index answering only lookups naming its rows.
+> - **Found on the way, fixed:** the `indexes` JSDoc and `data-source.md` said an index on (tenantId,
+>   status) answers a lookup by tenantId alone, and on valkey it did not - an entry was the whole
+>   combination, so a lookup by a leading part read every row. Valkey now keeps every leading part
+>   of an index group, and of a unique group over every row, as a group of its own, longest first.
+>   That is what let the refusal stand on valkey, and what let `withinTenant` stop adding an index on
+>   the tenant alone beside groups that all start with it, which on postgres was a second index
+>   answering what the first did; it is added only when nothing else is led by the tenant.
+> - **Decided against:** a covering index, which only a store reading answers out of an index has a
+>   use for, and a `where` on an index, which nothing asks for.
+> - **Already closed:** a unique group around a column unique on its own was refused since §M2's
+>   round.
+> - **Docs:** "Rules every row follows" and the leading-part refusal in `data-source.md`, the
+>   checks bullet under "Keeping indexes and uniques", the tenant index in `tenancy.md`, the JSDoc of
+>   `indexes` and `checks`.
+>
+> **Proof.** `entity-checks.cases.ts` runs in memory (`entity-checks.test.ts`) and on postgres and
+> valkey (`entity-checks.postgres-valkey.test.ts`): a row that follows, a create, an update, an
+> `updateAll` and an upsert refused with nothing stored, null refused by a comparison and taken by
+> `notOneOf`. `key-where-to-sql.test.ts` pins the sql of every operator; `entity.decorator.test.ts`
+> the refused checks and the tenant index; `redundant-key-declarations.test.ts` five leading-part
+> cases, its "takes an indexed column beside a group that starts with it" turned into the refusal.
+> `val-key-data-source.test.ts` answers a leading part of an index group and of a unique group from
+> the index (container). `key-reconciliation.cases.ts`, on all three stores: a check a release
+> declares holds over the rows stored before it, stops holding once undeclared, and a stored row
+> breaking it stops the boot naming the row - which in memory, having nothing to build, needed a boot
+> check of its own (red without it).
+
+*Filed on 2026-10-15, from what §M2 left open.*
+
+`index` and `indexes` cover single and composite indexes over all rows. Not declarable: a covering index,
+a check constraint, and a `where` on an `index` (only `unique` takes one). Nor does startup notice a
+declaration another already covers: an index that is the leading part of another, or a unique group over
+a column that is unique alone.
+
+### M54. The framework's own number properties are stored as doubles — ~~MINOR~~ **FIXED**
+
+*Filed on 2026-10-15, from §M8's residue.*
+
+§M8 gave a number property a `format`, and the framework's own sixty-seven declarations were left at the
+default `number`, a `double precision` column. Counters, status codes and durations are `integer` or
+`bigint` by meaning, and are stored as floating point.
+
+> **Closed by giving every whole number its format, after making `integer` mean one thing.** Of the
+> declarations still at the default, twenty-two hold a whole number by meaning and are `integer` now: the
+> http statuses and the log level, every counter (attempts, failure streaks, passkey sign counters, the
+> rate limiter state's version, invoice numbers and years, websocket sequence numbers, page totals),
+> thread jobs' times, thread id and progress, file sizes, and the seconds and milliseconds the token,
+> introspection, PayPal and passkey payloads carry as integers by their specifications.
+>
+> **The rest stay `number`, because they can be fractions:** a duration measured with
+> `performance.now()` (the log's, the cache context's, a trace span's), a metric's value, a vat rate, an
+> invoice item's amount and price, a SCIM number. So do the values computed from what an application
+> configures, which nothing requires to be whole: the rate limiter's expiry, ready and wait times and a
+> reservation's count, a thread job's timeout and a cron job's catch-up window. Making those `integer`
+> would turn a fractional interval in an application's configuration into a refused write.
+>
+> **Bug found on the way: `integer` was three different ranges.** The JSDoc and `docs/models.md` said
+> "a whole number inside the safe range", validation took any `Number.isInteger`, and Postgres stored
+> it in an `integer` column of 32 bits, which OpenAPI described as `int32`. A time in milliseconds
+> passed validation, was stored on valkey and in memory, and failed on Postgres. Most of the whole
+> numbers above are such times, so the range had to be settled first. The user chose the documented one:
+> Postgres stores the format as `bigint`, OpenAPI says `int64`, and validation and a migration's
+> conversion take `Number.isSafeInteger` (2^53 is whole, and also what 2^53 + 1 reads as). No upgrade
+> entry: formats are new in 3.0.0, so no 2.x database holds a 32-bit column for one. The upgrade
+> guide's own migration now names the formats these properties have.
+>
+> **Proof:** `number-formats.cases.ts` stores a time in milliseconds and `-Number.MAX_SAFE_INTEGER` as
+> an `integer` and filters past 2^31 on every store; `migration-helpers.cases.ts` refuses to convert
+> 2^53 into one (red in memory against the old check); `validate-number.function.test.ts` takes the
+> safe range and refuses 2^53; the OpenAPI test pins `int64`, and `number-formats.postgres-valkey.test.ts`
+> the `bigint` column, where it had pinned the 32-bit one.
+
+### M55. A postgres backup leaves grants, comments and the tools' version to chance — ~~MINOR~~ **FIXED**
+
+*Filed on 2026-10-15, from what §C6 does not cover.*
+
+The dump runs with `--no-owner`, `--no-acl` and `--no-comments`, so a restored database has its schema
+and data and none of the grants or comments around them. The version of `pg_dump`/`psql` is not checked
+against the server's. The restore clears every ordinary table in the database, so a schema shared with
+another application's tables does not survive it, and an object kind that is not a table makes the
+restore fail.
+
+> **Closed by making a backup the schema the data source works in, as an archive.** All four parts,
+> and a fifth that asking about the second one found.
+>
+> **What a backup covers was a documented guarantee the code did not keep.** `docs/backup.md` said
+> "a backup covers what its resource owns and a restore replaces exactly that"; the dump covered the
+> whole database and the restore dropped every table in every schema, so another application in the
+> same database was rolled back to this one's backup. The user chose the schema: `pg_dump --schema`
+> of `current_schema()`, quoted so the name is neither folded nor read for wildcards. Extensions drop
+> out with it, since they belong to the database, and the data source installs its own at boot.
+>
+> **An archive rather than statements**, because a schema dump names the schema itself - its `CREATE
+> SCHEMA`, its comment, its grants - and those belong to whoever owns the schema, which an
+> application does not (§C6's own argument against `DROP SCHEMA`). `pg_restore --schema` leaves
+> entries without a namespace out, which is exactly those. So the dump is `--format custom`, and a
+> restore runs `pg_restore` to write the archive out as statements, puts the clearing statement in
+> front, and hands both to psql in one transaction as before. psql commits whatever it was given when
+> its input ends, so the script ends only once `pg_restore` exited 0; one that stopped part way leaves
+> psql's input open, and psql is killed before it commits.
+>
+> **The clearing covers every kind of object a schema dump recreates**, collected before the first
+> drop: relations, types and domains, routines, operators, collations, conversions and text search
+> configurations and dictionaries. Not what goes with something else (indexes, row and array types,
+> sequences a column owns), and not extension members. It clears the whole schema rather than what
+> the archive holds, which is the reason `pg_restore --clean` is not used: a table created after the
+> backup would outlive the restore, and the next migration creating it again would fail.
+>
+> **Grants and comments are carried and applied.** The user asked first whether the flags had been
+> there for security. They had not: §C6 gave restorability as the reason ("rather than only by a
+> cluster that still has the original roles in it"), and `COMMENT ON EXTENSION`, which needs the
+> extension's owner, is out of a schema dump anyway. What they add to an artifact is role names and
+> who may read which table, next to every row of every table, and encryption covers them like the
+> rest. Applying them from an altered artifact gives nothing an altered artifact did not already
+> give: the restore runs its statements, and a `GRANT` only reaches objects the restoring role owns.
+> A grant to a role the target does not have fails the restore, which is rolled back and names it.
+>
+> **Bug found on the way: a separate backup role took the tables.** With `rootUsername` set, the
+> restore ran as that role from a dump without owners, so every table it recreated was the backup
+> role's and the application could no longer alter its own tables at the next migration. Restoring as
+> the data source's role was the first fix, and it would have handed the tables to an application
+> role that only reads and writes rows wherever a third role owns them, which is the usual reason
+> for a separate backup role. The user chose to keep owners in the archive: every object goes back to
+> the role that owned it, under the same rule as grants.
+>
+> **Tool versions are checked at boot**, beside the check that the tools exist: `pg_dump` older than
+> the server refuses to dump it, and `pg_restore` older than `pg_dump` reads none of its archives,
+> both so far only once a backup or a restore was attempted.
+>
+> **Proof:** `backup.evaluation.test.ts` gains six M55 cases: another schema left out and untouched,
+> objects of every kind restored and a later table removed, grants and comments put back, a failing
+> statement rolling the clearing back, and the two version refusals. `backup-role.evaluation.test.ts`
+> backs up and restores as a separate role, created through the new `StartedTestServer.runAsSuperuser`
+> of `zibri-testing`, and asserts the application still owns and alters its table. The C6 cases read
+> the stored archive through `pg_restore`, the way anyone holding it would. None of this has run here,
+> since it all needs containers.
+
+### M56. A fuzzy search covers one column and cannot order by similarity — ~~MINOR, open~~ **FIXED**
+
+*Filed on 2026-10-15, from what §M18 does not cover.*
+
+`fuzzyLike` asks about one column at a time. There is no index over several columns, no search across
+them, and no way to order a result by how similar it is.
+
+> **Closed 2026-10-17. An order sorts by similarity; a search across several columns is §M62.**
+> The user's calls: a key of the order rather than a flag on the filter or a find option of its own,
+> ordering only, and cursors that carry on through it.
+>
+> - **`order: { name: { similarTo: 'Miller Holding' } }`.** `EntityOrder` offers `{ similarTo }` next
+>   to a direction on every string column, most similar first, a property holding nothing last. It
+>   is one key of the order like any other: keys before it decide first, keys after it (and the
+>   primary key a bounded read appends) break its ties, and it reaches through a relation.
+> - **Told apart from a relation by the metadata.** `EntityOrderUtilities.resolveKeys` and
+>   `resolveRelations` take the entity class now: an object in an order was a relation by shape alone,
+>   and a relation's entity may well have a property named `similarTo`.
+> - **Refused where a filter is refused** (`FuzzySearchUtilities.validateOrderable`, asked in
+>   `Repository.toDriverFindOptions`): a uuid, one of an enum, a hashed or an encrypted value. Not for
+>   `fuzzySearchable: false`, since an order needs no index: it sorts what the filter found.
+> - **Postgres** cannot say an expression in typeorm's find options, so a read ordering by similarity
+>   goes through the query builder: every key goes to the find options as a direction first, which
+>   places it and joins what it reaches through, and each similarity sort is then swapped in place
+>   for `similarity(column, :search)` selected under a name of its own, `DESC NULLS LAST`. A named
+>   selection is the one form the orm keeps intact when it pages a joined read through a second
+>   query. The expression is the converter's (`similarityExpression`), next to the `fuzzyLike` it
+>   matches.
+> - **Valkey and in memory** sort through `EntityOrderUtilities.resolveComparator`, one shared
+>   comparison per key with the similarities remembered per value for the sort. The trigram measure
+>   moved out of the evaluator into `TrigramUtilities`, so a filter and an order use one function.
+> - **A cursor carries the row's text rather than its similarity.** The next page is "less similar to
+>   the search than this text is, or exactly as similar and a later id", which a `fuzzyLike` bound
+>   (`BoundedFuzzyLikeFilter`, written by the walk and not part of the filter type a caller writes)
+>   says to the store. Each store compares two similarities it calculated itself, so "exactly as
+>   similar" stays an exact equality; a carried number would need every store to calculate it
+>   identically. The search is part of the cursor's fingerprint, and only where an order has one, so
+>   cursors already handed out for other orders stay valid.
+>
+> **Bug found on the way: a walk replaced the caller's condition on the property it was ordered by.**
+> `afterCursorWhere` spread the cursor's condition over the caller's branch, so `{ name: { before:
+> 'ccc' } }` ordered by `name` read on into `'ccc'` from the second page, and so would any `like` or
+> `fuzzyLike` on it. Its comment held that the cursor's row passing the filter made that a narrowing;
+> that is true only of a lower bound. Valkey and the in-memory store hid it by taking the window out
+> of the rows matching the total's filter; Postgres reads the window by the merged filter alone. The
+> two conditions are now merged the way a scope is (`ScopeWhereUtilities.applyToWhere`), which a
+> similarity walk needs anyway: the cursor's bound has to hold next to the caller's search.
+>
+> **Bug found on the way: a letter outside of ascii was not a letter to the in-process similarity.**
+> Words were split on `[^\da-z]`, so "Müller" was the words "m" and "ller", the same text as "Möller",
+> where pg_trgm on a database of a unicode locale reads one word each. Words are runs of `\p{L}\p{N}`
+> now, and trigrams are taken by character rather than by utf-16 unit. A database whose character
+> type is `C` reads ascii alone, which no store in process can follow, so the data source warns at
+> boot (the user's call, after the collation warning): `similarity('ü', 'ü')` is 0 there rather than
+> 1, and the warning names the character type. `postgres-character-type.test.ts` boots once on the
+> image's database without the warning and once, through a `reInit`, on a database created with
+> `LC_CTYPE 'C'` with it.
+>
+> **Proof.** `fuzzy-search.cases.ts` (in memory, and on postgres and valkey) gains nine cases: a
+> search ordered closest first, every row ordered with the unrelated one last, a `fuzzySearchable:
+> false` property ordered, a numbered page, a cursor walk over two rows exactly as similar, a walk
+> keeping its search, a cursor refused for another search, an enum refused, and "Müller" against
+> "Möller", which was red in memory first. `in-memory-data-source.test.ts` orders through a relation
+> and holds the type test that a number has no `similarTo`; `repository.test.ts` (postgres) orders
+> through a joined relation while paging. For the walk: `after-cursor-where.function.test.ts` was red
+> first on the upper bound, `repository.test.ts` gains the postgres case, and its existing case's
+> comment no longer states the wrong reason. The postgres and valkey runs have not happened here.
+
+### M62. A search across several columns — MINOR, **open**
+
+*Filed on 2026-10-17, from what §M56 left out on the user's call.*
+
+A `fuzzyLike` asks about one column. "Miller Berlin" finds no contact named "Miller Holding" in
+"Berlin": each column holds only half the words, so neither column is similar enough, and an `or` of
+two searches asks each column the whole question. What is missing is a search declared over several
+properties and kept as one trigram index over their joined text, and a way for a filter and an order
+to name it.
+
+### M57. A query outside a request has no time limit — ~~MINOR, open~~ **FIXED**
+
+*Filed on 2026-10-15, from §M14's list of absences.*
+
+§M14 named a bulk insert fast path, a cursor and a query timeout as missing. The first two exist now
+(§M47's `insert`, `stream`). Inside a request a statement is bounded by the request's deadline (02
+§M11). A cron job, an event subscriber, a thread job or a migration runs a statement for as long as the
+store takes: no data source sets a statement timeout, and `RepositoryDriverInterface` takes none.
+
+> **Closed 2026-10-17. A statement has a time limit everywhere, a call can name its own, and the schema
+> work has one of its own.** The user's calls: a timeout on the data source with a default (30 s for
+> postgres, after weighing valkey's 5 s against a bulk statement over a large table), a timeout per
+> operation for whatever needs longer or less, and a global migration timeout a migration can override.
+>
+> - **Postgres: `statementTimeoutInMs`, 30 000 by default,** sent as `statement_timeout` in the
+>   connection's startup settings beside the trigram threshold, so it covers what this application
+>   runs and nothing else. Valkey keeps glide's `requestTimeout` (5 s) per command, which was already
+>   the same thing; asked about a second client per timeout, the user pointed out that the request
+>   deadline needs none, and the per-operation timeout is built the same way.
+> - **`timeoutInMs` on every repository call** (`BaseRepositoryOptions`). `withinTimeout`, beside
+>   `inTransaction`, runs the call under an operation limit in async local storage: a timeout and a
+>   signal. The signal is what `DeadlineAwareRepositoryDriver` and the typeorm driver's cancel path
+>   already obeyed for a request (`AlsUtilities.findCurrentSignal`), so the call as a whole is bounded
+>   the way a request is - the next store call refused, a running postgres statement cancelled - on
+>   every store, with no new client. On postgres the timeout is also every statement's: on a
+>   connection of its own outside a transaction (`set_config`, then `RESET`), with `SET LOCAL` and
+>   the previous value put back inside a caller's transaction, and through a typeorm subscriber for a
+>   transaction begun under the limit - the orm's own save and schema sync included. A limit started
+>   inside another one fires with it, so an inner call never outlasts an outer one. A stream opens
+>   its limit once and runs each pull under it. Every public method wraps itself explicitly, the
+>   subclasses' overrides as well (the user asked for that over a decorator).
+> - **`migrationTimeoutInMs` on the data source, no limit by default,** for the schema setup block
+>   (the schema lock, synchronize, the key and trigram index reconciliation, which run their DDL on
+>   connections given the limit) and for every migration; `Migration.timeoutInMs` overrides it per
+>   migration. Starting the migration's transaction inside the limit is what gives every statement of
+>   it the limit's time.
+> - **The schema lock's wait** is the lock timeout's to bound, so its connection lifts the statement
+>   timeout for it.
+>
+> **Two bugs found on the way, both in the schema lock holding a pooled connection.** It left its
+> `lock_timeout` on the session and never reset it, so whichever statement got that connection next
+> waited on locks for the schema lock's time. And with `poolSize: 1` it held the only connection while
+> the migrations and synchronize asked the pool for another, so the boot hung forever without a word -
+> found by the first run of the test below, which used a pool of one to see the leak. The lock now
+> runs on a typeorm data source of its own, with the same options and a pool of one, destroyed once
+> the setup is done (the user chose that over refusing a pool below two): the boot costs one more
+> connection while it runs, and nothing the lock sets reaches the pool.
+>
+> **Proof.** `postgres-statement-timeout.test.ts` (postgres): a statement past the data source's
+> timeout stopped; a call waiting on a row lock past it let through with a `timeoutInMs` of its own and
+> stopped without one; the caller's transaction given its timeout back after such a call; a migration
+> past the statement timeout recorded, and one past a `timeoutInMs` of its own stopped and not
+> recorded; and a one-connection pool booting, with `lock_timeout` 0 and its own statement timeout on
+> its connection afterwards (the hang ran red; the leak was not run red here).
+> `operation-limit.utilities.test.ts` covers the deadline, the nesting, 0 and the refusals;
+> `in-memory-data-source.test.ts` a stream held open past its timeout and a refused one. The DDL of
+> the schema setup under the migration timeout is untested: it needs a table large enough for an index
+> to take longer than a statement may.
+
+### M63. Waiting for a connection has no time limit — ~~MINOR, open~~ **FIXED**
+
+*Filed on 2026-10-17, from the pool of one that hung §M57's first test run.*
+
+A call that finds every pooled connection taken waits for one to come back, for as long as that
+takes. The statement timeout starts with the statement, and a call's `timeoutInMs`, documented as
+bounding the call as a whole, does not reach the wait either: `DeadlineAwareRepositoryDriver` refuses
+a call whose signal has already fired, and nothing aborts one that is already waiting in the pool. pg's
+pool waits forever by default; its `connectionTimeoutMillis` (typeorm's `connectTimeoutMS`) would
+bound the wait for every call, which leaves open what a call without a `timeoutInMs` should wait.
+Valkey has no pool to wait on. `connection-wait.evaluation.test.ts` (postgres) holds the only
+connection of a one-connection pool and asks for a call with a `timeoutInMs` of 200 to give up.
+
+> **Fixed 2026-10-19, and green on the user's run the same day.** Decided with the user: **a call with no limit of its
+> own waits 30 seconds**, the statement timeout's default, as `connectTimeoutMS` in the postgres
+> default options (pg's `connectionTimeoutMillis`, which bounds the pool's queue as well as opening a
+> connection). An application sets its own in `options`, and one an `extra` names still wins, as the
+> test helpers' `connectionTimeoutInMs` does. It applies to every call, so one with a longer
+> `timeoutInMs` still waits at most that long for a connection: pg's pool has one timer for all.
+>
+> Mine: **the wait ends with the signal of the work it belongs to**, a call's limit or the request.
+> `TypeOrmBaseDataSource.connectQueryRunner` races `runner.connect()` against it with
+> `PromiseUtilities.withSignal`, and both the driver's `onConnection` and `startTransaction` take their
+> connection through it, so a transaction started inside a request or a limit gives up the same way.
+> A connection the pool hands over after the call gave up is released then: typeorm's runner, released
+> before it is connected, marks itself released and never hands back what arrives afterwards.
+> `startTransaction` released on any failure of `connect`, which is harmless for a connect that failed
+> and would have leaked one that was given up; it now connects outside its try.
+>
+> **Tests.** `connection-wait.evaluation.test.ts` gained, beside the call with a limit (its window cut
+> to 900 ms, under the pool's own 1000 ms, so only the call's limit can end it): the pool handing the
+> abandoned call's connection back once it comes free, a transaction started under a 200 ms limit
+> giving up, and a call without a limit failing once the pool kept it waiting for `connectTimeoutMS`.
+> All four are green on the user's run; none was seen red, since they need postgres. Docs: `data-source.md` (how long a call may take),
+> `upgrading-to-3.md` (beside the statement timeout, since a wait that ran forever now fails).
+
+### M58. Giving up a unique value on valkey blocks it until the transaction commits — ~~MINOR, open~~ **FIXED**
+
+*Filed on 2026-10-15, from what §M22 does not cover.*
+
+A row that gives up a unique value inside a transaction keeps the index entry until that transaction
+commits, so a concurrent write taking the value up is refused with `UniqueConstraintViolationError`
+where postgres would wait and then allow it. A spurious conflict, never a duplicate.
+
+> **Closed 2026-10-17. A value given up is held until the transaction ends, so a write taking it up
+> waits for the outcome, as on postgres.** The removal from the unique index was a plain set operation
+> with no grant, on the reasoning that removals commute - true between two rows letting go of values,
+> but not between one letting go and another taking up, and that pair is the case. `saveUniqueIndexes`
+> now claims the keys of the values it gives up in the same claim as the ones it takes up, so every
+> key is taken in one sorted order; `remove` inside a transaction claims the unique keys of the rows it
+> deletes. A taker's own claim queues behind the grant, and once the transaction commits it reads the
+> value free; after a rollback it reads the row still holding it and is refused. Outside a
+> transaction a delete is applied at once and still holds nothing. The cost is one more key per
+> changed unique value in a claim the save already makes, and one claim per delete in a transaction of
+> an entity declaring uniques.
+>
+> **Proof.** `released-unique.cases.ts`, run on postgres and valkey by
+> `released-unique.postgres-valkey.test.ts`: a value taken by a concurrent create once the transaction
+> that changed it commits, the same once the transaction that deleted its row commits, and refused
+> once the transaction rolls back - the control, which passed before as well, for the wrong reason.
+> Not in memory, where nothing runs side by side to wait on. Not run red here: it needs containers.
+
+### M59. Two entity classes of the same name may share a table — ~~MINOR, open~~ **FIXED**
+
+*Filed on 2026-10-15, from 09's list of what was not reviewed.*
+
+`tableName` defaults to the class name in snake case (`src/entity/decorators/entity.decorator.ts:210`),
+and nothing at startup refuses two entities resolving to one table. Two classes named `User` in
+different modules, a plugin's and an application's say, would then both read and write `user`. What each
+store does in that case has not been checked.
+
+> **Closed 2026-10-17. Both collisions refuse the start.** Checking found the table the smaller half.
+> The repository tokens are built from the class name (`Repository<User>`, and
+> `Repository<User>@DbDataSource`), so of two classes named alike the repository registered last
+> answered for both, silently, whatever their tables; typeorm got two entity schemas of one name as
+> well, and traces and messages name an entity by it. The user chose refusing over keying the tokens
+> by class, which would still have left the schema name, traces and messages colliding.
+> `DataSourceService.beforeAppInit` now refuses two different entity classes of the same name
+> anywhere in the application, naming the data sources they are in, and two entity classes of one
+> data source resolving to the same table, naming the table and both classes, with what to change.
+> The same table name in two data sources is two stores and starts. One entity in two data sources
+> through `allowDuplicate` is one class and starts as before. Documented under "Defining entities",
+> and in the upgrade guide, since an application that started with either now does not.
+>
+> **Proof.** `data-source.service.test.ts` (in memory): two classes named `Note` in two data sources
+> refused, two entities of one data source on the table `note` refused - both run red first, booting -
+> and the same table name in two data sources starting. The in-memory suites booting an application
+> all start, so nothing the framework declares collides.
+
+### M60. An upsert's conflict path stored an encrypted or hashed value as it was given — ~~MAJOR~~ **FIXED**
+
+*Filed and closed on 2026-10-16, found while fixing [M51](#m51-a-write-still-shares-the-nested-objects-of-the-callers-data--minor-open-fixed).*
+
+The save hooks ran on an upsert's `create` only. An `onConflict` that set an encrypted property wrote
+the plaintext, which no read could decrypt afterwards ("Invalid encryption string"), and one that set
+a hashed property wrote the value unhashed. Nothing refused it and no test reached it.
+
+> **Closed the same day. The conflict path's values go through the save hook, as an update's do**
+> (the user's call on the bound case).
+>
+> - **Hashed values, and values encrypted without `bindToRow`,** are prepared before the write: the
+>   hook runs on a bare instance of the entity holding the values set, so it is handed what it is
+>   typed for and nothing else, and the prepared values replace the ones given.
+> - **A value encrypted bound to its row** - the default - is encrypted for the row it lands in, which
+>   on the conflict path is the row already holding the identity and not known until the write. It is
+>   left out of the atomic statement; when the conflict path ran (the returned row is not the one the
+>   insert would have made), the same transaction writes it through the driver's `updateEach` after
+>   the hook encrypted it for that row. A `set` overwrites either way, so nothing the single statement
+>   kept is lost, and an upsert setting no such value pays nothing for it. An `onConflict` left
+>   empty by this sets a property of the identity to the value it holds, which the store accepts and
+>   which changes nothing. *Refusing such a set* was the alternative.
+> - **No upgrade entry**: `upsert` is new in 3.0.
+>
+> **Proof.** `upsert-conflict-values.cases.ts` runs in memory (`upsert-conflict-values.test.ts`) and on
+> postgres and valkey (`upsert-conflict-values.postgres-valkey.test.ts`): a bound encrypted value, a
+> hashed one and an unbound encrypted one set on conflict, an insert keeping its own value, and a batch
+> where each row gets the value of the path it took. The first two were red in memory first.
+
+### M61. An update takes a partial nested object and replaces the stored one with it — ~~MINOR, open~~ **FIXED**
+
+> **Closed 2026-10-17. An object an update gives is merged into the stored one, as deep as the objects
+> go** (the user's call: "a @Property.object should be merged into the existing one").
+>
+> - **Merged:** an `object` property, and an `object` property inside it. **Written as given:** an
+>   array (a list, with no single meaning for merging two), a value of several shapes, and `null` -
+>   for the whole object or one property of it. An object given where the row holds none, or `null`,
+>   is stored as given.
+> - **In the store, on every update path.** `WriteDataUtilities.resolveMerged` merges against a row
+>   in hand, which in memory and on valkey `updateAll` and `updateEach` already hold before they
+>   write. Postgres merges in the statement: `buildObjectMergeSql` sets the column to
+>   `stored || given`, one `||` per level, through `jsonb_build_object` for an object inside, so a bulk
+>   update stays one statement reading nothing first. The two orm `save` branches next to a relation
+>   write the objects through that statement before saving the rest, since a save writes over the
+>   column.
+> - **The bulk update with a row-bound encrypted value** wrote through `driver.save`, which replaces;
+>   it writes through `driver.updateEach` now, the primitive for rows carrying values of their own.
+> - **Change sets:** a change records the merged object as its new value rather than the part the
+>   update named, and a reset writes the old object back with `null` for each property added since
+>   (`WriteDataUtilities.resolveReplacing`) - merged, an added property survived the reset. Both were
+>   red first.
+> - **Left as they were:** `create` with `allowId` over a stored row, which is a save, and an upsert's
+>   `onConflict` `set`, which says it sets.
+> - **Driver interface:** `updateAll`'s `data` and `updateEach` say an object is merged.
+>   `WriteDataUtilities` is exported for a driver to merge with.
+> - **Docs:** "Updating part of an object" in `data-source.md`, and a paragraph on what a change set
+>   records of an object.
+>
+> **Proof.** `partial-nested-update.cases.ts` runs in memory (`partial-nested-update.test.ts`) and on
+> postgres and valkey (`partial-nested-update.postgres-valkey.test.ts`): `updateById`, a merge two
+> levels deep, an array replaced, `null` for a property and for the object, an object where none is
+> stored, `updateAll` over several rows, filtering through a relation, giving a relation, writing a
+> row-bound encrypted value, and a related row given by its id. `change-set-repository.nested-object.test.ts`
+> (in memory) holds the two change set cases. The evaluation test is green and stays as a regression
+> test.
+
+*Filed on 2026-10-16, found while deciding [M52](#m52-a-propertys-default-is-applied-on-create-only-and-the-note-saying-why-is-missing--minor-open-decided).*
+
+The data of an update is typed `DeepPartial`, so `updateById(id, { address: { number: '42' } })`
+compiles as a change to one property of the address. The write stores it as the whole address: every
+property it leaves out is gone, on every path an update takes. The type promises a merge the write
+does not do, and the user's expectation is the type's - "someone sending a partial update would never
+expect that some other property on the address object would be changed".
+
+Open: whether a nested object in an update is merged into the stored one, property by property and
+as deep as it goes, or the type stops accepting a partial one. An array is a list, and merging two
+lists has no single meaning, so either answer likely leaves arrays replaced whole.
+
+`src/__testing__/evaluation/partial-nested-update.evaluation.test.ts` (in memory) holds the expected
+behavior for `updateById` and `updateAll`, and is red.
 
 ---
 
@@ -2863,7 +3670,7 @@ invisible in every test, because the replacement is correct.**
 **What is left is named rather than fixed.** `create`'s pre-`SELECT` is the same statement §M12
 removed from the update path and would go the same way, through typeorm's insert builder; the
 `deleteById` read inside `remove` is typeorm's again. Neither is a rewiring, and neither was this
-round.
+round. *(The pre-`SELECT` went with §M47.)*
 
 ---
 
@@ -2873,7 +3680,7 @@ round.
   (`delete data.id`, `data.id = id`).~~ — **fixed.** Every write path that takes caller data now
   works on a shallow copy: `create`, `createAll`, `upsert`, `saveUpdate`, `updateAll`.
   `updateAllBound` already did, and its comment is where the pattern came from. Shallow covers every
-  column; a nested object is still shared, which is a narrower thing and stays open.
+  column; a nested object is still shared, which is a narrower thing and stays open as §M51.
 
   **What made it more than untidy**: the caller's object gained the generated id, everything
   `beforeSave` wrote, and whatever the driver handed back — so a payload a caller held on to and
@@ -2915,8 +3722,8 @@ round.
   — and two lists that must stay in step are two lists that can fall out of it.
 
   **What this still waits on**: `setDefaultValues` runs for `CREATE` only, so nothing is generated
-  during an update yet and the new path has nothing to carry. That is a deliberate gap rather than an
-  oversight — see the note below.
+  during an update yet and the new path has nothing to carry. That was called a deliberate gap, with a
+  note below to say why; the note was never written, and the question is §M52.
 - ~~`repository.ts:218-227` warns *"Found an id on the update data, it will be ignored"* and then
   overwrites it — the message is false.~~ — **closed, re-checked 2026-10-01.** Both update paths
   work on a copy now (see the first entry), and the id given in the data is the one thing the copy

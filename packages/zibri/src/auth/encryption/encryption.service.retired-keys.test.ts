@@ -111,14 +111,14 @@ describe('EncryptionService — what is still under a retired key', () => {
         // written after the deprecation, under the new default, so it is not counted
         await getOtpRepository().create({ userId: UUIDUtilities.generate(), secret: 'three' });
 
-        expect((await encryptionService.resolveRetiredKeyUsage()).dataKeys).toEqual([{ keyId: retiredKeyId, strategyName: 'aes-256-gcm', strategyVersion: 'v1', values: 2, backups: 0 }]);
+        expect((await encryptionService.resolveRetiredKeyUsage()).dataKeys).toEqual([{ keyId: retiredKeyId, strategyName: 'aes-256-gcm', strategyVersion: 'v1', values: 2, backups: 0, stuckRows: [] }]);
 
         // the test server runs no cron jobs, so the sweep is built and run the way the cron service would
         const rotationJob: EncryptionRotationCronJob = new EncryptionRotationCronJob(encryptionService);
         rotationJob.onAppInit(server['app']);
         await rotationJob.onTick();
 
-        expect((await encryptionService.resolveRetiredKeyUsage()).dataKeys).toEqual([{ keyId: retiredKeyId, strategyName: 'aes-256-gcm', strategyVersion: 'v1', values: 0, backups: 0 }]);
+        expect((await encryptionService.resolveRetiredKeyUsage()).dataKeys).toEqual([{ keyId: retiredKeyId, strategyName: 'aes-256-gcm', strategyVersion: 'v1', values: 0, backups: 0, stuckRows: [] }]);
 
         await getOtpRepository().deleteAll({});
         retiredDataKeyId = retiredKeyId;
@@ -133,7 +133,7 @@ describe('EncryptionService — what is still under a retired key', () => {
         expect(backup?.resources.map(r => r.name)).toEqual([SettingsStore.name]);
         expect(backup?.dataKeyIds).toContain(retiredDataKeyId);
 
-        expect((await getEncryptionService().resolveRetiredKeyUsage()).dataKeys).toEqual([{ keyId: retiredDataKeyId, strategyName: 'aes-256-gcm', strategyVersion: 'v1', values: 0, backups: 1 }]);
+        expect((await getEncryptionService().resolveRetiredKeyUsage()).dataKeys).toEqual([{ keyId: retiredDataKeyId, strategyName: 'aes-256-gcm', strategyVersion: 'v1', values: 0, backups: 1, stuckRows: [] }]);
     }, 20000);
 
     test('counts the data keys still under an old master key', async () => {

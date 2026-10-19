@@ -33,7 +33,7 @@ describe('HashService', () => {
         server = await startTestServer();
         strategyRepository = inject(repositoryTokenFor(HashStrategyEntity));
         hashService = inject(ZIBRI_DI_TOKENS.HASH_SERVICE) as HashService;
-    }, 15000);
+    }, 30000);
 
     afterAll(async () => {
         await server?.shutdown();

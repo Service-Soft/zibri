@@ -18,6 +18,7 @@ import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { defineProvider } from '../../di/models/di-provider.model';
 import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface';
+import { NumberUtilities } from '../../utilities/number.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 
 /**
@@ -88,12 +89,12 @@ describe('payments across tenants', () => {
         const created: Payment<KnownPaymentMethod, Record<string, unknown>> = await tenants.runAs(acme, async () => await repository.create({
             transactionId,
             status: PaymentStatus.CREATED,
-            amount: 1,
+            amount: NumberUtilities.new(1),
             currencyCode: 'EUR',
             paymentMethod: KnownPaymentMethod.PAY_PAL
         }));
         const validate: () => Promise<void> = async () => {
-            await payments.validatePaymentData(KnownPaymentMethod.PAY_PAL, { transactionId, amount: 1, currencyCode: 'EUR' });
+            await payments.validatePaymentData(KnownPaymentMethod.PAY_PAL, { transactionId, amount: NumberUtilities.new(1), currencyCode: 'EUR' });
         };
 
         expect(created.tenantId).toBe(acme);

@@ -3,6 +3,7 @@ import assert from 'node:assert';
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { PeppolConformanceService } from './peppol-conformance.service';
+import { XRechnungConformanceService } from './x-rechnung-conformance.service';
 import { companyInfoProvider } from '../../../../../__testing__/mocks/company-info-provider.function';
 import { createTestDataSource, defaultTestServerEntities } from '../../../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../../../__testing__/test-server/providers';
@@ -22,6 +23,7 @@ import { UUIDUtilities } from '../../../../../utilities/uuid.utilities';
 import { ZibriInvoicingPlugin } from '../../../invoicing.plugin';
 import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../../../invoicing.tokens';
 import { CompanyInfo } from '../../../models/company-info.model';
+import { InvoiceRecipientAbbreviation } from '../../../models/invoice-recipient-abbreviation.model';
 import { Invoice } from '../../../models/invoice.model';
 import { InvoicingOptions } from '../../../models/invoicing-options.model';
 import { NumberInvoices } from '../../../models/number-invoices.model';
@@ -77,7 +79,9 @@ const baseCompanyInfo: CompanyInfo = {
     iban: 'DE75 5121 0800 1245 1261 99',
     bic: 'ABCD5F',
     bankName: 'Example Bank',
-    taxOffice: 'Tax Office Example City'
+    taxOffice: 'Tax Office Example City',
+    // which Peppol names the company by
+    electronicAddress: { scheme: '9930', value: 'DE123456789' }
 };
 
 /**
@@ -114,7 +118,8 @@ function createValidInvoiceData(): OmitStrict<Invoice, 'id' | 'tenantId'> {
             company: true,
             companyName: 'Great Company LLC',
             countryId: 'DE',
-            email: 'info@great-company-llc.com'
+            email: 'info@great-company-llc.com',
+            electronicAddress: { scheme: '9930', value: 'DE987654321' }
         },
         textBeforeItems: [''],
         textAfterItems: ['Unless otherwise stated, the date of delivery/service corresponds to the date of invoice.']
@@ -123,7 +128,7 @@ function createValidInvoiceData(): OmitStrict<Invoice, 'id' | 'tenantId'> {
 
 describe('EN16931ConformanceService (base class error branches, exercised via PeppolConformanceService)', () => {
     const dataSourceClass: Newable<PostgresDataSource & { entities: Newable<BaseEntity>[] }> = createTestDataSource({
-        entities: [...defaultTestServerEntities, Invoice, NumberInvoices]
+        entities: [...defaultTestServerEntities, Invoice, NumberInvoices, InvoiceRecipientAbbreviation]
     });
 
     let server: StartedTestServer;
@@ -194,12 +199,15 @@ describe('EN16931ConformanceService (base class error branches, exercised via Pe
         await expect(conformanceService.generateXml(invoice, 'UTC')).rejects.toThrow(/No exemption reason has been provided/);
     }, 15000);
 
-    it('rejects when the customer email is missing', async () => {
+    it('rejects when the customer email is missing, and so is their electronic address', async () => {
         await reInitWithCompany(baseCompanyInfo);
         const data: OmitStrict<Invoice, 'id' | 'tenantId'> = createValidInvoiceData();
         data.customerAddressData.email = undefined;
+        data.customerAddressData.electronicAddress = undefined;
         const invoice: Invoice = await createInvoice(data);
-        await expect(conformanceService.generateXml(invoice, 'UTC')).rejects.toThrow(/No customer email has been provided/);
+        // through XRechnung, as only a standard naming a party by its email without an electronic
+        // address reaches this; Peppol refuses the missing address first
+        await expect(inject(XRechnungConformanceService).generateXml(invoice, 'UTC')).rejects.toThrow(/No customer email has been provided/);
     }, 15000);
 
     it('rejects when the company tax number is missing', async () => {

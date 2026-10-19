@@ -54,7 +54,12 @@ export type XmlBodyMetadata = BaseBodyMetadata & {
     /**
      * The type of the request body (xml).
      */
-    type: MimeType.XML
+    type: MimeType.XML,
+    /**
+     * Whether the body is handed over as the document that arrived, a string, rather than read into a
+     * model. A document that is not well formed is refused either way.
+     */
+    raw: boolean
 };
 
 /**
@@ -137,6 +142,17 @@ export type JsonBodyMetadataInput = Partial<OmitStrict<JsonBodyMetadata, 'shape'
  */
 // type is required: a body declared without one is read as json
 export type XmlBodyMetadataInput = OmitStrict<JsonBodyMetadataInput, 'type'> & Pick<XmlBodyMetadata, 'type'>;
+
+/**
+ * Metadata Input for an xml http request body handed over as the document that arrived, such as one
+ * whose signature has to be checked.
+ */
+export type RawXmlBodyMetadataInput = OmitStrict<XmlBodyMetadataInput, 'isArray' | 'allowAdditionalProperties'> & {
+    /**
+     * Hands the body over as a string.
+     */
+    raw: true
+};
 
 /**
  * Metadata Input for form data http request body properties.

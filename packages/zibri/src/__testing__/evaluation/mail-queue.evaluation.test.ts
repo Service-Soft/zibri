@@ -7,6 +7,7 @@ import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { defineProvider } from '../../di/models/di-provider.model';
 import { EmailServiceInterface } from '../../email/email-service.interface';
+import { EmailConfigInput } from '../../email/models/email-config.model';
 import { EmailPriority } from '../../email/models/email-priority.enum';
 import { EmailStatus } from '../../email/models/email-status.enum';
 import { Email } from '../../email/models/email.model';
@@ -98,7 +99,11 @@ beforeAll(async () => {
             ...defaultTestServerProviders,
             defineProvider({
                 token: ZIBRI_DI_TOKENS.EMAIL_CONFIG,
-                useFactory: () => ({ maxEmailsPerHour: 1000, defaultSender: 'sender@example.com' })
+                useFactory: (): EmailConfigInput => ({
+                    maxEmailsPerHour: 1000,
+                    defaultSender: 'sender@example.com',
+                    failedRetentionInMs: 'forever'
+                })
             }),
             defineProvider({ token: ZIBRI_DI_TOKENS.EMAIL_TRANSPORT, useValue: transport })
         ]

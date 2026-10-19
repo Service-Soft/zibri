@@ -563,6 +563,7 @@ export class AuthorizationServerService implements AuthorizationServerServiceInt
         if (user == undefined || user.deactivatedAt != undefined) {
             throw refused;
         }
+        await this.apiKeyService.recordUse(apiKey);
         return { apiKey, user, certificateThumbprint };
     }
 

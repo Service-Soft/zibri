@@ -76,7 +76,8 @@ error, zero runtime warning, zero test failure. The endpoint is world-writable.
 > would mean a route level skip could hide a controller level one that is genuinely dead. The
 > underlying noise is that these warnings are emitted from `checkAccess` and so fire per request
 > rather than at startup, writing a row through the default db log transport each time. That predates
-> this change and is F3(b) wearing different clothes.
+> this change and is F3(b) wearing different clothes. *(Closed since by
+> [02 §M3](./02-http-runtime-core.md): the warnings are written once, when the route is registered.)*
 >
 > **Two values, deliberately.** A richer default - an application wide role, ownership, a second
 > factor - was considered and rejected on composition rather than on effort. Every other check
@@ -478,7 +479,8 @@ What is actually broken today:
 >
 > **Not done: `audience`.** With the issuer verified it would carry no information the issuer does not
 > already carry, for a single-audience api - which is the only shape the framework can currently be.
-> Worth revisiting alongside H.
+> Worth revisiting alongside H. *(Done since with §H8: tokens carry `aud`, and a token issued for
+> another service is refused.)*
 >
 > **The rename consequence has a second half nobody wrote down: replicas.** "A rename logs everyone
 > out" is the version across *time*; across *processes* it says two replicas that do not share a name
@@ -552,7 +554,8 @@ other.
 > `updateById` should take the same condition - `updateById(id, data, { where })` - the way `findById`
 > is already sugar for `findAll({ where: { id } })`. That means making `UpdateByIdOptions` generic
 > over the entity and routing the conditional path through `saveUpdate`, which both repository
-> subclasses override around.
+> subclasses override around. *(Built since: `updateById` takes a `where` applied as part of the
+> write, see [01 §M1](./01-data-layer.md).)*
 
 **Both confirmed red on the first run**, with the sequential control green. Two `POST
 /auth/refresh-login` in one `Promise.all` produce **two 200s and two live tokens in the same
@@ -737,7 +740,7 @@ for `CookieAuthRefreshSession.csrfToken` and `JwtRefreshToken.value`.
 > Hashing a primary key is not possible; it needs a separate secret column, which is a different
 > change from this one. `CookieAuthRefreshSession.csrfToken` is also still plaintext - it is compared
 > rather than looked up, so it could take the same treatment, but its comparison is F4's subject and
-> the two should move together.
+> the two should move together. Filed as §B7.
 >
 > Held by `src/__testing__/evaluation/auth-and-security.evaluation.test.ts`, which asserts the
 > property metadata rather than the column, and by every existing auth suite: a broken lookup would
@@ -766,6 +769,56 @@ for `CookieAuthRefreshSession.csrfToken` and `JwtRefreshToken.value`.
 > the documentation shipped 100 day sessions without ever seeing a number to disagree with. All five
 > lifetimes are now in one table there, with the refresh one called out as the one to think about and
 > an example of shortening it.
+
+### B7. A cookie session is its row's id, so a database read is a live session — ~~MAJOR~~ **FIXED**
+
+*Filed on 2026-10-15, from what §B5 called "worth its own entry".*
+
+§B5 stopped storing reset and refresh tokens in plaintext. The cookie strategy was left out of it: the
+session cookie and the refresh-session cookie carry `session.id` and `refreshSession.id` themselves
+(`src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:605-621`), and the strategy finds the row by
+that id. So anybody who can read the two tables - a backup, a replica, a support query - holds a working
+login for every session in them, which is exactly what §B5 closed for the jwt strategy. A primary key
+cannot be hashed; it needs a secret column of its own. `CookieAuthRefreshSession.csrfToken` is stored as
+written too (`cookie-auth-refresh-session.model.ts:24-25`), and is compared rather than looked up, so it
+could be hashed as it is.
+
+> **Fixed (2026-10-18) with a secret column, a derived csrf token and a logout that reads the
+> cookie, the three of them decided by the user.** Both entities have a `token`: unique, hashed with
+> `Sha256HashStrategy`, the shape `JwtRefreshToken.value` and the recovery codes already had. The
+> cookies carry 32 random bytes, a row is found by their hash, and the id is an internal key again.
+> The plaintext exists in one local and the `Set-Cookie` header, the same place §B5 left the reset
+> token.
+>
+> **The csrf token is no longer stored at all.** Hashing it as it was would have broken
+> `GET /auth/csrf-token`, which reads it back for a client that reloaded. It is
+> `HMAC-SHA256(key, refresh token)` now, computed from the presented cookie. It rotates with the
+> refresh session without a write, and a database reader holds neither input. The user asked whether
+> deriving it on every check costs much: one hmac, the same work the cookie middleware already does
+> for each of the two signed cookies, against a database read about a thousand times slower.
+>
+> **The key is derived from the cookie secret, not the secret itself, which nearly went wrong.**
+> The cookie middleware signs a cookie as `HMAC-SHA256(secret, value)`. Keyed by the bare secret,
+> the csrf token of a refresh session would have been the signature its own cookie already carries.
+> `csrfKey` is an hmac of a fixed label under the secret, computed once in the constructor.
+>
+> **Found on the way: logout took the refresh session's id in the body.** `CookieAuthLogoutDto` had a
+> `refreshSessionId`. A browser cannot fill it, since the cookie is httpOnly; only the tests could,
+> by reading the row. Once the id stopped being the secret, that field would have let anybody who
+> knew an id end someone else's login. Logout now ends the family of the refresh-session cookie the
+> request carries, and the body is `{ clearCookies }`. The internal callers that ended a family
+> through `logout` call `endFamily` with the row they already hold.
+>
+> The upgrade migration deletes both tables (no 2.x cookie matches a hashed token), adds `token` and
+> drops `csrfToken`. Held by three cases in `auth-controller.cookie.test.ts`:
+> - the tables hold no cookie value and no csrf token;
+> - logout ends the login of its cookies;
+> - logout ends nothing a body names.
+>
+> The lapsed-session case of `/csrf-token` now proves the renewed token by passing an unsafe request
+> with the renewed cookies, where it used to compare against the row. The SAML suite's logout helper
+> went red (`400`) before the change and passes after it. The metadata is pinned in
+> `auth-and-security.evaluation.test.ts` under B7.
 
 ---
 
@@ -1067,6 +1120,7 @@ thread rather than the libuv pool.
 > the default being 10 and `bcryptjs` being pure JS. Raising the default has the same migration
 > question and the same answer as scrypt, but bcrypt is not the default strategy and nothing ships
 > using it; swapping `bcryptjs` for a native binding is a dependency decision rather than a fix.
+> Filed as §D6.
 
 ### D2. Hash and key deprecation are dead features — ~~MAJOR~~ **FIXED**
 
@@ -1134,7 +1188,8 @@ supported; the code delivers neither.
 > much is left beyond a log line when a run hits its budget. The sweep reads every row of every entity
 > holding an encrypted property to find work, because the envelope is not queryable - fine hourly on a
 > modest database, and the thing to revisit on a large one. And a row whose values cannot be decrypted
-> at all is logged and skipped forever rather than escalated.
+> at all is logged and skipped forever rather than escalated. *(The report closed below; the rest is
+> §D7.)*
 >
 > **The report closed 2026-10-13, shared with §D4.** `EncryptionServiceInterface.resolveRetiredKeyUsage`
 > counts, on demand (the user's choice over counts recorded by each sweep), the stored values under
@@ -1216,14 +1271,14 @@ zero integrity binding against a tampering adversary.
 >
 > **What it does not cover.** Moving a value between two encrypted columns of the same row, which is
 > the deliberate trade above. A migration that rewrites rows under new ids, which has to re-encrypt as
-> it goes. And values already stored stay unbound until their row is written again - sweeping them is
-> D2's open half.
+> it goes. And values already stored stay unbound until their row is written again - sweeping them was
+> D2's open half, closed since by its rotation job.
 
 ### D4. Master keys are raw in-process values; no KMS/HSM path — ~~MAJOR~~ **FIXED**
 
 *Closed on 2026-10-03: what kept it partly open was a kms strategy zibri will not ship, which is a
 decision, and the missing report of what is still under an old master, the residue [§D2](#d2-hash-and-key-deprecation-are-dead-features--major-fixed)
-closed with too. That residue is listed once for both in [11](./11-whats-left.md).*
+closed with too. That residue closed with §D2's report on 2026-10-13.*
 
 `src/auth/encryption/encryption-master-options.model.ts:6-15` —
 `EncryptionMasterKey<TKey> = { id: string, value: TKey }`. The master key material is a plain
@@ -1366,6 +1421,105 @@ locks the user out.
 > Otherwise it writes `{ deleted: true }` through `updateById`, which arrives as an `update` carrying
 > no encrypted or hashed property at all. The row surviving is exactly why that path has to keep
 > running the transforms - and it does.
+
+### D6. bcrypt defaults to 10 rounds and runs on the event loop — ~~MINOR~~ **FIXED**
+
+*Filed on 2026-10-15, from what §D1 left undone.*
+
+`BcryptHashStrategy` hashes with `options?.rounds ?? 10`
+(`src/auth/hash/strategies/bcrypt.hash-strategy.ts:38`), below current guidance, and `bcryptjs` is pure
+javascript, so every hash blocks the event loop where scrypt runs on the libuv pool. Raising the default
+has the migration question §D1 answered for scrypt by writing the cost into the hash; swapping
+`bcryptjs` for a native binding is a dependency decision.
+
+> **Fixed (2026-10-18) by moving every hash off bcrypt rather than improving it, as the user decided.**
+> Two premises were weaker than stated:
+> - **Raising the rounds would have migrated nothing.** A bcrypt hash records its rounds
+>   (`$2b$10$…`), and `compare` reads them from it, the property §D1 had to build for scrypt.
+> - **The event loop is not blocked for the whole hash.** bcryptjs 3.0.3 yields with `setImmediate`
+>   at least every 100 ms. But all of its work still runs on the main thread, in slices of up to
+>   100 ms.
+>
+> In 3.x bcrypt has one job, verifying what 2.x wrote. So the default stays at 10 rounds, and the
+> class carries `@deprecated` with a JSDoc saying what it costs and how to leave it. The shared lint
+> config flags `typescript/no-deprecated`, so its own test and the two type declarations in
+> `property.decorator.test.ts` disable it, with the reason inline.
+>
+> **Found on the way, and the larger defect: an upgraded application kept hashing new passwords with
+> bcrypt.** 2.x's first hash recorded `bcrypt v1` as `DEFAULT` in the hash strategy table, and
+> `findDefaultStrategy` reads that row before falling back to registration order. So an application
+> following the upgrade guide wrote every new password with bcrypt, and the guide's "bcrypt is no
+> longer one of the default hash strategies" held only for fresh databases. Nothing marked bcrypt
+> deprecated either, so no stored hash ever moved.
+>
+> The upgrade migration now has `retireBcrypt`: bcrypt is `DEPRECATED` and scrypt `DEFAULT`, so new
+> hashes are scrypt and each bcrypt hash is rewritten on its user's next login, through the
+> `needsRehash` path §D1 built. bcrypt then runs at most once per user. Held by
+> "passwords 2.x hashed with bcrypt" in `password.authenticator.test.ts`, which boots as 2.x did
+> (bcrypt alone), then upgrades with that step. Both of its cases were red without the step.
+
+### D7. A value the rotation cannot decrypt is skipped on every run, and every run reads every row — ~~MINOR~~ **FIXED**
+
+*Filed on 2026-10-15, from what §D2 does not cover.*
+
+`EncryptionRotationCronJob` pages through every row of every entity holding an encrypted property to
+find work (`src/auth/encryption/encryption-rotation.cron-job.ts:105-107`), because the envelope is not
+queryable. A row it cannot re-encrypt is logged and left (`:144-147`), so the same error is written every
+hour for as long as the row exists, and the key it is under can never be retired. Nothing reports such a
+row anywhere but the log. On a large table the hourly full read is the cost to revisit.
+
+> **Fixed (2026-10-18) with a work gate, a persisted cursor and a record per stuck row. The user chose
+> the gate and the cursor together, and recording over keeping it in memory.**
+>
+> **Two defects found on the way, both red first:**
+> - **A stuck row spent the budget.** A failed rewrite counted toward the 500 rows per run, and every
+>   run started from the first row again. With enough stuck rows ahead of it, a healthy row was never
+>   reached. The case stores 1000 rows that cannot be rewritten, with ids that sort first, and a
+>   healthy row after them; three runs never reached the healthy row before the fix.
+> - **Offset paging read in no order.** `skip` without an `order` is whatever order the store reads
+>   in, and a row rewritten mid-pass can move in it. `resolveRetiredKeyUsage` paged the same way.
+>   Both now walk with `findAllAfter`, the repository's cursor read, which hands back every row that
+>   exists when the walk starts exactly once.
+>
+> **When it reads.** A pass starts when a key is retired that the last finished pass did not look for
+> (compared as sets, so deleting a retired key starts nothing), and once on each instance after it
+> starts. That start pass is what binds values a 2.x database holds, and values of a model that starts
+> binding. With nothing new, a run reads the progress row, the key table and the failure records, and
+> no stored value.
+>
+> `EncryptionRotationProgress` (one row) holds the entity and the `findAllAfter` cursor of the pass in
+> progress, the retired keys it started with, and those of the last finished pass. A cursor only
+> continues after a whole page, so a run whose budget ends inside a page keeps the cursor it read that
+> page with. The next run reads the page again, and what was rewritten is no longer stale. An entity
+> removed by a deploy begins the pass again.
+>
+> **Found by the user's container run: a read of one row without a filter failed on postgres.** The
+> job read its progress row with `findOne({ required: false })`, which the in-memory and valkey stores
+> answer with the first row. TypeORM's `findOne` refuses a read without selection conditions, so the
+> postgres driver threw. The driver now passes an empty filter. Held by `unfiltered-find-one.cases.ts`,
+> run in memory and against postgres and valkey.
+>
+> **Stuck rows.** An `EncryptionRotationFailure` records each one: entity, row id, the data keys its
+> stored values need, the error, attempts, first failure and next attempt. It is logged once, when
+> recorded. Passes skip recorded rows, and each run first retries the ones that are due, waiting 1 h,
+> then 2, 4, 8, 16, capped at 24 h. A success logs and removes the record, and so does a row that no
+> longer exists. `resolveRetiredKeyUsage` names them per key as `stuckRows`. The service interface
+> gained `findRetiredKeyIds`, which the job reads rather than the key table.
+>
+> **What it costs applications:** two more framework entities, refused at boot like `EncryptionKey`
+> when missing. They're added to the scaffold, the sandbox and its accepted diff, zibri-testing's
+> `zibriFrameworkEntities`, the test entities, and the upgrade migration's `createEntities`.
+>
+> Held by `encryption-rotation.cron-job.test.ts` (in memory, four cases, all red before):
+> - stuck rows do not hold up the rest;
+> - a stuck row is recorded, logged once, retried with a doubling wait, reported under its key, and
+>   removed once repaired;
+> - a deleted row drops its record;
+> - nothing is read until a start or a newly retired key.
+>
+> The binding case in `encryption.service.test.ts` now builds a freshly started job, since the job it
+> shared had already made its pass. `encryption.service.retired-keys.test.ts` expects
+> `stuckRows: []`.
 
 ---
 
@@ -1515,7 +1669,7 @@ cannot currently express both.
 > configured up or moved to a shared store — the store says so once, as an error, rather than
 > guessing. `maxKeys` is per store rather than a global budget across limiters. And nothing bounds
 > the *repository* store, which is the data source's problem rather than this one's, but is
-> unaddressed either way.
+> unaddressed either way. Filed as §E6.
 
 ### E4. The distributed lock is TTL-based with no fencing — ~~MAJOR~~ **FIXED**
 
@@ -1589,6 +1743,35 @@ trips, 200 runs each:
 >
 > **Giving up eventually is still right** — past a point the contention is the problem and the error
 > says so. What was wrong was giving up early enough that ordinary contention reached it.
+
+### E6. The repository rate limiter store has no bound — ~~MINOR~~ **FIXED**
+
+*Filed on 2026-10-15, from what §E3 does not cover.*
+
+`InMemoryRateLimiterStore` refuses a new key once `maxKeys` are held. `RepositoryRateLimiterStore`
+(`src/rate-limiting/stores/repository.rate-limiter-store.ts:64`) takes no limit at all, so a limiter
+keyed per caller writes a row for every address that ever calls, until the cleanup removes expired ones.
+A caller cycling addresses grows `RateLimitStateEntity` at request rate.
+
+> **Fixed (2026-10-18) with `maxKeys` and a size counted at most every ten seconds, as the user
+> chose.** The fourth constructor argument takes `{ maxKeys }`, 1 000 000 by default (ten times the
+> in-memory store's: a row costs a data source less than an entry costs a process). A full store
+> behaves like the in-memory one: it refuses a key it has never seen, which the limiter turns into
+> its `onStoreFailure`; it reports that once until a count finds room again; and the keys it holds
+> keep counting. It refuses rather than evicting, for the reason the in-memory store gives.
+>
+> **Why the count is not exact:** on valkey, `count` with a filter reads every matching row. An
+> exact check per new key would have made each address a cycling caller sends read the whole
+> namespace. The store counts its unexpired rows when it first needs room and again once ten seconds
+> have passed, and adds the keys it creates in between. Another instance's keys in those ten seconds
+> are what it can be off by, which the option's documentation and `rate-limiting.md` both say. An
+> expired row being written over needs no room, as in memory.
+>
+> Held by three cases in `repository.rate-limiter-store.test.ts`. Two were red before:
+> - a full store refuses new keys, says so once, and keeps counting held ones;
+> - a later count finds room again.
+>
+> The third, that one namespace's keys do not count toward another's limit, guards the filter.
 
 ---
 
@@ -1684,8 +1867,8 @@ request rate.
 > rather than a parsing preference. It is also a weak one, and the docs now say so: it depends on the
 > browser emitting most-specific-first, and the real fix is a `__Host-` name the parent domain cannot
 > set at all. That is available today - `path: '/'` is already the default and no `Domain` is ever
-> set, so `name: '__Host-sessionId'` works over https - but it is not the default, which is the part
-> of F2 still open.
+> set, so `name: '__Host-sessionId'` works over https - but it is not the default, which F2 decided
+> on purpose.
 >
 > **Two things came out of writing the tests.** The parser split on `'; '`, so `a=1;b=2` - legal, and
 > what some clients send - parsed as a single cookie named `a` with the value `1;b=2`. And a cookie
@@ -1695,7 +1878,7 @@ request rate.
 >
 > **Still open:** the log-flooding shape is only closed at this instance. Nothing rate limits the db
 > log transport, so any other unauthenticated input that reaches a non-external error still writes a
-> row per request - the cookie parser was one route to that, not the mechanism.
+> row per request - the cookie parser was one route to that, not the mechanism. Filed as §G3.
 
 ### F4. CSRF is partial, non-constant-time, and never rotates — ~~MAJOR~~ **FIXED**
 
@@ -1836,11 +2019,11 @@ exist. This alone fails most SOC 2 CC7 / ISO 27001 A.12.4 assessments.
 > handed a resolved user, so by the time it runs the interesting requests are already gone.
 >
 > **Still open:** no event for an allowed request, which is an access log and a different problem
-> (see 04). Audit entries share
+> (see 04; the access log exists since, [02 §M6](./02-http-runtime-core.md)). Audit entries share
 > `LOGGER_CLEANUP_AFTER_MS` retention with their level, so keeping them
 > longer than ordinary logs means routing them elsewhere - the docs say so rather than the framework
 > pretending otherwise. And nothing rate limits the trail itself, so an endpoint under attack writes
-> a row per attempt.
+> a row per attempt. Filed as §G3.
 >
 > **The `refused` / `error` split was unreachable for the case it was written for, which its first
 > test found.** `UserService` asks every `@UserRepo` at once and caught *every* rejection as "not
@@ -1894,6 +2077,52 @@ attacker holding a stolen token exactly which state it is in.
 
 Internal errors *are* correctly masked (`src/error-handling/error.utilities.ts:17-22`), so this is
 bounded — the auth subsystem specifically opted into verbose external messages.
+
+### G3. Nothing bounds how many rows the log and the audit trail write — ~~MAJOR~~ **FIXED**
+
+*Filed on 2026-10-15, from what §F3 and §G1 left open.*
+
+The default transports include `LoggerTransport.db(LogLevel.INFO)`
+(`src/di/default/zibri-di-providers.default.ts:87`), and the audit trail rides the same transports. §F3
+closed one way an unauthenticated request wrote an error row, the malformed cookie, and named the
+mechanism as still open: any input that reaches a non-external error writes a row, and every refused
+login, refused route and rate limited request writes an audit row. The mail transport is bounded by a
+digest and a rate (04 §3.4); the database transport writes whatever arrives, so a caller can fill the
+`log` table at request rate, for as long as its retention.
+
+> **Closed (2026-10-18) with a budget and collapsing past it, the user's call.** `LoggerTransport.db`
+> takes `{ maxEntriesPerMinute }`, 1000 by default, per instance. Within the budget every entry is
+> its own row, as before. Past it, entries of the same tenant, level, message and metadata are
+> counted into one row per kind, written when the minute ends or on `flush()`: the first entry's
+> message and context, plus `context.collapsed` with the count and the last time. So the table grows
+> by at most the budget plus 105 rows a minute per instance, and a flood still reads as what it was.
+>
+> **Collapsing only past the budget, not always, was the user's choice between the two.** Collapsing
+> every repeat would have shrunk tables in normal traffic, but cost the access log and the audit
+> trail the ip, trace and user agent of every repeat - exactly what forensics reads. Within the budget
+> nothing changes.
+>
+> **The kind is the whole metadata, not the audit event's fields picked out.** Two entries whose
+> metadata differ say different things, and counting them as one would keep only what the first said;
+> for the audit trail that means one address tried a thousand times is one row, and a thousand
+> addresses are a thousand kinds. Kinds are therefore unbounded under input that varies - an error
+> message echoing what was sent - so a minute keeps at most 100 apart, and counts the rest in one row
+> per level, without a tenant since it spans them.
+>
+> **Two smaller decisions.** When a batch is larger than what is left of the budget, the more
+> important entries keep their rows, so an error in a batch of access lines is not the one counted.
+> And collapsed rows need writing when no further entry arrives, so the budget writes them on a timer
+> at the minute's end, and `LoggerTransport` gained an optional `flush`, which `Logger.flush()` - and
+> therefore shutdown - calls after draining. The logger used to find the db transport by
+> `send === logToDb`; each transport now sends through a budget of its own, so it finds it by name.
+>
+> **What it does not bound:** the budget is per instance, so the cluster's rate is the budget times
+> the instances; a shared counter would have cost a round trip per write for a bound the retention
+> already caps. Held by `src/logging/transport/log-budget.test.ts`, in memory: own rows then counted
+> rows per kind, the more important entries keeping the budget, the overflow rows past 100 kinds, the
+> rows written when the minute ends without another entry, a new budget the next minute, and the
+> default of 1000. Five of the six were red first; the sixth, the next minute's budget, holds trivially
+> without one.
 
 ---
 
@@ -2229,10 +2458,11 @@ assertions in place of tokens.
 > logout from the provider finds the family through the spent row as well. `zibri-testing` gained
 > `startFakeSamlProvider`, with single logout. The Keycloak container suite gained a SAML client:
 > a sign-in verified against Keycloak's own metadata and signatures, the registration, and a logout
-> round trip; it needs a container runtime and has not run yet.
+> round trip, green on the user's run of 2026-10-19.
 >
 > **Not built:** the SOAP and artifact bindings; a logout request posted rather than redirected; a
-> sign-in the identity provider starts (refused, above).
+> sign-in the identity provider starts (refused, above). Filed as §H23, which built the posted and the
+> SOAP logout since and declined the rest.
 
 ### H4. No LDAP / Active Directory bind — **FIXED**
 
@@ -2271,7 +2501,8 @@ password, so this fits `login(credentials)` as it stands and does not wait for H
 >   name binds all the same, so it takes as long. A directory that cannot be reached or trusted, or a
 >   service account that cannot bind, is a 500 audited as an error, not a refused sign-in.
 > - **Two first sign-ins as one entry wait for each other** through a lease, so the hook makes one
->   user. A linked entry whose user was deleted is refused rather than handed to the hook again.
+>   user. The lease is held until the login's transaction ends, see [10 §10.5](./10-leases-and-claims.md).
+>   A linked entry whose user was deleted is refused rather than handed to the hook again.
 > - **The audit trail records the typed name** as the login's `subject`, which until now only knew
 >   an `email`.
 >
@@ -2334,8 +2565,9 @@ password, so this fits `login(credentials)` as it stands and does not wait for H
 >   Both container suites gained a nested-groups case, the Samba one a `DOMAIN\name` case; they have
 >   not run yet.
 >
-> **Not built:** ending the sessions of someone disabled in the directory, which is H7. A session
-> already open keeps the roles it started with until then.
+> **Not built:** ending the sessions of someone disabled in the directory. A session already open
+> keeps the roles it started with until then. SCIM (H7) ends them for a provider that pushes, and a
+> directory does not: §H22, built since.
 
 ### H5. No identity for machines: API keys, service accounts — **FIXED**
 
@@ -2345,7 +2577,7 @@ they may do, or lets one key be revoked without the others.
 
 > **Fixed (2026-10-10), with the user.** Decided together:
 >
-> - **OAuth2 `client_credentials` moved to [H8](#h8-no-oauth2-token-endpoints-client_credentials-introspection-and-revocation--open).**
+> - **OAuth2 `client_credentials` moved to [H8](#h8-no-oauth2-token-endpoints-client_credentials-introspection-and-revocation--fixed).**
 >   It makes zibri an authorization server (a form encoded token endpoint with its own error format),
 >   the same family as introspection and revocation, so the three are designed together. Machines
 >   get everything they need from keys meanwhile.
@@ -2390,7 +2622,7 @@ they may do, or lets one key be revoked without the others.
 >
 > **Not built:** a last-used time per key (a write per request), and cleaning up expired keys (they
 > stay listed until revoked). The key prefix (`zibri_`) came with H7, which sends keys as bearer
-> tokens.
+> tokens. The first two are §H24, built since.
 
 ### H6. No client certificate (mTLS) authentication — **FIXED**
 
@@ -2447,7 +2679,7 @@ and has to trust only a proxy that is configured to send one.
 > handshake). A service mesh that forwards the calling
 > sidecar's certificate on every request, beside an end user's bearer token, gets the two credential
 > `401`; such an application registers no client certificate strategy for those routes' callers, or
-> sets Envoy to forward nothing there.
+> sets Envoy to forward nothing there. The key usage is §H25, built since.
 
 ### H7. No provisioning or deprovisioning (SCIM) — **FIXED**
 
@@ -2562,7 +2794,8 @@ cannot create them ahead of time or, more importantly, remove the access of some
 > sort by a value with a filter reads the ids of every user the filter finds, as a code comment says.
 > Tested in memory: SCIM end to end 28 (3 new, 2 changed). Broken on purpose and seen red: the
 > correlation inside a value path, the primary value for a sort, breaking the circle. Ending the
-> sessions of someone disabled in a directory (H4) is still not built: a directory has no push.
+> sessions of someone disabled in a directory (H4) is still not built: a directory has no push. Filed
+> as §H22.
 
 ### H8. No OAuth2 token endpoints: `client_credentials`, introspection and revocation — **FIXED**
 
@@ -2746,7 +2979,8 @@ lives, with no way to require a fresh factor before changing an email, a passwor
 > decorator.
 >
 > Not built: accepting a fresh login in place of the second factor. A route that wants a fresh proof
-> asks for the second factor, so a user who has not enrolled one cannot pass it. That is H13.
+> asks for the second factor, so a user who has not enrolled one cannot pass it. That is H13, built
+> since.
 >
 > Held by the H9 block of `auth-sessions-and-2fa.evaluation.test.ts`: a logged-in session without a
 > code gets 401 on a `require2fa` route while the same token opens a login-only one, and the same
@@ -2850,7 +3084,8 @@ factor here that phishing cannot get past, since it is bound to the origin.
 > gained `FakePasskeyDevice` and `startFakeFidoMetadataService`.
 >
 > **Not built:** a sign-in that asks for an email first, for security keys that cannot store a
-> passkey (mine, above). Nothing has run against a real browser or a real device: the fake device
+> passkey (mine, above), filed as §H26, which found such keys refused even as a second factor and
+> fixed that; the sign-in stayed decided against. Nothing has run against a real browser or a real device: the fake device
 > produces what WebAuthn specifies, and what the library accepts.
 
 ### H11. No SMS or email code as a second factor — **FIXED**
@@ -2934,8 +3169,9 @@ to make, not a default.
 > encryption, the number check and the channel in the limit's key (after the review).
 > `zibri-testing` gained `RecordingEmailTransport` and `RecordingSmsService`.
 >
-> **Not built:** a shipped route to ask for a code (H19), a code sent to an address other than the
-> account's, and a hard limit that disables the factor (see the residue in 11).
+> **Not built at the time:** a shipped route to ask for a code, built since as H19's `POST /2fa/start`;
+> a code sent to an address other than the account's, which the design above decided against; and a
+> hard limit that disables the factor, built since in §C3.
 
 ### H12. No EdDSA for access tokens — **FIXED**
 
@@ -3320,7 +3556,7 @@ identity is one; whether the two can be had apart belongs to this finding.
 >   a create that loses a race updates the winner.
 >
 > Not covered: an application cannot turn signing in off for an identity and keep its api access.
-> `unlinkIdentity` removes both. Nothing has asked for it yet.
+> `unlinkIdentity` removes both. Nothing has asked for it yet. Filed as §H27, built since.
 >
 > `auth-oauth-api-access.evaluation.test.ts` was red before (nothing it uses existed) and is green: a
 > user logged in with a password connects a provider for its calendar only, the application reads the
@@ -3492,3 +3728,279 @@ numbers they are paid for ("SMS pumping", or toll fraud), and both `requestRegis
 `2fa/start` route send without the user ever having proved anything about the number. An email code
 costs nothing to send; a text message is the one channel where the framework spends money on a
 caller's behalf, and it is the one with no budget.
+
+### H22. Someone disabled in a directory keeps the logins they already have — ~~MINOR~~ **FIXED**
+
+*Filed on 2026-10-15, from what §H4 and §H7 left unbuilt.*
+
+`BaseLdapAuthenticator` refuses a locked or disabled entry at the next sign-in, and `resolveSignIn`
+brings roles in step then. Logins already open are untouched: a session started before the account was
+disabled in the directory lives as long as its refresh credential, with the roles it had. SCIM ends them
+(`AuthService.deactivateUser`), and a directory has no push to call it with. Re-checking the entry on a
+refresh, or a job that searches for disabled entries of linked users, are the two ways in.
+
+> **Closed (2026-10-18) with both ways in, the user's call on each decision.**
+>
+> - **On every refresh.** A new optional capability, `RefreshResolvingAuthenticatorInterface`, is asked
+>   through `AuthService.resolveRefreshUser` by both login strategies before they rotate anything: the
+>   jwt refresh, the cookie refresh route, and the cookie session renewing itself inside a request,
+>   which never passes `AuthService.refreshLogin`. `BaseLdapAuthenticator` implements it: a user with
+>   links searches their entries by id in one search, refuses with an `AccountDeactivatedError` when one
+>   is gone or disabled, and otherwise hands each entry, with its groups, to `resolveSignIn`. The refresh
+>   carries the user that answers, so the new access token has the new roles - the second half of the
+>   finding. The strategies used to re-read the user outside the refresh's transaction, which would
+>   have missed a role written inside it; the user now flows through instead.
+> - **A job**, `DisabledLdapEntriesCronJob`, every 15 minutes, which every directory registers once. It
+>   walks the links that are not yet marked, 100 ids per search, and ends the access of the users found
+>   disabled. `LdapIdentity.disabledAt` marks them, so a run acts and audits once per disabling rather
+>   than every 15 minutes; a sign-in clears the mark, since a bind that succeeded proves the entry is
+>   enabled again.
+> - **What disabled means:** gone from `searchBase` + `entryFilter`, or `isEntryActive` answering false.
+>   The defaults read 389's `nsAccountLock` and OpenLDAP's `pwdAccountLockedTime`, and the Active
+>   Directory subclass the disable flag of `userAccountControl`. **Only an administrator's lock counts,
+>   which was not in the question and is the part worth keeping:** a lock after too many wrong
+>   passwords is something any caller can cause by guessing, and counting it would have handed whoever
+>   guesses a way to end their victim's logins. So `pwdAccountLockedTime` counts only at
+>   `000001010000Z`, and AD's `lockoutTime` not at all.
+> - **What happens:** `AuthService.endAccess`, new beside `deactivateUser`, ends the logins and revokes
+>   the api keys but leaves the user active, so re-enabling the entry is enough; audited as
+>   `auth.access.ended`. On a refresh it runs once the transaction is finished, because the refusal
+>   rolls the transaction back and would take the ending with it.
+> - **A directory that cannot be reached** answers the refresh with a 500, before anything rotated, so
+>   the same refresh token works once the directory answers again.
+>
+> **Found on the way:** the first version of the job connected to every directory before reading its
+> links, so a broken directory that links nobody failed the whole run; it now connects once there is
+> something to ask. And the id search needed the reverse of `toEntryId`, `toEntryIdValue`, which the
+> Active Directory subclass overrides for the byte order of an `objectGUID`.
+>
+> **Typing, for whoever touches it next:** `resolveRefreshUser` casts its answer to the caller's user
+> type, the same boundary `getCurrentUser` has, since the registered authenticators are not typed
+> with the caller's user. The job finds directories by their method rather than by
+> `BaseLdapAuthenticator`, which registers the job and would otherwise be imported by it in turn.
+>
+> Held by six cases in `base-ldap.authenticator.test.ts` (refused and ended on a refresh with the user
+> kept active, a deleted entry, an administrator's lock against a lockout, roles kept in step on a
+> refresh, a 500 that ends nothing, the job acting once and a sign-in clearing the mark) and one in
+> `base-active-directory.authenticator.test.ts` (found by a binary `objectGUID`, refused once
+> disabled), all in memory against the fake directory. They were shown red by switching the capability
+> and the job off: each answered 200 where the fix refuses. The two heavy suites gained one case each,
+> against 389 Directory Server's `nsAccountLock` and a Samba domain's `samba-tool user disable`.
+
+### H23. SAML takes the redirect and post bindings and a sign-in this application started, nothing else — ~~MINOR~~ **FIXED**
+
+*Filed on 2026-10-15, from §H3's "Not built".*
+
+Not built: the SOAP and artifact bindings, a logout request the identity provider posts rather than
+redirects, and a sign-in the identity provider starts on its own (refused, so a portal tile has to point
+at the authorize route). Each was left out without being asked about.
+
+> **Closed (2026-10-18): two built, two decided against, each the user's call.** The last sentence
+> above was wrong about one of them: a sign-in the identity provider starts was refused with the user
+> on 2026-10-09 (§H3's design). Asked again, they kept refusing it - an unsolicited answer names no
+> request of this browser, so whoever holds an answer of their own can post it into a victim's browser
+> and log them in as themselves, and every identity provider that matters can point its tile at the
+> authorize route instead. The artifact binding was declined too: it carries the same assertion
+> Redirect and POST do, through a server-to-server exchange node-saml does not speak, and is rarely
+> the only binding an identity provider offers.
+>
+> **Found first, and the reason the posted half was more than a gap:** node-saml writes the
+> application's logout url into the service provider metadata with the HTTP-POST binding, and the
+> route took GET only. An identity provider set up from that metadata - which is how the docs say to
+> set one up - posts its logout requests and its answers, and was refused. So single logout never
+> worked from an identity provider honouring the metadata, only from one configured by hand for
+> redirects.
+>
+> **Posted logout** is a `POST` on the same route, from the identity provider's pages
+> (`AcceptCrossSitePosts`, the mechanism the posted callback already uses, origins widened to the
+> provider's logout urls). node-saml requires the signature inside the posted request, which is the
+> check that counts here. A posted answer to a logout from here is taken unchecked, like a redirected
+> one without a signature: all it does is land the browser on the application's own page. The answer
+> to the provider's request goes back in the binding its metadata offers: a redirect when it names a
+> logout url for redirects, or - for one that names a url for posted messages only - a page that posts
+> the signed answer, whose policy allows a form to that provider and one script with the request's
+> nonce. `FederatedProviderLogout` names the answer as a binding rather than a url for that.
+>
+> **SOAP logout** is `POST /federated/:provider/logout/soap`, a route the provider calls without a
+> browser. The signature covers the logout request inside the envelope, and node-saml checks only a
+> signature on a document's root, so the request is taken out of the envelope with xmldom - the DOM
+> node-saml itself parses into - and written with the namespaces it uses declared on it. Exclusive
+> canonicalization renders the same namespaces wherever they were declared, which is why the
+> signature checks; the fake provider declares them on the envelope on purpose, so the test covers
+> exactly that. The answer is a `LogoutResponse` in an envelope, signed with the `signingKey` when there
+> is one, with no `Destination`, since it goes back on the connection the request came in on.
+>
+> **What it needed from the framework, the user's call:** `@Body({ type: MimeType.XML, raw: true })`, an
+> xml body handed over as the text that arrived. Still read once, so a raw body is as well formed as
+> any other and refused the same way; documented in OpenAPI as a string. And node-saml's signing and DOM
+> helpers come from `@node-saml/node-saml/lib/xml`, which is not its public api but the only place it
+> signs a message for the POST or SOAP binding; the package has no exports map, and the type says so.
+>
+> **The metadata** is node-saml's, with the logout url for redirects and the SOAP logout url added
+> beside the one it writes, through the same DOM. `resolveMetadata` became async for that.
+>
+> **Noticed and left as it is, not new:** node-saml checks a logout request's issuer and validity window
+> but keeps no record of the requests it took, so a captured signed logout request can be sent again
+> until it expires. All it can do is end the logins it names, again; the redirect binding had the same
+> property before.
+>
+> Held by eleven cases in `base-saml.authenticator.test.ts` (the three logout services in the metadata,
+> a posted request ending exactly its session, refused unsigned and signed by another key, the logout
+> round trip with a provider that answers by posting, a provider taking posted forms only answered with
+> a signed form it checks, SOAP ending exactly its session for cookies and for jwts, a signed SOAP
+> answer, SOAP refused unsigned and signed by another key, and bodies that are no envelope with a logout
+> request), all red before; three raw-body cases in `xml.body-parser.test.ts`, one red before (the two
+> refusals held already, since the parser refused those documents either way); and one in
+> `open-api.service.test.ts`. `federated-authenticator.interface.test.ts` refused a `POST` to the logout
+> route as a method the controller does not answer, which it now does: the case asserts the same refusal
+> for a `GET` to `logout/soap`. `zibri-testing`'s fake provider takes posted logout requests and SOAP
+> logout, can name its logout url for posted forms only, and answers by posting when asked to.
+
+### H24. An api key records no last use, and expired keys are never removed — MINOR, **FIXED**
+
+*Filed on 2026-10-15, from §H5's "Not built".*
+
+`ApiKey` keeps no time of last use, so nobody can tell an unused key worth revoking from one an
+integration depends on; recording it is a write per request, which is why it was left out. An expired key
+stays listed until somebody revokes it, since nothing cleans the table.
+
+> **Fixed (2026-10-18), with the user.** `ApiKey.lastUsedAt`, and `ApiKeyCleanupCronJob`, both set by
+> the new `ZIBRI_DI_TOKENS.API_KEY_OPTIONS` (`ApiKeyOptions`). Decided together:
+>
+> - **Written at most once an hour, configurable** (`recordUseAfterMs`, `0` = every use). The row is
+>   read on every request already, so `ApiKeyService.recordUse` compares the stored time and writes
+>   only when it is older than that: one write per key per hour, whatever the traffic. It writes by a
+>   filter rather than by id, so a key revoked between the read and the write is no error.
+> - **A use is anything that revoking the key would stop**: the key sent itself (after the DPoP check,
+>   so a refused key records nothing), introspected for a resource server, authenticating a client at
+>   the token, introspection or revocation endpoint, and a request with an access token issued for it.
+>   The last only while `ACCESS_TOKEN_REVOCATION` is `'immediately'`: under `'onExpiry'` a token is
+>   checked without reading its key, and reading it to write down a time would undo that. Exchanging
+>   the key is recorded either way, and a working client does that at least once per token lifetime.
+> - **An expired key is deleted 30 days after it expired, configurable** (`deleteExpiredAfterMs`,
+>   `0` = at once). Until then the holder sees in their list that it expired, which explains a broken
+>   integration. The job runs hourly and is registered by whatever registers as a reader of keys.
+> - Both options are whole numbers of milliseconds, `0` included; anything else refuses the start.
+>
+> Tested in memory: six cases in `api-key.auth-strategy.test.ts` (last use at most once an hour, none
+> for a refused key, deleted after 30 days and listed until then, every use and a one-day retention
+> through the options, refused options, the job scheduled) and one in
+> `authorization-server-controller.model.test.ts` (exchanging the key and using its token both count).
+> Seen red: the cases of use and deletion against stubbed methods, the refused options while they
+> still started, and each of these mutations turning its cases red: the hourly check removed, the
+> token's use not recorded, deleting at expiry instead of after the retention. The case of a refused
+> key guards the order of the DPoP check and was never red.
+> Docs: `api-keys.md` (exports, listing, the options).
+
+### H25. A client certificate's extended key usage is not checked — MINOR, **FIXED**
+
+*Filed on 2026-10-15, from §H6's "Not built".*
+
+`BaseClientCertificateAuthStrategy` checks the issuing authority, the signature and the validity window
+of a forwarded certificate, and leaves the extended key usage to the proxy's TLS library. A certificate
+issued for a server, forwarded by a proxy that does not check it, identifies a client.
+
+> **Fixed (2026-10-19), with the user.** `isTrusted` now also asks whether the certificate is one for a
+> client. Decided together:
+>
+> - **OpenSSL's rule for a TLS client**, so the application refuses what a checking proxy would: a
+>   certificate without an extended key usage may be used for anything; one with it has to name TLS
+>   client authentication, and `anyExtendedKeyUsage` alone does not (RFC 5280 would take it).
+> - **Overridable**: `requiredExtendedKeyUsages`, object identifiers a certificate naming any has to
+>   name every one of, `[clientAuth]` by default. An authority marking its client certificates with a
+>   usage of its own adds it; `[]` drops the check. An entry that is no OID refuses the start.
+> - **The key usage too**: a certificate naming one has to allow `digitalSignature` or `keyAgreement`,
+>   again OpenSSL's rule. Node's `X509Certificate` does not read the key usage at all, and gives the
+>   extended one typed as always present, so both are read with `@peculiar/x509`, a new optional peer
+>   of zibri, loaded while the strategy starts. It was in the workspace already, through zibri-testing.
+>
+> Mine: a certificate without the extension is unrestricted under a usage of the application's own as
+> well, since that is what the extension's absence means; an application wanting its usage present
+> checks it in `resolveUserByCertificate`. The self signed certificates an api key pins
+> (`SELF_SIGNED_TLS_CLIENT_AUTH`) are not run through it, being pinned by thumbprint rather than
+> trusted through an authority.
+>
+> Tested in memory in `base-client-certificate.auth-strategy.test.ts`: a certificate for a server,
+> one for `anyExtendedKeyUsage` and one for both server and client; key usages for encrypting only,
+> for signing and for agreeing; a strategy requiring a usage of its own; and a usage that is no OID
+> refusing the start. Seen red with the extended key usage check removed and with the key usage check
+> removed. `optional-peer-dependencies.test.ts` has the peer's three cases (declared optional, not
+> needed to load zibri, named when a strategy starts without it), which need `npm run build` and have
+> not run. `createFakeKeyPair` (zibri-testing) takes `keyUsages` and `extendedKeyUsages`. Docs:
+> `client-certificates.md`, `getting-started.md` (optional packages), `testing.md`. The real proxies
+> got no case: whether nginx's `optional_no_ca` forwards a certificate failing its purpose check, or
+> answers `400` itself, was not verified, and a case asserting either would be a guess.
+
+### H26. A security key that cannot store a passkey is a second factor only — ~~MINOR, open~~ **FIXED for the second factor, the sign-in DECIDED AGAINST**
+
+*Filed on 2026-10-15, from §H10's "Not built".*
+
+Passkey sign-in asks for no email first and lets the browser offer the passkeys it holds, so a key
+without resident credentials, which needs the server to name the credential ids, cannot sign anybody
+in. An email-first ceremony was decided against so that the sign-in does not tell whether an address
+holds an account (§B4); that answers why not that way, and leaves those keys without a way at all.
+
+> **Worse than filed.** The title held only in principle. Every ceremony creating a passkey (sign-up,
+> adding one, enrolling the second factor) asked for `residentKey: 'required'`, which a browser refuses
+> on a key that stores nothing, so such a key could not even be a second factor. Unseen because
+> `FakePasskeyDevice` ignored `residentKey`.
+>
+> **Decided (the user, 2026-10-19):**
+> - **Adding a passkey and enrolling the second factor take a key that stores nothing**:
+>   `residentKey: 'preferred'`. `Passkey.discoverable` records what the browser says (`credProps`),
+>   undefined when it says nothing. It is the browser's word and unsigned, so it only tells the user
+>   which passkeys sign in, and grants nothing.
+> - **The passkey-only sign-up still demands a stored passkey.** The user has no other way in, and a key
+>   storing nothing could never sign in again. A key that stores nothing keeps nothing either, so the
+>   refusal leaves nothing behind on it.
+> - **Signing in with such a key: decided against**, GitHub's model. Asking who signs in first answers
+>   whether an address holds an account, and the stand-in credential ids WebAuthn §14.6.2 suggests for
+>   unknown names leak by their length and number (a security key's are often 64 bytes or more, a
+>   phone's 16 to 32). A mail carrying a link that starts the sign-in would leak nothing, at a mail for
+>   every sign-in with a rare device. Such a key works after a password.
+>
+> **Tests.** `passkey.authenticator.test.ts`: a key that stores nothing is added to a user logged in with
+> a password, listed with `discoverable: false`, taken as their second factor, and has nothing to offer
+> at a sign-in; the same key is refused at a passkey-only sign-up; a stored passkey added is listed with
+> `discoverable: true`. The first two assertions were red before the change. The sign-up case passed
+> before it as well, and was seen red with the sign-up asking for `'preferred'`. `FakePasskeyDevice`
+> (zibri-testing) takes `storesPasskeys`: such a device refuses where a stored passkey is demanded,
+> offers nothing to a sign-in naming no passkey, answers no user handle, and reports `credProps` when
+> asked. Docs: `passkeys.md`, `testing.md`.
+
+### H27. A provider identity cannot stop signing in and keep its api access — ~~MINOR, open~~ **FIXED**
+
+*Filed on 2026-10-15, from what §H18 does not cover.*
+
+Connecting again with `signIn: true` turns signing in on for an identity linked for the apis only, and
+nothing turns it off: `unlinkIdentity` removes the sign-in and the provider's tokens together. A user who
+wants to keep a calendar connected while no longer signing in through that provider has to disconnect and
+connect it again for the apis only.
+
+> **Fixed (2026-10-19).** Decided with the user:
+> - **The mirror of `revokeProviderAccess`**: `AuthServiceInterface.revokeProviderSignIn(userId,
+>   identityId, transaction)`. An identity with api access stops signing in and keeps its tokens; one
+>   without is unlinked, as `revokeProviderAccess` unlinks one that does not sign in. Turning signing in
+>   on again stays a connection with `signIn: true`, which proves the user holds the provider account
+>   now, rather than a setter that turns it on from code.
+> - **Code only**, like `revokeProviderAccess`: the application calls it from a route of its own and
+>   decides what guards it.
+>
+> Decided by me: it is `revokeSignIn` of `ProviderAccessAuthenticatorInterface`, implemented by
+> `BaseOAuthAuthenticator`, since only an identity that can have api access can be one that does not
+> sign in. An identity of another authenticator is `not_connected`, as for `revokeProviderAccess`.
+> Recorded as the new `auth.identity.sign-in-revoked`, or as `auth.identity.unlinked` when it unlinks.
+> An identity already not signing in is left as it is, and nothing is recorded.
+>
+> **Found on the way, and fixed:**
+> - **`revokeProviderAccess` unlinked an identity without recording `auth.identity.unlinked`.** The
+>   authenticator unlinked it itself, and only `AuthService.unlinkIdentity` records the unlink. Red
+>   first, with an assertion added to the existing case.
+> - **`auth.md` listed `auth.identity.unlinked` as success only**, though a failed unlink has always
+>   been recorded too.
+>
+> **Tests.** `base-oidc.authenticator.test.ts`, in `keeping a provider's tokens`: an identity with api
+> access stops signing in, keeps its tokens, is refused with `not_for_sign_in`, and the revocation is
+> recorded; one linked to sign in only is unlinked and recorded as such. Both were red before (no
+> method). Docs: `sign-in-through-a-provider.md` (a section, and the lockout warning), `auth.md` (the
+> recorded actions).

@@ -1,4 +1,4 @@
-import { AssetServiceInterface, Cache, Cached, CacheServiceInterface, Controller, Get, GlobalRegistry, HtmlResponse, HttpRequestContext, Inject, inject, InMemoryCacheStore, LocaleCode, LoggerInterface, MetricsServiceInterface, Response, TreeNode, TsxUtilities, WebsocketRequestContext, WriteThroughReadThroughCache, ZIBRI_DI_TOKENS } from 'zibri';
+import { AssetServiceInterface, Auth, Cache, Cached, CacheServiceInterface, Controller, Get, GlobalRegistry, HtmlResponse, HttpRequestContext, Inject, inject, InMemoryCacheStore, LocaleCode, LoggerInterface, MetricsServiceInterface, Response, TreeNode, TsxUtilities, WebsocketRequestContext, WriteThroughReadThroughCache, ZIBRI_DI_TOKENS } from 'zibri';
 
 import { AssetsPage } from '../templates/pages/assets';
 import { HomePage } from '../templates/pages/home';
@@ -23,6 +23,7 @@ export class StaticPagesCache extends WriteThroughReadThroughCache<string, HtmlR
     }
 }
 
+@Auth.skip({ allowRedundant: true })
 @Controller('/', { versions: 'all' })
 export class PageController {
 

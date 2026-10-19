@@ -8,6 +8,7 @@ import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { defineProvider } from '../../di/models/di-provider.model';
 import { EmailServiceInterface } from '../../email/email-service.interface';
+import { EmailConfigInput } from '../../email/models/email-config.model';
 import { EmailStatus } from '../../email/models/email-status.enum';
 import { Email } from '../../email/models/email.model';
 import { SmtpEmailTransport } from '../../email/transports/smtp.email-transport';
@@ -115,10 +116,11 @@ beforeAll(async () => {
             ...defaultTestServerProviders,
             defineProvider({
                 token: ZIBRI_DI_TOKENS.EMAIL_CONFIG,
-                useFactory: () => ({
+                useFactory: (): EmailConfigInput => ({
                     // the shared default is 0, which is a token bucket that refuses every send
                     maxEmailsPerHour: 100,
-                    defaultSender: 'sender@example.com'
+                    defaultSender: 'sender@example.com',
+                    failedRetentionInMs: 'forever'
                 })
             }),
             defineProvider({

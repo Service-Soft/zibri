@@ -35,6 +35,8 @@ export class InMemoryTransaction implements Transaction, InMemoryScope {
 
     private readonly committedWork: (() => Promise<void>)[] = [];
 
+    private readonly finishedWork: ((committed: boolean) => Promise<void>)[] = [];
+
     constructor(private readonly store: InMemoryStore) {}
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -138,6 +140,7 @@ export class InMemoryTransaction implements Transaction, InMemoryScope {
             this.store.writeJoin(key, members);
         }
         this.discard();
+        await this.runFinishedWork(true);
         for (const work of this.committedWork.splice(0)) {
             await work();
         }
@@ -148,11 +151,28 @@ export class InMemoryTransaction implements Transaction, InMemoryScope {
         this.committedWork.push(work);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    afterFinish(work: (committed: boolean) => Promise<void>): void {
+        this.finishedWork.push(work);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async rollback(): Promise<void> {
         this.finished = true;
         this.committedWork.length = 0;
         this.discard();
+        await this.runFinishedWork(false);
+    }
+
+    /**
+     * Runs the work waiting for the end of the transaction.
+     * @param committed - Whether the transaction was committed.
+     */
+    private async runFinishedWork(committed: boolean): Promise<void> {
+        // spliced, so a second rollback does not run it again
+        for (const work of this.finishedWork.splice(0)) {
+            await work(committed);
+        }
     }
 
     private discard(): void {

@@ -1,3 +1,4 @@
+/* eslint-disable cspell/spellchecker */
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { Repository } from '../../data-source/repository/repository';
@@ -10,6 +11,7 @@ import { ZibriInvoicingPlugin } from '../../plugin/invoicing/invoicing.plugin';
 import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../../plugin/invoicing/invoicing.tokens';
 import { CompanyInfo } from '../../plugin/invoicing/models/company-info.model';
 import { InvoiceAddress } from '../../plugin/invoicing/models/invoice-address.model';
+import { InvoiceRecipientAbbreviation } from '../../plugin/invoicing/models/invoice-recipient-abbreviation.model';
 import { Invoice } from '../../plugin/invoicing/models/invoice.model';
 import { InvoicingOptions } from '../../plugin/invoicing/models/invoicing-options.model';
 import { NumberInvoices } from '../../plugin/invoicing/models/number-invoices.model';
@@ -135,7 +137,7 @@ let numberInvoicesRepository: Repository<NumberInvoices>;
 
 beforeAll(async () => {
     server = await startTestServer({
-        dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Invoice, NumberInvoices] })],
+        dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Invoice, NumberInvoices, InvoiceRecipientAbbreviation] })],
         plugins: [...defaultTestServerPlugins, new ZibriInvoicingPlugin()],
         providers: [
             ...defaultTestServerProviders,
@@ -160,12 +162,12 @@ describe('evaluation/04-infrastructure-subsystems 1.11 - invoice numbering', () 
         // the counter has to already exist, so that both callers take the read-modify-write branch
         // rather than the create branch - those are two different races and this test is about the
         // first one
-        await invoiceNumberService.generateInvoiceNumber('concurrent-recipient', recipient, undefined);
+        await invoiceNumberService.generateInvoiceNumber('concurrent-recipient', recipient, undefined, 'CONCUR');
 
         const numbers: string[] = await Promise.all([
-            invoiceNumberService.generateInvoiceNumber('concurrent-recipient', recipient, undefined),
-            invoiceNumberService.generateInvoiceNumber('concurrent-recipient', recipient, undefined),
-            invoiceNumberService.generateInvoiceNumber('concurrent-recipient', recipient, undefined)
+            invoiceNumberService.generateInvoiceNumber('concurrent-recipient', recipient, undefined, 'CONCUR'),
+            invoiceNumberService.generateInvoiceNumber('concurrent-recipient', recipient, undefined, 'CONCUR'),
+            invoiceNumberService.generateInvoiceNumber('concurrent-recipient', recipient, undefined, 'CONCUR')
         ]);
 
         // an invoice number is a legal identifier, and two invoices carrying the same one is not
@@ -177,9 +179,9 @@ describe('evaluation/04-infrastructure-subsystems 1.11 - invoice numbering', () 
         await numberInvoicesRepository.deleteAll({});
 
         await Promise.all([
-            invoiceNumberService.generateInvoiceNumber('counted-recipient', recipient, undefined),
-            invoiceNumberService.generateInvoiceNumber('counted-recipient', recipient, undefined),
-            invoiceNumberService.generateInvoiceNumber('counted-recipient', recipient, undefined)
+            invoiceNumberService.generateInvoiceNumber('counted-recipient', recipient, undefined, 'COUNTE'),
+            invoiceNumberService.generateInvoiceNumber('counted-recipient', recipient, undefined, 'COUNTE'),
+            invoiceNumberService.generateInvoiceNumber('counted-recipient', recipient, undefined, 'COUNTE')
         ]);
 
         const counters: NumberInvoices[] = await numberInvoicesRepository.findAll({
@@ -195,7 +197,7 @@ describe('evaluation/04-infrastructure-subsystems 1.11 - invoice numbering', () 
     it('gives every caller its own number when each one runs inside its own transaction', async () => await inTenant(async () => {
         await numberInvoicesRepository.deleteAll({});
         // as above: seed the counter so both callers take the read-modify-write branch
-        await invoiceNumberService.generateInvoiceNumber('transactional-recipient', recipient, undefined);
+        await invoiceNumberService.generateInvoiceNumber('transactional-recipient', recipient, undefined, 'TRANSA');
 
         // nothing is held open artificially and nothing sleeps: the transaction is committed as soon
         // as the number comes back. generateInvoiceNumber still calls validateInvoiceNumber, which
@@ -207,7 +209,8 @@ describe('evaluation/04-infrastructure-subsystems 1.11 - invoice numbering', () 
             const number: string = await invoiceNumberService.generateInvoiceNumber(
                 'transactional-recipient',
                 recipient,
-                transaction
+                transaction,
+                'TRANSA'
             );
             await transaction.commit();
             return number;

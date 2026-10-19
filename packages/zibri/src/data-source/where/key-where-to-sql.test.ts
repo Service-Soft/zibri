@@ -8,7 +8,7 @@ import { InternalError } from '../../error-handling/internal-error.model';
 import { whereFor } from '../models/where/where-for.function';
 
 /**
- * The predicate a partial key is created with.
+ * The predicate a partial key or a check is created with.
  *
  * A schema predicate cannot carry a parameter, so the values are written into the statement - which
  * is the shape C5 was about, and the reason the escaping here is tested rather than assumed. That a
@@ -74,9 +74,40 @@ describe('keyWhereToSql', () => {
             .toBe('"label" = \'x\'\' OR \'\'1\'\'=\'\'1\'');
     });
 
-    it('refuses an operator, because an index cannot be created from one', () => {
-        expect(() => keyWhereToSql(Registration, whereFor<Registration>({ attempts: { greaterThan: 2 } })))
+    it('refuses an operator a schema predicate cannot be built from', () => {
+        expect(() => keyWhereToSql(Registration, whereFor<Registration>({ email: { like: '%@example.com' } })))
             .toThrow(InternalError);
+    });
+
+    it('writes not, answering a row holding none as the in process evaluator does', () => {
+        // a row holding no value is not the value named, which `<>` would leave NULL
+        expect(keyWhereToSql(Registration, whereFor<Registration>({ label: { not: 'x' } }))).toBe('"label" IS DISTINCT FROM \'x\'');
+        // eslint-disable-next-line unicorn/no-null
+        expect(keyWhereToSql(Registration, whereFor<Registration>({ label: { not: null } }))).toBe('"label" IS NOT NULL');
+    });
+
+    it('writes oneOf and notOneOf, null included where it is listed', () => {
+        expect(keyWhereToSql(Registration, whereFor<Registration>({ label: { oneOf: ['a', 'b'] } }))).toBe('("label" IN (\'a\', \'b\'))');
+        // eslint-disable-next-line unicorn/no-null
+        expect(keyWhereToSql(Registration, whereFor<Registration>({ label: { oneOf: ['a', null] } })))
+            .toBe('("label" IN (\'a\') OR "label" IS NULL)');
+        expect(keyWhereToSql(Registration, whereFor<Registration>({ label: { notOneOf: ['a'] } })))
+            .toBe('("label" IS NULL OR "label" NOT IN (\'a\'))');
+        // eslint-disable-next-line unicorn/no-null
+        expect(keyWhereToSql(Registration, whereFor<Registration>({ label: { notOneOf: ['a', null] } })))
+            .toBe('("label" IS NOT NULL AND "label" NOT IN (\'a\'))');
+        expect(keyWhereToSql(Registration, whereFor<Registration>({ label: { oneOf: [] } }))).toBe('FALSE');
+        expect(keyWhereToSql(Registration, whereFor<Registration>({ label: { notOneOf: [] } }))).toBe('TRUE');
+    });
+
+    it('writes a comparison of numbers, and ands several operators on one property', () => {
+        expect(keyWhereToSql(Registration, whereFor<Registration>({ attempts: { greaterThanEquals: 1, lesserThan: 5 } })))
+            .toBe('("attempts" >= 1 AND "attempts" < 5)');
+    });
+
+    it('escapes a quote in a listed value as well', () => {
+        expect(keyWhereToSql(Registration, whereFor<Registration>({ label: { notOneOf: ['it\'s'] } })))
+            .toBe('("label" IS NULL OR "label" NOT IN (\'it\'\'s\'))');
     });
 
     it('refuses a column the entity does not declare', () => {

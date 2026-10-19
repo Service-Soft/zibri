@@ -1,6 +1,7 @@
 import { type UserServiceInterface } from '../../auth/user/user-service.interface';
 import { isSoftDeleteEntityNewable } from '../../change-sets/models/is-soft-delete-entity.function';
 import { AlsUtilities } from '../../context/als.utilities';
+import { OpenedOperationLimit, OperationLimitUtilities } from '../../context/operation-limit.utilities';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { BaseEntity } from '../../entity/base-entity.model';
@@ -8,6 +9,8 @@ import { EntityMetadata } from '../../entity/decorators/entity.decorator';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { EntityMetadataMissingError } from '../../entity/entity-metadata-missing.error';
 import { type EntityOrder } from '../../entity/models/entity-order.model';
+import { type RelationTree } from '../../entity/models/entity-relations.model';
+import { EntityRelationsUtilities } from '../../entity/models/entity-relations.utilities';
 import { denyAll, type DenyAll } from '../../entity/models/entity-scope.model';
 import { Relation } from '../../entity/models/relation.enum';
 import { ConflictError } from '../../error-handling/errors/conflict.error';
@@ -36,6 +39,7 @@ import { DriverFindOptions, DriverStreamOptions, RepositoryDriverInterface } fro
 import { TracedRepositoryDriver } from '../driver/traced.repository-driver';
 import { BeforeReturnHook } from '../hooks/before-return';
 import { BeforeSaveHook, SaveOperation } from '../hooks/before-save';
+import { isDefaultBeforeSaveHook } from '../hooks/hooks.default';
 import { afterCursorWhere, keysetStepsFor, keysetValuesOf } from '../keyset/after-cursor-where.function';
 import { keysetFingerprint, KeysetOrderKey, resolveKeysetOrder } from '../keyset/keyset-order.model';
 import { AtomicUpdate } from '../models/atomic-update.model';
@@ -66,10 +70,13 @@ import { OwnedRelationUtilities } from '../owned-relation.utilities';
 import { resolveEntityScope } from '../scopes/resolve-entity-scope.function';
 import { ScopedWhere, ScopeWhereUtilities } from '../scopes/scope-where.utilities';
 import { TenantOwnership, TenantRowData, TenantUtilities } from '../tenancy/tenant.utilities';
+import { WrittenRowTenantUtilities } from '../tenancy/written-row-tenant.utilities';
 import { Transaction } from '../transaction/transaction.model';
+import { UniqueConstraintViolationError } from '../unique-constraint-violation.error';
 import { UpsertIdentityUtilities } from '../upsert-identity.utilities';
 import { validateWriteIsNotBlind } from '../validate-write-is-not-blind.function';
 import { dropImpossibleConditions } from '../where/drop-impossible-conditions.function';
+import { WriteDataUtilities } from '../write-data.utilities';
 
 /**
  * How many rows a bulk update may touch before it says out loud that it is writing them one by one.
@@ -149,7 +156,27 @@ type PreparedUpsert<T extends BaseEntity> = {
      * The properties the scope reads that the conflict path adds an amount to, whose result is only
      * known once the row is written.
      */
-    incremented: string[]
+    incremented: string[],
+    /**
+     * The values the conflict path sets that are encrypted bound to their row, as the caller gave
+     * them. Written once the row is, since the row they bind to is the one already holding the
+     * identity. Undefined when there are none.
+     */
+    bound: Record<string, unknown> | undefined
+};
+
+/**
+ * What the conflict path of an upsert row sets, prepared the way an update prepares its values.
+ */
+type PreparedConflictSets<T extends BaseEntity> = {
+    /**
+     * The changes as the store is handed them, every value set already encrypted or hashed.
+     */
+    onConflict: AtomicUpdate<T>,
+    /**
+     * The values left out of them because they are bound to their row, or undefined when none are.
+     */
+    bound: Record<string, unknown> | undefined
 };
 
 /**
@@ -259,17 +286,36 @@ export class Repository<
         // 'all' is the absence of a limit as far as the store is concerned. The difference
         // between saying it and saying nothing is handled by findAll, which is where it matters
         const take: number | undefined = allOptions?.take === 'all' ? undefined : allOptions?.take;
+        this.validateCount('skip', allOptions?.skip, 0);
+        this.validateCount('take', take, 1);
+        const order: EntityOrder<T> | undefined = allOptions?.order ?? this.entityMetadata.defaultOrder;
+        // here rather than in each store, so that every store refuses the same orders
+        FuzzySearchUtilities.validateOrderable(order, this.entityClass);
         return {
             where,
-            order: this.totalOrder(
-                allOptions?.order ?? this.entityMetadata.defaultOrder,
-                allOptions?.skip != undefined || take != undefined
-            ),
+            order: this.totalOrder(order, allOptions?.skip != undefined || take != undefined),
             relations: options?.relations ?? this.entityMetadata.defaultRelations,
             skip: allOptions?.skip,
             take,
             transaction: options?.transaction
         };
+    }
+
+    /**
+     * Refuses a number a read is paged by that is not a whole number, or is below what it can be.
+     * @param name - What the number is, for the error.
+     * @param value - The number, or undefined when the read names none.
+     * @param min - The smallest it can be.
+     * @throws InternalError when it is not a whole number of at least `min`.
+     */
+    private validateCount(name: string, value: number | undefined, min: number): void {
+        // refused here rather than handed to the store, where each answers it its own way: postgres
+        // refuses a negative OFFSET or LIMIT, and a slice counts a negative one from the end (01 §M41)
+        if (value != undefined && (!Number.isInteger(value) || value < min)) {
+            throw new InternalError(
+                `${this.entityClass.name}: the ${name} of a read has to be a whole number of at least ${min}, not ${value}.`
+            );
+        }
     }
 
     /**
@@ -448,16 +494,26 @@ export class Repository<
             if (targetMetadata?.tenant === 'shared' && everyRowShared) {
                 return;
             }
-            const found: BaseEntity[] = await this.dataSource.getRepository(target).findAll({
-                where: { id: { oneOf: [...byId.keys()] } },
-                acrossTenants: true,
-                unscoped: true,
-                take: 'all',
-                transaction: options?.transaction
-            });
-            const tenantOfId: Map<string, string | undefined> = new Map(
-                found.map(row => [row.id, TenantUtilities.resolveTenantOf(row, target)])
+            // a row this transaction wrote is known already, which is every row a write creates along
+            // with its own - their key names the row the same write just stored
+            const tenantOfId: Map<string, string | undefined> = WrittenRowTenantUtilities.findTenants(
+                options?.transaction,
+                target,
+                [...byId.keys()]
             );
+            const unknown: string[] = [...byId.keys()].filter(id => !tenantOfId.has(id));
+            const found: BaseEntity[] = unknown.length
+                ? await this.dataSource.getRepository(target).findAll({
+                    where: { id: { oneOf: unknown } },
+                    acrossTenants: true,
+                    unscoped: true,
+                    take: 'all',
+                    transaction: options?.transaction
+                })
+                : [];
+            for (const row of found) {
+                tenantOfId.set(row.id, TenantUtilities.resolveTenantOf(row, target));
+            }
             for (const [id, tenants] of byId) {
                 // refused alike whether the row is another tenant's or not there at all, so the answer
                 // says nothing about which ids exist elsewhere
@@ -636,48 +692,52 @@ export class Repository<
      * @returns The newly created entity.
      */
     async create(data: CreateData, options?: CreateOptions<T>): Promise<T> {
-        // the row and the rows created along with it are one write
-        if (this.writeTransaction(options) == undefined && this.givesOwnedRows([data])) {
-            return await this.inTransaction(options, async transaction => await this.create(data, { ...options, transaction }));
-        }
-        // everything below writes to what it is given - the generated id, the defaults `beforeSave`
-        // fills in, whatever the driver hands back - and the caller still holds the object they
-        // passed. Shallow, which covers every column: a nested object is shared, and the hooks that
-        // reach into one are the encryption hooks, which is a narrower thing than this.
-        const own: CreateData = { ...data };
-        const [owned] = this.takeOwnedRows([own]);
-        if (own.id != undefined && options?.allowId != true) {
-            this.logger.warn('Found an id on the create data, it will be ignored.');
-            delete own.id;
-        }
-        this.assignId(own);
-        TenantUtilities.assignTenant(own, this.entityClass, this.entityMetadata, options?.acrossTenants);
-        this.writeUuidsInLowerCase(own);
-        await this.beforeSave(own, SaveOperation.CREATE, this.entityClass);
-        await this.applyScopeToData(own, SaveOperation.CREATE, options);
-        await this.validateReferencesInTenant([{ data: own, rowTenant: TenantUtilities.resolveTenantOf(own, this.entityClass) }], options);
+        return await this.withinTimeout(options, 'create', async () => {
+            // the row and the rows created along with it are one write
+            if (this.writeTransaction(options) == undefined && this.givesOwnedRows([data])) {
+                return await this.inTransaction(options, async transaction => await this.create(data, { ...options, transaction }));
+            }
+            // everything below writes to what it is given - the generated id, the defaults `beforeSave`
+            // fills in, whatever the driver hands back - and the caller still holds the object they
+            // passed. The objects and arrays it holds as well, since the hooks reach into those too
+            const own: CreateData = WriteDataUtilities.copy(data, this.entityClass);
+            const [owned] = this.takeOwnedRows([own]);
+            if (own.id != undefined && options?.allowId != true) {
+                this.logger.warn('Found an id on the create data, it will be ignored.');
+                delete own.id;
+            }
+            this.assignId(own);
+            TenantUtilities.assignTenant(own, this.entityClass, this.entityMetadata, options?.acrossTenants);
+            this.writeUuidsInLowerCase(own);
+            await this.beforeSave(own, SaveOperation.CREATE, this.entityClass);
+            await this.applyScopeToData(own, SaveOperation.CREATE, options);
+            await this.validateReferencesInTenant(
+                [{ data: own, rowTenant: TenantUtilities.resolveTenantOf(own, this.entityClass) }],
+                options
+            );
 
-        const [res] = await this.driver.save([own], this.writeTransaction(options), true);
-        if (res == undefined) {
-            throw new InternalError(`Saving one "${this.entityClass.name}" returned no row.`);
-        }
-        const ownedRows: OwnedRowsById = await this.writeOwnedRows(
-            [[owned ?? {}, String(res.id), TenantUtilities.resolveTenantOf(own, this.entityClass)]],
-            options,
-            options?.allowId === true
-        );
+            const [res] = await this.writeNewRows([own], options);
+            if (res == undefined) {
+                throw new InternalError(`Saving one "${this.entityClass.name}" returned no row.`);
+            }
+            const ownedRows: OwnedRowsById = await this.writeOwnedRows(
+                [[owned ?? {}, String(res.id), TenantUtilities.resolveTenantOf(own, this.entityClass)]],
+                options,
+                options?.allowId === true
+            );
 
-        // a write resolves the relations its own data named and knows nothing of the rest, so an
-        // entity that reads one by default answered with it only when the caller happened to pass
-        // it. Read once the row exists, the same way an upsert does - and *before* the hooks below,
-        // because that read runs them on the row it returns and this one is about to be discarded
-        const relations: FindAllOptions<T>['relations'] = this.relationsToResolve(options);
-        if (relations != undefined) {
-            return this.withOwnedRows(await this.findById(res.id, this.readBackOptions(relations, options)), ownedRows);
-        }
+            // a write resolves the relations its own data named and knows nothing of the rest, so an
+            // entity that reads one by default answered with it only when the caller happened to pass
+            // it. Read once the row exists, the same way an upsert does - and *before* the hooks below,
+            // because that read runs them on the row it returns and this one is about to be discarded
+            const relations: FindAllOptions<T>['relations'] = this.relationsToResolve(options);
+            if (relations != undefined && !this.isAnsweredByOwnedRows(relations, [res], ownedRows)) {
+                return this.withOwnedRows(await this.findById(res.id, this.readBackOptions(relations, options)), ownedRows);
+            }
 
-        await this.beforeReturn(res, this.entityClass, true);
-        return this.withOwnedRows(res, ownedRows);
+            await this.beforeReturn(res, this.entityClass, true);
+            return this.withOwnedRows(res, ownedRows);
+        });
     }
 
     /**
@@ -767,13 +827,9 @@ export class Repository<
                 rows.filter(r => r.id == undefined || newIds.has(String(r.id))),
                 { ...childOptions, allowId }
             );
-            const updated: BaseEntity[] = await PromiseUtilities.allChunked(
-                given.filter(r => !newIds.has(String(r.id))),
-                async (row: DeepPartial<BaseEntity>) => {
-                    const { id, ...change }: DeepPartial<BaseEntity> = row;
-                    return await repository.updateById(String(id), change, childOptions);
-                }
-            );
+            // all at once, each with its own values - and found by the write, so the scope applies
+            const updated: BaseEntity[] = (await repository.updateEach(given.filter(r => !newIds.has(String(r.id))), childOptions))
+                .map(u => u.entity);
 
             for (const ownerId of ownerIds) {
                 const owned: Map<string, BaseEntity[]> = res.get(ownerId) ?? new Map<string, BaseEntity[]>();
@@ -817,6 +873,22 @@ export class Repository<
             : await this.dataSource.getRepository(target).findAll(options);
         const existing: Set<string> = new Set(found.map(f => String(f.id)));
         return new Set(ids.filter(id => !existing.has(id)));
+    }
+
+    /**
+     * Whether the relations written rows are handed back with are answered by the rows the same write
+     * wrote along with them, so that nothing has to be read.
+     *
+     * Only a one to many or has one relation the data of every row gave a value for, and nothing
+     * below it: the rows beside those were not part of the write.
+     * @param relations - The relations to hand the rows back with.
+     * @param written - The written rows.
+     * @param ownedRows - The rows written along with each row, by its id.
+     * @returns True when the rows at hand answer every relation, which an empty list of them always is.
+     */
+    private isAnsweredByOwnedRows(relations: FindAllOptions<T>['relations'], written: T[], ownedRows: OwnedRowsById): boolean {
+        const tree: RelationTree = EntityRelationsUtilities.resolveTree(relations);
+        return [...tree].every(([key, below]) => !below.size && written.every(row => ownedRows.get(String(row.id))?.has(key) === true));
     }
 
     /**
@@ -889,6 +961,11 @@ export class Repository<
      * increment is judged once the row is written, since its result depends on what is stored, and
      * rolled back with it. Inside a transaction you passed, that write stays until you roll the
      * transaction back.
+     *
+     * A property declaring `optimisticLocking` that `onConflict` sets has to be named in the `where`
+     * of the options, as on an update. The row holding the identity has to match that `where` for the
+     * changes to apply, and when it does not, the call fails with a `ConflictError`. An `increment`
+     * needs no condition, since it adds to whatever is stored.
      * @param identity - The properties identifying the row, and their values. They have to be the
      * values `create` holds, and `onConflict` leaves them as they are.
      * @param create - The full row to insert when nothing matches the identity yet.
@@ -903,40 +980,47 @@ export class Repository<
         onConflict: AtomicUpdate<T>,
         options?: UpsertOptions<T>
     ): Promise<T> {
-        const identityKeys: string[] = Object.keys(identity);
-        // resolved once for every question below, rather than once per question
-        const scope: Where<T> | DenyAll | undefined = await this.resolveRestriction(options);
-        const conflictKeys: string[] = this.withTenantKey(identityKeys, [create]);
-        const prepared: PreparedUpsert<T> = await this.prepareUpsert(conflictKeys, { create, onConflict }, scope, options?.acrossTenants);
-
-        // a store finds the row by what it inserts, so an identity naming other values would be a
-        // lookup of one row and an insert of another
-        const given: string = UpsertIdentityUtilities.resolveValues(
-            identityKeys,
-            Object.assign({ ...identity }, UUIDUtilities.resolveCanonicalChanges(identity, this.entityClass))
-        );
-        if (given !== UpsertIdentityUtilities.resolveValues(identityKeys, prepared.row.create)) {
-            throw new InternalError(
-                `upsert on "${this.entityClass.name}" was given an identity whose values differ from the ones its create data holds.`
+        return await this.withinTimeout(options, 'upsert', async () => {
+            const identityKeys: string[] = Object.keys(identity);
+            // resolved once for every question below, rather than once per question
+            const scope: Where<T> | DenyAll | undefined = await this.resolveRestriction(options);
+            const conflictKeys: string[] = this.withTenantKey(identityKeys, [create]);
+            const prepared: PreparedUpsert<T> = await this.prepareUpsert(
+                conflictKeys,
+                { create, onConflict, where: options?.where },
+                scope,
+                options?.acrossTenants
             );
-        }
 
-        const [res] = await this.runUpsert(conflictKeys, [prepared], scope, options);
-        if (res == undefined) {
-            throw new InternalError(`An upsert of one "${this.entityClass.name}" returned no row.`);
-        }
+            // a store finds the row by what it inserts, so an identity naming other values would be a
+            // lookup of one row and an insert of another
+            const given: string = UpsertIdentityUtilities.resolveValues(
+                identityKeys,
+                Object.assign({ ...identity }, UUIDUtilities.resolveCanonicalChanges(identity, this.entityClass))
+            );
+            if (given !== UpsertIdentityUtilities.resolveValues(identityKeys, prepared.row.create)) {
+                throw new InternalError(
+                    `upsert on "${this.entityClass.name}" was given an identity whose values differ from the ones its create data holds.`
+                );
+            }
 
-        const relations: FindAllOptions<T>['relations'] = this.relationsToResolve(options);
-        if (relations != undefined) {
-            // read once the row exists, rather than as part of writing it. An upsert used to hand
-            // back a row with its relations missing while the property was not typed optional, so
-            // reading through one was a TypeError on an entity every other read returns resolved.
-            // That read runs the hooks below on the row it returns, so this one skips them
-            return await this.findById(res.id, this.readBackOptions(relations, options));
-        }
+            const [res] = await this.runUpsert(conflictKeys, [prepared], scope, options);
+            if (res == undefined) {
+                throw new InternalError(`An upsert of one "${this.entityClass.name}" returned no row.`);
+            }
 
-        await this.beforeReturn(res, this.entityClass, true);
-        return res;
+            const relations: FindAllOptions<T>['relations'] = this.relationsToResolve(options);
+            if (relations != undefined) {
+                // read once the row exists, rather than as part of writing it. An upsert used to hand
+                // back a row with its relations missing while the property was not typed optional, so
+                // reading through one was a TypeError on an entity every other read returns resolved.
+                // That read runs the hooks below on the row it returns, so this one skips them
+                return await this.findById(res.id, this.readBackOptions(relations, options));
+            }
+
+            await this.beforeReturn(res, this.entityClass, true);
+            return res;
+        });
     }
 
     /**
@@ -965,32 +1049,34 @@ export class Repository<
         rows: UpsertRow<T, CreateData>[],
         options?: UpsertAllOptions<T>
     ): Promise<T[]> {
-        if (!rows.length) {
-            return [];
-        }
-        const scope: Where<T> | DenyAll | undefined = await this.resolveRestriction(options);
-        const conflictKeys: string[] = this.withTenantKey(identity, rows.map(row => row.create));
-        const prepared: PreparedUpsert<T>[] = await Promise.all(
-            rows.map(row => this.prepareUpsert(conflictKeys, row, scope, options?.acrossTenants))
-        );
-
-        // refused here rather than left to the store, where one answers with an error of its own and
-        // another would apply both rows one after the other - and the second row's change would then
-        // be decided by the first
-        const seen: Set<string> = new Set();
-        for (const p of prepared) {
-            const values: string = UpsertIdentityUtilities.resolveValues(conflictKeys, p.row.create);
-            if (seen.has(values)) {
-                throw new InternalError([
-                    `upsertAll on "${this.entityClass.name}" was given the identity ${values} more than once.`,
-                    'Each identity names one row, so each may appear once.'
-                ]);
+        return await this.withinTimeout(options, 'upsertAll', async () => {
+            if (!rows.length) {
+                return [];
             }
-            seen.add(values);
-        }
+            const scope: Where<T> | DenyAll | undefined = await this.resolveRestriction(options);
+            const conflictKeys: string[] = this.withTenantKey(identity, rows.map(row => row.create));
+            const prepared: PreparedUpsert<T>[] = await Promise.all(
+                rows.map(row => this.prepareUpsert(conflictKeys, row, scope, options?.acrossTenants))
+            );
 
-        const res: T[] = await this.runUpsert(conflictKeys, prepared, scope, options);
-        return await this.writtenEntities(res, options);
+            // refused here rather than left to the store, where one answers with an error of its own
+            // and another would apply both rows one after the other - and the second row's change
+            // would then be decided by the first
+            const seen: Set<string> = new Set();
+            for (const p of prepared) {
+                const values: string = UpsertIdentityUtilities.resolveValues(conflictKeys, p.row.create);
+                if (seen.has(values)) {
+                    throw new InternalError([
+                        `upsertAll on "${this.entityClass.name}" was given the identity ${values} more than once.`,
+                        'Each identity names one row, so each may appear once.'
+                    ]);
+                }
+                seen.add(values);
+            }
+
+            const res: T[] = await this.runUpsert(conflictKeys, prepared, scope, options);
+            return await this.writtenEntities(res, options);
+        });
     }
 
     /**
@@ -1045,10 +1131,15 @@ export class Repository<
         scope: Where<T> | DenyAll | undefined,
         acrossTenants: boolean | undefined
     ): Promise<PreparedUpsert<T>> {
+        // the conflict path is an update, and is refused as a blind one before anything is written or
+        // any hook runs. Only what it sets: an increment adds to whatever is stored, so a write that
+        // landed in between is kept rather than lost
+        validateWriteIsNotBlind(this.entityClass, this.resolveConflictSets(row.onConflict), row.where);
+
         // a copy, for the reason `create` takes one. An id the caller chose is kept either way -
         // `assignId` fills one in only when there is none - what changes is that a *generated* id
         // lands here rather than on the object the caller still holds.
-        const own: CreateData = { ...row.create };
+        const own: CreateData = WriteDataUtilities.copy(row.create, this.entityClass);
         this.assignId(own);
         TenantUtilities.assignTenant(own, this.entityClass, this.entityMetadata, acrossTenants);
         this.writeUuidsInLowerCase(own);
@@ -1078,9 +1169,127 @@ export class Repository<
         // relation to its foreign key while saving and quietly accepted what postgres threw on
         this.writeRelationsAsForeignKeys(own);
 
-        const prepared: UpsertRow<T> = { create: own, onConflict };
+        // after the scope has judged the values as they were given, since what it compares is what the
+        // caller said rather than its ciphertext
+        const sets: PreparedConflictSets<T> = await this.prepareConflictSets(identity, own, onConflict);
+        const prepared: UpsertRow<T> = { create: own, onConflict: sets.onConflict, where: this.resolveConflictCondition(row.where) };
         this.validateUpsertIdentity(identity, prepared);
-        return { row: prepared, incremented };
+        return { row: prepared, incremented, bound: sets.bound };
+    }
+
+    /**
+     * Prepares what the conflict path of an upsert row sets the way an update prepares its values:
+     * through the save hook, so that a value is encrypted and hashed as on any other write.
+     *
+     * A value encrypted bound to its row is encrypted for the row it lands in, which on the conflict
+     * path is the row already holding the identity - not known until the row is written. Those are
+     * left out here and written by `writeBoundConflictSets` once it is.
+     * @param identity - The properties identifying the row.
+     * @param create - The row to insert, as it is handed to the store.
+     * @param onConflict - The changes as the caller gave them.
+     * @returns The changes as the store is handed them, and the values left out of them.
+     */
+    private async prepareConflictSets(
+        identity: string[],
+        create: CreateData,
+        onConflict: AtomicUpdate<T>
+    ): Promise<PreparedConflictSets<T>> {
+        const sets: Record<string, unknown> = this.resolveConflictSets(onConflict);
+        if (!Object.keys(sets).length) {
+            return { onConflict, bound: undefined };
+        }
+        const boundKeys: Set<string> = new Set(
+            (await boundEncryptionProperties(sets, this.entityClass)).map(path => path.split('.')[0] ?? path)
+        );
+
+        // a bare instance of the entity rather than an object literal, so the hook is handed what it
+        // is typed for and nothing besides the values set. Copied, for the reason `create` copies
+        // eslint-disable-next-line typescript/no-unsafe-assignment, typescript/no-unsafe-argument
+        const unbound: T = Object.assign(Object.create(this.entityClass.prototype), WriteDataUtilities.copy(sets, this.entityClass));
+        for (const key of boundKeys) {
+            Reflect.deleteProperty(unbound, key);
+        }
+        await this.beforeSave(unbound, SaveOperation.UPDATE, this.entityClass);
+
+        const res: AtomicUpdate<T> = { ...onConflict };
+        const bound: Record<string, unknown> = {};
+        for (const key of Object.keys(sets)) {
+            if (boundKeys.has(key)) {
+                bound[key] = sets[key];
+                Reflect.deleteProperty(res, key);
+                continue;
+            }
+            Reflect.set(res, key, { set: Reflect.get(unbound, key) });
+        }
+        // a store only takes a conflict path that changes something. Setting a property of the
+        // identity to the value it holds changes nothing, and keeps the path for the bound values
+        const [first] = identity;
+        if (!Object.values(res).some(change => change != undefined) && first != undefined) {
+            Reflect.set(res, first, { set: Reflect.get(create, first) });
+        }
+        return { onConflict: res, bound: boundKeys.size ? bound : undefined };
+    }
+
+    /**
+     * Writes the values the conflict path of an upsert sets that are encrypted bound to their row, to
+     * the rows the conflict path ran on - now that it is known which rows those are.
+     *
+     * Part of the transaction the upsert ran in. A `set` overwrites whatever is stored, so writing it
+     * after the rest of the change loses nothing the single statement kept.
+     * @param prepared - The rows as they were prepared.
+     * @param written - The rows the store wrote, in the same order. Replaced by what this writes.
+     * @param transaction - The transaction the upsert runs in.
+     */
+    private async writeBoundConflictSets(prepared: PreparedUpsert<T>[], written: T[], transaction: Transaction): Promise<void> {
+        const rows: T[] = [];
+        for (const [i, p] of prepared.entries()) {
+            const entity: T | undefined = written[i];
+            // the conflict path ran when the row written is not the one the insert would have made
+            if (p.bound == undefined || entity == undefined || entity.id === Reflect.get(p.row.create, 'id')) {
+                continue;
+            }
+            // eslint-disable-next-line typescript/no-unsafe-assignment
+            const single: T = Object.assign(
+                // eslint-disable-next-line typescript/no-unsafe-argument
+                Object.create(this.entityClass.prototype),
+                WriteDataUtilities.copy(p.bound, this.entityClass),
+                { id: entity.id }
+            );
+            await this.beforeSave(single, SaveOperation.UPDATE, this.entityClass);
+            rows.push(single);
+        }
+        if (!rows.length) {
+            return;
+        }
+        const updated: T[] = await this.driver.updateEach(rows, { id: { oneOf: rows.map(r => r.id) } } as Where<T>, transaction);
+        for (const entity of updated) {
+            const at: number = written.findIndex(w => w.id === entity.id);
+            if (at !== -1) {
+                written[at] = entity;
+            }
+        }
+    }
+
+    /**
+     * The condition the conflict path of an upsert row is applied under, as the store is handed it.
+     * @param where - The condition the caller gave, if any.
+     * @returns The condition, narrowed to what a row can hold, or undefined when it asks nothing of
+     * the row.
+     */
+    private resolveConflictCondition(where: Where<T> | undefined): Where<T> | undefined {
+        const branches: WhereFilter<T>[] = ScopeWhereUtilities.branchesOf(where);
+        // a property named with no value is how a caller says they overwrite regardless, so a branch
+        // naming nothing else asks nothing of the row - and an OR holding such a branch asks nothing
+        if (branches.some(branch => Object.values(branch).every(value => value === undefined))) {
+            return undefined;
+        }
+        // narrowed as a read's filter is, so a value the property cannot hold is a condition no row
+        // meets rather than one a store refuses to compare against
+        const possible: WhereFilter<T>[] = dropImpossibleConditions(branches, MetadataUtilities.getModelProperties(this.entityClass));
+        if (!possible.length) {
+            return { id: { oneOf: [] } } as Where<T>;
+        }
+        return possible.length === 1 ? possible[0] : possible;
     }
 
     /**
@@ -1194,20 +1403,78 @@ export class Repository<
         // the caller's own transaction it stays until they roll back on the error. Only a scope
         // keyed on a counter, or a scoped batch, pays for the transaction
         const judgedAfter: boolean = prepared.some(p => p.incremented.length);
-        const refusedPartway: boolean = reachable != undefined && rows.length > 1;
-        if (!judgedAfter && !refusedPartway) {
-            return await this.driver.upsert(identity, rows, this.writeTransaction(options), reachable);
-        }
-        return await this.inTransaction(options, async transaction => {
-            const written: T[] = await this.driver.upsert(identity, rows, transaction, reachable);
-            for (const [i, entity] of written.entries()) {
-                const incremented: string[] = prepared[i]?.incremented ?? [];
-                if (incremented.length) {
-                    this.validateWithinScope(entity, incremented, scope);
-                }
+        // a row's own condition refuses it the way the scope does, so a batch holding one is held
+        // together the same way
+        const refusedPartway: boolean = (reachable != undefined || rows.some(row => row.where != undefined)) && rows.length > 1;
+        // a value bound to its row is written after the row, and the two are one write
+        const writtenAfter: boolean = prepared.some(p => p.bound != undefined);
+        try {
+            if (!judgedAfter && !refusedPartway && !writtenAfter) {
+                return await this.driver.upsert(identity, rows, this.writeTransaction(options), reachable);
             }
-            return written;
+            return await this.inTransaction(options, async transaction => {
+                const written: T[] = await this.driver.upsert(identity, rows, transaction, reachable);
+                await this.writeBoundConflictSets(prepared, written, transaction);
+                for (const [i, entity] of written.entries()) {
+                    const incremented: string[] = prepared[i]?.incremented ?? [];
+                    if (incremented.length) {
+                        this.validateWithinScope(entity, incremented, scope);
+                    }
+                }
+                return written;
+            });
+        }
+        catch (error) {
+            await this.validateConditionsHeld(error, identity, rows, options);
+            throw error;
+        }
+    }
+
+    /**
+     * Refuses with a conflict an upsert that the store refused because a row's condition no longer
+     * held.
+     *
+     * The store answers a row it may not change the same way whether the scope or the caller's
+     * condition excluded it: as inserting the identity would be answered. Told apart the way an update
+     * tells them apart, by reading the row holding the identity through the scope and without the
+     * condition, so what decides the answer is what this caller was already allowed to read. A row
+     * they may see that no longer matches changed under them; one they may not see keeps the answer
+     * the store gave.
+     * @param error - What the store threw.
+     * @param identity - The properties identifying each row.
+     * @param rows - The rows as they were handed to the store.
+     * @param options - The caller's options, holding their transaction if they had one.
+     * @throws A `ConflictError` when a row the caller may see no longer matches its condition.
+     */
+    private async validateConditionsHeld(
+        error: unknown,
+        identity: string[],
+        rows: UpsertRow<T>[],
+        options: BaseRepositoryOptions | undefined
+    ): Promise<void> {
+        const conditioned: UpsertRow<T>[] = rows.filter(row => row.where != undefined);
+        if (!(error instanceof UniqueConstraintViolationError) || !conditioned.length) {
+            return;
+        }
+        const held: T[] = await this.findAll({
+            where: conditioned.flatMap(row => ScopeWhereUtilities.branchesOf(
+                UpsertIdentityUtilities.resolveConflictWhere(this.entityClass, identity, row.create)
+            )),
+            transaction: options?.transaction,
+            unscoped: options?.unscoped,
+            acrossTenants: options?.acrossTenants,
+            relations: [],
+            take: 'all'
         });
+        for (const row of conditioned) {
+            const values: string = UpsertIdentityUtilities.resolveValues(identity, row.create);
+            const found: T | undefined = held.find(h => UpsertIdentityUtilities.resolveValues(identity, h) === values);
+            if (found != undefined && row.where != undefined && !this.evaluator.matches(found, row.where, this.entityClass)) {
+                throw new ConflictError(
+                    $ts`The ${this.entityClass.name} holding ${values} changed since it was read, so the upsert was not applied.`
+                );
+            }
+        }
     }
 
     /**
@@ -1315,51 +1582,89 @@ export class Repository<
      * @returns All newly created entities.
      */
     async createAll(data: CreateData[], options?: CreateAllOptions<T>): Promise<T[]> {
-        // the rows and the rows created along with them are one write
-        if (this.writeTransaction(options) == undefined && this.givesOwnedRows(data)) {
-            return await this.inTransaction(options, async transaction => await this.createAll(data, { ...options, transaction }));
-        }
-        // one copy per entry, for the reason `create` takes one
-        const own: CreateData[] = data.map(d => ({ ...d }));
-        const owned: Record<string, unknown>[] = this.takeOwnedRows(own);
-        const entitiesWithIdCount: number = (await Promise.all(
-            own.map(async d => {
-                let hadId: boolean = false;
-                if (d.id != undefined && options?.allowId != true) {
-                    delete d.id;
-                    hadId = true;
-                }
-                this.assignId(d);
-                TenantUtilities.assignTenant(d, this.entityClass, this.entityMetadata, options?.acrossTenants);
-                this.writeUuidsInLowerCase(d);
-                await this.beforeSave(d, SaveOperation.CREATE, this.entityClass);
-                await this.applyScopeToData(d, SaveOperation.CREATE, options);
-                return hadId;
-            })
-        )).filter(Boolean).length;
-        if (entitiesWithIdCount) {
-            this.logger.warn(
-                `Found an id on ${entitiesWithIdCount} out of ${data.length} entries of the create data. These ids will be ignored.`
+        return await this.withinTimeout(options, 'createAll', async () => {
+            // nothing to write is no round trip - a change set recording no change creates no changes
+            if (!data.length) {
+                return [];
+            }
+            // the rows and the rows created along with them are one write
+            if (this.writeTransaction(options) == undefined && this.givesOwnedRows(data)) {
+                return await this.inTransaction(options, async transaction => await this.createAll(data, { ...options, transaction }));
+            }
+            // one copy per entry, for the reason `create` takes one
+            const own: CreateData[] = data.map(d => WriteDataUtilities.copy(d, this.entityClass));
+            const owned: Record<string, unknown>[] = this.takeOwnedRows(own);
+            const entitiesWithIdCount: number = (await Promise.all(
+                own.map(async d => {
+                    let hadId: boolean = false;
+                    if (d.id != undefined && options?.allowId != true) {
+                        delete d.id;
+                        hadId = true;
+                    }
+                    this.assignId(d);
+                    TenantUtilities.assignTenant(d, this.entityClass, this.entityMetadata, options?.acrossTenants);
+                    this.writeUuidsInLowerCase(d);
+                    await this.beforeSave(d, SaveOperation.CREATE, this.entityClass);
+                    await this.applyScopeToData(d, SaveOperation.CREATE, options);
+                    return hadId;
+                })
+            )).filter(Boolean).length;
+            if (entitiesWithIdCount) {
+                this.logger.warn(
+                    `Found an id on ${entitiesWithIdCount} out of ${data.length} entries of the create data. These ids will be ignored.`
+                );
+            }
+            await this.validateReferencesInTenant(
+                own.map(d => ({ data: d, rowTenant: TenantUtilities.resolveTenantOf(d, this.entityClass) })),
+                options
             );
-        }
-        await this.validateReferencesInTenant(
-            own.map(d => ({ data: d, rowTenant: TenantUtilities.resolveTenantOf(d, this.entityClass) })),
-            options
-        );
 
-        const res: T[] = await this.driver.save(own, this.writeTransaction(options), true);
-        // paired by position: the driver hands back the rows in the order they were given, and the
-        // ids were assigned above, so the pairing is also by the id each row was written under
-        const ownedRows: OwnedRowsById = await this.writeOwnedRows(
-            own.map((d, i): [Record<string, unknown>, string, string | undefined] => [
-                owned[i] ?? {},
-                String(d.id),
-                TenantUtilities.resolveTenantOf(d, this.entityClass)
-            ]),
-            options,
-            options?.allowId === true
+            const res: T[] = await this.writeNewRows(own, options);
+            // paired by position: the driver hands back the rows in the order they were given, and the
+            // ids were assigned above, so the pairing is also by the id each row was written under
+            const ownedRows: OwnedRowsById = await this.writeOwnedRows(
+                own.map((d, i): [Record<string, unknown>, string, string | undefined] => [
+                    owned[i] ?? {},
+                    String(d.id),
+                    TenantUtilities.resolveTenantOf(d, this.entityClass)
+                ]),
+                options,
+                options?.allowId === true
+            );
+            return (await this.writtenEntities(res, options, ownedRows)).map(entity => this.withOwnedRows(entity, ownedRows));
+        });
+    }
+
+    /**
+     * Writes the rows a create makes.
+     *
+     * Inserted when every id was generated here, since no stored row can hold one of those. A row
+     * given its id with `allowId` may be stored already, so those are saved, which updates such a row.
+     * @param rows - The rows, each with its id.
+     * @param options - The options of the create, holding its transaction and `allowId`.
+     * @returns The written rows, in the order they were given.
+     */
+    private async writeNewRows(rows: DeepPartial<T>[], options: CreateOptions<T> | CreateAllOptions<T> | undefined): Promise<T[]> {
+        const transaction: Transaction | undefined = this.writeTransaction(options);
+        const res: T[] = options?.allowId === true
+            ? await this.driver.save(rows, transaction, true)
+            : await this.driver.insert(rows, transaction);
+        this.recordWrittenRows(res, transaction);
+        return res;
+    }
+
+    /**
+     * Records the tenant of rows written inside a transaction, so that a write after it in the same
+     * transaction pointing at them does not read them to learn it.
+     * @param rows - The written rows, as they are stored.
+     * @param transaction - The transaction they were written in, if any.
+     */
+    private recordWrittenRows(rows: T[], transaction: Transaction | undefined): void {
+        WrittenRowTenantUtilities.record(
+            transaction,
+            this.entityClass,
+            rows.map(row => [String(row.id), TenantUtilities.resolveTenantOf(row, this.entityClass)])
         );
-        return (await this.writtenEntities(res, options)).map(entity => this.withOwnedRows(entity, ownedRows));
     }
 
     /**
@@ -1375,11 +1680,16 @@ export class Repository<
      * soft delete just marked deleted is still a row this call wrote.
      * @param written - The rows the write produced.
      * @param options - What the write was called with, naming the relations and the transaction.
+     * @param ownedRows - The rows the write wrote along with each row, which answer their relations.
      * @returns The rows in the order they were written, each through the return hook.
      */
-    private async writtenEntities(written: T[], options: BulkWriteOptions<T> | undefined): Promise<T[]> {
+    private async writtenEntities(
+        written: T[],
+        options: BulkWriteOptions<T> | undefined,
+        ownedRows: OwnedRowsById = new Map()
+    ): Promise<T[]> {
         const relations: FindAllOptions<T>['relations'] = this.relationsToResolve(options);
-        if (relations == undefined || !written.length) {
+        if (relations == undefined || !written.length || this.isAnsweredByOwnedRows(relations, written, ownedRows)) {
             await Promise.all(written.map(r => this.beforeReturn(r, this.entityClass, true)));
             return written;
         }
@@ -1444,21 +1754,23 @@ export class Repository<
         id: T['id'],
         options?: FindByIdOptions<T, B>
     ): Promise<B extends false ? T | undefined : T> {
-        // combined with whatever the caller asked for rather than replacing it. Spreading the options
-        // over the id let a `where` they carried take the id's place, so the read looked for any row
-        // matching that filter instead of for this one
-        const byId: ScopedWhere<T> = ScopeWhereUtilities.applyToWhere(
-            options?.where,
-            [{ id } as WhereFilter<T>],
-            MetadataUtilities.getModelProperties(this.entityClass)
-        );
-        const res: T | undefined = byId.matchesNothing
-            ? undefined
-            : await this.findOne({ ...options, where: byId.where, required: false });
-        if (!res && options?.required !== false) {
-            throw new NotFoundError($ts`Could not find ${this.entityClass.name} with id "${id}".`);
-        }
-        return res as B extends false ? T | undefined : T;
+        return await this.withinTimeout(options, 'findById', async () => {
+            // combined with whatever the caller asked for rather than replacing it. Spreading the
+            // options over the id let a `where` they carried take the id's place, so the read looked
+            // for any row matching that filter instead of for this one
+            const byId: ScopedWhere<T> = ScopeWhereUtilities.applyToWhere(
+                options?.where,
+                [{ id } as WhereFilter<T>],
+                MetadataUtilities.getModelProperties(this.entityClass)
+            );
+            const res: T | undefined = byId.matchesNothing
+                ? undefined
+                : await this.findOne({ ...options, where: byId.where, required: false });
+            if (!res && options?.required !== false) {
+                throw new NotFoundError($ts`Could not find ${this.entityClass.name} with id "${id}".`);
+            }
+            return res as B extends false ? T | undefined : T;
+        });
     }
 
     /**
@@ -1469,21 +1781,23 @@ export class Repository<
     async findOne<B extends boolean = true>(
         options: FindOneOptions<T, B>
     ): Promise<B extends false ? T | undefined : T> {
-        const scoped: ScopedWhere<T> = await this.scopedWhere(options.where, options);
-        // a row the scope excludes is answered exactly like one that does not exist, so a caller
-        // cannot use a guarded route to find out which ids are real
-        const res: T | undefined = scoped.matchesNothing
-            ? undefined
-            : await this.driver.findOne(this.toDriverFindOptions(options, scoped.where));
+        return await this.withinTimeout(options, 'findOne', async () => {
+            const scoped: ScopedWhere<T> = await this.scopedWhere(options.where, options);
+            // a row the scope excludes is answered exactly like one that does not exist, so a caller
+            // cannot use a guarded route to find out which ids are real
+            const res: T | undefined = scoped.matchesNothing
+                ? undefined
+                : await this.driver.findOne(this.toDriverFindOptions(options, scoped.where));
 
-        if (!res && options.required !== false) {
-            throw new NotFoundError($ts`Could not find ${this.entityClass.name}.`);
-        }
-        if (!res) {
-            return undefined as B extends false ? T | undefined : T;
-        }
-        await this.beforeReturn(res, this.entityClass, options.autoDecrypt ?? true);
-        return res;
+            if (!res && options.required !== false) {
+                throw new NotFoundError($ts`Could not find ${this.entityClass.name}.`);
+            }
+            if (!res) {
+                return undefined as B extends false ? T | undefined : T;
+            }
+            await this.beforeReturn(res, this.entityClass, options.autoDecrypt ?? true);
+            return res;
+        });
     }
 
     /**
@@ -1492,39 +1806,41 @@ export class Repository<
      * @returns An array of found entities.
      */
     async findAll(options?: FindAllOptions<T>): Promise<T[]> {
-        const scoped: ScopedWhere<T> = await this.scopedWhere(options?.where, options);
-        if (scoped.matchesNothing) {
-            return [];
-        }
+        return await this.withinTimeout(options, 'findAll', async () => {
+            const scoped: ScopedWhere<T> = await this.scopedWhere(options?.where, options);
+            if (scoped.matchesNothing) {
+                return [];
+            }
 
-        const driverOptions: DriverFindOptions<T> = this.toDriverFindOptions(options, scoped.where);
-        // a call that names no limit is claiming the result is small enough to hold, and this checks
-        // that claim rather than believing it. One row more than the cap is asked for, so getting
-        // that row back is proof there was something past the cap - a result of exactly the cap is
-        // a table that fits, not one that was cut short.
-        //
-        // Read from what the caller passed rather than from the driver options, because `'all'`
-        // reaches the store as no limit too and is the one case that is deliberate
-        const probe: number = UNBOUNDED_FIND_ALL_LIMIT + 1;
-        const unbounded: boolean = options?.take == undefined;
-        if (unbounded) {
-            driverOptions.take = probe;
-        }
+            const driverOptions: DriverFindOptions<T> = this.toDriverFindOptions(options, scoped.where);
+            // a call that names no limit is claiming the result is small enough to hold, and this
+            // checks that claim rather than believing it. One row more than the cap is asked for, so
+            // getting that row back is proof there was something past the cap - a result of exactly
+            // the cap is a table that fits, not one that was cut short.
+            //
+            // Read from what the caller passed rather than from the driver options, because `'all'`
+            // reaches the store as no limit too and is the one case that is deliberate
+            const probe: number = UNBOUNDED_FIND_ALL_LIMIT + 1;
+            const unbounded: boolean = options?.take == undefined;
+            if (unbounded) {
+                driverOptions.take = probe;
+            }
 
-        const res: T[] = await this.driver.find(driverOptions);
-        if (unbounded && res.length === probe) {
-            // refused rather than trimmed. Handing back the first thousand rows of a larger table
-            // would make every caller that loops over the result quietly do part of its work - half
-            // the mails sent, half the rows migrated - and nothing would say so. A table that has
-            // outgrown what a call assumed is worth hearing about at the call that assumed it
-            throw new InternalError(
-                `${this.entityClass.name}.findAll() matched more than ${UNBOUNDED_FIND_ALL_LIMIT} rows without a limit.`
-                + ' Pass a `take`, use findAllPaginated, or pass `take: \'all\'` if reading every row is meant.'
-            );
-        }
+            const res: T[] = await this.driver.find(driverOptions);
+            if (unbounded && res.length === probe) {
+                // refused rather than trimmed. Handing back the first thousand rows of a larger table
+                // would make every caller that loops over the result quietly do part of its work -
+                // half the mails sent, half the rows migrated - and nothing would say so. A table that
+                // has outgrown what a call assumed is worth hearing about at the call that assumed it
+                throw new InternalError(
+                    `${this.entityClass.name}.findAll() matched more than ${UNBOUNDED_FIND_ALL_LIMIT} rows without a limit.`
+                    + ' Pass a `take`, use findAllPaginated, or pass `take: \'all\'` if reading every row is meant.'
+                );
+            }
 
-        await Promise.all(res.map(r => this.beforeReturn(r, this.entityClass, options?.autoDecrypt ?? true)));
-        return res;
+            await Promise.all(res.map(r => this.beforeReturn(r, this.entityClass, options?.autoDecrypt ?? true)));
+            return res;
+        });
     }
 
     /**
@@ -1549,6 +1865,37 @@ export class Repository<
      * }
      */
     async* stream(options?: StreamOptions<T>): AsyncIterable<T> {
+        if (options?.timeoutInMs == undefined) {
+            yield* this.streamRows(options);
+            return;
+        }
+
+        // pulled in pieces, so the limit cannot wrap one call the way `withinTimeout` does: it is
+        // started once and every pull runs under it, the time the caller spends between two rows
+        // included - a stream that is held open is work that is still running
+        const opened: OpenedOperationLimit = OperationLimitUtilities.openLimit(options.timeoutInMs, `${this.entityClass.name}.stream`);
+        const rows: AsyncIterator<T> = this.streamRows(options)[Symbol.asyncIterator]();
+        try {
+            while (true) {
+                const next: IteratorResult<T> = await AlsUtilities.runWithOperationLimit(opened.limit, async () => await rows.next());
+                if (next.done === true) {
+                    return;
+                }
+                yield next.value;
+            }
+        }
+        finally {
+            opened.close();
+            await rows.return?.();
+        }
+    }
+
+    /**
+     * Reads every entity matching the given options, one at a time, as {@link stream} hands them out.
+     * @param options - The where filter and the relations to resolve.
+     * @yields Each matching entity, in turn.
+     */
+    private async* streamRows(options: StreamOptions<T> | undefined): AsyncIterable<T> {
         const scoped: ScopedWhere<T> = await this.scopedWhere(options?.where, options);
         if (scoped.matchesNothing) {
             return;
@@ -1577,27 +1924,32 @@ export class Repository<
      * @returns A paginated result of the found entities.
      */
     async findAllPaginated(page: number, limit: number, options?: FindAllPaginatedOptions<T>): Promise<PaginationResult<T>> {
-        // narrowed once and used for both halves. The count used to be taken from the caller's
-        // filter alone, which on a scoped entity reported how many rows exist rather than how many
-        // the caller may see - a leak the page of items itself does not have
-        const scoped: ScopedWhere<T> = await this.scopedWhere(options?.where, options);
-        if (scoped.matchesNothing) {
-            return { items: [], totalAmount: 0 };
-        }
+        return await this.withinTimeout(options, 'findAllPaginated', async () => {
+            // named by what the caller passed, before they turn into a skip and a take
+            this.validateCount('page', page, 1);
+            this.validateCount('limit', limit, 1);
+            // narrowed once and used for both halves. The count used to be taken from the caller's
+            // filter alone, which on a scoped entity reported how many rows exist rather than how
+            // many the caller may see - a leak the page of items itself does not have
+            const scoped: ScopedWhere<T> = await this.scopedWhere(options?.where, options);
+            if (scoped.matchesNothing) {
+                return { items: [], totalAmount: 0 };
+            }
 
-        // one call rather than a read and then a count. The two are answers to the same question,
-        // and asking it twice lets anything written in between separate them: a total that counts
-        // rows the page does not hold, or holds rows the total does not count. What a caller shows
-        // someone is the pair - "20 of 137" - so it is the pair that has to be true. Which is also
-        // why the page is not read through `findAll`: its bound is for a call that named no limit,
-        // and this one always names one.
-        const res: PaginationResult<T> = await this.driver.findAndCount(this.toDriverFindOptions(
-            { ...options, skip: (page - 1) * limit, take: limit },
-            scoped.where
-        ));
+            // one call rather than a read and then a count. The two are answers to the same
+            // question, and asking it twice lets anything written in between separate them: a total
+            // that counts rows the page does not hold, or holds rows the total does not count. What a
+            // caller shows someone is the pair - "20 of 137" - so it is the pair that has to be true.
+            // Which is also why the page is not read through `findAll`: its bound is for a call that
+            // named no limit, and this one always names one.
+            const res: PaginationResult<T> = await this.driver.findAndCount(this.toDriverFindOptions(
+                { ...options, skip: (page - 1) * limit, take: limit },
+                scoped.where
+            ));
 
-        await Promise.all(res.items.map(i => this.beforeReturn(i, this.entityClass, options?.autoDecrypt ?? true)));
-        return res;
+            await Promise.all(res.items.map(i => this.beforeReturn(i, this.entityClass, options?.autoDecrypt ?? true)));
+            return res;
+        });
     }
 
     /**
@@ -1639,42 +1991,60 @@ export class Repository<
         limit: number,
         options?: FindAllPaginatedOptions<T>
     ): Promise<KeysetPage<T>> {
-        const scoped: ScopedWhere<T> = await this.scopedWhere(options?.where, options);
-        if (scoped.matchesNothing) {
-            return { items: [], totalAmount: 0, nextCursor: undefined };
-        }
+        return await this.withinTimeout(options, 'findAllAfter', async () => {
+            this.validateCount('limit', limit, 1);
+            const scoped: ScopedWhere<T> = await this.scopedWhere(options?.where, options);
+            if (scoped.matchesNothing) {
+                return { items: [], totalAmount: 0, nextCursor: undefined };
+            }
 
-        // resolved before the cursor is read, because the cursor is only valid for this order and
-        // this filter - and because an order that cannot be continued through is the caller's
-        // mistake whether or not they passed a cursor
-        const driverOptions: DriverFindOptions<T> = this.toDriverFindOptions({ ...options, take: limit }, scoped.where);
-        const keys: KeysetOrderKey[] = resolveKeysetOrder(this.entityClass, driverOptions.order);
-        const fingerprint: string = keysetFingerprint(keys, scoped.where);
+            // resolved before the cursor is read, because the cursor is only valid for this order and
+            // this filter - and because an order that cannot be continued through is the caller's
+            // mistake whether or not they passed a cursor
+            const driverOptions: DriverFindOptions<T> = this.toDriverFindOptions({ ...options, take: limit }, scoped.where);
+            const keys: KeysetOrderKey[] = resolveKeysetOrder(this.entityClass, driverOptions.order);
+            const fingerprint: string = keysetFingerprint(keys, scoped.where);
 
-        const res: PaginationResult<T> = await this.driver.findAndCount({
-            ...driverOptions,
-            where: cursor == undefined
-                ? scoped.where
-                : afterCursorWhere(scoped.where, keysetStepsFor(decodeKeysetCursor(cursor, fingerprint), keys)),
-            // the window is the rows after the cursor and the total is the rows that match at all,
-            // so that a walk reports "137 of them" throughout rather than counting down. An empty
-            // filter rather than none when the caller gave none: leaving it out says "the same
-            // question as the window", which here is the one thing it is not
-            totalWhere: cursor == undefined ? undefined : scoped.where ?? {}
+            const after: ScopedWhere<T> = cursor == undefined
+                ? scoped
+                : afterCursorWhere(
+                    scoped.where,
+                    keysetStepsFor(decodeKeysetCursor(cursor, fingerprint), keys),
+                    MetadataUtilities.getModelProperties(this.entityClass)
+                );
+            if (after.matchesNothing) {
+                // the position and the caller's filter contradict each other, so nothing is past the
+                // cursor - and the total is still what the filter matches, as on every other page
+                return {
+                    items: [],
+                    totalAmount: await this.driver.count({ ...driverOptions, where: scoped.where }),
+                    nextCursor: undefined
+                };
+            }
+
+            const res: PaginationResult<T> = await this.driver.findAndCount({
+                ...driverOptions,
+                where: after.where,
+                // the window is the rows after the cursor and the total is the rows that match at
+                // all, so that a walk reports "137 of them" throughout rather than counting down. An
+                // empty filter rather than none when the caller gave none: leaving it out says "the
+                // same question as the window", which here is the one thing it is not
+                totalWhere: cursor == undefined ? undefined : scoped.where ?? {}
+            });
+
+            await Promise.all(res.items.map(i => this.beforeReturn(i, this.entityClass, options?.autoDecrypt ?? true)));
+
+            // a short page is the end of the walk. A page that filled up may also be, and the caller
+            // hears that from the next call handing back nothing - which is one read more than
+            // counting would cost and does not need the total to be exact at the moment the walk ends
+            const last: T | undefined = res.items.length < limit ? undefined : res.items.at(-1);
+            return {
+                ...res,
+                nextCursor: last == undefined
+                    ? undefined
+                    : encodeKeysetCursor({ order: fingerprint, values: keysetValuesOf(last, keys) })
+            };
         });
-
-        await Promise.all(res.items.map(i => this.beforeReturn(i, this.entityClass, options?.autoDecrypt ?? true)));
-
-        // a short page is the end of the walk. A page that filled up may also be, and the caller
-        // hears that from the next call handing back nothing - which is one read more than counting
-        // would cost and does not need the total to be exact at the moment the walk ends
-        const last: T | undefined = res.items.length < limit ? undefined : res.items.at(-1);
-        return {
-            ...res,
-            nextCursor: last == undefined
-                ? undefined
-                : encodeKeysetCursor({ order: fingerprint, values: keysetValuesOf(last, keys) })
-        };
     }
 
     /**
@@ -1686,11 +2056,13 @@ export class Repository<
      * @returns How many entities match, of those the caller is allowed to see.
      */
     async count(options?: CountOptions<T>): Promise<number> {
-        const scoped: ScopedWhere<T> = await this.scopedWhere(options?.where, options);
-        if (scoped.matchesNothing) {
-            return 0;
-        }
-        return await this.driver.count({ where: scoped.where, transaction: options?.transaction });
+        return await this.withinTimeout(options, 'count', async () => {
+            const scoped: ScopedWhere<T> = await this.scopedWhere(options?.where, options);
+            if (scoped.matchesNothing) {
+                return 0;
+            }
+            return await this.driver.count({ where: scoped.where, transaction: options?.transaction });
+        });
     }
 
     /**
@@ -1701,22 +2073,24 @@ export class Repository<
      * @returns Whether an entity the caller is allowed to see matches.
      */
     async exists(options?: CountOptions<T>): Promise<boolean> {
-        const scoped: ScopedWhere<T> = await this.scopedWhere(options?.where, options);
-        if (scoped.matchesNothing) {
-            return false;
-        }
-        // one row rather than a count, because a filter matching a million rows has to read a
-        // million of them to report how many there are and the first one already answers this.
-        // `find` with a limit rather than `findOne`: this is asked with no filter at all - is there
-        // anything yet - and a driver may refuse to look for a single row without one
-        const res: T[] = await this.driver.find({
-            where: scoped.where,
-            // explicit, so the entity's default relations are not joined for a row nobody reads
-            relations: [],
-            take: 1,
-            transaction: options?.transaction
+        return await this.withinTimeout(options, 'exists', async () => {
+            const scoped: ScopedWhere<T> = await this.scopedWhere(options?.where, options);
+            if (scoped.matchesNothing) {
+                return false;
+            }
+            // one row rather than a count, because a filter matching a million rows has to read a
+            // million of them to report how many there are and the first one already answers this.
+            // `find` with a limit rather than `findOne`: this is asked with no filter at all - is
+            // there anything yet - and a driver may refuse to look for a single row without one
+            const res: T[] = await this.driver.find({
+                where: scoped.where,
+                // explicit, so the entity's default relations are not joined for a row nobody reads
+                relations: [],
+                take: 1,
+                transaction: options?.transaction
+            });
+            return res.length > 0;
         });
-        return res.length > 0;
     }
 
     /**
@@ -1741,10 +2115,12 @@ export class Repository<
         // decrypts nothing and builds no entity, where reading one did all three and threw it away.
         // The error is the one the read used to throw, and a subclass narrowing what counts as
         // present - a soft delete - narrows this the same way it narrowed that.
-        if (!await this.exists({ ...options, where: { id } as Where<T> })) {
-            throw new NotFoundError($ts`Could not find ${this.entityClass.name} with id "${id}".`);
-        }
-        return (await this.saveUpdate(id, data, options)).entity;
+        return await this.withinTimeout(options, 'updateById', async () => {
+            if (!await this.exists({ ...options, where: { id } as Where<T> })) {
+                throw new NotFoundError($ts`Could not find ${this.entityClass.name} with id "${id}".`);
+            }
+            return (await this.saveUpdate(id, data, options)).entity;
+        });
     }
 
     /**
@@ -1782,7 +2158,7 @@ export class Repository<
 
         // a copy, for the same reason `create` takes one: the id below and whatever `beforeSave`
         // writes are changes to the caller's object otherwise
-        const own: UpdateData = { ...data, id };
+        const own: UpdateData = { ...WriteDataUtilities.copy(data, this.entityClass), id };
         const [owned] = this.takeOwnedRows([own]);
         this.writeUuidsInLowerCase(own);
         await this.beforeSave(own, SaveOperation.UPDATE, this.entityClass);
@@ -1831,6 +2207,7 @@ export class Repository<
             returnUpdated: true
         });
         await this.validateUpdateWasWritten(updated.length, id, findOptions);
+        this.recordWrittenRows(updated, this.writeTransaction(options));
         // with the id, which is what tells the rows this row held apart from the ones it is given
         const rowTenant: string | undefined = TenantUtilities.resolveTenantOf(updated[0] ?? {}, this.entityClass);
         await this.writeOwnedRows([[{ ...owned, id }, String(id), rowTenant]], options, false);
@@ -1863,6 +2240,130 @@ export class Repository<
         }
         await this.beforeReturn(entity, this.entityClass, findOptions.autoDecrypt ?? true);
         return entity;
+    }
+
+    /**
+     * Updates several rows, each with values of its own: what {@link updateById} does to each of
+     * them, with one write for all of them. A row the caller may not see is not found, and refuses
+     * the whole call.
+     *
+     * How a save writes the rows it gives a relation with their ids. The rows are not read first:
+     * the write is narrowed to what the caller may change, and a row it did not land on is told
+     * apart afterwards, as an update of one row tells it apart.
+     * @param rows - The values of each row, with its id.
+     * @param options - The options of the write, holding its transaction.
+     * @param where - What every row has to match besides what the caller may change, as a subclass
+     * narrows what its rows are.
+     * @returns Each row as it is now and the change written to it, in the order they were given.
+     * @throws When a row is not there for the caller to change.
+     */
+    protected async updateEach(rows: UpdateData[], options?: BaseRepositoryOptions, where?: Where<T>): Promise<WrittenUpdate<T>[]> {
+        if (!rows.length) {
+            return [];
+        }
+        // the rows and the rows written along with them are one write
+        if (this.writeTransaction(options) == undefined && this.givesOwnedRows(rows)) {
+            return await this.inTransaction(options, async transaction => await this.updateEach(rows, { ...options, transaction }, where));
+        }
+        const ids: T['id'][] = rows.map(row => {
+            if (row.id == undefined) {
+                throw new InternalError(`Updating several "${this.entityClass.name}" rows needs the id of each.`);
+            }
+            validateWriteIsNotBlind(this.entityClass, row, undefined);
+            return row.id;
+        });
+
+        // a copy each, for the reason saveUpdate takes one
+        const own: UpdateData[] = rows.map(row => WriteDataUtilities.copy(row, this.entityClass));
+        const owned: Record<string, unknown>[] = this.takeOwnedRows(own);
+        await Promise.all(own.map(async data => {
+            this.writeUuidsInLowerCase(data);
+            await this.beforeSave(data, SaveOperation.UPDATE, this.entityClass);
+            await this.applyScopeToData(data, SaveOperation.UPDATE, options);
+        }));
+        if (own.some(data => TenantUtilities.pointsAtRows(data, this.entityClass))) {
+            await this.validateReferencesInTenant(await this.resolveTenantsOfUpdated(own, options), options);
+        }
+
+        const reach: ScopedWhere<T> = this.resolveWriteWhere(where, options);
+        const scoped: ScopedWhere<T> = reach.matchesNothing ? reach : await this.scopedWhere(reach.where, options);
+        // composed rather than spread, for the reason saveUpdate composes its id
+        const withIds: ScopedWhere<T> = scoped.matchesNothing
+            ? scoped
+            : ScopeWhereUtilities.applyToWhere(
+                scoped.where,
+                [{ id: { oneOf: ids } } as WhereFilter<T>],
+                MetadataUtilities.getModelProperties(this.entityClass)
+            );
+        const written: T[] = withIds.matchesNothing
+            ? []
+            : await this.driver.updateEach(
+                own,
+                withIds.where ?? ({ id: { oneOf: ids } } as Where<T>),
+                this.writeTransaction(options)
+            );
+
+        const writtenById: Map<string, T> = new Map(written.map(row => [String(row.id), row]));
+        const missing: T['id'] | undefined = ids.find(id => !writtenById.has(String(id)));
+        if (missing != undefined) {
+            await this.validateUpdateWasWritten(0, missing, { ...options, where: undefined });
+        }
+        // in the order they were given, which is the order the caller pairs them up in
+        const updated: T[] = ids.map(id => writtenById.get(String(id))).filter((row): row is T => row != undefined);
+        this.recordWrittenRows(updated, this.writeTransaction(options));
+        await this.writeOwnedRows(
+            updated.map((row, i): [Record<string, unknown>, string, string | undefined] => [
+                { ...owned[i], id: row.id },
+                String(row.id),
+                TenantUtilities.resolveTenantOf(row, this.entityClass)
+            ]),
+            options,
+            false
+        );
+
+        const ownById: Map<string, UpdateData> = new Map(own.map(data => [String(data.id), data]));
+        return (await this.writtenEntities(updated, options)).map(entity => {
+            const data: UpdateData | undefined = ownById.get(String(entity.id));
+            if (data == undefined) {
+                throw new InternalError(`Updating "${this.entityClass.name}" wrote a row with id "${String(entity.id)}" it was not given.`);
+            }
+            return { entity, written: data };
+        });
+    }
+
+    /**
+     * Resolves the tenant of each row an update of several rows changes, for checking what it points
+     * them at: the active one where every row belongs to it, read for all of them at once otherwise.
+     * @param rows - The data of each row, with its id.
+     * @param options - The options of the update.
+     * @returns The data of each row with the tenant the row belongs to.
+     */
+    private async resolveTenantsOfUpdated(rows: UpdateData[], options: BaseRepositoryOptions | undefined): Promise<TenantRowData[]> {
+        // read once for every row that needs it, and only when one does
+        let stored: Promise<Map<string, T>> | undefined;
+        const readStored: () => Promise<Map<string, T>> = async () => {
+            stored ??= (async () => {
+                const found: T[] = await this.findAll({
+                    ...options,
+                    where: { id: { oneOf: rows.map(r => r.id) } } as Where<T>,
+                    take: 'all',
+                    relations: [],
+                    autoDecrypt: false
+                });
+                return new Map(found.map(row => [String(row.id), row]));
+            })();
+            return await stored;
+        };
+        return await Promise.all(rows.map(async data => ({
+            data,
+            rowTenant: await this.resolveTenantOfUpdated(options, async () => {
+                const row: T | undefined = (await readStored()).get(String(data.id));
+                if (row == undefined) {
+                    throw new NotFoundError($ts`Could not find ${this.entityClass.name} with id "${String(data.id)}".`);
+                }
+                return row;
+            })
+        })));
     }
 
     /**
@@ -1909,8 +2410,10 @@ export class Repository<
         data: UpdateData,
         options?: UpdateAllOptions<T, R>
     ): Promise<R extends true ? T[] : number> {
-        const res: BulkUpdate<T> = await this.applyUpdateAll(where, data, options, options?.returnUpdated ?? false);
-        return (options?.returnUpdated === true ? res.updates.map(u => u.entity) : res.count) as R extends true ? T[] : number;
+        return await this.withinTimeout(options, 'updateAll', async () => {
+            const res: BulkUpdate<T> = await this.applyUpdateAll(where, data, options, options?.returnUpdated ?? false);
+            return (options?.returnUpdated === true ? res.updates.map(u => u.entity) : res.count) as R extends true ? T[] : number;
+        });
     }
 
     /**
@@ -1959,7 +2462,7 @@ export class Repository<
         }
 
         // a copy, for the reason `create` takes one
-        const own: UpdateData = { ...data };
+        const own: UpdateData = WriteDataUtilities.copy(data, this.entityClass);
         if (own.id != undefined) {
             this.logger.warn('Found an id on the update data, it will be ignored.');
             delete own.id;
@@ -2037,7 +2540,7 @@ export class Repository<
         options: UpdateAllOptions<T, boolean> | undefined
     ): Promise<BulkUpdate<T>> {
         return await this.inTransaction(options, async transaction => {
-            const own: UpdateData = { ...data };
+            const own: UpdateData = WriteDataUtilities.copy(data, this.entityClass);
             const [owned] = this.takeOwnedRows([own]);
             const inTransaction: UpdateAllOptions<T, boolean> = { ...options, transaction };
             const res: BulkUpdate<T> = await this.applyOwnColumnsOfUpdateAll(where, own, inTransaction);
@@ -2122,9 +2625,8 @@ export class Repository<
      *
      * A value bound to its row has to be encrypted for the row it lands in, so one write carrying one
      * value to every matching row is the exact thing the binding exists to forbid. Reading the rows
-     * first is how this learns which ids to bind to. The write is still a single call: `save` is the
-     * driver's primitive for writing many rows that each carry their own values, and is what bulk
-     * creation goes through too.
+     * first is how this learns which ids to bind to. The write is still a single call: `updateEach` is
+     * the driver's primitive for writing many rows that each carry their own values.
      *
      * The read does widen a window that was always there. A row inserted while this is running is not
      * updated - but neither is one inserted while a plain update statement is running, at the
@@ -2179,7 +2681,7 @@ export class Repository<
             // written one. The service holds that window itself now, so the rows no longer have to
             // queue behind each other for it
             const rowData: UpdateData[] = await PromiseUtilities.allChunked(rows, async row => {
-                const single: UpdateData = { ...ObjectUtilities.copyDeep(data), id: row.id };
+                const single: UpdateData = { ...WriteDataUtilities.copy(data, this.entityClass), id: row.id };
                 await this.beforeSave(single, SaveOperation.UPDATE, this.entityClass);
                 await this.applyScopeToData(single, SaveOperation.UPDATE, options);
                 return single;
@@ -2193,7 +2695,9 @@ export class Repository<
                 { ...options, transaction }
             );
 
-            const written: T[] = await this.driver.save(rowData, transaction, true);
+            // each row with its own values, which is what updateEach writes - and unlike a save, it
+            // merges an object into the stored one, as every other update does
+            const written: T[] = await this.driver.updateEach(rowData, { id: { oneOf: rows.map(r => r.id) } } as Where<T>, transaction);
             const updated: T[] = await this.writtenEntities(written, { ...options, transaction });
             // paired by id rather than by position: `rowData` was built from the rows this read, and
             // what the driver hands back is its own list. They hold the same rows, and nothing says
@@ -2238,23 +2742,44 @@ export class Repository<
     }
 
     /**
+     * Runs the given work under the timeout the caller's options name, when they name one.
+     *
+     * Everything the call does runs under it: each statement may take that long, in place of the data
+     * source's statement timeout, and the call as a whole as well. A method of a subclass wraps itself
+     * as well as the method it delegates to, and the inner limit is then the same as the outer one.
+     * @param options - The options the caller provided, holding their timeout if they named one.
+     * @param method - The name of the call, for the error a timeout fails with.
+     * @param fn - The work to run.
+     * @returns Whatever the work returned.
+     */
+    protected async withinTimeout<R>(
+        options: BaseRepositoryOptions | undefined,
+        method: string,
+        fn: () => Promise<R>
+    ): Promise<R> {
+        if (options?.timeoutInMs == undefined) {
+            return await fn();
+        }
+        return await OperationLimitUtilities.runWithin(options.timeoutInMs, `${this.entityClass.name}.${method}`, fn);
+    }
+
+    /**
      * Deletes an entity with the provided id.
      * @param id - The id of the entity to deleted.
      * @param options - Additional options, like a transaction.
      * @returns The deleted entity.
      */
     async deleteById(id: T['id'], options?: DeleteByIdOptions): Promise<T> {
-        const entityToDelete: T = await this.findById(id, options);
-        this.validateWritable(entityToDelete, options);
-        await this.beforeSave(entityToDelete, SaveOperation.DELETE, this.entityClass);
+        return await this.withinTimeout(options, 'deleteById', async () => {
+            const entityToDelete: T = await this.findById(id, options);
+            this.validateWritable(entityToDelete, options);
+            await this.beforeSave(entityToDelete, SaveOperation.DELETE, this.entityClass);
 
-        const [res] = await this.removeRows([entityToDelete], options);
-        if (res == undefined) {
-            throw new InternalError(`Removing one "${this.entityClass.name}" returned no row.`);
-        }
-        // not decrypted again: the read above already did, and a delete writes nothing back
-        await this.beforeReturn(res, this.entityClass, false);
-        return res;
+            await this.removeRows([entityToDelete.id], options);
+            // not decrypted again: the read above already did, and a delete writes nothing back
+            await this.beforeReturn(entityToDelete, this.entityClass, false);
+            return entityToDelete;
+        });
     }
 
     /**
@@ -2268,26 +2793,46 @@ export class Repository<
         where: Where<T>,
         options?: DeleteAllOptions<T, R>
     ): Promise<R extends true ? T[] : number> {
-        const res: T[] = await this.applyDeleteAll(where, options);
-        return (options?.returnDeleted === true ? res : res.length) as R extends true ? T[] : number;
+        return await this.withinTimeout(options, 'deleteAll', async () => {
+            const res: T[] | number = await this.applyDeleteAll(where, options);
+            if (typeof res === 'number') {
+                return res as R extends true ? T[] : number;
+            }
+            return (options?.returnDeleted === true ? res : res.length) as R extends true ? T[] : number;
+        });
     }
 
     /**
      * The one implementation behind {@link deleteAll}.
      *
-     * Unlike an update, this reads what it is about to remove whether or not the caller wants it
-     * back: the delete hook runs per entity. That read is what is left of 01-data-layer M3.
+     * Reads the rows it is about to remove when somebody is handed them: the caller asking for them
+     * back, or a before-save hook of the repository's own, which runs for each one. Otherwise only
+     * their ids are read, since removing a row needs nothing else.
      * @param where - The where filter to find the entities that should be deleted.
      * @param options - Additional options, like a transaction.
-     * @returns The deleted entities.
+     * @returns The deleted entities, or how many were deleted when none of them were read.
      */
     private async applyDeleteAll(
         where: Where<T>,
         options?: DeleteAllOptions<T, boolean>
-    ): Promise<T[]> {
+    ): Promise<T[] | number> {
         const reach: ScopedWhere<T> = this.resolveWriteWhere(where, options);
         if (reach.matchesNothing) {
             return [];
+        }
+
+        // the default hook does nothing with a row on its way out that is not handed back, so a count
+        // needs to know which rows go away and nothing about them - without holding, decrypting or
+        // resolving a large match to throw it away (01-data-layer M50). A hook of your own is handed
+        // every row, as it always is
+        if (options?.returnDeleted !== true && isDefaultBeforeSaveHook(this.beforeSave)) {
+            const scoped: ScopedWhere<T> = await this.scopedWhere(reach.where, options);
+            if (scoped.matchesNothing) {
+                return 0;
+            }
+            const ids: string[] = await this.driver.findIds(this.toDriverFindOptions({ ...options, take: 'all' }, scoped.where));
+            await this.removeRows(ids, options);
+            return ids.length;
         }
         // before the read below rather than after it, which is the whole point: the read is what
         // would have held every matching entity at once. Scoped first, so what is counted is what
@@ -2300,19 +2845,19 @@ export class Repository<
             await this.validateReturnIsBounded(scoped.where, options.transaction);
         }
 
-        // every matching row, because every matching row is what gets deleted. Reading them first is
-        // 01-data-layer M3; what needs them is the before-save hook and the returned rows
+        // every matching row, because every matching row is handed to somebody: the hook, and the
+        // caller when they asked for them
         const toDelete: T[] = await this.findAll({ where: reach.where, ...options, take: 'all' });
         await Promise.all(toDelete.map(r => this.beforeSave(r, SaveOperation.DELETE, this.entityClass)));
 
-        const res: T[] = await this.removeRows(toDelete, options);
+        await this.removeRows(toDelete.map(r => r.id), options);
         // only for a caller who is being handed the rows, and without decrypting them again - the
         // read above already did. What is left of this hook is hiding what an entity excludes, which
         // is about what somebody receives, and a caller counting what went away receives none of it
         if (options?.returnDeleted === true) {
-            await Promise.all(res.map(r => this.beforeReturn(r, this.entityClass, false)));
+            await Promise.all(toDelete.map(r => this.beforeReturn(r, this.entityClass, false)));
         }
-        return res;
+        return toDelete;
     }
 
     /**
@@ -2322,25 +2867,39 @@ export class Repository<
      * Here rather than in whatever deletes users, so that it holds for every way of deleting one: a
      * membership names its user only by id, and nothing else would remove it. In one transaction, so
      * a user is never gone while their memberships stay.
-     * @param rows - The rows to remove, as they were read.
+     * @param ids - The ids of the rows to remove.
      * @param options - The options the caller provided, holding their transaction if they had one.
-     * @returns The removed rows.
+     * @throws A conflict when rows of a relation that does not cascade removes still point at one of
+     * them.
      */
-    private async removeRows(rows: T[], options: BaseRepositoryOptions | undefined): Promise<T[]> {
+    protected async removeRows(ids: string[], options: BaseRepositoryOptions | undefined): Promise<void> {
+        // a delete that matched nothing - the rows a save left out, when it left none out - removes
+        // nothing, and asks the store for nothing
+        if (!ids.length) {
+            return;
+        }
         const userService: UserServiceInterface = inject(ZIBRI_DI_TOKENS.USER_SERVICE);
         const isUser: boolean = userService.isUserEntity(this.entityClass);
-        const removedWith: OwnedRelation[] = OwnedRelationUtilities.resolveAll(this.entityClass).filter(r => r.cascadesRemove);
-        if (!rows.length || (!isUser && !removedWith.length)) {
-            return await this.driver.remove(rows, this.writeTransaction(options));
+        const relations: OwnedRelation[] = OwnedRelationUtilities.resolveAll(this.entityClass);
+        if (!isUser && !relations.length) {
+            await this.driver.remove(ids, this.writeTransaction(options));
+            WrittenRowTenantUtilities.forget(this.writeTransaction(options), this.entityClass, ids);
+            return;
         }
-        return await this.inTransaction(options, async transaction => {
-            await this.removeOwnedRows(rows.map(r => String(r.id)), removedWith, transaction);
-            const removed: T[] = await this.driver.remove(rows, transaction);
+        await this.inTransaction(options, async transaction => {
+            await this.removeOwnedRows(ids, relations.filter(r => r.cascadesRemove), transaction);
+            // after the rows removed along with these, the way a foreign key is checked once the
+            // whole delete is done: a row pointing at its owner through a second relation that does
+            // not remove it is gone by then, if the first one removed it. Checked by the repository
+            // rather than left to the stores, because only some of them have foreign keys - the
+            // others would delete the row and leave the ones pointing at it pointing at nothing
+            await this.validateNotReferenced(ids, relations.filter(r => !r.cascadesRemove), transaction);
+            await this.driver.remove(ids, transaction);
+            WrittenRowTenantUtilities.forget(transaction, this.entityClass, ids);
             if (isUser) {
                 const membershipService: MembershipServiceInterface = inject(ZIBRI_DI_TOKENS.MEMBERSHIP_SERVICE);
-                await membershipService.deleteMemberships(removed.map(r => r.id), transaction);
+                await membershipService.deleteMemberships(ids, transaction);
             }
-            return removed;
         });
     }
 
@@ -2364,6 +2923,29 @@ export class Repository<
                 continue;
             }
             await this.dataSource.getRepository(relation.target).deleteAll(where, childOptions);
+        }
+    }
+
+    /**
+     * Refuses removing rows that rows of the given relations still point at - every row of them,
+     * whoever may see it, and soft deleted ones too, which still point at their owner.
+     * @param ownerIds - The ids of the rows about to be removed.
+     * @param relations - Their relations that do not cascade removes.
+     * @param transaction - The transaction the removal runs in.
+     * @throws A conflict naming the first relation whose rows still point at one of them.
+     */
+    private async validateNotReferenced(ownerIds: string[], relations: OwnedRelation[], transaction: Transaction): Promise<void> {
+        const childOptions: BaseRepositoryOptions = { transaction, unscoped: true, acrossTenants: true };
+        for (const relation of relations) {
+            const where: Where<BaseEntity> = OwnedRelationUtilities.resolveStillReferencingWhere(relation, ownerIds, this.entityClass);
+            const referenced: boolean = isSoftDeleteEntityNewable(relation.target)
+                ? await this.dataSource.getRepository(relation.target).exists({ ...childOptions, where, deleted: 'include' })
+                : await this.dataSource.getRepository(relation.target).exists({ ...childOptions, where });
+            if (referenced) {
+                throw new ConflictError(
+                    $ts`The ${this.entityClass.name} cannot be deleted while rows of "${relation.key}" still point at it.`
+                );
+            }
         }
     }
 }

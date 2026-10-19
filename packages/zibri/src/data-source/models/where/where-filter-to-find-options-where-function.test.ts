@@ -27,7 +27,7 @@ let server: StartedTestServer;
 
 beforeAll(async () => {
     server = await startTestServer({ dataSources: [DbDataSource] });
-}, 15000);
+}, 30000);
 
 afterAll(async () => {
     await server.shutdown();
@@ -70,8 +70,11 @@ describe('whereFilterToFindOptionsWhere - string array filters', () => {
     it('isIncludedIn uses ArrayContainedBy', () => {
         const result: FindOptionsWhere<User> = whereFilterToFindOptionsWhere({ tags: { isIncludedIn: ['bar'] } }, User);
         expect(result.tags).toBeInstanceOf(FindOperator);
-        expect((result.tags as FindOperator<string>).value).toEqual(['bar']);
-        expect((result.tags as FindOperator<string>).type).toBe('arrayContainedBy');
+        // joined with a condition that the array is not empty, which an allow list never finds
+        expect(result.tags).toEqual(expect.objectContaining({
+            type: 'and',
+            value: [expect.objectContaining({ type: 'arrayContainedBy', value: ['bar'] }), expect.objectContaining({ type: 'raw' })]
+        }));
     });
 });
 

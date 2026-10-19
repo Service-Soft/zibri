@@ -193,13 +193,36 @@ export abstract class BaseOAuthAuthenticator<
     async revokeAccess(userId: string, identityId: string, transaction: Transaction | undefined): Promise<void> {
         const identity: FederatedIdentity = await this.findOwnIdentity(userId, identityId, transaction);
         if (!identity.signIn) {
-            await this.unlinkIdentity(userId, identityId, transaction);
+            await this.unlinkUnusedIdentity(identity, transaction);
             return;
         }
         const tokens: OAuthProviderTokens | undefined = await this.removeTokens(identity, transaction);
         if (tokens != undefined) {
             await this.revokeAtProvider(tokens);
         }
+    }
+
+    /**
+     * Stops an identity of a user from signing in as them, and keeps the tokens of its apis. An identity
+     * without api access is unlinked, since it is linked for nothing else.
+     *
+     * Signing in is turned on again by connecting the identity again to sign in.
+     * @param userId - The user.
+     * @param identityId - The id of the identity, as `findIdentities` answers with it.
+     * @param transaction - The transaction to change it in, if any.
+     * @throws NotFoundError when the user has no identity of that id at the provider.
+     */
+    async revokeSignIn(userId: string, identityId: string, transaction: Transaction | undefined): Promise<void> {
+        const identity: FederatedIdentity = await this.findOwnIdentity(userId, identityId, transaction);
+        if (!identity.grantedScopes.length) {
+            await this.unlinkUnusedIdentity(identity, transaction);
+            return;
+        }
+        if (!identity.signIn) {
+            return;
+        }
+        await this.identityRepository.updateById(identity.id, { signIn: false }, { transaction });
+        this.logger.audit({ action: AuditAction.IDENTITY_SIGN_IN_REVOKED, outcome: AuditOutcome.SUCCESS, userId: identity.userId });
     }
 
     /**
@@ -466,6 +489,17 @@ export abstract class BaseOAuthAuthenticator<
      * @param transaction - The transaction to write in, if any.
      * @returns The tokens that were kept, to hand back to the provider. None when none were.
      */
+    /**
+     * Unlinks an identity left linked for nothing: neither signing in nor any api.
+     * @param identity - The identity.
+     * @param transaction - The transaction to unlink it in, if any.
+     */
+    private async unlinkUnusedIdentity(identity: FederatedIdentity, transaction: Transaction | undefined): Promise<void> {
+        await this.unlinkIdentity(identity.userId, identity.id, transaction);
+        // recorded here, since the unlink of AuthService that records it is not the one that ran
+        this.logger.audit({ action: AuditAction.IDENTITY_UNLINKED, outcome: AuditOutcome.SUCCESS, userId: identity.userId });
+    }
+
     private async removeTokens(
         identity: FederatedIdentity,
         transaction: Transaction | undefined

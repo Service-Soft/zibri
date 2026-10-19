@@ -1,8 +1,9 @@
 import assert from 'node:assert';
+import { ChildProcessByStdio, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { Readable } from 'node:stream';
-import { text } from 'node:stream/consumers';
+import { buffer, text } from 'node:stream/consumers';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
@@ -131,18 +132,42 @@ let backupRepository: Repository<BackupEntity>;
 let resourceRepository: Repository<BackupResourceEntity>;
 
 /**
- * Reads back the bytes a backup actually wrote, through the transport's own layout.
+ * Reads back what a backup actually wrote, through the transport's own layout.
  *
  * The assertions below are about the artifact rather than about the call that produced it: what
  * leaves the process and lands in whatever the transport writes to is the thing an attacker with
- * read access to a backup bucket gets.
+ * read access to a backup bucket gets. It is an archive rather than text, so it is read the way
+ * anyone holding it would read it - as every statement it holds, the schema's own entries included.
  * @param backupName - The name the backup was created under.
- * @returns The stored dump as text.
+ * @returns The stored dump as the statements it holds.
  */
 async function readStoredDump(backupName: string): Promise<string> {
-    return await FsUtilities.readFile(
-        FsUtilities.getPath(backupFolder, backupName, EvalBackupDataSource.name)
+    const child: ChildProcessByStdio<null, Readable, null> = spawn(
+        'pg_restore',
+        ['--file', '-', FsUtilities.getPath(backupFolder, backupName, EvalBackupDataSource.name)],
+        { stdio: ['ignore', 'pipe', 'inherit'] }
     );
+    return await text(child.stdout);
+}
+
+/**
+ * Runs a statement as the data source's own role.
+ * @param sql - The statement.
+ * @returns The rows it returned.
+ */
+async function runSql<T>(sql: string): Promise<T[]> {
+    return await inject(EvalBackupDataSource).query(EvalBackupItem).connection.query(sql);
+}
+
+/**
+ * Finds the backup of the given name, with what a restore of it needs.
+ * @param name - The name the backup was created under.
+ * @returns The backup.
+ */
+async function findBackup(name: string): Promise<BackupEntity> {
+    const [backup]: BackupEntity[] = await backupRepository.findAll({ where: { name }, relations: ['resources'] });
+    assert(backup, `the backup "${name}" was not created`);
+    return backup;
 }
 
 beforeAll(async () => {
@@ -235,7 +260,9 @@ describe('evaluation/01-data-layer C6 - a backup is this application\'s database
 
         // psql reports the error on stderr and still exits 0, so a restore that applied nothing at
         // all is indistinguishable from one that worked. Whatever called it goes on to serve traffic
-        // against a database it believes it just repaired
+        // against a database it believes it just repaired. Statements rather than an archive are
+        // refused before psql sees any of them; an archive whose statements fail is the M55 case
+        // "rejects, and changes nothing, when a statement of the archive fails"
         await expect(dataSource.restoreBackup(Readable.from(['SELECT no_such_function_exists();\n'])))
             .rejects.toThrow();
     }, 60000);
@@ -317,6 +344,120 @@ describe('evaluation/01-data-layer C6 - a backup is this application\'s database
     }, 60000);
 });
 
+describe('evaluation/01-data-layer M55 - a backup is the schema the data source works in, with what is on it', () => {
+    // a separate backup role giving every object back to its owner is in backup-role.evaluation.test.ts,
+    // since a data source declares its backup role when it is built
+
+    it('leaves another schema of the same database out of a backup, and alone in a restore', async () => {
+        // another application's table, in the database this one was handed
+        await runSql('CREATE SCHEMA eval_other_app');
+        await runSql('CREATE TABLE eval_other_app.ledger (entry text)');
+        await runSql('INSERT INTO eval_other_app.ledger VALUES (\'before\')');
+        await backupService.createBackup({ name: 'other-schema' });
+        await runSql('UPDATE eval_other_app.ledger SET entry = \'after\'');
+
+        // a backup of the whole database rolled the other application back to the moment this one
+        // was backed up
+        await backupService.restore(await findBackup('other-schema'));
+
+        expect(await runSql('SELECT entry FROM eval_other_app.ledger')).toEqual([{ entry: 'after' }]);
+        expect(await readStoredDump('other-schema')).not.toMatch(/eval_other_app/);
+        await runSql('DROP SCHEMA eval_other_app CASCADE');
+    }, 60000);
+
+    it('restores what the schema holds of every kind, and removes what was created after the backup', async () => {
+        await runSql('CREATE TYPE eval_mood AS ENUM (\'calm\', \'busy\')');
+        await runSql('CREATE VIEW eval_backup_values AS SELECT value FROM eval_backup_item');
+        await runSql('CREATE FUNCTION eval_double(n integer) RETURNS integer LANGUAGE sql AS $$ SELECT n * 2 $$');
+        await backupService.createBackup({ name: 'every-kind' });
+        await runSql('CREATE TABLE eval_created_later (id integer)');
+
+        // a restore that cleared the tables alone failed on the type and the function it found still
+        // there, and one that cleared what the dump holds left the later table to the next migration
+        // creating it again
+        await backupService.restore(await findBackup('every-kind'));
+
+        expect(await runSql(
+            // eslint-disable-next-line cspell/spellchecker
+            'SELECT to_regtype(\'eval_mood\')::text AS type, to_regclass(\'eval_backup_values\')::text AS view,'
+            // eslint-disable-next-line cspell/spellchecker
+            + ' to_regprocedure(\'eval_double(integer)\')::text AS routine, to_regclass(\'eval_created_later\')::text AS later'
+        // eslint-disable-next-line unicorn/no-null
+        )).toEqual([{ type: 'eval_mood', view: 'eval_backup_values', routine: 'eval_double(integer)', later: null }]);
+        await runSql('DROP VIEW eval_backup_values');
+        await runSql('DROP FUNCTION eval_double(integer)');
+        await runSql('DROP TYPE eval_mood');
+    }, 60000);
+
+    it('puts back the grants and comments on the schema\'s objects', async () => {
+        await runSql('COMMENT ON TABLE eval_backup_item IS \'what the evaluation keeps\'');
+        await runSql('GRANT SELECT ON eval_backup_item TO PUBLIC');
+        await backupService.createBackup({ name: 'grants' });
+
+        await backupService.restore(await findBackup('grants'));
+
+        // the restore recreates the table, so what is on it afterwards came out of the archive
+        expect(await runSql(
+            'SELECT obj_description(\'eval_backup_item\'::regclass, \'pg_class\') AS comment,'
+            + ' has_table_privilege(\'public\', \'eval_backup_item\', \'SELECT\') AS granted'
+        )).toEqual([{ comment: 'what the evaluation keeps', granted: true }]);
+        await runSql('REVOKE SELECT ON eval_backup_item FROM PUBLIC');
+        await runSql('COMMENT ON TABLE eval_backup_item IS NULL');
+    }, 60000);
+
+    it('rejects, and changes nothing, when a statement of the archive fails', async () => {
+        const dataSource: EvalBackupDataSource = inject(EvalBackupDataSource);
+        await itemRepository.deleteAll({});
+        await itemRepository.create({ value: 'untouched' });
+        // a view of the schema reading a table outside it, which is gone by the time of the restore
+        await runSql('CREATE SCHEMA eval_elsewhere');
+        await runSql('CREATE TABLE eval_elsewhere.source (value text)');
+        await runSql('CREATE VIEW eval_reads_elsewhere AS SELECT value FROM eval_elsewhere.source');
+        const archive: Buffer = await buffer(await dataSource.createBackupData());
+        await runSql('DROP SCHEMA eval_elsewhere CASCADE');
+
+        await expect(dataSource.restoreBackup(Readable.from([archive]))).rejects.toThrow();
+
+        // the clearing at its start was taken back with the rest
+        expect((await itemRepository.findAll()).map(i => i.value)).toEqual(['untouched']);
+    }, 60000);
+
+    /**
+     * Runs the boot check of the backup configuration with a client tool earlier on PATH that reports
+     * the given version.
+     * @param command - The client tool to stand in for.
+     * @param version - The version it reports.
+     */
+    async function validateWithToolVersion(command: string, version: string): Promise<void> {
+        const stubFolder: FsPath = FsUtilities.getPath(testFileFolder, `${command}-version-stub`);
+        await FsUtilities.mkdir(stubFolder);
+        await writeFile(
+            FsUtilities.getPath(stubFolder, command),
+            // eslint-disable-next-line sonar/no-nested-template-literals
+            `#!/usr/bin/env node\nprocess.stdout.write(${JsonUtilities.stringify(`${command} (PostgreSQL) ${version}\n`)});\n`,
+            { mode: 0o755 }
+        );
+        const originalPath: string | undefined = process.env['PATH'];
+        process.env['PATH'] = `${stubFolder}:${originalPath}`;
+        try {
+            await inject(EvalBackupDataSource).validateBackupConfiguration();
+        }
+        finally {
+            process.env['PATH'] = originalPath;
+        }
+    }
+
+    it('refuses to start with a pg_dump older than the server', async () => {
+        // which refuses to dump the server, so every backup would fail, and nothing said so until then
+        await expect(validateWithToolVersion('pg_dump', '9.6.24')).rejects.toThrow(/"pg_dump" is version 9 and the server version \d+/);
+    }, 60000);
+
+    it('refuses to start with a pg_restore older than pg_dump', async () => {
+        // which reads no archive of a newer pg_dump, so every restore would fail
+        await expect(validateWithToolVersion('pg_restore', '9.6.24')).rejects.toThrow(/"pg_restore" is version 9 and "pg_dump" version \d+/);
+    }, 60000);
+});
+
 describe('evaluation/01-data-layer MINOR - postgres never requires tls', () => {
     /**
      * Runs a backup through a `pg_dump` earlier on PATH that prints the tls mode it was given.
@@ -394,9 +535,9 @@ describe('evaluation/04-infrastructure-subsystems 5.4 - a backup must be checkab
 
         // `size` and `completed` were declared on the entity and written by nothing, so every row
         // said a backup of unknown length had never finished - including the ones that had
-        const stored: string = await readStoredDump('measured');
+        const stored: Buffer = await readFile(FsUtilities.getPath(backupFolder, 'measured', EvalBackupDataSource.name));
         expect(resource.completed).toBe(true);
-        expect(resource.size).toBe(Buffer.byteLength(stored));
+        expect(resource.size).toBe(stored.byteLength);
         expect(resource.checksum).toBe(
             createHash('sha256')
                 .update(stored)
@@ -564,16 +705,14 @@ describe('evaluation/04-infrastructure-subsystems 5.4 - a backup must be checkab
     it('gives every transport the whole archive rather than a share of it', async () => {
         await backupService.createBackup({ name: 'two-transports' });
 
-        const first: string = await readStoredDump('two-transports');
-        const second: string = await FsUtilities.readFile(
-            FsUtilities.getPath(secondBackupFolder, 'two-transports', EvalBackupDataSource.name)
-        );
+        const first: Buffer = await readFile(FsUtilities.getPath(backupFolder, 'two-transports', EvalBackupDataSource.name));
+        const second: Buffer = await readFile(FsUtilities.getPath(secondBackupFolder, 'two-transports', EvalBackupDataSource.name));
 
         // a stream is consumable once. Handed to both transports, they raced over its chunks and
         // whichever lost wrote an archive with holes in it - silently, because a backup nobody reads
         // until the day they need it is a backup nobody notices is short
-        expect(second).toBe(first);
+        expect(second.equals(first)).toBe(true);
         // not vacuous: both hold a whole dump rather than both holding nothing
-        expect(first).toMatch(/CREATE TABLE .*eval_backup_item/);
+        expect(await readStoredDump('two-transports')).toMatch(/CREATE TABLE .*eval_backup_item/);
     }, 60000);
 });

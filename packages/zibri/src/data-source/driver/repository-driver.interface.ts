@@ -8,6 +8,7 @@ import { type StreamOptions } from '../models/options/stream-options.model';
 import { UpsertRow } from '../models/upsert-row.model';
 import { Where } from '../models/where/where-filter.model';
 import { Transaction } from '../transaction/transaction.model';
+import { type WriteDataUtilities } from '../write-data.utilities';
 
 /**
  * The resolved options that a repository driver receives for reading entities.
@@ -76,7 +77,8 @@ export type DriverUpdateAllOptions<T extends BaseEntity, R extends boolean = fal
      */
     where?: Where<T>,
     /**
-     * The changes to apply to every matching entity.
+     * The changes to apply to every matching entity. An object is merged into the stored one, as
+     * WriteDataUtilities.resolveMerged merges it.
      */
     data: DeepPartial<T>,
     /**
@@ -108,6 +110,30 @@ export interface RepositoryDriverInterface<T extends BaseEntity> {
      * @returns The persisted entities.
      */
     save: (data: DeepPartial<T>[], transaction: Transaction | undefined, reload: boolean) => Promise<T[]>,
+
+    /**
+     * Writes rows that are new: each carries an id that was generated for it, which no stored row
+     * holds. A driver may skip anything it does to find out whether a row is stored already.
+     * @param data - The rows to write, each with its id.
+     * @param transaction - The transaction to run the operation in.
+     * @returns The written entities, in the order they were given.
+     */
+    insert: (data: DeepPartial<T>[], transaction: Transaction | undefined) => Promise<T[]>,
+
+    /**
+     * Writes each row's own values to the stored row holding its id, among the rows the filter
+     * matches. A row it leaves alone keeps every property it does not give a value for, and an
+     * object it gives is merged into the stored one, as {@link WriteDataUtilities.resolveMerged}
+     * merges it.
+     *
+     * A driver may write them one at a time; doing it at once is what makes it cheaper than
+     * updateAll once per row.
+     * @param rows - The values to write, each with the id of the row to write them to.
+     * @param where - The rows that may be written, naming the ids of every one of them.
+     * @param transaction - The transaction to run the operation in.
+     * @returns The rows written, as they are stored now. A row the filter does not match is neither.
+     */
+    updateEach: (rows: DeepPartial<T>[], where: Where<T>, transaction: Transaction | undefined) => Promise<T[]>,
 
     /**
      * Finds all entities that match the given options.
@@ -166,13 +192,24 @@ export interface RepositoryDriverInterface<T extends BaseEntity> {
     stream: (options: DriverStreamOptions<T>) => AsyncIterable<T>,
 
     /**
-     * Removes the given entities.
-     * @param entities - The entities to remove.
+     * Removes the rows with the given ids.
+     *
+     * The ids are all a store is handed: whatever else it needs to remove a row, such as the values
+     * the row holds in an index, it reads itself, as the row is stored.
+     * @param ids - The ids of the rows to remove.
      * @param transaction - The transaction to run the operation in.
-     * @returns The removed entities, still carrying their id. What a caller deleting by filter most
-     * needs to be handed back is which rows went away.
      */
-    remove: (entities: T[], transaction: Transaction | undefined) => Promise<T[]>,
+    remove: (ids: string[], transaction: Transaction | undefined) => Promise<void>,
+
+    /**
+     * Finds the ids of the matching entities, without handing back the entities.
+     *
+     * For a caller that needs to know which rows match and nothing about them, so that a large match
+     * is not held in memory to be thrown away.
+     * @param options - The resolved find options.
+     * @returns The ids of the matching entities.
+     */
+    findIds: (options: DriverFindOptions<T>) => Promise<string[]>,
 
     /**
      * Applies the given changes to every row matching the filter, with no window for another writer
@@ -216,7 +253,9 @@ export interface RepositoryDriverInterface<T extends BaseEntity> {
      * differs per store, but a caller cannot branch on which store it happens to be talking to, so
      * every driver has to answer.
      * @param identity - The properties identifying each row. Also the conflict target.
-     * @param rows - What to insert, and what to change when the identity is already held.
+     * @param rows - What to insert, and what to change when the identity is already held. A row's
+     * `where` is judged like `reachable`, for that row alone: a row holding the identity that does not
+     * match it is refused the same way.
      * @param transaction - The transaction to run the operation in. The result is returned before the
      * transaction commits, so the caller can use it while the transaction is still open, and it is
      * rolled back along with everything else if the caller rolls back. A driver that needs one to be

@@ -10,6 +10,7 @@ Users sign in with the name and password of their account in your company's dire
 | `LdapEntry` | type | The entry of the directory a user signed in as |
 | `LdapServiceAccount` | type | The account your application searches the directory with |
 | `LdapIdentity` | entity | An entry of the directory, linked to the user it signs in as |
+| `DisabledLdapEntriesCronJob` | cron job | Ends the logins of users whose entries were disabled, see [a disabled entry](#a-disabled-entry) |
 | `Ldapts` | type | The module of `ldapts`, which speaks LDAP |
 
 ## Setting it up
@@ -80,6 +81,8 @@ export const authOptions: Pick<ZibriApplicationOptions, 'authenticators' | 'auth
 | `memberAttribute` | The attribute of a group that lists its members. `member` by default |
 | `idAttribute` | The attribute holding the id the directory gave an entry, which never changes. `entryUUID` by default; `nsUniqueId` on 389 Directory Server |
 | `attributes` | The attributes read from the entry for the hooks. All of them by default |
+| `isEntryActive` | Whether an entry may go on signing in, see [a disabled entry](#a-disabled-entry) |
+| `entryStateAttributes` | The attributes `isEntryActive` reads. `nsAccountLock` and `pwdAccountLockedTime` by default |
 | `trustedCertificates` | The certificates, PEM encoded, of the authorities the directory's certificate is trusted from. The system's by default |
 | `timeoutInMs` | How long the directory may take to answer. 10 seconds by default |
 
@@ -130,7 +133,9 @@ Two first sign-ins as the same entry at once make one user: the second waits for
 ## Later sign-ins
 Every later sign-in as an entry finds the user it is linked to, and is refused once that user is deleted. `resolveSignIn` gets the entry and that user, and answers the user the sign-in logs in as: updated from the entry, or as it is. Throw an http error to refuse.
 
-Keep the roles of a user in step with their groups, so that someone taken out of a group in the directory loses its role at their next sign-in:
+Every refresh of a login of a linked user hands the entry to `resolveSignIn` too, whichever authenticator started the login, and the refreshed login carries the user it answers.
+
+Keep the roles of a user in step with their groups, so that someone taken out of a group in the directory loses its role at their next refresh:
 
 ```ts
 // src/auth/role-directory.authenticator.ts
@@ -148,7 +153,32 @@ export class RoleDirectoryAuthenticator extends CompanyDirectoryAuthenticator {
 }
 ```
 
-A session that is already open keeps the roles it was started with.
+An access token keeps the roles it was issued with until it expires.
+
+## A disabled entry
+A user whose entry is disabled or deleted in the directory loses every login and api key:
+
+- at the next refresh of a login of theirs, which answers `403` with an `AccountDeactivatedError`
+- or when `DisabledLdapEntriesCronJob` finds the entry, every 15 minutes by default
+
+The user stays active, so once the entry is enabled again, they sign in as before. The audit trail records `auth.access.ended` with their id.
+
+An entry is disabled when no entry below `searchBase` that matches `entryFilter` has its id any more, or when `isEntryActive` answers `false`. By default `isEntryActive` answers `false` for an entry that 389 Directory Server marks inactivated with `nsAccountLock`, or that OpenLDAP's password policy locked until an administrator unlocks it. A lock after too many wrong passwords leaves the logins open. Read a mark of your own directory by overriding it, and name the attributes it reads in `entryStateAttributes`:
+
+```ts
+// src/auth/expiring-directory.authenticator.ts
+import { LdapEntry } from 'zibri';
+
+export class ExpiringDirectoryAuthenticator extends CompanyDirectoryAuthenticator {
+    override readonly entryStateAttributes: string[] = ['employeeStatus'];
+
+    protected override isEntryActive(entry: LdapEntry): boolean {
+        return entry.attributes['employeestatus']?.[0] !== 'left';
+    }
+}
+```
+
+While no server of the directory can be reached, a refresh of a linked user answers `500` and ends nothing, and their login works again at the next refresh once the directory answers.
 
 ## Groups
 With a `groupSearchBase`, every sign-in reads the groups of the entry as the service account, once the password is checked. `entry.groups` holds the distinguished names of the groups below `groupSearchBase` that match `groupFilter` and list the entry in their `memberAttribute`, and of the groups those are members of, as deep as they go. A distinguished name is written the way the directory writes it, so compare names without regard to case.
@@ -189,6 +219,8 @@ export class CompanyDomainAuthenticator extends BaseActiveDirectoryAuthenticator
 | `netbiosName` | The NetBIOS name of the domain, which a down-level logon name starts with. A name that starts with another domain's is refused like an unknown one. Required |
 
 The groups of an account are found in one search, nested ones included. The primary group of an account, usually `Domain Users`, is not among them.
+
+An account is [disabled](#a-disabled-entry) when its `userAccountControl` carries the flag of a disabled account. A lockout after too many wrong passwords leaves the logins open.
 
 ## See also
 - [Authentication & authorization](./auth.md) — strategies, authenticators and `AuthService`

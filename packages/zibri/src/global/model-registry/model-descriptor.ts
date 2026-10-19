@@ -1,5 +1,6 @@
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { ArrayPropertyItemMetadata } from '../../entity/models/array-property-metadata.model';
+import { isRelationMetadata } from '../../entity/models/is-relation-metadata.function';
 import { Relation } from '../../entity/models/relation.enum';
 import { isNamedValue } from '../../parsing/functions/parse-one-of.function';
 import { Newable } from '../../types/newable.type';
@@ -46,7 +47,11 @@ export type NestedValue<D extends ModelDescriptor<D>> = {
      * Where the object sits, starting with the key of the property that holds it. The items of an
      * array share the path of the array.
      */
-    path: string
+    path: string,
+    /**
+     * Whether the object is a row of a related entity, rather than a part of the model holding it.
+     */
+    related: boolean
 };
 
 /**
@@ -63,6 +68,11 @@ export abstract class ModelDescriptor<D extends ModelDescriptor<D>> {
      * Keys that act on nothing themselves, but hold models that might.
      */
     readonly nestedKeys: Map<string, NestedDescriptor<D>> = new Map();
+
+    /**
+     * The nested keys that are relations, whose models are rows of other entities.
+     */
+    private readonly relationKeys: Set<string> = new Set();
 
     // eslint-disable-next-line jsdoc/require-returns
     /**
@@ -87,7 +97,7 @@ export abstract class ModelDescriptor<D extends ModelDescriptor<D>> {
         }
         const res: NestedValue<D>[] = [];
         for (const [key, nested] of this.nestedKeys) {
-            this.collectValues((data as Record<string, unknown>)[key], nested, key, res);
+            this.collectValues((data as Record<string, unknown>)[key], nested, key, this.relationKeys.has(key), res);
         }
         return res;
     }
@@ -117,6 +127,12 @@ export abstract class ModelDescriptor<D extends ModelDescriptor<D>> {
         const nested: NestedDescriptor<D> | undefined = this.build(metadata, descriptorOf);
         if (nested != undefined && this.hasAnythingIn(nested)) {
             this.nestedKeys.set(key, nested);
+        }
+        if (isRelationMetadata(metadata)) {
+            this.relationKeys.add(key);
+        }
+        else {
+            this.relationKeys.delete(key);
         }
     }
 
@@ -163,18 +179,18 @@ export abstract class ModelDescriptor<D extends ModelDescriptor<D>> {
         return nested instanceof OneOfDescriptors ? nested.shapes.size > 0 : nested.hasAnything();
     }
 
-    private collectValues(value: unknown, nested: NestedDescriptor<D>, path: string, res: NestedValue<D>[]): void {
+    private collectValues(value: unknown, nested: NestedDescriptor<D>, path: string, related: boolean, res: NestedValue<D>[]): void {
         if (value == undefined || typeof value !== 'object') {
             return;
         }
         if (Array.isArray(value)) {
             for (const item of value) {
-                this.collectValues(item, nested, path, res);
+                this.collectValues(item, nested, path, related, res);
             }
             return;
         }
         if (!(nested instanceof OneOfDescriptors)) {
-            res.push({ data: value, descriptor: nested, path });
+            res.push({ data: value, descriptor: nested, path, related });
             return;
         }
         if (!isNamedValue(value)) {
@@ -182,7 +198,7 @@ export abstract class ModelDescriptor<D extends ModelDescriptor<D>> {
         }
         const shape: NestedDescriptor<D> | undefined = nested.shapes.get(value.shape);
         if (shape != undefined) {
-            this.collectValues(value.value, shape, `${path}.value`, res);
+            this.collectValues(value.value, shape, `${path}.value`, related, res);
         }
     }
 

@@ -19,7 +19,7 @@ export class TokenResponse {
     /**
      * How long the token is valid, in seconds.
      */
-    @Property.number()
+    @Property.number({ format: 'integer' })
     expires_in!: number;
 
     /**

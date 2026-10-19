@@ -11,6 +11,7 @@ import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { Newable } from '../../types/newable.type';
 import { SemVerVersion } from '../../versioning/sem-ver.utilities';
+import { CheckConstraintViolationError } from '../check-constraint-violation.error';
 import { DataSourceInterface } from '../data-sources/data-source.interface';
 import { whereFor } from '../models/where/where-for.function';
 import { Repository } from '../repository/repository';
@@ -85,6 +86,26 @@ export class ShelfXWidget extends BaseEntity {
     uniques: [{ properties: ['code'], where: whereFor<ShelfYWidget>({ shelf: 'y' }) }]
 })
 export class ShelfYWidget extends BaseEntity {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    @Property.string()
+    code!: string;
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    @Property.string()
+    shelf!: string;
+}
+
+/**
+ * The widget as a release declares it that keeps every widget off shelf z.
+ */
+@Entity({
+    tenant: 'shared',
+    tableName: 'reconciled_widget',
+    allowOrphan: true,
+    allowDuplicate: true,
+    checks: [whereFor<CheckedWidget>({ shelf: { not: 'z' } })]
+})
+export class CheckedWidget extends BaseEntity {
     // eslint-disable-next-line jsdoc/require-jsdoc
     @Property.string()
     code!: string;
@@ -244,6 +265,44 @@ export function describeKeyReconciliation(dataSourceName: string, reconciled: Re
             // second widget on shelf x is fine, and the new one holds for shelf y
             await expect(server.widgets().create({ code: 'a', shelf: 'x' })).resolves.toBeDefined();
             await expect(server.widgets().create({ code: 'a', shelf: 'y' })).rejects.toThrow();
+        }, 60000);
+
+        it('holds every widget to a check a release declares, over the widgets stored before it that follow it', async () => {
+            await server.restart(PlainWidget, nextVersion());
+            await server.widgets().deleteAll({});
+            await server.widgets().createAll([{ code: 'a', shelf: 'x' }, { code: 'b', shelf: 'y' }]);
+
+            await server.restart(CheckedWidget, nextVersion());
+
+            await expect(server.widgets().create({ code: 'c', shelf: 'z' })).rejects.toThrow(CheckConstraintViolationError);
+            await expect(server.widgets().create({ code: 'c', shelf: 'x' })).resolves.toBeDefined();
+        }, 60000);
+
+        it('stops holding widgets to a check the next release no longer declares', async () => {
+            await server.restart(CheckedWidget, nextVersion());
+
+            await server.restart(PlainWidget, nextVersion());
+
+            await expect(server.widgets().create({ code: 'd', shelf: 'z' })).resolves.toBeDefined();
+        }, 60000);
+    });
+
+    describe(`the checks of ${dataSourceName}, broken by what is stored`, () => {
+        let server: ReconciledServer;
+
+        beforeAll(async () => {
+            server = await start(PlainWidget, '1.0.0');
+        }, 60000);
+
+        afterAll(async () => {
+            await server?.shutdown();
+        }, 30000);
+
+        it('refuses to start while a stored widget breaks a check the release declares, naming the row', async () => {
+            const breaking: PlainWidget = await server.widgets().create({ code: 'a', shelf: 'z' });
+
+            await expect(server.restart(CheckedWidget, '1.1.0'))
+                .rejects.toThrow(new RegExp(`the stored row ${breaking.id} breaks it[\\S\\s]*Change the rows breaking it in a migration`));
         }, 60000);
     });
 

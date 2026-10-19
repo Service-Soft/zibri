@@ -19,6 +19,7 @@ The backup system in Zibri consists of multiple parts.
 | `BACKUP_FORMAT_VERSION` | constant | The shape backups are written in by this build |
 | `READABLE_BACKUP_FORMAT_VERSIONS` | constant | The shapes this build restores from |
 | `ZIBRI_DI_TOKENS.BACKUP_TEMP_FOLDER` | DI token | Where a backup is staged on its way to and from a transport |
+| `ZIBRI_DI_TOKENS.BACKUP_SHUTDOWN_WAIT_IN_MS` | DI token | How long the application waits for a running backup or restore when it stops. Defaults to 0 |
 
 ## Usage
 ### The parts of the backup system
@@ -67,11 +68,15 @@ class DbDataSource extends PostgresDataSource {
 }
 ```
 
-Notice that we don't need to implement `BackupResourceInterface` here, as `PostgresDataSource` already does that for us. What we did need to do was add two new entities. A resource checks at startup that it can actually take and restore a backup, so anything else it still needs is reported by name while the application boots rather than the first time a backup is attempted.
+Notice that we don't need to implement `BackupResourceInterface` here, as `PostgresDataSource` already does that for us. What we did need to do was add two new entities. A resource checks at startup that it can actually take and restore a backup, so anything else it still needs is reported by name while the application boots rather than the first time a backup is attempted. For this data source, that is the postgres client tools `pg_dump`, `pg_restore` and `psql`, in a version no older than the server's.
 
 If you want a resource to be backed up to all registered transports, you can simply define `transports: 'all'` in the decorator.
 
-A backup covers what its resource owns and a restore replaces exactly that, so the credentials the resource already runs with are usually enough to take one. If you need to back up more than that, you can set `rootUsername` and `rootPw` to run backups as a role that reaches further.
+A backup covers what its resource owns and a restore replaces exactly that. For this data source, that is the schema it works in: every table and other object in it, with who owns it, its grants and its comments. Other schemas of the same database are neither backed up nor touched by a restore.
+
+A restore gives every object back to the role that owned it when the backup was taken. A role the backup names as an owner or in a grant has to exist on the server you restore to; otherwise the restore fails and changes nothing.
+
+The credentials the resource already runs with are enough to take and restore a backup. To run backups as another role, set `rootUsername` and `rootPw`. That role has to be a member of every role that owns an object of the schema.
 
 The `FsBackupTransport` simply writes the backup data for this resource to the local file system, so it should only be used for illustration/testing purposes.
 
@@ -215,6 +220,31 @@ snapshot, the failing one included, and fails with that resource's error. When a
 back either, the error names it and the file its snapshot is kept in, in `BACKUP_TEMP_FOLDER`. The daily
 job removes that file like any other leftover, 12 hours after it was written.
 
+When the process is killed during a restore, the next start puts back every resource the restore had
+started applying, from their snapshots, before anything else, and logs which ones. A resource that
+cannot be put back is logged with the file its snapshot is kept in, and tried again at every start
+until it is; the daily job keeps that file. The snapshots are on this instance's disk, so an instance
+started on a fresh disk has nothing to put back.
+
+### When the application stops
+
+When the application stops while a backup or restore is running, it waits for it for
+`ZIBRI_DI_TOKENS.BACKUP_SHUTDOWN_WAIT_IN_MS`, 0 by default, and then stops it:
+
+- A backup stops and is deleted, from every transport and from the database. `createBackup` fails
+  with an error saying so.
+- A restore stops before its next resource and puts back every resource it already applied, the same
+  way as when one of them fails to apply. `restore` fails with an error saying so.
+
+Stopping takes up to 30 seconds more. Choose the wait so that both fit into the time your orchestrator
+gives the process before it kills it:
+
+```ts
+import { defineProvider, Ms, ZIBRI_DI_TOKENS } from 'zibri';
+
+defineProvider({ token: ZIBRI_DI_TOKENS.BACKUP_SHUTDOWN_WAIT_IN_MS, useValue: Ms.MINUTE * 5 });
+```
+
 ### Where a backup passes through
 
 A backup is written to this instance's own disk on its way out and fetched to it on the way back, so
@@ -222,7 +252,7 @@ plan for room for the largest backup being written at a time, and for twice the 
 a restore holds the archives of all its resources and a snapshot of each at once. `ZIBRI_DI_TOKENS.BACKUP_TEMP_FOLDER`
 says where, and defaults to `.zibri/backups` beside the application. Each file is removed as soon as
 the backup or restore it belongs to is done, and a daily job clears anything a killed process left
-behind.
+behind, except what the next start puts a killed restore back from.
 
 Two things follow from it. Every transport is read exactly once per restore, whatever the check and the
 restore need between them — which for a transport that charges for what it sends is the difference

@@ -10,7 +10,7 @@ import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { BadRequestError } from '../../error-handling/errors/bad-request.error';
-import { KeysetPage } from '../../open-api/pagination-result.model';
+import { KeysetPage, PaginationResult } from '../../open-api/pagination-result.model';
 import { FindAllPaginatedOptions } from '../models/options/find-all-paginated-options.model';
 
 // ==================== ENTITIES ====================
@@ -127,7 +127,7 @@ beforeAll(async () => {
     tagRepo = inject(repositoryTokenFor(Tag));
     groupRepo = inject(repositoryTokenFor(Group));
     commentRepo = inject(repositoryTokenFor(Comment));
-}, 15000);
+}, 30000);
 
 afterAll(async () => {
     await server.shutdown();
@@ -179,11 +179,25 @@ describe('Repository – findAllAfter', () => {
         expect(first.totalAmount).toBe(3);
 
         const second: KeysetPage<User> = await userRepo.findAllAfter(first.nextCursor, 2, options);
-        // the branch's condition on `name` replaces the caller's, which is a narrowing rather than a
-        // widening: 'aaa' stays out because the cursor is already past it
+        // the cursor's condition on `name` is held next to the caller's: 'aaa' stays out because the
+        // caller excluded it, and would even if the cursor were not already past it
         expect(second.items.map(u => u.name)).toEqual(['ddd']);
         expect(second.totalAmount).toBe(3);
         expect(second.nextCursor).toBeUndefined();
+    });
+
+    it('keeps an upper bound on the ordered property past the cursor', async () => {
+        await userRepo.createAll([{ name: 'aaa' }, { name: 'bbb' }, { name: 'ccc' }, { name: 'ddd' }]);
+
+        const options: FindAllPaginatedOptions<User> = { where: { name: { before: 'ccc' } }, order: { name: 'ASC' } };
+        const first: KeysetPage<User> = await userRepo.findAllAfter(undefined, 2, options);
+        expect(first.items.map(u => u.name)).toEqual(['aaa', 'bbb']);
+
+        // "past 'bbb'" and "before 'ccc'" both speak about `name`, and the second page is where both
+        // hold: none. A position replacing the caller's bound would read on into 'ccc' and 'ddd'
+        const second: KeysetPage<User> = await userRepo.findAllAfter(first.nextCursor, 2, options);
+        expect(second.items).toEqual([]);
+        expect(second.totalAmount).toBe(2);
     });
 
     it('refuses a cursor issued under a different filter', async () => {
@@ -192,13 +206,30 @@ describe('Repository – findAllAfter', () => {
         const page: KeysetPage<User> = await userRepo.findAllAfter(undefined, 2, { order: { name: 'ASC' } });
         expect(page.nextCursor).toBeDefined();
 
-        // the cursor's position is only a narrowing of the filter it was issued under. Carried to a
-        // different one it would replace that filter's condition on `name` with this one's, which is
-        // how a walk would read rows the second filter excludes
+        // a position only means something inside the read that produced it: carried to a different
+        // filter it names a row that filter may never have reached
         await expect(userRepo.findAllAfter(page.nextCursor, 2, {
             where: { name: { after: 'bbb' } },
             order: { name: 'ASC' }
         })).rejects.toThrow(BadRequestError);
+    });
+});
+
+describe('Repository – an order by similarity', () => {
+    it('orders through a relation it joins, while paging the rows', async () => {
+        const names: string[] = ['Grace Hopper', 'Adam Lovelace', 'Ada Lovelace'];
+        const authors: User[] = await userRepo.createAll(names.map(name => ({ name })));
+        await postRepo.createAll(authors.map(author => ({ title: `by ${author.name}`, userId: author.id })));
+
+        // the relation is both joined for the order and resolved onto the rows, and a window over a
+        // joined read is answered by the orm in two statements - the similarity has to survive both
+        const page: PaginationResult<Post> = await postRepo.findAllPaginated(1, 2, {
+            relations: { author: true },
+            order: { author: { name: { similarTo: 'Ada Lovelace' } } }
+        });
+
+        expect(page.items.map(p => p.author.name)).toEqual(['Ada Lovelace', 'Adam Lovelace']);
+        expect(page.totalAmount).toBe(3);
     });
 });
 

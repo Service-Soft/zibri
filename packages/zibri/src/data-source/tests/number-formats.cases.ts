@@ -85,6 +85,28 @@ export function describeNumberFormats(dataSourceName: string, repositoryOf: () =
             expect(read.price.toFixed()).toBe(exactDecimal);
         }, 30000);
 
+        it('holds every whole number a double holds exactly as a whole number', async () => {
+            const repository: Repository<Measurement> = repositoryOf();
+            // a time in milliseconds, which is past what 32 bits hold, and the largest whole number
+            // the format takes
+            const inMilliseconds: Measurement = await repository.create({
+                temperature: 1,
+                readings: 1760000000000,
+                sequence: 1n,
+                price: new BigNumber(1)
+            });
+            const smallest: Measurement = await repository.create({
+                temperature: 1,
+                readings: -Number.MAX_SAFE_INTEGER,
+                sequence: 1n,
+                price: new BigNumber(1)
+            });
+
+            expect((await repository.findById(inMilliseconds.id)).readings).toBe(1760000000000);
+            expect((await repository.findById(smallest.id)).readings).toBe(-Number.MAX_SAFE_INTEGER);
+            expect(await repository.findAll({ where: { readings: { greaterThan: 2 ** 31 } } })).toHaveLength(1);
+        }, 30000);
+
         it('compares an exact decimal by its value rather than as an object', async () => {
             const repository: Repository<Measurement> = repositoryOf();
             await repository.deleteAll({});

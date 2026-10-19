@@ -90,6 +90,8 @@ export * from './auth/strategies/api-key/api-key-authentication-method.enum';
 export * from './auth/strategies/api-key/api-key-client-authentication.model';
 export * from './auth/strategies/api-key/api-key-service.interface';
 export * from './auth/strategies/api-key/api-key.service';
+export * from './auth/strategies/api-key/api-key-options.model';
+export * from './auth/strategies/api-key/api-key-cleanup.cron-job';
 
 export * from './auth/strategies/client-access-token/client-access-token.auth-strategy';
 export * from './auth/strategies/client-access-token-grant.model';
@@ -170,6 +172,7 @@ export * from './auth/authenticators/identity-linking-authenticator.interface';
 export * from './auth/authenticators/identity-linking-authenticators.model';
 export * from './auth/authenticators/linked-identity.model';
 export * from './auth/authenticators/provider-access-authenticator.interface';
+export * from './auth/authenticators/refresh-resolving-authenticator.interface';
 export * from './auth/authenticators/provider-access-failure.enum';
 export * from './auth/authenticators/provider-access.error';
 export * from './auth/authenticators/provider-token-authenticator.interface';
@@ -242,6 +245,9 @@ export * from './auth/authenticators/federated/federated-route-endpoint.model';
 export * from './auth/authenticators/federated/provider-token-grant.model';
 export * from './auth/authenticators/federated/federated-provider-session.model';
 export * from './auth/authenticators/federated/federated-provider-logout.model';
+export * from './auth/authenticators/federated/federated-provider-logout-message.model';
+export * from './auth/authenticators/federated/federated-logout-answer.model';
+export * from './auth/authenticators/federated/federated-soap-logout.model';
 export * from './auth/authenticators/federated/federated-session.model';
 export * from './auth/authenticators/federated/federated-session-match.model';
 export * from './auth/authenticators/federated/federated-session-columns.model';
@@ -259,6 +265,7 @@ export * from './auth/authenticators/saml/metadata/saml-metadata-key-descriptor.
 export * from './auth/authenticators/saml/metadata/saml-metadata-key-info.model';
 export * from './auth/authenticators/saml/metadata/saml-metadata-x509-data.model';
 export * from './auth/authenticators/ldap/base-ldap.authenticator';
+export * from './auth/authenticators/ldap/disabled-ldap-entries.cron-job';
 export * from './auth/authenticators/ldap/ldapts.type';
 export * from './auth/authenticators/ldap/ldap-credentials.model';
 export * from './auth/authenticators/ldap/ldap-entry.model';
@@ -323,6 +330,8 @@ export * from './auth/encryption/encryption-master-options.model';
 export * from './auth/encryption/encryption-service.interface';
 export * from './auth/encryption/encryption.service';
 export * from './auth/encryption/encryption-rotation.cron-job';
+export * from './auth/encryption/encryption-rotation-failure.model';
+export * from './auth/encryption/encryption-rotation-progress.model';
 export * from './auth/encryption/encryption.utilities';
 export * from './auth/encryption/keys-in-use.model';
 export * from './auth/encryption/master-key-reference.model';
@@ -374,6 +383,7 @@ export * from './di/errors/invalid-class-marked-with-injectable.error';
 
 // event
 export * from './event/event-service.interface';
+export * from './event/event-replay-options.model';
 export * from './event/event.service';
 export * from './event/event-subscriber-registration.model';
 export * from './event/event-subscriber-run.model';
@@ -408,10 +418,13 @@ export * from './routing/models/boolean-param-metadata.model';
 export * from './routing/models/date-param-metadata.model';
 export * from './routing/models/object-param-metadata.model';
 export * from './routing/models/array-param-metadata.model';
+export * from './routing/models/crud-controller-options.model';
 export * from './routing/models/crud-controller.model';
 
 // context
 export * from './context/als.utilities';
+export * from './context/operation-limit.model';
+export * from './context/operation-limit.utilities';
 export * from './context/base-context';
 
 export * from './context/request/http-request.context';
@@ -588,7 +601,7 @@ export * from './http/json-response.model';
 export * from './http/mime-type.helpers';
 export * from './http/cookie-options.model';
 export * from './http/handler-timeout.type';
-export * from './http/http-server-timeouts.model';
+export * from './http/http-server-limits.model';
 export * from './http/request-deadline.utilities';
 export * from './http/route-label.utilities';
 export * from './http/trace-context.middleware';
@@ -633,10 +646,14 @@ export * from './data-source/data-source-service.interface';
 export * from './data-source/stored-value-type-mismatch.error';
 export * from './data-source/query-failed.error';
 export * from './data-source/unique-constraint-violation.error';
+export * from './data-source/check-constraint-violation.error';
 export * from './data-source/upsert-identity.utilities';
+// needed by a driver, which merges what an update gives an object property into the stored object
+export * from './data-source/write-data.utilities';
 // needed to add or drop the constraint from a migration, which has to name it exactly as the schema did
 export * from './data-source/index-name.function';
 export * from './data-source/unique-constraint-name.function';
+export * from './data-source/check-constraint-name.function';
 
 export * from './data-source/repository/repository';
 
@@ -736,7 +753,11 @@ export * from './data-source/hooks/before-save';
 // cron
 export * from './cron/cron-job-entity.model';
 export * from './cron/cron-job.model';
+export * from './cron/cron-failure-policy.model';
+export * from './cron/cron-retry-options.model';
+export * from './cron/cron-back-off-options.model';
 export * from './cron/cron-service.interface';
+export * from './cron/cron-sync.cron-job';
 export * from './cron/cron.service';
 export * from './cron/should-run-execution.type';
 export * from './cron/cron-expression.utilities';
@@ -753,6 +774,7 @@ export * from './leases/lease.service';
 // email
 export * from './email/email-service.interface';
 export * from './email/email.service';
+export * from './email/email-cleanup.cron-job';
 
 export * from './email/models/email-attachment.model';
 export * from './email/models/email.model';
@@ -898,8 +920,10 @@ export * from './plugin/invoicing/services/conformance/en16931/peppol-conformanc
 
 export * from './plugin/invoicing/models/invoicing-options.model';
 export * from './plugin/invoicing/models/invoice-address.model';
+export * from './plugin/invoicing/models/electronic-address.model';
 export * from './plugin/invoicing/models/amount-unit.model';
 export * from './plugin/invoicing/models/number-invoices.model';
+export * from './plugin/invoicing/models/invoice-recipient-abbreviation.model';
 export * from './plugin/invoicing/models/invoice.model';
 export * from './plugin/invoicing/models/invoice-item.model';
 export * from './plugin/invoicing/models/invoicing-options-input.model';
@@ -965,6 +989,7 @@ export * from './websocket/services/websocket.service';
 
 export * from './websocket/models/websocket-controller-route-configuration.model';
 export * from './websocket/models/websocket-request.model';
+export * from './websocket/models/websocket-answer.model';
 export * from './websocket/models/websocket-response.model';
 export * from './websocket/models/websocket-event.enum';
 export * from './websocket/models/websocket-channel.model';
@@ -1011,6 +1036,9 @@ export * from './http-client/http-client-response.model';
 export * from './http-client/fetch-for-library-options.model';
 export * from './http-client/http-client-options.model';
 export * from './http-client/http-client.error';
+export * from './http-client/circuit-open.error';
+export * from './http-client/http-client-circuit-breaker-options.model';
+export * from './http-client/http-client-idempotency-key.model';
 
 // caching
 export * from './caching/cache-metrics.model';
@@ -1067,6 +1095,7 @@ export * from './types/any-enum.type';
 export * from './types/deep-partial.type';
 export * from './types/exclude-strict.type';
 export * from './types/newable.type';
+export * from './types/retention-in-ms.type';
 export * from './types/self-describing.type';
 export * from './types/omit-strict.type';
 export * from './types/percentage.type';

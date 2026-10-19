@@ -22,13 +22,14 @@ import { ScopeWhereUtilities } from './scopes/scope-where.utilities';
  * Every branch has to name it: a filter that is an OR of several is only as locked as its weakest
  * branch, and one branch without the condition is one path on which the write lands blindly.
  * @param entityClass - The entity being written to.
- * @param data - The change about to be written.
+ * @param data - The change about to be written, by property: an update's data, or the values an
+ * upsert's conflict path sets.
  * @param where - The filter the caller gave, which is where the expected values live.
  * @throws When the change names an optimistically locked property that the filter does not.
  */
 export function validateWriteIsNotBlind<T extends BaseEntity>(
     entityClass: Newable<T>,
-    data: DeepPartial<T>,
+    data: DeepPartial<T> | Record<string, unknown>,
     where: Where<T> | undefined
 ): void {
     const locked: Set<string> = ModelRegistry.get(entityClass).optimisticLockDescriptor.keys;

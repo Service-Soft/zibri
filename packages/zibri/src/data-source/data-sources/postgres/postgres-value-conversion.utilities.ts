@@ -186,7 +186,7 @@ export abstract class PostgresValueConversionUtilities {
         const conditions: string[] = [];
         switch (into.format) {
             case 'integer': {
-                conditions.push(finite, whole, double);
+                conditions.push(finite, whole, `abs(${decimal}) <= ${Number.MAX_SAFE_INTEGER}`);
                 break;
             }
             case 'number': {

@@ -25,7 +25,7 @@ export class WebsocketMessageSequence extends BaseEntity {
     /**
      * The last seq given out.
      */
-    @Property.number()
+    @Property.number({ format: 'integer' })
     seq!: number;
 }
 
